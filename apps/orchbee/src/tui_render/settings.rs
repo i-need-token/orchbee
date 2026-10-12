@@ -1,9 +1,7 @@
 //! Scrollable common settings; only rows from the last successful frame authorize clicks.
-#[cfg(test)]
-use crate::native_settings::Row;
 use crate::{
     localization::Locale,
-    native_settings::{DraftView, Token, View},
+    native_settings::{Control, DraftView, Page, Row, Token, View},
     terminal_session::ModalPresentation,
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
@@ -29,6 +27,16 @@ pub(super) fn render(
 ) -> ModalPresentation<Token> {
     hits.start_settings();
     if content.width < 36 || content.height < 10 {
+        if let Some(rect) = super::controls::close(frame, content, theme) {
+            hits.record(
+                HitLayer::Overlay,
+                rect,
+                HitTarget::SettingsControl {
+                    token: view.token(),
+                    control: Control::Close,
+                },
+            );
+        }
         return ModalPresentation::NotPresented;
     }
     let width = content.width.min(92);
@@ -44,7 +52,16 @@ pub(super) fn render(
     let inner = block.inner(area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    if let Some(rect) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
+            HitTarget::SettingsControl {
+                token: view.token(),
+                control: Control::Close,
+            },
+        );
+    }
     if let View::Draft(draft) = view {
         render_draft(frame, inner, draft, locale, theme, hits);
     } else if pending {
@@ -58,12 +75,46 @@ pub(super) fn render(
         Paragraph::new(locale.settings_footer(view)).style(theme.style(Role::HintKey)),
         Rect::new(inner.x, inner.bottom() - 2, inner.width, 1),
     );
-    if !matches!(view, View::Saving { .. }) {
-        frame.render_widget(
-            Paragraph::new(locale.settings_cancel()).style(theme.style(Role::HintKey)),
-            Rect::new(inner.x, inner.bottom() - 1, inner.width, 1),
-        );
+    let row = Rect::new(inner.x, inner.bottom() - 1, inner.width, 1);
+    let child =
+        matches!(view, View::Draft(draft) if draft.text.is_some() || draft.confirmation.is_some());
+    if child {
+        if let Some(buttons) = super::controls::pair(
+            frame,
+            row,
+            [locale.settings_cancel(), locale.settings_accept_button()],
+            theme,
+        ) {
+            for (rect, control) in buttons.into_iter().zip([Control::Back, Control::Accept]) {
+                hits.record(
+                    HitLayer::Overlay,
+                    rect,
+                    HitTarget::SettingsControl {
+                        token: view.token(),
+                        control,
+                    },
+                );
+            }
+        }
+    } else {
+        let back = matches!(view, View::Draft(draft) if draft.page == Page::Profiles);
+        let label = if back {
+            locale.settings_back_button()
+        } else {
+            locale.settings_close_button()
+        };
+        if let Some(rect) = super::controls::button(frame, row, label, theme, false) {
+            hits.record(
+                HitLayer::Overlay,
+                rect,
+                HitTarget::SettingsControl {
+                    token: view.token(),
+                    control: if back { Control::Back } else { Control::Close },
+                },
+            );
+        }
     }
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     ModalPresentation::Presented(view.token())
 }
 fn render_draft(
@@ -80,6 +131,13 @@ fn render_draft(
         .position(|row| *row == draft.selected)
         .unwrap_or(0);
     let visible = usize::from(inner.height.saturating_sub(5));
+    if draft.text.is_none() && draft.confirmation.is_none() {
+        hits.record(
+            HitLayer::OverlaySurface,
+            Rect::new(inner.x, inner.y + 1, inner.width, visible as u16),
+            HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Settings(draft.token)),
+        );
+    }
     let start = selected
         .saturating_sub(visible.saturating_sub(1))
         .min(rows.len().saturating_sub(visible));
@@ -94,6 +152,10 @@ fn render_draft(
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
     for (index, row) in rows.iter().copied().enumerate().skip(start).take(visible) {
+        let adjust = matches!(row, Row::Profile | Row::Argument)
+            && draft.enabled(row)
+            && draft.text.is_none()
+            && draft.confirmation.is_none();
         let value = locale.settings_value(draft, row);
         let label = if value.is_empty() {
             locale.settings_row(row).to_owned()
@@ -121,7 +183,11 @@ fn render_draft(
             Paragraph::new(format!(
                 "{} {}",
                 if row == draft.selected { ">" } else { " " },
-                truncate_display(&label, usize::from(inner.width.saturating_sub(2)), "…")
+                truncate_display(
+                    &label,
+                    usize::from(inner.width.saturating_sub(if adjust { 10 } else { 2 })),
+                    "…"
+                )
             ))
             .style(style),
             row_area,
@@ -129,12 +195,40 @@ fn render_draft(
         if draft.text.is_none() && draft.confirmation.is_none() && draft.enabled(row) {
             hits.record(
                 HitLayer::Overlay,
-                row_area,
+                Rect::new(
+                    row_area.x,
+                    row_area.y,
+                    row_area.width.saturating_sub(if adjust { 8 } else { 0 }),
+                    1,
+                ),
                 HitTarget::SettingsRow {
                     token: draft.token,
                     row,
                 },
             );
+            if adjust && row_area.width >= 10 {
+                for (x, label, forward) in [
+                    (row_area.right() - 7, "[<]", false),
+                    (row_area.right() - 3, "[>]", true),
+                ] {
+                    if let Some(rect) = super::controls::button(
+                        frame,
+                        Rect::new(x, row_area.y, 3, 1),
+                        label,
+                        theme,
+                        false,
+                    ) {
+                        hits.record(
+                            HitLayer::Overlay,
+                            rect,
+                            HitTarget::SettingsControl {
+                                token: draft.token,
+                                control: Control::Adjust { row, forward },
+                            },
+                        );
+                    }
+                }
+            }
         }
     }
     let detail_area = Rect::new(inner.x, inner.bottom() - 4, inner.width, 1);

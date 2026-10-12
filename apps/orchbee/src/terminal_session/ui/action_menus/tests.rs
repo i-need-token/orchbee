@@ -10,6 +10,7 @@ mod quick_create;
 fn arm(ui: &mut NativeUi) -> MenuToken {
     let token = ui.view().action_menu().unwrap().token;
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
+        selected: ui.view().action_menu().unwrap().selected,
         token,
         rows: 64,
     })));
@@ -982,6 +983,7 @@ fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometr
         assert_eq!(
             ui.view().action_menu().unwrap().actions,
             &[
+                MenuAction::Machines,
                 MenuAction::Help,
                 MenuAction::Sidebar,
                 MenuAction::ReleasePointer,

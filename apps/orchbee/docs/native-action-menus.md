@@ -2,7 +2,7 @@
 
 ## Interaction
 
-Windows `Ctrl+B F2` and `[keys].menu` open the global action menu. Unmodified right-click opens a menu for a drawn pane, tab or Workspace
+Windows `Ctrl+B F2`, `[keys].menu` and the upper-right Actions button open the global action menu. In Minimal layout the button overlays the upper-right content cells, leaving the scrollbar column free and preserving terminal dimensions. Unmodified right-click opens a menu for a drawn pane, tab or Workspace
 row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
@@ -34,9 +34,9 @@ direct selected/group Close includes them where applicable. Hidden collapsed mem
 Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the
 selected action. Unmodified, button-free motion selects a painted row without
 executing it; leaving the menu retains selection. A left click on a drawn row
-executes it. Right opens a selected submenu; Left or Esc returns to its parent and restores the
+executes it only after a matching release on that same drawn row. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a pending click. The header X closes the menu; a submenu's Back button returns to its parent. Right opens a selected submenu; Left or Esc returns to its parent and restores the
 selected action. Returning requires a fresh successful paint; old child tokens cannot execute.
-Esc at the root or a click outside cancels. Separators are noninteractive and consume layout rows,
+Esc at the root or a click outside cancels. Wheel outside the list is inert; inside it, each notch contributes three rows to a bounded, viewport-capped stream without wrapping or executing. Reversal drops the previous direction's backlog and retains the first new notch. Separators are noninteractive and consume layout rows,
 while the footer counts actions only. Rows scroll within the menu, leaving the status line visible. A
 fixed footer shows the selected row and total (`current/total`), retaining Esc when
 the Enter hint cannot fit. The menu replaces the entire status row; its full,
@@ -105,12 +105,12 @@ the direct Tab-strip create gesture.
 Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close
 actions. Tab menus expose create, rename and close. Workspace menus expose quick
 create, new tab, directory, rename, Move to Project, Worktree create/open and close. The global menu
-exposes Workspace creation, Worktrees, reload, Settings, help, sidebar, navigator, Agent board,
+exposes Workspace creation, Worktrees, reload, Settings, machine/Workspace/Agent search, help, sidebar, navigator, Agent board,
 pointer release and detach. Close actions still arm the original confirmation; the
 menu never confirms deletion. Settings delegates to its existing editor; checkout deletion, policy editing and custom
 or plugin-defined menus are outside this surface.
 
-When the carrier is unavailable, the global menu keeps only client-local help,
+When the carrier is unavailable, the global menu keeps only client-local search, help,
 sidebar, pointer release and detach. Member menus require a live carrier. An observed
 geometry is required even before the first session state arrives.
 
@@ -181,11 +181,12 @@ cancelling a menu. A new incarnation, removed target, changed structural source,
 unpresentable menu, resize or conflicting capture revokes activation authority.
 
 Hover refines `Select`: it never confirms, navigates or starts an execution deadline.
-Only rows in the last successfully drawn window accept it. Consecutive hovers may
-reuse that window's token until the next draw, but each changed selection mints a
-new token: the old receipt cannot authorize either clicking or Enter. A repeated
-hover on the same row changes nothing. Keyboard selection and availability changes
-discard the hover window as well; a new draw replaces it. Source and geometry
+Only rows in the last successfully drawn window accept it. Hover changes the highlight
+without changing the painted row identity or token, so an immediate complete click
+still activates that exact row across highlight redraws. Keyboard confirmation also
+requires the selected row to match the successful draw receipt's selected row.
+Repeated hover on the same row changes nothing. Keyboard selection and availability
+changes revoke the old token and require a new draw. Source and geometry
 invalidation retain their existing cancellation rules. No hover queue or timer is owned.
 
 With pointer capture enabled, the dispatcher requests DEC `1003` only while a menu

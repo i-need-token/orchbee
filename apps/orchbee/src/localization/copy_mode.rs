@@ -2,6 +2,44 @@ use super::Locale;
 use crate::terminal_copy_mode::CopyModeStatus;
 
 impl Locale {
+    pub(crate) const fn copy_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Copy]",
+            Self::ZhCn => "[复制]",
+        }
+    }
+    pub(crate) const fn copy_select_button(self, selecting: bool) -> &'static str {
+        match (self, selecting) {
+            (Self::EnUs, false) => "[Select]",
+            (Self::EnUs, true) => "[Clear]",
+            (Self::ZhCn, false) => "[选择]",
+            (Self::ZhCn, true) => "[清除]",
+        }
+    }
+    pub(crate) const fn copy_search_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Search]",
+            Self::ZhCn => "[搜索]",
+        }
+    }
+    pub(crate) const fn copy_find_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Find]",
+            Self::ZhCn => "[查找]",
+        }
+    }
+    pub(crate) const fn copy_cancel_search_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Back]",
+            Self::ZhCn => "[返回]",
+        }
+    }
+    pub(crate) const fn copy_help_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Help]",
+            Self::ZhCn => "[帮助]",
+        }
+    }
     pub(crate) const fn copy_mode_label(
         self,
         status: CopyModeStatus,
@@ -29,8 +67,8 @@ impl Locale {
     }
     pub(crate) const fn copy_mode_hint(self, searching: bool, full: bool) -> &'static str {
         match (self, searching, full) {
-            (Self::EnUs, true, _) => "Enter search · Esc exit",
-            (Self::ZhCn, true, _) => "Enter 搜索 · Esc 退出",
+            (Self::EnUs, true, _) => "Enter search · Ctrl+G back · Esc exit",
+            (Self::ZhCn, true, _) => "Enter 搜索 · Ctrl+G 返回 · Esc 退出",
             (Self::EnUs, false, true) => "arrows · v select · y copy · / search · F1 · Esc exit",
             (Self::ZhCn, false, true) => "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出",
             (Self::EnUs, false, false) => "v · y · / · F1 · Esc exit",

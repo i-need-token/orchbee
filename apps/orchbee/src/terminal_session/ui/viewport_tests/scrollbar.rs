@@ -166,10 +166,16 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
                     )
                 );
                 for y in content.y..content.bottom() {
+                    let menu =
+                        map.hit_target_at(content.right() - 1, y) == Some(&HitTarget::MenuButton);
+                    if menu {
+                        assert_eq!(areas.tier, crate::tui_layout::ViewportTier::Minimal);
+                        assert_eq!(y, content.y);
+                    }
                     assert_eq!(
                         buffer[(content.right() - 1, y)].symbol(),
-                        "x",
-                        "last terminal column remains visible"
+                        if menu { "]" } else { "x" },
+                        "only the Minimal Actions overlay may cover terminal cells"
                     );
                 }
                 assert_eq!(

@@ -22,6 +22,7 @@ use crate::{
 };
 use orchbee_terminal_protocol::TerminalTextRow;
 use std::{num::NonZeroU64, sync::Arc};
+mod pointer;
 
 #[derive(Clone)]
 struct PendingQuery {
@@ -164,20 +165,18 @@ impl Coordinator {
         }
     }
 
-    fn view(&self) -> Option<CopyModeView<'_>> {
+    pub(super) fn view(&self) -> Option<CopyModeView<'_>> {
         let episode = self.episode.as_ref()?;
         let mut view = match &episode.state {
-            EpisodeState::Entering(_) => CopyModeView {
-                status: crate::terminal_copy_mode::CopyModeStatus::Entering,
-                cursor: None,
-                selecting: false,
-                search: None,
-            },
+            EpisodeState::Entering(_) => CopyModeView::entering(episode.id),
             EpisodeState::Active(mode) => mode.view(),
         };
         if self.surface_pending && matches!(&episode.state, EpisodeState::Active(_)) {
             view.status = crate::terminal_copy_mode::CopyModeStatus::Moving;
             view.cursor = None;
+            if let Some(token) = &mut view.pointer {
+                token.pending();
+            }
         }
         Some(view)
     }
@@ -517,6 +516,11 @@ impl NativeUi {
         let Some(key) = copy_mode_key(*event) else {
             return true;
         };
+        self.apply_copy_action(key);
+        true
+    }
+
+    fn apply_copy_action(&mut self, key: CopyModeKey) {
         let result = match key {
             CopyModeKey::Left => self.copy_direct_move(-1, 0),
             CopyModeKey::Right => self.copy_direct_move(1, 0),
@@ -554,13 +558,12 @@ impl NativeUi {
             }
             CopyModeKey::Exit => {
                 self.cancel_copy_mode();
-                return true;
+                return;
             }
             CopyModeKey::Help => Ok(()),
         };
         self.settle_copy_refusal(result.err());
         self.drive_copy_effects();
-        true
     }
 
     pub(in crate::terminal_session) fn capture_copy_mode_paste(
@@ -876,6 +879,12 @@ impl NativeUi {
             return;
         }
         let (code, modifiers) = event.normalized();
+        if (code, modifiers) == (KeyCode::Char('g'), Modifiers::CTRL) {
+            if let Some(mode) = self.copy_mode.mode_mut() {
+                mode.cancel_search();
+            }
+            return;
+        }
         if (code, modifiers) == (KeyCode::Char('m'), Modifiers::CTRL) {
             let result = self
                 .copy_mode

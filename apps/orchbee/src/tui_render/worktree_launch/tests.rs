@@ -129,10 +129,9 @@ fn bare_and_missing_checkout_paths_are_visible_without_activation_hits() {
     for row in 2..6 {
         assert!(matches!(
             map.hit_target_at(inner.x, inner.y + row),
-            Some(HitTarget::Worktree {
-                control: ModalControl::Surface,
-                ..
-            })
+            Some(HitTarget::ListScroll(
+                crate::tui_pointer::ListScrollTarget::Worktree(_)
+            ))
         ));
     }
     assert!(matches!(

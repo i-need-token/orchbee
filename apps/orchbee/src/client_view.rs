@@ -401,6 +401,8 @@ pub(crate) struct ClientView {
     prefix_active: bool,
     #[cfg(windows)]
     resize_mode: bool,
+    #[cfg(windows)]
+    pub(crate) resize_pointer_fine: bool,
     /// Read-only projection of the session-owned copy episode, used only for discovery.
     #[cfg(windows)]
     copy_mode_active: bool,
@@ -464,6 +466,8 @@ impl ClientView {
             prefix_active: false,
             #[cfg(windows)]
             resize_mode: false,
+            #[cfg(windows)]
+            resize_pointer_fine: false,
             #[cfg(windows)]
             copy_mode_active: false,
             #[cfg(windows)]
@@ -643,6 +647,7 @@ impl ClientView {
 
     #[cfg(windows)]
     pub(crate) fn exit_resize_mode(&mut self) {
+        self.resize_pointer_fine = false;
         if self.resize_mode {
             self.resize_mode = false;
             if self.overlay == Some(Overlay::ShortcutHelp) {

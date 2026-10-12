@@ -65,6 +65,7 @@ pub(crate) enum NativeSetupEdit<'a> {
     Completeness(bool),
     SelectPreviousProject,
     SelectNextProject,
+    ScrollProjects { up: bool, lines: usize },
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeLocationLabelTarget {
@@ -265,6 +266,7 @@ impl NativeSessionState {
         &mut self,
         token: NativeSetupToken,
         up: bool,
+        lines: usize,
     ) -> bool {
         if !self
             .setup
@@ -274,14 +276,7 @@ impl NativeSessionState {
         {
             return false;
         }
-        self.edit_setup_draft(
-            token,
-            if up {
-                NativeSetupEdit::SelectPreviousProject
-            } else {
-                NativeSetupEdit::SelectNextProject
-            },
-        )
+        self.edit_setup_draft(token, NativeSetupEdit::ScrollProjects { up, lines })
     }
 
     pub(in crate::terminal_session) fn open_setup_draft(
@@ -508,7 +503,9 @@ impl NativeSessionState {
             }
             NativeSetupEdit::Completeness(value) => draft.complete = value,
             NativeSetupEdit::Fault => draft.faulted = true,
-            NativeSetupEdit::SelectPreviousProject | NativeSetupEdit::SelectNextProject
+            NativeSetupEdit::SelectPreviousProject
+            | NativeSetupEdit::SelectNextProject
+            | NativeSetupEdit::ScrollProjects { .. }
                 if draft.complete
                     && matches!(
                         draft.stage,
@@ -519,11 +516,21 @@ impl NativeSessionState {
                     return false;
                 };
                 let count = draft.project_count();
-                draft.selected = if matches!(edit, NativeSetupEdit::SelectNextProject) {
-                    (draft.selected + 1) % count
-                } else {
-                    (draft.selected + count - 1) % count
+                let selected = match edit {
+                    NativeSetupEdit::ScrollProjects { up: true, lines } => {
+                        draft.selected.saturating_sub(lines)
+                    }
+                    NativeSetupEdit::ScrollProjects { up: false, lines } => draft
+                        .selected
+                        .saturating_add(lines)
+                        .min(count.saturating_sub(1)),
+                    NativeSetupEdit::SelectNextProject => (draft.selected + 1) % count,
+                    _ => (draft.selected + count - 1) % count,
                 };
+                if selected == draft.selected {
+                    return true;
+                }
+                draft.selected = selected;
                 draft.project = draft
                     .baseline
                     .projects()

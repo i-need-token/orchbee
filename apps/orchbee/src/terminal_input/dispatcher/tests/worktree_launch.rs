@@ -112,16 +112,19 @@ impl TerminalInputPort for Port {
         self.selection = i32::try_from(index).unwrap();
         self.submit_worktree(token);
     }
-    fn scroll_worktree(&mut self, token: WorktreeToken, up: bool) {
+    fn scroll_worktree(
+        &mut self,
+        token: WorktreeToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<WorktreeToken> {
         if token == self.token() && self.shown == Some(token) {
-            self.edit_worktree(
-                token,
-                if up {
-                    WorktreeEdit::Previous
-                } else {
-                    WorktreeEdit::Next
-                },
-            );
+            self.selection += if up { -(lines as i32) } else { lines as i32 };
+            self.serial += 1;
+            self.shown = None;
+            Some(self.token())
+        } else {
+            None
         }
     }
     fn invalidate_worktree_display(&mut self) {
@@ -199,10 +202,7 @@ fn painted_choice(dispatcher: &mut InputDispatcher, port: &mut Port, index: usiz
     hits.record(
         HitLayer::OverlaySurface,
         ratatui::layout::Rect::new(2, 2, 30, 9),
-        HitTarget::Worktree {
-            token: port.token(),
-            control: ModalControl::Surface,
-        },
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Worktree(port.token())),
     );
     hits.record(
         HitLayer::Overlay,
@@ -279,7 +279,7 @@ fn open_picker_stale_and_bare_choices_cannot_submit_and_wheel_requires_repaint()
     let mut view = ClientView::new(100);
     painted_choice(&mut dispatcher, &mut port, 0);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<65;6;6M\r");
-    assert_eq!(port.selection, 1);
+    assert_eq!(port.selection, 3);
     assert_eq!(port.submits, 0);
     assert_eq!(dispatcher.epoch, Some(ModalEpoch::Worktree(port.token())));
     port.paint();

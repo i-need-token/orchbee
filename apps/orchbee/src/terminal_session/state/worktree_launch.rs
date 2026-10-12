@@ -112,7 +112,7 @@ impl Launcher {
         self.confirm(token, operation_id, origin)
     }
 
-    pub fn scroll_choices(&mut self, token: WorktreeToken, up: bool) -> bool {
+    pub fn scroll_choices(&mut self, token: WorktreeToken, up: bool, lines: usize) -> bool {
         if self.token() != Some(token)
             || self.shown != Some(token)
             || !self
@@ -121,14 +121,7 @@ impl Launcher {
         {
             return false;
         }
-        self.edit(
-            token,
-            if up {
-                WorktreeEdit::Previous
-            } else {
-                WorktreeEdit::Next
-            },
-        )
+        self.edit(token, WorktreeEdit::ScrollChoices { up, lines })
     }
 
     pub fn visible(&self) -> bool {

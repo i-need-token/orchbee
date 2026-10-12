@@ -93,7 +93,11 @@ fn paint_menu_over_sidebar(
 #[test]
 fn sidebar_menu_overlap_painted_row_dispatches_once_on_either_side_of_sidebar() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for report in [b"\r".as_slice(), b"\x1b[<0;25;12M", b"\x1b[<0;35;12M"] {
+        for report in [
+            b"\r".as_slice(),
+            b"\x1b[<0;25;12M\x1b[<0;25;12m",
+            b"\x1b[<0;35;12M\x1b[<0;35;12m",
+        ] {
             for split in 0..=report.len() {
                 let (mut view, mut port, mut dispatcher) = open_menu();
                 paint_menu_over_sidebar(&view, &mut port, &mut dispatcher, locale);

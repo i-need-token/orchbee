@@ -82,6 +82,8 @@ modal decoder. Names allow 512 Unicode scalars; directory paths allow 4,096 UTF-
 Input remaining in the submission packet cannot confirm another step or reach a terminal.
 Resize, stale draw tokens and late outcomes cannot retarget an action.
 
+Header X and Cancel use the existing cancellation path; form fields are clickable and Submit uses the same owner as Enter. Project rows submit the exact painted choice on matching left release. Wheel only inside the Project list moves by three choices per notch, capped by visible rows per pass and clamped at either end. Any resulting selection requires a new complete draw before confirmation; a wheel followed by Enter in one packet cannot confirm an undrawn choice.
+
 ## Explicit directory and label editing
 
 `Ctrl+B e` accepts the first directory only for an Empty, unconfigured Workspace. The path is an

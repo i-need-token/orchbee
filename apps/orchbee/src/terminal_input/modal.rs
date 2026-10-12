@@ -212,11 +212,9 @@ impl ModalDecoder {
     /// A new read packet begins. A `Released` guard armed at an earlier
     /// boundary ends here; an in-flight frame or an open ESC disambiguation
     /// keeps ownership under its own rules. Called once per `dispatch`
-    /// before the first byte of that packet.
-    pub(super) fn begin_packet(&mut self, now: Instant) -> Vec<ModalInputEvent> {
-        let events = self.tick(now);
+    /// before the first byte of that packet. Ready bytes precede idle timeouts.
+    pub(super) fn begin_packet(&mut self, now: Instant) {
         self.end_released(now);
-        events
     }
 
     /// A boundary without input bytes — an idle `synchronize` — ends a
@@ -340,7 +338,7 @@ impl ModalDecoder {
         now: Instant,
         remaining: usize,
     ) -> (bool, Vec<ModalInputEvent>) {
-        let mut events = self.tick(now);
+        let mut events = Vec::new();
         if self.swallow_lf {
             self.swallow_lf = false;
             if byte == b'\n' {

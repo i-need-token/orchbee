@@ -130,12 +130,12 @@ fn close_controls_require_matching_release_within_every_painted_edge() {
             let press = event(MouseAction::Press, MouseButton::Left, x, y);
             let release = event(MouseAction::Release, MouseButton::Left, x, y);
             assert_eq!(
-                pointer.workspace_close_event(&mut port, press),
+                pointer.confirmation_event(&mut port, press),
                 admitted.then_some(false)
             );
             assert!(port.decisions.is_empty());
             assert_eq!(
-                pointer.workspace_close_event(&mut port, release),
+                pointer.confirmation_event(&mut port, release),
                 admitted.then_some(true)
             );
             assert_eq!(
@@ -146,7 +146,7 @@ fn close_controls_require_matching_release_within_every_painted_edge() {
                     vec![]
                 }
             );
-            assert_eq!(pointer.workspace_close_event(&mut port, release), None);
+            assert_eq!(pointer.confirmation_event(&mut port, release), None);
         }
     }
 }
@@ -161,7 +161,7 @@ fn close_press_never_survives_changed_token_geometry_modifiers_focus_or_capture(
         pointer.set_capture(true);
         pointer.publish(map(token, true, area));
         assert_eq!(
-            pointer.workspace_close_event(
+            pointer.confirmation_event(
                 &mut port,
                 event(MouseAction::Press, MouseButton::Left, 12, 5)
             ),
@@ -193,7 +193,7 @@ fn close_press_never_survives_changed_token_geometry_modifiers_focus_or_capture(
             _ => unreachable!(),
         }
         assert_eq!(
-            pointer.workspace_close_event(&mut port, release),
+            pointer.confirmation_event(&mut port, release),
             Some(true),
             "change {change}"
         );

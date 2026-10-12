@@ -26,6 +26,7 @@ fn status_preserves_mode_help_and_search_caret_across_supported_geometry_and_the
                     CopyModeStatus::Clipboard,
                 ] {
                     let mode = CopyModeView {
+                        pointer: None,
                         status: phase,
                         cursor: None,
                         selecting: true,
@@ -67,6 +68,7 @@ fn status_preserves_mode_help_and_search_caret_across_supported_geometry_and_the
                             frame,
                             frame.area(),
                             CopyModeView {
+                                pointer: None,
                                 status: CopyModeStatus::Ready,
                                 cursor: None,
                                 selecting: false,
@@ -127,6 +129,7 @@ fn a_rejected_search_paste_keeps_the_draft_caret_and_visible_warning() {
                             frame,
                             frame.area(),
                             CopyModeView {
+                                pointer: None,
                                 status: CopyModeStatus::Ready,
                                 cursor: None,
                                 selecting: true,
@@ -195,6 +198,7 @@ fn ready_status_chooses_the_widest_hint_set_that_fits_the_remaining_width() {
                     frame,
                     frame.area(),
                     CopyModeView {
+                        pointer: None,
                         status: CopyModeStatus::Ready,
                         cursor: None,
                         selecting: false,
@@ -253,6 +257,7 @@ fn ready_status_reserves_the_notice_before_choosing_a_hint_set() {
                     frame,
                     frame.area(),
                     CopyModeView {
+                        pointer: None,
                         status: CopyModeStatus::Ready,
                         cursor: None,
                         selecting: false,
@@ -283,6 +288,7 @@ fn saturated_status_content_keeps_one_blank_seam_before_the_hint() {
                     frame,
                     frame.area(),
                     CopyModeView {
+                        pointer: None,
                         status: CopyModeStatus::Ready,
                         cursor: None,
                         selecting: false,
@@ -309,6 +315,7 @@ fn saturated_status_content_keeps_one_blank_seam_before_the_hint() {
                     frame,
                     frame.area(),
                     CopyModeView {
+                        pointer: None,
                         status: CopyModeStatus::Ready,
                         cursor: None,
                         selecting: false,
@@ -348,6 +355,7 @@ fn saturated_status_content_keeps_one_blank_seam_before_the_hint() {
                     frame,
                     frame.area(),
                     CopyModeView {
+                        pointer: None,
                         status: CopyModeStatus::Ready,
                         cursor: None,
                         selecting: false,
@@ -401,6 +409,7 @@ fn copy_cursor_uses_the_whole_content_rect_and_search_owns_the_caret() {
                     frame,
                     area,
                     CopyModeView {
+                        pointer: None,
                         status: CopyModeStatus::Ready,
                         cursor: Some(CopyModeCursor { column: 0, row }),
                         selecting: true,

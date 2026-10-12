@@ -2,7 +2,8 @@ use super::tab_close::{modal_area, set_modal_cursor, wrapped_text_fits};
 use crate::{
     localization::Locale,
     terminal_session::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
-    terminal_text::sanitize_terminal_text,
+    terminal_text::{display_width, sanitize_terminal_text},
+    tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -21,7 +22,9 @@ pub(super) fn render(
     draft: &NativeRenameDraftView<'_>,
     content_area: Rect,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
+    hits.start_modal();
     let mut lines = vec![
         Line::from(locale.rename_title()),
         Line::from(""),
@@ -43,6 +46,12 @@ pub(super) fn render(
         lines.push(Line::from(""));
     }
     lines.push(Line::from(locale.rename_actions()));
+    let labels = [
+        locale.workspace_close_cancel_button(),
+        locale.rename_submit_button(),
+    ];
+    let actions = format!("{}  {}", labels[0], labels[1]);
+    lines.push(Line::from(actions.as_str()));
     let text = Text::from(lines);
     let area = modal_area(content_area, &text);
     let block = super::overlay_surface(theme, true, Padding::horizontal(2));
@@ -56,14 +65,43 @@ pub(super) fn render(
         lines[FIELD] = Line::from(window.display().to_owned());
     }
     let text = Text::from(lines);
-    let complete = wrapped_text_fits(&text, inner);
+    let complete =
+        wrapped_text_fits(&text, inner) && display_width(&actions) <= usize::from(inner.width);
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    if let Some(close) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            close,
+            HitTarget::Rename {
+                token: draft.token(),
+                submit: false,
+            },
+        );
+    }
     if complete {
         frame.render_widget(
             Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
             inner,
         );
+        if let Some(buttons) = super::controls::pair(
+            frame,
+            super::controls::text_row(&text, inner, text.lines.len() - 1),
+            labels,
+            theme,
+        ) {
+            for (rect, submit) in buttons.into_iter().zip([false, true]) {
+                hits.record(
+                    HitLayer::Overlay,
+                    rect,
+                    HitTarget::Rename {
+                        token: draft.token(),
+                        submit,
+                    },
+                );
+            }
+        }
         if let Some(window) = window {
             set_modal_cursor(frame, &text, inner, FIELD, window.cursor_column());
         }

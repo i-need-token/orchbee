@@ -272,6 +272,8 @@ fn group_chord(group: &PrefixGroup) -> String {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct AgentBoardText {
     pub(crate) title: &'static str,
+    pub(crate) open_button: &'static str,
+    pub(crate) refresh_button: &'static str,
     /// No completed read yet — never rendered as "no Agents".
     pub(crate) unread: &'static str,
     pub(crate) in_flight: &'static str,
@@ -380,6 +382,8 @@ impl ShellText<'_> {
 
 const EN_US_BOARD: AgentBoardText = AgentBoardText {
     title: "Agent board",
+    open_button: "[Open]",
+    refresh_button: "[Refresh]",
     unread: "No completed Agent read yet · press r to read",
     in_flight: "Reading Agent sessions…",
     incomplete: "listing incomplete",
@@ -450,6 +454,8 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
 };
 
 const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
+    open_button: "[打开]",
+    refresh_button: "[刷新]",
     title: "智能体看板",
     unread: "尚未完成智能体读取 · 按 r 读取",
     in_flight: "正在读取智能体会话…",
@@ -606,6 +612,14 @@ impl Locale {
         match self {
             Self::EnUs => ("Workspaces / terminals", "Tabs in this location"),
             Self::ZhCn => ("工作区 / 终端", "当前位置的 Tab"),
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) const fn resize_done_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Done]",
+            Self::ZhCn => "[完成]",
         }
     }
 

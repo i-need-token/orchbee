@@ -37,6 +37,8 @@ pub(crate) struct InputDispatcher {
     /// An open confirmation captured the current packet whole, so every
     /// later item of the same read stays swallowed.
     confirm_packet: bool,
+    /// A visible Client control owns the rest of its decision packet.
+    pointer_packet: bool,
     #[cfg(windows)]
     machine_packet: bool,
     #[cfg(windows)]
@@ -321,6 +323,17 @@ impl InputDispatcher {
         now: Instant,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<bool, Error> {
+        self.synchronize_input(view, port, now, mode, true)
+    }
+
+    fn synchronize_input<Port: TerminalInputPort + ?Sized, Error>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+        idle: bool,
+    ) -> Result<bool, Error> {
         self.graphics.tick(now);
         let owned_input = self.decoder.owns_input() || port.settings_active();
         #[cfg(windows)]
@@ -336,10 +349,13 @@ impl InputDispatcher {
         // this call's own reconcile still guards the current packet tail.
         self.decoder.end_released(now);
         let mut changed = self.reconcile(view, port, now);
-        let events = self.decoder.tick(now);
-        changed |= !events.is_empty();
-        self.apply_events(view, port, events, now);
+        if idle {
+            let events = self.decoder.tick(now);
+            changed |= !events.is_empty();
+            self.apply_events(view, port, events, now);
+        }
         self.confirm_packet = false;
+        self.pointer_packet = false;
         self.settings_packet = self.settings_cancel_capture;
         #[cfg(windows)]
         {
@@ -350,11 +366,16 @@ impl InputDispatcher {
             self.menu_packet = self.menu_cancel_capture;
             self.navigator.packet = self.navigator.cancel_capture;
         }
-        for item in self.keys.tick(now) {
-            changed = true;
-            self.handle_item(view, port, now, item, &mut |_, _| Ok(false), mode)?;
+        if idle {
+            for item in self.keys.tick(now) {
+                changed = true;
+                self.handle_item(view, port, now, item, &mut |_, _| Ok(false), mode)?;
+            }
         }
         self.flush_pending(view, port);
+        if idle {
+            changed |= self.pointer.flush_list_scroll(view, port);
+        }
         changed |= self.pointer.tick(view, port, now);
         changed |= self.reconcile(view, port, now);
         let capturing = self.decoder.owns_input() || port.settings_active();
@@ -386,7 +407,9 @@ impl InputDispatcher {
         mut after_layout: impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
-        self.synchronize(view, port, now, mode)?;
+        // Ready bytes resolve pending frames before idle timeouts, and a newly
+        // available reversal precedes draining the previous list burst.
+        self.synchronize_input(view, port, now, mode, input.is_empty())?;
         #[cfg(windows)]
         if self.complete_action_menu(view, port, now, &mut after_layout, mode)?
             == Some(DispatchOutcome::Exit)
@@ -396,8 +419,7 @@ impl InputDispatcher {
         // A new read packet begins: the modal's packet-tail guard ends at
         // this boundary, while an in-flight frame or an open ESC
         // disambiguation keeps ownership under its own rules.
-        let events = self.decoder.begin_packet(now);
-        self.apply_events(view, port, events, now);
+        self.decoder.begin_packet(now);
         for byte in input.iter().copied() {
             self.reconcile(view, port, now);
             let remaining = match self.epoch {
@@ -433,7 +455,7 @@ impl InputDispatcher {
             // A frame opened inside a captured packet carries `owned`
             // provenance: it stays captured even when it completes in a
             // later read, while genuinely later input decodes normally.
-            let owned = self.confirm_packet || self.settings_packet;
+            let owned = self.confirm_packet || self.settings_packet || self.pointer_packet;
             #[cfg(windows)]
             let owned = owned
                 || self.navigator.packet
@@ -455,6 +477,7 @@ impl InputDispatcher {
         self.flush_pending(view, port);
         // Queued pointer gestures and the wheel stream advance at the same
         // packet boundary the modal leases do.
+        let _list_changed = self.pointer.flush_list_scroll(view, port);
         let _changed = self.pointer.tick(view, port, now);
         // The final pointer report may retire an input owner without a
         // following byte. Settle that edge before a frame can be published.
@@ -492,6 +515,7 @@ impl InputDispatcher {
         }
         if let DecodedKind::Focus(focused) = item.kind {
             if !focused {
+                self.pointer.cancel_list_scroll();
                 self.pointer.cancel_modal_press();
                 self.pointer.cancel_scrollbar();
             }
@@ -512,12 +536,22 @@ impl InputDispatcher {
             }
             return Ok(DispatchOutcome::Continue);
         }
+        #[cfg(windows)]
+        let resize_controls = (view.resize_mode() || port.copy_mode_active())
+            && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp);
+        #[cfg(not(windows))]
+        let resize_controls = false;
         if let DecodedKind::Mouse(event) = item.kind
+            && !port.settings_active()
+            && !port.agent_board_input()
+            && !resize_controls
             && self.capture_modal_release(event)
         {
             return Ok(DispatchOutcome::Continue);
         }
         if matches!(&item.kind, DecodedKind::Key(_) | DecodedKind::Paste { .. }) {
+            self.pointer.flush_list_scroll(view, port);
+            self.pointer.cancel_list_scroll();
             self.pointer.cancel_modal_press();
             self.pointer.cancel_scrollbar();
         }
@@ -535,6 +569,7 @@ impl InputDispatcher {
         #[cfg(windows)]
         if let DecodedKind::Mouse(event) = item.kind
             && event.action == super::MouseAction::Release
+            && !port.action_menu_active()
             && self.menu_release.is_some_and(|button| {
                 event.button == button || event.button == super::MouseButton::None
             })
@@ -569,7 +604,8 @@ impl InputDispatcher {
                         }
                     }
                     DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
-                        self.pointer.settings_event(port, event);
+                        let decision = self.pointer.settings_event(port, event);
+                        self.capture_modal_release(event);
                         if event.action == super::MouseAction::Press
                             && matches!(
                                 event.button,
@@ -577,6 +613,8 @@ impl InputDispatcher {
                             )
                         {
                             self.modal_release = Some(event.button);
+                        }
+                        if decision {
                             self.settings_packet = true;
                             self.keys.capture_pending();
                         }
@@ -607,7 +645,14 @@ impl InputDispatcher {
                         }
                     }
                     DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
-                        self.pointer.action_menu_event(port, event);
+                        let decision = self.pointer.action_menu_event(port, event);
+                        if event.action == super::MouseAction::Release
+                            && self.menu_release.is_some_and(|button| {
+                                event.button == button || event.button == super::MouseButton::None
+                            })
+                        {
+                            self.menu_release = None;
+                        }
                         if event.action == super::MouseAction::Press
                             && matches!(
                                 event.button,
@@ -615,6 +660,8 @@ impl InputDispatcher {
                             )
                         {
                             self.menu_release = Some(event.button);
+                        }
+                        if decision {
                             self.menu_packet = true;
                             self.keys.capture_pending();
                         }
@@ -653,7 +700,7 @@ impl InputDispatcher {
             if !self.machine_packet {
                 match item.kind {
                     DecodedKind::Key(key) => view.machines.key(key),
-                    DecodedKind::Mouse(event) => {
+                    DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
                         self.pointer.external_capture_event(event);
                         view.machines.pointer(event);
                     }
@@ -704,7 +751,7 @@ impl InputDispatcher {
         }
         if !self.confirm_packet
             && let DecodedKind::Mouse(event) = item.kind
-            && let Some(decision) = self.pointer.workspace_close_event(port, event)
+            && let Some(decision) = self.pointer.confirmation_event(port, event)
         {
             self.flush_pending(view, port);
             self.confirm_packet = decision;
@@ -724,11 +771,67 @@ impl InputDispatcher {
             self.confirm_packet = true;
             return Ok(DispatchOutcome::Continue);
         }
+        if let DecodedKind::Mouse(event) = item.kind
+            && port.agent_board_input()
+        {
+            self.flush_pending(view, port);
+            let decision = self.pointer.board_event(port, event);
+            self.capture_modal_release(event);
+            if event.action == super::MouseAction::Press
+                && matches!(
+                    event.button,
+                    super::MouseButton::Left
+                        | super::MouseButton::Right
+                        | super::MouseButton::Middle
+                )
+            {
+                self.modal_release = Some(event.button);
+            }
+            if decision {
+                self.pointer_packet = true;
+                self.keys.capture_pending();
+            }
+            self.settle_board_edge(port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        if let DecodedKind::Mouse(event) = item.kind
+            && self.pointer.help_event(view, event)
+        {
+            self.flush_pending(view, port);
+            if event.action == super::MouseAction::Press && event.button == super::MouseButton::Left
+            {
+                self.modal_release = Some(event.button);
+                self.pointer_packet = true;
+                self.keys.capture_pending();
+            }
+            return Ok(DispatchOutcome::Continue);
+        }
         #[cfg(windows)]
         if self.copy_packet || port.copy_mode_active() {
             self.flush_pending(view, port);
             if !self.copy_packet {
                 match &item.kind {
+                    DecodedKind::Mouse(event) => {
+                        if after_layout(view, port)? {
+                            self.pointer.invalidate_map_with_port(port);
+                        }
+                        let decision = self.pointer.copy_event(view, port, *event);
+                        self.capture_modal_release(*event);
+                        if event.action == super::MouseAction::Press
+                            && matches!(
+                                event.button,
+                                super::MouseButton::Left
+                                    | super::MouseButton::Right
+                                    | super::MouseButton::Middle
+                            )
+                        {
+                            self.modal_release = Some(event.button);
+                        }
+                        if decision {
+                            self.copy_packet = true;
+                            self.keys.capture_pending();
+                        }
+                    }
                     DecodedKind::Key(key) if !view.copy_help_key(*key) => {
                         port.capture_copy_mode_key(key);
                     }
@@ -783,6 +886,28 @@ impl InputDispatcher {
         #[cfg(windows)]
         if view.resize_mode() {
             self.flush_pending(view, port);
+            if let DecodedKind::Mouse(event) = item.kind {
+                if after_layout(view, port)? {
+                    self.pointer.invalidate_map_with_port(port);
+                }
+                let decision = self.pointer.resize_event(view, port, event);
+                self.capture_modal_release(event);
+                if event.action == super::MouseAction::Press
+                    && matches!(
+                        event.button,
+                        super::MouseButton::Left
+                            | super::MouseButton::Right
+                            | super::MouseButton::Middle
+                    )
+                {
+                    self.modal_release = Some(event.button);
+                }
+                if decision {
+                    self.pointer_packet = true;
+                    self.keys.capture_pending();
+                }
+                return Ok(DispatchOutcome::Continue);
+            }
             if matches!(item.kind, DecodedKind::Key(event) if event.kind == KeyKind::Release) {
                 return Ok(DispatchOutcome::Continue);
             }
@@ -1528,6 +1653,7 @@ impl InputDispatcher {
             }
             if let ModalInputEvent::Focus(focused) = event {
                 if !focused {
+                    self.pointer.cancel_list_scroll();
                     self.pointer.cancel_modal_press();
                 }
                 port.observe_focus(focused);
@@ -1537,14 +1663,31 @@ impl InputDispatcher {
                 view.report_terminal_input_unavailable();
                 continue;
             }
+            if !matches!(
+                event,
+                ModalInputEvent::Mouse(_) | ModalInputEvent::Completeness(_)
+            ) {
+                if self.pointer.flush_list_scroll(view, port) {
+                    self.epoch = match self.epoch {
+                        Some(ModalEpoch::Setup(_)) => port
+                            .setup_input_context()
+                            .map(|context| ModalEpoch::Setup(context.token())),
+                        #[cfg(windows)]
+                        Some(ModalEpoch::Worktree(_)) => port
+                            .worktree_input_context()
+                            .map(|context| ModalEpoch::Worktree(context.token)),
+                        other => other,
+                    };
+                }
+                self.pointer.cancel_list_scroll();
+            }
             let Some(epoch) = self.epoch else {
                 continue;
             };
             if let ModalInputEvent::Mouse(event) = event {
                 #[cfg(windows)]
                 self.pointer.external_capture_event(event);
-                let decision = !matches!(epoch, ModalEpoch::Rename(_))
-                    && self.pointer.modal_event(port, event);
+                let decision = self.pointer.modal_event(port, event);
                 self.capture_modal_release(event);
                 if event.action == super::MouseAction::Press
                     && matches!(
@@ -1555,9 +1698,6 @@ impl InputDispatcher {
                     )
                 {
                     self.modal_release = Some(event.button);
-                }
-                if matches!(epoch, ModalEpoch::Rename(_)) {
-                    continue;
                 }
                 if decision {
                     self.epoch = None;

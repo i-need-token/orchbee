@@ -155,6 +155,48 @@ pub(crate) struct Navigator {
 }
 
 impl Navigator {
+    pub(crate) fn episode(&self) -> u64 {
+        self.episode
+    }
+
+    pub(crate) fn scroll_row(&self, tabs: bool) -> Option<Row> {
+        let focus = self
+            .focus
+            .as_ref()
+            .filter(|target| matches!(target, Target::Tab(_)) == tabs)
+            .cloned();
+        self.row(focus.or_else(|| self.catalog.as_ref()?.initial(tabs))?)
+    }
+
+    pub(crate) fn scroll(&mut self, row: &Row, up: bool, lines: usize) -> Option<Row> {
+        if !self.accepts(row, false) {
+            return None;
+        }
+        let tabs = matches!(row.target, Target::Tab(_));
+        if self
+            .focus
+            .as_ref()
+            .is_none_or(|focus| matches!(focus, Target::Tab(_)) != tabs)
+        {
+            self.move_focus(
+                if tabs {
+                    Command::Tabs
+                } else {
+                    Command::Locations
+                },
+                1,
+            );
+        }
+        self.move_focus(
+            if up {
+                Command::PagePrevious
+            } else {
+                Command::PageNext
+            },
+            lines.saturating_add(1),
+        );
+        self.scroll_row(tabs)
+    }
     pub(crate) fn open(&mut self) -> bool {
         let Some(episode) = self.episode.checked_add(1) else {
             return false;

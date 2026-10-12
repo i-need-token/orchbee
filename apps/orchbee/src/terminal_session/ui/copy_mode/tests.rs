@@ -1,4 +1,5 @@
 use super::*;
+mod mouse;
 use crate::{
     local_client::test_server::adjustable_operation_clock,
     terminal_input::{

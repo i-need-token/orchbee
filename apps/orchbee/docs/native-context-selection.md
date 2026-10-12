@@ -61,8 +61,11 @@ double prefix. Printable input, signals, paste and unknown keys never reach the 
 | Activate           | Revalidate exact source and membership at NativeUi admission. Existing refresh, mutation and conflicting-selection guards precede any no-op. Return distinct `ExactCurrent`, `Admitted(generation)` or `Refused`; only the first two close. A proven current target submits nothing. Otherwise resolve its current ordinal once and use the existing context/Tab operation.     |
 | Retire             | Esc, an outside press, accepted activation, covering capture or unpresentable geometry clears local capture. Preserve the retiring packet, pending decoder fragments and input fence until a successful fresh frame and fresh packet. A consumed pointer decision separately owns its matching release beyond repaint, ending on release, focus loss or a new qualifying press. |
 
-Pointer rows use their own navigator proof, never the ordinary Tab-strip route. Wheel does not
-dismiss the backdrop or reach the pane; Shift retains the existing host bypass. A refused
+Pointer rows use their own navigator proof, never the ordinary Tab-strip route. Each painted
+column has its own wheel region: one notch moves local focus by three rows without activating,
+coalesced work is capped at one visible column per pass, and reversal discards older work while
+preserving the new notch. The header close control returns to the terminal. Backdrop wheel does
+not dismiss or reach the pane; Shift retains the existing host bypass. A refused
 activation stays open with the existing notice. No target is inferred from a highlighted pending
 selection or an ambiguous `None`/`KeepNavigator`. Existing Session state continues to own
 asynchronous selection, failure, remembered Tab/Panel restoration and accepted side effects.

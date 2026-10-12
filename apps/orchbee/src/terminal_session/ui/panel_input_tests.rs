@@ -1,6 +1,7 @@
 use super::move_membership_tests::ready_ui;
 use super::publication_hint_tests::ready_split_ui;
 use super::*;
+mod resize_controls;
 use crate::client_view::{ClientKey, ClientView};
 use crate::terminal_input::{
     DispatchOutcome, InputDispatcher, TerminalInputPort, TerminalInputUnavailable,
@@ -32,6 +33,12 @@ impl TerminalInputPort for NativePort<'_> {
 
     fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
         self.0.capture_confirmation_key(key)
+    }
+    fn click_tab_close(&mut self, token: NativeCloseConfirmationToken, confirm: bool) {
+        self.0.click_tab_close(token, confirm);
+    }
+    fn click_panel_close(&mut self, token: NativePanelCloseConfirmationToken, confirm: bool) {
+        self.0.click_panel_close(token, confirm);
     }
 
     fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
@@ -104,9 +111,8 @@ fn dispatch_at(
 }
 
 /// The decoder holds a lone `0x1b` for a bounded wait to disambiguate it from
-/// Alt chords and CSI/SS3 frames; only a later packet boundary past the
-/// deadline emits the Esc item. Tests advance the supplied timestamp instead
-/// of sleeping.
+/// Alt chords and CSI/SS3 frames; only an idle boundary past the deadline
+/// emits the Esc item. Tests advance the supplied timestamp instead of sleeping.
 fn settle(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
@@ -149,6 +155,97 @@ fn draw_panel_prompt(ui: &mut NativeUi) {
 }
 
 #[test]
+fn painted_tab_panel_and_rename_buttons_require_an_uninterrupted_release_and_capture_its_tail() {
+    use crate::tui_pointer::{HitMapBuilder, HitTarget};
+    use crate::{localization::Locale, tui_theme::Theme};
+    use ratatui::{Terminal, backend::TestBackend};
+    for (kind, action) in [
+        (0, ClientAction::RequestCloseTab),
+        (1, ClientAction::ClosePanel),
+        (2, ClientAction::RequestRenameTab),
+    ] {
+        for cancel in [false, true] {
+            for interrupt in [false, true] {
+                for locale in [Locale::EnUs, Locale::ZhCn] {
+                    for (width, height) in [(80, 24), (120, 40)] {
+                        let (mut ui, mailbox, _, _) = ready_ui();
+                        let mut view = ClientView::new(width);
+                        let mut dispatcher = InputDispatcher::default();
+                        dispatcher.set_pointer_capture(&mut view, &mut NativePort(&mut ui), true);
+                        ui.apply_client_action(action.clone());
+                        if kind == 2 {
+                            dispatch(&mut dispatcher, &mut view, &mut ui, b"\x15mouse name");
+                        }
+                        dispatcher
+                            .synchronize(
+                                &mut view,
+                                &mut NativePort(&mut ui),
+                                Instant::now(),
+                                &mut |_| Ok::<_, io::Error>(()),
+                            )
+                            .unwrap();
+                        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                        let mut hits = HitMapBuilder::new();
+                        let mut receipt = None;
+                        terminal
+                            .draw(|frame| {
+                                receipt = Some(crate::tui_render::render_terminal_shell(
+                                    frame,
+                                    &view,
+                                    locale,
+                                    Some(crate::terminal_session::TerminalSessionView::Native(
+                                        ui.view(),
+                                    )),
+                                    &Theme::terminal_native(),
+                                    &mut hits,
+                                ));
+                            })
+                            .unwrap();
+                        ui.after_close_draw(receipt.unwrap());
+                        let map = hits.finish();
+                        let (x, y) = (0..height)
+                            .flat_map(|y| (0..width).map(move |x| (x, y)))
+                            .find(|&(x, y)| match (kind, map.hit_target_at(x, y)) {
+                                (0, Some(HitTarget::TabClose { confirm, .. }))
+                                | (1, Some(HitTarget::PanelClose { confirm, .. })) => {
+                                    *confirm != cancel
+                                }
+                                (2, Some(HitTarget::Rename { submit, .. })) => *submit != cancel,
+                                _ => false,
+                            })
+                            .expect("visible decision button");
+                        dispatcher.publish_hit_map(map);
+                        dispatch(
+                            &mut dispatcher,
+                            &mut view,
+                            &mut ui,
+                            format!("\x1b[<0;{};{}M", x + 1, y + 1).as_bytes(),
+                        );
+                        assert!(mailbox.try_recv().unwrap().is_none(), "press cannot commit");
+                        if interrupt {
+                            dispatch(&mut dispatcher, &mut view, &mut ui, b"\x1b[O");
+                        }
+                        dispatch(
+                            &mut dispatcher,
+                            &mut view,
+                            &mut ui,
+                            format!("\x1b[<0;{};{}mTAIL\x02X", x + 1, y + 1).as_bytes(),
+                        );
+                        assert_eq!(
+                            mailbox.try_recv().unwrap().is_some(),
+                            !cancel && !interrupt,
+                            "kind={kind}, cancel={cancel}, interrupt={interrupt}, {width}x{height}, {locale:?}"
+                        );
+                        assert!(mailbox.try_recv().unwrap().is_none());
+                        assert!(!view.prefix_active());
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn drawn_close_confirmation_captures_panel_prefix_keys_and_the_cancel_packet_tail() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
     let mut view = ClientView::new(120);
@@ -167,13 +264,12 @@ fn drawn_close_confirmation_captures_panel_prefix_keys_and_the_cancel_packet_tai
         "panel prefix keys must not reach the mailbox while the close confirmation owns input"
     );
 
-    // The lone Esc resolves once its bounded wait elapses at the next packet
-    // boundary; the tail of the packet it lands with stays captured and
-    // cannot re-arm the prefix.
+    // A ready encoded Escape continuation survives a busy frame; the tail of
+    // its decision packet stays captured and cannot re-arm the prefix.
     let mut now = Instant::now();
     dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x1b", now);
     now += Duration::from_millis(60);
-    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x02X", now);
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"[27u\x02X", now);
     assert!(!confirmation_drawn(&ui));
     assert!(!view.prefix_active());
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -385,12 +481,12 @@ fn panel_close_confirmation_swallows_non_decision_keys_and_the_cancel_packet_tai
     assert!(!view.prefix_active());
     assert!(mailbox.try_recv().unwrap().is_none());
 
-    // Esc cancels once its bounded wait resolves at the next packet boundary;
-    // the tail of the packet it lands with stays captured and cannot re-arm.
+    // A ready encoded Escape continuation cancels after the busy frame; the
+    // rest of that decision packet stays captured and cannot re-arm.
     let mut now = Instant::now();
     dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x1b", now);
     now += Duration::from_millis(60);
-    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x02X", now);
+    dispatch_at(&mut dispatcher, &mut view, &mut ui, b"[27u\x02X", now);
     assert!(!panel_confirmation_drawn(&ui));
     assert!(!view.prefix_active());
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -419,7 +515,7 @@ fn resize_invalidation_blocks_a_drawn_panel_close_until_redrawn() {
     assert!(mailbox.try_recv().unwrap().is_none());
 
     // A fresh matching draw re-arms execution; Esc still cancels instead,
-    // resolving after its bounded wait at the next packet boundary.
+    // resolving after its bounded wait at the next idle boundary.
     draw_panel_prompt(&mut ui);
     let now = Instant::now();
     dispatch_at(&mut dispatcher, &mut view, &mut ui, b"\x1b", now);

@@ -25,6 +25,13 @@ edges — open and close — invalidate the published pointer hit map, so a clic
 vanished board row or pass through the overlay onto a stale foreground region. Names,
 notifications, task sending, scheduling, persistence and new panel creation are excluded.
 
+Visible Open, Refresh and Close buttons share the keyboard owners; the header also has a close
+control. A press arms the exact epoch, selected Agent identity and scroll position, and only a
+matching release inside the still-painted control can invoke it. Keyboard input, focus loss,
+changed geometry or another input owner cancels the press. List wheel uses three rows per notch,
+coalesces at one viewport per pass and keeps the first new notch on reversal. Selection stays in
+the visible window; wheel never jumps to an Agent.
+
 ## State and transition contract
 
 The board runs one lane thread per open epoch: a single active operation with one coalesced pending

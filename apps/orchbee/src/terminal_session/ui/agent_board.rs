@@ -151,13 +151,21 @@ impl NativeUi {
         self.board.is_open() && self.board.select_session(session)
     }
 
-    /// Wheel over the board — scrolls the row window, three rows a notch.
-    pub(in crate::terminal_session) fn agent_board_scroll(&mut self, up: bool) -> bool {
-        if !self.board.is_open() {
-            return false;
-        }
-        self.board.scroll_by(if up { -3 } else { 3 });
-        true
+    pub(in crate::terminal_session) fn scroll_agent_board(
+        &mut self,
+        token: &AgentBoardToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<AgentBoardToken> {
+        self.board.scroll_painted(token, up, lines)
+    }
+
+    pub(in crate::terminal_session) fn click_agent_board_control(
+        &mut self,
+        token: &AgentBoardToken,
+        control: AgentBoardControl,
+    ) {
+        self.board.control(token, control);
     }
 
     /// Backdrop dismissal: a press outside the painted board surface.

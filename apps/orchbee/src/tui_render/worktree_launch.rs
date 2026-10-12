@@ -55,6 +55,7 @@ pub(super) fn render(
         lines.push(Line::from(path_text(source, budget, theme.glyphs.ellipsis)));
     }
     let mut field = None;
+    let mut fields = None;
     match stage {
         WorktreeStage::Branch | WorktreeStage::Base => {
             lines.push(Line::from(locale.worktree_field(WorktreeStage::Branch)));
@@ -76,6 +77,7 @@ pub(super) fn render(
             } else {
                 branch
             });
+            fields = Some([branch, base]);
         }
         _ => {}
     }
@@ -95,7 +97,10 @@ pub(super) fn render(
     }
     lines.push(Line::from(""));
     lines.push(Line::from(locale.worktree_actions(stage)));
-    lines.push(Line::from(locale.setup_cancel_button()));
+    let cancel = locale.worktree_cancel_button(stage);
+    let submit = (stage != WorktreeStage::Preparing).then(|| locale.worktree_submit_button(stage));
+    let actions = submit.map_or_else(|| cancel.to_owned(), |submit| format!("{cancel}  {submit}"));
+    lines.push(Line::from(actions.as_str()));
     let area = modal_area(content, &Text::from(lines.clone()));
     let block = super::overlay_surface(theme, true, Padding::horizontal(2));
     let inner = block.inner(area);
@@ -104,10 +109,12 @@ pub(super) fn render(
         lines[index] = Line::from(window.display().to_owned());
     }
     let text = Text::from(lines);
-    let complete = wrapped_text_fits(&text, inner);
+    let complete =
+        wrapped_text_fits(&text, inner) && display_width(&actions) <= usize::from(inner.width);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    record_close(frame, area, theme, hits, view.token());
     if complete {
         frame.render_widget(
             Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
@@ -116,7 +123,60 @@ pub(super) fn render(
         if let (Some(index), Some(window)) = (field, window.as_ref()) {
             set_modal_cursor(frame, &text, inner, index, window.cursor_column());
         }
-        record_cancel(hits, view.token(), inner, locale);
+        let row = super::controls::text_row(&text, inner, text.lines.len() - 1);
+        if let Some(submit) = submit {
+            if let Some(buttons) = super::controls::pair(frame, row, [cancel, submit], theme) {
+                let primary = if matches!(stage, WorktreeStage::Waiting | WorktreeStage::Result) {
+                    ModalControl::Refresh
+                } else {
+                    ModalControl::Submit
+                };
+                for (rect, control) in buttons.into_iter().zip([ModalControl::Cancel, primary]) {
+                    hits.record(
+                        HitLayer::Overlay,
+                        rect,
+                        HitTarget::Worktree {
+                            token: view.token(),
+                            control,
+                        },
+                    );
+                }
+            }
+        } else if let Some(rect) = super::controls::button(frame, row, cancel, theme, false) {
+            hits.record(
+                HitLayer::Overlay,
+                rect,
+                HitTarget::Worktree {
+                    token: view.token(),
+                    control: ModalControl::Cancel,
+                },
+            );
+        }
+        if let Some(fields) = fields {
+            for index in fields {
+                let row = super::controls::text_row(&text, inner, index);
+                let active = field == Some(index);
+                frame.buffer_mut().set_style(
+                    row,
+                    theme.style(if active {
+                        Role::SurfaceSelection
+                    } else {
+                        Role::SurfaceChrome
+                    }),
+                );
+                if !active {
+                    let label = super::controls::text_row(&text, inner, index - 1);
+                    hits.record(
+                        HitLayer::Overlay,
+                        Rect::new(label.x, label.y, label.width, row.y - label.y + 1),
+                        HitTarget::Worktree {
+                            token: view.token(),
+                            control: ModalControl::NextField,
+                        },
+                    );
+                }
+            }
+        }
     } else {
         frame.render_widget(
             Paragraph::new(locale.setup_resize_hint()).wrap(Wrap { trim: false }),
@@ -167,6 +227,7 @@ fn render_checkouts<'a>(
     let inner = block.inner(area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    record_close(frame, area, theme, hits, picker.token);
     if inner.width < 20 || inner.height < 7 || count == 0 {
         hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
         frame.render_widget(
@@ -175,15 +236,12 @@ fn render_checkouts<'a>(
         );
         return (area, ModalPresentation::NotPresented);
     }
+    let capacity = usize::from((inner.height - 5) / 2);
     hits.record(
         HitLayer::OverlaySurface,
-        area,
-        HitTarget::Worktree {
-            token: picker.token,
-            control: ModalControl::Surface,
-        },
+        Rect::new(inner.x, inner.y + 2, inner.width, (capacity * 2) as u16),
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Worktree(picker.token)),
     );
-    let capacity = usize::from((inner.height - 5) / 2);
     let start = picker
         .selected
         .saturating_sub(capacity / 2)
@@ -264,6 +322,7 @@ fn render_checkouts<'a>(
     lines.push(Line::from(locale.setup_cancel_button()));
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
     record_cancel(hits, picker.token, inner, locale);
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     (area, ModalPresentation::Presented(picker.token))
 }
 
@@ -273,6 +332,24 @@ fn record_cancel(hits: &mut HitMapBuilder, token: WorktreeToken, inner: Rect, lo
         hits.record(
             HitLayer::Overlay,
             Rect::new(inner.x, inner.bottom() - 1, width, 1),
+            HitTarget::Worktree {
+                token,
+                control: ModalControl::Cancel,
+            },
+        );
+    }
+}
+fn record_close(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+    token: WorktreeToken,
+) {
+    if let Some(rect) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
             HitTarget::Worktree {
                 token,
                 control: ModalControl::Cancel,

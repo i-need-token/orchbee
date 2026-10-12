@@ -67,7 +67,7 @@ pub(super) fn render(
     let block =
         super::overlay_surface(theme, true, Padding::horizontal(1)).title(truncate_display(
             &title,
-            usize::from(area.width.saturating_sub(2)),
+            usize::from(area.width.saturating_sub(6)),
             theme.glyphs.ellipsis,
         ));
     let inner = block.inner(area);
@@ -102,6 +102,21 @@ pub(super) fn render(
     }
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    if let Some(rect) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
+            HitTarget::ActionMenuControl {
+                token: menu.token,
+                back: false,
+            },
+        );
+    }
+    hits.record(
+        HitLayer::OverlaySurface,
+        Rect::new(inner.x - 1, inner.y, inner.width + 2, rows as u16),
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Menu(menu.token)),
+    );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     let mut painted_rows = 0;
     let mut used_rows = 0;
@@ -196,7 +211,12 @@ pub(super) fn render(
             || usize::from(hints_width) < Line::raw(locale.menu_footer(false)).width(),
     );
     frame.render_widget(
-        Paragraph::new(footer).style(theme.style(Role::HintKey)),
+        Paragraph::new(if menu.has_parent && !menu.transferring {
+            ""
+        } else {
+            footer
+        })
+        .style(theme.style(Role::HintKey)),
         Rect::new(inner.x, inner.bottom() - 1, hints_width, 1),
     );
     frame.render_widget(
@@ -208,8 +228,28 @@ pub(super) fn render(
             1,
         ),
     );
+    if menu.has_parent
+        && !menu.transferring
+        && let Some(rect) = super::controls::button(
+            frame,
+            Rect::new(inner.x, inner.bottom() - 1, hints_width, 1),
+            locale.menu_back_button(),
+            theme,
+            false,
+        )
+    {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
+            HitTarget::ActionMenuControl {
+                token: menu.token,
+                back: true,
+            },
+        );
+    }
     ModalPresentation::Presented(MenuDraw {
         token: menu.token,
+        selected: menu.selected,
         rows: painted_rows,
     })
 }

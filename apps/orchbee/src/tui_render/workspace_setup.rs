@@ -77,7 +77,7 @@ pub(super) fn render(
         draft.stage(),
         NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
     ) {
-        return render_quick(frame, locale, draft, content_area, theme);
+        return render_quick(frame, locale, draft, content_area, theme, hits);
     }
     if matches!(
         draft.stage(),
@@ -87,6 +87,7 @@ pub(super) fn render(
             Line::from(locale.setup_title(draft.stage())),
             Line::from(""),
             Line::from(locale.quick_workspace_preparing_actions()),
+            Line::from(locale.setup_cancel_button()),
         ]);
         let (area, complete) = render_content(
             frame,
@@ -96,6 +97,27 @@ pub(super) fn render(
             None,
             theme,
         );
+        hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+        record_close(frame, area, theme, hits, draft.token());
+        if complete {
+            let inner = overlay_block(theme).inner(area);
+            if let Some(rect) = super::controls::button(
+                frame,
+                Rect::new(inner.x, inner.bottom() - 1, inner.width, 1),
+                locale.setup_cancel_button(),
+                theme,
+                false,
+            ) {
+                hits.record(
+                    HitLayer::Overlay,
+                    rect,
+                    HitTarget::Setup {
+                        token: draft.token(),
+                        control: ModalControl::Cancel,
+                    },
+                );
+            }
+        }
         return (
             area,
             if complete {
@@ -208,6 +230,7 @@ pub(super) fn render(
         theme,
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    record_close(frame, area, theme, hits, draft.token());
     if complete {
         let inner = overlay_block(theme).inner(area);
         record_buttons(hits, draft.token(), inner, locale);
@@ -257,6 +280,7 @@ fn render_projects<'a>(
     let inner = block.inner(area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    record_close(frame, area, theme, hits, picker.token);
     if inner.width < 20 || inner.height < 6 || count == 0 {
         hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
         frame.render_widget(
@@ -265,15 +289,12 @@ fn render_projects<'a>(
         );
         return (area, ModalPresentation::NotPresented);
     }
+    let capacity = usize::from(inner.height - 5);
     hits.record(
         HitLayer::OverlaySurface,
-        area,
-        HitTarget::Setup {
-            token: picker.token,
-            control: ModalControl::Surface,
-        },
+        Rect::new(inner.x, inner.y + 2, inner.width, capacity as u16),
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Setup(picker.token)),
     );
-    let capacity = usize::from(inner.height - 5);
     let start = picker
         .selected
         .saturating_sub(capacity / 2)
@@ -353,6 +374,7 @@ fn render_projects<'a>(
             control: ModalControl::Cancel,
         },
     );
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     (area, ModalPresentation::Presented(picker.token))
 }
 
@@ -391,6 +413,7 @@ fn render_quick(
     draft: &NativeSetupDraftView<'_>,
     content_area: Rect,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<NativeSetupToken>) {
     let project = draft.project_label().unwrap_or(locale.setup_ungrouped());
     let directory_active = draft.stage() == NativeSetupStage::QuickDirectory;
@@ -421,6 +444,9 @@ fn render_quick(
     if draft.faulted() {
         lines.push(Line::from(locale.setup_fault()));
     }
+    let labels = [locale.setup_cancel_button(), locale.setup_submit_button()];
+    let actions = format!("{}  {}", labels[0], labels[1]);
+    lines.push(Line::from(actions.as_str()));
     let area = modal_area(content_area, &Text::from(lines.clone()));
     let block = overlay_block(theme);
     let inner = block.inner(area);
@@ -433,14 +459,42 @@ fn render_quick(
         lines[7] = Line::from(window.display().to_owned());
     }
     let text = Text::from(lines);
-    let complete = name.is_some() && directory.is_some() && wrapped_text_fits(&text, inner);
+    let complete = name.is_some()
+        && directory.is_some()
+        && wrapped_text_fits(&text, inner)
+        && display_width(&actions) <= usize::from(inner.width);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    record_close(frame, area, theme, hits, draft.token());
     if complete {
         frame.render_widget(
             Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
             inner,
         );
+        record_buttons(hits, draft.token(), inner, locale);
+        for (index, active) in [(5, !directory_active), (7, directory_active)] {
+            let row = super::controls::text_row(&text, inner, index);
+            frame.buffer_mut().set_style(
+                row,
+                theme.style(if active {
+                    Role::SurfaceSelection
+                } else {
+                    Role::SurfaceChrome
+                }),
+            );
+            if !active {
+                let label = super::controls::text_row(&text, inner, index - 1);
+                hits.record(
+                    HitLayer::Overlay,
+                    Rect::new(label.x, label.y, label.width, row.y - label.y + 1),
+                    HitTarget::Setup {
+                        token: draft.token(),
+                        control: ModalControl::NextField,
+                    },
+                );
+            }
+        }
         if let Some(window) = if directory_active {
             directory.as_ref()
         } else {
@@ -474,6 +528,25 @@ fn render_quick(
 
 fn overlay_block(theme: &Theme) -> Block<'static> {
     super::overlay_surface(theme, true, Padding::horizontal(2))
+}
+
+fn record_close(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+    token: NativeSetupToken,
+) {
+    if let Some(rect) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
+            HitTarget::Setup {
+                token,
+                control: ModalControl::Cancel,
+            },
+        );
+    }
 }
 
 fn render_content(

@@ -19,6 +19,89 @@ fn draft() -> Editor {
     editor.edit(Edit::Adjust(true));
     editor
 }
+
+#[test]
+fn profile_arrows_and_child_buttons_are_disjoint_complete_controls_at_small_geometry() {
+    for (width, height) in [(36, 10), (58, 12), (120, 40)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [
+                Theme::one_dark(),
+                Theme::one_light(),
+                Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome),
+            ] {
+                let mut editor = draft();
+                editor.edit(Edit::Select(Row::LaunchProfiles));
+                editor.edit(Edit::Activate);
+                editor.edit(Edit::Select(Row::AddProfile));
+                editor.edit(Edit::Activate);
+                for child in [false, true] {
+                    editor.edit(Edit::Select(if child {
+                        Row::ProfileName
+                    } else {
+                        Row::Profile
+                    }));
+                    if child {
+                        editor.edit(Edit::Activate);
+                    }
+                    let view = editor.view().unwrap();
+                    let token = view.token();
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    terminal
+                        .draw(|frame| {
+                            assert_eq!(
+                                render(frame, frame.area(), view, false, locale, &theme, &mut hits),
+                                ModalPresentation::Presented(token)
+                            );
+                        })
+                        .unwrap();
+                    let map = hits.finish();
+                    let controls = if child {
+                        [Control::Back, Control::Accept]
+                    } else {
+                        [
+                            Control::Adjust {
+                                row: Row::Profile,
+                                forward: false,
+                            },
+                            Control::Adjust {
+                                row: Row::Profile,
+                                forward: true,
+                            },
+                        ]
+                    };
+                    for control in controls.into_iter().chain([Control::Close]) {
+                        let target = HitTarget::SettingsControl { token, control };
+                        let cells: Vec<_> = (0..height)
+                            .flat_map(|y| (0..width).map(move |x| (x, y)))
+                            .filter(|&(x, y)| map.hit_target_at(x, y) == Some(&target))
+                            .collect();
+                        assert!(
+                            cells.len() >= 3,
+                            "{control:?} at {width}x{height} {locale:?}"
+                        );
+                        let text: String = cells
+                            .iter()
+                            .map(|&(x, y)| terminal.backend().buffer()[(x, y)].symbol())
+                            .collect();
+                        assert!(
+                            text.starts_with('[') && text.ends_with(']'),
+                            "complete button {text:?}"
+                        );
+                    }
+                    assert_eq!(
+                        (0..height).any(|y| (0..width).any(|x| matches!(
+                            map.hit_target_at(x, y),
+                            Some(HitTarget::SettingsRow { .. })
+                        ))),
+                        !child,
+                        "a child editor cannot expose underlying actions"
+                    );
+                }
+            }
+        }
+    }
+}
 #[test]
 fn settings_scrolls_every_common_row_into_a_frame_bound_target_in_both_locales_and_themes() {
     for (width, height) in [(36, 10), (58, 10), (80, 24), (120, 40)] {

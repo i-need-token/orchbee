@@ -482,7 +482,8 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                     locale.close_set_title(4),
                     locale.close_set_more(1),
                     locale.close_set_warning().to_owned(),
-                    locale.close_actions().to_owned(),
+                    locale.workspace_close_cancel_button().to_owned(),
+                    locale.workspace_close_confirm_button().to_owned(),
                 ] {
                     assert!(compact(&screen).contains(&compact(&required)), "{screen}");
                 }

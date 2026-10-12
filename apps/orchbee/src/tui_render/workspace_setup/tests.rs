@@ -152,10 +152,9 @@ fn missing_project_rows_never_acquire_a_click_target() {
     let map = hits.finish();
     assert!(matches!(
         map.hit_target_at(inner.x, inner.y + 3),
-        Some(HitTarget::Setup {
-            control: ModalControl::Surface,
-            ..
-        })
+        Some(HitTarget::ListScroll(
+            crate::tui_pointer::ListScrollTarget::Setup(_)
+        ))
     ));
     assert!(matches!(
         map.hit_target_at(inner.x, inner.y + 4),

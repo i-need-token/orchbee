@@ -1,6 +1,12 @@
 use super::Locale;
 
 impl Locale {
+    pub(crate) const fn rename_submit_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Enter · rename]",
+            Self::ZhCn => "[Enter · 重命名]",
+        }
+    }
     pub(crate) const fn rename_title(self) -> &'static str {
         match self {
             Self::EnUs => "Rename Tab",

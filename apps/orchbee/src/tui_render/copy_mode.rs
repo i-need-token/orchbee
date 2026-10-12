@@ -1,5 +1,10 @@
 //! Copy cursor and search/status projection; no content, selection or effect authority.
 use crate::{
+    client_view::ClientView,
+    terminal_copy_mode::{CopyControl, CopyModeStatus},
+    tui_pointer::{HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
+};
+use crate::{
     localization::Locale,
     terminal_copy::CopySearchDirection,
     terminal_copy_mode::CopyModeView,
@@ -8,6 +13,124 @@ use crate::{
 };
 use ratatui::{Frame, layout::Rect, style::Modifier, widgets::Clear};
 use unicode_segmentation::UnicodeSegmentation;
+
+pub(super) fn paint_surface(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    mode: CopyModeView<'_>,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    paint_cursor(frame, area, mode, theme);
+    if let Some(token) = mode.pointer
+        && let Some(surface) = token.surface()
+    {
+        let content = Rect::new(
+            area.x,
+            area.y,
+            area.width.min(surface.surface.columns),
+            area.height.min(surface.surface.row_count),
+        );
+        hits.record(
+            HitLayer::ChromeSurface,
+            content,
+            HitTarget::CopySurface {
+                token: surface,
+                area: content,
+            },
+        );
+        hits.record(
+            HitLayer::ChromeSurface,
+            content,
+            HitTarget::ListScroll(ListScrollTarget::Copy(token)),
+        );
+    }
+}
+
+pub(super) fn render_controls(
+    frame: &mut Frame<'_>,
+    view: &ClientView,
+    mode: CopyModeView<'_>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let area = super::controls::mode_bar(frame.area(), view.sidebar_surface());
+    let Some(token) = mode.pointer else {
+        return;
+    };
+    if area.is_empty() {
+        return;
+    }
+    hits.cover_chrome(area);
+    frame.render_widget(Clear, area);
+    frame
+        .buffer_mut()
+        .set_style(area, theme.style(Role::SurfaceChrome));
+    let Some(close) = super::controls::close(frame, area, theme) else {
+        return;
+    };
+    hits.record(
+        HitLayer::Chrome,
+        close,
+        HitTarget::CopyControl {
+            token,
+            control: CopyControl::Exit,
+        },
+    );
+    let mut remaining = Rect::new(area.x, area.y, close.x.saturating_sub(area.x + 1), 1);
+    let ready = mode.status == CopyModeStatus::Ready;
+    let controls = if let Some(search) = mode.search {
+        vec![
+            (locale.copy_find_button(), CopyControl::SubmitSearch, ready),
+            (
+                locale.copy_cancel_search_button(),
+                CopyControl::CancelSearch,
+                true,
+            ),
+            (
+                if search.direction == CopySearchDirection::Forward {
+                    "[>]"
+                } else {
+                    "[<]"
+                },
+                CopyControl::ReverseSearch,
+                ready,
+            ),
+        ]
+    } else {
+        vec![
+            (locale.copy_button(), CopyControl::Copy, ready),
+            (
+                locale.copy_select_button(mode.selecting),
+                CopyControl::ToggleSelection,
+                ready,
+            ),
+            (locale.copy_search_button(), CopyControl::Search, ready),
+            ("[<]", CopyControl::RepeatSearch { reverse: true }, ready),
+            ("[>]", CopyControl::RepeatSearch { reverse: false }, ready),
+            (locale.copy_help_button(), CopyControl::Help, true),
+        ]
+    };
+    for (label, control, enabled) in controls {
+        if let Some(rect) = super::controls::button(frame, remaining, label, theme, false) {
+            if enabled {
+                hits.record(
+                    HitLayer::Chrome,
+                    rect,
+                    HitTarget::CopyControl { token, control },
+                );
+            } else {
+                frame
+                    .buffer_mut()
+                    .set_style(rect, theme.style(Role::TextDisabled));
+            }
+            remaining.x = rect.right() + 1;
+            remaining.width = close.x.saturating_sub(remaining.x + 1);
+        }
+    }
+    hits.record(HitLayer::Chrome, area, HitTarget::OverlaySurface);
+}
 
 pub(super) fn paint_cursor(
     frame: &mut Frame<'_>,

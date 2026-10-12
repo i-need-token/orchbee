@@ -4,6 +4,7 @@ use crate::{
     terminal_session::{
         ModalPresentation, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
     },
+    tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
 };
 use ratatui::{
@@ -24,7 +25,9 @@ pub(super) fn render(
     confirmation: &NativePanelCloseConfirmationView<'_>,
     content_area: Rect,
     theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) -> PanelModalDraw {
+    hits.start_modal();
     let text = confirmation_text(
         locale,
         confirmation.panel_position(),
@@ -37,9 +40,43 @@ pub(super) fn render(
         frame,
         content_area,
         locale.panel_close_resize_hint(),
-        text,
+        text.clone(),
         theme,
     );
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    if let Some(close) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            close,
+            HitTarget::PanelClose {
+                token: confirmation.token(),
+                confirm: false,
+            },
+        );
+    }
+    if complete {
+        let inner = super::overlay_surface(theme, true, Padding::horizontal(2)).inner(area);
+        if let Some(buttons) = super::controls::pair(
+            frame,
+            super::controls::text_row(&text, inner, text.lines.len() - 1),
+            [
+                locale.workspace_close_cancel_button(),
+                locale.workspace_close_confirm_button(),
+            ],
+            theme,
+        ) {
+            for (rect, confirm) in buttons.into_iter().zip([false, true]) {
+                hits.record(
+                    HitLayer::Overlay,
+                    rect,
+                    HitTarget::PanelClose {
+                        token: confirmation.token(),
+                        confirm,
+                    },
+                );
+            }
+        }
+    }
     PanelModalDraw {
         area,
         prompt: if complete {
@@ -68,7 +105,11 @@ fn confirmation_text(
         Line::from(""),
         Line::from(locale.panel_close_warning(dissolves_tab)),
         Line::from(""),
-        Line::from(locale.panel_close_actions()),
+        Line::from(format!(
+            "{}  {}",
+            locale.workspace_close_cancel_button(),
+            locale.workspace_close_confirm_button()
+        )),
     ])
 }
 
@@ -85,7 +126,11 @@ fn render_content(
     let area = modal_area(content_area, &text);
     let block = super::overlay_surface(theme, true, Padding::horizontal(2));
     let inner = block.inner(area);
-    let complete = wrapped_text_fits(&text, inner);
+    let complete = wrapped_text_fits(&text, inner)
+        && text
+            .lines
+            .last()
+            .is_some_and(|line| line.width() <= usize::from(inner.width));
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     if complete {

@@ -9,6 +9,24 @@ use orchbee_workbench_protocol::{
     TerminalDisplayAppearance, UserLaunchCommand,
 };
 impl Locale {
+    pub(crate) fn settings_back_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Esc · back]",
+            Self::ZhCn => "[Esc · 返回]",
+        }
+    }
+    pub(crate) fn settings_accept_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Confirm]",
+            Self::ZhCn => "[确认]",
+        }
+    }
+    pub(crate) fn settings_close_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Esc · close]",
+            Self::ZhCn => "[Esc · 关闭]",
+        }
+    }
     fn setting(self, english: &'static str, chinese: &'static str) -> &'static str {
         match self {
             Self::EnUs => english,
@@ -191,7 +209,7 @@ impl Locale {
         }
     }
     pub(crate) fn settings_cancel(self) -> &'static str {
-        self.setting("Esc back / cancel", "Esc 返回／取消")
+        self.setting("[Cancel]", "[取消]")
     }
     pub(crate) fn settings_pending(self, saving: bool) -> &'static str {
         match (self, saving) {

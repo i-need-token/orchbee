@@ -237,6 +237,14 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 }
 
 pub(crate) trait TerminalInputPort {
+    #[cfg(windows)]
+    fn click_resize_control(
+        &mut self,
+        _target: &crate::tui_layout::DrawnResize,
+        _direction: crate::client_view::PanelDirection,
+        _fine: bool,
+    ) {
+    }
     /// Validate a completed tab-create click; the ordinary action path owns its effects.
     #[cfg(windows)]
     fn tab_create_action(
@@ -253,6 +261,21 @@ pub(crate) trait TerminalInputPort {
     fn settings_text_remaining(&self) -> usize {
         0
     }
+    fn click_settings_control(
+        &mut self,
+        _token: crate::native_settings::Token,
+        _control: crate::native_settings::Control,
+    ) {
+    }
+    fn scroll_settings(
+        &mut self,
+        _token: crate::native_settings::Token,
+        _up: bool,
+        _lines: usize,
+    ) -> Option<crate::native_settings::Token> {
+        None
+    }
+
     fn click_settings(
         &mut self,
         _token: crate::native_settings::Token,
@@ -276,6 +299,17 @@ pub(crate) trait TerminalInputPort {
     fn capture_action_menu_key(&mut self, _event: crate::client_view::KeyEvent) {}
     #[cfg(windows)]
     fn click_action_menu(&mut self, _token: crate::action_menu::MenuToken, _row: usize) {}
+    #[cfg(windows)]
+    fn click_action_menu_control(&mut self, _token: crate::action_menu::MenuToken, _back: bool) {}
+    #[cfg(windows)]
+    fn scroll_action_menu(
+        &mut self,
+        _token: crate::action_menu::MenuToken,
+        _up: bool,
+        _lines: usize,
+    ) -> Option<crate::action_menu::MenuToken> {
+        None
+    }
     #[cfg(windows)]
     fn hover_action_menu(&mut self, _token: crate::action_menu::MenuToken, _row: usize) {}
     #[cfg(windows)]
@@ -401,6 +435,32 @@ pub(crate) trait TerminalInputPort {
     }
 
     #[cfg(windows)]
+    fn click_copy_control(
+        &mut self,
+        _token: crate::terminal_copy_mode::CopyModeToken,
+        _control: crate::terminal_copy_mode::CopyControl,
+    ) {
+    }
+    #[cfg(windows)]
+    fn copy_pointer_cell(
+        &mut self,
+        _token: crate::terminal_copy_mode::CopySurfaceToken,
+        _cell: crate::terminal_copy_mode::CopyModeCursor,
+        _start: bool,
+    ) -> bool {
+        false
+    }
+    #[cfg(windows)]
+    fn scroll_copy_mode(
+        &mut self,
+        _token: crate::terminal_copy_mode::CopyModeToken,
+        _up: bool,
+        _lines: usize,
+    ) -> Option<crate::terminal_copy_mode::CopyModeToken> {
+        None
+    }
+
+    #[cfg(windows)]
     fn capture_copy_mode_key(&mut self, _event: &crate::client_view::KeyEvent) -> bool {
         false
     }
@@ -442,6 +502,20 @@ pub(crate) trait TerminalInputPort {
     }
 
     /// A completed click on an exact, fully painted Workspace/Project close decision.
+    fn click_tab_close(
+        &mut self,
+        _token: crate::terminal_session::NativeCloseConfirmationToken,
+        _confirm: bool,
+    ) {
+    }
+
+    fn click_panel_close(
+        &mut self,
+        _token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        _confirm: bool,
+    ) {
+    }
+
     fn click_workspace_close(
         &mut self,
         _token: crate::terminal_session::WorkspaceCloseToken,
@@ -471,9 +545,19 @@ pub(crate) trait TerminalInputPort {
         false
     }
 
-    /// A wheel notch over the board surface — scrolls its row window.
-    fn agent_board_scroll(&mut self, _up: bool) -> bool {
-        false
+    fn scroll_agent_board(
+        &mut self,
+        _token: &crate::terminal_session::AgentBoardToken,
+        _up: bool,
+        _lines: usize,
+    ) -> Option<crate::terminal_session::AgentBoardToken> {
+        None
+    }
+    fn click_agent_board_control(
+        &mut self,
+        _token: &crate::terminal_session::AgentBoardToken,
+        _control: crate::terminal_session::AgentBoardControl,
+    ) {
     }
 
     /// An outside press dismissed the board's capturing overlay.
@@ -521,7 +605,14 @@ pub(crate) trait TerminalInputPort {
     fn choose_worktree(&mut self, _token: WorktreeToken, _index: usize) {}
     /// Move the picker only while its painted token still matches.
     #[cfg(windows)]
-    fn scroll_worktree(&mut self, _token: WorktreeToken, _up: bool) {}
+    fn scroll_worktree(
+        &mut self,
+        _token: WorktreeToken,
+        _up: bool,
+        _lines: usize,
+    ) -> Option<WorktreeToken> {
+        None
+    }
     #[cfg(windows)]
     fn invalidate_worktree_display(&mut self) {}
 
@@ -543,7 +634,14 @@ pub(crate) trait TerminalInputPort {
     fn choose_setup_project(&mut self, _token: NativeSetupToken, _index: usize) {}
 
     /// Move the Project picker only while its painted token still matches.
-    fn scroll_setup_projects(&mut self, _token: NativeSetupToken, _up: bool) {}
+    fn scroll_setup_projects(
+        &mut self,
+        _token: NativeSetupToken,
+        _up: bool,
+        _lines: usize,
+    ) -> Option<NativeSetupToken> {
+        None
+    }
 
     fn invalidate_setup_display(&mut self) {}
 }

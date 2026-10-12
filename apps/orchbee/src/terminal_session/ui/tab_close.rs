@@ -376,6 +376,25 @@ impl NativeUi {
         Some((mailbox, self.clock.clone()))
     }
 
+    pub(in crate::terminal_session) fn click_tab_close(
+        &mut self,
+        token: NativeCloseConfirmationToken,
+        confirm: bool,
+    ) {
+        if self
+            .state
+            .as_ref()
+            .and_then(|state| state.view().close_confirmation())
+            .is_some_and(|prompt| prompt.token() == token)
+        {
+            self.capture_confirmation_key(if confirm {
+                ClientKey::Plain('y')
+            } else {
+                ClientKey::Escape
+            });
+        }
+    }
+
     pub(in crate::terminal_session) fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
         if self.capture_workspace_close_key(key) {
             return true;

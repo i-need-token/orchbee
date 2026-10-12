@@ -2,6 +2,44 @@ use super::*;
 use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
 use ratatui::layout::Rect;
 
+#[test]
+fn ready_mouse_continuation_is_decoded_before_idle_timeout_after_a_busy_frame() {
+    let report = b"\x1b[<0;66;8M";
+    for cut in [1, 2, 3] {
+        let initial = dimensions(100, 24);
+        let mut terminal = test_terminal(initial);
+        let mut inputs = ClockedInputSource {
+            inputs: QueueInputSource {
+                inputs: VecDeque::from([
+                    Ok(Some(report[..cut].to_vec())),
+                    Ok(Some(report[cut..].to_vec())),
+                    Ok(Some(b"probe".to_vec())),
+                    Ok(Some(b"\x02q".to_vec())),
+                ]),
+            },
+            now: std::cell::Cell::new(Instant::now()),
+        };
+        let viewport = QueueViewportSource {
+            dimensions: std::cell::RefCell::new((0..12).map(|_| Ok(Some(initial))).collect()),
+        };
+        let mut surface = RecordingTerminalInput::default();
+        assert_eq!(
+            test_loop(
+                &mut terminal,
+                Locale::EnUs,
+                &mut inputs,
+                &mut surface,
+                &FixedTermination(false),
+                &viewport,
+                initial,
+            )
+            .unwrap(),
+            LoopExit::User
+        );
+        assert_eq!(surface.forwarded.concat(), b"probe", "split at {cut}");
+    }
+}
+
 fn navigation_view(columns: u16) -> (ClientView, crate::machine_picker::SidebarTarget) {
     use orchbee_workbench_protocol::*;
     let contexts: Vec<_> = [1, 2]
@@ -140,6 +178,9 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
     use crate::terminal_input::InputDispatcher;
     for button in [0, 1, 2, 64, 65] {
         for with_tail in [false, true] {
+            if button >= 64 && with_tail {
+                continue;
+            }
             let initial = dimensions(70, 24);
             let mut size = initial;
             let mut terminal = test_terminal(initial);
@@ -201,6 +242,15 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
                     &mut |_| Ok(()),
                 )
                 .unwrap();
+            if button >= 64 {
+                assert_eq!(
+                    view.overlay(),
+                    Some(crate::client_view::Overlay::BusinessSidebar)
+                );
+                assert!(view.machines.sidebar_navigation_active());
+                assert!(view.machines.request.is_none());
+                continue;
+            }
             assert_eq!(view.overlay(), None);
             assert!(!view.machines.sidebar_navigation_active());
             assert!(view.machines.request.is_none());

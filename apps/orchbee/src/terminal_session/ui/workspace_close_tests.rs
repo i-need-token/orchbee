@@ -364,13 +364,17 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                             + crate::terminal_text::display_width(
                                 locale.workspace_close_confirm_button()
                             )
+                            + 3 // The independent header [x] is also a cancel control.
                     );
                     ui.capture_confirmation_key(ClientKey::Plain('y'));
                     assert!(
                         matches!(mailbox.try_recv().unwrap().unwrap().record(), QueuedCommand::Refresh(marker) if marker.workspace_close().is_some())
                     );
                 } else {
-                    assert_eq!(controls, 0);
+                    assert!(
+                        controls <= 3,
+                        "only the independent header close may remain"
+                    );
                     assert!(ui.view().workspace_close_confirmation().is_none());
                     assert_eq!(mailbox.cursors(), before);
                     assert!(mailbox.try_recv().unwrap().is_none());

@@ -11,6 +11,8 @@ pub(crate) enum Control {
     Scope,
     Order,
     Search,
+    Done,
+    Clear,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Navigation {
@@ -309,6 +311,8 @@ impl Picker {
             }
             Control::Order => self.agent_view.cycle_order(),
             Control::Search => self.editing_query = true,
+            Control::Done => self.editing_query = false,
+            Control::Clear => self.agent_view.query.clear(),
         };
         self.error = None;
         self.spaces.reset();
@@ -320,9 +324,8 @@ impl Picker {
         }
         if self.editing_query {
             match (code, mods) {
-                (KeyCode::Esc, Modifiers::NONE) | (KeyCode::Char('m'), Modifiers::CTRL) => {
-                    self.editing_query = false
-                }
+                (KeyCode::Esc | KeyCode::Enter, Modifiers::NONE)
+                | (KeyCode::Char('m'), Modifiers::CTRL) => self.editing_query = false,
                 (KeyCode::Backspace, Modifiers::NONE) => {
                     self.agent_view.query.pop();
                 }
@@ -383,17 +386,23 @@ impl Picker {
         {
             let width = inner.width / 3;
             let rect = Rect::new(inner.x + index as u16 * width, inner.y, width, 1);
-            frame.render_widget(
-                Paragraph::new(
-                    if control == Control::Order
-                        && self.source_spec().is_some_and(|s| !s.sort.is_empty())
-                    {
-                        format!("s {}", locale.machine_picker_text("agent-source-sort"))
-                    } else {
-                        locale.machine_agent_control(control, &self.agent_view)
-                    },
+            let label = if control == Control::Order
+                && self.source_spec().is_some_and(|s| !s.sort.is_empty())
+            {
+                format!("s {}", locale.machine_picker_text("agent-source-sort"))
+            } else {
+                locale.machine_agent_control(control, &self.agent_view)
+            };
+            let label = format!(
+                "[{}]",
+                crate::terminal_text::truncate_display(
+                    &label,
+                    usize::from(width.saturating_sub(2)),
+                    theme.glyphs.ellipsis
                 )
-                .style(theme.style(Role::AccentFocus)),
+            );
+            frame.render_widget(
+                Paragraph::new(label).style(theme.style(Role::AccentFocus)),
                 rect,
             );
             self.control_hits.push((rect, control));
@@ -407,10 +416,27 @@ impl Picker {
     fn render_agent_query(
         &mut self,
         frame: &mut Frame<'_>,
-        rect: Rect,
+        mut rect: Rect,
         locale: Locale,
         theme: &Theme,
     ) {
+        for control in [Control::Clear, Control::Done] {
+            if control == Control::Done && !self.editing_query {
+                continue;
+            }
+            let label = locale.machine_agent_control(control, &self.agent_view);
+            let width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
+            if rect.width <= width.saturating_add(10) {
+                continue;
+            }
+            let area = Rect::new(rect.right() - width, rect.y, width, 1);
+            if let Some(area) =
+                crate::tui_render::controls::button(frame, area, &label, theme, false)
+            {
+                self.control_hits.push((area, control));
+                rect.width = rect.width.saturating_sub(width + 1);
+            }
+        }
         let heading = format!("/ {}: ", locale.machine_picker_text("agent-search"));
         let mut query = self.agent_view.query.as_str();
         if self.editing_query {

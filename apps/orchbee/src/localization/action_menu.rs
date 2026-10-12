@@ -2,6 +2,12 @@ use super::Locale;
 use crate::action_menu::{MenuAction, MenuUnavailable};
 
 impl Locale {
+    pub(crate) fn menu_back_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "[Back]",
+            Self::ZhCn => "[返回]",
+        }
+    }
     pub(crate) fn tab_drag_hint(self, count: usize, valid: bool) -> String {
         let noun = if count == 1 { "tab" } else { "tabs" };
         match (self, valid) {
@@ -262,6 +268,8 @@ impl Locale {
             (Self::ZhCn, Reload) => "重载配置",
             (Self::EnUs, Settings) => "Settings…",
             (Self::ZhCn, Settings) => "设置…",
+            (Self::EnUs, Machines) => "Search machines, Workspaces and Agents",
+            (Self::ZhCn, Machines) => "搜索机器、工作区和 Agent",
             (Self::EnUs, Help) => "Shortcut help",
             (Self::ZhCn, Help) => "快捷键帮助",
             (Self::EnUs, Sidebar) => "Toggle sidebar",

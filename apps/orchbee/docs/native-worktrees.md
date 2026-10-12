@@ -30,6 +30,8 @@ failed reads and entry failure. Unknown Start is never replayed. Resume, deletio
 and rollback are never implicit. A terminal result can be dismissed before a new explicit operation.
 [Workspace Close](native-workspace-close.md) and checkout deletion are separate intents.
 
+Header X and Cancel use the current stage's cancellation or hide behavior. Editable branch/base fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. Waiting/result surfaces expose Read status and Hide/Close; these never replay Start or cancel accepted Server work.
+
 ## Model and ownership
 
 | Record       | Contract                                                                                                                                |

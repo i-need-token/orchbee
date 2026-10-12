@@ -455,6 +455,20 @@ pub(super) enum JumpStage {
     },
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct AgentBoardToken {
+    epoch: u64,
+    selected: Option<AgentSessionId>,
+    scroll: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentBoardControl {
+    Open,
+    Refresh,
+    Close,
+}
+
 pub(super) struct AgentBoard {
     open: bool,
     /// Bump on every open/close — lane outcomes carrying an older epoch
@@ -499,6 +513,39 @@ pub(super) struct AgentBoard {
 }
 
 impl AgentBoard {
+    fn token(&self) -> AgentBoardToken {
+        AgentBoardToken {
+            epoch: self.epoch,
+            selected: self.selected_row().map(|row| row.session_id.clone()),
+            scroll: self.scroll,
+        }
+    }
+
+    pub(super) fn control(&mut self, token: &AgentBoardToken, control: AgentBoardControl) {
+        if !self.open || *token != self.token() {
+            return;
+        }
+        match control {
+            AgentBoardControl::Open => self.request_jump(),
+            AgentBoardControl::Refresh => self.request_refresh(),
+            AgentBoardControl::Close => self.close(),
+        }
+    }
+
+    pub(super) fn scroll_painted(
+        &mut self,
+        token: &AgentBoardToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<AgentBoardToken> {
+        if !self.open || *token != self.token() {
+            return None;
+        }
+        let lines = isize::try_from(lines).ok()?;
+        self.scroll_by(if up { -lines } else { lines });
+        Some(self.token())
+    }
+
     pub(super) fn new(clock: crate::local_client::LocalOperationClock) -> Self {
         Self {
             open: false,
@@ -671,6 +718,12 @@ impl AgentBoard {
         let visible = self.viewport_rows.max(1);
         let maximum = self.rows.len().saturating_sub(visible);
         self.scroll = self.scroll.saturating_add_signed(delta).min(maximum);
+        // Keep the focus inside the scrolled window so the next draw does not
+        // pull the viewport back to its previous selection.
+        self.selection = self
+            .selection
+            .max(self.scroll)
+            .min((self.scroll + visible - 1).min(self.rows.len().saturating_sub(1)));
     }
 
     pub(super) fn request_refresh(&mut self) {
@@ -1156,6 +1209,9 @@ pub(crate) struct NativeAgentBoardView<'a> {
 }
 
 impl<'a> NativeAgentBoardView<'a> {
+    pub(crate) fn token(&self) -> AgentBoardToken {
+        self.board.token()
+    }
     pub(super) const fn new(board: &'a AgentBoard, index: &'a PresentationIndex) -> Self {
         Self { board, index }
     }

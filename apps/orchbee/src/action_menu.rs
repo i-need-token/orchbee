@@ -102,6 +102,7 @@ pub(crate) enum MenuAction {
     OpenWorktree,
     Reload,
     Settings,
+    Machines,
     Help,
     Sidebar,
     Navigator,
@@ -198,6 +199,7 @@ impl MenuAction {
             Self::OpenWorktree => ClientAction::RequestWorktreeOpen,
             Self::Reload => ClientAction::ReloadConfiguration,
             Self::Settings => ClientAction::OpenSettings,
+            Self::Machines => ClientAction::OpenMachines,
             Self::Help => ClientAction::OpenShortcutHelp,
             Self::Sidebar => ClientAction::ToggleBusinessSidebar,
             Self::Navigator => ClientAction::OpenWorkbenchNavigator,
@@ -254,6 +256,7 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::OpenWorktree,
     MenuAction::Reload,
     MenuAction::Settings,
+    MenuAction::Machines,
     MenuAction::Help,
     MenuAction::Sidebar,
     MenuAction::Navigator,
@@ -269,6 +272,7 @@ pub(crate) struct MenuToken(u64);
 pub(crate) struct MenuDraw {
     pub(crate) token: MenuToken,
     pub(crate) rows: usize,
+    pub(crate) selected: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -279,7 +283,9 @@ pub(crate) enum MenuSelection {
     Last,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct MenuView<'a> {
+    pub(crate) has_parent: bool,
     pub(crate) title: &'a str,
     pub(crate) labels: &'a [Option<String>],
     pub(crate) actions: &'a [MenuAction],
@@ -345,6 +351,7 @@ struct Menu {
     rows: usize,
     token: MenuToken,
     drawn: Option<MenuToken>,
+    painted_selection: usize,
     anchor: Option<(u16, u16)>,
 }
 
@@ -423,6 +430,7 @@ impl ActionMenu {
             rows: 1,
             token: MenuToken(next),
             drawn: None,
+            painted_selection: 0,
             anchor,
         });
         self.confirmed = None;
@@ -453,6 +461,7 @@ impl ActionMenu {
 
     pub(crate) fn view(&self) -> Option<MenuView<'_>> {
         self.menu.as_ref().map(|menu| MenuView {
+            has_parent: false,
             title: &menu.title,
             labels: &menu.labels,
             actions: &menu.actions,
@@ -477,6 +486,7 @@ impl ActionMenu {
             menu.rows = draw.rows;
             menu.first = window_first(menu.first, menu.selected, draw.rows, menu.actions.len());
             menu.drawn = Some(draw.token);
+            menu.painted_selection = draw.selected;
         }
     }
 
@@ -494,6 +504,22 @@ impl ActionMenu {
             MenuSelection::Last => menu.actions.len() - 1,
         };
         self.select_row(selected);
+    }
+
+    pub(crate) fn scroll(&mut self, token: MenuToken, up: bool, lines: usize) -> Option<MenuToken> {
+        let menu = self.menu.as_ref()?;
+        if self.confirmed.is_some() || menu.token != token || menu.drawn != Some(token) {
+            return None;
+        }
+        let selected = if up {
+            menu.selected.saturating_sub(lines)
+        } else {
+            menu.selected
+                .saturating_add(lines)
+                .min(menu.actions.len() - 1)
+        };
+        self.select_row(selected);
+        self.view().map(|view| view.token)
     }
 
     fn select_row(&mut self, selected: usize) {
@@ -548,7 +574,10 @@ impl ActionMenu {
         let Some(menu) = &self.menu else {
             return false;
         };
-        if menu.drawn != Some(menu.token) || menu.unavailable[menu.selected].is_some() {
+        if menu.drawn != Some(menu.token)
+            || menu.painted_selection != menu.selected
+            || menu.unavailable[menu.selected].is_some()
+        {
             return false;
         }
         self.confirmed = Some(menu.actions[menu.selected]);
@@ -557,24 +586,22 @@ impl ActionMenu {
 
     /// Hover uses only the last painted window and never grants execution authority.
     pub(crate) fn hover(&mut self, token: MenuToken, row: usize) {
-        let Some(menu) = &self.menu else {
+        let Some(menu) = &mut self.menu else {
             return;
         };
         if self.confirmed.is_some()
             || menu.drawn != Some(token)
+            || menu.token != token
             || row >= menu.actions.len()
             || row < menu.first
             || row >= menu.first + menu.rows
         {
             return;
         }
-        self.select_row(row);
-        if let Some(menu) = &mut self.menu {
-            // Hover stays within this painted window, so subsequent motion may
-            // reuse its geometry. Confirmation still requires the new token to
-            // be drawn; keyboard/availability changes discard this proof.
-            menu.drawn = Some(token);
-        }
+        // Highlighting an already painted row changes neither its identity nor
+        // its rectangle. Keep pointer authority across the immediate click and
+        // redraw; keyboard confirmation still requires this selection to paint.
+        menu.selected = row;
     }
 
     pub(crate) fn click(&mut self, token: MenuToken, row: usize) -> bool {

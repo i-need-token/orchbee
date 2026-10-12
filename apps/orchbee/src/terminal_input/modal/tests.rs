@@ -47,7 +47,11 @@ fn mouse_reports_keep_one_typed_identity_across_every_split() {
             let mut decoder = ModalDecoder::default();
             decoder.start();
             let mut events = feed(&mut decoder, &report[..split], now, 512);
-            events.extend(feed(&mut decoder, &report[split..], now, 512));
+            // The continuation was ready while rendering occupied the owner.
+            // No idle poll occurred, so elapsed wall time cannot split a report.
+            let later = now + Duration::from_millis(60);
+            decoder.begin_packet(later);
+            events.extend(feed(&mut decoder, &report[split..], later, 512));
             let mice: Vec<_> = events
                 .iter()
                 .filter_map(|event| {
@@ -308,11 +312,7 @@ fn the_released_guard_holds_the_decision_packet_tail_and_ends_only_at_the_bounda
     feed(&mut decoder, b"xy", now + Duration::from_secs(3600), 512);
     decoder.tick(now + Duration::from_secs(7200));
     assert!(decoder.owns_input());
-    assert!(
-        decoder
-            .begin_packet(now + Duration::from_secs(7200))
-            .is_empty()
-    );
+    decoder.begin_packet(now + Duration::from_secs(7200));
     assert!(!decoder.owns_input());
     assert!(!decoder.push(b'z', now + Duration::from_secs(7200), 512).0);
     // A frame started inside the released packet outlives the boundary.
@@ -363,8 +363,11 @@ fn escape_classification_and_completed_handoff_have_the_accepted_late_opener_lim
     assert!(!decoder.owns_input());
     decoder.start();
     feed(&mut decoder, b"\x1b", now + Duration::from_secs(1), 512);
-    let events = feed(&mut decoder, b"[", now + Duration::from_millis(1050), 512);
-    assert_eq!(events, [Event::Cancel]);
+    assert_eq!(
+        decoder.tick(now + Duration::from_millis(1050)),
+        [Event::Cancel]
+    );
+    assert!(feed(&mut decoder, b"[", now + Duration::from_millis(1050), 512).is_empty());
     assert!(decoder.owns_input());
 }
 
@@ -428,6 +431,7 @@ fn escape_disambiguation_owns_the_resolver_but_releases_at_the_boundary() {
     decoder.start();
     decoder.cancel(now);
     feed(&mut decoder, b"\x1b", now, 512);
+    decoder.tick(now + Duration::from_millis(60));
     decoder.begin_packet(now + Duration::from_millis(60));
     assert!(!decoder.owns_input());
     assert!(!decoder.push(b'x', now + Duration::from_millis(60), 512).0);
@@ -484,7 +488,7 @@ fn checked_clock_overflow_cancels_once_and_permanently_suppresses_forwarding() {
     assert!(decoder.tick(limit).is_empty());
     assert!(decoder.owns_input());
     // A packet boundary never revives a suppressed decoder.
-    assert!(decoder.begin_packet(limit).is_empty());
+    decoder.begin_packet(limit);
     assert!(decoder.owns_input());
     assert!(decoder.push(b'z', limit, 512).0);
 }

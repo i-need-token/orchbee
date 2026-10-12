@@ -23,9 +23,32 @@ captures the release packet's keys, paste and pending fragments for both commit 
 Windows [action menus](native-action-menus.md) consume Client-owned right presses before
 ordinary focus. Menu capture cannot replace an existing genuine gesture or wheel stream.
 
-Scroll-indicator jumps, middle-press surfaces,
+Middle-press surfaces,
 pixel-format reports, a selection-copy key binding, triple-press line selection, and Ctrl-hover
 link decoration remain separate decisions.
+
+## Mouse controls across surfaces
+
+Mouse and keyboard enter the same native state owners. Visible bracketed controls and complete rows have exact hit rectangles; disabled, clipped or covered cells cannot activate an underlying target. Local navigation may act on press. Native form, menu, settings, copy, resize and Agent-board buttons wait for a matching plain-left release with the same painted token and rectangle. Keyboard input, focus loss, capture release and changed drawing authority revoke that press. A decision owns its packet tail and late release, then fresh input returns to the retained terminal focus.
+
+| Surface                         | Mouse flow                                                                                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Machine/Workspace/Agent search  | Bracketed categories switch views; complete rows select exact identities. Agent filters, search, Clear/Done and X remain local to the picker.           |
+| Workspace navigator             | X closes; each column has its own scroll area. Scrolling changes local focus without activating a context or Tab.                                       |
+| Shortcut help                   | X and previous/next page controls; wheel inside the document changes one page. Closing restores any underlying copy, resize or sidebar mode.            |
+| Native confirmations and rename | X, Cancel and Confirm/Submit share keyboard owners. Destructive confirmation remains unavailable unless the full warning and action row were drawn.     |
+| Workspace/Worktree forms        | Clickable fields, exact choice rows, Cancel/Submit and stage-specific status/hide controls; accepted operations retain their existing completion owner. |
+| Settings                        | Clickable rows, choice arrows, child Confirm/Cancel, page Back and header X; only Save writes.                                                          |
+| Agent board                     | Full-row selection, Open, Refresh and X; Open addresses the selected stable Agent identity.                                                             |
+| Copy and resize modes           | Pane action menus enter them; mode toolbars, copy drag/scroll and resize directions use their existing native owners.                                   |
+
+Wheel belongs only to the painted list under the pointer; headings, buttons, frame padding and the backdrop are inert. Lists normalize three rows/choices per notch, bound accumulated work and settle at most one painted viewport per pass; Worktree capacity counts its two-line choices. Reversal drops old-direction work while retaining the first opposite notch. A changed owner/source/geometry cancels backlog. Pending list movement settles before a following keyboard decision, and any resulting native draft token still requires its own successful draw. No scroll path executes a row or changes a setting value.
+
+Released capture deliberately returns mouse input to the host. The existing keyboard capture toggle remains the restoration path; local controls cannot reclaim mouse events the host does not send.
+
+When a complete help page cannot fit, the resize notice retains a painted X button. Dismissal still captures the decision packet and restores the underlying mode; widening the window instead restores the retained help page. A refused page cannot leave an invisible mouse owner with only a keyboard exit.
+
+An already-read packet resolves pending input frames before idle decoder timeouts. Rendering or native-state work taking longer than the 50 ms wait must not turn a split mouse report into a lone Escape plus printable coordinates, either in the terminal or in a native form. Only a poll without input expires these waits; an actual idle lone Escape still cancels or forwards through its existing owner. Shell-loop and modal/dispatcher traces cover ready SGR/X10 fragments across a busy frame and retain the idle-Escape witnesses.
 
 ## Sidebar navigation input boundary
 
@@ -41,13 +64,13 @@ dispatching an already-read packet and after layout-changing actions. An absent
 viewport sample uses the last dimensions for this settlement. Hidden geometry
 retires Picker navigation before dispatcher reconciliation captures pending
 fragments. Actual compact-sidebar dismissal retires it in the same local
-transition for every backdrop Press variant. Help retains its underlying sidebar
+transition for ordinary backdrop button presses. Backdrop wheel is inert. Help retains its underlying sidebar
 projection and returns to that surface instead.
 
 Dispatch reconciles the final pointer report before returning for paint, even
-when no following byte exists. A standalone backdrop wheel Press therefore
-retires before PublishFrame, and the next fresh packet is released without an
-extra redraw. The trace covers both this packet boundary and a retained tail.
+when no following byte exists. An ordinary backdrop button press retires before
+PublishFrame; an outside wheel leaves navigation active. The trace covers the
+decision packet boundary, retained tails and fresh input after publication.
 
 The shell regression traces call this real synchronization boundary for resize
 and backdrop Press followed by Enter or split CSI, asserting no Selection and no
@@ -160,19 +183,20 @@ The renderer records each interactive region it paints into a staged `HitMapBuil
 publishes the map only after the frame's draw completes. Regions carry stable identities —
 `WorkbenchTabId`, `NativeContextLocation`, `WorkbenchPanelId` — resolved to positions against a
 fresh probe at click time, so a reorder between paint and click cannot misroute. Layers resolve
-front to back and never overlap within one layer:
+front to back; within a layer, the first matching region wins. Specific controls are recorded
+before any containing surface region:
 
-| Painted surface                          | Layer            | Target                             | Accepted gesture                                                                                                                     |
-| ---------------------------------------- | ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Navigator context row                    | `Overlay`        | `Context(location)`                | Press selects that context (`SelectContextAt`)                                                                                       |
-| Navigator tab row                        | `Overlay`        | `Tab(tab_id)`                      | Press selects that Tab (`SelectTab`)                                                                                                 |
-| Overlay body off every control           | `OverlaySurface` | `OverlaySurface`                   | Swallowed — never reaches the layers beneath                                                                                         |
-| Outside a capturing overlay              | —                | backdrop                           | Press dismisses the overlay; no region beneath — including uncovered foreground chrome like the tab strip or a pane — sees the event |
-| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`                      | Windows plain left press arms a click/drag; release activates or commits once. Non-Windows keeps press selection.                    |
-| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}` + painted source | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection             |
-| Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`                  | Press focuses only; the pane's program sees nothing                                                                                  |
-| Visible Windows pane divider             | `Foreground`     | `Divider(source)`                  | Plain left press starts preview; release applies once; Esc or Shift cancels                                                          |
-| Everything else (status, gaps)           | —                | dead space                         | Ignored                                                                                                                              |
+| Painted surface                          | Layer            | Target                             | Accepted gesture                                                                                                              |
+| ---------------------------------------- | ---------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Navigator context row                    | `Overlay`        | `Context(location)`                | Press selects that context (`SelectContextAt`)                                                                                |
+| Navigator tab row                        | `Overlay`        | `Tab(tab_id)`                      | Press selects that Tab (`SelectTab`)                                                                                          |
+| Overlay body off every control           | `OverlaySurface` | `OverlaySurface`                   | Swallowed — never reaches the layers beneath                                                                                  |
+| Outside a capturing overlay              | —                | backdrop                           | Ordinary button press dismisses; wheel is inert. No region beneath, including uncovered tab chrome or a pane, sees the event. |
+| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`                      | Windows plain left press arms a click/drag; release activates or commits once. Non-Windows keeps press selection.             |
+| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}` + painted source | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection      |
+| Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`                  | Press focuses only; the pane's program sees nothing                                                                           |
+| Visible Windows pane divider             | `Foreground`     | `Divider(source)`                  | Plain left press starts preview; release applies once; Esc or Shift cancels                                                   |
+| Everything else (status, gaps)           | —                | dead space                         | Ignored                                                                                                                       |
 
 A press on a pane region resolves against the _tab that was painted_: a stale-map edge where the
 painted Tab is no longer active degrades to a plain Tab selection rather than focusing an
@@ -183,8 +207,7 @@ The Windows navigator replaces the two legacy navigator targets above with
 primary press on that exact row can request activation; keyboard Enter additionally requires
 the painted focus. The [navigator contract](native-context-selection.md#windows-capturing-navigator)
 owns admission and cancellation. Backdrop presses dismiss without click-through, except wheel
-and the existing Shift host bypass. Wheel and modified/right row presses are consumed without
-activation. A consumed row/backdrop decision owns its matching release after a successful fresh
+and the existing Shift host bypass. Wheel scrolls only its painted column without activation; modified/right row presses do not activate. A consumed row/backdrop decision owns its matching release after a successful fresh
 frame; release, host focus loss or a new qualifying non-Shift press clears that ownership.
 Paint retirement alone cannot clear it. Entry cancels the existing gesture through its cleanup
 owner, without copying/exporting selection or flushing queued pane mouse input.
@@ -220,9 +243,7 @@ notice. A completed click may be replaced by a new press on the same painted pan
 admission, but repeated presses without release cannot replace it, reset that deadline, or bypass
 the queue bound. A same-epoch local focus that reuses the installed attachment admits identically.
 
-Modal input capture (a draft or an armed confirmation) swallows pointer events without gestures;
-the modal's own outside-click rules are unchanged — ordinary overlays dismiss on an outside
-press, modal surfaces swallow it.
+Modal input capture gives its painted controls exclusive pointer ownership; no gesture reaches the pane underneath. Ordinary overlays dismiss on an outside button press; modal surfaces swallow it. Wheel outside a painted list is inert.
 
 ## Pane passthrough
 

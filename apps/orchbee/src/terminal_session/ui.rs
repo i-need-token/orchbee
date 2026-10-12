@@ -110,8 +110,8 @@ mod startup_preference;
 mod switch_membership;
 
 pub(crate) use super::agent_board::{
-    AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow, AgentBoardSummary,
-    JumpFailure, NativeAgentBoardView, PresentationPlacement,
+    AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
+    AgentBoardSummary, AgentBoardToken, JumpFailure, NativeAgentBoardView, PresentationPlacement,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -324,7 +324,7 @@ pub(crate) struct NativeSessionView<'a> {
     settings: Option<&'a settings::Coordinator>,
     completion_reminder: Option<&'a super::completion_reminders::Reminder>,
     #[cfg(windows)]
-    menu: Option<&'a crate::action_menu::ActionMenu>,
+    menu: Option<&'a action_menus::Coordinator>,
     state: Option<StateSessionView<'a>>,
     panes: &'a [KeyedProjection],
     retained_frames: Option<retained_frames::RetainedView<'a>>,
@@ -336,7 +336,7 @@ pub(crate) struct NativeSessionView<'a> {
     worktree: Option<&'a crate::terminal_session::state::worktree_launch::Launcher>,
     board_summary: Option<&'a AgentBoardSummary>,
     #[cfg(windows)]
-    copy_mode: Option<crate::terminal_copy_mode::CopyModeView<'a>>,
+    copy_mode: Option<&'a copy_mode::Coordinator>,
     attention: Option<&'a super::agent_attention::AgentAttention>,
     #[cfg(windows)]
     reports: Option<&'a super::panel_reports::PanelReports>,
@@ -839,8 +839,8 @@ impl<'a> NativeSessionView<'a> {
     }
 
     #[cfg(windows)]
-    pub(crate) const fn copy_mode(&self) -> Option<crate::terminal_copy_mode::CopyModeView<'a>> {
-        self.copy_mode
+    pub(crate) fn copy_mode(&self) -> Option<crate::terminal_copy_mode::CopyModeView<'a>> {
+        self.copy_mode.and_then(copy_mode::Coordinator::view)
     }
 }
 
@@ -1241,7 +1241,7 @@ impl NativeUi {
             board: self.agent_board_view(),
             board_summary: self.board.summary(),
             #[cfg(windows)]
-            copy_mode: self.copy_mode_view(),
+            copy_mode: Some(&self.copy_mode),
             attention: Some(&self.attention),
             #[cfg(windows)]
             reports: state
@@ -1261,7 +1261,7 @@ impl NativeUi {
             #[cfg(windows)]
             worktree: Some(&self.worktrees.launcher),
             #[cfg(windows)]
-            menu: Some(&self.menus.menu),
+            menu: Some(&self.menus),
             settings: Some(&self.settings),
             completion_reminder: self
                 .retirement

@@ -131,6 +131,9 @@ pub(crate) struct Picker {
     pending_navigation: Option<Navigation>,
     selected: usize,
     top: usize,
+    close_hit: Option<Rect>,
+    list_hit: Option<(Rect, SidebarWindow)>,
+    scroll: Option<sidebar::Scroll>,
     painted: Vec<(Rect, Selection)>,
 }
 impl Default for Picker {
@@ -177,6 +180,9 @@ impl Default for Picker {
             pending_navigation: None,
             selected: 0,
             top: 0,
+            close_hit: None,
+            list_hit: None,
+            scroll: None,
             painted: Vec::new(),
         }
     }
@@ -431,12 +437,17 @@ impl Picker {
         self.painted.clear();
         self.mode_hits.clear();
         self.control_hits.clear();
+        self.close_hit = None;
+        self.list_hit = None;
+        self.scroll = None;
     }
     /// All keys, paste and malformed events are consumed by the caller while open.
     pub(crate) fn key(&mut self, key: KeyEvent) {
         if key.kind == KeyKind::Release {
             return;
         }
+        self.settle_picker_scroll();
+        self.scroll = None;
         self.pending_navigation = None;
         let (code, mods) = key.normalized();
         if self.agent_key(code, mods) {
@@ -490,7 +501,20 @@ impl Picker {
         if !self.open {
             return false;
         }
+        if event.mods != Modifiers::NONE {
+            return true;
+        }
         self.pending_navigation = None;
+        if event.action == MouseAction::Press
+            && event.button == MouseButton::Left
+            && self.close_hit.is_some_and(|rect| rect.contains(point))
+        {
+            self.open = false;
+            self.editing_query = false;
+            self.cancel_selection();
+            self.invalidate();
+            return true;
+        }
         if event.action == MouseAction::Press
             && event.button == MouseButton::Left
             && let Some((_, control)) = self.control_hits.iter().find(|(r, _)| r.contains(point))
@@ -498,11 +522,18 @@ impl Picker {
             self.agent_control(*control);
             return true;
         }
-        if event.action == MouseAction::Press && event.button == MouseButton::WheelUp {
-            self.selected = self.selected.saturating_sub(1);
-        }
-        if event.action == MouseAction::Press && event.button == MouseButton::WheelDown {
-            self.selected = (self.selected + 1).min(self.visible_rows().len().saturating_sub(1));
+        if event.action == MouseAction::Press
+            && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
+            && let Some((rect, window)) = self.list_hit
+            && rect.contains(point)
+        {
+            self.top = window.top;
+            sidebar::Scroll::queue(
+                &mut self.scroll,
+                window,
+                event.button == MouseButton::WheelUp,
+            );
+            return true;
         }
         if event.action == MouseAction::Press
             && event.button == MouseButton::Left
@@ -523,6 +554,19 @@ impl Picker {
             self.choose(index);
         }
         true
+    }
+    fn settle_picker_scroll(&mut self) -> bool {
+        let total = self.visible_rows().len();
+        let changed = sidebar::Scroll::settle(&mut self.scroll, &mut self.top, total);
+        if changed && let Some((_, window)) = self.list_hit {
+            self.selected = self.selected.clamp(
+                self.top,
+                self.top
+                    .saturating_add(window.capacity.saturating_sub(1))
+                    .min(total.saturating_sub(1)),
+            );
+        }
+        changed
     }
     fn render_capture_status(&self, frame: &mut Frame<'_>, locale: Locale, theme: &Theme) {
         let area = frame.area();
@@ -577,6 +621,8 @@ impl Picker {
         self.painted.clear();
         self.mode_hits.clear();
         self.control_hits.clear();
+        self.close_hit = None;
+        self.list_hit = None;
         if !self.available {
             return;
         }
@@ -590,7 +636,9 @@ impl Picker {
             (self.visible_rows().len() + if self.mode == Mode::Agents { 13 } else { 10 }).min(24)
                 as u16,
         );
-        if width < 34 || height < 5 {
+        if width < 5 || height == 0 {
+            self.close_hit = crate::tui_render::controls::close(frame, area, theme);
+            self.scroll = None;
             return;
         }
         let panel = Rect::new(
@@ -617,26 +665,30 @@ impl Picker {
                 )),
             panel,
         );
+        self.close_hit = crate::tui_render::controls::close(frame, panel, theme);
+        if width < 34 || height < 5 {
+            self.scroll = None;
+            return;
+        }
         let mut inner = panel.inner(ratatui::layout::Margin::new(1, 1));
         if inner.height < 2 || inner.width == 0 {
             return;
         }
         if inner.height >= 4 {
-            for (index, mode) in [Mode::Machines, Mode::Workspaces, Mode::Agents]
-                .into_iter()
-                .enumerate()
-            {
-                let column = inner.width / 3;
-                let rect = Rect::new(inner.x + index as u16 * column, inner.y, column, 1);
-                frame.render_widget(
-                    Paragraph::new(mode.label(locale)).style(theme.style(if self.mode == mode {
-                        Role::AccentFocus
-                    } else {
-                        Role::TextSecondary
-                    })),
+            let mut x = inner.x;
+            for mode in [Mode::Machines, Mode::Workspaces, Mode::Agents] {
+                let rect = Rect::new(x, inner.y, inner.right().saturating_sub(x), 1);
+                let label = format!("[{}]", mode.label(locale));
+                if let Some(rect) = crate::tui_render::controls::button(
+                    frame,
                     rect,
-                );
-                self.mode_hits.push((rect, mode));
+                    &label,
+                    theme,
+                    self.mode == mode,
+                ) {
+                    self.mode_hits.push((rect, mode));
+                    x = rect.right().saturating_add(1);
+                }
             }
             inner.y += 1;
             inner.height -= 1;
@@ -650,6 +702,15 @@ impl Picker {
         if self.selected >= self.top + count && count > 0 {
             self.top = self.selected + 1 - count;
         }
+        self.list_hit = Some((
+            Rect::new(inner.x, inner.y, inner.width, count as u16),
+            SidebarWindow {
+                top: self.top,
+                capacity: count,
+                total: self.visible_rows().len(),
+                maximum: self.visible_rows().len().saturating_sub(count),
+            },
+        ));
         let mut painted = Vec::new();
         for (index, row) in self
             .visible_rows()

@@ -52,6 +52,16 @@ pub(super) fn render(
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+    if let Some(close) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            close,
+            HitTarget::WorkspaceClose {
+                token: confirmation.token(),
+                confirm: false,
+            },
+        );
+    }
     if complete {
         let action_row = Paragraph::new(Text::from(text.lines[..text.lines.len() - 1].to_vec()))
             .wrap(Wrap { trim: false })

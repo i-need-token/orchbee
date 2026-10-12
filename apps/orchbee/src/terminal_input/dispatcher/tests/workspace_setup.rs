@@ -60,16 +60,24 @@ impl TerminalInputPort for SetupPort {
         self.submit_setup_draft(token);
     }
 
-    fn scroll_setup_projects(&mut self, token: NativeSetupToken, up: bool) {
+    fn scroll_setup_projects(
+        &mut self,
+        token: NativeSetupToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<NativeSetupToken> {
         if token == self.token() && self.shown {
-            self.edit_setup_draft(
-                token,
-                if up {
-                    NativeSetupEdit::SelectPreviousProject
-                } else {
-                    NativeSetupEdit::SelectNextProject
-                },
-            );
+            let lines = i32::try_from(lines).unwrap();
+            self.selections = if up {
+                (self.selections - lines).max(0)
+            } else {
+                (self.selections + lines).min(self.choice_count as i32 - 1)
+            };
+            self.token += 1;
+            self.shown = false;
+            Some(self.token())
+        } else {
+            None
         }
     }
 
@@ -166,6 +174,9 @@ impl TerminalInputPort for SetupPort {
                 self.shown = false;
                 self.token += 1;
             }
+            NativeSetupEdit::ScrollProjects { .. } => {
+                unreachable!("scrolling has its own port method")
+            }
         }
         true
     }
@@ -199,10 +210,7 @@ fn painted_setup_control(
     hits.record(
         HitLayer::OverlaySurface,
         ratatui::layout::Rect::new(2, 2, 30, 8),
-        HitTarget::Setup {
-            token,
-            control: crate::tui_pointer::ModalControl::Surface,
-        },
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Setup(token)),
     );
     hits.record(
         HitLayer::Overlay,
@@ -521,6 +529,15 @@ fn location_rename_preserves_prefilled_label_on_submit_and_cancels_without_submi
         port.text = "原名".to_owned();
         let mut dispatcher = InputDispatcher::default();
         dispatch(&mut dispatcher, &mut port, b"\x1b", now);
+        // A real idle poll expires the Escape before the independent Enter.
+        dispatcher
+            .synchronize(
+                &mut ClientView::new(120),
+                &mut port,
+                now + Duration::from_millis(50),
+                &mut |_| Ok::<(), io::Error>(()),
+            )
+            .unwrap();
         dispatch(
             &mut dispatcher,
             &mut port,
@@ -682,12 +699,48 @@ fn an_unexpired_escape_resolver_stays_owned_but_the_next_packet_is_free() {
 }
 
 #[test]
+fn ready_mouse_fragments_do_not_cancel_or_type_into_a_form_after_a_busy_frame() {
+    let now = Instant::now();
+    let report = b"\x1b[<0;66;8M";
+    for split in 1..report.len() {
+        let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
+        let mut dispatcher = InputDispatcher::default();
+        dispatch(&mut dispatcher, &mut port, &report[..split], now);
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            &report[split..],
+            now + Duration::from_millis(60),
+        );
+        dispatch(
+            &mut dispatcher,
+            &mut port,
+            b"probe",
+            now + Duration::from_millis(120),
+        );
+        assert!(port.active, "split {split}");
+        assert!(!port.fault, "split {split}");
+        assert_eq!(port.text, "probe", "split {split}");
+        assert!(port.forwarded.is_empty(), "split {split}");
+        assert!(port.submissions.is_empty(), "split {split}");
+    }
+}
+
+#[test]
 fn an_expired_escape_releases_before_the_next_packet() {
     let now = Instant::now();
     let mut port = SetupPort::new(NativeSetupStage::WorkspaceRename);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
     dispatch(&mut dispatcher, &mut port, b"\r\x1b", now);
+    dispatcher
+        .synchronize(
+            &mut ClientView::new(120),
+            &mut port,
+            now + Duration::from_millis(60),
+            &mut |_| Ok::<(), io::Error>(()),
+        )
+        .unwrap();
     dispatch(
         &mut dispatcher,
         &mut port,

@@ -189,6 +189,20 @@ impl Locale {
         use crate::machine_picker::Control;
         use orchbee_workbench_protocol::MetadataState as State;
         let (shortcut, label) = match control {
+            Control::Done => {
+                return match self {
+                    Self::EnUs => "[Done]",
+                    Self::ZhCn => "[完成]",
+                }
+                .into();
+            }
+            Control::Clear => {
+                return match self {
+                    Self::EnUs => "[Clear]",
+                    Self::ZhCn => "[清空]",
+                }
+                .into();
+            }
             Control::State => (
                 "f",
                 match view.state {

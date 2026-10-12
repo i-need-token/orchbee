@@ -32,6 +32,123 @@ fn click(rect: Rect) -> MouseEvent {
         row: rect.y,
     }
 }
+
+#[test]
+fn picker_wheel_is_regional_bounded_reversible_and_keyboard_can_resume() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut picker = Picker {
+            available: true,
+            ..Picker::default()
+        };
+        picker.replace(
+            &(1..=60)
+                .map(|n| profile(n, "same", true))
+                .collect::<Vec<_>>(),
+        );
+        picker.show();
+        paint(&mut picker, locale, 80, 24);
+        let (list, window) = picker.list_hit.unwrap();
+        let mut wheel = click(list);
+        wheel.button = MouseButton::WheelDown;
+        wheel.row = list.y - 1;
+        picker.pointer(wheel);
+        assert!(!picker.settle_sidebar_scroll());
+        assert_eq!(picker.top, 0);
+        wheel.row = list.y;
+        for _ in 0..5 {
+            picker.pointer(wheel);
+        }
+        assert_eq!(picker.top, 0, "reports wait for a flush");
+        assert!(picker.settle_sidebar_scroll());
+        assert_eq!(picker.top, 15.min(window.capacity));
+        while picker.scroll.is_some() {
+            picker.settle_sidebar_scroll();
+        }
+        assert_eq!(picker.top, 15, "the entire burst drains");
+        paint(&mut picker, locale, 80, 24);
+        picker.pointer(wheel);
+        wheel.button = MouseButton::WheelUp;
+        picker.pointer(wheel);
+        assert!(picker.settle_sidebar_scroll());
+        assert_eq!(picker.top, 12, "the first reverse report survives");
+        picker.key(KeyEvent::press(KeyCode::Home, Modifiers::NONE));
+        paint(&mut picker, locale, 80, 24);
+        assert_eq!(picker.top, 0);
+        assert!(picker.scroll.is_none());
+    }
+}
+
+#[test]
+fn picker_categories_query_controls_and_close_are_visible_mouse_paths() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(38, 14), (80, 24), (120, 40)] {
+            let mut picker = Picker {
+                available: true,
+                ..Picker::default()
+            };
+            picker.show();
+            paint(&mut picker, locale, width, height);
+            assert_eq!(picker.mode_hits.len(), 3);
+            let agents = picker
+                .mode_hits
+                .iter()
+                .find(|(_, mode)| *mode == Mode::Agents)
+                .unwrap()
+                .0;
+            picker.pointer(click(agents));
+            paint(&mut picker, locale, width, height);
+            let search = picker
+                .control_hits
+                .iter()
+                .find(|(_, control)| *control == Control::Search)
+                .unwrap()
+                .0;
+            picker.pointer(click(search));
+            picker.key(KeyEvent::press(KeyCode::Char('z'), Modifiers::NONE));
+            paint(&mut picker, locale, width, height);
+            let clear = picker
+                .control_hits
+                .iter()
+                .find(|(_, control)| *control == Control::Clear)
+                .unwrap()
+                .0;
+            picker.pointer(click(clear));
+            assert!(picker.agent_view.query.is_empty());
+            paint(&mut picker, locale, width, height);
+            let done = picker
+                .control_hits
+                .iter()
+                .find(|(_, control)| *control == Control::Done)
+                .unwrap()
+                .0;
+            picker.pointer(click(done));
+            assert!(!picker.editing_query);
+            paint(&mut picker, locale, width, height);
+            let close = picker.close_hit.unwrap();
+            let mut shifted = click(close);
+            shifted.mods = Modifiers::NONE.with_shift();
+            picker.pointer(shifted);
+            assert!(picker.open);
+            picker.pointer(click(close));
+            assert!(!picker.open);
+            assert!(picker.selection_scope().is_none());
+        }
+    }
+}
+
+#[test]
+fn picker_retains_a_mouse_exit_when_only_a_tiny_close_control_fits() {
+    for (width, height) in [(1, 1), (20, 5), (33, 8)] {
+        let mut picker = Picker {
+            available: true,
+            ..Picker::default()
+        };
+        picker.show();
+        assert!(paint(&mut picker, Locale::EnUs, width, height).contains('x'));
+        picker.pointer(click(picker.close_hit.unwrap()));
+        assert!(!picker.open);
+    }
+}
 #[test]
 fn rendered_rows_select_exact_ids_and_reordering_invalidates_old_hits() {
     let a = profile(1, "same", true);

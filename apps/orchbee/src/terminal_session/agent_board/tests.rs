@@ -5,6 +5,7 @@
 //! endpoint; lane outcomes are injected as data.
 
 use super::*;
+mod mouse;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::local_client::test_server::adjustable_operation_clock;
 use crate::terminal_session::workbench_projection::NativeContextLocation;

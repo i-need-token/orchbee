@@ -3,6 +3,23 @@ use super::Locale;
 use crate::terminal_session::{WorktreeMode, WorktreeNotice, WorktreeStage};
 
 impl Locale {
+    pub(crate) fn worktree_cancel_button(self, stage: WorktreeStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, WorktreeStage::Waiting) => "[Esc · hide]",
+            (Self::ZhCn, WorktreeStage::Waiting) => "[Esc · 隐藏]",
+            (Self::EnUs, WorktreeStage::Result) => "[Esc · close]",
+            (Self::ZhCn, WorktreeStage::Result) => "[Esc · 关闭]",
+            _ => self.setup_cancel_button(),
+        }
+    }
+    pub(crate) fn worktree_submit_button(self, stage: WorktreeStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, WorktreeStage::Waiting | WorktreeStage::Result) => "[r · read status]",
+            (Self::ZhCn, WorktreeStage::Waiting | WorktreeStage::Result) => "[r · 查询状态]",
+            (Self::EnUs, _) => "[Enter · create]",
+            (Self::ZhCn, _) => "[Enter · 创建]",
+        }
+    }
     pub(crate) fn worktree_default_workspace(self, ordinal: usize) -> String {
         match self {
             Self::EnUs => format!("Worktree {ordinal}"),

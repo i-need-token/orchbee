@@ -17,6 +17,8 @@ Custom is selected; login shells are unavailable on Windows. The selected row
 stays visible when the surface scrolls or resizes. Category captions and setting
 names match the GUI's English/Simplified Chinese vocabulary.
 
+Rows, profile/argument arrows, Back/Close, text confirmation and confirmation-dialog buttons are painted mouse controls. Plain left release must match the press's exact current token and rectangle; keyboard edits, focus loss or layout changes revoke that press. Wheel is admitted only inside the active list: three rows per notch, bounded per pass by its visible height, without wrapping or changing values. Child editors and confirmations retain input and expose their own Confirm/Cancel. Header X follows Esc, including hiding an accepted save without cancelling it.
+
 Save is the only write action. Opening, editing, cancelling and resizing do not
 apply a draft. Enter or a click on the successfully drawn Save row consumes its
 authority exactly once. Reset-all requires confirmation and remains a draft until

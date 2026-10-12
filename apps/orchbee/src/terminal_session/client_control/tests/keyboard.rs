@@ -6,6 +6,63 @@ use orchbee_workbench_protocol::{
 use ratatui::layout::Rect;
 
 #[test]
+fn painted_resize_rejects_changed_source_or_geometry_and_uses_the_keyboard_lane() {
+    for changed in [
+        "current", "site", "context", "tab", "focus", "revision", "viewport", "sidebar",
+    ] {
+        let (mut native, mailbox, clock, _) = ready_split_ui();
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        mailbox.finish_lease(poll).unwrap();
+        let mut control = controller(clock);
+        let viewport = Rect::new(0, 0, 120, 40);
+        control.observe_geometry(viewport, SidebarSurface::Hidden);
+        control.tick(&mut native, false);
+        let mut target = crate::tui_layout::DrawnResize {
+            source: native.view().divider_source().unwrap(),
+            viewport,
+            sidebar: SidebarSurface::Hidden,
+        };
+        let other = format!("{:032x}", 987);
+        match changed {
+            "site" => {
+                target.source.site = orchbee_workbench_protocol::SiteId::parse(&other).unwrap()
+            }
+            "context" => {
+                target.source.context =
+                    orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(&other).unwrap()
+            }
+            "tab" => {
+                target.source.tab =
+                    orchbee_workbench_protocol::WorkbenchTabId::parse(&other).unwrap()
+            }
+            "focus" => {
+                target.source.focus =
+                    orchbee_workbench_protocol::WorkbenchPanelId::parse(&other).unwrap()
+            }
+            "revision" => target.source.revision = WorkbenchRevision::new(98),
+            "viewport" => target.viewport.width -= 1,
+            "sidebar" => {
+                target.sidebar = SidebarSurface::Docked(crate::tui_layout::SidebarWidth::DEFAULT)
+            }
+            _ => {}
+        }
+        control.resize_drawn(&native, &target, PanelDirection::Right, true);
+        let mutation = control.lane.as_ref().unwrap().take_layout_for_test();
+        if changed == "current" {
+            assert!(
+                matches!(mutation.unwrap().action, WorkbenchAction::SplitRatioSet { ratio, .. } if (ratio.value() - 0.51).abs() < 1e-9)
+            );
+        } else {
+            assert!(mutation.is_none(), "{changed}");
+            assert!(matches!(
+                control.take_local_resize_feedback(),
+                Some(LocalResizeFeedback::Notice(Notice::ResizeFailed))
+            ));
+        }
+    }
+}
+
+#[test]
 fn known_keyboard_commit_waits_through_an_older_refresh_without_resubmission_until_expiry() {
     use crate::terminal_session::ui::publication_hint_tests::{
         settle_queued_refresh, split_snapshot,

@@ -37,7 +37,11 @@ use crate::terminal_input::{
 use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::state::PaneRef;
 
+#[cfg(windows)]
+mod copy_mode;
+mod list_scroll;
 mod modal;
+pub(crate) use list_scroll::Target as ListScrollTarget;
 mod scrollbar;
 #[cfg(windows)]
 mod tabs;
@@ -63,8 +67,9 @@ const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(350);
 /// fallback — the pager-friendly amount the mouse standard fixes.
 const ARROWS_PER_NOTCH: usize = 3;
 
-/// Layers are tested front to back; regions never overlap within one
-/// layer. A capturing overlay is tested before the layer beneath it, and a
+/// Layers are tested front to back; the first matching region wins within
+/// each layer, so specific controls precede their broad surface. A capturing
+/// overlay is tested before the layer beneath it, and a
 /// press that hits nothing inside it dismisses instead of falling through.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HitLayer {
@@ -90,6 +95,34 @@ pub(crate) enum HitLayer {
 /// state so a reorder between paint and click cannot misroute.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
+    #[cfg(windows)]
+    CopyControl {
+        token: crate::terminal_copy_mode::CopyModeToken,
+        control: crate::terminal_copy_mode::CopyControl,
+    },
+    #[cfg(windows)]
+    CopySurface {
+        token: crate::terminal_copy_mode::CopySurfaceToken,
+        area: Rect,
+    },
+    #[cfg(windows)]
+    Resize(ResizeControl),
+    Help {
+        page: usize,
+        action: HelpControl,
+    },
+    TabClose {
+        token: crate::terminal_session::NativeCloseConfirmationToken,
+        confirm: bool,
+    },
+    PanelClose {
+        token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        confirm: bool,
+    },
+    Rename {
+        token: crate::terminal_session::NativeRenameDraftToken,
+        submit: bool,
+    },
     WorkspaceClose {
         token: crate::terminal_session::WorkspaceCloseToken,
         confirm: bool,
@@ -106,9 +139,20 @@ pub(crate) enum HitTarget {
     },
     #[cfg(windows)]
     NavigatorRow(crate::client_view::navigator::Row),
+    #[cfg(windows)]
+    NavigatorClose(u64),
     SettingsRow {
         token: crate::native_settings::Token,
         row: crate::native_settings::Row,
+    },
+    SettingsControl {
+        token: crate::native_settings::Token,
+        control: crate::native_settings::Control,
+    },
+    ListScroll(ListScrollTarget),
+    AgentBoardControl {
+        token: crate::terminal_session::AgentBoardToken,
+        control: crate::terminal_session::AgentBoardControl,
     },
     #[cfg(windows)]
     SettingsButton,
@@ -123,6 +167,13 @@ pub(crate) enum HitTarget {
         token: crate::action_menu::MenuToken,
         row: usize,
     },
+    #[cfg(windows)]
+    ActionMenuControl {
+        token: crate::action_menu::MenuToken,
+        back: bool,
+    },
+    #[cfg(windows)]
+    MenuButton,
     /// A visible divider with its exact canonical and geometric source.
     #[cfg(windows)]
     Divider(crate::tui_layout::DrawnDivider),
@@ -153,7 +204,10 @@ pub(crate) enum HitTarget {
     /// pane. `content` is its cell viewport — the region a pane program
     /// owns while it reports the pointer; the title row outside it is
     /// Client chrome.
-    Pane { pane: PaneRef, content: Rect },
+    Pane {
+        pane: PaneRef,
+        content: Rect,
+    },
     /// A dedicated chrome column, disjoint from terminal content and dividers.
     Scrollbar {
         pane: PaneRef,
@@ -176,9 +230,6 @@ pub(crate) enum HitTarget {
     /// An Agent board row — carries the row's stable session identity so
     /// a later click resolves against current rows, never a position.
     AgentBoardRow(orchbee_agent_observation_protocol::AgentSessionId),
-    /// The Agent board's painted body outside its rows — swallows the
-    /// press, and a wheel notch scrolls the row window.
-    AgentBoardSurface,
     #[cfg(windows)]
     MachineProjectRow {
         target: crate::machine_picker::SidebarTarget,
@@ -211,9 +262,31 @@ pub(crate) enum HitTarget {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ModalControl {
     Choice(usize),
+    NextField,
+    Refresh,
     Submit,
     Cancel,
     Surface,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum HelpControl {
+    Close,
+    Previous,
+    Next,
+}
+
+#[cfg(windows)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum ResizeControl {
+    Adjust {
+        target: Box<crate::tui_layout::DrawnResize>,
+        direction: crate::client_view::PanelDirection,
+        fine: bool,
+    },
+    Step(bool),
+    Help,
+    Exit,
 }
 
 #[cfg(windows)]
@@ -282,6 +355,7 @@ pub(crate) struct FrameHitMap {
 #[cfg(windows)]
 pub(crate) enum NavigatorHit<'a> {
     Row(&'a crate::client_view::navigator::Row),
+    Close(u64),
     Surface,
     Backdrop,
 }
@@ -361,6 +435,13 @@ pub(crate) struct HitMapBuilder {
 }
 
 impl HitMapBuilder {
+    /// A mode toolbar replaces ordinary chrome in exactly the cells it paints.
+    #[cfg(windows)]
+    pub(crate) fn cover_chrome(&mut self, area: Rect) {
+        self.map
+            .regions
+            .retain(|region| region.rect.intersection(area) != region.rect);
+    }
     /// A modal replaces all earlier overlay controls in this frame.
     pub(crate) fn start_modal(&mut self) {
         #[cfg(windows)]
@@ -901,6 +982,9 @@ pub(crate) struct PointerState {
     click: Option<SelectionClick>,
     close_press: Option<modal::PaintedPress>,
     modal_press: Option<modal::PaintedPress>,
+    list_scroll: Option<list_scroll::Pending>,
+    #[cfg(windows)]
+    copy_drag: Option<copy_mode::Drag>,
     #[cfg(windows)]
     popup_gesture: Option<(
         orchbee_workbench_protocol::WorkbenchRequestId,
@@ -911,40 +995,52 @@ pub(crate) struct PointerState {
 }
 
 impl PointerState {
+    pub(crate) fn help_event(&mut self, view: &mut ClientView, event: MouseEvent) -> bool {
+        if !self.capture || view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp) {
+            return false;
+        }
+        if self.queue_list_scroll(event) {
+            return true;
+        }
+        if !plain_primary_press(event) {
+            return true;
+        }
+        self.cancel_list_scroll();
+        let Some(map) = &self.map else {
+            return true;
+        };
+        match map.hit(event.column, event.row) {
+            HitResolution::Region(HitTarget::Help { page, action })
+                if *page == view.help_page() =>
+            {
+                match action {
+                    HelpControl::Close => view.dismiss_overlay(),
+                    HelpControl::Previous => view.settle_help_page(page.saturating_sub(1)),
+                    HelpControl::Next => view.settle_help_page(page.saturating_add(1)),
+                }
+                self.stale_map();
+            }
+            HitResolution::OverlayBackdrop => {
+                view.dismiss_overlay();
+                self.stale_map();
+            }
+            _ => {}
+        }
+        true
+    }
+
     pub(crate) fn settings_event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         port: &mut Port,
         event: MouseEvent,
-    ) {
-        use crate::client_view::{KeyCode, KeyEvent, Modifiers};
-        if event.mods != Modifiers::NONE || event.action != MouseAction::Press {
-            return;
+    ) -> bool {
+        if self.queue_list_scroll(event) {
+            return false;
         }
-        match event.button {
-            MouseButton::WheelUp | MouseButton::WheelDown => {
-                port.capture_settings_key(KeyEvent::press(
-                    if event.button == MouseButton::WheelUp {
-                        KeyCode::Up
-                    } else {
-                        KeyCode::Down
-                    },
-                    Modifiers::NONE,
-                ))
-            }
-            MouseButton::Left => {
-                if let Some(map) = &self.map {
-                    match map.hit(event.column, event.row) {
-                        HitResolution::Region(HitTarget::SettingsRow { token, row }) => {
-                            port.click_settings(*token, *row)
-                        }
-                        HitResolution::Region(HitTarget::OverlaySurface) => {}
-                        _ => port
-                            .capture_settings_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE)),
-                    }
-                }
-            }
-            _ => {}
+        if plain_primary_press(event) {
+            self.cancel_list_scroll();
         }
+        self.settings_control_event(port, event)
     }
     /// A menu cannot take over a press, pending focus or queued wheel burst.
     #[cfg(windows)]
@@ -999,47 +1095,59 @@ impl PointerState {
         &mut self,
         port: &mut Port,
         event: MouseEvent,
-    ) {
-        if event.mods != crate::client_view::Modifiers::NONE {
-            return;
+    ) -> bool {
+        if self.queue_list_scroll(event) {
+            return false;
         }
-        if event.action == MouseAction::Motion && event.button == MouseButton::None {
+        if plain_primary_press(event) {
+            self.cancel_list_scroll();
+        }
+        if self.menu_control_event(port, event) {
+            return true;
+        }
+        if event.mods != crate::client_view::Modifiers::NONE {
+            return false;
+        }
+        if event.action == MouseAction::Motion
+            && event.button == MouseButton::None
+            && !self
+                .modal_press
+                .as_ref()
+                .is_some_and(modal::PaintedPress::active)
+        {
             if let Some(map) = &self.map
                 && let HitResolution::Region(HitTarget::ActionMenuRow { token, row }) =
                     map.hit(event.column, event.row)
             {
                 port.hover_action_menu(*token, *row);
             }
-            return;
+            return false;
         }
         if event.action != MouseAction::Press {
-            return;
+            return false;
         }
         match event.button {
             MouseButton::WheelUp | MouseButton::WheelDown => {
-                port.capture_action_menu_key(crate::client_view::KeyEvent::press(
-                    if event.button == MouseButton::WheelUp {
-                        crate::client_view::KeyCode::Up
-                    } else {
-                        crate::client_view::KeyCode::Down
-                    },
-                    crate::client_view::Modifiers::NONE,
-                ))
+                self.cancel_modal_press();
             }
             MouseButton::Left => {
-                if let Some(map) = &self.map {
-                    match map.hit(event.column, event.row) {
-                        HitResolution::Region(HitTarget::ActionMenuRow { token, row }) => {
-                            port.click_action_menu(*token, *row)
-                        }
-                        HitResolution::Region(HitTarget::OverlaySurface) => {}
-                        _ => port.cancel_action_menu(),
-                    }
+                if let Some(map) = &self.map
+                    && matches!(
+                        map.hit(event.column, event.row),
+                        HitResolution::OverlayBackdrop
+                    )
+                {
+                    port.cancel_action_menu();
+                    return true;
                 }
             }
-            MouseButton::Right => port.cancel_action_menu(),
+            MouseButton::Right => {
+                port.cancel_action_menu();
+                return true;
+            }
             _ => {}
         }
+        false
     }
     /// Current reversible geometry, never a source of authoritative terminal dimensions.
     #[cfg(windows)]
@@ -1302,6 +1410,7 @@ impl PointerState {
     /// die so nothing reaches a pane after the host stops reporting.
     pub(crate) fn set_capture(&mut self, enabled: bool) {
         if !enabled {
+            self.cancel_list_scroll();
             self.cancel_modal_press();
         }
         if self.capture == enabled {
@@ -1348,6 +1457,21 @@ impl PointerState {
     /// The draw completed — the recorded map becomes the resolution
     /// authority until the next layout change.
     pub(crate) fn publish(&mut self, map: FrameHitMap) {
+        #[cfg(windows)]
+        if self
+            .copy_drag
+            .as_ref()
+            .is_some_and(|drag| !drag.painted_in(&map))
+        {
+            self.cancel_copy_drag();
+        }
+        if self
+            .list_scroll
+            .as_ref()
+            .is_some_and(|pending| !pending.exposed_in(&map))
+        {
+            self.cancel_list_scroll();
+        }
         #[cfg(windows)]
         if matches!(&self.gesture, Gesture::Tab(drag) if !drag.painted_in(&map)) {
             self.cancel_tab_drag();
@@ -1411,6 +1535,9 @@ impl PointerState {
             HitResolution::Region(HitTarget::NavigatorRow(row)) if paint.rows.contains(row) => {
                 NavigatorHit::Row(row)
             }
+            HitResolution::Region(HitTarget::NavigatorClose(episode)) => {
+                NavigatorHit::Close(*episode)
+            }
             HitResolution::OverlayBackdrop => NavigatorHit::Backdrop,
             _ => NavigatorHit::Surface,
         })
@@ -1423,6 +1550,7 @@ impl PointerState {
     /// holds the old viewport bound. All three cancel; between now and
     /// the next publish every pointer event drops.
     pub(crate) fn invalidate_map(&mut self) {
+        self.cancel_list_scroll();
         self.cancel_modal_press();
         self.map = None;
         #[cfg(windows)]
@@ -1673,6 +1801,11 @@ impl PointerState {
             && self.can_open_action_menu()
         {
             let target = match map.hit(event.column, event.row) {
+                HitResolution::Region(HitTarget::MenuButton)
+                    if event.button == MouseButton::Left =>
+                {
+                    Some(crate::action_menu::MenuTarget::Global)
+                }
                 HitResolution::Region(HitTarget::CreateMenu(target))
                     if event.button == MouseButton::Left =>
                 {
@@ -1857,7 +1990,11 @@ impl PointerState {
                 HitTarget::CreateMenu(_)
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::Worktree { .. }
-                | HitTarget::NavigatorRow(_),
+                | HitTarget::NavigatorRow(_)
+                | HitTarget::NavigatorClose(_)
+                | HitTarget::Resize(_)
+                | HitTarget::CopyControl { .. }
+                | HitTarget::CopySurface { .. },
             ) => PointerOutcome::Ignored,
             HitResolution::Region(HitTarget::SettingsRow { .. }) => PointerOutcome::Ignored,
             #[cfg(windows)]
@@ -1885,7 +2022,13 @@ impl PointerState {
             HitResolution::OverlayBackdrop => {
                 // An outside click on a capturing overlay dismisses it and
                 // dies here — nothing reaches the regions beneath.
-                if event.action == MouseAction::Press {
+                if event.action == MouseAction::Press
+                    && event.mods == Modifiers::NONE
+                    && matches!(
+                        event.button,
+                        MouseButton::Left | MouseButton::Right | MouseButton::Middle
+                    )
+                {
                     view.dismiss_overlay();
                     // The board's own wheel guard: an outside wheel notch
                     // is swallowed whole — only an ordinary outside Press
@@ -1905,10 +2048,21 @@ impl PointerState {
             HitResolution::Region(
                 HitTarget::OverlaySurface
                 | HitTarget::Setup { .. }
-                | HitTarget::WorkspaceClose { .. },
+                | HitTarget::WorkspaceClose { .. }
+                | HitTarget::TabClose { .. }
+                | HitTarget::PanelClose { .. }
+                | HitTarget::Rename { .. }
+                | HitTarget::SettingsControl { .. }
+                | HitTarget::AgentBoardControl { .. }
+                | HitTarget::ListScroll(_)
+                | HitTarget::Help { .. },
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::SidebarMenu(_)) => PointerOutcome::Ignored,
+            HitResolution::Region(
+                HitTarget::SidebarMenu(_)
+                | HitTarget::MenuButton
+                | HitTarget::ActionMenuControl { .. },
+            ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(HitTarget::MachineProjectRow { target, window }) => {
                 if event.action != MouseAction::Press
@@ -2020,36 +2174,11 @@ impl PointerState {
                 }
             }
             HitResolution::Region(HitTarget::AgentBoardRow(session)) => {
-                if event.action != MouseAction::Press {
+                if !plain_primary_press(event) {
                     return PointerOutcome::Ignored;
                 }
-                match event.button {
-                    MouseButton::WheelUp | MouseButton::WheelDown => {
-                        // Wheel scrolls the board's row window — the map
-                        // stays valid because row targets re-resolve by
-                        // stable session identity, never position.
-                        let _scrolled =
-                            port.agent_board_scroll(event.button == MouseButton::WheelUp);
-                        PointerOutcome::Handled
-                    }
-                    _ => {
-                        // Identity re-resolution makes a stale-map click
-                        // safe: the session is selected wherever it now
-                        // sits, or the click dies cleanly if it left.
-                        let _selected = port.agent_board_select(session);
-                        PointerOutcome::Handled
-                    }
-                }
-            }
-            HitResolution::Region(HitTarget::AgentBoardSurface) => {
-                if event.action == MouseAction::Press
-                    && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
-                {
-                    let _scrolled = port.agent_board_scroll(event.button == MouseButton::WheelUp);
-                    PointerOutcome::Handled
-                } else {
-                    PointerOutcome::Ignored
-                }
+                let _selected = port.agent_board_select(session);
+                PointerOutcome::Handled
             }
             #[cfg(windows)]
             HitResolution::Region(target @ HitTarget::TabGroup { .. }) => {

@@ -46,6 +46,24 @@ impl<'a> NativeSessionView<'a> {
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn click_panel_close(
+        &mut self,
+        token: NativePanelCloseConfirmationToken,
+        confirm: bool,
+    ) {
+        if self
+            .state
+            .as_ref()
+            .and_then(|state| state.view().panel_close_confirmation())
+            .is_some_and(|prompt| prompt.token() == token)
+        {
+            self.capture_panel_confirmation_key(if confirm {
+                ClientKey::Plain('y')
+            } else {
+                ClientKey::Escape
+            });
+        }
+    }
     pub(super) fn panel_close_confirmation_armed(&self) -> bool {
         self.state
             .as_ref()

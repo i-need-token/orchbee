@@ -14,6 +14,15 @@ pub(crate) use rows::{Page, Row};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Token(u64);
+/// Painted settings controls retain the same draft authority as keyboard edits.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Control {
+    Row(Row),
+    Adjust { row: Row, forward: bool },
+    Accept,
+    Back,
+    Close,
+}
 pub(crate) type Basis = UserPreferencesSnapshot;
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Edit {
@@ -454,6 +463,32 @@ impl Editor {
         self.redraw();
         None
     }
+    pub(crate) fn scroll(&mut self, token: Token, up: bool, lines: usize) -> Option<Token> {
+        let State::Draft(draft) = &mut self.state else {
+            return None;
+        };
+        if draft.token != token
+            || !draft.drawn
+            || draft.text.is_some()
+            || draft.confirmation.is_some()
+        {
+            return None;
+        }
+        let rows = draft.page.rows();
+        let index = rows.iter().position(|row| *row == draft.row)?;
+        let next = if up {
+            index.saturating_sub(lines)
+        } else {
+            index.saturating_add(lines).min(rows.len() - 1)
+        };
+        if next == index {
+            return Some(token);
+        }
+        draft.row = rows[next];
+        self.redraw();
+        self.view().map(|view| view.token())
+    }
+
     pub(crate) fn click(&mut self, token: Token, row: Row) -> Option<Submission> {
         if !matches!(&self.state, State::Draft(draft) if draft.token == token && draft.drawn && draft.text.is_none() && draft.confirmation.is_none())
         {
@@ -463,5 +498,41 @@ impl Editor {
             draft.row = row;
         }
         self.edit(Edit::Activate)
+    }
+
+    pub(crate) fn control(&mut self, token: Token, control: Control) -> Option<Submission> {
+        if self.view().is_none_or(|view| view.token() != token) {
+            return None;
+        }
+        if control == Control::Close {
+            match &mut self.state {
+                State::Loading { visible, .. } | State::Saving { visible, .. } => *visible = false,
+                _ => self.state = State::Closed,
+            }
+            return None;
+        }
+        let State::Draft(draft) = &mut self.state else {
+            return None;
+        };
+        if !draft.drawn {
+            return None;
+        }
+        match control {
+            Control::Row(row) => self.click(token, row),
+            Control::Adjust { row, forward }
+                if draft.text.is_none()
+                    && draft.confirmation.is_none()
+                    && draft.page.rows().contains(&row)
+                    && draft.project().enabled(row) =>
+            {
+                draft.row = row;
+                self.edit(Edit::Adjust(forward))
+            }
+            Control::Accept if draft.text.is_some() || draft.confirmation.is_some() => {
+                self.edit(Edit::Activate)
+            }
+            Control::Back => self.edit(Edit::Cancel),
+            _ => None,
+        }
     }
 }

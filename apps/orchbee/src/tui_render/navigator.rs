@@ -99,6 +99,22 @@ pub(super) fn render(
         usize::from(rows.height)
     };
     hits.start_navigator(view.navigator.focus.clone(), page_rows);
+    if let Some(rect) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
+            HitTarget::NavigatorClose(view.navigator.episode()),
+        );
+    }
+    for (rect, tabs) in [(contexts_area, false), (tabs_area, true)] {
+        if let Some(row) = view.navigator.scroll_row(tabs) {
+            hits.record(
+                HitLayer::OverlaySurface,
+                rect,
+                HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Navigator(row)),
+            );
+        }
+    }
     let Some(native) = native else {
         return Some(area);
     };

@@ -134,8 +134,8 @@ impl InputSource for QueueInputSource {
 }
 
 /// A queued source whose `sample_time` advances past the decoder's bounded
-/// lone-Esc wait on every call: a queued `Esc` packet resolves at the next
-/// loop iteration without real sleeps.
+/// lone-Esc wait on every call: an idle poll resolves a queued `Esc` without
+/// real sleeps, while a ready continuation survives a busy frame.
 struct ClockedInputSource {
     inputs: QueueInputSource,
     now: std::cell::Cell<Instant>,

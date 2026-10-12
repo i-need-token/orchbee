@@ -64,6 +64,7 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
     }
     let token = ui.view().action_menu().unwrap().token;
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
+        selected: ui.view().action_menu().unwrap().selected,
         token,
         rows: 80,
     })));
@@ -293,6 +294,7 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
         .position(|a| *a == MenuAction::PinTab)
         .unwrap();
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
+        selected: ui.view().action_menu().unwrap().selected,
         token,
         rows: 80,
     })));

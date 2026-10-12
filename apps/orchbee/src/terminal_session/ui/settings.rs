@@ -100,6 +100,14 @@ impl NativeSessionView<'_> {
     }
 }
 impl NativeUi {
+    pub(in crate::terminal_session) fn scroll_settings(
+        &mut self,
+        token: Token,
+        up: bool,
+        lines: usize,
+    ) -> Option<Token> {
+        self.settings.editor.scroll(token, up, lines)
+    }
     pub(in crate::terminal_session) fn apply_user_preferences(
         &mut self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
@@ -318,6 +326,19 @@ impl NativeUi {
     }
     pub(in crate::terminal_session) fn settings_text_remaining(&self) -> usize {
         self.settings.editor.remaining_text_bytes()
+    }
+    pub(in crate::terminal_session) fn click_settings_control(
+        &mut self,
+        token: Token,
+        control: crate::native_settings::Control,
+    ) {
+        let saving = matches!(self.settings.editor.view(), Some(View::Saving { token: current }) if current == token);
+        if let Some(submission) = self.settings.editor.control(token, control) {
+            self.submit_settings(submission);
+        }
+        if saving && !self.settings.editor.visible() {
+            self.settings.note(Notice::Background, self.clock.now());
+        }
     }
     pub(in crate::terminal_session) fn click_settings(&mut self, token: Token, row: Row) {
         if let Some(submission) = self.settings.editor.click(token, row) {

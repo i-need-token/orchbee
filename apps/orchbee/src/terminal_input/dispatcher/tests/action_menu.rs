@@ -5,6 +5,7 @@ use crate::terminal_input::{PointerPane, PointerProbe};
 use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
 use ratatui::layout::Rect;
 
+mod mouse_controls;
 mod sidebar_overlap;
 mod sidebar_prefix;
 mod tab_drag;
@@ -487,7 +488,11 @@ impl Port {
     }
     fn arm(&mut self) {
         let token = self.menu.view().unwrap().token;
-        self.menu.draw(Some(MenuDraw { token, rows: 8 }));
+        self.menu.draw(Some(MenuDraw {
+            token,
+            rows: 8,
+            selected: self.menu.view().unwrap().selected,
+        }));
     }
 }
 impl TerminalInputPort for Port {
@@ -534,6 +539,19 @@ impl TerminalInputPort for Port {
     }
     fn click_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
         self.menu.click(token, row);
+    }
+    fn scroll_action_menu(
+        &mut self,
+        token: crate::action_menu::MenuToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<crate::action_menu::MenuToken> {
+        self.menu.scroll(token, up, lines)
+    }
+    fn click_action_menu_control(&mut self, token: crate::action_menu::MenuToken, back: bool) {
+        if !back && self.menu.view().is_some_and(|view| view.token == token) {
+            self.menu.cancel();
+        }
     }
     fn hover_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
         self.menu.hover(token, row);
@@ -586,7 +604,11 @@ fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
             HitTarget::ActionMenuRow { token, row },
         );
     }
-    port.menu.draw(Some(MenuDraw { token, rows }));
+    port.menu.draw(Some(MenuDraw {
+        token,
+        rows,
+        selected: menu.selected,
+    }));
     dispatcher.publish_hit_map(hits.finish());
 }
 
@@ -639,6 +661,16 @@ fn menu_hover_tracks_motion_bursts_but_never_activates_or_forwards_them() {
     assert!(port.calls.borrow().is_empty());
     paint_menu(&mut dispatcher, &mut port);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;7Mtail");
+    assert!(port.menu.active(), "a press alone cannot invoke an action");
+    // Keyboard input cancels that press; use a fresh complete gesture.
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;7m");
+    assert!(port.menu.active());
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;12;7M\x1b[<0;12;7mtail",
+    );
     assert!(!port.menu.active());
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
     assert_eq!(

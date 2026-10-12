@@ -25,8 +25,8 @@ use orchbee_agent_observation_protocol::{
 };
 
 /// Rows the board reserves outside its scrollable row window: one status
-/// or notice line plus the footer hint.
-const BOARD_CHROME_ROWS: u16 = 2;
+/// or notice line, the keyboard hint and the action buttons.
+const BOARD_CHROME_ROWS: u16 = 3;
 const BOARD_WIDTH: u16 = 92;
 const BOARD_MAX_HEIGHT: u16 = 24;
 
@@ -43,7 +43,7 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) -> AgentBoardDraw {
     let rows = board.rows();
-    let wanted = u16::try_from(rows.len() + 3)
+    let wanted = u16::try_from(rows.len() + usize::from(BOARD_CHROME_ROWS) + 2)
         .unwrap_or(BOARD_MAX_HEIGHT)
         .min(BOARD_MAX_HEIGHT);
     let Some(area) = place_overlay(area, BOARD_WIDTH, wanted.max(8)) else {
@@ -58,12 +58,30 @@ pub(super) fn render(
     frame.render_widget(block, area);
     // A presented board owns the press domain: rows select, the surface
     // swallows and scrolls, and an outside press resolves as backdrop.
-    hits.mark_overlay_active();
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::AgentBoardSurface);
+    hits.start_modal();
+    let token = board.token();
+    if let Some(rect) = super::controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
+            HitTarget::AgentBoardControl {
+                token: token.clone(),
+                control: crate::terminal_session::AgentBoardControl::Close,
+            },
+        );
+    }
 
     let [body, footer] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(BOARD_CHROME_ROWS)]).areas(inner);
     let viewport_rows = usize::from(body.height);
+    hits.record(
+        HitLayer::OverlaySurface,
+        body,
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::AgentBoard(
+            token.clone(),
+        )),
+    );
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     let read = board.read();
     if rows.is_empty() {
         // No completed-read rows exist — surface the honest read state
@@ -139,6 +157,34 @@ pub(super) fn render(
         footer_line,
     ];
     frame.render_widget(Paragraph::new(footer_lines.to_vec()), footer);
+    if let Some(rects) = super::controls::pair(
+        frame,
+        Rect::new(footer.x, footer.bottom() - 1, footer.width, 1),
+        [text.board.open_button, text.board.refresh_button],
+        theme,
+    ) {
+        for (rect, control) in rects.into_iter().zip([
+            crate::terminal_session::AgentBoardControl::Open,
+            crate::terminal_session::AgentBoardControl::Refresh,
+        ]) {
+            if control == crate::terminal_session::AgentBoardControl::Open
+                && (rows.is_empty() || board.jumping())
+            {
+                frame
+                    .buffer_mut()
+                    .set_style(rect, theme.style(Role::TextDisabled));
+            } else {
+                hits.record(
+                    HitLayer::Overlay,
+                    rect,
+                    HitTarget::AgentBoardControl {
+                        token: token.clone(),
+                        control,
+                    },
+                );
+            }
+        }
+    }
     AgentBoardDraw {
         presented: true,
         viewport_rows,

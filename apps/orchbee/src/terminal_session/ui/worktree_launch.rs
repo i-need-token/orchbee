@@ -97,8 +97,17 @@ impl NativeUi {
         self.submit_worktree_start(plan);
     }
 
-    pub(in crate::terminal_session) fn scroll_worktree(&mut self, token: WorktreeToken, up: bool) {
-        self.worktrees.launcher.scroll_choices(token, up);
+    pub(in crate::terminal_session) fn scroll_worktree(
+        &mut self,
+        token: WorktreeToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<WorktreeToken> {
+        self.worktrees
+            .launcher
+            .scroll_choices(token, up, lines)
+            .then(|| self.worktrees.launcher.token())
+            .flatten()
     }
 
     pub(super) fn request_worktree(&mut self, mode: WorktreeMode) -> SessionActionDisposition {
@@ -197,7 +206,7 @@ impl NativeUi {
         }
         let stage = self.worktrees.launcher.view().map(|v| v.stage());
         if matches!(stage, Some(WorktreeStage::Waiting | WorktreeStage::Result)) {
-            if matches!(edit, WorktreeEdit::Append("r")) {
+            if matches!(edit, WorktreeEdit::Append("r") | WorktreeEdit::ReadStatus) {
                 self.worktrees.read_at = Some(self.clock.now());
             }
             return true;

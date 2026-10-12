@@ -119,6 +119,18 @@ for the sidebar, tab strip and split-pane title bands. Overlays paint their
 own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
 
+The global Actions button occupies the right end of the top strip. In Minimal it overlays the
+first workbench row immediately before the reserved history gutter. Copy and resize modes replace
+the top strip with their controls, or overlay that first workbench row when no strip exists.
+These controls reserve no additional terminal geometry; painted control cells take pointer
+precedence over the content beneath them. Their behavior belongs to the owning action, copy
+and resize references.
+
+When help cannot fit a complete page, the existing status row shows the localized resize notice
+with a reserved X button. The button remains visible in Minimal and TooSmall, dismisses help
+without changing the underlying mode, and does not alter PTY geometry. A wider frame can still
+restore the retained help page.
+
 ## Quick creation controls
 
 On Windows the top strip reserves three cells for `+` after the last visible Tab,

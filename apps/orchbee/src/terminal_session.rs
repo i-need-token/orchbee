@@ -93,18 +93,18 @@ pub(crate) use ui::{
 #[cfg(windows)]
 pub(crate) use ui::RetainedFrameBank;
 pub(crate) use ui::{
-    AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow, AgentBoardSummary,
-    JumpFailure, ModalPresentation, NativeAgentBoardView, NativeCloseConfirmationKind,
-    NativeCloseConfirmationToken, NativeCloseConfirmationView, NativeCloseStatusKind,
-    NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController, NativeDisplayPhase,
-    NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt, NativeLocationLabelStatus,
-    NativeLocationLabelTarget, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
-    NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
-    NativeRenameEdit, NativeRenameInputContext, NativeSessionNotice, NativeSessionView,
-    NativeSetupDraftView, NativeSetupEdit, NativeSetupInputContext, NativeSetupStage,
-    NativeSetupStatus, NativeSetupToken, NativeTabView, NativeViewportSurface,
-    PresentationPlacement, WorkspaceCloseConfirmationView, WorkspaceCloseStatus,
-    WorkspaceCloseStatusView, WorkspaceCloseToken,
+    AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
+    AgentBoardSummary, AgentBoardToken, JumpFailure, ModalPresentation, NativeAgentBoardView,
+    NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
+    NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController,
+    NativeDisplayPhase, NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt,
+    NativeLocationLabelStatus, NativeLocationLabelTarget, NativePanelCloseConfirmationToken,
+    NativePanelCloseConfirmationView, NativeProjectionStatus, NativeRefreshStatus,
+    NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeRenameInputContext,
+    NativeSessionNotice, NativeSessionView, NativeSetupDraftView, NativeSetupEdit,
+    NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken, NativeTabView,
+    NativeViewportSurface, PresentationPlacement, WorkspaceCloseConfirmationView,
+    WorkspaceCloseStatus, WorkspaceCloseStatusView, WorkspaceCloseToken,
 };
 
 #[derive(Clone, Debug)]
@@ -973,6 +973,31 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    #[cfg(windows)]
+    fn click_resize_control(
+        &mut self,
+        target: &crate::tui_layout::DrawnResize,
+        direction: crate::client_view::PanelDirection,
+        fine: bool,
+    ) {
+        if let (Some(native), Some(control)) =
+            (self.backend.native_mut(), self.client_control.as_mut())
+        {
+            control.resize_drawn(native, target, direction, fine);
+        }
+    }
+    fn click_tab_close(&mut self, token: NativeCloseConfirmationToken, confirm: bool) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_tab_close(token, confirm);
+        }
+        self.finalize_native_retirement();
+    }
+    fn click_panel_close(&mut self, token: NativePanelCloseConfirmationToken, confirm: bool) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_panel_close(token, confirm);
+        }
+        self.finalize_native_retirement();
+    }
     fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
         if let Some(native) = self.backend.native_mut() {
             native.click_workspace_close(token, confirm);
@@ -1002,6 +1027,23 @@ impl TerminalInputPort for TerminalSession {
             #[cfg(test)]
             SessionBackend::Legacy(_) => 0,
         }
+    }
+    fn click_settings_control(
+        &mut self,
+        token: crate::native_settings::Token,
+        control: crate::native_settings::Control,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_settings_control(token, control);
+        }
+    }
+    fn scroll_settings(
+        &mut self,
+        token: crate::native_settings::Token,
+        up: bool,
+        lines: usize,
+    ) -> Option<crate::native_settings::Token> {
+        self.backend.native_mut()?.scroll_settings(token, up, lines)
     }
     fn click_settings(
         &mut self,
@@ -1049,6 +1091,23 @@ impl TerminalInputPort for TerminalSession {
         if let Some(native) = self.backend.native_mut() {
             native.click_action_menu(token, row);
         }
+    }
+    #[cfg(windows)]
+    fn click_action_menu_control(&mut self, token: crate::action_menu::MenuToken, back: bool) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_action_menu_control(token, back);
+        }
+    }
+    #[cfg(windows)]
+    fn scroll_action_menu(
+        &mut self,
+        token: crate::action_menu::MenuToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<crate::action_menu::MenuToken> {
+        self.backend
+            .native_mut()?
+            .scroll_action_menu(token, up, lines)
     }
     #[cfg(windows)]
     fn hover_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
@@ -1140,10 +1199,15 @@ impl TerminalInputPort for TerminalSession {
         }
     }
     #[cfg(windows)]
-    fn scroll_worktree(&mut self, token: WorktreeToken, up: bool) {
-        if let Some(ui) = self.backend.native_mut() {
-            ui.scroll_worktree(token, up);
-        }
+    fn scroll_worktree(
+        &mut self,
+        token: WorktreeToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<WorktreeToken> {
+        self.backend
+            .native_mut()
+            .and_then(|ui| ui.scroll_worktree(token, up, lines))
     }
     #[cfg(windows)]
     fn invalidate_worktree_display(&mut self) {
@@ -1177,10 +1241,15 @@ impl TerminalInputPort for TerminalSession {
         self.finalize_native_retirement();
     }
 
-    fn scroll_setup_projects(&mut self, token: NativeSetupToken, up: bool) {
-        if let Some(native) = self.backend.native_mut() {
-            native.scroll_setup_projects(token, up);
-        }
+    fn scroll_setup_projects(
+        &mut self,
+        token: NativeSetupToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<NativeSetupToken> {
+        self.backend
+            .native_mut()
+            .and_then(|native| native.scroll_setup_projects(token, up, lines))
     }
 
     fn submit_setup_draft(&mut self, token: NativeSetupToken) -> Option<SessionActionDisposition> {
@@ -1286,11 +1355,20 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
-    fn agent_board_scroll(&mut self, up: bool) -> bool {
-        match &mut self.backend {
-            SessionBackend::Native(native) => native.agent_board_scroll(up),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
+    fn scroll_agent_board(
+        &mut self,
+        token: &AgentBoardToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<AgentBoardToken> {
+        self.backend
+            .native_mut()?
+            .scroll_agent_board(token, up, lines)
+    }
+
+    fn click_agent_board_control(&mut self, token: &AgentBoardToken, control: AgentBoardControl) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_agent_board_control(token, control);
         }
     }
 
@@ -1443,6 +1521,39 @@ impl TerminalInputPort for TerminalSession {
         self.backend
             .native_mut()
             .is_some_and(|native| native.capture_copy_mode_key(event))
+    }
+
+    #[cfg(windows)]
+    fn click_copy_control(
+        &mut self,
+        token: crate::terminal_copy_mode::CopyModeToken,
+        control: crate::terminal_copy_mode::CopyControl,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.click_copy_control(token, control);
+        }
+    }
+    #[cfg(windows)]
+    fn copy_pointer_cell(
+        &mut self,
+        token: crate::terminal_copy_mode::CopySurfaceToken,
+        cell: crate::terminal_copy_mode::CopyModeCursor,
+        start: bool,
+    ) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.copy_pointer_cell(token, cell, start))
+    }
+    #[cfg(windows)]
+    fn scroll_copy_mode(
+        &mut self,
+        token: crate::terminal_copy_mode::CopyModeToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<crate::terminal_copy_mode::CopyModeToken> {
+        self.backend
+            .native_mut()
+            .and_then(|native| native.scroll_copy_mode(token, up, lines))
     }
 
     #[cfg(windows)]

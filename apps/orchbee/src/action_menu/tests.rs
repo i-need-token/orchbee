@@ -11,7 +11,7 @@ fn menu() -> ActionMenu {
 }
 
 #[test]
-fn hover_tracks_the_last_painted_window_without_arming_an_action() {
+fn hover_preserves_painted_pointer_rows_but_requires_painted_keyboard_focus() {
     let mut menu = ActionMenu::default();
     assert!(menu.open("Actions".into(), GLOBAL_ACTIONS.to_vec(), None));
     let token = menu.view().unwrap().token;
@@ -21,39 +21,43 @@ fn hover_tracks_the_last_painted_window_without_arming_an_action() {
         0,
         "undrawn motion is ignored"
     );
-    menu.draw(Some(MenuDraw { token, rows: 3 }));
+    menu.draw(Some(MenuDraw {
+        token,
+        rows: 3,
+        selected: 0,
+    }));
     for row in [3, usize::MAX] {
         menu.hover(token, row);
         assert_eq!(menu.view().unwrap().selected, 0, "hidden or invalid row");
     }
-    for row in [2, 1, 0, 2] {
+    for row in [2, 1, 2] {
         menu.hover(token, row);
         assert_eq!(menu.view().unwrap().selected, row);
         assert_eq!(menu.view().unwrap().first, 0);
+        assert_eq!(
+            menu.view().unwrap().token,
+            token,
+            "hover preserves row authority"
+        );
         assert_eq!(menu.confirmed(), None);
         assert!(!menu.confirm());
-        assert!(!menu.click(token, row));
     }
-    let current = menu.view().unwrap().token;
-    menu.hover(token, 2);
-    assert_eq!(menu.view().unwrap().token, current, "same row is a no-op");
-    menu.draw(Some(MenuDraw { token, rows: 3 }));
+    menu.draw(Some(MenuDraw {
+        token,
+        rows: 3,
+        selected: 0,
+    }));
     assert!(
         !menu.confirm(),
         "an old draw cannot arm the hovered selection"
     );
     menu.draw(Some(MenuDraw {
-        token: current,
+        token,
         rows: 3,
+        selected: 2,
     }));
-    menu.hover(token, 1);
-    assert_eq!(
-        menu.view().unwrap().selected,
-        2,
-        "new paint retires old hits"
-    );
     assert!(menu.confirm());
-    menu.hover(current, 1);
+    menu.hover(token, 1);
     assert_eq!(menu.take(), Some(GLOBAL_ACTIONS[2]));
     assert_eq!(menu.take(), None);
 }
@@ -66,12 +70,14 @@ fn hover_respects_disabled_rows_keyboard_scrolling_and_episode_retirement() {
     });
     let old = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: old,
         rows: 2,
     }));
     menu.hover(old, 1);
     let selected = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: selected,
         rows: 2,
     }));
@@ -87,6 +93,7 @@ fn hover_respects_disabled_rows_keyboard_scrolling_and_episode_retirement() {
     );
     let current = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: current,
         rows: 1,
     }));
@@ -99,6 +106,7 @@ fn hover_respects_disabled_rows_keyboard_scrolling_and_episode_retirement() {
     assert!(menu.open("Reopened".into(), TAB_ACTIONS.to_vec(), None));
     let reopened = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: reopened,
         rows: 3,
     }));
@@ -114,13 +122,18 @@ fn ux_menu_disabled_activation_selects_a_reason_without_confirmation() {
         (action == MenuAction::Detach).then_some(MenuUnavailable::OperationBusy)
     }));
     let token = menu.view().unwrap().token;
-    menu.draw(Some(MenuDraw { token, rows: 2 }));
+    menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
+        token,
+        rows: 2,
+    }));
     assert!(!menu.click(token, 1));
     let view = menu.view().unwrap();
     assert_eq!(view.selected, 1);
     assert_eq!(view.unavailable[1], Some(MenuUnavailable::OperationBusy));
     assert_ne!(view.token, token);
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: view.token,
         rows: 2,
     }));
@@ -130,7 +143,11 @@ fn ux_menu_disabled_activation_selects_a_reason_without_confirmation() {
     assert!(menu.refresh_availability(|_| None));
     assert!(!menu.confirm(), "a changed prerequisite needs a fresh draw");
     let token = menu.view().unwrap().token;
-    menu.draw(Some(MenuDraw { token, rows: 2 }));
+    menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
+        token,
+        rows: 2,
+    }));
     assert!(menu.confirm());
     assert_eq!(menu.take(), Some(MenuAction::Detach));
 }
@@ -140,7 +157,11 @@ fn activation_requires_current_successful_draw_and_is_taken_once() {
     let mut menu = menu();
     assert!(!menu.confirm());
     let token = menu.view().unwrap().token;
-    menu.draw(Some(MenuDraw { token, rows: 1 }));
+    menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
+        token,
+        rows: 1,
+    }));
     assert!(menu.confirm());
     assert_eq!(menu.take(), Some(MenuAction::Help));
     assert_eq!(menu.take(), None);
@@ -152,6 +173,7 @@ fn selection_revokes_old_receipt_and_scrolls_without_wrapping() {
     let mut menu = menu();
     let old = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: old,
         rows: 1,
     }));
@@ -160,12 +182,14 @@ fn selection_revokes_old_receipt_and_scrolls_without_wrapping() {
     assert_eq!(menu.view().unwrap().first, 1);
     assert!(!menu.confirm());
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: old,
         rows: 1,
     }));
     assert!(!menu.confirm());
     let current = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: current,
         rows: 1,
     }));
@@ -181,12 +205,14 @@ fn ux_menu_resize_commits_the_painted_window_and_rejects_hidden_clicks() {
     let total = GLOBAL_ACTIONS.len();
     let old = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: old,
         rows: total,
     }));
     menu.select(MenuSelection::Last);
     let current = menu.view().unwrap().token;
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: current,
         rows: 3,
     }));
@@ -195,12 +221,14 @@ fn ux_menu_resize_commits_the_painted_window_and_rejects_hidden_clicks() {
     assert!(!menu.click(old, last));
     assert!(!menu.click(current, 0), "unpainted rows cannot activate");
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: current,
         rows: total,
     }));
     assert_eq!(menu.view().unwrap().first, 0);
     assert_eq!(menu.view().unwrap().selected, last);
     menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
         token: current,
         rows: 3,
     }));
@@ -217,7 +245,11 @@ fn old_episode_draw_cannot_arm_reopened_menu_and_unpresentable_closes() {
     let token = menu.view().unwrap().token;
     menu.cancel();
     assert!(menu.open("Global".into(), vec![MenuAction::Help], None));
-    menu.draw(Some(MenuDraw { token, rows: 1 }));
+    menu.draw(Some(MenuDraw {
+        selected: menu.view().unwrap().selected,
+        token,
+        rows: 1,
+    }));
     assert!(!menu.confirm());
     menu.draw(None);
     assert!(!menu.active());
@@ -265,11 +297,13 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
         match step {
             0 => {
                 if let Some(view) = menu.view() {
-                    old = Some(view.token);
-                    menu.draw(Some(MenuDraw {
+                    let draw = MenuDraw {
+                        selected: view.selected,
                         token: view.token,
                         rows: 1,
-                    }));
+                    };
+                    old = Some(draw);
+                    menu.draw(Some(draw));
                 }
             }
             1 => menu.select(MenuSelection::Next),
@@ -323,17 +357,17 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                 }
             }
             10 | 11 => {
-                if let Some(token) = old {
+                if let Some(draw) = old {
                     let confirmed = menu.confirmed();
-                    menu.hover(token, usize::from(*step - 10));
+                    menu.hover(draw.token, usize::from(*step - 10));
                     if menu.confirmed() != confirmed {
                         return Err("hover confirmed an action");
                     }
                 }
             }
             _ => {
-                if let Some(token) = old {
-                    menu.draw(Some(MenuDraw { token, rows: 1 }));
+                if let Some(draw) = old {
+                    menu.draw(Some(draw));
                 }
             }
         }

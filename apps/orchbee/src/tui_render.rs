@@ -20,6 +20,8 @@ pub(crate) fn render_action_menu_for_test(
 ) -> ModalPresentation<crate::action_menu::MenuDraw> {
     action_menu::render(frame, content, menu, locale, theme, hits)
 }
+#[cfg(windows)]
+mod resize_mode;
 mod settings;
 
 use crate::{
@@ -42,9 +44,28 @@ use crate::{
 use crate::terminal_session::TerminalStatus;
 
 mod agent_board;
+#[cfg(test)]
+pub(crate) fn render_agent_board_for_test(
+    frame: &mut Frame<'_>,
+    locale: Locale,
+    board: &crate::terminal_session::NativeAgentBoardView<'_>,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> AgentBoardDraw {
+    agent_board::render(
+        frame,
+        frame.area(),
+        locale.shell(),
+        locale,
+        board,
+        theme,
+        hits,
+    )
+}
 #[cfg(windows)]
 mod agent_sidebar;
 mod contexts;
+pub(crate) mod controls;
 #[cfg(windows)]
 mod copy_mode;
 #[cfg(windows)]
@@ -153,6 +174,29 @@ pub(crate) fn render_terminal_shell(
         } else {
             None
         };
+    #[cfg(windows)]
+    let menu_label = format!("[{}]", locale.menu_title());
+    #[cfg(windows)]
+    let menu_button = {
+        let width = u16::try_from(display_width(&menu_label)).unwrap_or(u16::MAX);
+        if areas.tabs.width >= width + 2 && areas.tabs.height > 0 {
+            let rect = Rect::new(areas.tabs.right() - width, areas.tabs.y, width, 1);
+            areas.tabs.width -= width + 1;
+            Some(rect)
+        } else if areas.tabs.is_empty()
+            && areas.workbench.width >= width + 2
+            && areas.workbench.height > 1
+        {
+            Some(Rect::new(
+                areas.workbench.right() - width - 1,
+                areas.workbench.y,
+                width,
+                1,
+            ))
+        } else {
+            None
+        }
+    };
     let tier = areas.tier;
     #[cfg(windows)]
     let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(native))
@@ -290,6 +334,32 @@ pub(crate) fn render_terminal_shell(
         );
     }
 
+    #[cfg(windows)]
+    if let Some(rect) =
+        menu_button.and_then(|rect| controls::button(frame, rect, &menu_label, theme, false))
+    {
+        hits.record(HitLayer::Chrome, rect, HitTarget::MenuButton);
+    }
+
+    #[cfg(windows)]
+    resize_mode::render(
+        frame,
+        view,
+        match session.as_ref() {
+            Some(TerminalSessionView::Native(native)) => Some(native),
+            _ => None,
+        },
+        locale,
+        theme,
+        hits,
+    );
+    #[cfg(windows)]
+    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        && let Some(copy) = native.copy_mode()
+    {
+        copy_mode::render_controls(frame, view, copy, locale, theme, hits);
+    }
+
     let site_status = SiteStatus {
         text: &sidebar_status,
         role: sidebar_status_role,
@@ -343,13 +413,14 @@ pub(crate) fn render_terminal_shell(
                 // The help page is ClientView-owned; the renderer reports the
                 // clamped effective page back through the draw receipt so the
                 // dispatcher's counter settles on what was actually painted.
-                let presented = render_shortcut_help(
+                let presented = render_shortcut_help_with_controls(
                     frame,
                     overlay_area(&areas),
                     text,
                     view,
                     view.help_page(),
                     theme,
+                    hits,
                 );
                 help_page = presented.map(|(_, page)| page);
                 Some(presented.map(|(area, _page)| area))
@@ -438,8 +509,14 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
-            let modal =
-                tab_close::render(frame, locale, &confirmation, overlay_area(&areas), theme);
+            let modal = tab_close::render(
+                frame,
+                locale,
+                &confirmation,
+                overlay_area(&areas),
+                theme,
+                hits,
+            );
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = Some(modal.prompt);
             if let Some(token) = modal.status {
@@ -449,8 +526,14 @@ pub(crate) fn render_terminal_shell(
         if let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.panel_close_confirmation()
         {
-            let modal =
-                panel_close::render(frame, locale, &confirmation, overlay_area(&areas), theme);
+            let modal = panel_close::render(
+                frame,
+                locale,
+                &confirmation,
+                overlay_area(&areas),
+                theme,
+                hits,
+            );
             status_draw = status_draw.filter(|(_, area)| !area.intersects(modal.area));
             prompt = None;
             panel_prompt = Some(modal.prompt);
@@ -459,7 +542,7 @@ pub(crate) fn render_terminal_shell(
             && let Some(draft) = native.rename_draft()
         {
             let (area, token) =
-                tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme);
+                tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme, hits);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             prompt = None;
             panel_prompt = None;
@@ -598,6 +681,35 @@ pub(crate) fn render_terminal_shell(
         && let Some(copy) = native.copy_mode()
     {
         copy_mode::render_status(frame, areas.status, copy, locale, notice, theme);
+    }
+    if view.overlay() == Some(Overlay::ShortcutHelp) && help_page.is_none() {
+        // Refused help keeps its page for a later resize, but must never leave
+        // an invisible pointer owner without a visible way to dismiss it.
+        frame.render_widget(Clear, areas.status);
+        frame
+            .buffer_mut()
+            .set_style(areas.status, theme.style(Role::SurfaceChrome));
+        if let Some(close) = controls::close(frame, areas.status, theme) {
+            let notice_area = Rect::new(
+                areas.status.x,
+                areas.status.y,
+                close.x.saturating_sub(areas.status.x + 1),
+                areas.status.height,
+            );
+            frame.render_widget(
+                Paragraph::new(text.overlay_refused).style(theme.style(Role::TextSecondary)),
+                notice_area,
+            );
+            hits.mark_overlay_active();
+            hits.record(
+                HitLayer::Overlay,
+                close,
+                HitTarget::Help {
+                    page: view.help_page(),
+                    action: crate::tui_pointer::HelpControl::Close,
+                },
+            );
+        }
     }
     if let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(close) = native.close_status()
@@ -1185,7 +1297,7 @@ fn render_native_workbench(
             );
             #[cfg(windows)]
             if input_enabled && let Some(copy) = native.copy_mode() {
-                copy_mode::paint_cursor(frame, content_area, copy, theme);
+                copy_mode::paint_surface(frame, content_area, copy, theme, hits);
             }
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
@@ -1240,7 +1352,7 @@ fn render_native_workbench(
             );
             #[cfg(windows)]
             if input_enabled && let Some(copy) = native.copy_mode() {
-                copy_mode::paint_cursor(frame, content_area, copy, theme);
+                copy_mode::paint_surface(frame, content_area, copy, theme, hits);
             }
             // The title band stays Client chrome. The terminal owns every
             // content cell, including its edges; the hit region carries the
@@ -1713,7 +1825,7 @@ fn render_leaf(
         && input_enabled
         && let Some(copy) = native.copy_mode()
     {
-        copy_mode::paint_cursor(frame, content, copy, theme);
+        copy_mode::paint_surface(frame, content, copy, theme, hits);
     }
     selector.map(|s| s.area)
 }
@@ -2176,6 +2288,7 @@ fn wrap_display(text: &str, width: usize) -> Option<Vec<String>> {
 /// drawn — content is never silently clipped. Returns the placed rect and
 /// the effective page after clamping to the page count, or `None` when rows
 /// plus footer cannot fit whole shortcuts.
+#[cfg(test)]
 fn render_shortcut_help(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -2183,6 +2296,26 @@ fn render_shortcut_help(
     view: &ClientView,
     page: usize,
     theme: &Theme,
+) -> Option<(Rect, usize)> {
+    render_shortcut_help_with_controls(
+        frame,
+        area,
+        text,
+        view,
+        page,
+        theme,
+        &mut HitMapBuilder::new(),
+    )
+}
+
+fn render_shortcut_help_with_controls(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    text: ShellText,
+    view: &ClientView,
+    page: usize,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
 ) -> Option<(Rect, usize)> {
     let rows = text.configured_shortcut_rows(view);
     let height = u16::try_from(rows.len())
@@ -2274,6 +2407,50 @@ fn render_shortcut_help(
         Line::styled(paging, theme.style(Role::HintLabel)),
     ];
     frame.render_widget(Paragraph::new(footer), footer_area);
+    if let Some(rect) = controls::close(frame, area, theme) {
+        hits.record(
+            HitLayer::Overlay,
+            rect,
+            HitTarget::Help {
+                page,
+                action: crate::tui_pointer::HelpControl::Close,
+            },
+        );
+    }
+    // Page controls live on the title frame; keyboard instructions retain their rows.
+    let controls_area = Rect::new(area.right().saturating_sub(14), area.y, 9, 1);
+    if area.width >= 40
+        && let Some(rects) = controls::pair(frame, controls_area, ["[<]", "[>]"], theme)
+    {
+        for (rect, action, enabled) in [
+            (
+                rects[0],
+                crate::tui_pointer::HelpControl::Previous,
+                page > 0,
+            ),
+            (
+                rects[1],
+                crate::tui_pointer::HelpControl::Next,
+                page + 1 < total_pages,
+            ),
+        ] {
+            if enabled {
+                hits.record(HitLayer::Overlay, rect, HitTarget::Help { page, action });
+            } else {
+                frame
+                    .buffer_mut()
+                    .set_style(rect, theme.style(Role::TextDisabled));
+            }
+        }
+    }
+    hits.record(
+        HitLayer::OverlaySurface,
+        rows_area,
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Help {
+            page,
+            last: total_pages - 1,
+        }),
+    );
     Some((area, page))
 }
 

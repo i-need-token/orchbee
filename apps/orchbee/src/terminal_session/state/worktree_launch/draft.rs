@@ -29,6 +29,7 @@ pub(crate) enum WorktreeStage {
 }
 /// Single-line edits and choice movement; never interpreted as terminal input.
 pub(crate) enum WorktreeEdit<'a> {
+    ReadStatus,
     NextField,
     Append(&'a str),
     Paste(&'a str),
@@ -44,6 +45,7 @@ pub(crate) enum WorktreeEdit<'a> {
     Completeness(bool),
     Previous,
     Next,
+    ScrollChoices { up: bool, lines: usize },
 }
 pub(super) struct Draft {
     pub token: WorktreeToken,
@@ -134,6 +136,12 @@ impl Draft {
             let (selected, count) = (&mut self.selected_checkout, self.discovery.entries.len());
             let old = *selected;
             match edit {
+                WorktreeEdit::ScrollChoices { up: true, lines } => {
+                    *selected = selected.saturating_sub(lines)
+                }
+                WorktreeEdit::ScrollChoices { up: false, lines } => {
+                    *selected = selected.saturating_add(lines).min(count.saturating_sub(1))
+                }
                 WorktreeEdit::Previous | WorktreeEdit::Left => {
                     *selected = selected.saturating_sub(1)
                 }

@@ -74,13 +74,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn close_actions(self) -> &'static str {
-        match self {
-            Self::EnUs => "y · confirm    Esc · cancel",
-            Self::ZhCn => "y · 确认    Esc · 取消",
-        }
-    }
-
     pub(crate) const fn close_resize_hint(self) -> &'static str {
         match self {
             Self::EnUs => "Enlarge the terminal to read the confirmation. Esc · cancel",

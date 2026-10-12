@@ -74,6 +74,23 @@ fn paint(dispatcher: &mut InputDispatcher, view: &ClientView) {
     hits.mark_overlay_active();
     hits.start_navigator(view.navigator.focus.clone(), 5);
     hits.record(
+        HitLayer::Overlay,
+        Rect::new(38, 2, 3, 1),
+        HitTarget::NavigatorClose(view.navigator.episode()),
+    );
+    for (rect, tabs) in [
+        (Rect::new(2, 3, 20, 5), true),
+        (Rect::new(22, 3, 20, 5), false),
+    ] {
+        if let Some(row) = view.navigator.scroll_row(tabs) {
+            hits.record(
+                HitLayer::OverlaySurface,
+                rect,
+                HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Navigator(row)),
+            );
+        }
+    }
+    hits.record(
         HitLayer::OverlaySurface,
         Rect::new(2, 2, 40, 8),
         HitTarget::OverlaySurface,
@@ -96,6 +113,43 @@ fn opened() -> (InputDispatcher, ClientView, Port) {
     assert!(view.navigator_active());
     paint(&mut dispatcher, &view);
     (dispatcher, view, port)
+}
+
+#[test]
+fn navigator_wheel_stays_in_its_column_and_never_activates_then_close_restores_input() {
+    let (mut d, mut v, mut p) = opened();
+    dispatch_all(
+        &mut d,
+        &mut v,
+        &mut p,
+        b"\x1b[<65;3;4M\x1b[<65;3;4M\x1b[<65;3;4M",
+    );
+    assert_eq!(
+        v.navigator.focus,
+        Some(Target::Tab(p.catalog.tabs[5].clone()))
+    );
+    assert!(p.attempts.is_empty());
+    paint(&mut d, &v);
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<64;3;4M");
+    assert_eq!(
+        v.navigator.focus,
+        Some(Target::Tab(p.catalog.tabs[2].clone()))
+    );
+    paint(&mut d, &v);
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<65;23;4M");
+    assert_eq!(
+        v.navigator.focus,
+        Some(Target::Location(p.catalog.source.location.clone()))
+    );
+    paint(&mut d, &v);
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<65;1;1M");
+    assert!(v.navigator_active(), "outside wheel cannot dismiss");
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;39;3Mtail");
+    assert!(!v.navigator_active());
+    assert!(p.attempts.is_empty());
+    d.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;39;3mfresh");
+    assert_eq!(forwarded_bytes(&p.calls), b"fresh");
 }
 fn escape(dispatcher: &mut InputDispatcher, view: &mut ClientView, port: &mut Port) {
     dispatch_all(dispatcher, view, port, b"\x1b");

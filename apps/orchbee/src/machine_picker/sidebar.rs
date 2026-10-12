@@ -33,6 +33,42 @@ pub(super) struct Scroll {
     capacity: usize,
     maximum: usize,
 }
+impl Scroll {
+    pub(super) fn queue(pending: &mut Option<Self>, window: SidebarWindow, up: bool) {
+        if window.capacity == 0 {
+            return;
+        }
+        let count = pending
+            .filter(|scroll| scroll.up == up)
+            .map_or(0, |scroll| scroll.pending);
+        *pending = Some(Self {
+            up,
+            pending: count.saturating_add(3).min(window.total),
+            capacity: window.capacity,
+            maximum: window.maximum,
+        });
+    }
+
+    pub(super) fn settle(pending: &mut Option<Self>, top: &mut usize, total: usize) -> bool {
+        let Some(mut scroll) = pending.take() else {
+            return false;
+        };
+        let count = scroll.pending.min(scroll.capacity);
+        let maximum = scroll.maximum.min(total.saturating_sub(1));
+        let before = (*top).min(maximum);
+        let next = if scroll.up {
+            before.saturating_sub(count)
+        } else {
+            before.saturating_add(count).min(maximum)
+        };
+        *top = next;
+        scroll.pending -= count;
+        if scroll.pending > 0 && next != before {
+            *pending = Some(scroll);
+        }
+        next != before
+    }
+}
 impl<S: Default> Default for Sidebar<S> {
     fn default() -> Self {
         Self {
@@ -121,7 +157,7 @@ impl Picker {
     pub(crate) fn settle_sidebar_scroll(&mut self) -> bool {
         if self.open {
             self.cancel_sidebar_scroll();
-            return false;
+            return self.settle_picker_scroll();
         }
         self.spaces.settle(self.sidebar_navigation_rows().len())
     }
@@ -265,35 +301,13 @@ impl<S> Sidebar<S> {
         }
         self.top = window.top;
         self.follow_focus = false;
-        let pending = self.scroll.filter(|s| s.up == up).map_or(0, |s| s.pending);
-        self.scroll = Some(Scroll {
-            up,
-            pending: pending.saturating_add(3).min(window.total),
-            capacity: window.capacity,
-            maximum: window.maximum,
-        });
+        Scroll::queue(&mut self.scroll, window, up);
     }
     fn settle(&mut self, total: usize) -> bool {
         if !self.visible {
             self.scroll = None;
             return false;
         }
-        let Some(mut scroll) = self.scroll.take() else {
-            return false;
-        };
-        let count = scroll.pending.min(scroll.capacity);
-        let maximum = scroll.maximum.min(total.saturating_sub(1));
-        let before = self.top.min(maximum);
-        let next = if scroll.up {
-            before.saturating_sub(count)
-        } else {
-            before.saturating_add(count).min(maximum)
-        };
-        self.top = next;
-        scroll.pending -= count;
-        if scroll.pending > 0 && next != before {
-            self.scroll = Some(scroll);
-        }
-        next != before
+        Scroll::settle(&mut self.scroll, &mut self.top, total)
     }
 }

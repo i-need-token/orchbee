@@ -633,9 +633,15 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 &mut |request| mode(request).map_err(LoopFailure::Input),
             )?;
             terminal_input.observe_host_graphics(dispatcher.graphics_facts());
-            redraw |= dispatcher.synchronize(&mut view, terminal_input, now, &mut |request| {
-                mode(request).map_err(LoopFailure::Input)
-            })?;
+            // A ready continuation outranks the idle timeout, even when the
+            // previous frame took longer than the decoder's bounded wait.
+            // Dispatch still reconciles current owners before reading bytes.
+            if input.is_none() {
+                redraw |=
+                    dispatcher.synchronize(&mut view, terminal_input, now, &mut |request| {
+                        mode(request).map_err(LoopFailure::Input)
+                    })?;
+            }
             #[cfg(windows)]
             let menu_measurement = dispatcher.graphics_facts().measurement;
             #[cfg(windows)]

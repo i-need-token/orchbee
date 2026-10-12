@@ -150,6 +150,77 @@ pub(crate) struct CopyModeView<'a> {
     pub(crate) cursor: Option<CopyModeCursor>,
     pub(crate) selecting: bool,
     pub(crate) search: Option<CopyModeSearchView<'a>>,
+    pub(crate) pointer: Option<CopyModeToken>,
+}
+
+/// A painted control may act only on this episode and local state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct CopyModeToken {
+    episode: EpisodeId,
+    surface: Option<Surface>,
+    desired: Option<TerminalTextPoint>,
+    status: CopyModeStatus,
+    selecting: bool,
+    searching: Option<CopySearchDirection>,
+}
+
+/// Selection acknowledgements can advance during a drag; content identity cannot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct CopySurfaceToken {
+    pub(crate) episode: EpisodeId,
+    pub(crate) surface: Surface,
+}
+
+impl CopyModeToken {
+    pub(crate) fn surface(self) -> Option<CopySurfaceToken> {
+        (self.searching.is_none()
+            && matches!(
+                self.status,
+                CopyModeStatus::Ready | CopyModeStatus::Selecting
+            ))
+        .then(|| {
+            self.surface.map(|surface| CopySurfaceToken {
+                episode: self.episode,
+                surface,
+            })
+        })
+        .flatten()
+    }
+    pub(crate) fn pending(&mut self) {
+        self.status = CopyModeStatus::Moving;
+    }
+}
+
+impl CopyModeView<'_> {
+    pub(crate) fn entering(episode: EpisodeId) -> Self {
+        Self {
+            status: CopyModeStatus::Entering,
+            cursor: None,
+            selecting: false,
+            search: None,
+            pointer: Some(CopyModeToken {
+                episode,
+                surface: None,
+                desired: None,
+                status: CopyModeStatus::Entering,
+                selecting: false,
+                searching: None,
+            }),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CopyControl {
+    Copy,
+    ToggleSelection,
+    Search,
+    RepeatSearch { reverse: bool },
+    Exit,
+    Help,
+    SubmitSearch,
+    CancelSearch,
+    ReverseSearch,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -304,6 +375,14 @@ impl Mode {
                 direction: search.direction,
                 draft: &search.text,
                 cursor: search.cursor,
+            }),
+            pointer: Some(CopyModeToken {
+                episode: self.episode,
+                surface: Some(self.surface),
+                desired: Some(self.desired),
+                status,
+                selecting: self.selecting,
+                searching: self.search.as_ref().map(|search| search.direction),
             }),
         }
     }
@@ -587,6 +666,42 @@ impl Mode {
             self.pending_effect = Some(Effect::Selection(SelectionEffect::Start(self.cursor)));
         }
         Ok(())
+    }
+
+    /// A press anchors a semantic selection; further presses extend that selection.
+    pub(crate) fn start_pointer_selection(
+        &mut self,
+        target: TerminalTextPoint,
+    ) -> Result<(), Refusal> {
+        if self.selecting {
+            return self.request_local_target(target);
+        }
+        if self.search.is_some() || !matches!(self.flight, Flight::None) {
+            return Err(Refusal::Busy);
+        }
+        if !self.surface.contains(target) {
+            return Err(Refusal::Invalid);
+        }
+        self.cursor = target;
+        self.desired = target;
+        self.selecting = true;
+        self.selection_point = Some(target);
+        self.flight = Flight::Selection;
+        self.pending_effect = Some(Effect::Selection(SelectionEffect::Start(target)));
+        Ok(())
+    }
+
+    pub(crate) fn cancel_search(&mut self) {
+        self.search = None;
+    }
+
+    pub(crate) fn reverse_search(&mut self) {
+        if let Some(search) = &mut self.search {
+            search.direction = match search.direction {
+                CopySearchDirection::Forward => CopySearchDirection::Backward,
+                CopySearchDirection::Backward => CopySearchDirection::Forward,
+            };
+        }
     }
 
     pub(crate) fn request_copy(&mut self, host_selection_active: bool) -> Result<(), Refusal> {

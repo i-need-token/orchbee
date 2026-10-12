@@ -67,6 +67,23 @@ impl TerminalInputPort for Port {
             self.saves += 1;
         }
     }
+    fn click_settings_control(
+        &mut self,
+        token: crate::native_settings::Token,
+        control: crate::native_settings::Control,
+    ) {
+        if self.editor.control(token, control).is_some() {
+            self.saves += 1;
+        }
+    }
+    fn scroll_settings(
+        &mut self,
+        token: crate::native_settings::Token,
+        up: bool,
+        lines: usize,
+    ) -> Option<crate::native_settings::Token> {
+        self.editor.scroll(token, up, lines)
+    }
     fn capture_settings_paste(&mut self, text: Option<&str>) {
         if let Some(text) = text {
             self.editor.paste(text);
@@ -77,6 +94,80 @@ impl TerminalInputPort for Port {
     fn settings_text_remaining(&self) -> usize {
         self.editor.remaining_text_bytes()
     }
+}
+
+#[test]
+fn settings_wheel_never_wraps_or_edits_values_and_keyboard_cancels_backlog() {
+    fn paint(dispatcher: &mut InputDispatcher, port: &mut Port) {
+        let token = port.editor.view().unwrap().token();
+        port.editor.draw(token);
+        let mut hits = HitMapBuilder::new();
+        hits.start_settings();
+        hits.record(
+            HitLayer::OverlaySurface,
+            Rect::new(2, 3, 30, 4),
+            HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Settings(token)),
+        );
+        hits.record(
+            HitLayer::OverlaySurface,
+            Rect::new(0, 0, 36, 10),
+            HitTarget::OverlaySurface,
+        );
+        dispatcher.publish_hit_map(hits.finish());
+    }
+    let mut port = Port::ready();
+    port.editor.edit(Edit::Home);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<_, io::Error>(())
+        })
+        .unwrap();
+    paint(&mut dispatcher, &mut port);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<64;3;4M\x1b[<65;3;10M",
+    );
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.selected == Row::Language)
+    );
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<65;3;4M".repeat(20).as_slice(),
+    );
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.selected == Row::Background)
+    );
+    paint(&mut dispatcher, &mut port);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<64;3;4M");
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.selected == Row::Theme)
+    );
+    paint(&mut dispatcher, &mut port);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<65;3;4M".repeat(20).as_slice(),
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[H");
+    paint(&mut dispatcher, &mut port);
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<_, io::Error>(())
+        })
+        .unwrap();
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.selected == Row::Language)
+    );
+    assert_eq!(port.saves, 0);
+    assert!(forwarded_bytes(&port.calls).is_empty());
 }
 #[test]
 fn settings_footer_click_and_prefix_binding_open_the_same_editor_and_capture_the_packet() {
@@ -240,11 +331,13 @@ fn settings_save_click_and_its_late_release_are_consumed_once() {
         },
     );
     dispatcher.publish_hit_map(hits.finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;3;3M");
+    assert_eq!(port.saves, 0);
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        b"\x1b[<0;3;3Mignored",
+        b"\x1b[<0;3;3mignored",
     );
     assert_eq!(port.saves, 1);
     assert!(port.editor.complete(token));

@@ -16,6 +16,14 @@ pub(crate) struct DividerSource {
     pub(crate) revision: WorkbenchRevision,
 }
 
+/// A resize toolbar refers to one focused layout and its painted viewport.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DrawnResize {
+    pub(crate) source: DividerSource,
+    pub(crate) viewport: Rect,
+    pub(crate) sidebar: crate::client_view::SidebarSurface,
+}
+
 /// Exact painted split and viewport, revalidated before every gesture step.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DrawnDivider {

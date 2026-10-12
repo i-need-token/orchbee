@@ -250,6 +250,15 @@ struct ParentMenu {
     selected: MenuAction,
 }
 
+impl Coordinator {
+    pub(super) fn view(&self) -> Option<MenuView<'_>> {
+        self.menu.view().map(|mut menu| {
+            menu.has_parent = !self.parents.is_empty();
+            menu
+        })
+    }
+}
+
 impl NativeSessionView<'_> {
     /// Creation uses the painted context even when it contains no Tabs.
     pub(crate) fn tab_create_target(&self) -> Option<crate::action_menu::DrawnTabCreate> {
@@ -262,7 +271,7 @@ impl NativeSessionView<'_> {
         })
     }
     pub(crate) fn action_menu(&self) -> Option<MenuView<'_>> {
-        self.menu?.view()
+        self.menu.and_then(Coordinator::view)
     }
     pub(crate) fn action_menu_source(&self) -> Option<DrawnMenuSource> {
         if self.retirement.is_some() {
@@ -572,6 +581,7 @@ impl NativeUi {
                 matches!(
                     a,
                     MenuAction::Help
+                        | MenuAction::Machines
                         | MenuAction::Sidebar
                         | MenuAction::ReleasePointer
                         | MenuAction::Detach
@@ -683,6 +693,39 @@ impl NativeUi {
             self.menus.intent = None;
             self.menus.parents.clear();
         }
+    }
+
+    pub(in crate::terminal_session) fn click_action_menu_control(
+        &mut self,
+        token: MenuToken,
+        back: bool,
+    ) {
+        self.drive_action_menu();
+        if self
+            .menus
+            .menu
+            .view()
+            .is_none_or(|menu| menu.token != token)
+        {
+            return;
+        }
+        if back {
+            self.capture_action_menu_key(KeyEvent::press(
+                crate::client_view::KeyCode::Left,
+                crate::client_view::Modifiers::NONE,
+            ));
+        } else {
+            self.cancel_action_menu();
+        }
+    }
+    pub(in crate::terminal_session) fn scroll_action_menu(
+        &mut self,
+        token: MenuToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<MenuToken> {
+        self.drive_action_menu();
+        self.menus.menu.scroll(token, up, lines)
     }
 
     pub(in crate::terminal_session) fn click_action_menu(&mut self, token: MenuToken, row: usize) {

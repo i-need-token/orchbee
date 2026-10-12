@@ -17,6 +17,21 @@ pub(in crate::terminal_session) enum LocalResizeFeedback {
 }
 
 impl ClientControl {
+    pub(in crate::terminal_session) fn resize_drawn(
+        &mut self,
+        native: &NativeUi,
+        target: &crate::tui_layout::DrawnResize,
+        direction: PanelDirection,
+        fine: bool,
+    ) {
+        if native.view().divider_source().as_ref() != Some(&target.source)
+            || self.viewport != Some((target.viewport, target.sidebar))
+        {
+            self.local_resize_feedback = Some(LocalResizeFeedback::Notice(Notice::ResizeFailed));
+            return;
+        }
+        self.resize(native, direction, fine);
+    }
     pub(in crate::terminal_session) fn resize(
         &mut self,
         native: &NativeUi,

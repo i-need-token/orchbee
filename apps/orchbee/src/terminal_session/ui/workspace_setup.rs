@@ -88,10 +88,13 @@ impl NativeUi {
         &mut self,
         token: NativeSetupToken,
         up: bool,
-    ) {
-        if let Some(state) = self.state.as_mut() {
-            state.scroll_setup_projects(token, up);
-        }
+        lines: usize,
+    ) -> Option<NativeSetupToken> {
+        let state = self.state.as_mut()?;
+        state
+            .scroll_setup_projects(token, up, lines)
+            .then(|| state.setup_draft().map(|draft| draft.token()))
+            .flatten()
     }
 
     pub(super) fn request_workspace_organization(

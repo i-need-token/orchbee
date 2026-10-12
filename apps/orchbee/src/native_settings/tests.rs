@@ -25,6 +25,58 @@ fn submit(editor: &mut Editor) -> Submission {
     draw(editor);
     editor.edit(Edit::Activate).unwrap()
 }
+
+#[test]
+fn settings_mouse_controls_follow_text_back_confirmation_and_hidden_save_lifetimes() {
+    let mut editor = ready();
+    draw(&mut editor);
+    editor.control(
+        editor.view().unwrap().token(),
+        Control::Row(Row::LaunchProfiles),
+    );
+    draw(&mut editor);
+    editor.control(
+        editor.view().unwrap().token(),
+        Control::Row(Row::ProfileName),
+    );
+    editor.edit(Edit::Clear);
+    editor.paste("Mouse profile");
+    draw(&mut editor);
+    let stale = editor.view().unwrap().token();
+    editor.control(stale, Control::Accept);
+    assert!(
+        matches!(editor.view(), Some(View::Draft(draft)) if draft.text.is_none() && draft.values.launch_profiles.profiles[0].name.as_deref() == Some("Mouse profile"))
+    );
+    editor.control(stale, Control::Close);
+    assert!(
+        editor.visible(),
+        "old control cannot close the new draft revision"
+    );
+    draw(&mut editor);
+    editor.control(editor.view().unwrap().token(), Control::Back);
+    assert!(
+        matches!(editor.view(), Some(View::Draft(draft)) if draft.page == Page::General && draft.dirty)
+    );
+    draw(&mut editor);
+    editor.control(editor.view().unwrap().token(), Control::Row(Row::ResetAll));
+    draw(&mut editor);
+    editor.control(editor.view().unwrap().token(), Control::Back);
+    assert!(
+        matches!(editor.view(), Some(View::Draft(draft)) if draft.confirmation.is_none() && draft.dirty)
+    );
+    draw(&mut editor);
+    let submission = editor
+        .control(editor.view().unwrap().token(), Control::Row(Row::Save))
+        .unwrap();
+    editor.control(submission.token, Control::Close);
+    assert!(!editor.visible());
+    assert!(
+        editor.open().is_none(),
+        "closing the surface retains the in-flight write"
+    );
+    assert!(editor.complete(submission.token));
+    assert!(editor.open().is_some());
+}
 #[test]
 fn only_a_dirty_successfully_drawn_draft_can_submit_once() {
     let mut editor = ready();

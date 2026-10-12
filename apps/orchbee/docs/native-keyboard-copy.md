@@ -37,12 +37,20 @@ at its bottom-left cell. This initial-position projection is adopted from local 
 `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `src/client/shell/copy_mode.rs`; this is not a complete
 Herdr compatibility claim. Normalize movement to complete displayed glyphs.
 
-Copy mode paints every served content row. It omits the ordinary history badge and bottom line
+Copy mode paints the served content rows. Its mouse toolbar replaces the Tab strip, or overlays the first row in Minimal layout without changing content coordinates. It omits the ordinary history badge and bottom line
 inside the pane; the outer status area shows the persistent mode indicator, hints and search
 draft. Within the width left by the indicator, search draft and notice, the hint shows the widest
 complete localized action set that fits — full, then short — and otherwise keeps only the
 persistent exit hint; a hint segment is never partially drawn. The cursor, selection, read
 coordinates and painter use the same content geometry.
+
+## Mouse controls
+
+The pane action menu opens the same copy episode. Copy, Select/Clear, Search, previous/next search and X operate on that episode; a wider toolbar also exposes Help. Search offers Find, Back and a direction toggle. Controls act only on a matching plain-left release with the same painted token and rectangle. Keyboard input, focus loss, capture release, new content or geometry revokes a pending click. The decision packet and late release cannot become pane input.
+
+Plain left press on served content anchors selection at the normalized glyph; while selecting, presses and drags extend the existing selection. Clear ends that selection before a new anchor. Drag motion coalesces through the existing Host selection acknowledgement; releasing retains selection for an explicit Copy action. The original episode and exact screen, generation, revision and row window fence every coordinate. No separate clipboard writer or terminal-input path is introduced.
+
+Wheel inside the served content contributes three rows per notch, bounded by the painted viewport per pass. Reversal drops old backlog and retains the first opposite notch. Source/geometry change, keyboard input, query or export cancels unused work. Wheel outside content is inert. Search, selection, read and clipboard failures retain their original native-owner behavior.
 
 ## Input ownership and bindings
 
@@ -67,7 +75,7 @@ The pane task and output polling continue.
 | F1                | Show this mode's registry-derived help                                    |
 | `q`, Esc          | Cancel and return to ordinary input; Esc also exits from the search draft |
 
-While editing a search, printable characters including `q` edit the query. Enter submits it.
+While editing a search, printable characters including `q` edit the query. Enter submits it; Ctrl+G returns to copy navigation without leaving the mode.
 The draft uses the existing inline editing conventions, whole-grapheme deletion and atomic
 paste, with a 512-Unicode-scalar bound and a visible refusal on overflow. Queries containing
 uppercase characters are case-sensitive; others are case-insensitive. Empty search performs no

@@ -166,6 +166,7 @@ impl InputDispatcher {
                     }
                 }
             }
+            DecodedKind::Mouse(event) if self.pointer.queue_list_scroll(event) => {}
             DecodedKind::Mouse(event)
                 if self.pointer.capture_enabled()
                     && event.action == MouseAction::Press
@@ -176,6 +177,14 @@ impl InputDispatcher {
                     ) =>
             {
                 match self.pointer.navigator_hit(event.column, event.row) {
+                    Some(NavigatorHit::Close(episode))
+                        if episode == view.navigator.episode()
+                            && event.button == MouseButton::Left
+                            && event.mods == Modifiers::NONE =>
+                    {
+                        self.navigator.release = Some(event.button);
+                        view.close_navigator(None);
+                    }
                     Some(NavigatorHit::Row(row))
                         if event.button == MouseButton::Left && event.mods == Modifiers::NONE =>
                     {
