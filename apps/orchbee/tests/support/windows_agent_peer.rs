@@ -13,14 +13,21 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
-    sync::{Arc, Mutex, OnceLock, mpsc},
+    process::{Command, Output},
+    sync::{
+        Arc, Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     thread,
     time::{Duration, Instant},
 };
 
 #[path = "windows_cli_cohort.rs"]
 mod cohort;
+#[path = "windows_agent_peer/process.rs"]
+pub(super) mod process;
+use process::Failure as ProcessFailure;
 
 pub(super) struct Fixture(
     pub(super) PathBuf,
@@ -29,7 +36,48 @@ pub(super) struct Fixture(
 );
 struct PendingPeer {
     launched: mpsc::Sender<Instant>,
-    output: Arc<Mutex<Option<Output>>>,
+    state: Arc<PeerState>,
+}
+#[derive(Default)]
+struct PeerState {
+    cancelled: AtomicBool,
+    diagnostic: Mutex<Option<String>>,
+}
+
+pub(super) struct PeerGuard<'fixture> {
+    fixture: &'fixture Fixture,
+    state: Arc<PeerState>,
+    thread: Option<thread::JoinHandle<()>>,
+}
+impl PeerGuard<'_> {
+    pub(super) fn join(mut self) -> thread::Result<()> {
+        self.thread.take().expect("peer joined once").join()
+    }
+}
+impl Drop for PeerGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(handle) = self.thread.take() {
+            self.state.cancelled.store(true, Ordering::Release);
+            // A cancelled pre-launch peer must not poison a later invocation.
+            let mut pending = self.fixture.1.lock().unwrap_or_else(|e| e.into_inner());
+            if pending
+                .as_ref()
+                .is_some_and(|p| Arc::ptr_eq(&p.state, &self.state))
+            {
+                pending.take();
+            }
+            drop(pending);
+            let _ = handle.join(); // Never panic a second time while unwinding.
+        }
+    }
+}
+struct CancelOnFailure(Arc<PeerState>);
+impl Drop for CancelOnFailure {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            self.0.cancelled.store(true, Ordering::Release);
+        }
+    }
 }
 
 impl Fixture {
@@ -139,47 +187,90 @@ impl Fixture {
         environment: &[(&str, &std::ffi::OsStr)],
         input: Option<&[u8]>,
     ) -> Output {
-        let mut command = self.command(arguments, terminal, worker, environment);
-        command
-            .stdin(if input.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let mut child = command.spawn().unwrap();
+        self.run_command(
+            self.command(arguments, terminal, worker, environment),
+            input,
+            // Match the generic process fixture backstop and combined output cap.
+            Duration::from_secs(45),
+            8 * 1024 * 1024,
+        )
+    }
+
+    pub(super) fn run_command(
+        &self,
+        command: Command,
+        input: Option<&[u8]>,
+        budget: Duration,
+        output_limit: usize,
+    ) -> Output {
+        self.try_run_command(command, input, budget, output_limit)
+            .unwrap_or_else(|error| panic!("Windows CLI fixture command: {error}"))
+    }
+
+    pub(super) fn try_run_command(
+        &self,
+        command: Command,
+        input: Option<&[u8]>,
+        budget: Duration,
+        output_limit: usize,
+    ) -> Result<Output, ProcessFailure> {
         let pending_peer = self.1.lock().unwrap().take();
-        if let Some(peer) = &pending_peer {
-            // The peer may already have accepted before CreateProcess returns.
-            let _ = peer.launched.send(Instant::now());
-        }
-        if let Some(bytes) = input {
-            use std::io::Write;
-            child.stdin.take().unwrap().write_all(bytes).unwrap();
-        }
-        let output = child.wait_with_output().unwrap();
+        let no_peer_cancel = AtomicBool::new(false);
+        let cancelled = pending_peer
+            .as_ref()
+            .map_or(&no_peer_cancel, |peer| &peer.state.cancelled);
+        let result = process::run(command, input, budget, output_limit, cancelled, |started| {
+            if let Some(peer) = &pending_peer {
+                // The peer may have accepted before CreateProcess returned.
+                let _ = peer.launched.send(started);
+            }
+        });
         if let Some(peer) = pending_peer {
-            *peer.output.lock().unwrap() = Some(output.clone());
+            *peer.state.diagnostic.lock().unwrap() = Some(match &result {
+                Ok(output) => {
+                    process::diagnostic(Some(output.status), &output.stdout, &output.stderr)
+                }
+                Err(error) => error.to_string(),
+            });
         }
-        output
+        result
     }
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        // Wake an admission peer when child creation unwinds before notification.
-        self.1.lock().unwrap().take();
-        let target = self.0.canonicalize().unwrap();
-        assert!(target.starts_with(std::env::temp_dir().canonicalize().unwrap()));
-        assert!(
-            self.0
+        if let Some(peer) = self.1.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            peer.state.cancelled.store(true, Ordering::Release);
+        }
+        remove_fixture_directory(&self.0, "orchbee-cli-names-");
+    }
+}
+
+fn remove_fixture_directory(path: &Path, prefix: &str) {
+    let result = (|| {
+        let target = path.canonicalize()?;
+        if !target.starts_with(std::env::temp_dir().canonicalize()?)
+            || !target
                 .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .starts_with("orchbee-cli-names-")
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(prefix))
+        {
+            return Err(std::io::Error::other(
+                "fixture cleanup path escaped its owned temporary root",
+            ));
+        }
+        fs::remove_dir_all(target)
+    })();
+    if let Err(error) = result {
+        let diagnostic = format!(
+            "fixture owner could not release {} after peer/command cleanup attempts: {error}; the test runner retains cleanup responsibility",
+            path.display()
         );
-        fs::remove_dir_all(target).unwrap();
+        if thread::panicking() {
+            use std::io::Write;
+            let _ = writeln!(std::io::stderr().lock(), "{diagnostic}");
+        } else {
+            panic!("{diagnostic}");
+        }
     }
 }
 
@@ -187,25 +278,39 @@ pub(super) fn peer(
     fixture: &Fixture,
     listener: LocalListener,
     script: impl FnOnce(LocalStream) + Send + 'static,
-) -> thread::JoinHandle<()> {
+) -> PeerGuard<'_> {
+    peer_with_budget(fixture, listener, Duration::from_secs(15), script)
+}
+
+pub(super) fn peer_with_budget(
+    fixture: &Fixture,
+    listener: LocalListener,
+    admission_budget: Duration,
+    script: impl FnOnce(LocalStream) + Send + 'static,
+) -> PeerGuard<'_> {
     listener.set_nonblocking(true).unwrap();
     let (launched, launch) = mpsc::channel();
-    let output = Arc::new(Mutex::new(None));
+    let state = Arc::new(PeerState::default());
     let pending = PendingPeer {
         launched,
-        output: Arc::clone(&output),
+        state: Arc::clone(&state),
     };
     assert!(fixture.1.lock().unwrap().replace(pending).is_none());
-    thread::spawn(move || {
+    let peer_state = Arc::clone(&state);
+    let handle = thread::spawn(move || {
+        let _cancel_on_failure = CancelOnFailure(Arc::clone(&peer_state));
         // OS process creation is fixture setup, not the CLI admission interval.
         let mut deadline = None;
         let mut stream = loop {
+            if peer_state.cancelled.load(Ordering::Acquire) {
+                return;
+            }
             match listener.accept() {
                 Ok((stream, _)) => break stream,
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                     if deadline.is_none() {
                         match launch.try_recv() {
-                            Ok(started) => deadline = Some(started + Duration::from_secs(15)),
+                            Ok(started) => deadline = Some(started + admission_budget),
                             Err(mpsc::TryRecvError::Empty) => {}
                             Err(mpsc::TryRecvError::Disconnected) => {
                                 panic!("CLI launch cancelled before admission");
@@ -213,15 +318,14 @@ pub(super) fn peer(
                         }
                     }
                     if deadline.is_some_and(|until| Instant::now() >= until) {
-                        let diagnostic = match output.lock().unwrap().as_ref() {
-                            Some(output) => format!(
-                                "status={:?}\nstdout={}\nstderr={}",
-                                output.status,
-                                String::from_utf8_lossy(&output.stdout),
-                                String::from_utf8_lossy(&output.stderr)
-                            ),
-                            None => "child output has not been collected".to_owned(),
-                        };
+                        let diagnostic = peer_state
+                            .diagnostic
+                            .lock()
+                            .unwrap()
+                            .clone()
+                            .unwrap_or_else(|| {
+                                "child output has not been collected; cancelling its Job".to_owned()
+                            });
                         // Release the diagnostic lock before unwinding the peer.
                         panic!("CLI admission timeout: {diagnostic}");
                     }
@@ -248,7 +352,12 @@ pub(super) fn peer(
         )
         .unwrap();
         script(stream);
-    })
+    });
+    PeerGuard {
+        fixture,
+        state,
+        thread: Some(handle),
+    }
 }
 
 pub(super) fn validate(document: &Value, source: &'static str) {

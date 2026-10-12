@@ -64,16 +64,7 @@ impl Cohort {
 
 impl Drop for Cohort {
     fn drop(&mut self) {
-        let path = self.0.canonicalize().unwrap();
-        assert!(path.starts_with(std::env::temp_dir().canonicalize().unwrap()));
-        assert!(
-            path.file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .starts_with("orchbee-cli-cohort-")
-        );
-        fs::remove_dir_all(path).unwrap();
+        super::remove_fixture_directory(&self.0, "orchbee-cli-cohort-");
     }
 }
 

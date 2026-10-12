@@ -26,7 +26,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn join_peer(handler: thread::JoinHandle<()>, output: &std::process::Output) {
+fn join_peer(handler: PeerGuard<'_>, output: &std::process::Output) {
     assert!(
         handler.join().is_ok(),
         "peer failed; CLI status={} stdout={} stderr={}",

@@ -559,7 +559,9 @@ fn zero_source_wait(reply_after_exit: bool) {
             );
             if reply_after_exit {
                 // Pin the cancellation race: the client closes before the pending reply.
-                client_exit.recv().unwrap();
+                client_exit
+                    .recv_timeout(std::time::Duration::from_secs(10))
+                    .unwrap();
             }
             let result = write_server_message(
                 &mut stream,

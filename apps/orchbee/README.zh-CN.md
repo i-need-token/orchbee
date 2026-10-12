@@ -668,6 +668,18 @@ Windows CLI peer fixture 复用只读 cohort 准备结果与已编译的 schema 
 释放时删除临时目录。可执行文件仍经过正常的单硬链接 cohort 准入。Schema 成员与语法组合
 由核心测试覆盖；进程测试保留离线发布、真实 IPC、失败、期限和清理验证。
 
+每条被捕获的命令都持有一个 Windows Job，直到根进程及其后代完成回收。默认交换在进程创建后
+设置 45 秒兜底期限，stdout/stderr 合计上限为 8 MiB，并使用非阻塞输入输出；stdin 提前关闭仍
+保留子进程的真实退出状态与输出。只有确认 Job 已回收后，才报告原始期限、取消、捕获或输出
+超限失败及有界的部分输出。无法确认回收时改为报告 `PhysicalUnknown`，不能宣称清理成功。诊断最多保留每个输出流
+开头的 8 KiB；清理失败会报告所属路径，并避免在栈展开期间再次 panic。
+
+Peer guard 借用 fixture，并负责取消及 join，包括父测试断言失败的路径。它的准入期限仅在进程
+成功创建后开始；已接受连接的读写上限为 10 秒，peer 脚本自身的等待也必须有界。Guard 析构时先
+等待当前有界 peer 操作结束，再释放 fixture/cohort。失败的 peer 会取消命令；正常完成的脚本
+允许 CLI 继续发布结果。[Fixture 生命周期验证](tests/cli_windows_fixture_lifecycle.rs) 覆盖
+全双工管道、上限、stdin 提前关闭、准入取消、peer join 和受管后代退出。
+
 使用 `ORCHBEE_TEST_NATIVE_COHORT` 指向已暂存的绝对路径，可对实际 Release 产物运行同一套
 真实进程验收。Fixture 先校验该 cohort，再复制到各自隔离目录；测试不改变源产物或默认 Site。
 

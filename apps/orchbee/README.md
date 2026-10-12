@@ -743,6 +743,23 @@ and the last owner removes their temporary directory. Executable files retain no
 cohort admission. Schema membership and grammar matrices belong to core tests; process tests retain
 offline publication, real IPC, failure, deadline and cleanup witnesses.
 
+Each captured command retains a Windows Job through root and descendant settlement. The default
+exchange has a 45-second backstop after process creation, an 8 MiB combined stdout/stderr cap, and
+nonblocking input/output; early stdin closure preserves the child's actual exit and output. Deadline,
+cancellation, capture and output-limit failures report their original cause and bounded partial
+output only after confirmed Job settlement. An unconfirmed settlement instead reports
+`PhysicalUnknown`, never successful cleanup. Diagnostics
+retain at most the first 8 KiB of each stream; cleanup failure reports the owned path without a second
+panic during unwinding.
+
+A peer guard borrows its fixture and owns cancellation plus joining, including parent assertion
+failure. Its admission deadline starts only after successful process creation; accepted streams have
+10-second read/write bounds, and peer scripts must also bound their own waits. Dropping the guard
+waits for the current bounded peer operation before fixture/cohort release. A failed peer cancels the
+command; a normally completed script leaves the CLI free to publish its result. The
+[fixture lifecycle witnesses](tests/cli_windows_fixture_lifecycle.rs) exercise full-duplex pipes,
+limits, early stdin closure, admission cancellation, peer joining and retained descendant exit.
+
 Set `ORCHBEE_TEST_NATIVE_COHORT` to an absolute staged directory to run the same real-process
 acceptance suite against the actual release artifacts. Fixtures validate that cohort and copy it
 into isolated directories; tests do not change the source cohort or default Site.
