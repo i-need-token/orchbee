@@ -163,6 +163,19 @@ effect。
 
 Desktop 应用构造期间的致命失败会在 Electron 退出前把进程退出状态设为 `1`。普通的单实例拒绝以及正常窗口或受管生命周期退出仍保留成功的进程状态。
 
+启动回滚在清理失败时报告第一个清理失败值，包括 `undefined` 或 `null`；否则保留原始启动错误。
+独立清理仍会完成，失败的 owner 保留到后续应用关闭时重试。投影控制退役也在尝试每个独立租约
+清理时保留第一个失败值，并保留失败租约供显式重试。这也包括被最终权威检查拒绝的未发布租约：
+broker 保留其请求身份直到清理成功，使精确释放能重试该租约而不退役无关投影。
+[投影 broker 测试](src/main/terminal-projection-control/__tests__/TerminalProjectionControlBroker.unit.test.ts)
+覆盖首个失败身份、跨多个租约的完整重试，以及通过释放或 broker 退役恢复未发布租约的清理，
+同时保证被拒绝的渲染器端口不会被传递。
+
+投影服务释放会等待所有已启动的独立租约清理和暂存附件分离结束，再返回成功或失败。
+某个清理提前拒绝时会保留首个观察到的失败，但不会在其他清理仍未完成时结束关闭屏障。
+失败的 owner 保留供显式重试，成功的清理不会重复。[投影服务测试](src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionService.unit.test.ts)
+在一个清理拒绝时保持另一个清理未完成，再验证完成顺序和保留的所有权。
+
 应用关闭和渲染器文档退役会在失败后继续执行各自独立保护的清理步骤，并报告第一个原始抛出值，包括 `undefined` 或 `null`。退役失败时不能发布替代渲染器的 bootstrap；后续重试必须先完成保留的清理。[应用组合测试](src/main/composition/__tests__/DesktopApplication.unit.test.ts) 覆盖失败值保留、独立清理，以及重试时不重复已完成的终端运行时释放。
 
 正常关闭 macOS 窗口只会释放渲染器页面。Command+Q、菜单退出，或关闭 Windows/Linux 上最后一个窗口时，会在渲染器仍可用期间进入统一的用户退出工作流。若一个或多个 Presentation 依据 Workbench 的 Panel 关闭谓词需要保护，应用级对话框会以“保留会话并退出”为默认选项，以“停止会话并退出”为破坏性选项，也可在执行任何停止效果前取消。若观察到每个运行中 Presentation 都处于空闲状态，或已无 Presentation，Desktop 会保留会话、刷新共享文档并直接退出，不显示提示。未来的 updater 会静默进入相同的 `update-restart` 保留准备；updater 安装、签名与发布分发不在本包范围内。

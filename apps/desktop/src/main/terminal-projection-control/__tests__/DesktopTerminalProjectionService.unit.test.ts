@@ -737,6 +737,45 @@ describe('DesktopTerminalProjectionService', () => {
 		expect(harness.service.getMetrics()).toEqual([]);
 	});
 
+	it.each([
+		{ failure: new Error('first detach failure'), kind: 'Error', laterFails: false },
+		{ failure: undefined, kind: 'undefined', laterFails: true },
+		{ failure: null, kind: 'null', laterFails: true },
+	])(
+		'waits for independent lease cleanup before reporting a $kind failure',
+		async ({ failure, laterFails }) => {
+			const harness = createHarness();
+			await harness.service.open(terminalPresentationId('presentation-fast-cleanup'));
+			await harness.service.open(terminalPresentationId('presentation-pending-cleanup'));
+			const pendingCleanup = createDeferred<void>();
+			harness.brokers[0]?.dispose.mockRejectedValueOnce(failure);
+			harness.brokers[1]?.dispose.mockImplementationOnce(async () => {
+				await pendingCleanup.promise;
+				if (laterFails) throw new Error('later detach failure');
+			});
+			const completed = vi.fn<(outcome: 'resolved' | 'rejected', reason?: unknown) => void>();
+			const disposal = harness.service.dispose().then(
+				() => completed('resolved'),
+				(error: unknown) => completed('rejected', error),
+			);
+
+			try {
+				await vi.waitFor(() => expect(harness.brokers[1]?.dispose).toHaveBeenCalledOnce());
+				expect(completed).not.toHaveBeenCalled();
+			} finally {
+				pendingCleanup.resolve();
+				await disposal;
+			}
+			expect(completed).toHaveBeenCalledExactlyOnceWith('rejected', failure);
+			expect(harness.service.getMetrics()).toHaveLength(laterFails ? 2 : 1);
+
+			await expect(harness.service.dispose()).resolves.toBeUndefined();
+			expect(harness.brokers[0]?.dispose).toHaveBeenCalledTimes(2);
+			expect(harness.brokers[1]?.dispose).toHaveBeenCalledTimes(laterFails ? 2 : 1);
+			expect(harness.service.getMetrics()).toEqual([]);
+		},
+	);
+
 	it('keeps an automatically requested broker cleanup owned until retirement retries it', async () => {
 		const harness = createHarness();
 		const presentation = terminalPresentationId('presentation-automatic-cleanup');
@@ -841,6 +880,73 @@ describe('DesktopTerminalProjectionService', () => {
 		});
 		await expect(harness.service.dispose()).resolves.toBeUndefined();
 		expect(harness.requestControl).toHaveBeenCalledTimes(3);
+	});
+
+	it('waits for independent provisional detaches before completing a failed disposal', async () => {
+		const harness = createHarness();
+		const defaultImplementation = harness.requestControl.getMockImplementation();
+		if (defaultImplementation === undefined) throw new Error('Missing Host response.');
+		harness.createBroker.mockImplementation(() => {
+			throw new Error('broker factory failed');
+		});
+		harness.requestControl.mockImplementation(async (...arguments_) => {
+			if (arguments_[0] === MessageKind.detachTerminal) throw new Error('detach unavailable');
+			return defaultImplementation(...arguments_);
+		});
+		for (const id of ['presentation-fast-detach', 'presentation-pending-detach']) {
+			await expect(harness.service.open(terminalPresentationId(id))).rejects.toMatchObject({
+				failure: { code: 'terminal-projection-cleanup-failed', retryable: true },
+			});
+		}
+		const initialDetaches = harness.requestControl.mock.calls
+			.filter(([kind]) => kind === MessageKind.detachTerminal)
+			.map(([, value]) => AttachmentAcknowledgedSchema.parse(value).attachmentId);
+		expect(initialDetaches).toHaveLength(2);
+		const [firstAttachment, secondAttachment] = initialDetaches;
+		const pendingDetach = createDeferred<void>();
+		const detachStarted = vi.fn<(attachmentId: AttachmentId) => void>();
+		harness.requestControl.mockImplementation(async (...arguments_) => {
+			if (arguments_[0] === MessageKind.detachTerminal) {
+				const { attachmentId } = AttachmentAcknowledgedSchema.parse(arguments_[1]);
+				detachStarted(attachmentId);
+				if (attachmentId === firstAttachment) throw new Error('detach still unavailable');
+				await pendingDetach.promise;
+			}
+			return defaultImplementation(...arguments_);
+		});
+		const completed = vi.fn<(outcome: 'resolved' | 'rejected', reason?: unknown) => void>();
+		const disposal = harness.service.dispose().then(
+			() => completed('resolved'),
+			(error: unknown) => completed('rejected', error),
+		);
+
+		try {
+			await vi.waitFor(() => expect(detachStarted).toHaveBeenCalledTimes(2));
+			expect(completed).not.toHaveBeenCalled();
+		} finally {
+			pendingDetach.resolve();
+			await disposal;
+		}
+		expect(completed).toHaveBeenCalledExactlyOnceWith(
+			'rejected',
+			expect.objectContaining({
+				failure: { code: 'terminal-projection-cleanup-failed', retryable: true },
+			}),
+		);
+
+		harness.requestControl.mockImplementation(defaultImplementation);
+		await expect(harness.service.dispose()).resolves.toBeUndefined();
+		expect(
+			harness.requestControl.mock.calls
+				.filter(([kind]) => kind === MessageKind.detachTerminal)
+				.map(([, value]) => AttachmentAcknowledgedSchema.parse(value).attachmentId),
+		).toEqual([
+			firstAttachment,
+			secondAttachment,
+			firstAttachment,
+			secondAttachment,
+			firstAttachment,
+		]);
 	});
 
 	it('settles a retained provisional detach when the Host request transport ends', async () => {

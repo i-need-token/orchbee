@@ -212,7 +212,9 @@ export class TerminalProjectionControlBroker {
 				requestId,
 				type: 'terminal-projection-failed',
 			});
-			this.#requests.delete(requestId);
+			if (request.lease === null && this.#requests.get(requestId) === request) {
+				this.#requests.delete(requestId);
+			}
 		}
 	}
 
@@ -262,8 +264,8 @@ export class TerminalProjectionControlBroker {
 				try {
 					await task;
 				} catch (error: unknown) {
+					if (!failed) firstFailure = error;
 					failed = true;
-					firstFailure ??= error;
 				}
 			}),
 		);
@@ -271,8 +273,8 @@ export class TerminalProjectionControlBroker {
 			try {
 				await this.#disposeRequest(requestId, request);
 			} catch (error: unknown) {
+				if (!failed) firstFailure = error;
 				failed = true;
-				firstFailure ??= error;
 			}
 		}
 		if (failed) throw firstFailure;

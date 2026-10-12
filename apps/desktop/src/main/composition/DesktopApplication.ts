@@ -975,11 +975,11 @@ export class DesktopApplication {
 		} catch (error) {
 			this.#removeHostListener?.();
 			this.#removeHostListener = undefined;
-			let cleanupFailure: unknown;
+			const cleanupFailures: unknown[] = [];
 			try {
 				await this.#disposeTerminalExitRetryOwner();
 			} catch (cleanupError: unknown) {
-				cleanupFailure = cleanupError;
+				cleanupFailures.push(cleanupError);
 			}
 			try {
 				const projectWorktreeRuntime = this.#projectWorktreeRuntime;
@@ -988,7 +988,7 @@ export class DesktopApplication {
 					this.#projectWorktreeRuntime = undefined;
 				}
 			} catch (cleanupError: unknown) {
-				cleanupFailure ??= cleanupError;
+				cleanupFailures.push(cleanupError);
 			}
 			try {
 				const coordinator = this.#clientSessionCoordinator;
@@ -998,14 +998,14 @@ export class DesktopApplication {
 					this.#terminalIntentReconciler = undefined;
 				}
 			} catch (cleanupError: unknown) {
-				cleanupFailure ??= cleanupError;
+				cleanupFailures.push(cleanupError);
 			}
 			try {
 				const terminalRuntime = this.#terminalRuntime;
 				await terminalRuntime?.dispose();
 				if (this.#terminalRuntime === terminalRuntime) this.#terminalRuntime = undefined;
 			} catch (cleanupError: unknown) {
-				cleanupFailure ??= cleanupError;
+				cleanupFailures.push(cleanupError);
 			}
 			try {
 				const observationIngress = this.#agentHookObservationIngress;
@@ -1014,11 +1014,11 @@ export class DesktopApplication {
 					this.#agentHookObservationIngress = undefined;
 				}
 			} catch (cleanupError: unknown) {
-				cleanupFailure ??= cleanupError;
+				cleanupFailures.push(cleanupError);
 			}
 			connection.close();
 			this.#connection = undefined;
-			throw cleanupFailure ?? error;
+			throw cleanupFailures.length > 0 ? cleanupFailures[0] : error;
 		}
 	}
 

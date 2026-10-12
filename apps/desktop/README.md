@@ -201,6 +201,22 @@ One operation tail serializes lifecycle work per presentation while unrelated te
 
 A fatal failure while constructing the Desktop application sets process exit status `1` before Electron quits. Ordinary single-instance rejection and normal window or managed-lifecycle exits retain a successful process status.
 
+Startup rollback reports the first cleanup failure when cleanup fails, including `undefined` or
+`null`; otherwise it preserves the original startup error. Independent cleanup still completes,
+and failed owners remain available for a later application shutdown. Projection-control retirement
+also keeps the first failure while attempting every independent lease cleanup, then retains failed
+leases for an explicit retry. This includes unpublished leases rejected by the final authority check:
+the broker retains their request identity until cleanup succeeds, so an exact release retries that
+lease without retiring unrelated projections. [Projection broker tests](src/main/terminal-projection-control/__tests__/TerminalProjectionControlBroker.unit.test.ts)
+cover first-failure identity, complete retry across multiple leases, and unpublished cleanup recovery
+through release or broker retirement without transferring the rejected renderer port.
+
+Projection-service disposal waits for every started independent lease and provisional-detach cleanup
+to settle before returning success or failure. An early rejection preserves the first observed failure
+without ending the shutdown barrier while another cleanup is still pending. Failed owners remain
+available for explicit retry; successful cleanup is not repeated. [Projection service tests](src/main/terminal-projection-control/__tests__/DesktopTerminalProjectionService.unit.test.ts)
+hold one cleanup pending while another rejects, then verify completion order and retained ownership.
+
 Shutdown and renderer-document retirement continue their independently guarded cleanup steps after a failure and report the first original thrown value, including `undefined` or `null`. A failed retirement cannot publish a replacement renderer bootstrap; a later retry must complete the retained cleanup first. [Application composition tests](src/main/composition/__tests__/DesktopApplication.unit.test.ts) cover failure identity, independent cleanup, and retry without repeating already completed terminal-runtime disposal.
 
 A normal macOS window close releases only the renderer page. Command+Q, a menu quit, or closing the last window on Windows and Linux enters one coalesced user-quit workflow while the renderer is still available. When one or more presentations require protection under Workbench's Panel-close predicate, the application-wide dialog offers Keep Sessions and Quit as the default, Stop Sessions and Quit as the destructive choice, or Cancel before any stop effect. When every running presentation is observed idle, or no presentation remains, Desktop preserves the sessions, flushes the shared document, and quits without prompting. The future updater enters the same preserve preparation as `update-restart` without prompting; updater installation, signing, and release distribution remain outside this package.

@@ -501,6 +501,35 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
+	it.each([
+		{ failure: new Error('first startup cleanup failure'), kind: 'Error' },
+		{ failure: undefined, kind: 'undefined' },
+		{ failure: null, kind: 'null' },
+	])(
+		'preserves the first $kind startup cleanup failure and retries retained owners',
+		async ({ failure }) => {
+			const harness = createHarness();
+			harness.createWindow.mockImplementationOnce(() => {
+				throw new Error('window creation failed');
+			});
+			vi.mocked(harness.projectWorktreeRuntime.dispose).mockRejectedValueOnce(failure);
+			harness.terminalRuntime.dispose.mockRejectedValueOnce(
+				new Error('later runtime cleanup failure'),
+			);
+			const application = createApplication(harness.dependencies);
+
+			await expect(application.start()).rejects.toBe(failure);
+			expect(harness.projectWorktreeRuntime.dispose).toHaveBeenCalledOnce();
+			expect(harness.terminalRuntime.dispose).toHaveBeenCalledOnce();
+			expect(harness.host.close).toHaveBeenCalledOnce();
+
+			await expect(application.shutdown()).resolves.toBeUndefined();
+			expect(harness.projectWorktreeRuntime.dispose).toHaveBeenCalledTimes(2);
+			expect(harness.terminalRuntime.dispose).toHaveBeenCalledTimes(2);
+			expect(harness.host.close).toHaveBeenCalledOnce();
+		},
+	);
+
 	it('rolls back all renderer controls when bootstrap postMessage fails', async () => {
 		const harness = createHarness();
 		harness.webContents.postMessage.mockImplementationOnce(() => {

@@ -664,7 +664,7 @@ export class DesktopTerminalProjectionService {
 	async #retryPendingDetaches(presentationId: TerminalPresentationId): Promise<void> {
 		const pending = this.#pendingDetaches.get(presentationId);
 		if (pending === undefined) return;
-		await Promise.all(
+		await settleProjectionCleanup(
 			[...pending].map(async (attachmentId) =>
 				this.#detachAttachment(presentationId, attachmentId),
 			),
@@ -760,7 +760,7 @@ export class DesktopTerminalProjectionService {
 		let failed = false;
 		let firstFailure: unknown;
 		try {
-			await Promise.all(
+			await settleProjectionCleanup(
 				[...this.#activeLeases].map(([presentationId, active]) => {
 					const leases = [...active];
 					return this.#enqueueOperation(presentationId, () => this.#disposeLeases(leases));
@@ -771,7 +771,7 @@ export class DesktopTerminalProjectionService {
 			firstFailure = error;
 		}
 		try {
-			await Promise.all(
+			await settleProjectionCleanup(
 				[...this.#pendingDetaches.keys()].map(async (presentationId) =>
 					this.#retryPendingDetaches(presentationId),
 				),
@@ -784,6 +784,22 @@ export class DesktopTerminalProjectionService {
 		}
 		if (failed) throw firstFailure;
 	}
+}
+
+async function settleProjectionCleanup(operations: readonly Promise<void>[]): Promise<void> {
+	let failed = false;
+	let firstFailure: unknown;
+	await Promise.all(
+		operations.map(async (operation) => {
+			try {
+				await operation;
+			} catch (error: unknown) {
+				if (!failed) firstFailure = error;
+				failed = true;
+			}
+		}),
+	);
+	if (failed) throw firstFailure;
 }
 
 function closeMessageChannel(

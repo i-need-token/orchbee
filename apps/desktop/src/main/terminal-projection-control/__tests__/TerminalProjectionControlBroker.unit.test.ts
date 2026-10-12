@@ -198,6 +198,64 @@ describe('TerminalProjectionControlBroker', () => {
 		});
 	});
 
+	it.each(['release', 'retirement'] as const)(
+		'retains unpublished cleanup ownership for %s without retiring an unrelated projection',
+		async (retry) => {
+			const testPort = createTestPort();
+			const unpublished = createLease();
+			const published = createLease();
+			vi.mocked(unpublished.dispose).mockRejectedValueOnce(new Error('detach unavailable'));
+			const broker = new TerminalProjectionControlBroker(testPort.port, {
+				isPublicationTargetCurrent: (presentationId) => presentationId === 'presentation-2',
+				open: vi
+					.fn<DesktopTerminalProjectionService['open']>()
+					.mockResolvedValueOnce(unpublished)
+					.mockResolvedValueOnce(published),
+			});
+			broker.start();
+			testPort.emitMessage(openCommand());
+			testPort.emitMessage(openCommand('projection-2', 'presentation-2'));
+			await vi.waitFor(() => expect(testPort.posted).toHaveLength(2));
+			expect(testPort.posted).toContainEqual({
+				message: {
+					failure: { code: 'terminal-projection-cleanup-failed', retryable: true },
+					presentationId: 'presentation-1',
+					requestId: 'projection-1',
+					type: 'terminal-projection-failed',
+				},
+				ports: [],
+			});
+			const transferredPorts = testPort.posted.flatMap(({ ports }) => ports);
+			expect(transferredPorts).toHaveLength(1);
+			expect(transferredPorts[0]).toBe(published.rendererPort);
+			expect(unpublished.dispose).toHaveBeenCalledOnce();
+			expect(published.dispose).not.toHaveBeenCalled();
+			const releaseReply = {
+				message: {
+					presentationId: 'presentation-1',
+					requestId: 'projection-1',
+					type: 'terminal-projection-released',
+				},
+				ports: [],
+			};
+			const expectedReplies = [...testPort.posted, ...(retry === 'release' ? [releaseReply] : [])];
+
+			if (retry === 'release') {
+				testPort.emitMessage(releaseCommand());
+			} else {
+				await broker.dispose();
+			}
+			await vi.waitFor(() => expect(testPort.posted).toEqual(expectedReplies));
+			expect(unpublished.dispose).toHaveBeenCalledTimes(2);
+			expect(published.dispose).toHaveBeenCalledTimes(retry === 'release' ? 0 : 1);
+			expect(testPort.close).toHaveBeenCalledTimes(retry === 'release' ? 0 : 1);
+
+			await expect(broker.dispose()).resolves.toBeUndefined();
+			expect(unpublished.dispose).toHaveBeenCalledTimes(2);
+			expect(published.dispose).toHaveBeenCalledOnce();
+		},
+	);
+
 	it('retains a failed in-flight release cleanup for broker retirement retry', async () => {
 		const testPort = createTestPort();
 		const deferred = createDeferred<DesktopTerminalProjectionLease>();
@@ -325,6 +383,41 @@ describe('TerminalProjectionControlBroker', () => {
 		await vi.waitFor(() => expect(testPort.close).toHaveBeenCalledOnce());
 		await vi.waitFor(() => expect(lease.dispose).toHaveBeenCalledOnce());
 	});
+
+	it.each([
+		{ failure: new Error('first projection cleanup failure'), kind: 'Error' },
+		{ failure: undefined, kind: 'undefined' },
+		{ failure: null, kind: 'null' },
+	])(
+		'preserves the first $kind retirement failure while retaining both leases for retry',
+		async ({ failure }) => {
+			const testPort = createTestPort();
+			const first = createLease();
+			const second = createLease();
+			vi.mocked(first.dispose).mockRejectedValueOnce(failure);
+			vi.mocked(second.dispose).mockRejectedValueOnce(
+				new Error('later projection cleanup failure'),
+			);
+			const broker = new TerminalProjectionControlBroker(testPort.port, {
+				open: vi
+					.fn<DesktopTerminalProjectionService['open']>()
+					.mockResolvedValueOnce(first)
+					.mockResolvedValueOnce(second),
+			});
+			broker.start();
+			testPort.emitMessage(openCommand());
+			testPort.emitMessage(openCommand('projection-2', 'presentation-2'));
+			await vi.waitFor(() => expect(testPort.posted).toHaveLength(2));
+
+			await expect(broker.dispose()).rejects.toBe(failure);
+			expect(first.dispose).toHaveBeenCalledOnce();
+			expect(second.dispose).toHaveBeenCalledOnce();
+
+			await expect(broker.dispose()).resolves.toBeUndefined();
+			expect(first.dispose).toHaveBeenCalledTimes(2);
+			expect(second.dispose).toHaveBeenCalledTimes(2);
+		},
+	);
 
 	it('disposes all attachments when its renderer document closes', async () => {
 		const testPort = createTestPort();
