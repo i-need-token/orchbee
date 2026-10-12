@@ -263,10 +263,12 @@ Snapshot 与终端 Host 仍是成员 binding 与内容的规范来源，Windows 
 
 在程序不上报 tracking 且开启 DEC 1007 的备用屏幕 pane 上，滚轮 notch 编码为方向键按下——每个 notch 三
 次，使用该 pane 的 application-cursor 形式（`ESC O A` 对 `ESC [ A`）。per-pane 流为突发
-设界：方向反转清掉排队余量并丢弃该 notch，每次 flush 至多发出一屏方向键，发现队列为空
+设界：方向反转清掉旧方向的排队余量，并接纳新方向的第一个 notch，包括两个方向同处一个
+输入包的情况；每次 flush 至多发出一屏方向键，发现队列为空
 的 tick 关闭该流，使下一个 notch 重新开始。每次 flush 都按最新帧复核转发条件；关闭
 DEC 1007、离开备用屏幕、开启 tracking 或进入历史会丢弃排队的方向键。DEC 1007 关闭时，
-备用屏幕滚轮事件不发送应用输入。在未启用 tracking 的 primary 屏幕内容区，向上滚动一个
+备用屏幕滚轮事件不发送应用输入。回归见证覆盖立即反转、多屏积压下的反转、新方向的
+application-cursor 编码、有界排空，以及已退休尾部不再恢复。在未启用 tracking 的 primary 屏幕内容区，向上滚动一个
 notch 从实时尾部向前回看三行；后续每个 notch 本地移动三行。实时尾部向下滚动、历史为空
 或帧不可用时均无效果、不提示。滚轮绝不改变焦点或从标题/边框滚动内容；包括历史中，
 Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](native-terminal-viewport.zh-CN.md)所有者。

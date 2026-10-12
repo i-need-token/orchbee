@@ -314,11 +314,14 @@ are external effects.
 
 Over an alternate-screen pane whose program reports no tracking and enables DEC 1007, wheel notches encode as cursor
 arrow presses — three per notch, in the pane's application-cursor form (`ESC O A` vs `ESC [ A`).
-A per-pane stream bounds the burst: a reversal clears the queued remainder and drops the notch,
+A per-pane stream bounds the burst: a reversal clears the old direction's queued remainder and
+admits the first new notch, including when both directions arrive in one input packet;
 each flush emits at most one viewport of arrows, and a tick that finds the queue empty closes the
 stream so the next notch starts fresh. Each flush rechecks eligibility against the newest frame;
 disabling DEC 1007, leaving the alternate screen, enabling tracking or entering history discards
 the queued arrows. With DEC 1007 off, alternate-screen wheel events send no application input.
+Regression witnesses cover immediate reversal, reversal with a multi-viewport backlog, the new
+direction's application-cursor encoding, bounded draining and no resumption of the retired tail.
 Over untracked primary-screen content, an upward notch enters retained history three rows before
 the tail; subsequent notches move three rows locally. Downward scrolling at the live tail, empty
 history and unavailable frames have no effect or notice. Wheel never changes focus or scrolls

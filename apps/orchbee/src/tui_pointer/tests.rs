@@ -1684,7 +1684,7 @@ fn alternate_screen_wheel_becomes_bounded_cursor_arrows() {
     pointer.tick(&mut view, &mut port, now());
     pointer.tick(&mut view, &mut port, now());
     assert_eq!(port.bytes().len(), 12 * 3);
-    // Direction reversal clears the pending remainder.
+    // Both first notches survive an immediate direction reversal.
     pointer.event(
         &mut view,
         &mut port,
@@ -1697,7 +1697,67 @@ fn alternate_screen_wheel_becomes_bounded_cursor_arrows() {
         now(),
         event(MouseAction::Press, MouseButton::WheelDown, 1, 2),
     );
-    assert_eq!(port.bytes().len(), 12 * 3 + 3 * 3);
+    assert_eq!(
+        port.bytes(),
+        [
+            b"\x1b[B".repeat(12),
+            b"\x1b[A".repeat(3),
+            b"\x1b[B".repeat(3)
+        ]
+        .concat()
+    );
+}
+
+#[test]
+fn wheel_reversal_replaces_old_backlog_without_losing_its_first_notch() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, true)),
+            ..active_probe(0, 0, 1, 1)
+        },
+        ..RecordingPort::default()
+    };
+    let mut builder = HitMapBuilder::new();
+    builder.record(
+        HitLayer::Foreground,
+        Rect::new(0, 0, 4, 3),
+        HitTarget::Pane {
+            pane: pane_ref(1, 1, 1, 0),
+            content: Rect::new(0, 1, 4, 2),
+        },
+    );
+    pointer.publish(builder.finish());
+    for _ in 0..20 {
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Press, MouseButton::WheelDown, 1, 1),
+        );
+    }
+    assert_eq!(port.bytes(), b"\x1b[B".repeat(2));
+    port.probe.frame.as_mut().unwrap().application_cursor = true;
+    pointer.event(
+        &mut view,
+        &mut port,
+        now(),
+        event(MouseAction::Press, MouseButton::WheelUp, 1, 1),
+    );
+    assert_eq!(
+        port.bytes(),
+        [b"\x1b[B".repeat(2), b"\x1bOA".repeat(2)].concat()
+    );
+    for _ in 0..40 {
+        pointer.tick(&mut view, &mut port, now());
+    }
+    assert_eq!(
+        port.bytes(),
+        [b"\x1b[B".repeat(2), b"\x1bOA".repeat(3)].concat(),
+        "the first reverse notch completes and no old-direction tail resumes"
+    );
 }
 
 #[test]

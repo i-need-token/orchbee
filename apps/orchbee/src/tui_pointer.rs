@@ -534,8 +534,8 @@ impl FrameHitMap {
 }
 
 /// The wheel-fallback accumulator: pending arrow presses in one
-/// direction. A reversal clears the stream rather than mixing directions
-/// into one flush; the flush emits at most one viewport of arrows so a
+/// direction. A reversal replaces the pending stream with its first new
+/// notch; the flush emits at most one viewport of arrows so a
 /// trackpad burst stays bounded.
 #[derive(Default)]
 struct WheelStream {
@@ -553,13 +553,12 @@ struct WheelStream {
 impl WheelStream {
     fn accumulate(&mut self, up: bool, viewport_rows: usize, application_cursor: bool) {
         if self.up == Some(!up) {
-            // A reversal mid-burst clears the queued remainder and drops
-            // this notch — a direction change never flushes a mixed burst.
+            // Retire the old direction's remainder, then admit the first
+            // new notch. A direction change must not become a dead notch.
             self.pending = 0;
             self.emitted = 0;
-        } else {
-            self.pending = self.pending.saturating_add(ARROWS_PER_NOTCH);
         }
+        self.pending = self.pending.saturating_add(ARROWS_PER_NOTCH);
         self.up = Some(up);
         self.viewport_rows = viewport_rows;
         self.application_cursor = application_cursor;
