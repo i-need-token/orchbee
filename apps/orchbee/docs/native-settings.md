@@ -10,7 +10,9 @@ including launch profiles and new-terminal scrollback defaults. Host-owned fonts
 pixel metrics and management workflows follow the inventory's explicit boundaries.
 
 Tab/Up/Down moves between controls; Left/Right or Space changes a choice. Text
-fields use the shared bounded line editor and literal paste. Launch profiles
+fields use the [shared bounded line editor](native-line-editor.md), including Ctrl+W word deletion,
+and literal paste. Rendering projects the complete raw value once and maps its cursor to a visible
+grapheme boundary, so removing controls cannot leave the caret inside a painted cluster. Launch profiles
 have their own page, one literal argument per editor, explicit default selection,
 and confirmation before deleting a profile. Custom colors are disabled unless
 Custom is selected; login shells are unavailable on Windows. The selected row

@@ -3,7 +3,9 @@ use crate::{
     localization::Locale,
     native_settings::{Control, DraftView, Page, Row, Token, View},
     terminal_session::ModalPresentation,
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    terminal_text::{
+        display_width, project_terminal_text, sanitize_terminal_text, truncate_display,
+    },
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
 };
@@ -233,10 +235,10 @@ fn render_draft(
     }
     let detail_area = Rect::new(inner.x, inner.bottom() - 4, inner.width, 1);
     if let Some((text, cursor)) = draft.text {
-        let prefix = sanitize_terminal_text(&text[..cursor]);
-        let cursor_column = display_width(&prefix);
+        let projection = project_terminal_text(text);
+        let displayed = projection.display();
+        let cursor_column = display_width(&displayed[..projection.cursor_boundary(cursor)]);
         let left = cursor_column.saturating_sub(usize::from(inner.width.saturating_sub(1)));
-        let displayed = sanitize_terminal_text(text);
         frame.render_widget(
             Paragraph::new(displayed.as_ref())
                 .scroll((0, left.min(usize::from(u16::MAX)) as u16))

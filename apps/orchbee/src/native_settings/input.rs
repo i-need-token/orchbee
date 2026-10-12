@@ -42,6 +42,10 @@ pub(crate) fn key_edit(event: KeyEvent, text_entry: bool) -> Option<Edit> {
             Edit::Clear,
         ),
         (
+            Binding::new(KeyCode::Char('w'), Modifiers::NONE.with_ctrl()),
+            Edit::WordBack,
+        ),
+        (
             Binding::new(KeyCode::Backspace, Modifiers::NONE),
             Edit::Backspace,
         ),

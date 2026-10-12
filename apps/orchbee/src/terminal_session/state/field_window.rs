@@ -41,10 +41,7 @@ pub(super) fn field_window(
     }
     let projection = project_terminal_text(editor.text());
     let display: &str = projection.display();
-    // A raw cursor boundary can land inside a display cluster when stripped
-    // scalars merged its neighbors; snap it to the cluster start so the
-    // window math only ever sees a display boundary.
-    let visible_cursor = boundary_at_or_before(display, projection.visible_index(editor.cursor()));
+    let visible_cursor = projection.cursor_boundary(editor.cursor());
     // The left edge is the earliest display boundary whose cursor prefix
     // already fits the field: the cursor lands inside the field's cells when
     // the draft overflows, showing the most context before it.
@@ -73,19 +70,6 @@ pub(super) fn field_window(
         display: window,
         cursor_column: display_width(&display[scroll..visible_cursor]),
     })
-}
-
-/// The largest extended-grapheme boundary at or before `index` — the start of
-/// the cluster containing `index`, or `index` itself when it is a boundary.
-fn boundary_at_or_before(text: &str, index: usize) -> usize {
-    if index >= text.len() {
-        return text.len();
-    }
-    text.grapheme_indices(true)
-        .find_map(|(offset, cluster)| {
-            (offset <= index && index < offset + cluster.len()).then_some(offset)
-        })
-        .unwrap_or(0)
 }
 
 /// The smallest extended-grapheme boundary strictly after `index` — the next

@@ -5,6 +5,7 @@ use ratatui::{
     style::Style,
     text::{Line, Span},
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 /// The shared never-paint criterion for pane cells and terminal output:
 /// control characters and line/paragraph separators. Deliberately minimal —
@@ -72,8 +73,24 @@ impl<'a> TerminalTextProjection<'a> {
         &self.display
     }
 
-    /// The display byte index a raw byte boundary projects to.
-    pub(crate) fn visible_index(&self, raw_index: usize) -> usize {
+    /// The visible grapheme boundary at or before a raw cursor's projected byte index.
+    /// Stripping controls can join neighboring clusters; the cursor stays at the
+    /// resulting cluster's start instead of splitting a glyph that will be painted.
+    pub(crate) fn cursor_boundary(&self, raw_index: usize) -> usize {
+        let index = self.visible_index(raw_index);
+        if index >= self.display.len() {
+            return self.display.len();
+        }
+        self.display
+            .grapheme_indices(true)
+            .find_map(|(offset, cluster)| {
+                (offset <= index && index < offset + cluster.len()).then_some(offset)
+            })
+            .unwrap_or(0)
+    }
+
+    /// The display byte index a raw byte boundary projects to, before grapheme snapping.
+    fn visible_index(&self, raw_index: usize) -> usize {
         match &self.raw_to_visible {
             Some(map) => map[raw_index.min(map.len() - 1)],
             None => raw_index.min(self.display.len()),

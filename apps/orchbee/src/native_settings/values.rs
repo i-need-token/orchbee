@@ -210,6 +210,9 @@ pub(super) fn edit_text(draft: &mut Draft, edit: Edit) {
         Edit::Backspace => {
             editor.backspace();
         }
+        Edit::WordBack => {
+            editor.word_back();
+        }
         Edit::Delete => {
             editor.delete();
         }

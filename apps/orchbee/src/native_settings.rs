@@ -35,6 +35,7 @@ pub(crate) enum Edit {
     Cancel,
     Insert(char),
     Backspace,
+    WordBack,
     Delete,
     Home,
     End,

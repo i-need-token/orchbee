@@ -351,3 +351,31 @@ fn settings_save_click_and_its_late_release_are_consumed_once() {
     assert_eq!(port.saves, 1);
     assert_eq!(forwarded_bytes(&port.calls), b"normal");
 }
+
+#[test]
+fn settings_ctrl_w_edits_the_captured_word_without_saving_or_forwarding() {
+    let mut port = Port::ready();
+    port.editor.edit(Edit::Select(Row::LaunchProfiles));
+    port.editor.edit(Edit::Activate);
+    port.editor.edit(Edit::Select(Row::ProfileName));
+    port.editor.edit(Edit::Activate);
+    port.editor.edit(Edit::Clear);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[200~one  foo.bar\x1b[201~",
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x01\x17");
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.text == Some(("one  foo.bar", 0)))
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x05\x17");
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.text == Some(("one  ", 5)))
+    );
+    assert_eq!(port.saves, 0);
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
