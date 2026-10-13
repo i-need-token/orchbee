@@ -470,10 +470,11 @@ pub(crate) fn runtime_location() -> io::Result<(PathBuf, String)> {
     }
     #[cfg(unix)]
     {
-        let (fallback, scope) = (
-            PathBuf::from("/tmp"),
-            format!("orchbee-native-{}", nix::unistd::geteuid()),
-        );
+        #[cfg(target_os = "macos")]
+        let fallback = PathBuf::from("/private/tmp");
+        #[cfg(not(target_os = "macos"))]
+        let fallback = PathBuf::from("/tmp");
+        let scope = format!("orchbee-native-{}", nix::unistd::geteuid());
         Ok((
             std::env::var_os("ORCHBEE_RUNTIME_BASE")
                 .map(PathBuf::from)

@@ -16,7 +16,7 @@ impl Fixture {
         let guard = crate::rendezvous::tests::FILESYSTEM_TEST_LOCK
             .lock()
             .unwrap();
-        let path = std::env::temp_dir().join(format!(
+        let path = crate::test_temporary_directory().join(format!(
             "ob-cohort-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)

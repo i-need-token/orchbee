@@ -1735,7 +1735,7 @@ impl Locale {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 impl Locale {
     pub(crate) const fn startup_progress(self) -> &'static str {
         match self {

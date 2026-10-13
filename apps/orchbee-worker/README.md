@@ -1,7 +1,7 @@
 # Rust Orchbee Worker
 
-Experimental private Rust Worker application for admitted local Site operations on Windows and
-Linux, with explicit-endpoint POSIX support. The emitted `orchbee-worker` executable belongs to
+Experimental private Rust Worker application for admitted local Site operations on Windows,
+Linux, and macOS, with explicit-endpoint POSIX support. The emitted `orchbee-worker` executable belongs to
 the verified four-artifact cohort and participates in the root Cargo gate. Server owns activation;
 Worker owns its admitted Host connection and authorized job lifetimes.
 

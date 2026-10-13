@@ -3,6 +3,8 @@ use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(target_os = "macos")]
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::{
     io,
     path::Path,
@@ -51,7 +53,7 @@ pub(crate) fn start(
     start_listener(listener, expected_cohort, terminals, agents)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn start_managed(
     endpoint: &Path,
     expected_cohort: &str,
@@ -83,6 +85,33 @@ fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
         name,
         RenameFlags::RENAME_NOREPLACE,
     )?;
+    Ok(listener)
+}
+
+#[cfg(target_os = "macos")]
+fn bind_managed(endpoint: &Path) -> io::Result<UnixListener> {
+    let listener = UnixListener::bind(endpoint)?;
+    use nix::unistd::geteuid;
+
+    // The private runtime directory is already mode-checked. macOS applies
+    // Unix-socket permissions through chmod(path); fstat(socket_fd) does not
+    // expose the pathname vnode identity, so validate the protected path.
+    fs::set_permissions(endpoint, fs::Permissions::from_mode(0o600))?;
+    let pathname = fs::symlink_metadata(endpoint)?;
+    let invalid_reason = if !pathname.file_type().is_socket() {
+        Some("managed Client path is not a socket")
+    } else if pathname.uid() != geteuid().as_raw() {
+        Some("managed Client socket has a different owner")
+    } else if pathname.mode() & 0o777 != 0o600 {
+        Some("managed Client socket permissions are not private")
+    } else if pathname.nlink() != 1 {
+        Some("managed Client socket has an unexpected link count")
+    } else {
+        None
+    };
+    if let Some(reason) = invalid_reason {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, reason));
+    }
     Ok(listener)
 }
 

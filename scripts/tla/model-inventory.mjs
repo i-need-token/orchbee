@@ -461,7 +461,7 @@ export function globMatches(pattern, candidate) {
 		.replaceAll('**', '\u0000')
 		.replaceAll('*', '[^/]*')
 		.replaceAll('\u0000', '.*');
-	return new RegExp(`^${expression}$`, 'u').test(candidate);
+	return new RegExp(`^${expression}$`, 'su').test(candidate);
 }
 
 // These are test entrypoints, never inputs to a TLC invocation. They still run in

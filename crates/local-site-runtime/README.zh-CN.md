@@ -120,15 +120,16 @@ node scripts/tla/run-models.mjs --models windows-site-crash-recovery
 
 ## 本地启动模型
 
-Linux 裸命令 `orchbee` 先准入继承的输入/输出 TTY 并校验几何尺寸，再创建运行时或启动进程。
-默认使用 `/tmp` 下的用户作用域 `orchbee-native-<effective-uid>`；
+Linux 与 macOS 裸命令 `orchbee` 先准入继承的输入/输出 TTY 并校验几何尺寸，再创建运行时或启动进程。
+Linux 默认使用 `/tmp` 下的用户作用域 `orchbee-native-<effective-uid>`，macOS 使用 `/private/tmp`；
 `ORCHBEE_RUNTIME_BASE` 可指定另一个已存在的绝对基目录用于隔离开发。
 运行时目录必须属于有效用户且权限为 0700；锁文件必须是权限 0600、单链接、属于该用户的普通文件。
 拒绝已有的无效路径，不修复、不跟随符号链接、不删除也不替换。
 
 托管 Linux 边界只准入 ext4 系列与 tmpfs 对象。每个打开的最终目录、cohort 产物、标记和锁
 都必须没有 access 或 default POSIX ACL：按描述符检查文件系统与 ACL，只有 ENODATA 表示不存在。
-不移除 ACL。Overlayfs、XFS、btrfs、DrvFS、网络文件系统和非 Linux 公共启动不在支持范围内。
+macOS 边界只准入 APFS，并通过锚定于已打开描述符的 ACL 检查拒绝所有扩展 ACL。两者都不移除 ACL。
+Overlayfs、XFS、btrfs、DrvFS、网络文件系统和其他 Unix target 不在支持范围内。
 首次并发创建要求 umask 保留所有者权限位（例如 0022 或 0077）；
 限制所有者权限的 umask 可能暴露尚未完成初始化的目录，此时安全失败。
 
@@ -180,7 +181,8 @@ Host 端点的绝对地址在 `host` 目录或 Host 进程出现之前先按平�
 即其 `capsule.json` 中 `payloadSha256` 所载的同一值。携带任何其他 `schemaVersion`（包括 `1`）的清单不兼容；
 `schemaVersion: 2` 清单缺失必填成员、携带重复或未知成员、或声明格式错误的摘要则为无效清单。
 两者都经现有类型化拒绝闭合失败。目录属于有效用户且权限为 0700。文件必须是单链接、属于用户的普通文件，
-组及其他用户不可写；可执行文件需要所有者执行位。清单和可执行文件均相对于已校验目录
+组及其他用户不可写；可执行文件需要所有者执行位。Linux 要求目录和打开的文件没有 POSIX ACL；
+macOS 还要求 APFS 且每个打开对象都没有扩展 ACL。清单和可执行文件均相对于已校验目录
 以 NOFOLLOW 和 CLOEXEC 打开。每个托管 Rust 角色（Client、Server、Worker）都校验全部四个可执行文件，热启动也如此。
 Host 消费已验证的相邻可执行文件，不实现清单读取。
 
@@ -208,7 +210,7 @@ Host 消费已验证的相邻可执行文件，不实现清单读取。
 
 ## 正确性案例
 
-以下 LS 声明描述 Linux 开发启动边界。受管 Windows 冷恢复由独立的
+以下 LS 声明描述 Linux 与 macOS 开发启动边界。受管 Windows 冷恢复由独立的
 [代与进程登记契约](docs/windows-crash-recovery.zh-CN.md)负责。
 
 | 声明                                            | 所有者 / 细化映射                                    | 证据                                          |
@@ -222,9 +224,9 @@ Host 消费已验证的相邻可执行文件，不实现清单读取。
 `formal/tla/LocalSiteStartup.tla` 的边界为两个 Client、一次 Server 启动尝试和一次 Host 尝试。
 它将文件系统检查抽象为已准入事实，将截止时间观察抽象为到期事件，在无调度公平假设下检查安全性。
 每个 Client 的超时公平性只支持有界尝试终止，不保证服务可用。
-Linux 测试覆盖真实内核锁、peer、哈希、PTY 和取消。
+Linux 与 macOS 测试覆盖真实内核锁、peer、哈希、PTY 和取消。
 远程、Workbench 成员关系、守护进程重启、自动清理/恢复、Server 丢失后的持久化，
-以及非 Linux 公共启动均不属于本契约。
+以及其他 Unix target 均不属于本契约。
 
 ## POSIX 本机 Site rendezvous 底座
 
@@ -269,6 +271,9 @@ device 与 inode 和 chmod 前检查的 entry 一致时才 admission。即使 pr
 permission，这也能在不改变 process umask 的情况下达到 exact `0700`。已有的错误 mode 会被拒绝且
 不会修复。
 
+Linux 会按准入的本机文件系统与 POSIX ACL 契约校验最终对象；macOS 会检查 APFS，并要求其
+runtime base、scope、锁文件、标记、cohort 目录及已打开的 cohort 产物均没有扩展 ACL。
+
 每项 lock operation 都通过保留的 directory descriptor，以
 `O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC` 只打开或创建固定 leaf。Leaf 必须是 effective UID 拥有且
 exact mode 为 `0600` 且 hard link 数恰好为一的 regular file。已有且有效的 stale file 会被复用，
@@ -289,26 +294,27 @@ leaf：只有先经 stat 检查为拥有的 regular `0600` 单链接文件的 en
 观察均不 connect、不创建、不写、不 unlink、不修复，也不推断进程健康。
 
 该 primitive 在其他 Unix 系统上仍只检查 mode。Linux 在目录、锁、标记和 cohort 准入前加入上述
-受限文件系统与无 ACL 边界；托管消费者执行 socket 元数据及同用户 peer 校验。
+受限文件系统与 POSIX ACL 边界；macOS 对 runtime base、目录、锁、标记及打开的 cohort 产物执行 APFS
+与无扩展 ACL 校验；托管消费者执行 socket 元数据及同用户 peer 校验。
 Client、Server 和 Worker 共享本 crate，Server 拥有生命周期 guard。
 Primitive 自身不选择应用启动策略、不重试、不移除陈旧端点，也不授予恢复权限。
 
 ### 建模与证据
 
-| 字段   | Rendezvous primitive 契约                                                                                                                                                                                                                           |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题   | 提供共享路径、权限、锁和尝试标记准入；应用拥有启动、就绪和恢复策略。                                                                                                                                                                                |
-| 输入   | 可信且已存在、精确规范化的绝对 base、规范 scope、有效 UID，以及可能无效的目录、锁、标记或 socket entry。                                                                                                                                            |
-| 数据   | 稳定路径、保留的 scope 描述符、拥有的 advisory-lock guard 和不可变空尝试标记。不推断 PID 或进程健康。                                                                                                                                               |
-| 输出   | 已校验 rendezvous 或类型化失败；Acquired/Contended 锁结果；经过元数据校验的标记和 socket 存在性。路径 getter 不执行 I/O。                                                                                                                           |
-| 不变量 | 描述符相对的 no-follow 遍历；最终类型、所有者、mode 和普通文件链接数精确匹配；新目录身份与检查过的 inode 相同。Linux 最终对象通过受限文件系统及无 ACL 检查。已有无效 entry 不修复、不删除。Guard drop 只释放锁。                                    |
-| 决策   | 规范路径与 scope 语法、新建或已有元数据、锁类型、一次非阻塞锁结果和独占标记创建决定结果。                                                                                                                                                           |
-| 模型   | 不包含应用重试或进程观察的原子 POSIX primitive。LocalSiteStartup 将其事实与 Client/Server/Worker 状态组合；Client 实现测试覆盖 connect-first 行为。                                                                                                 |
-| 转移   | 缺失 scope/lock 变为已校验的 durable inode。锁创建与锁获取可以由不同调用方获胜。Guard 获取/drop 只改变锁所有权。缺失标记只能提交一次，且永不清除。                                                                                                  |
-| 依赖   | 安全的 nix/rustix 文件系统封装和 File::try_lock；Linux 基于 fd 的文件系统及 ACL 查询。Rendezvous 不依赖子进程或服务。                                                                                                                               |
-| 所有权 | 本 crate 拥有派生和准入。Client 选择开发 base/scope，拥有激活 guard 和标记提交；Server 拥有生命周期 guard。                                                                                                                                         |
-| 验证   | Scope/path 分区、符号链接/硬链接/FIFO 拒绝、错误所有者/mode、限制性 umask 初始化、保留所有者位的并发创建、陈旧 inode 保留、竞争/重新获取、标记排他性和 socket 冒充。Linux ACL 测试在保留精确 0700/0600 mode 的同时增加命名访问 ACL 或目录默认 ACL。 |
-| 限制   | 单个有效用户；错误所有者测试注入 expected UID。信任内核元数据与 advisory lock。并发创建要求保留所有者位的 umask。Durable 表示不 unlink/truncate，并非 fsync。协作式截止时间排除内核阻塞和进程暂停。模型不证明文件系统或内核语义。                   |
+| 字段   | Rendezvous primitive 契约                                                                                                                                                                                                              |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | 提供共享路径、权限、锁和尝试标记准入；应用拥有启动、就绪和恢复策略。                                                                                                                                                                   |
+| 输入   | 可信且已存在、精确规范化的绝对 base、规范 scope、有效 UID，以及可能无效的目录、锁、标记或 socket entry。                                                                                                                               |
+| 数据   | 稳定路径、保留的 scope 描述符、拥有的 advisory-lock guard 和不可变空尝试标记。不推断 PID 或进程健康。                                                                                                                                  |
+| 输出   | 已校验 rendezvous 或类型化失败；Acquired/Contended 锁结果；经过元数据校验的标记和 socket 存在性。路径 getter 不执行 I/O。                                                                                                              |
+| 不变量 | 描述符相对的 no-follow 遍历；最终类型、所有者、mode 和普通文件链接数精确匹配；新目录身份与检查过的 inode 相同。Linux 与 macOS 最终对象分别通过受限文件系统及无 ACL 检查。已有无效 entry 不修复、不删除。Guard drop 只释放锁。          |
+| 决策   | 规范路径与 scope 语法、新建或已有元数据、锁类型、一次非阻塞锁结果和独占标记创建决定结果。                                                                                                                                              |
+| 模型   | 不包含应用重试或进程观察的原子 POSIX primitive。LocalSiteStartup 将其事实与 Client/Server/Worker 状态组合；Client 实现测试覆盖 connect-first 行为。                                                                                    |
+| 转移   | 缺失 scope/lock 变为已校验的 durable inode。锁创建与锁获取可以由不同调用方获胜。Guard 获取/drop 只改变锁所有权。缺失标记只能提交一次，且永不清除。                                                                                     |
+| 依赖   | 安全的 nix/rustix 文件系统封装和 File::try_lock；Linux 基于 fd 的文件系统/POSIX ACL 查询及 macOS APFS/扩展 ACL 检查。Rendezvous 不依赖子进程或服务。                                                                                   |
+| 所有权 | 本 crate 拥有派生和准入。Client 选择开发 base/scope，拥有激活 guard 和标记提交；Server 拥有生命周期 guard。                                                                                                                            |
+| 验证   | Scope/path 分区、符号链接/硬链接/FIFO 拒绝、错误所有者/mode、限制性 umask 初始化、保留所有者位的并发创建、陈旧 inode 保留、竞争/重新获取、标记排他性和 socket 冒充。Linux ACL 测试及 macOS 扩展 ACL 测试分别在 mode 位精确时验证拒绝。 |
+| 限制   | 单个有效用户；错误所有者测试注入 expected UID。信任内核元数据与 advisory lock。并发创建要求保留所有者位的 umask。Durable 表示不 unlink/truncate，并非 fsync。协作式截止时间排除内核阻塞和进程暂停。模型不证明文件系统或内核语义。      |
 
 ## Windows 细化
 

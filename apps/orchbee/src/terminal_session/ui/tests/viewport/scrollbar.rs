@@ -166,8 +166,11 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
                     )
                 );
                 for y in content.y..content.bottom() {
+                    #[cfg(windows)]
                     let menu =
                         map.hit_target_at(content.right() - 1, y) == Some(&HitTarget::MenuButton);
+                    #[cfg(not(windows))]
+                    let menu = false;
                     if menu {
                         assert_eq!(areas.tier, crate::tui_layout::ViewportTier::Minimal);
                         assert_eq!(y, content.y);

@@ -9,12 +9,14 @@ the [event contract](../orchbee-server/docs/windows-events.md) owns behavior and
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](docs/native-terminal-run.md).
 
-Experimental native Rust CLI and TUI Client. On Windows and Linux, bare invocation connects or activates a
-local Site from a verified executable cohort and enters its TUI after the first validated terminal
+Experimental native Rust CLI and TUI Client. On Windows and Linux, and in the Apple Silicon macOS
+development package, bare invocation connects or activates a local Site from a verified executable
+cohort and enters its TUI after the first validated terminal
 projection frame. Native Clients operate shared Workbench state while keeping independent selection and
 retained terminal processes. Windows also supports saved-machine SSH command routing and live TUI
 switching, user configuration, and complete-cohort release installation and updates through the contracts
-linked below. The emitted `orchbee` participates in root Cargo verification; macOS public startup is unavailable.
+linked below. The emitted `orchbee` participates in root Cargo verification. macOS packaging is an
+unsigned, per-user development cohort for Apple Silicon; it does not include release signing or installation.
 
 Simplified Chinese maintenance translation:
 [README.zh-CN.md](README.zh-CN.md).
@@ -46,8 +48,8 @@ Windows `update` and `channel set` share complete-cohort installation, explicit 
 ## Command surface
 
 Bare and explicit `tui` invocation first admit the inherited interactive terminal and valid
-cell geometry, then run the local startup workflow below on Windows and Linux. They are the same
-Client route; `tui` does not select a different mode. Other platforms return localized unavailability. `--help`
+cell geometry, then run the local startup workflow below on Windows, Linux, and macOS Apple Silicon.
+They are the same Client route; `tui` does not select a different mode. Other platforms return localized unavailability. `--help`
 and `--version` initialize neither TUI nor service. Commands use the exact grammar below without
 abbreviations; unknown commands, undeclared options, extra operands, and non-Unicode arguments are usage
 failures. Windows remote selection follows the [saved-machine routing contract](docs/machines.md#command-routing-contract).
@@ -238,10 +240,9 @@ In interactive Elvish 0.21, use `eval (orchbee completion elvish | slurp)`; the 
 registers both `orchbee` and `orchbee.exe` without querying a Site or modifying profiles.
 For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
 `orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Operating-system service
-installation, release signing, automatic application updates, live Host adoption, and macOS public startup
-remain outside these commands.
+installation, release signing, automatic application updates, and live Host adoption remain outside these commands.
 
-## Linux local startup
+## macOS and Linux local startup
 
 Build a new development cohort from the repository root:
 
@@ -249,17 +250,21 @@ Build a new development cohort from the repository root:
 node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev
 # From a Windows host using WSL Linux:
 node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
+# On Apple Silicon macOS:
+node scripts/stage-native-site.mjs --output /private/tmp/orchbee-native-dev
 ```
 
-Then run `/tmp/orchbee-native-dev/orchbee` in an interactive Linux terminal.
+Then run the staged `orchbee` in an interactive terminal (`/tmp/orchbee-native-dev/orchbee` on
+Linux, `/private/tmp/orchbee-native-dev/orchbee` on macOS).
 The script rebuilds three Rust release binaries and the Zig ReleaseSafe Host from locked inputs,
 copies the canonical observation-adapters capsule as the cohort's lazily validated sidecar,
 and verifies its declared payload digest before writing the manifest;
 existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a
 Cargo build cache. This stages a development cohort without installing a system service.
 
-The default Site is `/tmp/orchbee-native-<effective-uid>`; development/tests can isolate a Site
-by setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory.
+The default Site is `/tmp/orchbee-native-<effective-uid>` on Linux and
+`/private/tmp/orchbee-native-<effective-uid>` on macOS. Development/tests can isolate a Site by
+setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory on an admitted local filesystem.
 The [shared runtime contract](../../crates/local-site-runtime/README.md) owns the 0700 directory,
 0600 locks/sockets/immutable attempt marker, exact four-executable cohort with its declared
 adapters sidecar, shared 20-second deadline,
@@ -283,8 +288,9 @@ unknown-pixel declaration, and missing pixel values are never guessed. When the 
 geometry is not drawable — including a temporary zero-cell report — the Client waits for a real
 drawable geometry inside the original deadline instead of failing admission or inventing one;
 the [native startup wait](docs/native-startup-wait.md) owns that bounded waiting model, its
-cancel/timeout/fault outcomes, and its no-service-work guarantee. Linux startup has public process evidence; native Windows startup and ConPTY workflow evidence
-are described above. Release performance budgets remain unclaimed.
+cancel/timeout/fault outcomes, and its no-service-work guarantee. Linux startup has public process evidence;
+macOS Apple Silicon staging and TUI startup are verified against APFS/ACL admission; native Windows startup
+and ConPTY workflow evidence are described above. Release performance budgets remain unclaimed.
 
 ## Native Tab interactions
 
@@ -412,12 +418,12 @@ an internal caller. It delegates admission to `orchbee-local-client-protocol`, w
 cohort before connecting, proves the Server has the same effective operating-system user, performs
 the exact `OBLC` handshake with two-second read/write timeouts, and returns the accepted generation
 plus the same unbuffered stream. Those existing handshake timeouts remain a separate OBLC boundary.
-On Linux, private `LocalClient::connect_before` instead passes the caller's absolute monotonic
+On Linux and macOS, private `LocalClient::connect_before` instead passes the caller's absolute monotonic
 deadline through connection, peer proof, hello, response and final admission. Its
-[owning adapter and correctness record](../../crates/local-client-protocol/README.md#deadline-bounded-linux-admission)
+[owning adapter and correctness record](../../crates/local-client-protocol/README.md#deadline-bounded-posix-admission)
 define failure cleanup and the unchanged-deadline guarantee. Both paths switch the admitted stream
 to nonblocking I/O before `OBCS`. Ordinary requests have an independent budget; initial local
-requests are clamped to the original startup deadline. macOS deadline admission remains unfinished.
+requests are clamped to the original startup deadline.
 
 `submit_terminal_open`, `submit_terminal_create`, `submit_terminal_start`, `submit_terminal_viewer`, and `submit_terminal_control` each take ownership of one already validated
 typed request and encode its complete OBCS frame before submission. Encoding failure is definite
@@ -430,7 +436,7 @@ incompatible result, wrong result kind, or wrong correlation makes the effect ou
 replay. A correctly correlated Server `outcome-unknown` result remains a valid OBCS result rather
 than a transport ambiguity.
 
-Bare Linux startup consumes this transport for standalone Open, viewer, and control intent.
+Bare Linux and macOS startup consume this transport for standalone Open, viewer, and control intent.
 Its close-only `LocalClientShutdown` handle stops a blocked exchange without acquiring another
 stream reader or writer. Reconnection and reconciliation remain separate boundaries.
 
@@ -512,7 +518,7 @@ for identity, lifetime, cache accounting and controlled timing evidence.
 ## TUI shell foundation
 
 Application-private shell adapters own the following terminal and presentation boundaries.
-Bare Linux startup uses the prepared Session; unconnected `run` and explicit `run_connected`
+Bare Linux and macOS startup use the prepared Session; unconnected `run` and explicit `run_connected`
 remain test and composition seams.
 
 The input and transition tables below describe the unconnected fallback. Connected context and Tab
@@ -624,7 +630,7 @@ Authored help and diagnostics ship in `en-US` and `zh-CN`. Locale selection chec
 falls back to canonical `en-US`. Locale data affects presentation only and is never persisted or
 used as authority.
 
-Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone. Bare Windows and Linux invocation composes the shared runtime, private Client transport, and TUI; platform adapters own console and transport effects. The native application owns the current development CLI/TUI surface.
+Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone. Bare Windows, Linux, and macOS invocation composes the shared runtime, private Client transport, and TUI; platform adapters own console and transport effects. The native application owns the current development CLI/TUI surface.
 
 ## POSIX local Site rendezvous foundation
 
@@ -792,7 +798,7 @@ The private connected TUI accepts `TerminalIntent::Standalone`. It submits one
 `submit_terminal_open` and requires Opened, then reads a correlated OBWP snapshot on that same
 admitted connection. It uses the snapshot's exact Site/Worker/Server-terminal binding to submit
 OBCS `attach-binding`; the Open create reference remains an explicit legacy value and does not
-select this viewer. Bare Linux invocation consumes this path through verified local Site
+select this viewer. Bare Linux and macOS invocation consume this path through verified local Site
 activation and Worker lazy Host startup. Explicit Create and Attach intents keep their existing
 Create-reference attachment behavior.
 

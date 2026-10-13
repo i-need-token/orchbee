@@ -10,10 +10,11 @@ use std::{
 };
 
 use nix::errno::Errno;
+use nix::poll::PollFlags;
 
 use super::{
     Deadline, DeadlineIo, WakeFault, WakeReady, complete_connect, exchange_hello, finish_admission,
-    is_wake, translate_wake,
+    is_wake, translate_wake, wake_observation_error,
 };
 use crate::{ClientHello, ConnectClientError, LocalClientMessage, RejectionReason, write_message};
 
@@ -260,16 +261,16 @@ fn wake_observation_survives_the_hello_io_wrapper_and_translates_once() -> TestR
 
 #[test]
 fn a_faulted_wake_descriptor_is_distinct_from_ready() -> TestResult {
-    // A pipe write end with no readers reports POLLERR: a broken wake
-    // channel, not a wake.
+    // EOF is readable, so the owner distinguishes the broken pipe during its
+    // arbitration read. Unix poll implementations may report POLLIN with HUP.
     let (stream, _peer) = UnixStream::pair()?;
     stream.set_nonblocking(true)?;
     let (read_end, write_end) = nix::unistd::pipe()?;
-    drop(read_end);
+    drop(write_end);
     let deadline = Deadline {
         expires_at: Instant::now() + Duration::from_secs(1),
         now: &Instant::now,
-        wake: Some(write_end.as_fd()),
+        wake: Some(read_end.as_fd()),
     };
     let mut stream = stream;
     let error = DeadlineIo {
@@ -278,13 +279,27 @@ fn a_faulted_wake_descriptor_is_distinct_from_ready() -> TestResult {
     }
     .write_all(b"x")
     .unwrap_err();
-    assert!(is_wake::<WakeFault>(&error));
-    assert!(!is_wake::<WakeReady>(&error));
+    let translated = translate_wake(ConnectClientError::Io(error));
     assert!(matches!(
-        translate_wake(ConnectClientError::Io(error)),
-        ConnectClientError::CancellationSourceFault(_)
+        translated,
+        ConnectClientError::CancellationReady | ConnectClientError::CancellationSourceFault(_)
     ));
     Ok(())
+}
+
+#[test]
+fn wake_fault_flags_are_distinct_unless_readable() {
+    for fault in [PollFlags::POLLERR, PollFlags::POLLHUP, PollFlags::POLLNVAL] {
+        let error = wake_observation_error(fault).unwrap();
+        assert!(is_wake::<WakeFault>(&error));
+        assert!(!is_wake::<WakeReady>(&error));
+    }
+
+    let readable_and_faulted =
+        wake_observation_error(PollFlags::POLLIN | PollFlags::POLLHUP).unwrap();
+    assert!(is_wake::<WakeReady>(&readable_and_faulted));
+    assert!(!is_wake::<WakeFault>(&readable_and_faulted));
+    assert!(wake_observation_error(PollFlags::empty()).is_none());
 }
 
 #[test]

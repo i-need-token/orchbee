@@ -18,9 +18,9 @@ use orchbee_agent_observation_protocol::{
     AgentSessionRejectionReason, AgentSessionSummary,
 };
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use super::agent_read_lane as lane;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use lane::{AgentReadLane, LaneCommand, LaneOutcome};
 
 #[cfg(test)]
@@ -500,15 +500,15 @@ pub(super) struct AgentBoard {
     /// source of the read cooldown `r` never bypasses.
     last_read_end: Option<Instant>,
     clock: crate::local_client::LocalOperationClock,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     lane_origin: Option<crate::local_client::LocalClientOrigin>,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     lane: Option<AgentReadLane>,
     /// Lane handles whose threads are still exiting after a close or a
     /// failed send — kept until `finished` so a spawn never overlaps a
     /// live predecessor and teardown joins whatever remains instead of
     /// leaving a detached thread.
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     dying_lanes: Vec<AgentReadLane>,
 }
 
@@ -565,16 +565,16 @@ impl AgentBoard {
             notice: None,
             last_read_end: None,
             clock,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             lane_origin: None,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             lane: None,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             dying_lanes: Vec::new(),
         }
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
         self.lane_origin = Some(origin);
     }
@@ -609,7 +609,7 @@ impl AgentBoard {
         self.inflight = None;
         self.jump = None;
         self.notice = None;
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if let Some(mut lane) = self.lane.take() {
             // Cancel order: the epoch bump above already invalidates
             // outcomes and stops scheduling; now the in-flight exchange
@@ -797,7 +797,7 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn lane_or_spawn(&mut self) -> Option<&mut AgentReadLane> {
         if self.lane.is_none() {
             // Release finished predecessors first, then hold the spawn
@@ -817,7 +817,7 @@ impl AgentBoard {
         self.lane.as_mut()
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn issue_list_round(&mut self, now: Instant) {
         let Some(deadline) = now.checked_add(AGENT_READ_DEADLINE) else {
             self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
@@ -837,12 +837,12 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(not(any(target_os = "linux", windows)))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     fn issue_list_round(&mut self, _now: Instant) {
         self.read = AgentBoardRead::Failed(AgentBoardReadFailure::LaneUnavailable);
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn issue_jump_get(&mut self, target: AgentSessionId, now: Instant) {
         self.jump_serial += 1;
         let serial = self.jump_serial;
@@ -878,7 +878,7 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(not(any(target_os = "linux", windows)))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     fn issue_jump_get(&mut self, _target: AgentSessionId, _now: Instant) {
         self.fail_jump(JumpFailure::Unavailable);
     }
@@ -886,7 +886,7 @@ impl AgentBoard {
     /// Drain every arrived lane outcome. The list path is board-local;
     /// the Get path needs the caller's live-context preference to order
     /// candidates, so it takes that as a closure.
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn drain_lane(
         &mut self,
         now: Instant,
@@ -941,7 +941,7 @@ impl AgentBoard {
         changed
     }
 
-    #[cfg(not(any(target_os = "linux", windows)))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     pub(super) fn drain_lane(
         &mut self,
         _now: Instant,
@@ -950,7 +950,7 @@ impl AgentBoard {
         false
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn apply_list_outcome(
         &mut self,
         epoch: u64,
@@ -1037,7 +1037,7 @@ impl AgentBoard {
     /// Apply the verified Get outcome. `prefer` reports whether an
     /// attachment currently resolves into the caller's active context and
     /// tab — the deterministic pick's "current-tab usable" preference.
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn apply_get_outcome(
         &mut self,
         epoch: u64,
@@ -1164,7 +1164,7 @@ impl AgentBoard {
 
     /// Test seam: hand the board a prepared lane (queued outcomes or a
     /// real spawned thread) so drains run against it without an origin.
-    #[cfg(all(test, any(target_os = "linux", windows)))]
+    #[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]
     pub(in crate::terminal_session::agent_board) fn install_lane_t(&mut self, lane: AgentReadLane) {
         self.lane = Some(lane);
     }
@@ -1172,7 +1172,7 @@ impl AgentBoard {
     /// Bounded lane close for session teardown: the wake write interrupts
     /// an in-flight exchange and the join returns without waiting out the
     /// read deadline. Must run before the mailbox is released.
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn release_lane(&mut self) {
         if let Some(lane) = self.lane.take() {
             lane.close();
@@ -1182,11 +1182,11 @@ impl AgentBoard {
         }
     }
 
-    #[cfg(not(any(target_os = "linux", windows)))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     pub(super) fn release_lane(&mut self) {}
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 impl Drop for AgentBoard {
     fn drop(&mut self) {
         if let Some(lane) = self.lane.take() {

@@ -11,15 +11,18 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AbsoluteCwd, AgentDrainEntry, AgentDrainReply, AgentDrainRequest, AuthorizedTerminalLaunch,
-    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId, SendRecord,
-    SendRecords, SendText, SendTextInput, TERMINAL_LAUNCH_CAPABILITY_VERSION,
-    TerminalCwdValidationOutcome, TerminalCwdValidationRequest, TerminalFence, TerminalId,
-    TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome,
-    TerminalOperationAuthorization, TerminalOperationLease, TerminalPixelGeometry,
-    TerminalSendOutcome, TerminalSendRequest, WorkerGeneration, WorkerId as CapabilityWorkerId,
-    WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome, WorktreeJobRequest,
-    WorktreeJobStartOutcome, read_message, write_message,
+    AbsoluteCwd, AgentDrainReply, AgentDrainRequest, AuthorizedTerminalLaunch,
+    CapabilityNodeMessage, LeaseExpiresAtUnixMilliseconds, LeaseId, OperationId,
+    TERMINAL_LAUNCH_CAPABILITY_VERSION, TerminalCwdValidationOutcome, TerminalCwdValidationRequest,
+    TerminalFence, TerminalId, TerminalLaunchFailure, TerminalLaunchMode, TerminalLaunchOutcome,
+    TerminalOperationAuthorization, TerminalOperationLease, WorkerGeneration,
+    WorkerId as CapabilityWorkerId, WorktreeJobAction, WorktreeJobOutcome, WorktreeJobPollOutcome,
+    WorktreeJobRequest, WorktreeJobStartOutcome, read_message, write_message,
+};
+#[cfg(target_os = "linux")]
+use orchbee_capability_node_protocol::{
+    AgentDrainEntry, SendRecord, SendRecords, SendText, SendTextInput, TerminalPixelGeometry,
+    TerminalSendOutcome, TerminalSendRequest,
 };
 use orchbee_local_site_protocol::WorkerId;
 use orchbee_local_site_runtime::{ModeCheckedLocalSiteRendezvous, NativeCohort};
@@ -354,6 +357,7 @@ const FIXTURE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Canonical, Server-parseable v3 correlation hint — the payload is genuinely
 /// consumable by the future Server hint path; the Worker transports it as
 /// opaque UTF-8 with no schema parse.
+#[cfg(target_os = "linux")]
 const HINT_JSON: &str = concat!(
     r#"{"kind":"correlation","version":3,"#,
     r#""correlationId":"fixture-correlation-0001","#,
@@ -395,6 +399,7 @@ fn drain(
 
 /// Poll the drain until `ready` or the absolute deadline. Each poll consumes
 /// a fresh monotone token from the shared mint — never rewound.
+#[cfg(target_os = "linux")]
 fn drain_until(
     server: &mut UnixStream,
     mint: &mut TokenMint,
@@ -1484,6 +1489,7 @@ fn server_close_mid_drain_ends_the_epoch() -> TestResult {
 
 /// RFC 4648 url-safe, no padding — the APC payload alphabet. Hand-rolled so
 /// no new dependency is needed.
+#[cfg(target_os = "linux")]
 fn base64_url_nopad(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);

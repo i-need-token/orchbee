@@ -6,7 +6,7 @@ use super::{
     WorkerEvent, workbench_identity_candidate,
 };
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct RetiredMailboxSeed {
     identity_cursor: u128,
@@ -100,7 +100,7 @@ impl CommandMailbox {
             deposited: state.close_deposited_result.clone(),
         }
     }
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(in crate::terminal_session) fn retired_seed(&self) -> RetiredMailboxSeed {
         let state = self.lock();
         RetiredMailboxSeed {
@@ -112,7 +112,7 @@ impl CommandMailbox {
         }
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(in crate::terminal_session) fn for_status_recovery(
         seed: RetiredMailboxSeed,
         geometry: Geometry,

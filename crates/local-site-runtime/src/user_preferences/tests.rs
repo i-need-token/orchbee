@@ -97,7 +97,7 @@ impl Fixture {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!(
+        let root = crate::test_temporary_directory().join(format!(
             "orchbee-preferences-{}-{stamp}-{}",
             std::process::id(),
             SERIAL.fetch_add(1, Ordering::Relaxed)

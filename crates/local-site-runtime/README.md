@@ -146,17 +146,19 @@ power-loss durability and inventory recovery after external removal of the runti
 
 ## Local startup model
 
-Bare Linux `orchbee` admits its inherited input/output TTY and validates its geometry before
-runtime creation or process launch. It opens the per-user scope `orchbee-native-<effective-uid>`
-under `/tmp`; `ORCHBEE_RUNTIME_BASE` can select another existing absolute base for isolated
-development. Runtime directories must be owned by the effective user with mode 0700; lock files
+Bare Linux and macOS `orchbee` admit their inherited input/output TTY and validate geometry before
+runtime creation or process launch. The default per-user scope `orchbee-native-<effective-uid>` is
+under `/tmp` on Linux and `/private/tmp` on macOS; `ORCHBEE_RUNTIME_BASE` can select another
+existing absolute base for isolated development. Runtime directories must be owned by the effective user with mode 0700; lock files
 are regular, single-link, owned files with mode 0600. Existing invalid paths are rejected, never
 repaired, followed through symlinks, unlinked, or replaced.
 
 The managed Linux boundary admits only ext4-family and tmpfs objects. Every opened final directory,
 cohort artifact, marker, and lock must have no access or default POSIX ACL: fd-based filesystem
-inspection and ACL queries reject every result except ENODATA absence. It never strips ACLs.
-Overlayfs, XFS, btrfs, DrvFS, network filesystems, and non-Linux public startup are unclaimed.
+inspection and ACL queries reject every result except ENODATA absence. The macOS boundary admits
+only APFS objects and rejects every extended ACL through descriptor-anchored ACL inspection. Neither
+boundary strips ACLs. Overlayfs, XFS, btrfs, DrvFS, network filesystems, and other Unix targets are
+unclaimed.
 First-creation concurrency assumes an umask that preserves owner bits (for example 0022 or 0077);
 a user-bit-restrictive umask may expose an incomplete directory and fails closed.
 
@@ -215,9 +217,10 @@ including `1`, is incompatible; a `schemaVersion: 2` manifest missing a required
 duplicated or unknown members, or declaring a malformed digest is an invalid manifest. Both fail
 closed through the existing typed rejection. The directory is effective-user-owned 0700. Files are
 regular, single-link, owned, and not writable by group/other; executables have an owner execute bit.
-Manifest and executables are opened relative to the verified directory with NOFOLLOW and
-CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all four executables, including
-on warm startup.
+Linux requires no POSIX ACL on the directory or opened files; macOS additionally requires APFS and
+no extended ACL on each opened object. Manifest and executables are opened relative to the verified
+directory with NOFOLLOW and CLOEXEC. Each managed Rust role (Client, Server, Worker) validates all
+four executables, including on warm startup.
 Host consumes the verified sibling executable; it does not implement the manifest reader.
 
 The root development and test profiles compile the existing `sha2` dependency at optimization
@@ -250,7 +253,7 @@ a coherent exact artifact set, not publisher authenticity.
 
 ## Correctness case
 
-The LS claims below describe the Linux development startup boundary. Managed Windows cold recovery
+The LS claims below describe the Linux and macOS development startup boundary. Managed Windows cold recovery
 has the separate [generation and process registration contract](docs/windows-crash-recovery.md).
 
 | Claim                                                                 | Owner / refinement                                                  | Evidence                                                            |
@@ -265,8 +268,8 @@ has the separate [generation and process registration contract](docs/windows-cra
 attempt. It abstracts filesystem checks as admitted facts, abstracts deadline observation as an expiry event, and
 checks safety without scheduler fairness. Per-Client timeout fairness supports bounded-attempt
 termination only, not service availability. Real kernel locks, peers, hashing, PTYs, and
-cancellation are exercised by Linux tests. Remote, Workbench membership, daemon restart,
-automatic cleanup/recovery, persistence across Server loss, and non-Linux public startup are
+cancellation are exercised by Linux and macOS tests. Remote, Workbench membership, daemon restart,
+automatic cleanup/recovery, persistence across Server loss, and other Unix targets are
 outside this contract.
 
 ## POSIX local Site rendezvous foundation
@@ -315,6 +318,10 @@ when the opened descriptor has the same device and inode. This reaches exact `07
 process umask removes every requested permission, without changing the process umask. An existing
 wrong mode is rejected without repair.
 
+Linux validates final objects against the admitted local-filesystem and POSIX ACL contract. macOS
+validates APFS and the absence of extended ACLs on its runtime base, scope, lock files, marker,
+cohort directory, and opened cohort artifacts.
+
 Each lock operation opens or creates only its fixed leaf through the retained directory descriptor
 with `O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`. The leaf must be a regular file owned by the effective
 UID with exact mode `0600` and exactly one hard link. An existing valid stale file is reused without
@@ -351,11 +358,11 @@ application startup policy, retry, remove stale endpoints, or grant recovery aut
 | Inputs       | A trusted existing exactly normalized absolute base, canonical scope, effective UID, and potentially invalid directory, lock, marker or socket entries.                                                                                                                                                                                               |
 | Data         | Stable paths, retained scope descriptor, owned advisory-lock guards, and an immutable empty attempt marker. No PID or process-health inference.                                                                                                                                                                                                       |
 | Outputs      | Validated rendezvous or typed failure; Acquired/Contended lock outcome; marker and socket existence with metadata validation. Path getters perform no I/O.                                                                                                                                                                                            |
-| Invariants   | Descriptor-relative no-follow traversal; exact final type, owner, mode and regular-file link count; new directory identity matches its inspected inode. Linux final objects pass the restricted-filesystem and ACL-absence checks. Existing invalid entries are never repaired or removed. Guard drop only releases its lock.                         |
+| Invariants   | Descriptor-relative no-follow traversal; exact final type, owner, mode and regular-file link count; new directory identity matches its inspected inode. Linux and macOS final objects pass their respective restricted-filesystem and ACL-absence checks. Existing invalid entries are never repaired or removed. Guard drop only releases its lock.  |
 | Decisions    | Normalized path and scope syntax, create-versus-existing metadata, lock kind, one nonblocking lock outcome, and exclusive marker creation determine results.                                                                                                                                                                                          |
 | Model        | Atomic POSIX primitives without application retry or process observation. LocalSiteStartup composes these facts with Client/Server/Worker state; Client implementation tests exercise the connect-first behavior.                                                                                                                                     |
 | Transitions  | Missing scope/lock becomes a validated durable inode. Lock creation and lock acquisition may have different winners. Guard acquisition/drop changes only lock ownership. An absent marker can be committed once and is never cleared.                                                                                                                 |
-| Dependencies | Safe nix/rustix filesystem wrappers and File::try_lock; Linux fd-based filesystem and ACL queries. No child-process or service dependency in rendezvous.                                                                                                                                                                                              |
+| Dependencies | Safe nix/rustix filesystem wrappers and File::try_lock; Linux fd-based filesystem/POSIX ACL queries and macOS APFS/extended ACL inspection. No child-process or service dependency in rendezvous.                                                                                                                                                     |
 | Ownership    | This crate owns derivation and admission. Client chooses the development base/scope and owns the activation guard and marker commit; Server owns the lifetime guard.                                                                                                                                                                                  |
 | Verification | Scope/path partitions, symlink/hardlink/FIFO rejection, wrong owner/mode, restrictive-umask initialization, concurrent owner-preserving creation, stale inode preservation, contention/reacquisition, marker exclusivity and socket impostors. Linux ACL tests retain exact 0700/0600 modes while adding named access ACLs or directory default ACLs. |
 | Limits       | One effective user; wrong-owner tests inject the expected UID. Kernel metadata and advisory locks are trusted. Concurrent creation requires owner-preserving umask. Durable means no unlink/truncate, not fsync. Cooperative deadlines exclude kernel stalls and process suspension. The model does not prove filesystem or kernel semantics.         |

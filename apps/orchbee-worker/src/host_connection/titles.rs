@@ -1,5 +1,7 @@
 //! Connection-owned projection of exact physical OSC titles. Never Agent semantic state.
-use orchbee_capability_node_protocol::{HostTerminalIdentity, TerminalTitleObservation};
+use orchbee_capability_node_protocol::HostTerminalIdentity;
+#[cfg(any(windows, test))]
+use orchbee_capability_node_protocol::TerminalTitleObservation;
 use orchbee_terminal_protocol::TerminalMetadataChanged;
 use std::{collections::BTreeMap, io, num::NonZeroU64};
 const MAXIMUM_ROWS: usize = crate::terminal_authorization::MAXIMUM_RETAINED_TERMINAL_BINDINGS;
@@ -50,6 +52,7 @@ impl Titles {
         self.bytes = bytes.expect("checked title bound");
         Ok(())
     }
+    #[cfg(any(windows, test))]
     pub(super) fn read(&self, identity: HostTerminalIdentity) -> TerminalTitleObservation {
         match self
             .rows

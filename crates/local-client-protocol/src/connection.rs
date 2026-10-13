@@ -74,7 +74,7 @@ pub fn unix_socket_path_fits(path: &Path) -> bool {
 #[cfg(target_os = "linux")]
 const _: () = assert!(UNIX_SOCKET_PATH_CAPACITY == 107);
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 mod admission_deadline;
 
 #[derive(Debug)]
@@ -84,9 +84,9 @@ pub struct ClientSessionConnection {
 }
 
 impl ClientSessionConnection {
-    /// Admits one Linux connection within the caller's existing monotonic deadline.
+    /// Admits one Unix connection within the caller's existing monotonic deadline.
     /// This neither selects a timeout nor activates, retries, or supervises a Site.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub fn connect_before(
         endpoint: &Path,
         cohort: &str,
@@ -105,7 +105,7 @@ impl ClientSessionConnection {
     /// `CancellationSourceFault` — provisional facts, not a cancellation
     /// verdict; the caller's own signal owner performs the sole arbitration
     /// read and decides the outcome.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     pub fn connect_before_cancellable(
         endpoint: &Path,
         cohort: &str,

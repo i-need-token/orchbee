@@ -21,6 +21,9 @@ workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 rustix = { workspace = true, features = ["fs"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+exacl = { version = "=0.13.0", default-features = false }
+
 [target.'cfg(windows)'.dependencies]
 process-wrap.workspace = true
 windows.workspace = true

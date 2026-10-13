@@ -294,7 +294,7 @@ pub(crate) fn adjustable_operation_clock(
 /// A lane-admission origin whose endpoint never answers — enough to
 /// spawn a real agent-board lane (real pipe + thread) in tests without
 /// standing up a live OBAP socket.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn disconnected_origin() -> super::super::LocalClientOrigin {
     super::super::LocalClientOrigin {
         endpoint: PathBuf::from("/nonexistent-orchbee-agent-board.sock"),

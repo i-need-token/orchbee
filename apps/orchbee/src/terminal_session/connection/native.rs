@@ -52,11 +52,11 @@ use std::{
 mod close_reconciliation;
 mod membership;
 mod panel;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod status_recovery;
 mod switch_membership;
 mod tab_close;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(in crate::terminal_session) use status_recovery::{RecoveryShutdown, run_status_recovery};
 mod control_takeover;
 mod quick_workspace;
@@ -117,7 +117,7 @@ pub(super) fn run_at(
     .with_setup(executor.pending_setup.take())
     .with_workspace_close(executor.pending_workspace_close.take())
     .with_takeover(executor.pending_takeover.take());
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     let returned = returned.with_unavailable_poll(executor.unavailable_poll.take());
     returned
 }
@@ -145,9 +145,9 @@ impl Drop for WorkerExit {
 struct NativeExecutor {
     initial_context: Option<NativeStartupTarget>,
     status_only: bool,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     membership_recovery: bool,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     unavailable_poll: Option<crate::terminal_session::state::retired_membership::UnavailablePoll>,
     client: LocalClient,
     clock: LocalOperationClock,
@@ -322,9 +322,9 @@ impl NativeExecutor {
             client,
             initial_context: None,
             status_only: false,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             membership_recovery: false,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             unavailable_poll: None,
             clock,
             mailbox,
@@ -843,7 +843,7 @@ impl NativeExecutor {
     fn run_ready_queue(&mut self) -> Result<()> {
         loop {
             let mut lease = self.mailbox.recv().map_err(closed)?;
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             if self.membership_recovery && !matches!(lease.record(), QueuedCommand::Refresh(_)) {
                 return Err(CarrierFailure::Protocol);
             }
@@ -1380,7 +1380,7 @@ impl NativeExecutor {
             return Ok(());
         };
         let current = self.pane_admitted(lease, &key)?;
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if current
             && matches!(
                 outcome,
@@ -1396,7 +1396,7 @@ impl NativeExecutor {
                 },
             );
         }
-        #[cfg(not(any(target_os = "linux", windows)))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
         let _request_id = request_id;
         let record = match outcome {
             TerminalViewerOutcome::Empty {} => None,
@@ -1824,9 +1824,9 @@ impl NativeExecutor {
         marker: &crate::terminal_session::mailbox::RefreshMarker,
         wait: &crate::terminal_session::mailbox::UiWaitKey,
     ) -> Result<()> {
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         let bounded_recovery = self.membership_recovery;
-        #[cfg(not(any(target_os = "linux", windows)))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
         let bounded_recovery = false;
         let reply = if bounded_recovery || marker.context_deadlines().is_some() {
             self.mailbox
@@ -1841,7 +1841,7 @@ impl NativeExecutor {
         let UiReply::Refresh(settlement) = reply else {
             return Err(CarrierFailure::Protocol);
         };
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if self.membership_recovery {
             if matches!(
                 settlement.decision(),

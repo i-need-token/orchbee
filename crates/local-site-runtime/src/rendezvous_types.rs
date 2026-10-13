@@ -65,7 +65,7 @@ pub enum EntryKind {
 
 #[cfg(unix)]
 impl EntryKind {
-    pub(crate) fn of(mode: u32) -> Self {
+    pub(crate) fn of(mode: nix::libc::mode_t) -> Self {
         match SFlag::from_bits_truncate(mode) & SFlag::S_IFMT {
             SFlag::S_IFSOCK => Self::Socket,
             SFlag::S_IFREG => Self::RegularFile,

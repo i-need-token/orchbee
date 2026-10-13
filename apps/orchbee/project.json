@@ -5,7 +5,7 @@
 	"stability": "experimental",
 	"responsibility": "Native Rust CLI and TUI entry point for verified Site activation, typed Workbench and terminal operations, Agent workflows, and Client-local interaction, including Windows saved-machine SSH routing and switching, user configuration, and complete-cohort release installation and updates.",
 	"nonGoals": [
-		"Automatically replaying ambiguous effects, restarting failed Sites, or providing public macOS startup.",
+		"Automatically replaying ambiguous effects or restarting failed Sites.",
 		"Replacing the Desktop launcher or owning Desktop and Browser Client presentation.",
 		"Installing operating-system services, signing or publishing releases, or automatically rolling back installed cohorts."
 	]

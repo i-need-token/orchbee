@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+use nix::fcntl::{FcntlArg, FdFlag, OFlag, fcntl};
 #[cfg(unix)]
 use nix::{
     errno::Errno,
@@ -9,7 +11,7 @@ use orchbee_local_ipc::{
     AsLocalIo, LocalStream as UnixStream, PollFd, PollFlags, PollTimeout, poll,
 };
 #[cfg(unix)]
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsFd, AsRawFd};
 use std::{
     io::{self, Read, Write},
     path::Path,
@@ -28,12 +30,25 @@ impl Admission {
             return Err(io::ErrorKind::TimedOut.into());
         }
         let address = UnixAddr::new(endpoint)?;
-        let stream = UnixStream::from(socket(
+        #[cfg(target_os = "linux")]
+        let descriptor = socket(
             AddressFamily::Unix,
             SockType::Stream,
             SockFlag::SOCK_CLOEXEC | SockFlag::SOCK_NONBLOCK,
             None,
-        )?);
+        )?;
+        #[cfg(target_os = "macos")]
+        let descriptor = {
+            let descriptor = socket(
+                AddressFamily::Unix,
+                SockType::Stream,
+                SockFlag::empty(),
+                None,
+            )?;
+            Self::make_nonblocking_cloexec(&descriptor)?;
+            descriptor
+        };
+        let stream = UnixStream::from(descriptor);
         let admission = Self { stream, deadline };
         match connect(admission.stream.as_raw_fd(), &address) {
             Ok(()) => {}
@@ -49,6 +64,23 @@ impl Admission {
         orchbee_local_peer_credentials::require_same_effective_user(&admission.stream)?;
         admission.remaining()?;
         Ok(admission)
+    }
+    #[cfg(target_os = "macos")]
+    fn make_nonblocking_cloexec(descriptor: &impl AsFd) -> io::Result<()> {
+        let descriptor_flags = fcntl(descriptor, FcntlArg::F_GETFD).map_err(io::Error::from)?;
+        fcntl(
+            descriptor,
+            FcntlArg::F_SETFD(FdFlag::from_bits_truncate(descriptor_flags) | FdFlag::FD_CLOEXEC),
+        )
+        .map_err(io::Error::from)?;
+
+        let status_flags = fcntl(descriptor, FcntlArg::F_GETFL).map_err(io::Error::from)?;
+        fcntl(
+            descriptor,
+            FcntlArg::F_SETFL(OFlag::from_bits_truncate(status_flags) | OFlag::O_NONBLOCK),
+        )
+        .map_err(io::Error::from)?;
+        Ok(())
     }
     #[cfg(windows)]
     pub(super) fn connect(endpoint: &Path, deadline: Instant) -> io::Result<Self> {

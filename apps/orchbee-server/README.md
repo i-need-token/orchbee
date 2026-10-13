@@ -158,15 +158,17 @@ same read grant, so a Client holding a baseline revision fast-forwards with orde
 instead of full snapshots. A journal that cannot connect the caller's revision answers with one
 complete snapshot boundary publication. Push subscription remains unfinished.
 
-## Managed Linux Site startup
+## Managed Linux and macOS Site startup
 
 The private `--local-site <absolute-runtime-directory>` entry consumes the
 [shared runtime contract](../../crates/local-site-runtime/README.md).
 Server verifies the four-artifact cohort, runtime, and immutable activation marker before taking
 the exclusive lifetime guard and detaching from the Client terminal session with `setsid`.
-It binds the 0600 Worker socket and starts one exact cohort Worker. After registration it permanently
-closes Worker admission, so no replacement generation can enroll, then atomically publishes the
-permission-complete Client listener. Server startup has its own 20-second budget; the Client retains
+On Linux it binds the 0600 Worker socket with no-replace publication; on macOS it binds the final
+socket path inside the private runtime directory, applies mode `0600`, and verifies the path is a
+single-link socket owned by the effective user. It starts one exact cohort Worker. After
+registration it permanently closes Worker admission, so no replacement generation can enroll, then
+atomically publishes the permission-complete Client listener. Server startup has its own 20-second budget; the Client retains
 its independent total startup deadline. This readiness means registered Server + Worker, not an
 existing Host or terminal. Managed standard streams are null; this mode emits no explicit-endpoint
 stdout readiness marker.

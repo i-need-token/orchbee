@@ -14,7 +14,7 @@ pub(in crate::terminal_session) mod publication_hint;
 #[cfg(windows)]
 pub(in crate::terminal_session::ui) mod quick_workspace;
 pub(in crate::terminal_session::ui) mod rename_membership;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(in crate::terminal_session::ui) mod retired_membership;
 pub(in crate::terminal_session::ui) mod selection;
 pub(in crate::terminal_session::ui) mod startup_queue;

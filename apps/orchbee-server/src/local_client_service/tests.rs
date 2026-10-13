@@ -132,3 +132,34 @@ fn managed_socket_publication_has_final_permissions_and_never_replaces_an_entry(
     fs::remove_dir_all(directory)?;
     Ok(())
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+fn managed_socket_path_has_final_permissions_and_never_replaces_an_entry() -> std::io::Result<()> {
+    use std::{
+        fs,
+        os::unix::{fs::PermissionsExt, net::UnixStream},
+    };
+    let directory = std::env::temp_dir().join(format!("ob-managed-{}", std::process::id()));
+    fs::create_dir(&directory)?;
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
+    let endpoint = directory.join("client.sock");
+    let listener = super::bind_managed(&endpoint)?;
+    assert_eq!(
+        fs::symlink_metadata(&endpoint)?.permissions().mode() & 0o7777,
+        0o600
+    );
+    let client = UnixStream::connect(&endpoint)?;
+    drop(client);
+    drop(listener);
+    assert_eq!(
+        super::bind_managed(&endpoint).unwrap_err().kind(),
+        std::io::ErrorKind::AddrInUse
+    );
+    assert_eq!(
+        fs::symlink_metadata(&endpoint)?.permissions().mode() & 0o7777,
+        0o600
+    );
+    fs::remove_dir_all(directory)?;
+    Ok(())
+}

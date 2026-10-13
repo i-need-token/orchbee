@@ -1,12 +1,12 @@
 use super::state::CarrierFailure;
 mod close_interaction;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod close_recovery;
 mod close_retirement;
 pub(super) mod legacy;
 mod move_refinements;
 mod rename_interaction;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod retired_membership;
 mod retirement_redraw;
 use super::*;
@@ -570,7 +570,7 @@ fn native_session_with_identity(
     geometry: Geometry,
 ) -> Result<(TerminalSession, Arc<mailbox::CommandMailbox>), Box<dyn std::error::Error>> {
     let shutdown = client.shutdown_handle()?;
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     let origin = client.origin();
     let clock = client.operation_clock();
     let mailbox = Arc::new(mailbox::CommandMailbox::new(
@@ -602,9 +602,9 @@ fn native_session_with_identity(
             task: Some(SessionTask::Native(task)),
             shutdown,
             retirement_redraw_pending: false,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             origin: Some(origin),
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             recovery_shutdown: None,
         },
         mailbox,
@@ -1867,9 +1867,9 @@ fn input_admission_is_bounded_and_failure_cannot_accept_more_work() -> TestResul
         task: None,
         shutdown: crate::local_client::tests::server::shutdown_handle(shutdown),
         retirement_redraw_pending: false,
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         origin: None,
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         recovery_shutdown: None,
     };
     for _ in 0..8 {
@@ -2342,7 +2342,7 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
     Ok(())
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[test]
 fn standalone_snapshot_does_not_complete_or_reset_the_startup_deadline() -> TestResult {
     let (sent, received) = mpsc::sync_channel(1);

@@ -47,7 +47,7 @@ pub(crate) use independent_popup::{PopupView, resolve_geometry as popup_geometry
 pub(crate) use panel_reports::PanelReport;
 #[cfg(windows)]
 pub(crate) use panel_reports::PanelReportView;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod agent_read_lane;
 mod connection;
 mod mailbox;
@@ -62,7 +62,7 @@ pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;
 pub(crate) use state::workspace_setup::WorkspaceOrganizationRequest;
 pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod status_recovery;
 mod terminal_clipboard;
 mod terminal_effects;
@@ -185,9 +185,9 @@ pub(crate) struct TerminalSession {
     task: Option<SessionTask>,
     shutdown: LocalClientShutdown,
     retirement_redraw_pending: bool,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     origin: Option<crate::local_client::LocalClientOrigin>,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     recovery_shutdown: Option<connection::RecoveryShutdown>,
 }
 
@@ -355,7 +355,7 @@ impl TerminalSession {
         let identity_seed = random_identity_seed()?;
         match intent {
             TerminalIntent::Standalone => {
-                #[cfg(any(target_os = "linux", windows))]
+                #[cfg(any(target_os = "linux", target_os = "macos", windows))]
                 let origin = client.origin();
                 let mailbox = Arc::new(mailbox::CommandMailbox::new(identity_seed, geometry));
                 let worker_mailbox = Arc::clone(&mailbox);
@@ -373,7 +373,7 @@ impl TerminalSession {
                 // The Agent board's read lane reconnects on its own admitted
                 // session so an OBAP ambiguity retires the lane, never the
                 // primary carrier.
-                #[cfg(any(target_os = "linux", windows))]
+                #[cfg(any(target_os = "linux", target_os = "macos", windows))]
                 native.set_agent_board_origin(origin.clone());
                 Ok(Self {
                     #[cfg(windows)]
@@ -392,9 +392,9 @@ impl TerminalSession {
                     task: Some(SessionTask::Native(task)),
                     shutdown,
                     retirement_redraw_pending: false,
-                    #[cfg(any(target_os = "linux", windows))]
+                    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
                     origin: Some(origin),
-                    #[cfg(any(target_os = "linux", windows))]
+                    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
                     recovery_shutdown: None,
                 })
             }
@@ -417,7 +417,7 @@ impl TerminalSession {
         }
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn startup_draw_ready(&mut self) -> bool {
         self.tick();
         matches!(&self.backend, SessionBackend::Native(native) if native.startup_draw_ready())
@@ -723,11 +723,11 @@ impl TerminalSession {
             return;
         }
         let _closed = self.shutdown.close();
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if let Some(shutdown) = self.recovery_shutdown.take() {
             shutdown.close();
         }
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         let mut retired_poll = None;
         let workspace_close_return;
         let takeover_return;
@@ -742,7 +742,7 @@ impl TerminalSession {
             Some(SessionTask::Native(task)) => match task.join() {
                 Ok(returned) => {
                     let mut returned = returned;
-                    #[cfg(any(target_os = "linux", windows))]
+                    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
                     {
                         retired_poll = returned.take_unavailable_poll();
                     }
@@ -806,7 +806,7 @@ impl TerminalSession {
         let queued_setup_return = native.setup_worker_loss();
         let queued_workspace_close_return = native.workspace_close_worker_loss();
         let queued_takeover_return = native.takeover_worker_loss();
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         let clean_return = pending_create.is_none()
             && pending_move.is_none()
             && pending_panel.is_none()
@@ -827,7 +827,7 @@ impl TerminalSession {
             native.finalize_workspace_close_worker(queued_workspace_close_return);
         let takeover_accepted = native.finalize_takeover_worker(takeover_return);
         let queued_takeover_accepted = native.finalize_takeover_worker(queued_takeover_return);
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         native.finish_retired_peer_join(
             retired_poll,
             clean_return
@@ -839,7 +839,7 @@ impl TerminalSession {
                 && takeover_accepted
                 && queued_takeover_accepted,
         );
-        #[cfg(not(any(target_os = "linux", windows)))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
         let _accepted_setup_and_rename = (
             rename_accepted,
             setup_accepted,
@@ -1552,7 +1552,7 @@ impl TerminalInputPort for TerminalSession {
         if let Some(control) = &mut self.client_control {
             control.interrupt();
         }
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if action == ClientAction::OpenWorkbenchNavigator
             && self.task.is_none()
             && self.start_status_recovery()

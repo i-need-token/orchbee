@@ -11,10 +11,6 @@ use super::Output;
 use super::{Failure, FailureKind, failure_output};
 use crate::invocation::{OutputFormat, Target, TerminalSendInput};
 use crate::localization::Locale;
-#[cfg(not(any(target_os = "linux", windows)))]
-use serde_json::Map;
-#[cfg(not(any(target_os = "linux", windows)))]
-use serde_json::json;
 
 pub(crate) const TERMINAL_SEND_ID: &str = "orchbee.terminal.send";
 

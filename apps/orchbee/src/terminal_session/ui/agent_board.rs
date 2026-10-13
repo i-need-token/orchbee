@@ -24,7 +24,7 @@ use orchbee_agent_observation_protocol::AgentSessionId;
 use std::time::Instant;
 
 impl NativeUi {
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(in crate::terminal_session) fn set_agent_board_origin(
         &mut self,
         origin: crate::local_client::LocalClientOrigin,

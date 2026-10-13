@@ -26,7 +26,7 @@ use crate::{
     worker_registry::{WorkerAdmission, WorkerRegistry},
 };
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod managed;
 
 /// The managed Site-owned private observation endpoint for RICH hook
@@ -46,7 +46,7 @@ pub(crate) fn run(
     expected_cohort: &str,
 ) -> io::Result<()> {
     let mut arguments = arguments.peekable();
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if arguments
         .peek()
         .is_some_and(|argument| argument == "--local-site")

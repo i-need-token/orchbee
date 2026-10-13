@@ -263,10 +263,15 @@ impl ModeCheckedLocalSiteRendezvous {
     fn validate_marker(&self, fd: &OwnedFd) -> std::io::Result<()> {
         #[cfg(target_os = "linux")]
         crate::linux_permissions::require_private(fd)?;
+        #[cfg(target_os = "macos")]
+        crate::macos_permissions::require_private(
+            fd,
+            &self.paths.runtime_directory.join(ACTIVATION_MARKER_NAME),
+        )?;
         let status = fstat(fd)?;
         if SFlag::from_bits_truncate(status.st_mode) != SFlag::S_IFREG
             || status.st_uid != self.expected_uid
-            || status.st_mode & 0o7777 != LOCK_FILE_MODE
+            || u32::from(status.st_mode & 0o7777) != LOCK_FILE_MODE
             || status.st_nlink != 1
             || status.st_size != 0
         {
@@ -366,9 +371,9 @@ impl ModeCheckedLocalSiteRendezvous {
             Ok(status) => Ok(EntryObservation::Present {
                 kind: EntryKind::of(status.st_mode),
                 owner_matches: status.st_uid == self.expected_uid,
-                mode: status.st_mode & 0o7777,
+                mode: u32::from(status.st_mode & 0o7777),
                 size: status.st_size.max(0) as u64,
-                link_count: status.st_nlink,
+                link_count: u64::from(status.st_nlink),
             }),
             Err(Errno::ENOENT) => Ok(EntryObservation::Absent),
             Err(error) => Err(error.into()),
@@ -551,6 +556,8 @@ pub(super) fn open_runtime_base(path: &Path) -> Result<OwnedFd, RendezvousError>
         });
     };
     if relative_bytes.is_empty() {
+        #[cfg(target_os = "macos")]
+        require_macos_permissions(&descriptor, path)?;
         return Ok(descriptor);
     }
 
@@ -570,6 +577,8 @@ pub(super) fn open_runtime_base(path: &Path) -> Result<OwnedFd, RendezvousError>
             },
         )?;
     }
+    #[cfg(target_os = "macos")]
+    require_macos_permissions(&descriptor, path)?;
     Ok(descriptor)
 }
 
@@ -608,6 +617,8 @@ pub(super) fn validate_directory(
     require_mode(status.st_mode, path, RUNTIME_DIRECTORY_MODE)?;
     #[cfg(target_os = "linux")]
     require_linux_permissions(descriptor, path)?;
+    #[cfg(target_os = "macos")]
+    require_macos_permissions(descriptor, path)?;
     Ok(())
 }
 
@@ -646,6 +657,8 @@ fn validate_lock_file(
     require_mode(status.st_mode, path, LOCK_FILE_MODE)?;
     #[cfg(target_os = "linux")]
     require_linux_permissions(descriptor, path)?;
+    #[cfg(target_os = "macos")]
+    require_macos_permissions(descriptor, path)?;
     Ok(())
 }
 
@@ -790,6 +803,17 @@ fn require_linux_permissions(descriptor: &OwnedFd, path: &Path) -> Result<(), Re
     crate::linux_permissions::require_private(descriptor).map_err(|source| {
         RendezvousError::System {
             operation: "validate private Linux permissions",
+            path: path.to_path_buf(),
+            source,
+        }
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn require_macos_permissions(descriptor: &OwnedFd, path: &Path) -> Result<(), RendezvousError> {
+    crate::macos_permissions::require_private(descriptor, path).map_err(|source| {
+        RendezvousError::System {
+            operation: "validate private macOS permissions",
             path: path.to_path_buf(),
             source,
         }

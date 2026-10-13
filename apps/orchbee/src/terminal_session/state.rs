@@ -43,7 +43,7 @@ mod panel_close;
 mod plugin_overlays;
 mod presentations;
 pub(super) mod rename_draft;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(super) mod retired_membership;
 #[cfg(windows)]
 pub(super) use plugin_overlays::{OverlayJob, OverlayResult};

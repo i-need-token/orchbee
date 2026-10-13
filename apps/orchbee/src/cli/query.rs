@@ -145,6 +145,10 @@ use orchbee_client_server_protocol::{
 };
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_local_client_protocol::ConnectClientError;
+#[cfg(target_os = "macos")]
+use orchbee_local_client_protocol::ConnectClientError;
+#[cfg(target_os = "macos")]
+use orchbee_local_site_runtime::RendezvousError;
 #[cfg(any(target_os = "linux", windows))]
 use orchbee_local_site_runtime::{
     ModeCheckedLocalSiteRendezvous, NativeCohort, RendezvousError, SiteScope,
@@ -168,6 +172,8 @@ use orchbee_workbench_protocol::{
 use super::results::Projection;
 #[cfg(any(target_os = "linux", windows))]
 use super::source::{ArmedSignals, Finish, SignalWatch};
+#[cfg(target_os = "macos")]
+use super::stage_details;
 use super::{Failure, FailureKind};
 #[cfg(any(target_os = "linux", windows))]
 use super::{SourceFinalization, stage_details, stage_reason_details, target_details};
@@ -537,6 +543,18 @@ pub(crate) fn workspace_close_status(
         .and_then(classify_close_status_outcome)
         .map(|outcome| (source.clone(), Projection::WorkspaceCloseStatus(outcome)))
         .map_err(|failure| failure.source(source))
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
+pub(crate) fn workspace_close_status(
+    _workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+) -> Result<(serde_json::Value, super::results::Projection), Failure> {
+    Err(
+        Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
+            "platform",
+            "unsupported-platform",
+        )),
+    )
 }
 
 /// The close read outcome family → projection or CLI failure. Only the
@@ -2098,7 +2116,7 @@ fn rendezvous() -> Result<ModeCheckedLocalSiteRendezvous, Failure> {
 /// unsafe Site scope belongs to `runtime-directory`, while anything rooted
 /// above it belongs to `runtime-base`. A scope ENOENT is service-unavailable
 /// discovery, never a configuration failure.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn classify_rendezvous(
     error: RendezvousError,
     scope_directory: &std::path::Path,
@@ -2118,7 +2136,7 @@ pub(crate) fn classify_rendezvous(
     Failure::new(FailureKind::CheckFailed).details(stage_details(stage))
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
     match error {
         RendezvousError::InvalidSiteScope => None,
@@ -2136,7 +2154,7 @@ fn rendezvous_path(error: &RendezvousError) -> Option<&std::path::Path> {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn classify_connect(error: crate::local_client::LocalClientConnectError) -> Failure {
     use orchbee_local_client_protocol::{ProtocolError, RejectionReason};
     match error {
@@ -2878,7 +2896,6 @@ fn rejection_reason_text(
 
 /// What the terminal observation produced: the applied visible frame, or the
 /// validated scrollback window behind it.
-
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn read_snapshot() -> Result<orchbee_workbench_protocol::Snapshot, super::Failure> {
     Err(
@@ -2927,7 +2944,6 @@ pub(crate) fn read_terminal(
 
 #[cfg(not(any(target_os = "linux", windows)))]
 pub(crate) fn worktree_list(
-    _project: &crate::invocation::Target,
     _directory: &orchbee_workbench_protocol::WorkbenchDirectoryId,
 ) -> Result<(serde_json::Value, super::results::Projection), super::Failure> {
     Err(
@@ -3086,7 +3102,7 @@ pub(crate) fn agent_changes(
 pub(crate) fn agent_changes(
     _limit: u64,
     _cursor: Option<orchbee_agent_observation_protocol::AgentChangesCursor>,
-) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+) -> Result<(serde_json::Value, super::results::Projection), AgentQueryError> {
     Err(AgentQueryError::Admission(
         Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
             "platform",

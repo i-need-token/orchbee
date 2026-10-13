@@ -97,9 +97,9 @@ impl TerminalSession {
             task: Some(SessionTask::Legacy(task)),
             shutdown,
             retirement_redraw_pending: false,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             origin: None,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             recovery_shutdown: None,
         })
     }

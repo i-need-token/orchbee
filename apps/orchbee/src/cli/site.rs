@@ -9,23 +9,23 @@
 //! clear. Other interrupted, live, incomplete or uncertain state refuses
 //! recovery-required without repair or deletion.
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use std::time::{Duration, Instant};
 
 use serde_json::{Map, json};
 
 use super::{Failure, FailureKind, Output, failure_output, output};
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use super::{stage_details, stage_reason_details};
 use crate::invocation::OutputFormat;
 use crate::localization::Locale;
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use crate::local_activation::{ActivationCause, ActivationFailure, StartupFailure};
 
 /// One absolute budget covering cohort validation, rendezvous, locking,
 /// spawn, and readiness admission — the same 20 seconds the TUI uses.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 const START_BUDGET: Duration = Duration::from_secs(20);
 
 pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
@@ -123,7 +123,7 @@ struct StartOutcome {
     runtime_base: (String, serde_json::Value),
 }
 
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 fn run() -> Result<StartOutcome, Failure> {
     Err(
         Failure::new(FailureKind::ServiceUnavailable).details(super::stage_reason_details(
@@ -133,7 +133,7 @@ fn run() -> Result<StartOutcome, Failure> {
     )
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn run() -> Result<StartOutcome, Failure> {
     let deadline = Instant::now() + START_BUDGET;
     crate::local_activation::activate_local_site(deadline)
@@ -155,7 +155,7 @@ fn run() -> Result<StartOutcome, Failure> {
 /// Project the shared activation failure onto the CLI's typed vocabulary.
 /// The raw cause — never a string — selects the arm; the verdict only
 /// arbitrates between a typed cause and a bare lifecycle refusal.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn classify(failure: ActivationFailure) -> Failure {
     match failure.cause {
         #[cfg(windows)]
@@ -206,7 +206,7 @@ fn classify(failure: ActivationFailure) -> Failure {
     }
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn classify_cohort(error: &std::io::Error) -> Failure {
     let kind = match error.kind() {
         std::io::ErrorKind::InvalidData => FailureKind::Incompatible,
@@ -218,18 +218,18 @@ fn classify_cohort(error: &std::io::Error) -> Failure {
     Failure::new(kind).details(stage_details("cohort"))
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn timeout() -> Failure {
     Failure::new(FailureKind::Timeout).details(stage_details("activation"))
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn recovery_required() -> Failure {
     Failure::new(FailureKind::Rejected)
         .details(stage_reason_details("activation", "recovery-required"))
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn socket_budget() -> Failure {
     Failure::new(FailureKind::ServiceUnavailable).details(stage_reason_details(
         "runtime-directory",

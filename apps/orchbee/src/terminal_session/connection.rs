@@ -13,7 +13,7 @@ use orchbee_client_server_protocol::{
 use orchbee_workbench_protocol::SiteId as WorkbenchSiteId;
 use std::sync::Arc;
 mod native;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(super) use native::{RecoveryShutdown, run_status_recovery};
 
 use super::mailbox::CommandMailbox;
@@ -30,7 +30,7 @@ pub(super) fn run_native(
 }
 
 pub(super) struct NativeWorkerExit {
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     unavailable_poll: Option<super::state::retired_membership::UnavailablePoll>,
     pending_create: Option<PendingCreateCommit>,
     pending_move: Option<PendingMoveCommit>,
@@ -79,7 +79,7 @@ impl NativeWorkerExit {
     ) -> Option<super::state::workspace_setup::SetupWorkerEvidence> {
         self.pending_setup.take()
     }
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn with_unavailable_poll(
         mut self,
         evidence: Option<super::state::retired_membership::UnavailablePoll>,
@@ -87,7 +87,7 @@ impl NativeWorkerExit {
         self.unavailable_poll = evidence;
         self
     }
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn take_unavailable_poll(
         &mut self,
     ) -> Option<super::state::retired_membership::UnavailablePoll> {
@@ -102,7 +102,7 @@ impl NativeWorkerExit {
         pending_rename: Option<super::state::tab_rename::RenameWorkerEvidence>,
     ) -> Self {
         Self {
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             unavailable_poll: None,
             pending_create,
             pending_move,

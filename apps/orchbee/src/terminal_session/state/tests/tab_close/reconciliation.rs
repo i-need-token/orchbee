@@ -305,7 +305,7 @@ fn closed_cleanup_proof_requires_exact_old_generation_binding_and_target() {
 }
 
 #[test]
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn join_retained_closed_keeps_its_first_origin_after_a_fresh_recovery_read() {
     let (mut state, first_read) = known_closed(true);
     let original = state

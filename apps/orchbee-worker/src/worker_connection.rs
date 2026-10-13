@@ -54,7 +54,7 @@ pub(crate) fn run(
         )
     })?;
     let preferences = orchbee_local_site_runtime::UserPreferencesStore::new(scope);
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if arguments
         .peek()
         .is_some_and(|argument| argument == "--local-site")

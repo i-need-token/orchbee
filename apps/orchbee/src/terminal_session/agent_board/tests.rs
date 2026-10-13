@@ -738,7 +738,7 @@ fn request_refresh_preserves_a_queued_jump_intent() {
     assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod lane_outcomes {
     use super::*;
     use crate::local_client::tests::server::disconnected_origin;

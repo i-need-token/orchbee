@@ -10,6 +10,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(target_os = "macos")]
+use nix::fcntl::{FcntlArg, FdFlag, OFlag, fcntl};
 use nix::{
     errno::Errno,
     poll::{PollFd, PollFlags, PollTimeout, poll},
@@ -45,6 +47,7 @@ fn admit(
     deadline.remaining()?;
     let address = UnixAddr::new(endpoint).map_err(io::Error::from)?;
     deadline.remaining()?;
+    #[cfg(target_os = "linux")]
     let descriptor = socket(
         AddressFamily::Unix,
         SockType::Stream,
@@ -52,6 +55,18 @@ fn admit(
         None,
     )
     .map_err(io::Error::from)?;
+    #[cfg(target_os = "macos")]
+    let descriptor = {
+        let descriptor = socket(
+            AddressFamily::Unix,
+            SockType::Stream,
+            SockFlag::empty(),
+            None,
+        )
+        .map_err(io::Error::from)?;
+        make_nonblocking_cloexec(&descriptor)?;
+        descriptor
+    };
     let mut stream = UnixStream::from(descriptor);
     deadline.remaining()?;
     // A backlog EAGAIN is not a pending Unix connect. Only EINPROGRESS permits
@@ -62,6 +77,24 @@ fn admit(
     deadline.remaining()?;
     let generation = exchange_hello(&mut stream, hello, deadline)?;
     finish_admission(stream, generation, deadline)
+}
+
+#[cfg(target_os = "macos")]
+fn make_nonblocking_cloexec(descriptor: &impl AsFd) -> io::Result<()> {
+    let descriptor_flags = fcntl(descriptor, FcntlArg::F_GETFD).map_err(io::Error::from)?;
+    fcntl(
+        descriptor,
+        FcntlArg::F_SETFD(FdFlag::from_bits_truncate(descriptor_flags) | FdFlag::FD_CLOEXEC),
+    )
+    .map_err(io::Error::from)?;
+
+    let status_flags = fcntl(descriptor, FcntlArg::F_GETFL).map_err(io::Error::from)?;
+    fcntl(
+        descriptor,
+        FcntlArg::F_SETFL(OFlag::from_bits_truncate(status_flags) | OFlag::O_NONBLOCK),
+    )
+    .map_err(io::Error::from)?;
+    Ok(())
 }
 
 fn complete_connect(
@@ -148,6 +181,16 @@ impl fmt::Display for WakeFault {
 
 impl std::error::Error for WakeFault {}
 
+fn wake_observation_error(observed: PollFlags) -> Option<io::Error> {
+    if observed.contains(PollFlags::POLLIN) {
+        Some(io::Error::other(WakeReady))
+    } else if observed.intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL) {
+        Some(io::Error::other(WakeFault(observed)))
+    } else {
+        None
+    }
+}
+
 /// Surface private wake observations at the public error boundary. Only the
 /// `Io` and `ConnectFailed` wrappers can carry one; every other variant
 /// already holds its own typed provenance.
@@ -222,13 +265,8 @@ impl Deadline<'_> {
                     // bytes still belong to the owner's arbitration read; a
                     // fault with nothing readable is a broken channel.
                     let observed = descriptors[1].revents().unwrap_or(PollFlags::empty());
-                    if observed.contains(PollFlags::POLLIN) {
-                        return Err(io::Error::other(WakeReady));
-                    }
-                    if observed
-                        .intersects(PollFlags::POLLERR | PollFlags::POLLHUP | PollFlags::POLLNVAL)
-                    {
-                        return Err(io::Error::other(WakeFault(observed)));
+                    if let Some(error) = wake_observation_error(observed) {
+                        return Err(error);
                     }
                     if descriptors[0]
                         .revents()

@@ -411,7 +411,7 @@ impl NativeSessionState {
             })
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn prepare_retired_membership_install_inner(
         &mut self,
         prepared: PreparedMembershipCandidate,

@@ -23,9 +23,9 @@ use crate::{
 };
 
 mod launch_facts;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod lazy;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) use lazy::run as run_lazy;
 #[cfg(windows)]
 mod handoff;

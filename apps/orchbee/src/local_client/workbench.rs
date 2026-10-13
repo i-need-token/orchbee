@@ -67,6 +67,7 @@ pub(crate) mod workspace_setup;
 mod worktree_operation;
 #[cfg(windows)]
 pub(crate) mod worktree_query;
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) use launch_profile::{LaunchProfileCatalogReadError, LaunchProfileCatalogReadFailure};
 pub(crate) use tab_close::{
     WorkbenchTabCloseAccepted, WorkbenchTabCloseFailure, WorkbenchTabCloseNotSubmitted,
@@ -78,10 +79,14 @@ pub(crate) use tab_move::{
     WorkbenchTabMovePrecommit, WorkbenchTabMoveRequest, WorkbenchTabMoveSubmission,
 };
 pub(crate) use workspace_close::{
-    WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseFailure,
-    WorkbenchWorkspaceCloseNotSubmitted, WorkbenchWorkspaceClosePrecommit,
-    WorkbenchWorkspaceCloseReadError, WorkbenchWorkspaceCloseRequest,
-    WorkbenchWorkspaceCloseResumeSubmission, WorkbenchWorkspaceCloseSubmission,
+    WorkbenchWorkspaceCloseAccepted, WorkbenchWorkspaceCloseRequest,
+    WorkbenchWorkspaceCloseSubmission,
+};
+#[cfg(any(target_os = "linux", windows))]
+pub(crate) use workspace_close::{
+    WorkbenchWorkspaceCloseFailure, WorkbenchWorkspaceCloseNotSubmitted,
+    WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseReadError,
+    WorkbenchWorkspaceCloseResumeSubmission,
 };
 
 impl LocalClient {
@@ -100,7 +105,7 @@ impl LocalClient {
         self.submit_workbench_snapshot_read_with_deadline(request, Some(deadline), None)
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn submit_workbench_snapshot_read_before_cancellable(
         &mut self,
         request: SnapshotReadIntent,

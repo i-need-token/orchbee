@@ -132,12 +132,14 @@ Client 不能替换 snapshot 或提交 delta。Carrier 提供写入后的按需�
 journal 无法衔接调用方 revision 时，以一条完整 snapshot 边界 publication 应答。主动推送订阅
 仍未完成。
 
-## 托管 Linux Site 启动
+## 托管 Linux 与 macOS Site 启动
 
 私有 `--local-site <absolute-runtime-directory>` 入口消费
 [共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md)。
 Server 先校验四产物 cohort 与运行时及不可变激活标记，再独占持有生命周期锁，
-以 `setsid` 脱离 Client 的终端会话。它绑定 0600 Worker socket 并启动一个精确 cohort Worker。
+以 `setsid` 脱离 Client 的终端会话。Linux 使用 no-replace 方式绑定并发布 0600 Worker socket；
+macOS 在私有运行时目录中直接绑定最终 socket 路径，设置 `0600`，并验证路径是由当前
+effective user 所有且只有一个硬链接的 socket。随后启动一个精确 cohort Worker。
 Worker 注册后永久关闭 Worker listener，不准入替代代次；之后才以已完成权限设置的
 原子发布开放 Client listener。启动使用 Server 自有 20 秒预算；Client 仍保有自己的总截止时间。
 这里的就绪表示 Server + Worker 注册，不表示已有 Host 或终端。

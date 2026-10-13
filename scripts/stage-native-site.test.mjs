@@ -14,11 +14,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-import { verifiedCapsuleDigest } from './stage-native-site.mjs';
+import { options, verifiedCapsuleDigest } from './stage-native-site.mjs';
 import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const canonical = path.join(root, 'apps', 'desktop', 'resources', 'agent-observation-adapters');
+
+test('macOS staging accepts a normalized absolute output and rejects WSL routing', () => {
+	assert.deepEqual(options(['--output', '/private/tmp/orchbee-native-dev'], 'darwin'), {
+		'--output': '/private/tmp/orchbee-native-dev',
+	});
+	assert.throws(
+		() => options(['--wsl', 'Ubuntu', '--output', '/tmp/orchbee-native-dev'], 'darwin'),
+		/--wsl is available only from a Windows host/u,
+	);
+	assert.throws(() => options(['--output', 'orchbee-native-dev'], 'darwin'), /absolute output/u);
+});
 
 test('Windows ConPTY staging rejects missing, altered and linked bundles before publication', (t) => {
 	const parent = realpathSync(tmpdir());

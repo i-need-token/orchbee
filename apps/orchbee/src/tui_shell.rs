@@ -246,7 +246,7 @@ fn run_with_client(
     )
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn run_prepared(
     locale: Locale,
     inherited: InheritedTerminal,

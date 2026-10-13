@@ -140,9 +140,14 @@ impl NativeCohort {
             _handles: crate::windows_permissions::open_tree(directory)?,
         };
         let mut encoded = Vec::new();
-        open_file(&descriptor, "cohort.json", false)?
-            .take(MANIFEST_LIMIT + 1)
-            .read_to_end(&mut encoded)?;
+        open_file(
+            &descriptor,
+            "cohort.json",
+            false,
+            &directory.join("cohort.json"),
+        )?
+        .take(MANIFEST_LIMIT + 1)
+        .read_to_end(&mut encoded)?;
         if encoded.len() as u64 > MANIFEST_LIMIT {
             return Err(invalid());
         }
@@ -161,7 +166,12 @@ impl NativeCohort {
             if !declared_hash(expected) {
                 return Err(invalid());
             }
-            let mut file = open_file(&descriptor, artifact.file_name(), true)?;
+            let mut file = open_file(
+                &descriptor,
+                artifact.file_name(),
+                true,
+                &directory.join(artifact.file_name()),
+            )?;
             let mut hash = Sha256::new();
             let mut buffer = [0_u8; 64 * 1024];
             loop {
@@ -216,7 +226,12 @@ impl NativeCohort {
     }
 }
 #[cfg(unix)]
-fn open_file(directory: &std::os::fd::OwnedFd, name: &str, executable: bool) -> io::Result<File> {
+fn open_file(
+    directory: &std::os::fd::OwnedFd,
+    name: &str,
+    executable: bool,
+    path: &Path,
+) -> io::Result<File> {
     let fd = openat(
         directory,
         name,
@@ -237,6 +252,8 @@ fn open_file(directory: &std::os::fd::OwnedFd, name: &str, executable: bool) -> 
     }
     #[cfg(target_os = "linux")]
     crate::linux_permissions::require_private(&fd)?;
+    #[cfg(target_os = "macos")]
+    crate::macos_permissions::require_private(&fd, path)?;
     Ok(File::from(fd))
 }
 fn remaining(deadline: Instant) -> io::Result<()> {
@@ -274,9 +291,10 @@ struct WindowsCohortDirectory {
 }
 #[cfg(windows)]
 fn open_file(
-    directory: &WindowsCohortDirectory,
-    name: &str,
+    _directory: &WindowsCohortDirectory,
+    _name: &str,
     _executable: bool,
+    path: &Path,
 ) -> io::Result<File> {
-    crate::windows_permissions::open_file(&directory.path.join(name), false, false)
+    crate::windows_permissions::open_file(path, false, false)
 }

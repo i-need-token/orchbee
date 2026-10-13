@@ -19,7 +19,7 @@ use orchbee_terminal_protocol::{
 
 use crate::agent_drain::AgentDrain;
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod admission;
 
 mod events;
@@ -63,7 +63,7 @@ pub(crate) struct NegotiatedHostLimits {
 }
 
 impl HostBrokerConnection {
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn connect_before(
         endpoint: &Path,
         deadline: std::time::Instant,
@@ -199,6 +199,7 @@ impl HostBrokerConnection {
         self.viewers.borrow_mut().receive(record, self.host_epoch)
     }
 
+    #[cfg(windows)]
     pub(crate) fn terminal_title(
         &self,
         identity: orchbee_capability_node_protocol::HostTerminalIdentity,

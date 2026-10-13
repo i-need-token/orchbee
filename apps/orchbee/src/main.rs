@@ -1,3 +1,11 @@
+#![cfg_attr(
+    target_os = "macos",
+    expect(
+        dead_code,
+        reason = "the Apple Silicon development package routes the shared CLI/TUI subset while platform-specific CLI paths remain unexposed"
+    )
+)]
+
 //! Native Client composition and invocation dispatch for CLI operations and retained-terminal
 //! TUI sessions. Feature owners define command and interaction semantics; Server and Worker
 //! retain shared Workbench authority and physical terminal execution.
@@ -13,7 +21,7 @@ mod cli;
 mod client_view;
 mod help;
 mod invocation;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod local_activation;
 #[cfg(any(unix, windows))]
 #[cfg_attr(
@@ -24,7 +32,7 @@ mod local_activation;
     )
 )]
 mod local_client;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod local_startup;
 mod localization;
 #[cfg(windows)]
@@ -132,7 +140,7 @@ fn main() -> ExitCode {
         local_activation::select_site(selected.site);
         selected.request
     });
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     if let Ok(invocation::Request::Tui { mouse }) = &parsed {
         return match local_startup::run(locale, *mouse) {
             Ok(()) => ExitCode::SUCCESS,

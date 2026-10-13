@@ -218,7 +218,7 @@ fn bare_tty_without_a_staged_cohort_keeps_terminal_modes_unchanged() -> Result<(
     assert_eq!(completed.status.code(), Some(1));
     assert_eq!(
         std::str::from_utf8(&completed.stderr)?,
-        if cfg!(target_os = "linux") {
+        if cfg!(any(target_os = "linux", target_os = "macos")) {
             "The native development cohort is missing, changed, or invalid. Stage all four binaries together before running orchbee.\n"
         } else {
             "The Orchbee TUI is unavailable in this development slice.\n"

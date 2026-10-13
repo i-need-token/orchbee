@@ -63,7 +63,7 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
     })?;
     let client = native_client(&server)?;
     let shutdown = client.shutdown_handle()?;
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     let origin = client.origin();
     let clock = client.operation_clock();
     let mailbox = Arc::new(mailbox::CommandMailbox::new(
@@ -92,9 +92,9 @@ fn panic_after_close_handoff_preserves_uncertainty_after_exact_join() -> TestRes
         task: Some(SessionTask::Native(task)),
         shutdown,
         retirement_redraw_pending: false,
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         origin: Some(origin),
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         recovery_shutdown: None,
     };
     assert!(spin_with_draw(&mut session, |session| session.status()

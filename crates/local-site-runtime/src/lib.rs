@@ -113,6 +113,18 @@ pub use session_store_windows::{
 #[cfg(all(test, windows))]
 mod tests;
 
+#[cfg(test)]
+pub(crate) fn test_temporary_directory() -> std::path::PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        std::path::PathBuf::from("/private/tmp")
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        std::env::temp_dir()
+    }
+}
+
 pub use cohort::{NativeArtifact, NativeCohort, ObservationAdaptersSidecar};
 #[cfg(windows)]
 mod windows_release_store;
@@ -129,6 +141,8 @@ pub use windows_release_store::{
 
 #[cfg(target_os = "linux")]
 mod linux_permissions;
+#[cfg(target_os = "macos")]
+mod macos_permissions;
 
 /// Spawns an exact cohort executable with inherited environment and no inherited
 /// stdio or handles. The returned owner observes exit without killing on drop.

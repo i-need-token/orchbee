@@ -1,3 +1,11 @@
+#![cfg_attr(
+    target_os = "macos",
+    expect(
+        dead_code,
+        reason = "the Apple Silicon development Site omits Windows checkpoint, stop, and Agent-recovery paths"
+    )
+)]
+
 //! Local Site service composition for Client admission, Workbench authority, Worker coordination
 //! and owned checkpoint lifecycle. Domain modules own transitions; Worker and Terminal Host
 //! retain physical terminal execution and Clients retain presentation.

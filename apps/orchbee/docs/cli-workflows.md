@@ -76,7 +76,7 @@ does not establish Agent-board readiness. Managed enable/disable and `agent star
 ## Prerequisites
 
 - An unpackaged **development cohort** on Linux, built from the repository
-  root — see [Linux local startup contract](../README.md#linux-local-startup):
+  root — see [macOS and Linux local startup contract](../README.md#macos-and-linux-local-startup):
 
   ```sh
   node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev

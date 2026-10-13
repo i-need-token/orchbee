@@ -1,6 +1,6 @@
 # Rust Orchbee Worker
 
-这是为 Windows 和 Linux 上已获准的本地 Site 操作提供服务的实验性私有 Rust Worker 应用，也支持显式端点的 POSIX 模式。
+这是为 Windows、Linux 和 macOS 上已获准的本地 Site 操作提供服务的实验性私有 Rust Worker 应用，也支持显式端点的 POSIX 模式。
 产出的 `orchbee-worker` 可执行文件属于经过验证的四产物 cohort，并参与根 Cargo 验收。Server 负责激活；
 Worker 负责其已获准的 Host 连接及已授权任务的生命周期。
 

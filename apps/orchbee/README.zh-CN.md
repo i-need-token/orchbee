@@ -8,11 +8,13 @@ Windows `events subscribe` 从已有 Site 输出有界 NDJSON 观察。`events w
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](docs/native-terminal-run.zh-CN.md).
 
-实验性的原生 Rust CLI 与 TUI Client。在 Windows 和 Linux 上，裸命令从已校验的可执行文件 cohort
+实验性的原生 Rust CLI 与 TUI Client。在 Windows、Linux 以及 Apple Silicon macOS 开发包中，
+裸命令从已校验的可执行文件 cohort
 连接或启动本地 Site，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 操作共享
 Workbench 状态，同时保持独立选择与保留的终端进程。Windows 还支持已保存机器的 SSH 命令路由和
 TUI 实时切换、用户配置，以及完整 cohort 的版本安装与更新，具体契约见下方链接。
-产物名为 `orchbee`，参与根 Cargo 验证；macOS 公共启动不可用。
+产物名为 `orchbee`，参与根 Cargo 验证。macOS 包是未签名、按用户隔离的 Apple Silicon 开发 cohort；
+不包含发布签名或安装流程。
 
 英文规范原文：
 [README.md](README.md)。
@@ -42,8 +44,9 @@ Windows `update` 与 `channel set` 共用完整 cohort 安装、显式发布源�
 
 ## 命令面
 
-裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows 和 Linux 上运行下面的
-本地启动流程。两者使用同一 Client 路径；`tui` 不选择另一种模式。其他平台仍返回本地化不可用结果。
+裸调用和显式 `tui` 调用先准入继承的交互终端和有效 cell geometry，再在 Windows、Linux 与 Apple Silicon
+macOS 上运行下面的本地启动流程。两者使用同一 Client 路径；`tui` 不选择另一种模式。
+其他平台仍返回本地化不可用结果。
 `--help` 与 `--version` 不初始化 TUI 或服务。命令使用下方的精确语法，不提供缩写；未知命令、未声明
 选项、多余操作数和非 Unicode 参数都是 usage failure。Windows 远程选择遵循
 [已保存机器的命令路由契约](docs/machines.zh-CN.md#命令路由契约)。
@@ -216,9 +219,9 @@ Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运
 `orchbee` 与 `orchbee.exe`，不查询 Site 或修改 profile。
 在 Windows PowerShell 5.1 中使用 Unicode 管道时，在调用脚本内设置 `$OutputEncoding = [Text.UTF8Encoding]::new($false)`；传给原生命令的字节由 PowerShell 编码。Orchbee 原样保留字节，不修复 shell 已经造成的编码损失。
 `orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。操作系统服务安装、发布签名、
-应用自动更新、活 Host 接管和 macOS 公共启动仍不在这些命令的范围内。
+应用自动更新和活 Host 接管仍不在这些命令的范围内。
 
-## Linux 本地启动
+## macOS 与 Linux 本地启动
 
 从仓库根目录构建一个新的开发 cohort：
 
@@ -226,16 +229,20 @@ Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运
 node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev
 # Windows 主机使用 WSL Linux：
 node scripts/stage-native-site.mjs --wsl Ubuntu --output /tmp/orchbee-native-dev
+# Apple Silicon macOS：
+node scripts/stage-native-site.mjs --output /private/tmp/orchbee-native-dev
 ```
 
-随后在交互式 Linux 终端执行 `/tmp/orchbee-native-dev/orchbee`。
+随后在交互式终端执行暂存的 `orchbee`（Linux 使用 `/tmp/orchbee-native-dev/orchbee`，
+macOS 使用 `/private/tmp/orchbee-native-dev/orchbee`）。
 脚本从锁定输入重新构建三个 Rust release 二进制和 Zig ReleaseSafe Host，
 将规范的观察适配器胶囊复制为 cohort 的惰性校验 sidecar，并在写清单前校验其声明的负载摘要；
 已有输出目录会被拒绝。可用 `--cargo-target-dir <absolute-directory>` 复用 Cargo 构建缓存。
 这会暂存一个开发 cohort，不安装系统服务。
 
-默认 Site 位于 `/tmp/orchbee-native-<effective-uid>`；开发和测试可将
-`ORCHBEE_RUNTIME_BASE` 指向另一个已有绝对目录来隔离 Site。
+Linux 默认 Site 位于 `/tmp/orchbee-native-<effective-uid>`，macOS 默认位于
+`/private/tmp/orchbee-native-<effective-uid>`。开发和测试可将 `ORCHBEE_RUNTIME_BASE`
+指向准入本机文件系统上的另一个已有绝对目录来隔离 Site。
 [共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md) 定义 0700 目录、
 0600 锁/socket/不可变启动标记、声明适配器 sidecar 的四可执行文件精确 cohort、
 20 秒共用截止时间和 500 毫秒延迟提示。
@@ -255,7 +262,8 @@ TTY 只准入一次，所有复制描述符均带 CLOEXEC，准备好的 Session
 当上报的几何不可绘制时（包括临时零单元格上报），Client 会在原始截止时间之内等待真实
 的可绘制几何，而不是准入失败或虚构几何；[原生启动等待](docs/native-startup-wait.md)
 拥有该有界等待模型、其取消/超时/故障结果以及不执行任何服务工作的保证。
-Linux 启动已有公共进程证据；Windows 原生启动与 ConPTY 流程证据见上文。尚不承诺发布性能预算。
+Linux 启动已有公共进程证据；macOS Apple Silicon 暂存和 TUI 启动按 APFS/ACL 准入完成原生验证；
+Windows 原生启动与 ConPTY 流程证据见上文。尚不承诺发布性能预算。
 
 ## 原生 Tab 交互
 
@@ -362,11 +370,11 @@ resize。与聚合 Close
 cohort。它把 admission 委托给 `orchbee-local-client-protocol`：该 crate 在连接前验证 cohort，证明
 Server 与当前进程具有相同 effective operating-system user，以两秒 read/write timeout 执行确切
 `OBLC` handshake，并返回 accepted generation 与同一条无 buffer stream。这些既有 handshake
-timeout 仍是独立的 OBLC boundary。在 Linux 上，私有 `LocalClient::connect_before` 将调用方的
+timeout 仍是独立的 OBLC boundary。在 Linux 与 macOS 上，私有 `LocalClient::connect_before` 将调用方的
 绝对单调时钟截止时间贯穿连接、peer proof、hello、响应与最终准入。
-[所属 adapter 与正确性记录](../../crates/local-client-protocol/README.zh-CN.md#linux-有截止时间的连接准入)
+[所属 adapter 与正确性记录](../../crates/local-client-protocol/README.zh-CN.md#posix-有截止时间的连接准入)
 定义失败清理与截止时间不续期保证。两条路径都在 `OBCS` 前将 admitted stream 切换为
-nonblocking I/O。常规请求有独立预算；本地初始请求受原启动截止时间约束。macOS 截止时间准入尚未完成。
+nonblocking I/O。常规请求有独立预算；本地初始请求受原启动截止时间约束。
 
 `submit_terminal_open`、`submit_terminal_create`、`submit_terminal_start`、`submit_terminal_viewer` 与 `submit_terminal_control` 各自取得一条已经验证的 typed request 的
 ownership，并在提交前 encode 完整 OBCS frame。Encoding failure 是 definite failure，并保留
@@ -378,7 +386,7 @@ effect outcome 成为 typed `OutcomeUnknown` 并让 connection 退役。transpor
 request 供 replay。Server 返回的正确 correlated `outcome-unknown` 是有效 OBCS result，而不是
 transport ambiguity。
 
-Linux 裸入口通过该 transport 提交独立 Open、查看和控制意图。仅允许关闭的 `LocalClientShutdown`
+Linux 与 macOS 裸入口通过该 transport 提交独立 Open、查看和控制意图。仅允许关闭的 `LocalClientShutdown`
 handle 停止阻塞 exchange，不增加 stream reader 或 writer。重连和结果协调仍未提供。
 
 五十秒提交上限容纳 Server 一个排队及一个在途 Worker exchange（各自最多两秒 write 加二十秒
@@ -452,7 +460,7 @@ Tab 时，可从最多 8 张画面／计费 16 MiB 的缓存立即显示该 Tab 
 
 ## TUI shell 底座
 
-Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 启动使用准备好的 Session；
+Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 与 macOS 启动使用准备好的 Session；
 未连接的 `run` 与显式 `run_connected` 仍是测试与组合接缝。
 
 下面的输入与转换表描述未连接时的 fallback。已连接的上下文和 Tab 操作由上文的原生 Session 处理。
@@ -497,7 +505,7 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 
 已接受的本地终端里程碑让私有 TUI 成为 `LocalClient` 的实际消费者：`run_connected` 接收已准入
 Client 和显式创建或附着意图。它不选择 endpoint、激活服务、改变公开语法或发布共享 Workbench
-事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸 Linux 启动在完成有界 Site 激活后，进入同一个已准备好的 shell。
+事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸 Linux 与 macOS 启动在完成有界 Site 激活后，进入同一个已准备好的 shell。
 
 以下记录保留仅供测试使用的私有 Create/Attach 适配器。其实现位于
 [`terminal_session/tests/legacy.rs`](src/terminal_session/tests/legacy.rs)，服务于现有的
@@ -706,7 +714,7 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 私有的已连接 TUI 接受 `TerminalIntent::Standalone`。它提交一次
 `submit_terminal_open` 并要求 Opened，然后在同一条已准入连接上读取相关联的 OBWP snapshot。
 它使用 snapshot 中确切的 Site/Worker/Server-terminal binding 提交 OBCS `attach-binding`；
-Open create reference 仍是显式旧路径的值，不用于选择此 viewer。Linux 裸入口通过已校验的
+Open create reference 仍是显式旧路径的值，不用于选择此 viewer。Linux 与 macOS 裸入口通过已校验的
 本地 Site 激活与 Worker 按需启动 Host 消费此路径。显式 Create 与 Attach intent
 保留现有 Create-reference attachment 行为。
 

@@ -74,7 +74,7 @@ Doctor 不执行该传输。已安装 hook 或 `complete:true` 不代表 Agent �
 ## 前提条件
 
 - 在 Linux 上从仓库根目录构建的**开发 cohort**（未打包）——见
-  [Linux 本地启动契约](../README.zh-CN.md#linux-本地启动)：
+  [macOS 与 Linux 本地启动契约](../README.zh-CN.md#macos-与-linux-本地启动)：
 
   ```sh
   node scripts/stage-native-site.mjs --output /tmp/orchbee-native-dev

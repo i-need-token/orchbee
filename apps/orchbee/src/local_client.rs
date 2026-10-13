@@ -1,4 +1,4 @@
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use std::path::PathBuf;
 use std::{
     fmt,
@@ -33,7 +33,7 @@ impl LocalClientShutdown {
 
 #[derive(Debug)]
 pub(crate) struct LocalClient {
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     origin: LocalClientOrigin,
     connection: Option<ClientSessionConnection>,
     request_timeout: Duration,
@@ -42,7 +42,7 @@ pub(crate) struct LocalClient {
     io_chunk_limits: IoChunkLimits,
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[derive(Clone, Debug)]
 pub(crate) struct LocalClientOrigin {
     endpoint: PathBuf,
@@ -51,7 +51,7 @@ pub(crate) struct LocalClientOrigin {
     tunnel: Option<Arc<crate::machine_tunnel::Tunnel>>,
 }
 
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 impl LocalClientOrigin {
     pub(crate) fn reconnect_before(
         &self,
@@ -89,7 +89,7 @@ impl LocalClient {
         self.origin.tunnel = Some(tunnel);
         self
     }
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn connect_before(
         endpoint: &Path,
         cohort: &str,
@@ -102,7 +102,7 @@ impl LocalClient {
     /// joined into the admission wait set: the protocol only polls it and
     /// reports provisional wake observations; the caller performs the sole
     /// arbitration read after the session is dropped.
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn connect_before_cancellable(
         endpoint: &Path,
         cohort: &str,
@@ -114,7 +114,7 @@ impl LocalClient {
                 .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
@@ -156,7 +156,7 @@ impl LocalClient {
             .map_err(LocalClientConnectError::Admission)?;
         Self::from_connection(
             connection,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             LocalClientOrigin {
                 endpoint: endpoint.to_path_buf(),
                 cohort: cohort.to_owned(),
@@ -171,7 +171,7 @@ impl LocalClient {
 
     fn from_connection(
         connection: ClientSessionConnection,
-        #[cfg(any(target_os = "linux", windows))] origin: LocalClientOrigin,
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))] origin: LocalClientOrigin,
         request_timeout: Duration,
         clock: Box<dyn MonotonicClock>,
         io_chunk_limits: IoChunkLimits,
@@ -180,7 +180,7 @@ impl LocalClient {
             .set_nonblocking(true)
             .map_err(LocalClientConnectError::RequestIoConfiguration)?;
         Ok(Self {
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             origin,
             connection: Some(connection),
             request_timeout,
@@ -194,7 +194,7 @@ impl LocalClient {
         self.submission_deadline
     }
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn origin(&self) -> LocalClientOrigin {
         self.origin.clone()
     }

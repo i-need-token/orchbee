@@ -9,6 +9,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	readdirSync,
+	rmSync,
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -127,7 +128,7 @@ export function verifiedCapsuleDigest(rootPath) {
 	const computed = capsulePayloadDigest(rootPath);
 	return computed === declared ? declared : null;
 }
-function options(args) {
+export function options(args, platform = process.platform) {
 	const result = {};
 	for (let i = 0; i < args.length; i += 2) {
 		if (!['--wsl', '--output', '--cargo-target-dir'].includes(args[i]) || !args[i + 1]) {
@@ -138,14 +139,16 @@ function options(args) {
 		if (result[args[i]] !== undefined) throw new Error('Duplicate staging option');
 		result[args[i]] = args[i + 1];
 	}
-	const nativeWindows = process.platform === 'win32' && !result['--wsl'];
+	const nativeWindows = platform === 'win32' && !result['--wsl'];
+	if (result['--wsl'] && platform !== 'win32')
+		throw new Error('--wsl is available only from a Windows host');
 	if (
 		!result['--output'] ||
 		!(nativeWindows ? path.win32 : path.posix).isAbsolute(result['--output'])
 	)
 		throw new Error('An absolute output directory is required');
-	if (process.platform !== 'linux' && process.platform !== 'win32')
-		throw new Error('Local startup staging currently supports Windows and Linux');
+	if (!['darwin', 'linux', 'win32'].includes(platform))
+		throw new Error('Local startup staging currently supports macOS, Windows and Linux');
 	return result;
 }
 function main() {
@@ -155,7 +158,7 @@ function main() {
 		stageWindows(root, selected['--output'], selected['--cargo-target-dir'], verifiedCapsuleDigest);
 		return;
 	}
-	const linux = (command, args, capture = false) => {
+	const runCommand = (command, args, capture = false) => {
 		const executable = distro ? 'wsl.exe' : command;
 		const argv = distro
 			? ['-d', distro, '--exec', 'bash', '-lc', 'exec "$@"', 'native-stage', command, ...args]
@@ -166,8 +169,8 @@ function main() {
 			stdio: capture ? 'pipe' : 'inherit',
 		});
 	};
-	const accessible = (linuxPath) =>
-		distro ? linux('wslpath', ['-w', linuxPath], true).trim() : linuxPath;
+	const accessible = (nativePath) =>
+		distro ? runCommand('wslpath', ['-w', nativePath], true).trim() : nativePath;
 	const output = selected['--output'];
 	const normalized = path.posix.normalize(output);
 	if (normalized !== output || output === '/')
@@ -178,68 +181,77 @@ function main() {
 		selected['--cargo-target-dir'] ??
 		(distro ? '/tmp/orchbee-native-' + checkout + '-target' : path.join(root, 'target'));
 	if (!path.posix.isAbsolute(target)) throw new Error('Cargo target directory must be absolute');
-	linux('cargo', [
-		'build',
-		'--release',
-		'--locked',
-		'--target-dir',
-		target,
-		'-p',
-		'orchbee',
-		'-p',
-		'orchbee-server',
-		'-p',
-		'orchbee-worker',
-	]);
-	const temporary = mkdtempSync(path.join(tmpdir(), 'orchbee-native-host-'));
-	const hostPrefix = path.join(temporary, 'host');
-	const zigArguments = ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix];
-	if (distro) {
-		if (linux('uname', ['-m'], true).trim() !== 'x86_64')
-			throw new Error('Windows cross-staging currently requires x86_64 Linux');
-		zigArguments.push('-Dtarget=x86_64-linux-musl');
-	}
-	execFileSync('zig', zigArguments, {
-		cwd: path.join(root, 'apps', 'terminal-host'),
-		stdio: 'inherit',
-	});
-	linux('mkdir', ['-m', '700', '--', output]);
 	const destination = accessible(output);
-	const hashes = {};
-	for (const artifact of artifacts) {
-		const source =
-			artifact === 'orchbee-terminal-host'
-				? path.join(hostPrefix, 'bin', artifact)
-				: accessible(path.posix.join(target, 'release', artifact));
-		const staged = path.join(destination, artifact);
-		copyFileSync(source, staged, constants.COPYFILE_EXCL);
-		linux('chmod', ['700', '--', path.posix.join(output, artifact)]);
-		hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
+	let temporary;
+	let outputCreated = false;
+	try {
+		runCommand('cargo', [
+			'build',
+			'--release',
+			'--locked',
+			'--target-dir',
+			target,
+			'-p',
+			'orchbee',
+			'-p',
+			'orchbee-server',
+			'-p',
+			'orchbee-worker',
+		]);
+		temporary = mkdtempSync(path.join(tmpdir(), 'orchbee-native-host-'));
+		const hostPrefix = path.join(temporary, 'host');
+		const zigArguments = ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix];
+		if (distro) {
+			if (runCommand('uname', ['-m'], true).trim() !== 'x86_64')
+				throw new Error('Windows cross-staging currently requires x86_64 Linux');
+			zigArguments.push('-Dtarget=x86_64-linux-musl');
+		}
+		execFileSync('zig', zigArguments, {
+			cwd: path.join(root, 'apps', 'terminal-host'),
+			stdio: 'inherit',
+		});
+		runCommand('mkdir', ['-m', '700', '--', output]);
+		outputCreated = true;
+		const hashes = {};
+		for (const artifact of artifacts) {
+			const source =
+				artifact === 'orchbee-terminal-host'
+					? path.join(hostPrefix, 'bin', artifact)
+					: accessible(path.posix.join(target, 'release', artifact));
+			const staged = path.join(destination, artifact);
+			copyFileSync(source, staged, constants.COPYFILE_EXCL);
+			runCommand('chmod', ['700', path.posix.join(output, artifact)]);
+			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
+		}
+		const capsuleDestination = path.join(destination, CAPSULE_DIRECTORY);
+		cpSync(path.join(root, 'apps', 'desktop', 'resources', CAPSULE_DIRECTORY), capsuleDestination, {
+			errorOnExist: true,
+			recursive: true,
+			verbatimSymlinks: true,
+		});
+		const adaptersDigest = verifiedCapsuleDigest(capsuleDestination);
+		if (adaptersDigest === null)
+			throw new Error('Staged observation-adapters capsule failed canonical verification');
+		runCommand('chmod', ['700', path.posix.join(output, CAPSULE_DIRECTORY)]);
+		hashes[CAPSULE_DIRECTORY] = adaptersDigest;
+		writeFileSync(
+			path.join(destination, 'cohort.json'),
+			JSON.stringify({ schemaVersion: 2, artifacts: hashes }) + '\n',
+			{ flag: 'wx', mode: 0o600 },
+		);
+		runCommand('chmod', ['600', path.posix.join(output, 'cohort.json')]);
+		const platform = process.platform === 'darwin' ? 'macOS' : 'Linux';
+		const displayPlatform = distro ? `${platform} (WSL)` : platform;
+		process.stdout.write(
+			`Staged ${displayPlatform} development cohort: ${output}\n` +
+				`Run in an interactive ${displayPlatform} terminal: ${path.posix.join(output, 'orchbee')}\n`,
+		);
+	} catch (error) {
+		if (outputCreated) rmSync(destination, { force: true, recursive: true });
+		throw error;
+	} finally {
+		if (temporary) rmSync(temporary, { force: true, recursive: true });
 	}
-	const capsuleDestination = path.join(destination, CAPSULE_DIRECTORY);
-	cpSync(path.join(root, 'apps', 'desktop', 'resources', CAPSULE_DIRECTORY), capsuleDestination, {
-		errorOnExist: true,
-		recursive: true,
-		verbatimSymlinks: true,
-	});
-	const adaptersDigest = verifiedCapsuleDigest(capsuleDestination);
-	if (adaptersDigest === null)
-		throw new Error('Staged observation-adapters capsule failed canonical verification');
-	linux('chmod', ['700', '--', path.posix.join(output, CAPSULE_DIRECTORY)]);
-	hashes[CAPSULE_DIRECTORY] = adaptersDigest;
-	writeFileSync(
-		path.join(destination, 'cohort.json'),
-		JSON.stringify({ schemaVersion: 2, artifacts: hashes }) + '\n',
-		{ flag: 'wx', mode: 0o600 },
-	);
-	linux('chmod', ['600', '--', path.posix.join(output, 'cohort.json')]);
-	process.stdout.write(
-		'Staged Linux development cohort: ' +
-			output +
-			'\nRun in an interactive Linux terminal: ' +
-			path.posix.join(output, 'orchbee') +
-			'\n',
-	);
 }
 if (
 	process.argv[1] !== undefined &&

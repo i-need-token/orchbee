@@ -64,7 +64,7 @@ mod presentations;
 mod retained_frames;
 #[cfg(any(windows, test))]
 pub(crate) use retained_frames::RetainedFrames as RetainedFrameBank;
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod retired_membership;
 mod tab_close;
 #[cfg(test)]
@@ -1026,13 +1026,13 @@ pub(super) struct NativeUi {
     retirement_failure: Option<CarrierFailure>,
     retirement_finalized: bool,
     retirement: Option<NativeDisplayRetirement>,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retired_mailbox_seed: Option<super::mailbox::RetiredMailboxSeed>,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retirement_poll_serial: Option<u64>,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retired_peer: Option<super::state::retired_membership::RetiredMembershipOrigin>,
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     retired_peer_attempt: Option<retired_membership::RetiredMembershipAttempt>,
 }
 
@@ -1150,13 +1150,13 @@ impl NativeUi {
             retirement_failure: None,
             retirement_finalized: false,
             retirement: None,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retired_mailbox_seed: None,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retirement_poll_serial: None,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retired_peer: None,
-            #[cfg(any(target_os = "linux", windows))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             retired_peer_attempt: None,
         }
     }
@@ -1304,7 +1304,7 @@ impl NativeUi {
     }
 
     pub(super) fn release_mailbox(&mut self) {
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if let Some(mailbox) = &self.mailbox {
             self.retired_mailbox_seed = Some(mailbox.retired_seed());
         }
@@ -1780,11 +1780,11 @@ impl NativeUi {
     /// candidate installs or the attempt settles. The attempt record exists
     /// only on Linux; other platforms have no recovery path.
     fn retired_membership_attempt_active(&self) -> bool {
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         {
             self.retired_peer_attempt.is_some()
         }
-        #[cfg(not(any(target_os = "linux", windows)))]
+        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
         {
             false
         }
@@ -3405,7 +3405,7 @@ impl NativeUi {
         generation: u64,
         outcome: orchbee_workbench_protocol::WorkbenchSnapshotOutcome,
     ) -> bool {
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if self.retired_peer_attempt.is_some() {
             return self.apply_retired_membership_result(mailbox, wait_key, generation, outcome);
         }
@@ -3995,7 +3995,7 @@ impl NativeUi {
         self.terminal_effect.take();
         self.clipboard.close();
         self.settle_effect_delivery();
-        #[cfg(any(target_os = "linux", windows))]
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if self.retirement_failure.is_none() {
             self.retirement_poll_serial = self.ordinary_poll_serial;
         }

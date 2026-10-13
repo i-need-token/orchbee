@@ -314,6 +314,7 @@ test "editor deferred lifecycle private Create dispatch refuses absent source au
     defer allocator.free(payload);
     var response = try transport.testRequest(&service, &connection, transport.MessageKind.create_terminal, .control_json, payload, [_]u8{0x67} ** 16);
     defer response.deinit();
-    try transport.expectSingleFailureCode(&response, "missing-resource");
+    const expected_code = if (builtin.os.tag == .macos) "platform-unsupported" else "missing-resource";
+    try transport.expectSingleFailureCode(&response, expected_code);
     try std.testing.expectEqual(@as(usize, 0), transport.serviceCore(&service).terminalCount());
 }
