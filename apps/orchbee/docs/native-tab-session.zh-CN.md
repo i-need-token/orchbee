@@ -50,7 +50,7 @@ UI flight 身份。下文的 Linux 多 Client Close 到 Empty 进程用例补充
 
 | 边界               | 必需的原生转换                                                                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 初始 Close         | 捕获精确选中的 Site/context/Tab 和规范基准。先渲染本地化的所有已连接 Client 警告，再启用确认；合并输入中的未显示确认不得提交。            |
+| 初始 Close         | 捕获精确选中的 Session/context/Tab 和规范基准。先渲染本地化的所有已连接 Client 警告，再启用确认；合并输入中的未显示确认不得提交。         |
 | Resume             | 要求精确的当前已显示可恢复操作/尝试、全新且已渲染的确认，以及准入时重新校验。Unknown 永不可恢复。                                         |
 | 取消或本地拒绝     | 保持选择、附件、已知事实、请求游标和 mailbox 位置。                                                                                       |
 | 已接受命令         | 保留规范主操作和接受修订；别名可能确认更早的已接受基准。接受不代表移除。                                                                  |
@@ -128,12 +128,12 @@ Busy 或失败仍然计费。准入前拒绝不计费；首次揭示释放状态
 有限观察额度、transport 或 Server continuation 耗尽时，不由此推出最终 Close 保证。
 
 carrier 停用会停止自动调度。只有显式用户状态 Refresh 才能在精确旧 worker join 后重新
-连接，并且仅使用保留的可信本地 endpoint/cohort 和 Site/target。不匹配时为 unavailable，
-不接管身份。此仅状态阶段不得激活 Site、Open、Create、Start、Attach 或重放变更。
+连接，并且仅使用保留的可信本地 endpoint/cohort 和 Session/target。不匹配时为 unavailable，
+不接管身份。此仅状态阶段不得激活 Session、Open、Create、Start、Attach 或重放变更。
 跨 join 和重连保留已知事实；永不复活旧 Viewer。协调/Attach 只能通过成员关系所有者已
 校验的 Closed/Snapshot 交接在此阶段之外开始。重启持久化和 authority 改变恢复仍被排除。
 
-在新 carrier 上成功的精确 Read 已语义结算并显示同一保留 authority/Site/target/operation
+在新 carrier 上成功的精确 Read 已语义结算并显示同一保留 authority/Session/target/operation
 的最新可恢复停放状态后，全新用户 Resume 意图可离开仅状态恢复，进入一次显式控制。
 新的确认必须实际渲染，准入时重新校验状态、代数和显示 token。Read 失败、Unknown、
 NotClosing、旧 token 或未显示确认都不能开启此控制阶段。准入一次全新 Resume 请求和固定
@@ -217,10 +217,10 @@ Snapshot Denied 后手动以全新 ID 重试 → Empty。这些见证不证明 p
 
 ## 规范成员实现边界
 
-共享 membership 实现替代下文较早的 append-only 假设。纯校验要求 Site/context 相同、revision
+共享 membership 实现替代下文较早的 append-only 假设。纯校验要求 Session/context 相同、revision
 不回退、同 revision 的 Tab、navigation 与 projects 完全相等。更高 revision 可新增、移除、重排并
 重命名 Tab；候选 Tab identity 在既有上界内保持全域唯一，Panel、Presentation 与 Terminal identity
-各自全域唯一。在该 Site/context 内，当前与候选的 Panel、Presentation 或 Terminal identity 只要有
+各自全域唯一。在该 Session/context 内，当前与候选的 Panel、Presentation 或 Terminal identity 只要有
 任一重叠，就必须属于同一个完整不可变 member tuple——Panel、Presentation、Presentation label 与完整
 Worker/terminal binding——而 owning Tab 是唯一获授权的差量：member 可经由折叠的合法 move 跨 Tab
 迁移。存活的 Tab identity 必须在同一 Tab 内仍持有其原有成员的至少一个；已消失的 Tab 无此要求，
@@ -233,7 +233,7 @@ Workspace shell 恢复仅对 Panel 槽位提供明确例外：在更高修订中
 两种新身份均不得与比较中的当前或保留 Context 成员重合。存活 Presentation／Terminal
 身份仍要求完整原元组；只改变绑定或将旧 Presentation 移入另一 Panel 均拒绝。
 Standalone Context 保持原规则。这既保留用户布局，也保持 Presentation 绑定身份不可变。
-全生命周期不复用由 Site 分配器负责，不能归功于相邻快照比较。
+全生命周期不复用由 Session 分配器负责，不能归功于相邻快照比较。
 
 活动 Tab 内任一 Panel 被替换时，使用既有的整个 anchor 成员清理与安装路径，
 保留当前 Panel 选择和缩放，并生成新的 attachment 代际。旧 Viewer 与 controller 效果完成或通过销毁证明后，才附着新绑定。
@@ -244,13 +244,13 @@ Standalone Context 保持原规则。这既保留用户布局，也保持 Presen
 
 精确 Create 与 Move commit revision 保留原有严格期望。更晚 revision 可以缺少已提交目标，
 由可选的已校验 target index 表达；绝不抹去其历史 commit。投影所有的 `ClosedTabExpectation`
-检查精确 Site/context/Tab、最低 Closed revision 以及目标缺失；它只证明 membership。
+检查精确 Session/context/Tab、最低 Closed revision 以及目标缺失；它只证明 membership。
 该 expectation 已在 `workbench_projection/closed.rs` 实现，identity 字段私有，仅提供只读访问器。
 其纯验证器复用规范 candidate 校验，再检查精确 scope、最低 revision 和目标缺失；测试拒绝错误
 scope、旧 revision 和目标仍存在。Close state 所有者在接入消费者时另行提供保留的 attachment
 identity 及清理证明。
 
-Live Empty 保留已校验的规范 Site/context/revision 和空 Tab vector，没有 provenance entry、
+Live Empty 保留已校验的规范 Session/context/revision 和空 Tab vector，没有 provenance entry、
 active/desired key、viewer/controller、projection、frame 或 Ready 事实。Cold bootstrap 仍要求
 非空投影。`MailboxMembership::AwaitingBootstrap` 与 `Live { desired: None }` 不同；Empty 允许
 手动 Create 和 Refresh，以及 Close 所有、不需要 attachment 的 status 与 retained-record 观察。
@@ -488,7 +488,7 @@ Reducer 测试不声称证明载体或 mailbox 回执；这些义务仍由原生
 溢出、截止减一/等值/加一、锁竞争、更早截止时间、共享预算、初始及提交后 ID 耗尽、限时投递及过期后
 UI 消费。受控 PTY 测试负责活动 PID/标记连续性、可用输入/Resize 及第二 Client 刷新；worker/UI
 轨迹负责精确查看器/控制器/代次保留。内部退役到完成
-仅属 Site/状态证据。这些采样轨迹不证明任意排列、物理平台或保证恢复成功。
+仅属 Session/状态证据。这些采样轨迹不证明任意排列、物理平台或保证恢复成功。
 
 ## 投影细化证据
 
@@ -613,7 +613,7 @@ fn validate_created_tab(
 ) -> Result<(NativeContextTabs, usize), NativeProjectionDivergence>;
 ```
 
-已接受的 Move 细化替换旧 `validate_append_only_refresh` 前缀策略：要求 Site/上下文相同，
+已接受的 Move 细化替换旧 `validate_append_only_refresh` 前缀策略：要求 Session/上下文相同，
 拒绝更低修订；相同修订要求完整投影精确相等，包括顺序和标签。更高修订时适用共享规范成员规则：
 当前与候选的任一 Panel、Presentation 或 Terminal 身份重叠即要求完整不可变成员元组相同，
 其中 owning Tab 是唯一获授权的迁移差量；存活的 Tab 身份必须在同一 Tab 内仍持有其原有成员的
@@ -648,7 +648,7 @@ Tab／Panel／Presentation ID 必须不存在于任何基线 context。提交 re
 契约；下文响应表除明确说明外描述前台创建。
 
 所选集合复制逐个复用未改变的单 Create 生命周期。私有安装前证明在成员 owner 更改缓存、desired 选择或旧 pane 记录前，
-校验旧具体 pane、所选 Presentation 绑定、标记及完整 Site Snapshot。只有该关联的一次性安装可采用
+校验旧具体 pane、所选 Presentation 绑定、标记及完整 Session Snapshot。只有该关联的一次性安装可采用
 新 generation；原选择必须达到 Ready，且前一个 lease／回复／poll 结算完成后，邮箱才能原子准入
 下一个源。固定 120 秒总预算限制每成员 50 秒期限及其五秒清理预留。取消、漂移、部分失败、未知
 结果或恢复均停止后续源，保留的成员事实比短暂状态提示更长久。所属分组契约与确定性序列测试检查此成员间边界；单次 Create 与恢复规则保持不变。
@@ -786,7 +786,7 @@ Windows 传输原有的 2 ms readiness 探测独立于此期限。
 binding 会清理像素；交接不携带 retained-context membership、attachment 或 controller 权限。
 
 再次访问时，若处于 Starting/Switching，或 Ready viewer 正等待替换完整帧，只有当投影状态为
-Empty 或 WaitingForFullFrame，且 Site、terminal context、Tab、Panel、所选 presentation、
+Empty 或 WaitingForFullFrame，且 Session、terminal context、Tab、Panel、所选 presentation、
 worker/terminal binding 及实际绘制列行尺寸完全匹配，才可显示保留画面。已知新 HostEpoch 也
 必须匹配。首次访问、缓存已淘汰、终端未绑定或存在故障、明确的可重试挂接失败、presentation
 或 binding 不同、单元格网格变化时，仍走正常连接／失败路径。调整尺寸不拉伸缓存像素；恢复
@@ -1168,7 +1168,7 @@ known-Closed proof、所有更早工作已结算，且没有 outstanding wire re
 2. 在顺序载体上结算任何已经交付的 Ready 代次 Poll/Feedback 响应，再读取、放入并验证当前候选，
    按上述规则精确清理旧挂接并原子安装 fresh key；Detach 只会清除尚未发送／已暂存，或已得到
    精确响应的旧投影在途请求；
-3. 使用已安装候选的有效 Site/Worker/Terminal 绑定执行精确 AttachBinding；
+3. 使用已安装候选的有效 Session/Worker/Terminal 绑定执行精确 AttachBinding；
 4. 根据返回的 AttachmentId/HostEpoch 构建新的 `TerminalProjection`；
 5. 执行 Acquire；控制器繁忙时转为 ReadOnly，而 Acquired 使用最新真实尺寸和新的控制器序号开始
    Resize；
@@ -1317,7 +1317,7 @@ UI 对唯一待处理代次恰好消费一次。它会防御性地丢弃代次�
 
 当前明确 denied/unavailable 结果保留缓存、活动 ID 和终端投影，并设置刷新失败；显式恢复期间
 明确不可用保留该恢复状态。已接受的 Move 细化应用严格投影器和以 ID 为权威的替换规则。更低修订、
-相同修订有差异、旧 ID 缺失/重复、不可变元组/绑定/Presentation 标签改变、Site/上下文不匹配或
+相同修订有差异、旧 ID 缺失/重复、不可变元组/绑定/Presentation 标签改变、Session/上下文不匹配或
 阶段所需活动身份丢失会退役。更高修订下支持的重排和 Tab 标签改变有效。成功按 ID 准备来源状态，
 原子替换缓存/来源状态，保留活动 ID 并派生其新索引。ProjectionUnavailable 额外验证保留 create
 事实。MoveProjectionUnavailable 要求已知提交修订处的精确已提交置换，或允许的后续历史，才能
@@ -1474,7 +1474,7 @@ state 拥有的 Rename 草稿消费 `RenameText`，捕获完整 canonical 基线
 实际 mailbox 测试覆盖容量、cursor/serial 耗尽、固定 cutoff 拒绝、精确 ACK 与 worker 丢失证据保留。
 
 `Ctrl+B ,` 在存活且稳定的阶段为当前上下文中精确选中的 Tab 打开 state-owned 草稿。
-捕获规范基线、Site/context/Tab 和附件 generation，不分配请求或 deadline。
+捕获规范基线、Session/context/Tab 和附件 generation，不分配请求或 deadline。
 Empty、结构/恢复 flight 和 Close/Resume 确认期间拒绝进入；草稿与 Close 确认互斥。
 已应用的权威或选择变化使草稿失效；Enter 原子重验捕获元组，绝不把文本改投其他目标。
 
@@ -1661,7 +1661,7 @@ Switch 和 Move，同时保留 Ready 输入、Poll、Resize、controller 及历�
 
 此入口用于非 Close 发起方的原生 Client：其精确当前普通 Poll 返回了
 `TerminalRuntimeUnavailable`。入口保留该已关联请求与 attachment key、不可变绑定、规范
-Site/context 基线和历史序号。过期或 setup Poll、传输不确定、畸形回复及其他失败都不能建立
+Session/context 基线和历史序号。过期或 setup Poll、传输不确定、畸形回复及其他失败都不能建立
 此来源。激活要求精确旧任务成功 join、旧传输已关闭，并已结算所有返回事实。panic 或缺失返回
 证据不能建立资格。任何保留的 Close/Read 记录或 flight，或者未决结构变更、提交、setup 或
 cleanup 交接，都会排除此入口。既有 Close 状态恢复保留优先级及其全部事实。
@@ -1691,7 +1691,7 @@ Viewer 或 controller lease。旧远端引用仍可能存在并占用容量；�
 只有新尝试 setup 的精确清理可使用最后预留时间。停放后再次尝试要求前一 carrier 已关闭并
 join，且用户执行另一次显式动作。
 
-安装前唯一请求是 SnapshotRead。完整候选必须保留 Site/context、非递减 revision、相同
+安装前唯一请求是 SnapshotRead。完整候选必须保留 Session/context、非递减 revision、相同
 revision 下的精确成员，以及所有保留 identity 的不可变元组。原不可用 Tab 必须缺失，
 或其选中的 Workspace Panel 按上述替换规则同时具有新的 Presentation 和终端绑定。
 旧物理身份仍在、Snapshot 不可用或候选无效时，保留旧规范状态与来源并停放，不执行 Attach。
@@ -1739,10 +1739,10 @@ cursor 均跨退休保留、耗尽不能回绕，以及恢复开始时没有 liv
 
 Linux PTY Close witness 先观察新的 Disconnected 帧，再执行一次显式 Refresh，随后验证两个
 Client 的 Empty 状态、精确移除后的完整公开 Snapshot 相等、原 shell 退出，以及有界 500 ms
-新观察期间没有自动 Create。同一用例随后由原只读 Client 手动按 `c`，验证同一 Site/context
+新观察期间没有自动 Create。同一用例随后由原只读 Client 手动按 `c`，验证同一 Session/context
 内的新 Tab/Panel/Presentation/Terminal 身份和真实新 shell，并将 peer 刷新到只读模式。
 普通退出保留新 shell 及原 Server/Worker/Host 进程。后续裸 Open 返回相同的规范 Snapshot、
-shell PID 和 shell 局部标记。这不改变 Site 仍为 Empty 时裸 Open 可独立引导创建的已接受行为。
+shell PID 和 shell 局部标记。这不改变 Session 仍为 Empty 时裸 Open 可独立引导创建的已接受行为。
 退休 finalization 在 tick 返回并绘制之前同步关闭并 join task。
 准备本地 Server／Worker／Host cohort 后，运行
 `cargo test --locked -p orchbee --all-targets --all-features`。
@@ -1756,13 +1756,13 @@ shell PID 和 shell 局部标记。这不改变 Site 仍为 Empty 时裸 Open �
 中的缺席是成员关系知识，不是清理证据；本入口不放松真实的 Detach 生命周期。
 
 每个候选 Snapshot 在提交前先做分类。`Candidate` 保持普通成员路径：当前上下文仍可投影。
-`Removed` 要求全部条件同时成立——envelope 校验通过、Site 不变、revision 不回退、当前上下文
+`Removed` 要求全部条件同时成立——envelope 校验通过、Session 不变、revision 不回退、当前上下文
 id 从所有导航条目中缺席、存活 standalone 可投影、被删上下文的创建 provenance 不含
 `Pending`/`OutcomeUnknown`，且全部结构守卫静默——没有 pending mutation、commit、setup、
 cleanup 交接、退休尝试、在飞 Create/Close 或活跃的 Read/Poll/Move 占用。只有 `Removed`
 才铸造 `ContextRemovalPermit{generation, removed, landing, revision}`；它以有界私有字段
 存放在 prepared candidate 内，绝不落在会话环境状态上，并恰被其授权的 install 消费一次。
-`Divergent`——Site 错误、revision 回退、导航畸形或旧上下文 id 仍在别处——以及任何守卫
+`Divergent`——Session 错误、revision 回退、导航畸形或旧上下文 id 仍在别处——以及任何守卫
 失败都如实退休，不触碰规范状态。
 
 viewer 仍存活时本会话绝不先装：先在 `ReconcilingMembership` 下 stage 精确成员清理，保留

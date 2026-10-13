@@ -28,15 +28,15 @@ CLI Resume；Pending 和 Unknown 仅允许观察。
 
 ## 输入与归属
 
-| 事实                                      | 所有者与校验                                                                                                                                                        |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Site、Workspace 身份和可选 Project 元数据 | 已验证的 Workbench snapshot 投影为 `NativeContextTabs`；分组变化不改变 Context 身份                                                                                 |
-| 确认                                      | `WorkspaceCloseState`：带类型的 Workspace/Context 或 Project 目标、包含来源 Context 和 desired pane 的冻结完整 snapshot、名称、Project 成员数量和递增 display token |
-| 完整绘制与几何                            | 纯 renderer 返回带类型回执；UI 仅在完整绘制后认可当前提供的 token                                                                                                   |
-| 请求身份、队列、lease 和期限              | Command mailbox；单个有界 Refresh flight 将关闭与结构工作串行化                                                                                                     |
-| 捕获成员与终端生命周期                    | Server 保留范围、成员及 child 身份；Worker/Host 拥有处置                                                                                                            |
-| 提交与观察证据                            | Carrier 在下次 read 或 UI wait 前保留带类型的准入及观察；mailbox 和已 join worker 的交接保留这些事实                                                                |
-| 选择与 Viewer 清理                        | 既有 context-removal 与 membership 所有者消费规范 snapshot 和确切 attachment 身份                                                                                   |
+| 事实                                         | 所有者与校验                                                                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session、Workspace 身份和可选 Project 元数据 | 已验证的 Workbench snapshot 投影为 `NativeContextTabs`；分组变化不改变 Context 身份                                                                                 |
+| 确认                                         | `WorkspaceCloseState`：带类型的 Workspace/Context 或 Project 目标、包含来源 Context 和 desired pane 的冻结完整 snapshot、名称、Project 成员数量和递增 display token |
+| 完整绘制与几何                               | 纯 renderer 返回带类型回执；UI 仅在完整绘制后认可当前提供的 token                                                                                                   |
+| 请求身份、队列、lease 和期限                 | Command mailbox；单个有界 Refresh flight 将关闭与结构工作串行化                                                                                                     |
+| 捕获成员与终端生命周期                       | Server 保留范围、成员及 child 身份；Worker/Host 拥有处置                                                                                                            |
+| 提交与观察证据                               | Carrier 在下次 read 或 UI wait 前保留带类型的准入及观察；mailbox 和已 join worker 的交接保留这些事实                                                                |
+| 选择与 Viewer 清理                           | 既有 context-removal 与 membership 所有者消费规范 snapshot 和确切 attachment 身份                                                                                   |
 
 既有确认 packet 所有者解码按键。带修饰键、大写 `Y`、Enter、粘贴和尾随字节均不能确认，
 也不能到达终端。缺失或不完整的绘制证据不能提交。来源 revision、成员或选择变化会使

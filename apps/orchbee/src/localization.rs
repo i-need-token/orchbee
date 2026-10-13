@@ -104,7 +104,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentCycle => "Select previous / next Agent in the filtered machine view",
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "Focus numbered Agent in the filtered machine view",
-        PrefixDesc::ReloadConfiguration => "Reload Site configuration",
+        PrefixDesc::ReloadConfiguration => "Reload session configuration",
         PrefixDesc::QuickWorkspaceCreate => "Create a Workspace and enter its first terminal",
         #[cfg(windows)]
         PrefixDesc::WorktreeCreate => "Create a Git worktree and enter its terminal",
@@ -120,19 +120,19 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ProjectRename => "Rename current Workspace's Project",
         PrefixDesc::RenameTab => "Rename current Tab",
         PrefixDesc::CloseTab => "Close current Tab / retry Close (confirms for all Clients)",
-        PrefixDesc::CreateTab => "Create a Tab (requires Site)",
+        PrefixDesc::CreateTab => "Create a Tab (requires session)",
         PrefixDesc::MoveTab => "Move current Tab left / right (wraps)",
-        PrefixDesc::SelectTabWrap => "Select next / previous Tab (requires Site)",
+        PrefixDesc::SelectTabWrap => "Select next / previous Tab (requires session)",
         PrefixDesc::SelectContext => {
-            "Select previous / next Workbench location (wraps; requires Site)"
+            "Select previous / next Workbench location (wraps; requires session)"
         }
-        PrefixDesc::SelectTabDigit => "Select ordered Tab (requires Site)",
-        PrefixDesc::PanelFocus => "Move between Panels (requires Site)",
+        PrefixDesc::SelectTabDigit => "Select ordered Tab (requires session)",
+        PrefixDesc::PanelFocus => "Move between Panels (requires session)",
         PrefixDesc::PresentationSelect => "Select previous / next terminal in this Panel",
-        PrefixDesc::PanelZoom => "Zoom the focused Panel (requires Site)",
-        PrefixDesc::SplitPanel => "Split focused Panel below/above/left/right (requires Site)",
-        PrefixDesc::ClosePanel => "Close focused Panel (requires Site)",
-        PrefixDesc::MovePanel => "Move focused Panel to that side (requires Site)",
+        PrefixDesc::PanelZoom => "Zoom the focused Panel (requires session)",
+        PrefixDesc::SplitPanel => "Split focused Panel below/above/left/right (requires session)",
+        PrefixDesc::ClosePanel => "Close focused Panel (requires session)",
+        PrefixDesc::MovePanel => "Move focused Panel to that side (requires session)",
         PrefixDesc::SidebarToggle => "Toggle business sidebar",
         #[cfg(windows)]
         PrefixDesc::SidebarFocus => "Focus sidebar navigation",
@@ -199,7 +199,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
         #[cfg(windows)]
         PrefixDesc::AgentIndex => "按机器视图的筛选顺序聚焦编号 Agent",
-        PrefixDesc::ReloadConfiguration => "重载 Site 配置",
+        PrefixDesc::ReloadConfiguration => "重载会话配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
         #[cfg(windows)]
         PrefixDesc::WorktreeCreate => "创建 Git worktree 并进入终端",
@@ -213,17 +213,17 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ProjectRename => "重命名当前工作区所属的项目",
         PrefixDesc::RenameTab => "重命名当前 Tab",
         PrefixDesc::CloseTab => "关闭当前 Tab / 重试关闭（确认后影响所有 Client）",
-        PrefixDesc::CreateTab => "创建 Tab（需要 Site）",
+        PrefixDesc::CreateTab => "创建 Tab（需要会话）",
         PrefixDesc::MoveTab => "向左 / 右移动当前 Tab（首尾循环）",
-        PrefixDesc::SelectTabWrap => "选择下一个 / 上一个 Tab（需要 Site）",
-        PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）",
-        PrefixDesc::SelectTabDigit => "选择对应顺序的 Tab（需要 Site）",
-        PrefixDesc::PanelFocus => "在 Panel 之间移动（需要 Site）",
+        PrefixDesc::SelectTabWrap => "选择下一个 / 上一个 Tab（需要会话）",
+        PrefixDesc::SelectContext => "选择上一个 / 下一个 Workbench 位置（首尾循环；需要会话）",
+        PrefixDesc::SelectTabDigit => "选择对应顺序的 Tab（需要会话）",
+        PrefixDesc::PanelFocus => "在 Panel 之间移动（需要会话）",
         PrefixDesc::PresentationSelect => "选择当前 Panel 中的上一个 / 下一个终端",
-        PrefixDesc::PanelZoom => "放大焦点 Panel（需要 Site）",
-        PrefixDesc::SplitPanel => "将焦点 Panel 向下/上/左/右分屏（需要 Site）",
-        PrefixDesc::ClosePanel => "关闭焦点 Panel（需要 Site）",
-        PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要 Site）",
+        PrefixDesc::PanelZoom => "放大焦点 Panel（需要会话）",
+        PrefixDesc::SplitPanel => "将焦点 Panel 向下/上/左/右分屏（需要会话）",
+        PrefixDesc::ClosePanel => "关闭焦点 Panel（需要会话）",
+        PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要会话）",
         PrefixDesc::SidebarToggle => "切换业务侧边栏",
         #[cfg(windows)]
         PrefixDesc::SidebarFocus => "聚焦侧栏导航",
@@ -416,9 +416,9 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     hint_short: "Ctrl+B ? · help",
     overlay_refused: "Not enough room to show this view · resize the terminal",
     #[cfg(not(windows))]
-    navigator_detail: "A Site connection is required before Workbench locations can be shown.",
+    navigator_detail: "A session connection is required before Workbench locations can be shown.",
     navigator_title: "Workbench navigator",
-    no_client_session: "No Site or Client Session is connected.",
+    no_client_session: "No Orchbee session is connected.",
     other_keys_label: "Other keys",
     binding_unbound: "Unbound",
     #[cfg(windows)]
@@ -444,7 +444,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     sidebar_hint: "Ctrl+B b · sidebar",
     site_section: "SITE",
     standalone: "Standalone terminal",
-    tabs_unavailable: "No shared Tabs · Site unavailable",
+    tabs_unavailable: "No shared Tabs · session unavailable",
     terminal_unavailable: "Terminal unavailable",
     too_small_notice: "Too small · resize to continue",
     workbench_title: "WORKBENCH",
@@ -489,9 +489,9 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     hint_short: "Ctrl+B ? · 帮助",
     overlay_refused: "空间不足，无法显示此视图 · 请调整终端大小",
     #[cfg(not(windows))]
-    navigator_detail: "连接 Site 后才能显示 Workbench 位置。",
+    navigator_detail: "连接会话后才能显示 Workbench 位置。",
     navigator_title: "Workbench 导航器",
-    no_client_session: "当前未连接 Site 或 Client Session。",
+    no_client_session: "当前未连接 Orchbee 会话。",
     other_keys_label: "其他按键",
     binding_unbound: "未绑定",
     #[cfg(windows)]
@@ -517,7 +517,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     sidebar_hint: "Ctrl+B b · 侧边栏",
     site_section: "站点",
     standalone: "独立终端",
-    tabs_unavailable: "无共享 Tab · Site 不可用",
+    tabs_unavailable: "无共享 Tab · 会话不可用",
     terminal_unavailable: "终端不可用",
     too_small_notice: "窗口太小 · 请调整大小后继续",
     workbench_title: "WORKBENCH",
@@ -699,15 +699,15 @@ impl Locale {
                 "配置已加载，但有警告；请运行 orchbee config check"
             }
             (Self::EnUs, Some(Notice::ConfigurationRestart)) => {
-                "Keys updated; some Site settings need a restart"
+                "Keys updated; some session settings need a restart"
             }
-            (Self::ZhCn, Some(Notice::ConfigurationRestart)) => {
-                "键位已更新；部分 Site 设置需要重启"
-            }
+            (Self::ZhCn, Some(Notice::ConfigurationRestart)) => "键位已更新；部分会话设置需要重启",
             (Self::EnUs, Some(Notice::ConfigurationUnknown)) => {
-                "Reload outcome unknown; inspect site config"
+                "Reload outcome unknown; inspect server config"
             }
-            (Self::ZhCn, Some(Notice::ConfigurationUnknown)) => "重载结果未知；请查看 site config",
+            (Self::ZhCn, Some(Notice::ConfigurationUnknown)) => {
+                "重载结果未知；请查看 server config"
+            }
             (Self::EnUs, Some(Notice::NotificationUnavailable)) => {
                 "Notification transport unavailable; terminal remains usable"
             }
@@ -794,8 +794,8 @@ impl Locale {
             (Self::ZhCn, Some(Notice::BackendUnavailable(BackendAction::CloseTab))) => {
                 "关闭不可用 · 未发送命令"
             }
-            (Self::EnUs, None) => "Site unavailable · no command has been sent",
-            (Self::ZhCn, None) => "Site 不可用 · 未发送任何命令",
+            (Self::EnUs, None) => "Session unavailable · no command has been sent",
+            (Self::ZhCn, None) => "会话不可用 · 未发送任何命令",
             (Self::EnUs, Some(Notice::TerminalInputUnavailable)) => {
                 "Terminal input unavailable · input was not sent"
             }
@@ -1437,10 +1437,10 @@ impl Locale {
             #[cfg(windows)]
             NativeSessionNotice::PopupUnavailable => match self {
                 Self::EnUs => {
-                    "Popup connection or cleanup uncertain · restart the Site before reopening"
+                    "Popup connection or cleanup uncertain · restart the session before reopening"
                         .to_owned()
                 }
-                Self::ZhCn => "popup 连接或清理状态不确定 · 重启 Site 后再打开".to_owned(),
+                Self::ZhCn => "popup 连接或清理状态不确定 · 重启会话后再打开".to_owned(),
             },
             NativeSessionNotice::HistoryUnavailable => match self {
                 Self::EnUs => "History is not available on this pane".to_owned(),
@@ -1770,9 +1770,9 @@ impl Locale {
                 "Windows 配置无效。运行 orchbee config check 查看详情，修正后重试。\n"
             }
             (Self::EnUs, StartupFailure::Interface) => {
-                "The terminal interface failed. Existing Site processes were retained.\n"
+                "The terminal interface failed. Existing session processes were retained.\n"
             }
-            (Self::ZhCn, StartupFailure::Interface) => "终端界面运行失败。已有 Site 进程已保留。\n",
+            (Self::ZhCn, StartupFailure::Interface) => "终端界面运行失败。已有会话进程已保留。\n",
             (Self::EnUs, StartupFailure::Terminal) => {
                 "Orchbee requires the same interactive terminal on standard input and output, with valid dimensions.\n"
             }
@@ -1786,38 +1786,38 @@ impl Locale {
                 "原生开发 cohort 缺失、已修改或无效。请将四个二进制一起暂存后再运行 orchbee。\n"
             }
             (Self::EnUs, StartupFailure::Runtime) => {
-                "The local Site runtime failed its ownership or permission checks.\n"
+                "The local session runtime failed its ownership or permission checks.\n"
             }
-            (Self::ZhCn, StartupFailure::Runtime) => "本地 Site 运行时未通过所有者或权限检查。\n",
+            (Self::ZhCn, StartupFailure::Runtime) => "本地会话运行时未通过所有者或权限检查。\n",
             (_, StartupFailure::SocketPathTooLong) => self.cli_socket_path_too_long(),
             (Self::EnUs, StartupFailure::RecoveryRequired) => {
                 if cfg!(windows) {
-                    "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee site diagnose with the same --site selection; use orchbee --site recovery-work site start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
+                    "Local startup could not confirm existing ownership or startup completion. The checkpoint is retained. Run orchbee server diagnose with the same --session selection; use orchbee --session recovery-work server start for another session. Live tasks require Host adoption; incomplete or legacy records need diagnosis.\n"
                 } else {
-                    "The local Site requires explicit recovery. No replacement process was started.\n"
+                    "The local session requires explicit recovery. No replacement process was started.\n"
                 }
             }
             (Self::ZhCn, StartupFailure::RecoveryRequired) => {
                 if cfg!(windows) {
-                    "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --site 选择运行 orchbee site diagnose；可执行 orchbee --site recovery-work site start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
+                    "无法确认既有进程归属或启动完成情况，已保留检查点。请用相同 --session 选择运行 orchbee server diagnose；可执行 orchbee --session recovery-work server start 另开会话。存活任务仍需 Host 接管；不完整或旧版记录需要诊断。\n"
                 } else {
-                    "本地 Site 需要显式恢复。未启动替代进程。\n"
+                    "本地会话需要显式恢复。未启动替代进程。\n"
                 }
             }
             (Self::EnUs, StartupFailure::Incompatible) => {
-                "The running local Site is incompatible with this development cohort.\n"
+                "The running local session is incompatible with this development cohort.\n"
             }
             (Self::ZhCn, StartupFailure::Incompatible) => {
-                "正在运行的本地 Site 与当前开发 cohort 不兼容。\n"
+                "正在运行的本地会话与当前开发 cohort 不兼容。\n"
             }
             (Self::EnUs, StartupFailure::Admission) => {
-                "The local Site could not admit this Client connection.\n"
+                "The local session could not admit this Client connection.\n"
             }
-            (Self::ZhCn, StartupFailure::Admission) => "本地 Site 无法准入此 Client 连接。\n",
+            (Self::ZhCn, StartupFailure::Admission) => "本地会话无法准入此 Client 连接。\n",
             (Self::EnUs, StartupFailure::TimedOut) => {
-                "Local terminal startup timed out. Existing Site processes were retained.\n"
+                "Local terminal startup timed out. Existing session processes were retained.\n"
             }
-            (Self::ZhCn, StartupFailure::TimedOut) => "本地终端启动超时。已有 Site 进程已保留。\n",
+            (Self::ZhCn, StartupFailure::TimedOut) => "本地终端启动超时。已有会话进程已保留。\n",
             (Self::EnUs, StartupFailure::TerminalUnavailable) => {
                 "The local terminal is unavailable. No terminal creation was retried.\n"
             }

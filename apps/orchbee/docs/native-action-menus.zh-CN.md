@@ -7,7 +7,7 @@ Windows 的 `Ctrl+B F2`、`[keys].menu` 和右上角动作菜单按钮打开全�
 pane 内容保留配置的 `right_click = "panel"` 策略；pane 标题仍属于 Client。
 Shift 手势保留外层终端旁路。Machines 保留 `Ctrl+B Shift+M`。
 侧栏页脚直接打开设置，不再保留常驻菜单或机器页脚。
-Workspace 侧栏仅对当前机器、已绘制 Site 上仍存在的准确行准入右键。
+Workspace 侧栏仅对当前机器、已绘制 Session 上仍存在的准确行准入右键。
 它复用现有 Workspace 菜单，打开或取消不请求机器或 context 切换。
 
 鼠标打开时，菜单框锚定触发它的宿主单元格，包括侧栏行及其动作按钮。菜单框限制在状态行上方的
@@ -110,7 +110,7 @@ carrier 不可用时，全局菜单仅保留 Client 本地搜索、帮助、侧�
 Worktree 动作保留当前 Workspace 前提。确认和转交时必须保持同一 Project 与可选 context
 证明；来源改变或记录被替换时取消 episode，不重新定位。
 
-所有对象入口适配器都传入成功绘制的 `DrawnMenuSource` Site 和 revision。
+所有对象入口适配器都传入成功绘制的 `DrawnMenuSource` Session 和 revision。
 侧栏 owner 同时核对当前机器与稳定的焦点行。右键、行内可见动作入口及对象菜单键
 使用同一目标。对象键仅属于明确进入的侧栏导航；终端拥有的键保持透传。
 菜单捕获输入期间，调用方保留侧栏焦点，并在关闭时调和已删除的行。
@@ -157,7 +157,7 @@ Worktree 动作保留当前 Workspace 前提。确认和转交时必须保持同
 捕获已释放时，即使键盘打开菜单也保持释放。菜单捕获吞掉移动和决策尾部，不发送给嵌入程序；
 菜单之外，pane 跟踪和所有已有手势保留原有归属。
 
-对象入口准入在冻结当前记录之前核对成功绘制 hit map 的 Site 和 Workbench revision。
+对象入口准入在冻结当前记录之前核对成功绘制 hit map 的 Session 和 Workbench revision。
 Workspace 与当前 context 证明保留准确 Workspace 和主 Directory，包括 Worker 和路径；
 Tab 证明保留完整投影记录。自有导航候选及最终选中目标必须匹配这些证明。
 ID 未改变不能授权被替换的来源。

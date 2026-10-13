@@ -136,7 +136,6 @@ impl NativeCohort {
             .map_err(io::Error::other)?;
         #[cfg(windows)]
         let descriptor = WindowsCohortDirectory {
-            path: directory.to_owned(),
             _handles: crate::windows_permissions::open_tree(directory)?,
         };
         let mut encoded = Vec::new();
@@ -286,7 +285,6 @@ mod tests;
 
 #[cfg(windows)]
 struct WindowsCohortDirectory {
-    path: PathBuf,
     _handles: Vec<File>,
 }
 #[cfg(windows)]

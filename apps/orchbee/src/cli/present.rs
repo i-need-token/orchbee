@@ -1094,7 +1094,7 @@ pub(crate) fn config_checks(
     Ok(())
 }
 
-/// `site diagnose` rows stream in the same `name  state  k=v` shape as
+/// `server diagnose` rows stream in the same `name  state  k=v` shape as
 /// `config check`: one line per leaf row whose name is the machine
 /// document's own dotted field path (`locks.activation`,
 /// `endpoints.client`), and advisory tokens append their localized note
@@ -1122,7 +1122,7 @@ pub(crate) fn site_diagnose(
     Ok(())
 }
 
-/// One `site diagnose` leaf row: `name  key=value …` on its own line.
+/// One `server diagnose` leaf row: `name  key=value …` on its own line.
 fn diagnose_row(
     out: &mut Bounded,
     name: &str,

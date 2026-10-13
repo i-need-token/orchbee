@@ -400,7 +400,7 @@ fn serve_packet(bytes: &[u8], deadline: Instant, signals: &mut ArmedSignals) -> 
     };
     let mut command = Command::new(executable);
     command
-        .args(["--site", &packet.site])
+        .args(["--session", &packet.site])
         .args(&packet.arguments)
         .env("LC_ALL", &packet.locale)
         .env_remove("ORCHBEE_TERMINAL_ID")

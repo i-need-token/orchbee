@@ -1,6 +1,15 @@
 # Orchbee Native Entry
 
-Windows `events subscribe` emits bounded NDJSON observations from an existing Site. `events wait`
+## Sessions
+
+A Session contains your Workspaces, terminals and Agents; its background service keeps programs
+running when you leave the interface. Start with the default Session and use Workspaces for daily
+organization. Windows supports separate named Sessions through `--session <name>` and
+`session attach <name>`; `server` commands manage the selected Session's background service.
+Agent IDs use `--agent-session <id>`. The [Session contract](docs/native-cli-query.md#sessions-and-background-services)
+defines terminology, supported boundaries and unchanged storage/protocol identities.
+
+Windows `events subscribe` emits bounded NDJSON observations from an existing Session. `events wait`
 retains one connection and filter through wait slices, distinguishing match, known timeout,
 history loss, refusal and interruption. Use `--event tab.renamed`, a resource selector or a closed
 `--filter` JSON; `--after-cursor` pins retained journal history. Output/scroll probes preserve actual
@@ -10,7 +19,7 @@ the [event contract](../orchbee-server/docs/windows-events.md) owns behavior and
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends Enter in one input request. Supply one quoted string; text is preserved, and targets are exact IDs or `@terminal:<suffix>`. The receipt confirms input submission, not Shell readiness, command completion or exit status; never replay partial or unknown delivery. [Command submission contract](docs/native-terminal-run.md).
 
 Experimental native Rust CLI and TUI Client. On Windows and Linux, and in the Apple Silicon macOS
-development package, bare invocation connects or activates a local Site from a verified executable
+development package, bare invocation connects or activates a local Session from a verified executable
 cohort and enters its TUI after the first validated terminal
 projection frame. Native Clients operate shared Workbench state while keeping independent selection and
 retained terminal processes. Windows also supports saved-machine SSH command routing and live TUI
@@ -25,11 +34,11 @@ English remains canonical.
 Use `agent rename <session-id> <name>` to assign a runtime name, `agent names` to list names,
 and `agent resolve <name>` to obtain the full session ID. `agent rename <target> --clear`
 releases a name. `agent get/explain/wait <name>` resolve directly; a wait pins its session
-even if the name is reused. Names are unique and disappear when the session ends or the Site stops.
+even if the name is reused. Names are unique and disappear when the session ends or the Session stops.
 
 `agent read <name>` reads the uniquely bound terminal; `agent send-keys <name> enter`
 sends semantic keys through the existing terminal input receipt. Both also accept
-`--session <id>` and `--name <alias>`, and refuse missing or ambiguous bindings.
+`--agent-session <id>` and `--name <alias>`, and refuse missing or ambiguous bindings.
 
 `agent prompt <name> <text> --wait` submits literal paste plus Enter after a fresh,
 unblocked preflight. It observes activity before waiting for a condition and retains the
@@ -39,7 +48,7 @@ input receipt on later timeout or cancellation; it does not promise turn causali
 terminal and binds its name only after process and canonical readiness checks.
 See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and recovery.
 
-Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Site. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
+Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Session. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
 
 Windows `machine list|add|rename|remove|enable|disable` manages saved SSH profiles with remote Windows readiness checks before add. See [saved Windows machines](docs/machines.md) for persistence, partial outcomes, command routing, and live TUI switching.
 
@@ -57,13 +66,13 @@ failures. Windows remote selection follows the [saved-machine routing contract](
 ```text
 orchbee                          # local terminal (TUI)
 orchbee tui                      # the same terminal, explicitly
-orchbee status                   # the running Site's Workbench snapshot
+orchbee status                   # the running Session's Workbench snapshot
 orchbee <family> <command>       # queries and Workbench mutations
 orchbee api snapshot|schema      # machine snapshot and embedded schemas
-orchbee site start               # ensure the local Site is running (no TTY)
-orchbee site diagnose            # read-only local Site runtime facts
-orchbee site stop --confirm      # stop the Windows Site and its terminals
-orchbee site stop-status <id>    # inspect a retained stop attempt/receipt
+orchbee server start               # ensure the local Session is running (no TTY)
+orchbee server diagnose            # read-only local Session runtime facts
+orchbee server stop --confirm      # stop the Windows Session and its terminals
+orchbee server stop-status <id>    # inspect a retained stop attempt/receipt
 orchbee config check             # local runtime inspection
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish|powershell|elvish
@@ -75,7 +84,7 @@ Query families are `client`, `project`, `workspace`, `tab`, `panel`, `terminal`,
 `agent` (`list`/`get`, plus `terminal read`/`wait-output`; Windows `worktree list` accepts
 `--workspace <target>` or `--cwd <path>` with optional command-local trust,
 or retains the strict `--directory <directory-id>` form; `launch-profile` offers `list`
-and `get <selector>` — a typed read of the running Site's launch profile catalog, resolved
+and `get <selector>` — a typed read of the running Session's launch profile catalog, resolved
 Server-side with no local pre-read; `agent` offers `list` with
 `--include-ended`/`--limit`/`--cursor` paging, `get <session-id>`, and `explain
 <session-id>` — a read-only typed view of the Server's canonical Agent sessions over OBAP,
@@ -91,14 +100,14 @@ the first highest-priority winner, every rule match and bounded region evidence.
 authority returns an explicit screen-skipped result without a Host read. One admission and five-second
 CLI budget cover resolution/read; Server queue/read work has a four-second budget. Binding or report
 context changes refuse without retry. No input, controller acquisition or focus action is performed.
-Windows startup selects local overrides, eligible cached remote rules, then bundled rules. Physical v3 adds actual path, cached version, shadowing and typed warnings; v2 remains closed for legacy/no-manifest/skipped results. Windows `site agent-manifests`, `site reload-agent-manifests` and `site agent-manifests-status` expose the installed snapshot and retained live-reload receipts. Explicit `site update-agent-manifests` downloads and activates validated cached rules, with separate per-provider cache and activation receipts. Managed release Sites check automatically at startup and every thirty minutes when `update.manifest_check` is enabled; debug/test and standalone execution do not schedule checks. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
+Windows startup selects local overrides, eligible cached remote rules, then bundled rules. Physical v3 adds actual path, cached version, shadowing and typed warnings; v2 remains closed for legacy/no-manifest/skipped results. Windows `server agent-manifests`, `server reload-agent-manifests` and `server agent-manifests-status` expose the installed snapshot and retained live-reload receipts. Explicit `server update-agent-manifests` downloads and activates validated cached rules, with separate per-provider cache and activation receipts. Managed release Sessions check automatically at startup and every thirty minutes when `update.manifest_check` is enabled; debug/test and standalone execution do not schedule checks. See the [screen model](../orchbee-server/docs/agent-screen-model.md).
 
 Windows `panel create-terminal` starts an unbound primary or exact member, or appends a child
 without splitting the Panel. It preserves literal launch options, returns retained pending/final
 receipts and never changes Client focus. See [Panel terminal creation](docs/windows-panel-terminals.md).
 
 Mutation commands against the
-running Site include `project create`/`rename`/`dissolve`/`close-all`,
+running Session include `project create`/`rename`/`dissolve`/`close-all`,
 `workspace create`/`rename`/`set-project`/`create-project`/`ungroup`/`accept-directory`/`close`, `tab create`/`rename`/`move`/`close`,
 `panel split`/`move`/`close`, and `launch-profile create`/`delete` —
 `workspace close <target> --confirm` closes every terminal in the Workspace's context under
@@ -126,11 +135,11 @@ probes the literal absolute path — which makes a CLI-created Workspace tab-adm
 without the TUI directory wizard. `project rename <target> --label <label>` submits the
 existing `ProjectRename` action — the same one-snapshot/one-command envelope resolves the
 target by exact id, an explicit `@<kind>:<suffix>` selector, or exact label first — and reports `committed`/`unchanged` under the
-dedicated `orchbee.project.rename` document. `site start` is the headless activation path:
+dedicated `orchbee.project.rename` document. `server start` is the headless activation path:
 it runs the same connect-or-activate sequence the TUI startup uses — validate the cohort,
 prepare the runtime directory, take the locks, commit the marker, spawn the Server when no
-running Site answers — under one absolute 20-second deadline, then reports `started` only
-when this invocation actually spawned the child and `already-running` when an existing Site
+running Session answers — under one absolute 20-second deadline, then reports `started` only
+when this invocation actually spawned the child and `already-running` when an existing Session
 admitted its probe. The command is effectful even on refusal: only a grammar failure is
 guaranteed zero-effect, an interrupted or timed-out start may leave committed activation
 state. On Windows, the next invocation automatically recovers a complete v2–v5 registered generation only after
@@ -139,19 +148,19 @@ records remain `rejected`/`recovery-required`. Recovery preserves checkpoint dat
 old processes. A fresh activation publishes catalog v5 before marker, Server or checkpoint-store
 publication; readers limited to v1–v4 refuse v5 without changing its bytes. The
 [Windows recovery contract](../../crates/local-site-runtime/docs/windows-crash-recovery.md)
-owns those boundaries. `site diagnose` is the read-only complement: it reports
+owns those boundaries. `server diagnose` is the read-only complement: it reports
 bounded facts about the runtime directory, marker, locks, and finite endpoint paths — each
 a closed-state row at its own observation instant — under one cooperative 5-second budget,
 and it never connects, creates, locks, repairs, or claims any process is alive or gone.
 `agent integration` (`list`, `explain`,
 `enable`, `disable`) is the local provider-onboarding family: bounded reads
 and managed mutations of the invoking user's provider configuration on this
-machine only — no socket, lock, or Site contact; only entries verifiably
+machine only — no socket, lock, or Session contact; only entries verifiably
 owned by Orchbee are installed or removed. The complete grammar, target and
 filter rules, mutation outcomes, and the failure matrix with exit classes are owned by
 [native CLI query](docs/native-cli-query.md); `orchbee help <family>` and
 `orchbee help <family> <command>` print the same grammar from the binary itself.
-For an end-to-end headless sequence — start a Site, create a
+For an end-to-end headless sequence — start a Session, create a
 Project/Workspace/directory, launch and drive a terminal, inspect worktrees,
 observe Agents, and close cleanly — see [native CLI workflows](docs/cli-workflows.md).
 
@@ -160,7 +169,7 @@ follow the linked workflow to create the Workspace and terminal first, then
 substitute each `<…>` placeholder with the real id or provider:
 
 ```sh
-orchbee site start                        # activate the local Site once (no TTY)
+orchbee server start                        # activate the local Session once (no TTY)
 orchbee status                            # is the Workbench reachable?
 orchbee project create --label demo       # then workspace create / accept-directory
 orchbee tab create --workspace <ws> --label shell \
@@ -168,11 +177,11 @@ orchbee tab create --workspace <ws> --label shell \
 orchbee terminal send <terminal-id> --text 'make test' --enter
 orchbee terminal wait-output <terminal-id> --match 'PASS'
 orchbee agent integration enable --provider <id>   # one-time local onboarding
-orchbee agent list                        # sessions the running Site observes
+orchbee agent list                        # sessions the running Session observes
 orchbee agent wait <session-id> --until ended
 ```
 
-The Apple Silicon macOS development cohort supports the Site-backed `agent list` query and its
+The Apple Silicon macOS development cohort supports the Session-backed `agent list` query and its
 bounded page options. The per-Client projection (`--client`) remains Windows-only; other Agent
 observation commands retain their documented platform limits.
 
@@ -202,9 +211,9 @@ capsule. Keep them together. This is a native development cohort using Windows n
 ConPTY. Windows Terminal is the interactive host; WSL is not required. New terminals capture the shared launch profile and scrollback default. The built-in System shell
 selects the first compatible PowerShell 7 on absolute PATH or system Windows PowerShell;
 explicit legacy `terminal.default_shell` seeds only an unclaimed shared profile. See [Windows configuration](docs/windows-cli-configuration.md#configured-windows-shell)
-for shell mode and startup lifetime. `site start --format json` also works without an interactive console.
+for shell mode and startup lifetime. `server start --format json` also works without an interactive console.
 
-On a completely empty Windows Site without a saved position, `cd <project>; orchbee` creates a
+On a completely empty Windows Session without a saved position, `cd <project>; orchbee` creates a
 an ungrouped Workspace named after the current directory and its first terminal in that directory.
 Later launches restore the last displayed Workspace, Tab and Panel; launching from
 another directory does not add a Workspace. See [directory startup](docs/native-directory-startup.md)
@@ -212,8 +221,8 @@ and [startup position](docs/native-context-selection.md#windows-startup-preferen
 
 The prefix is `Ctrl+B`, followed by `|` for a side-by-side split, `-` for a stacked split,
 `h/j/k/l` for pane focus, or `d` to detach. Splitting preserves the current focus. Run the executable
-again to reattach to the retained Site. Detaching leaves shells running; an exited shell remains
-observable until its Tab/Panel is explicitly closed. If every registered Site process has exited,
+again to reattach to the retained Session. Detaching leaves shells running; an exited shell remains
+observable until its Tab/Panel is explicitly closed. If every registered Session process has exited,
 running the executable again automatically starts a fresh generation and restores the existing
 checkpoint. Live or uncertain old owners block startup; current recovery does not adopt a live Host.
 `session list` v2 reports guarded cold eligibility as `recoverable`. Continuous Workbench checkpoints
@@ -228,11 +237,11 @@ mode guard restores the inherited input/output modes when leaving the TUI. Large
 bounded writes, and cancelled exchanges close their shared pipe without a detached flush thread.
 
 Windows `agent doctor --provider codex --format json` now inspects local configuration, PATH,
-Node and capsule integrity without starting a Site or changing provider setup. Its version-3
+Node and capsule integrity without starting a Session or changing provider setup. Its version-3
 document reports endpoint delivery as uninspected; installed configuration is not proof of
 a working Agent connection.
 
-Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `site diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
+Windows `agent integration list/explain/enable/disable --provider <id>` manages Claude Code, Codex, Grok, GitHub Copilot, OpenCode, Kilo, Pi, OMP, Gemini and Qwen Code. See the [Windows integration contract](docs/windows-agent-integrations.md). Windows `server diagnose` reports read-only runtime, lock and pipe-name facts using `orchbee.site.diagnose.windows` v2. Capsule 0.4.16 supplies Claude Code, Codex, Grok and GitHub Copilot hooks and JavaScript modules using the native observation pipe and console correlation.
 Windows x64 cohorts include the pinned ConPTY runtime needed to preserve that correlation.
 Other providers retain their
 existing platform limits. `terminal send --stdin` accepts redirected regular
@@ -241,7 +250,7 @@ It is resolved from the OS system directory, never from PATH, and is terminated/
 Shell completion supports bash/zsh/fish/powershell/elvish. In PowerShell, load it explicitly with
 `Invoke-Expression (orchbee completion powershell | Out-String)`; no profile is changed.
 In interactive Elvish 0.21, use `eval (orchbee completion elvish | slurp)`; the static callback
-registers both `orchbee` and `orchbee.exe` without querying a Site or modifying profiles.
+registers both `orchbee` and `orchbee.exe` without querying a Session or modifying profiles.
 For Unicode pipelines in Windows PowerShell 5.1, set `$OutputEncoding = [Text.UTF8Encoding]::new($false)` in the invoking script; PowerShell chooses the bytes sent to a native command. Orchbee preserves those bytes and does not repair prior shell encoding loss.
 `orchbee --skill` prints the embedded [Agent guide](docs/cli-agent-skill.md) offline. Operating-system service
 installation, release signing, automatic application updates, and live Host adoption remain outside these commands.
@@ -266,8 +275,8 @@ and verifies its declared payload digest before writing the manifest;
 existing output directories are rejected. `--cargo-target-dir <absolute-directory>` can reuse a
 Cargo build cache. This stages a development cohort without installing a system service.
 
-The default Site is `/tmp/orchbee-native-<effective-uid>` on Linux and
-`/private/tmp/orchbee-native-<effective-uid>` on macOS. Development/tests can isolate a Site by
+The default Session is `/tmp/orchbee-native-<effective-uid>` on Linux and
+`/private/tmp/orchbee-native-<effective-uid>` on macOS. Development/tests can isolate a Session by
 setting `ORCHBEE_RUNTIME_BASE` to another existing absolute directory on an admitted local filesystem.
 The [shared runtime contract](../../crates/local-site-runtime/README.md) owns the 0700 directory,
 0600 locks/sockets/immutable attempt marker, exact four-executable cohort with its declared
@@ -279,7 +288,7 @@ feedback and current controlling geometry. The worker restores the ordinary requ
 consuming the Ready reply. Undrawn FrameApplied feedback is never sent early; NeedSnapshot recovery
 feedback may advance initial frame acquisition.
 
-The Client never restarts or adopts a failed Site. Failed/residual runtimes explicitly require
+The Client never restarts or adopts a failed Session. Failed/residual runtimes explicitly require
 recovery and are not deleted automatically. `Ctrl+B q` or `Ctrl+B d` closes only this Client;
 reopening attaches to the same retained shell. Additional concurrent Clients are read-only unless
 they acquire an independent controller grant. On Windows, `Ctrl+B t` explicitly takes control of
@@ -532,7 +541,7 @@ actions are handled by the native Session described above.
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Admission   | The staged Unix adapter requires inherited stdin and stdout to be TTYs with the same terminal-device identity, duplicates only those admitted descriptors, and reads cell and pixel dimensions from the duplicated stdout descriptor. It has no `/dev/tty`, global Crossterm size, or process fallback.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Lifecycle   | One staged guard owns raw mode, the alternate screen, and cursor visibility. It marks cleanup responsibility before an operation may partially succeed, retains each flag until its inverse succeeds, and attempts each failed inverse at most twice before returning one aggregate error. A process-lifetime singleton panic hook dispatches only when the panicking thread is the active guard's owner, so another thread cannot clear a setup lease before its terminal state is saved; guard drop does not remove a later hook. Normal return, initialization/event/draw failure, owner-thread panic, and each of `SIGHUP`/`SIGINT`/`SIGQUIT`/`SIGTERM` have deterministic restoration or signal-observation evidence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Client View | One invocation owns prefix mode, viewport class, sidebar projection, active overlay, and transient notice. It owns no shared Tab, Panel, Workspace, Site, or Terminal fact and persists nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Client View | One invocation owns prefix mode, viewport class, sidebar projection, active overlay, and transient notice. It owns no shared Tab, Panel, Workspace, Session, or Terminal fact and persists nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Layout      | The [shell layout](docs/tui-shell-layout.md) owns viewport tiers, bounded sidebar width and terminal geometry. On Windows, the sidebar nests Agents under their exact Workspace or Standalone owner in one scrollable tree; disclosure preserves terminal selection and keyboard ownership. Tab-strip and sidebar `+` controls reuse existing create actions and menus. Canonical Panel identities and terminal ownership remain unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Input       | The staged adapter polls and reads at most 4,096 raw bytes at a time from the admitted stdin descriptor. A bounded legacy decoder turns the stream into typed items — a UTF-8 scalar, a CSI/SS3 or kitty-`u` key, an atomic bracketed-paste run, or one non-decision sequence. Each collecting frame (ESC wait, CSI/SS3, UTF-8 scalar, paste run) owns its bytes across reads under a bounded injected wait; a frame opened inside a captured packet keeps that owned provenance even when it completes in a later read, an over-bound or timed-out frame drains to a reliable boundary instead of leaking its tail into bindings, and a paste run pairs only with the terminator matching its opener's notation. The legacy decoder emits exactly one rejection for invalid UTF-8, over-bound and timed-out pasted runs with no retained raw payload, then drains silently to that terminator; the pane receives no rejected fragments and an armed prefix remains armed. Attach and text editors retain their existing refusal feedback; ordinary pane and prefix dispatch add no global notice. Every completed read is dispatched in order before any subsequent signal, viewport query, or resize decision can terminate that loop iteration. `Ctrl+B` enters visible prefix mode. `b`, `w`, `?`, `q`, and `d` drive local shell state or exit; connected `c`, Tab selection, and `h`/`j`/`k`/`l` actions are handled by the Native Session. Outside prefix, resize mode and exclusive capture, ordinary bytes—including `Ctrl+C`, `Ctrl+D`, escape sequences, UTF-8, and input while nonmodal shortcut Help is visible—reach an injectable terminal-input port byte-for-byte in order; a lone `Esc` forwards only after a bounded wait, and prefix then `Ctrl+B` forwards one literal byte. |
 | Outcome     | The shell consumes its prepared Session. Bootstrap owns activation; Server owns terminal identity; Host owns terminal lifetime. The shell does not mutate Workbench state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -573,7 +582,7 @@ The accepted local-terminal milestone gives the private TUI an actual consumer o
 `run_connected` receives an already admitted Client and explicit create-or-attach intent. It does
 not select an endpoint, activate services, change public grammar, or publish shared Workbench facts.
 A real process/PTY witness renders a Server/Worker/Host terminal through this adapter;
-bare Linux startup enters the same prepared shell after bounded Site activation.
+bare Linux startup enters the same prepared shell after bounded Session activation.
 
 The following record retains the test-only private Create/Attach adapter. Its implementation lives
 under [`terminal_session/tests/legacy.rs`](src/terminal_session/tests/legacy.rs) and supports the
@@ -636,51 +645,51 @@ used as authority.
 
 Only help/version/usage one-shot routes use standard-library arguments, environment, and streams alone. Bare Windows, Linux, and macOS invocation composes the shared runtime, private Client transport, and TUI; platform adapters own console and transport effects. The native application owns the current development CLI/TUI surface.
 
-## POSIX local Site rendezvous foundation
+## POSIX local Session rendezvous foundation
 
 Shared ownership and the complete primitive modeling record are maintained by
 [local-site-runtime](../../crates/local-site-runtime/README.md); the application keeps no duplicate implementation.
 
-## Accepted local Site activation modeling record
+## Accepted local Session activation modeling record
 
-| Field        | Accepted refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | Two concurrent local `orchbee` TUI invocations must coordinate through one Site activation attempt without either becoming the Server or Worker's lifetime supervisor. A present compatible Site should require no launch; an absent Site should start at most one exact installed cohort; every non-success outcome must be explicit.                                                                                                                                                    |
-| Inputs       | Two Client invocation slots; TUI, help, and version intent; an initial Site observation of absent, compatible-ready, incompatible, or partial; one activation-lock result; the exact installed Server-plus-Worker cohort capability; typed readiness, incompatibility, partial-cohort, and launcher-failure observations; and an abstract monotonic total-deadline expiry. External process outcomes are untrusted and may never arrive.                                                  |
-| Data         | Per-Client phase, typed result, and connection path; one optional activation-lock owner; a zero-or-one launch count and exact-installed cohort tag; Site and typed-readiness state; and a Site-owned ready-service lifetime marker. No PID, path, runtime-base, scope, ACL, process tree, cleanup record, recovery identity, service-manager unit, or numeric time value exists.                                                                                                          |
-| Outputs      | A compatible present Site connects directly. An absent Site lets one lock owner start the exact installed cohort while a contender waits for typed readiness. Success connects and releases the caller's activation resource. Incompatible Site, partial cohort, launcher failure, and deadline expiry are distinct failures. Help and version complete without discovery or activation. Client exit ends only that Client.                                                               |
-| Invariants   | Every TUI path attempts connection before activation; the activation owner is singular; the launch count is at most one and every launch is the exact installed cohort under the lock; a contender becomes a readiness waiter; only a ready compatible Site can produce a connection; settled Clients own no activation resource; ready-service lifetime belongs to the Site; failures and Client exit never stop or rewrite Site state; and help/version preserve every activation fact. |
-| Decisions    | Invocation kind determines whether Site work is permitted. Connection observation distinguishes direct success, absent activation, incompatible failure, and partial-cohort failure. After absence, lock ownership distinguishes launcher from waiter; a lock winner rechecks Site state before launching. Typed readiness, typed failure, or the Client-owned total deadline settles each waiter. Deadline observation may win until connection completes.                               |
-| Model        | A bounded workflow over exactly two Client slots and four supported initial Site classes. One scalar `activationOwner` models `activation.lock`; `launchCount` and `launchedCohort` expose singleton exact-cohort launch; `serviceLifetimeOwner` distinguishes the ready Site from every Client. External launcher/readiness actions are nondeterministic and have no fairness assumption.                                                                                                |
-| Transitions  | `idle -> connecting -> connected` for a present compatible Site; `connecting -> failed` for present incompatible or partial state; `connecting -> lock-ready -> lock-held -> waiting-readiness` for the launch winner; `lock-ready -> waiting-readiness` for contention; waiting or recheck states settle as connected or one typed failure; `connected -> exited` preserves Site state. Help/version go directly from `idle` to information completion.                                  |
-| Dependencies | The model composes the accepted command contract with the current private `LocalClient` admission boundary and `ModeCheckedLocalSiteRendezvous` lock semantics only at their named abstractions. Future runtime refinement must supply installation-owned cohort selection, typed readiness, and one monotonic total deadline. This slice adds no process, socket, filesystem, localization, or public-command implementation.                                                            |
-| Ownership    | `apps/orchbee` owns the Client bootstrap workflow, deadline, activation guard, and typed Client result. Installation composition owns the exact cohort capability. Server and Worker own their readiness and service lifetimes after success. The model grants no Client authority to supervise, stop, replace, downgrade, clean up, or recover a Site.                                                                                                                                   |
-| Verification | Startup state, deadline and real-process tests cover supported initial Site classes, competing Clients, exact-cohort launch, existing service preservation and failure settlement. The shared LocalSiteStartup core supplies only its separately declared bounded protocol evidence.                                                                                                                                                                                                      |
-| Correctness  | Claims LA-01 through LA-05 remain behavioral requirements for startup and admission. Controlled deadline and process traces must demonstrate settlement without assuming an external process responds. The retired activation workflow supplies no current TLC proof.                                                                                                                                                                                                                     |
-| Limits       | The abstraction proves only the checked two-Client, one-Site state space. It does not prove runtime refinement, operating-system scheduling, process creation or detachment, daemonization, service-manager behavior, runtime base or scope, ACLs, socket metadata, cleanup, recovery, retry, update, a concrete deadline or progress threshold, localization, TUI behavior, packaging, public wiring, or external process progress.                                                      |
+| Field        | Accepted refinement target                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | Two concurrent local `orchbee` TUI invocations must coordinate through one Session activation attempt without either becoming the Server or Worker's lifetime supervisor. A present compatible Session should require no launch; an absent Session should start at most one exact installed cohort; every non-success outcome must be explicit.                                                                                                                                                    |
+| Inputs       | Two Client invocation slots; TUI, help, and version intent; an initial Session observation of absent, compatible-ready, incompatible, or partial; one activation-lock result; the exact installed Server-plus-Worker cohort capability; typed readiness, incompatibility, partial-cohort, and launcher-failure observations; and an abstract monotonic total-deadline expiry. External process outcomes are untrusted and may never arrive.                                                        |
+| Data         | Per-Client phase, typed result, and connection path; one optional activation-lock owner; a zero-or-one launch count and exact-installed cohort tag; Session and typed-readiness state; and a Session-owned ready-service lifetime marker. No PID, path, runtime-base, scope, ACL, process tree, cleanup record, recovery identity, service-manager unit, or numeric time value exists.                                                                                                             |
+| Outputs      | A compatible present Session connects directly. An absent Session lets one lock owner start the exact installed cohort while a contender waits for typed readiness. Success connects and releases the caller's activation resource. Incompatible Session, partial cohort, launcher failure, and deadline expiry are distinct failures. Help and version complete without discovery or activation. Client exit ends only that Client.                                                               |
+| Invariants   | Every TUI path attempts connection before activation; the activation owner is singular; the launch count is at most one and every launch is the exact installed cohort under the lock; a contender becomes a readiness waiter; only a ready compatible Session can produce a connection; settled Clients own no activation resource; ready-service lifetime belongs to the Session; failures and Client exit never stop or rewrite Session state; and help/version preserve every activation fact. |
+| Decisions    | Invocation kind determines whether Session work is permitted. Connection observation distinguishes direct success, absent activation, incompatible failure, and partial-cohort failure. After absence, lock ownership distinguishes launcher from waiter; a lock winner rechecks Session state before launching. Typed readiness, typed failure, or the Client-owned total deadline settles each waiter. Deadline observation may win until connection completes.                                  |
+| Model        | A bounded workflow over exactly two Client slots and four supported initial Session classes. One scalar `activationOwner` models `activation.lock`; `launchCount` and `launchedCohort` expose singleton exact-cohort launch; `serviceLifetimeOwner` distinguishes the ready Session from every Client. External launcher/readiness actions are nondeterministic and have no fairness assumption.                                                                                                   |
+| Transitions  | `idle -> connecting -> connected` for a present compatible Session; `connecting -> failed` for present incompatible or partial state; `connecting -> lock-ready -> lock-held -> waiting-readiness` for the launch winner; `lock-ready -> waiting-readiness` for contention; waiting or recheck states settle as connected or one typed failure; `connected -> exited` preserves Session state. Help/version go directly from `idle` to information completion.                                     |
+| Dependencies | The model composes the accepted command contract with the current private `LocalClient` admission boundary and `ModeCheckedLocalSiteRendezvous` lock semantics only at their named abstractions. Future runtime refinement must supply installation-owned cohort selection, typed readiness, and one monotonic total deadline. This slice adds no process, socket, filesystem, localization, or public-command implementation.                                                                     |
+| Ownership    | `apps/orchbee` owns the Client bootstrap workflow, deadline, activation guard, and typed Client result. Installation composition owns the exact cohort capability. Server and Worker own their readiness and service lifetimes after success. The model grants no Client authority to supervise, stop, replace, downgrade, clean up, or recover a Session.                                                                                                                                         |
+| Verification | Startup state, deadline and real-process tests cover supported initial Session classes, competing Clients, exact-cohort launch, existing service preservation and failure settlement. The shared LocalSiteStartup core supplies only its separately declared bounded protocol evidence.                                                                                                                                                                                                            |
+| Correctness  | Claims LA-01 through LA-05 remain behavioral requirements for startup and admission. Controlled deadline and process traces must demonstrate settlement without assuming an external process responds. The retired activation workflow supplies no current TLC proof.                                                                                                                                                                                                                              |
+| Limits       | The abstraction proves only the checked two-Client, one-Session state space. It does not prove runtime refinement, operating-system scheduling, process creation or detachment, daemonization, service-manager behavior, runtime base or scope, ACLs, socket metadata, cleanup, recovery, retry, update, a concrete deadline or progress threshold, localization, TUI behavior, packaging, public wiring, or external process progress.                                                            |
 
-| Transition owner     | Event and guard                                                      | Result                                                                                                                          |
-| -------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Invocation           | Help or version                                                      | Information completion; Site, lock, launch, readiness, and service-lifetime facts are unchanged                                 |
-| Client connection    | Compatible Site is already ready                                     | Direct Client connection; no activation resource or launch                                                                      |
-| Client connection    | Site is incompatible or partial                                      | Corresponding typed failure; no activation or Site mutation                                                                     |
-| Activation contender | Initial connection finds no ready Site and `activation.lock` is held | Wait for the same typed readiness result under the caller's total deadline                                                      |
-| Activation winner    | Lock acquired, recheck still finds absence, no launch exists         | Start exactly one installed Server-plus-Worker cohort and wait while retaining the guard                                        |
-| Activation winner    | Recheck finds ready, in-progress, incompatible, partial, or failed   | Connect, release and wait, or fail according to the exact observation; never start a second cohort                              |
-| External cohort      | Launch is pending                                                    | May publish ready, incompatible, partial, launcher failure, or no result at all; no external completion is fair                 |
-| Pending Client       | Typed result or total deadline is observed                           | Connect or return `incompatible`, `partial-cohort`, `launcher-failure`, or `timeout`; release any caller-owned activation guard |
-| Connected Client     | Client exits                                                         | End only the Client Session; preserve Site, cohort, readiness, launch, and service-lifetime state                               |
+| Transition owner     | Event and guard                                                         | Result                                                                                                                          |
+| -------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Invocation           | Help or version                                                         | Information completion; Session, lock, launch, readiness, and service-lifetime facts are unchanged                              |
+| Client connection    | Compatible Session is already ready                                     | Direct Client connection; no activation resource or launch                                                                      |
+| Client connection    | Session is incompatible or partial                                      | Corresponding typed failure; no activation or Session mutation                                                                  |
+| Activation contender | Initial connection finds no ready Session and `activation.lock` is held | Wait for the same typed readiness result under the caller's total deadline                                                      |
+| Activation winner    | Lock acquired, recheck still finds absence, no launch exists            | Start exactly one installed Server-plus-Worker cohort and wait while retaining the guard                                        |
+| Activation winner    | Recheck finds ready, in-progress, incompatible, partial, or failed      | Connect, release and wait, or fail according to the exact observation; never start a second cohort                              |
+| External cohort      | Launch is pending                                                       | May publish ready, incompatible, partial, launcher failure, or no result at all; no external completion is fair                 |
+| Pending Client       | Typed result or total deadline is observed                              | Connect or return `incompatible`, `partial-cohort`, `launcher-failure`, or `timeout`; release any caller-owned activation guard |
+| Connected Client     | Client exits                                                            | End only the Client Session; preserve Session, cohort, readiness, launch, and service-lifetime state                            |
 
 This model abstracts runtime refinement; `LocalSiteStartup` supplies the concrete startup safety case.
 Future wiring must add deterministic process tests before claiming the model maps to implementation.
 
-| Claim                                                                                                    | Bound                                                                                                                                                       |
-| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LA-01: every activating TUI connects first; present compatible, help, and version paths never launch.    | Models command intent and abstract observations, not parser, transport, or process refinement.                                                              |
-| LA-02: concurrent absence produces at most one exact installed-cohort launch under one lock.             | Exactly two Client slots and one activation round; no runtime-base, lock-file, or process implementation claim.                                             |
-| LA-03: incompatibility, partial cohort, launcher failure, and timeout are explicit and do not stop Site. | Failure presentation, cleanup, recovery, retry, and stale-artifact policy remain excluded.                                                                  |
-| LA-04: connection releases Client activation ownership; Client exit does not supervise or stop Site.     | Models ready-service ownership only; it does not select how processes detach or how service lifetime is implemented.                                        |
-| LA-05: every started TUI settles without assuming that an external process responds.                     | Assumes the future adapter actually guarantees observation of one finite monotonic total deadline; no numerical value, OS scheduling, or external liveness. |
+| Claim                                                                                                       | Bound                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LA-01: every activating TUI connects first; present compatible, help, and version paths never launch.       | Models command intent and abstract observations, not parser, transport, or process refinement.                                                              |
+| LA-02: concurrent absence produces at most one exact installed-cohort launch under one lock.                | Exactly two Client slots and one activation round; no runtime-base, lock-file, or process implementation claim.                                             |
+| LA-03: incompatibility, partial cohort, launcher failure, and timeout are explicit and do not stop Session. | Failure presentation, cleanup, recovery, retry, and stale-artifact policy remain excluded.                                                                  |
+| LA-04: connection releases Client activation ownership; Client exit does not supervise or stop Session.     | Models ready-service ownership only; it does not select how processes detach or how service lifetime is implemented.                                        |
+| LA-05: every started TUI settles without assuming that an external process responds.                        | Assumes the future adapter actually guarantees observation of one finite monotonic total deadline; no numerical value, OS scheduling, or external liveness. |
 
 ## Measurement
 
@@ -699,10 +708,10 @@ performance.
 The current Linux reference on 2026-09-07 used source commit `ac620e35`, x86_64 WSL2,
 Linux 6.18.33.2, Rust 1.97.0, the default Cargo release profile and the same-cohort Zig ReleaseSafe
 Host. Python 3.14.4 drove 5 version warmups and 50 version samples, plus a 120×32-cell,
-960×640-pixel PTY over 5 fresh Sites and 3 reopens per Site. The isolated invocation environment
+960×640-pixel PTY over 5 fresh Sessions and 3 reopens per Session. The isolated invocation environment
 contained only account HOME/USER/LOGNAME, Cargo and standard executable paths, repository-root PWD,
 `LANG=LC_ALL=en_US.UTF-8`, `SHELL=/usr/bin/zsh`, `TERM=xterm-256color`, and a unique
-`ORCHBEE_RUNTIME_BASE`. The filesystem cache is warm; a fresh Site does not imply a cold OS cache.
+`ORCHBEE_RUNTIME_BASE`. The filesystem cache is warm; a fresh Session does not imply a cold OS cache.
 
 The recorded interface timing spans Client spawn to a complete draw containing `[*1 1]` and the former bottom-row
 `Tab 1 · Ready · controlling` footer, downstream of the full-frame draw, exact FrameApplied /
@@ -722,8 +731,8 @@ different readiness witnesses; these observations are not a strict before/after 
 | Client executable size                                           | 2,989,768 bytes                  |
 | Version startup min / p50 / p95 / max                            | 0.791 / 0.834 / 1.176 / 1.406 ms |
 | Version peak resident memory                                     | 2,818,048 bytes                  |
-| Fresh Site complete Ready frame p50 / p95 (5 samples)            | 485.526 / 501.903 ms             |
-| Warm Site complete Ready frame p50 / p95 (15 samples)            | 439.502 / 486.007 ms             |
+| Fresh Session complete Ready frame p50 / p95 (5 samples)         | 485.526 / 501.903 ms             |
+| Warm Session complete Ready frame p50 / p95 (15 samples)         | 439.502 / 486.007 ms             |
 | Client peak resident memory through Ready p50 / max (20 samples) | 4,792,320 / 4,894,720 bytes      |
 
 These are host observations, not performance promises or direct comparisons with another OS,
@@ -772,7 +781,7 @@ limits, early stdin closure, admission cancellation, peer joining and retained d
 
 Set `ORCHBEE_TEST_NATIVE_COHORT` to an absolute staged directory to run the same real-process
 acceptance suite against the actual release artifacts. Fixtures validate that cohort and copy it
-into isolated directories; tests do not change the source cohort or default Site.
+into isolated directories; tests do not change the source cohort or default Session.
 
 ```sh
 ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test local_startup_process --locked
@@ -800,14 +809,14 @@ change as the engine behavior it pins; a new provider adds one file under
 
 The private connected TUI accepts `TerminalIntent::Standalone`. It submits one
 `submit_terminal_open` and requires Opened, then reads a correlated OBWP snapshot on that same
-admitted connection. It uses the snapshot's exact Site/Worker/Server-terminal binding to submit
+admitted connection. It uses the snapshot's exact Session/Worker/Server-terminal binding to submit
 OBCS `attach-binding`; the Open create reference remains an explicit legacy value and does not
-select this viewer. Bare Linux and macOS invocation consume this path through verified local Site
+select this viewer. Bare Linux and macOS invocation consume this path through verified local Session
 activation and Worker lazy Host startup. Explicit Create and Attach intents keep their existing
 Create-reference attachment behavior.
 
 Bare Windows startup first reads canonical membership and resolves its saved selection or
-eligible empty-Site [directory creation](docs/native-directory-startup.md). Existing Sites without
+eligible empty-Session [directory creation](docs/native-directory-startup.md). Existing Sessions without
 a saved position use standalone Open followed by a fresh snapshot. These paths share this
 bootstrap/attachment owner and the original deadline.
 
@@ -841,7 +850,7 @@ I/O owner; Workbench request IDs remain distinct from OBCS correlation and logic
 
 There is no snapshot-read retry. Existing controller and projection admission still follow
 attachment, and binding possession grants no controller authority. Equal encoded bytes across
-distinct Site/Worker/Terminal identity domains remain valid; each field is independently typed
+distinct Session/Worker/Terminal identity domains remain valid; each field is independently typed
 and validated.
 
 The [Server-owned record](../orchbee-server/docs/workbench-authority.md#terminal-selection-from-workbench-bindings)
@@ -875,13 +884,13 @@ and bounded; see command help and [the native CLI contract](docs/native-cli-quer
 
 Targeted Agent commands also accept `--panel <id|@panel:suffix>` or a positional Panel ID. Session IDs and names take precedence over positional Panel fallback. Panels select their primary terminal and require one live Agent; waits pin the selected Session.
 
-## Windows explicit Site stop
+## Windows explicit Session stop
 
-`site stop --confirm` ends the existing managed Windows Site and its terminal processes. Use `--detach` for admission only and retain the returned ID for `site stop-status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `site start` consumes that record and creates a fresh Site. See the [CLI stop contract](docs/native-cli-query.md#windows-site-stop). No Linux/macOS stop runtime is implemented.
+`server stop --confirm` ends the existing managed Windows Session and its terminal processes. Use `--detach` for admission only and retain the returned ID for `server stop-status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `server start` consumes that record and creates a fresh Session. See the [CLI stop contract](docs/native-cli-query.md#windows-session-stop). No Linux/macOS stop runtime is implemented.
 
 ## Windows Worktree operations
 
-`worktree create/open/remove/status/resume` now uses retained Server operations and Windows Worker Git execution. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Site. Create/Open accept optional `--focus` and exact `--client`; default `--no-focus` keeps the view. List/Create/Open follow the validated caller or selected TUI context when source is omitted.
+`worktree create/open/remove/status/resume` now uses retained Server operations and Windows Worker Git execution. The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation, partial outcomes and recovery. These commands do not activate a Session. Create/Open accept optional `--focus` and exact `--client`; default `--no-focus` keeps the view. List/Create/Open follow the validated caller or selected TUI context when source is omitted.
 
 ## Windows Workspace group Close
 
@@ -893,7 +902,7 @@ Windows CLI Panel/Tab/Workspace Close captures and settles every bound primary a
 
 [Windows Client view control](docs/windows-client-control.md) owns `client list/get/control-status`, `workspace focus`, `tab focus`, `panel focus` and `panel zoom`. Navigation targets one current TUI via `--client` or unambiguous validated caller context. It submits once and waits for a drawn acknowledgement; timeout or Ctrl+C stops waiting only. Single-panel zoom has an explicit no-op receipt. Catalog v68 includes 76 schemas, adding `orchbee.client.view`, `orchbee.client.control` and `orchbee.cli.failure.client-control`, all v1. No operating-system window activation or Mac/Linux control runtime is added.
 
-Windows process tests execute the emitted completion in Git for Windows Bash, found relative to `git --exec-path`; that installed Bash is required for this witness. Conflicting flags are checked before and after their command verb without contacting a Site. PowerShell has a separate real-shell grammar witness.
+Windows process tests execute the emitted completion in Git for Windows Bash, found relative to `git --exec-path`; that installed Bash is required for this witness. Conflicting flags are checked before and after their command verb without contacting a Session. PowerShell has a separate real-shell grammar witness.
 
 ## Windows schema export
 
@@ -951,11 +960,11 @@ Detection remains plain text. It does not reproduce original PTY bytes, hyperlin
 The render request and prepared output each keep their existing 8 MiB bounds; oversized render
 resources fail without a fallback or retry. See the [output contract](docs/native-terminal-output.md).
 
-Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Site. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
+Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
 
 ## Agent navigation
 
-Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission. Explicit `--session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. Starting or Unavailable Clients fail with `client-not-ready` before Agent reads; Busy permits the Client-owned cancellable-mode preflight. The [Agent navigation contract](docs/native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. Successful explicit focus acknowledges current known Agent versions in the selected Tab even when the outer terminal is unfocused. Ordinary paint still requires host focus. `agent attention <target> [--client <id>]` reads that Client independently without marking it seen.
+Windows `agent focus <target> [--client <id>]` resolves a name, session or Panel to its unique live primary Panel before one Client control submission. Explicit `--agent-session`, `--name` and `--panel` selectors use the existing resolver; `--request-id`, `--detach` and the 30000 ms total default timeout retain the common navigation recovery contract. Starting or Unavailable Clients fail with `client-not-ready` before Agent reads; Busy permits the Client-owned cancellable-mode preflight. The [Agent navigation contract](docs/native-agent-navigation.md) defines primary binding, ambiguity, cancellation and retained operation status. Successful explicit focus acknowledges current known Agent versions in the selected Tab even when the outer terminal is unfocused. Ordinary paint still requires host focus. `agent attention <target> [--client <id>]` reads that Client independently without marking it seen.
 
 Windows host focus reporting is owned by [native Client attention](docs/native-client-attention.md); focus reports are Client metadata and never terminal text. The attention/CLI acknowledgement integration remains under development.
 
@@ -981,11 +990,11 @@ Windows `workspace create` accepts omitted Project, label and cwd, resolves sour
 
 Shared application and terminal themes apply to the native TUI from the same preference authority as Desktop. Legacy Windows theme values are migration inputs. See [native themes](docs/native-themes.md).
 
-`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. `[session] resume_agents_on_restore` controls Agent resume on the next Site start, default true; the exact true/false environment override wins. `config check` JSON v3 reports its effective value and source. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
+`config check` also validates `APPDATA/Orchbee/config.toml`, with an absolute `ORCHBEE_CONFIG_FILE` override. `[terminal] new_cwd` sets creation cwd defaults; `[worktrees] directory` selects the checkout root. `[session] resume_agents_on_restore` controls Agent resume on the next Session start, default true; the exact true/false environment override wins. `config check` JSON v3 reports its effective value and source. Explicit command arguments override valid settings. See [configuration and precedence](docs/windows-cli-configuration.md). Windows CLI reads each invocation; common TUI/CLI activation reads startup policy before commitment. Direct TUI creation and Server reload are separate capabilities.
 
 ## Windows terminal observation stream
 
-`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](docs/windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v2 records. Catalog v68 has 76 schemas and 90 native command paths. Machine control now accepts NDJSON input through `terminal session control`; interactive `terminal attach <terminal>` or `agent attach --name <name>` requires console stdin/stdout and uses the actual console size. Both accept `--takeover`, `--mouse on|off` and an optional total `--timeout`. `Ctrl+B`, then `q`, detaches; a double prefix sends one literal prefix. Paste cannot trigger detach. Output stays interactive with either global format. No Site start, Workbench focus change, reconnect or input replay occurs.
+`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` emits NDJSON from one existing binding without control or Host resizing. The [stream contract](docs/windows-terminal-streams.md) owns full safe ANSI frames, resets, flush-before-ACK, deadlines and cleanup. Default viewport: 120×40; default duration: unlimited. Both output formats emit `orchbee.terminal.stream` v2 records. Catalog v68 has 76 schemas and 90 native command paths. Machine control now accepts NDJSON input through `terminal session control`; interactive `terminal attach <terminal>` or `agent attach --name <name>` requires console stdin/stdout and uses the actual console size. Both accept `--takeover`, `--mouse on|off` and an optional total `--timeout`. `Ctrl+B`, then `q`, detaches; a double prefix sends one literal prefix. Paste cannot trigger detach. Output stays interactive with either global format. No Session start, Workbench focus change, reconnect or input replay occurs.
 
 ## Workspace metadata integration
 
@@ -997,13 +1006,13 @@ Windows `panel report-agent`, `report-agent-session`, `clear-agent-authority` an
 
 ## Windows CLI notifications
 
-`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on the running Site. Configure `[ui.toast] delivery="orchbee"` for cards, `terminal` or `system` for external delivery; the default is `off`. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
+`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on the running Session. Configure `[ui.toast] delivery="orchbee"` for cards, `terminal` or `system` for external delivery; the default is `off`. Use `--format json` for the closed delivery receipt. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance is queue admission, not a display or sound acknowledgement.
 
 ## Windows outer terminal title
 
 `orchbee terminal title set "Build workspace"` publishes an override for the foreground main TUI; `orchbee terminal title clear` returns to the live `ui.window_title` template (fallback `Orchbee`). Both accept `--format json` and retain publication when no Client is connected. See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and physical-host limits.
 
-Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the shared user catalog offline. `plugin action invoke` submits owned commands to an existing Site; `plugin log list` reads retained results. See [Windows plugins](docs/windows-plugins.md) for context, process ownership, bounded output, managed install/uninstall and remaining hook/Pane integration. A start receipt confirms admission; logs report execution results.
+Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action list` manage the shared user catalog offline. `plugin action invoke` submits owned commands to an existing Session; `plugin log list` reads retained results. See [Windows plugins](docs/windows-plugins.md) for context, process ownership, bounded output, managed install/uninstall and remaining hook/Pane integration. A start receipt confirms admission; logs report execution results.
 
 ## Windows Panel graphics commands
 

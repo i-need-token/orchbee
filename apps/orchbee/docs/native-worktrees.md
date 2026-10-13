@@ -57,7 +57,7 @@ from the listing.
 Project labels and grouping are metadata, not physical repository identity. Source revalidation
 uses stable Workspace/context/directory/Worker identity and the exact terminal binding.
 A regroup during Git preparation does not invalidate that source. At attachment, Server resolves
-the source's current group under the Site gate and commits a new group, source membership,
+the source's current group under the Session gate and commits a new group, source membership,
 new Workspace and first terminal structure together when needed. Closing the source refuses
 attachment without resurrecting it; already known Git effects remain in the partial result.
 There is no preliminary Client-owned Default Project creation or empty Project left by that step.
@@ -68,7 +68,7 @@ There is no preliminary Client-owned Default Project creation or empty Project l
 | ------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | Hidden → prepare                     | Capture current semantic origin; read source and listing without mutation                       |
 | Prepared Create → Start              | Still-current visible intent authorizes one plan using defaults; no second confirmation         |
-| Prepared Open → list                 | Exact source, Site, non-stale revision and stable checkout paths                                |
+| Prepared Open → list                 | Exact source, Session, non-stale revision and stable checkout paths                             |
 | Choose Open                          | A complete current draw token and decoded packet authorize that exact choice                    |
 | Cancel preparation or list           | Drop unsubmitted intent; late discovery cannot start an operation                               |
 | Start → observe                      | Retain one operation identity before fallible result consumption; uncertainty permits only Read |

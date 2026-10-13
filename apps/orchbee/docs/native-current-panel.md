@@ -6,7 +6,7 @@ This reference owns Windows target selection and process lifetime for `panel cur
 `panel process-info`. [Native CLI queries](native-cli-query.md) owns their result projections;
 [Windows Client control](windows-client-control.md) owns Client records and routing failures.
 The existing caller resolver owns Terminal/Worker identity validation. These commands observe an
-existing Site; they never activate it or change selection, input, geometry, or control authority.
+existing Session; they never activate it or change selection, input, geometry, or control authority.
 
 ## Target model
 

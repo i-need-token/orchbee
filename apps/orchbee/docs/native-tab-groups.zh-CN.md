@@ -75,7 +75,7 @@ GUI 选择则可以同时激活被标记的 Tab。
 Tab 子菜单保留键盘选择与移动能力；Shift 手势属于宿主。
 移至新窗口禁用，并显示宿主能力说明。
 
-`tui_pointer::tabs::TabDrag` 仅按最后一次成功绘制的精确 Site／revision、context、
+`tui_pointer::tabs::TabDrag` 仅按最后一次成功绘制的精确 Session／revision、context、
 有序元数据和 token 矩形准入无修饰左键按下。横向移动两个单元格或改变行位置后，
 显示静态拾取高亮和插入标记，终端输出继续。移动仅影响本地预览。
 有效左键释放只发送一次 `move-tabs-by-drag`，携带有界所选 ID 集合、原顺序插入边界
@@ -142,7 +142,7 @@ Authority 在运行时效果前检查精确源／组、revision、Close 栅栏�
 它报告已提交请求、元数据提交及终端启动的数量，不声明批量全有或全无，也不新增批量命令。
 
 私有所选复制状态将整个序列限制为 120 秒。每个既有 50 秒 Create 预算受这个绝对期限约束，
-保留一次五秒清理预留。每次 Start 前比较完整 Site Snapshot、context、标记及所选具体
+保留一次五秒清理预留。每次 Start 前比较完整 Session Snapshot、context、标记及所选具体
 PaneRef／Presentation／绑定；revision CAS 仍为准入权威。只有精确后继版本及纯单个复制转换，
 且无关 context／分组保持不变，才能继续序列。
 

@@ -73,8 +73,8 @@ The default Worker launch declares `TERM=xterm-256color`, `COLORTERM=truecolor` 
 
 For a controlled color comparison, remove only known automation-injected color policy from the
 fixture environment **before** starting its isolated Server, Worker, Host and Client. Opening a
-new Client against an existing Site cannot update the retained Host’s environment. Do not restart
-an unrelated user Site to obtain a clean fixture. Read the resulting environment inside a fresh
+new Client against an existing Session cannot update the retained Host’s environment. Do not restart
+an unrelated user Session to obtain a clean fixture. Read the resulting environment inside a fresh
 child terminal; changing just the frontend environment is insufficient.
 
 Compare the same application version, configuration and content in GUI, TUI and a reference

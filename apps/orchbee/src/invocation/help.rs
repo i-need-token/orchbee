@@ -265,7 +265,7 @@ const HELP_PATHS: &[HelpPath] = &[
         HelpTopic::Command(CommandPath::TerminalControl),
     ),
     HelpPath::new(&["api"], HelpTopic::Family(Family::Api)),
-    HelpPath::new(&["site"], HelpTopic::Family(Family::Site)),
+    HelpPath::new(&["server"], HelpTopic::Family(Family::Server)),
     HelpPath::new(&["config"], HelpTopic::Family(Family::Config)),
     #[cfg(windows)]
     HelpPath::new(&["channel"], HelpTopic::Family(Family::Channel)),
@@ -610,7 +610,7 @@ const HELP_PATHS: &[HelpPath] = &[
         HelpTopic::Command(CommandPath::ConfigImportHerdr),
     ),
     HelpPath::new(
-        &["site", "start"],
+        &["server", "start"],
         HelpTopic::Command(CommandPath::SiteStart),
     ),
     #[cfg(windows)]
@@ -636,19 +636,19 @@ const HELP_PATHS: &[HelpPath] = &[
         HelpTopic::Command(CommandPath::SessionDelete),
     ),
     HelpPath::new(
-        &["site", "diagnose"],
+        &["server", "diagnose"],
         HelpTopic::Command(CommandPath::SiteDiagnose),
     ),
     HelpPath::new(
-        &["site", "update-agent-manifests"],
+        &["server", "update-agent-manifests"],
         HelpTopic::Command(CommandPath::SiteUpdateAgentManifests),
     ),
     HelpPath::new(
-        &["site", "config"],
+        &["server", "config"],
         HelpTopic::Command(CommandPath::SiteConfig),
     ),
     HelpPath::new(
-        &["site", "reload-config"],
+        &["server", "reload-config"],
         HelpTopic::Command(CommandPath::SiteReloadConfig),
     ),
     HelpPath::new(
@@ -781,20 +781,23 @@ const HELP_PATHS: &[HelpPath] = &[
         HelpTopic::Command(CommandPath::NotificationShow),
     ),
     HelpPath::new(
-        &["site", "agent-manifests"],
+        &["server", "agent-manifests"],
         HelpTopic::Command(CommandPath::SiteAgentManifests),
     ),
     HelpPath::new(
-        &["site", "reload-agent-manifests"],
+        &["server", "reload-agent-manifests"],
         HelpTopic::Command(CommandPath::SiteReloadAgentManifests),
     ),
     HelpPath::new(
-        &["site", "agent-manifests-status"],
+        &["server", "agent-manifests-status"],
         HelpTopic::Command(CommandPath::SiteAgentManifestsStatus),
     ),
-    HelpPath::new(&["site", "stop"], HelpTopic::Command(CommandPath::SiteStop)),
     HelpPath::new(
-        &["site", "stop-status"],
+        &["server", "stop"],
+        HelpTopic::Command(CommandPath::SiteStop),
+    ),
+    HelpPath::new(
+        &["server", "stop-status"],
         HelpTopic::Command(CommandPath::SiteStopStatus),
     ),
 ];

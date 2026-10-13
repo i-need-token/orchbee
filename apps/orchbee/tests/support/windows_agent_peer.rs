@@ -166,6 +166,7 @@ impl Fixture {
             .env("APPDATA", self.0.join("appdata"))
             .env_remove("ORCHBEE_CONFIG_FILE")
             .env_remove("ORCHBEE_RUNTIME_SCOPE")
+            .env_remove("ORCHBEE_SESSION")
             .env_remove("ORCHBEE_SITE")
             .env_remove("ORCHBEE_TERMINAL_ID")
             .env_remove("ORCHBEE_WORKER_ID");

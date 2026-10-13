@@ -3,7 +3,7 @@
 ## 范围与归属
 
 `terminal session observe <terminal>` 从一个既有 Windows 终端绑定输出 NDJSON。
-它不激活 Site、不启动终端、不读 stdin、不取得控制权，也不改变 Host 几何。
+它不激活 Session、不启动终端、不读 stdin、不取得控制权，也不改变 Host 几何。
 `terminal session control <terminal>` 增加独占输入、尺寸和历史命令。
 交互 attach 仍是后续依赖能力。两个命令均选择既有终端 ID／选择器。
 
@@ -12,7 +12,7 @@
 | 状态            | 动作及下一状态                                              | 权威与不变量                                                |
 | --------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
 | Parsed          | 效果前验证全部参数                                          | CLI 拥有语法；默认视口 120×40                               |
-| Admitting       | 发现既有 Site、读取 Snapshot、附着精确绑定                  | 单一五秒预算；不回退目标                                    |
+| Admitting       | 发现既有 Session、读取 Snapshot、附着精确绑定               | 单一五秒预算；不回退目标                                    |
 | Observing       | 轮询保留 Viewer、验证帧、输出并刷新记录，再确认             | TerminalProjection 拥有序号／基线／epoch 检查；输出前不 ACK |
 | Resynchronizing | 输出 reset、请求快照、恢复观察                              | 不将缺失帧区间伪装成连续流                                  |
 | Ending          | 仅尝试一次 detach、释放连接，在输出仍可写时发出一个终止记录 | 两秒清理预留；不停止底层终端                                |
@@ -85,8 +85,8 @@ reset 之后，不代表隐藏的实时帧已经显示。EOF 和 release 仅在�
 
 `terminal attach <terminal>` 和 `agent attach <target>` 是 Windows 终端界面。
 支持 `--takeover`、`--timeout <ms>` 和 `--mouse on|off`（默认 on）；Agent 选择器还支持
-`--session`、`--name` 或 `--panel`。先验证语法，再准入继承的交互 stdin/stdout。
-二者均不启动 Site、不改变 Workbench 焦点，也不回退到其他终端。Agent 解析在原始可取消
+`--agent-session`、`--name` 或 `--panel`。先验证语法，再准入继承的交互 stdin/stdout。
+二者均不启动 Session、不改变 Workbench 焦点，也不回退到其他终端。Agent 解析在原始可取消
 准入预算内选出唯一活动绑定。即使指定全局 format，输出仍是交互画面。
 
 | 阶段             | 所有者动作与释放规则                                                                      |
@@ -117,7 +117,7 @@ raw mode 下的 `Ctrl+C` 交付应用；外部控制台中断取消本次调用�
 
 确定性核心和 Windows 脚本化传输检查覆盖精确绑定、多帧、reset、部分输出、中断、到期
 和清理。管道测试须证明下游阻塞不会遗留转发进程。同作者测试不代表独立评审、TLA 执行、
-远端／命名 Site 路由、其他平台或图形流验收已完成。control 证据须覆盖
+远端／命名 Session 路由、其他平台或图形流验收已完成。control 证据须覆盖
 有序输入、部分接受、非法记录后继续、resize、release／EOF、历史反馈顺序和在途控制交换中断。
 
 清理结果在尚未尝试 Viewer attach 时为 `not-attached`，仅收到确认后为 `detached`；

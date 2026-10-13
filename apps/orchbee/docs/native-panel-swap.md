@@ -10,9 +10,9 @@ other. Panel operands use exact IDs or `@panel:<suffix>`, never labels. An omitt
 validated caller context, then the selected Client's current Panel. Explicit `--client` or the
 existing unique-Client resolver selects the TUI; ambiguous Clients are refused before mutation.
 
-This is an existing-Site Windows workflow. Its default total timeout is 30000 ms; `--timeout`
+This is an existing-Session Windows workflow. Its default total timeout is 30000 ms; `--timeout`
 admits 1 through 3600000 ms. There is no detached mode or caller-supplied workflow request ID.
-The CLI does not start a Site, create a terminal, or own durable workflow state.
+The CLI does not start a Session, create a terminal, or own durable workflow state.
 
 The Server owns canonical positions. The TUI owns focus, zoom and ratios. The CLI owns the finite
 sequence connecting those operations and its receipts. `local_client/workbench/panel_placement.rs`
@@ -22,7 +22,7 @@ No new TUI mutation mailbox or global selection authority is introduced.
 
 ## Canonical exchange
 
-`panel.swap` carries an exact Site, expected revision, request ID, context, Tab and source/target
+`panel.swap` carries an exact Session, expected revision, request ID, context, Tab and source/target
 Panel IDs. It exchanges the complete two leaf nodes at their existing positions in a cloned
 candidate. All Split and slot identities, orientation and structure remain exact. Panel and
 Presentation identities, creation/custom labels, child Presentations and terminal bindings travel
@@ -72,7 +72,7 @@ uses the fresh view revision, and input during accepted control uses existing in
 ## Receipts and recovery
 
 `orchbee.panel.swap` v1 separates target resolution, canonical submission and focus observation.
-It identifies the Site, selected Client, exact pair and submitted request IDs when known. Canonical
+It identifies the Session, selected Client, exact pair and submitted request IDs when known. Canonical
 not-submitted, refused, unchanged, committed and unknown outcomes remain distinct. Focus is either
 null before focus, or a compact record containing operationId, observation and wait. The observation
 retains the authoritative focus status (queued/delivered/applied/rejected/incomplete), direct refusal,

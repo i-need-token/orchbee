@@ -475,7 +475,7 @@ deadline，`tick` 错误跳过，admission 错误关闭当前流）；non-`Would
 
 生产激活对已接受的托管本地 Site 路径生效：`local_site_service::managed` 创建或
 取得运行时目录，在发布 Site 就绪之前绑定本端点，绑定或端点初始化失败时诚实失败
-`site start`——不存在静默的 Agent 不可用模式。托管路径经
+`server start`——不存在静默的 Agent 不可用模式。托管路径经
 `open_observing(policy, socket_path)` 恰好构造一次 canonical `AgentService`——
 socket 路径在构造期即绑定进翻译器，随后 `Arc` 才被共享——并把同一 `Arc` 交给
 端点、Worker 准入（`register_carrier_with_agents` 在注册守卫内准入原生叶子）与

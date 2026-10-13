@@ -6,7 +6,7 @@ Windows Client 通过 `Ctrl+B P` 进入调整模式。普通方向键将附近�
 
 `ClientView` 拥有模式及纯事件到动作注册表。`InputDispatcher` 拥有解码后的数据包路由；`ClientControl` 拥有异步调整及其唯一变更通道。配置可将 `resize_mode` 和 `resize_pane_left`、`resize_pane_right`、`resize_pane_up`、`resize_pane_down` 绑定到安全直接组合或前缀组合。直接调整使用五个百分点，不进入模式。现有配置及模式外普通方向键的含义保持不变。
 
-窗格动作菜单打开同一个调整模式。工具栏提供四个方向、5%／1% 步长切换、帮助和完成。工具栏替换 Tab 条，Minimal 布局则覆盖内容首行，不改变 Host 几何。方向控件携带绘制时的 Site／context／Tab／焦点／revision 及视口／侧栏；释放时复核全部来源后使用现有键盘调整通道。按下不提交调整。已有提交待定时禁用其他方向控件。键盘输入、失焦、捕获或几何变化取消待定点击；完成退出模式，不取消已经提交的调整。
+窗格动作菜单打开同一个调整模式。工具栏提供四个方向、5%／1% 步长切换、帮助和完成。工具栏替换 Tab 条，Minimal 布局则覆盖内容首行，不改变 Host 几何。方向控件携带绘制时的 Session／context／Tab／焦点／revision 及视口／侧栏；释放时复核全部来源后使用现有键盘调整通道。按下不提交调整。已有提交待定时禁用其他方向控件。键盘输入、失焦、捕获或几何变化取消待定点击；完成退出模式，不取消已经提交的调整。
 
 ## 几何与提交
 
@@ -14,7 +14,7 @@ Windows Client 通过 `Ctrl+B P` 进入调整模式。普通方向键将附近�
 
 数值 codec 必须在 JSON 编解码后保留每个已准入比例的精确 `f64` 值。Workbench protocol 在运行时依赖范围显式启用 `serde_json` 的 `float_roundtrip`；仅测试依赖统一开启该特性不能证明实际交付构建。`0.54 - 0.05` 等方向运算经传输后必须保留同值。这是 canonical 比例身份的 codec 精化，不使用 epsilon 比较，也不改变 JSON/存档格式。
 
-捕获的 Site、context、Tab、split、有序槽位、原比例和 Workbench 修订号组成唯一精确的 `layout.set-split-ratio` CAS。不乐观写入本地比例。[共享分屏比例](../../orchbee-server/docs/shared-split-ratios.zh-CN.md) 拥有规范提交、发布及 checkpoint 存储。现有 mailbox 分配新的请求标识，现有可取消变更 worker 只提交一次。不引入新 wire 或持久格式。
+捕获的 Session、context、Tab、split、有序槽位、原比例和 Workbench 修订号组成唯一精确的 `layout.set-split-ratio` CAS。不乐观写入本地比例。[共享分屏比例](../../orchbee-server/docs/shared-split-ratios.zh-CN.md) 拥有规范提交、发布及 checkpoint 存储。现有 mailbox 分配新的请求标识，现有可取消变更 worker 只提交一次。不引入新 wire 或持久格式。
 
 | 状态/事件                  | 下一状态与可观察结果                         |
 | -------------------------- | -------------------------------------------- |

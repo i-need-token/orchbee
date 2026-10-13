@@ -115,7 +115,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
         let text = matches!(case, "en" | "zh" | "warning-en" | "warning-zh");
         let output = fixture.run_with_env(
             &[
-                "site",
+                "server",
                 if reading { "config" } else { "reload-config" },
                 "--format",
                 if text { "text" } else { "json" },
@@ -214,7 +214,7 @@ fn current_reload_rejections_and_lost_reply_have_closed_typed_receipts_without_r
 fn reload_does_not_activate_a_site_and_rejects_unrelated_flags_before_admission() {
     let fixture = Fixture::new();
     let _rendezvous = fixture.rendezvous();
-    let output = fixture.run(&["site", "reload-config", "--format", "json"]);
+    let output = fixture.run(&["server", "reload-config", "--format", "json"]);
     assert_eq!(
         output.status.code(),
         Some(4),
@@ -222,8 +222,8 @@ fn reload_does_not_activate_a_site_and_rejects_unrelated_flags_before_admission(
         String::from_utf8_lossy(&output.stderr)
     );
     for arguments in [
-        vec!["site", "reload-config", "--workspace", "x"],
-        vec!["site", "config", "extra"],
+        vec!["server", "reload-config", "--workspace", "x"],
+        vec!["server", "config", "extra"],
     ] {
         let output = fixture.run(&arguments);
         assert_eq!(output.status.code(), Some(2));

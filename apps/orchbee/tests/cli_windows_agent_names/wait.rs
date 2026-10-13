@@ -72,7 +72,7 @@ fn wait_keeps_a_transient_completion_separate_from_the_current_working_sample() 
     let output = fixture.run(&[
         "agent",
         "wait",
-        "--session",
+        "--agent-session",
         "sess-alpha",
         "--until",
         "done",
@@ -131,7 +131,7 @@ fn wait_refuses_lost_history_without_restarting_or_publishing_a_match() {
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--until",
             "done",
@@ -166,7 +166,7 @@ fn wait_total_deadline_covers_the_initial_changes_checkpoint() {
     let output = fixture.run(&[
         "agent",
         "wait",
-        "--session",
+        "--agent-session",
         "sess-alpha",
         "--timeout",
         "3000",

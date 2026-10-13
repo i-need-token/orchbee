@@ -1,4 +1,4 @@
-//! `site diagnose`: bounded read-only observation of the implicit per-euid
+//! `server diagnose`: bounded read-only observation of the implicit per-euid
 //! local Site runtime scope. It inspects a finite set of known paths through
 //! the rendezvous' own validated directory descriptor — no endpoint is
 //! connected, no lock file is created, no marker or socket is touched, and
@@ -57,7 +57,7 @@ pub(crate) struct DiagnoseDocument {
 
 pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
     match collect() {
-        // Like `site start`, every `site diagnose` answer — failure
+        // Like `server start`, every `server diagnose` answer — failure
         // included — comes from the local runtime authority.
         Err(failure) => failure_output(
             failure.source(super::config::local_runtime_source()),

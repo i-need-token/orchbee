@@ -213,11 +213,11 @@ impl Locale {
             ),
             (Self::EnUs, CommandPath::WorktreeStatus) => crate::localization::HelpDetails::new(
                 "orchbee worktree status <operation-id> [--format text|json]",
-                "Read a retained operation without mutation or Site activation. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state, shell restoration counts/failure and recovery eligibility.",
+                "Read a retained operation without mutation or session activation. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state, shell restoration counts/failure and recovery eligibility.",
             ),
             (Self::ZhCn, CommandPath::WorktreeStatus) => crate::localization::HelpDetails::new(
                 "orchbee worktree status <操作标识> [--format text|json]",
-                "只读查询保留的操作，不执行变更或激活 Site。记录可跨 CLI 断线保留，但不跨 Server 重启。结果包含尝试序号、Git 影响、Workspace 状态、shell 恢复计数／失败及能否恢复。",
+                "只读查询保留的操作，不执行变更或激活会话。记录可跨 CLI 断线保留，但不跨 Server 重启。结果包含尝试序号、Git 影响、Workspace 状态、shell 恢复计数／失败及能否恢复。",
             ),
             (Self::EnUs, _) => crate::localization::HelpDetails::new(
                 "orchbee worktree resume <operation-id> --generation <attempt> --confirm [--detach] [--timeout <ms>] [--format text|json]",

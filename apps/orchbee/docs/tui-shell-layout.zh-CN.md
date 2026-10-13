@@ -112,11 +112,11 @@ Windows 顶栏在最后一个可见 Tab 后为 `+` 预留三列，空 context �
 键盘聚焦的当前 Machine Project 行在其行菜单旁保留 `+`。展开、内容、创建和菜单单元格互不重叠。字形与语言无关；
 动作标签和不可用原因复用已有中英文目录。
 
-| 入口           | 既有动作与归属                                                                                                                                                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tab 顶栏 `+`   | `DrawnTabCreate` 冻结 Site、快照 revision 和 context。无修饰左键按下仅启动本地鼠标手势；在同一个仍可见矩形内匹配释放后，请求 `NativeUi` 重新校验证明，再将 `ClientAction::CreateTab` 交给原 dispatcher 和 membership 准入。按下时没有副作用。 |
-| 新建工作区行   | 无修饰左键按下将 `ClientAction::RequestQuickWorkspace` 委托给已有创建归属者。直接创建独立 Workspace 与首个 shell，不打开创建菜单；终端目标改变前先捕获决策所在输入包。                                                                        |
-| Project 行 `+` | 针对准确的已绘制 Project 打开同一创建子集，把定向快速 Workspace 放在首位。保留原能力检查和禁用原因，不隐式选择子 Workspace。                                                                                                                  |
+| 入口           | 既有动作与归属                                                                                                                                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tab 顶栏 `+`   | `DrawnTabCreate` 冻结 Session、快照 revision 和 context。无修饰左键按下仅启动本地鼠标手势；在同一个仍可见矩形内匹配释放后，请求 `NativeUi` 重新校验证明，再将 `ClientAction::CreateTab` 交给原 dispatcher 和 membership 准入。按下时没有副作用。 |
+| 新建工作区行   | 无修饰左键按下将 `ClientAction::RequestQuickWorkspace` 委托给已有创建归属者。直接创建独立 Workspace 与首个 shell，不打开创建菜单；终端目标改变前先捕获决策所在输入包。                                                                           |
+| Project 行 `+` | 针对准确的已绘制 Project 打开同一创建子集，把定向快速 Workspace 放在首位。保留原能力检查和禁用原因，不隐式选择子 Workspace。                                                                                                                     |
 
 右键点击 Tab 顶栏 `+` 打开独立的新建 Tab 菜单（普通 Tab、最近分组或新分组）；
 全局菜单提供键盘入口。它保留同一个精确的 `DrawnTabCreate` context 证明。
@@ -139,7 +139,7 @@ Workspace 创建（`Ctrl+B a`）、快速 Workspace（`Ctrl+B Shift+N`）及全�
 统计可见导航条目，包括 Project 与 Context 行，仅溢出时显示范围；不将该数量表示为 Agent 总数。
 
 已折叠的 Project 或 Context 在续行保留完整观测的 Agent 数与待处理数。计数使用 Agent
-筛选之前的精确 Machine／Site／Context 归属；筛选隐藏全部子行时仍保留这些信息。
+筛选之前的精确 Machine／Session／Context 归属；筛选隐藏全部子行时仍保留这些信息。
 缺失或不完整的观察不会转为零计数。零总数省略，正数待处理计数使用警告角色。
 当前 Workspace 样式仍保留在 Context 或其折叠后的 Project 上，不改变活动终端。
 
@@ -174,7 +174,7 @@ Git worktree 的 Workspace 同级，每个 Workspace 都拥有自己的 Agent �
 已知 Project 和 Workspace。
 
 `machine_picker::Picker` 拥有 Project 展开、各 Context 独立的 Agent 列表折叠偏好、键盘行焦点
-及共用窗口。`SidebarTarget::Project` 携带 Machine／Site／Project 身份；
+及共用窗口。`SidebarTarget::Project` 携带 Machine／Session／Project 身份；
 `SidebarTarget::Context` 携带 Machine 与完整 `NativeContextTarget`；
 `SidebarTarget::Agent` 还保留精确成员与物理绑定身份。可选 Project 归属是 Context 元数据，
 由 `Picker::sidebar_parent` 从当前投影解析。移动 Workspace 或解散其 Project 不改变
@@ -208,7 +208,7 @@ GUI 对应范围为层级与身份语义，不主张像素或后端等价。
 
 | 主张                 | 可执行证据与边界                                                                                                                                      |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 精确分组且不隐式激活 | 确定性 Picker 用例覆盖 Machine／Site／Context 关联、重复标签、未分组 Workspace、Standalone、多个默认展开列表、折叠偏好保留及精确 Tab／Panel 激活。    |
+| 精确分组且不隐式激活 | 确定性 Picker 用例覆盖 Machine／Session／Context 关联、重复标签、未分组 Workspace、Standalone、多个默认展开列表、折叠偏好保留及精确 Tab／Panel 激活。 |
 | 焦点和滚动有效       | 有界生成式导航轨迹覆盖拓扑与分组变化；定向用例覆盖重新分组／解散、已移除的祖先、Agent 与父行移动、当前 Agent 显露及手动滚动后展开。不主张无界证明。   |
 | 共享几何与输入权威   | 绘制、鼠标与分发器用例覆盖配置行高／间距、两种语言／主题、宽字形、折叠后的计数／当前目标信息、空 Project 控件、过期命中、滚轮取消及不转移焦点的展开。 |
 
@@ -303,7 +303,7 @@ Enter 将打开的行。完整可见行随成功帧发布精确凭据。Esc／En
 捕获输入的界面将窗格的焦点强调替换为未聚焦边框与次要标题样式。参考浮层保留窗格焦点，
 并使用未聚焦边框。侧栏分组标题使用主要文字加粗，不使用焦点颜色。
 Windows 的 Machine 选择器与 Worktree 草稿拥有输入时，也会取消窗格焦点强调并隐藏终端光标。
-Site 状态只为图标着色，正文使用主要文字样式。
+Session 状态只为图标着色，正文使用主要文字样式。
 已就绪状态使用已有成功样式，其他阶段保留警告样式。
 实时及保留的终端单元格共用主题默认配色投影：带默认标记的前景与背景跟随主题，
 程序显式设置的颜色保持不变。

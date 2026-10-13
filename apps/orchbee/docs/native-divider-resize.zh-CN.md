@@ -4,7 +4,7 @@
 
 Windows Client 可用无修饰左键按住已绘制的 pane 分隔线，拖动预览线，松手后一次应用。预览不会改变共享布局或程序尺寸。比例仍为 10%–90%，跨 Client 共享，并由现有 checkpoint 所有者保存。[原生键盘调整](native-keyboard-resize.zh-CN.md) 继续提供键盘入口。本能力遵循[鼠标输入](../../../docs/zh-CN/tui/mouse-input.md)，不增加协议、存储格式、输入接管或存活进程恢复。
 
-`PointerState` 拥有一个可撤销的 `DividerDrag`。`tui_layout` 拥有确定性几何及不可变的 `DrawnDivider`：Site、终端上下文、Tab、焦点 panel、Workbench revision、split、有序 slot、原比例、方向、split 区域、已绘制分隔线和 viewport。渲染器只在最后成功帧记录可见分隔线。缩放、折叠和没有框架的 split 不暴露调整目标。按下、移动、空闲和松手时的原生检查须与完整来源一致。焦点、revision、几何、捕获变化或命中图丢失会取消预览，绝不重新指向另一条分隔线。
+`PointerState` 拥有一个可撤销的 `DividerDrag`。`tui_layout` 拥有确定性几何及不可变的 `DrawnDivider`：Session、终端上下文、Tab、焦点 panel、Workbench revision、split、有序 slot、原比例、方向、split 区域、已绘制分隔线和 viewport。渲染器只在最后成功帧记录可见分隔线。缩放、折叠和没有框架的 split 不暴露调整目标。按下、移动、空闲和松手时的原生检查须与完整来源一致。焦点、revision、几何、捕获变化或命中图丢失会取消预览，绝不重新指向另一条分隔线。
 
 解码 `MouseEvent` 的 cell 坐标是不可信输入。只有无修饰左键按下能准入；左键移动和左键或通用松手继续手势，即使已经离开原区域。Ctrl 或 Alt 不能替换已准入的所有者。其他按键和滚轮不能替换手势。Shift 取消预览，仍由 Host 拥有。纯 `DividerDrag::update` 把 split 轴向位移除以可分配 cell 数，加到原比例并限幅。垂直于轴的移动无效。零位移保留原浮点值的精确身份。松手独立投影其最终坐标，不依赖最后一次移动事件。预览复用最小 pane 尺寸投影；小视口中预览线可能在名义比例到达极限前停止移动。
 

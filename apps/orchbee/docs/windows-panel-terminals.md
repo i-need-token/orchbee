@@ -22,7 +22,7 @@ runtime discovery. The default total deadline is 30000 ms.
 
 The CLI resolves one canonical snapshot and sends exactly one retained `panel.create-terminal`
 request. The Server owns grants, revision/Close fences, identity allocation, launch and settlement.
-`orchbee.panel.terminal-create` v1 retains Site/request/base revision, exact target, directory
+`orchbee.panel.terminal-create` v1 retains Session/request/base revision, exact target, directory
 provenance and the full pending or final outcome without exporting argv or environment values.
 Pending means accepted, not yet started. Known physical failure/unavailability and unknown outcomes
 return nonzero while retaining committed identities. Lost, invalid or mismatched post-write replies

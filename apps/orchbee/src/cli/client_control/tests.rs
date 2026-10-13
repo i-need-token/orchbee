@@ -140,7 +140,7 @@ fn agent_attention_grammar_selects_read_only_client_query() {
         parse(&[
             "agent",
             "attention",
-            "--session",
+            "--agent-session",
             "agent-1",
             "--client",
             "00000000000000000000000000000007",
@@ -157,7 +157,14 @@ fn agent_attention_grammar_selects_read_only_client_query() {
     for words in [
         vec!["agent", "attention"],
         vec!["agent", "attention", "one", "two"],
-        vec!["agent", "attention", "--name", "one", "--session", "two"],
+        vec![
+            "agent",
+            "attention",
+            "--name",
+            "one",
+            "--agent-session",
+            "two",
+        ],
         vec!["agent", "attention", "one", "--until", "done"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
@@ -172,7 +179,7 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
         vec!["alpha"],
         vec!["@panel:07"],
         vec!["--name", "alpha"],
-        vec!["--session", "sess-alpha"],
+        vec!["--agent-session", "sess-alpha"],
         vec!["--panel", id],
     ] {
         let mut words = vec!["agent", "focus"];
@@ -224,7 +231,7 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
         vec!["alpha", "beta"],
         vec!["alpha", "--name", "alpha"],
         vec!["--name", "alpha", "--panel", id],
-        vec!["--session", "sess-alpha", "--name", "alpha"],
+        vec!["--agent-session", "sess-alpha", "--name", "alpha"],
         vec!["alpha", "--current"],
         vec!["alpha", "--direction", "left"],
         vec!["alpha", "--wait"],

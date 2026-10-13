@@ -36,7 +36,7 @@ the configured default shell. Failed admission publishes no partial Workspace. A
 failed or unknown shell retains its structural IDs and does not create a replacement.
 
 The mailbox owns FIFO admission, bounded preparation/command leases and retained evidence. A known
-receipt is saved before any fallible snapshot read or UI handoff. Exact Site, revision, directory,
+receipt is saved before any fallible snapshot read or UI handoff. Exact Session, revision, directory,
 context and terminal member proofs precede cleanup, attachment and first-frame readiness. Other
 Clients keep their selection. A newer explicit focus or surface intent revokes the originating
 Client's automatic entry/return permission; a delayed receipt still validates the committed
@@ -66,7 +66,7 @@ Project is retained when only one Workspace remains.
 
 | Transition                                 | Guard and result                                                             |
 | ------------------------------------------ | ---------------------------------------------------------------------------- |
-| Open a grouping chooser                    | Capture exact Site, snapshot, target and current focus; no mutation          |
+| Open a grouping chooser                    | Capture exact Session, snapshot, target and current focus; no mutation       |
 | Choose an existing Project or No Project   | Submit one membership command; a no-op preserves revision                    |
 | Choose New Project                         | Show one bounded name field; no empty Project is created before submission   |
 | Complete draw or pointer choice            | Only the current token and a fully presented choice authorize submission     |

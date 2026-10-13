@@ -5,11 +5,11 @@
 `--presentation <id>` selects one canonical member of the positional Panel, using a full nonzero
 32-character lowercase hexadecimal ID. Omission retains the primary. The CLI rejects missing or
 unbound members before handoff; the Server rechecks exact ownership and expected binding under
-the Site gate. Wrong-owner and stale-binding writes cannot affect a different member. The existing
+the Session gate. Wrong-owner and stale-binding writes cannot affect a different member. The existing
 binding-keyed metadata owner preserves source sequencing, guards, resource limits and TTL.
 
 Exact requests/replies use `report-presentation` / `presentation-reported` in the existing carrier;
-legacy `report` / `reported` remain primary-only. Replies correlate request, Site, Panel,
+legacy `report` / `reported` remain primary-only. Replies correlate request, Session, Panel,
 Presentation and binding. An explicit member emits `orchbee.panel.metadata` v4 with required
 `presentationId`, including unknown or failed submitted outcomes; v1/v2 remain closed; primary reports use v3. Text identifies
 the member. Request bounds are checked before admission and no ambiguous outcome is replayed.
@@ -44,9 +44,9 @@ fail before connection. This bound on custom labels remains a difference from He
 input and a dependency of complete Agent report support. Native process provider IDs keep their
 separate recognition contract.
 
-One existing-Site admission and snapshot share a cancellable five-second deadline. Resolve the
+One existing-Session admission and snapshot share a cancellable five-second deadline. Resolve the
 requested member binding once (primary by default) and include it as `expectedBinding`; the Server rejects a changed binding.
-An unbound Panel fails before submission. The command submits once and never starts a Site,
+An unbound Panel fails before submission. The command submits once and never starts a Session,
 navigates a Client, mutates topology, changes OSC title or automatically retries. After handoff,
 a late signal preserves the receipt and sets `interrupted`. A lost, malformed, mismatched or late
 response preserves the request ID with an unknown outcome and exit 8. Before handoff, normal
@@ -54,13 +54,13 @@ CLI failures apply. A known applied or stale report exits 0; typed target/permis
 refusals exit 3, unavailability 4, invalid request 5, revision/deadline/result bounds 1. Cleanup
 failure exits 1 unless the submitted result is already unknown.
 
-`orchbee.panel.metadata` v1 contains request/Site/Panel IDs, observation (`server` with the exact
+`orchbee.panel.metadata` v1 contains request/Session/Panel IDs, observation (`server` with the exact
 reply, or `unknown` with a closed reason), `interrupted` and `cleanupFailed`. Catalog v90 includes
 90 schemas. OBWP 33/34 carries `workbench.panel-metadata` and its result; request limit is 16 KiB,
 result limit 512 KiB. Server reads use read permission and reports navigation permission under
-the Site gate. Reads expose source records for up to four ordered unique Panels. Metadata and
+the Session gate. Reads expose source records for up to four ordered unique Panels. Metadata and
 Workbench revisions remain separate. Same-cohort deployment is required; old peers reject the
-unknown carrier kind. There is no persistence migration; restarting the Site clears reports.
+unknown carrier kind. There is no persistence migration; restarting the Session clears reports.
 
 Protocol/owner tests cover atomic changes, replay and TTL; shared Rust/TypeScript/JSON corpus
 checks bound and malformed inputs; named-pipe tests check exact correlation including binding,
@@ -83,10 +83,10 @@ during this join. A change rejects the query with `metadata-changed`, including 
 would change metadata guard context. The outer query still fences canonical and selected Client
 state. No automatic retry or partial projection is published.
 
-Each `metadata` object contains `source` (Site, Workbench and metadata revisions plus its read
+Each `metadata` object contains `source` (Session, Workbench and metadata revisions plus its read
 request IDs), `binding`, `tokens`, raw source `presentations`, guard `context` (`agent`,
 `authoritySource`) and computed `presentation` (title, displayAgent, stateLabels). Its sibling
-`reportedAgent` contains its own `source` (Site, Workbench and report revisions plus report read
+`reportedAgent` contains its own `source` (Session, Workbench and report revisions plus report read
 request IDs), the same logical `binding`, and `view` (Agent label, state, authority source, message
 and optional external provider session reference). An unbound row has null binding/view; a bound
 terminal with no report has an explicit unknown view. The metadata guard context uses the actual

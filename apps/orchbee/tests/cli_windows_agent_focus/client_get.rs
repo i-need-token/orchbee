@@ -135,7 +135,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
         let output = fixture.run(&[
             "agent",
             "get",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),
@@ -214,7 +214,7 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
         let output = fixture.run(&[
             "agent",
             "get",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),
@@ -282,7 +282,7 @@ fn selected_client_get_failures_keep_their_declared_contract() {
         let output = fixture.run(&[
             "agent",
             "get",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),

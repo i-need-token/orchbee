@@ -42,7 +42,10 @@ impl Fixture {
         Rendezvous::prepare_mode_checked(&self.0, SiteScope::parse(&scope).unwrap()).unwrap()
     }
     fn query(&self) -> Value {
-        let output = self.run(&["site", "stop-status", ID, "--format=json"], "en_US.UTF-8");
+        let output = self.run(
+            &["server", "stop-status", ID, "--format=json"],
+            "en_US.UTF-8",
+        );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         let schema: Value =
             serde_json::from_str(include_str!("../src/cli/schemas/orchbee.site.stop.json"))
@@ -77,8 +80,8 @@ fn missing_receipt_query_and_invalid_destructive_argv_have_no_runtime_effects() 
     let fixture = Fixture::new();
     assert_eq!(fixture.query()["result"]["outcome"], "not-recorded");
     for arguments in [
-        vec!["site", "stop", "--format=json"],
-        vec!["site", "stop", "--confirm", "--retry", "--format=json"],
+        vec!["server", "stop", "--format=json"],
+        vec!["server", "stop", "--confirm", "--retry", "--format=json"],
     ] {
         assert_eq!(
             fixture.run(&arguments, "en_US.UTF-8").status.code(),
@@ -103,7 +106,7 @@ fn only_matching_completed_record_and_free_lifetime_prove_stop_without_a_cohort(
     assert_eq!(fixture.query()["result"]["outcome"], "stopped");
     let output = fixture.run(
         &[
-            "site",
+            "server",
             "stop",
             "--confirm",
             "--request-id",
@@ -117,12 +120,12 @@ fn only_matching_completed_record_and_free_lifetime_prove_stop_without_a_cohort(
         serde_json::from_slice::<Value>(&output.stdout).unwrap()["result"]["outcome"],
         "stopped"
     );
-    let text = fixture.run(&["site", "stop-status", ID], "zh_CN.UTF-8");
+    let text = fixture.run(&["server", "stop-status", ID], "zh_CN.UTF-8");
     assert!(text.status.success());
     assert!(String::from_utf8(text.stdout).unwrap().contains("已停止"));
     let other = fixture.run(
         &[
-            "site",
+            "server",
             "stop-status",
             "22222222222222222222222222222222",
             "--format=json",

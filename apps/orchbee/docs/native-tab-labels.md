@@ -49,7 +49,7 @@ The naming fact is the complete pair `(raw label, automatic mode)`, not only vis
 This is a coordinated experimental OBWP v1 cohort. Rust and TypeScript accept only a boolean
 when the new field is present; legacy omission remains fixed. Older strict readers may reject
 the field, so deploy matching binaries. No persistent migration or reinterpretation of existing
-numeric labels occurs. Rolling back an unpersisted test Site requires restarting that Site.
+numeric labels occurs. Rolling back an unpersisted test Session requires restarting that Session.
 
 Verification covers legacy and invalid-field codecs; explicit numeric names; create, reorder,
 close and rename; equal-text mode changes and replay; unrelated Tab and Presentation stability;

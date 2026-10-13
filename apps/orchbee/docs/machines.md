@@ -1,7 +1,7 @@
 # Saved Windows machines
 
 The native Windows Client owns saved SSH machine profiles. The six `machine`
-commands manage labels, SSH targets, explicit remote Site names, and enabled
+commands manage labels, SSH targets, explicit remote Session names, and enabled
 state. OpenSSH owns credentials, keys, host trust, and SSH configuration.
 Reference behavior is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`.
 
@@ -14,22 +14,22 @@ At most 64 profiles and 128 KiB are admitted. Labels are nonblank, control-free,
 and at most 128 UTF-8 bytes. Targets are at most 1024 ASCII bytes: an SSH host
 alias, `[user@]host`, or `ssh://[user@]host[:port]`; bracketed IPv6 is supported.
 Passwords and shell metacharacters are rejected. Session names use the native
-Windows Site grammar, defaulting to `default`. Duplicate target/session pairs
+Windows Session grammar, defaulting to `default`. Duplicate target/session pairs
 may have distinct IDs, as in the reference.
 
-| Event          | Guard and transition                                                                                  | Effects                                    |
-| -------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| List           | Missing catalog is empty; invalid data fails                                                          | Read only; no directory creation           |
-| Add            | Validate and check capacity; prepare remote; reload latest catalog under lock; append enabled profile | Remote Site may start before local commit  |
-| Rename         | Exact ID exists; valid label                                                                          | Replace label; same value is unchanged     |
-| Enable/disable | Exact ID exists                                                                                       | Set flag; same value is unchanged          |
-| Remove         | Exact ID exists                                                                                       | Remove profile; never stop its remote Site |
+| Event          | Guard and transition                                                                                  | Effects                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| List           | Missing catalog is empty; invalid data fails                                                          | Read only; no directory creation              |
+| Add            | Validate and check capacity; prepare remote; reload latest catalog under lock; append enabled profile | Remote Session may start before local commit  |
+| Rename         | Exact ID exists; valid label                                                                          | Replace label; same value is unchanged        |
+| Enable/disable | Exact ID exists                                                                                       | Set flag; same value is unchanged             |
+| Remove         | Exact ID exists                                                                                       | Remove profile; never stop its remote Session |
 
 Writers use the existing Windows private-cache lock and atomic replacement.
 Revision advances once per actual change. Reads reject unknown fields, invalid
 identities, duplicate IDs, overflow, oversized files, and unsafe filesystem
 objects. Corruption never becomes an empty catalog. A failed local commit does
-not roll back a remotely started Site. Cancellation after commit preserves the
+not roll back a remotely started Session. Cancellation after commit preserves the
 committed receipt.
 
 ## Remote preparation
@@ -41,7 +41,7 @@ OpenSSH. SSH diagnostics are not copied into machine JSON or product errors.
 The Windows remote command is an encoded PowerShell program with literal data.
 
 Preparation checks the installed `orchbee.exe` Client version, platform,
-protocols, and admitted cohort before starting the selected Site. A second SSH
+protocols, and admitted cohort before starting the selected Session. A second SSH
 invocation checks that the same cohort is still running and compatible after
 the first invocation has ended. Only then can the profile be committed. The
 receipt distinguishes `not-contacted`, `unchanged`, `possibly-started`, and
@@ -66,7 +66,7 @@ their process Jobs are owned by the test and released after the last consumer.
 
 `orchbee --machine <id-or-exact-label> <command>` selects an enabled saved
 profile. ID takes precedence; duplicate labels are ambiguous. The selector
-is a prefix, accepts `--machine=value`, cannot combine with `--site`, and never
+is a prefix, accepts `--machine=value`, cannot combine with `--session`, and never
 changes the catalog. Help is local. Remote execution admits CLI commands
 for workspace, tab, panel, Client queries/control, terminal queries/send, Agent operations, worktrees,
 notifications, runtime configuration, manifests, and supported plugin operations.
@@ -74,7 +74,7 @@ Local management, installation, TUI, and terminal interactive streams are refuse
 
 The owner is the native CLI relay, not the local IPC transport. It first probes
 the remote Windows Client, then sends one bounded versioned request to that
-exact executable. A private relay entry point revalidates the cohort, Site,
+exact executable. A private relay entry point revalidates the cohort, Session,
 argument grammar and command allowlist before spawning its own executable with
 literal arguments in an owned Windows Job. The existing remote CLI remains the
 business-operation owner. No local peer credential admission is bypassed.
@@ -110,7 +110,7 @@ The current surface stays usable until the candidate reaches a drawable state;
 cancellation or failure keeps the current surface. Successful switching preserves
 per-machine views and invalidates pointer/input state before accepting new input.
 Local is retained; at most four inactive remote surfaces are cached. Eviction
-releases the Client connection, leaving the remote Site running. Cached inactive
+releases the Client connection, leaving the remote Session running. Cached inactive
 surfaces withdraw their Client-control, notification and outer-title subscriptions;
 returning reopens them and transfers the host focus observation. A hidden surface
 must not advertise a Ready control destination or acknowledge visible drawing.
@@ -118,7 +118,7 @@ must not advertise a Ready control destination or acknowledge visible drawing.
 The persistent transport owner creates a private, same-user local pipe endpoint
 and a bounded SSH byte relay for each required native Client lane. SSH authenticates
 the remote account; the exact admitted remote executable verifies its installed
-cohort and opens only the selected existing Site's same-user pipe. Native Client
+cohort and opens only the selected existing Session's same-user pipe. Native Client
 admission and application frames pass unchanged through that stream. Neither end
 fabricates an accepted generation or bypasses Server cohort admission. Remote
 terminal input, layout, metadata and control keep their existing semantic owners.
@@ -129,7 +129,7 @@ backpressure pauses reads instead of dropping bytes. EOF retires that lane, and
 no submitted frame is replayed. Dropping the last guard cancels and joins the
 relay and settles children. The remote stdio adapter likewise owns and settles
 its binary reader/writer Jobs. Disconnecting a Client does not stop the remote
-Site or terminal processes. No port forwarding, host-key acceptance, credentials
+Session or terminal processes. No port forwarding, host-key acceptance, credentials
 storage, remote installation or POSIX implementation is added.
 
 The picker owns keyboard and mouse input while open. Escape cancels; Enter and
@@ -158,18 +158,18 @@ SSH network survival, remote installation, or complete two-machine acceptance.
 
 ## Automatic machine discovery
 
-The running Windows TUI reconciles enabled profiles by ID, target and Site. Each
+The running Windows TUI reconciles enabled profiles by ID, target and Session. Each
 endpoint generation owns one observer, cancellation flag and latest-event slot.
 New connections are limited to four at once; existing online observers do not
 consume that startup budget. A rotating cursor gives later profiles a turn even when earlier endpoints keep failing. Disabled/removed/replaced entries cancel their old
 observers, and retired threads are joined before their slots are reused. Corrupt
 catalog input suspends all discovery without changing the current terminal surface.
 Renaming preserves connection identity. No observer creates a terminal, claims
-control, changes focus, starts a Site or installs software.
+control, changes focus, starts a Session or installs software.
 
 An observer uses the admitted persistent tunnel and reads native Workbench
 snapshots every two seconds with a five-second read deadline. A bounded
-summary retains Site/revision, project/workspace/Tab counts and up to eight
+summary retains Session/revision, project/workspace/Tab counts and up to eight
 preview labels of 80 scalars each, alongside the bounded context identities and
 labels used by workspace navigation below. A fresh successful native snapshot
 means Online; a saved profile or SSH process alone does not. An observation older
@@ -208,7 +208,7 @@ local IPC fixtures do not establish remote SSH authentication or network recover
 The machine picker has Machines, Workspaces and Agents modes, switched with Tab or their
 painted mode controls. Workspaces combines Local's last accepted canonical
 navigation with fresh enabled remote observations; rows carry machine identity,
-Site ID and either a standalone context ID or a stable Workspace/context ID pair.
+Session ID and either a standalone context ID or a stable Workspace/context ID pair.
 Nullable Project membership is metadata, not part of selection identity. Labels
 and row positions never route a selection. Native protocol limits bound the list
 to 1024 contexts per machine; project/workspace labels retain at most 80 safe
@@ -223,7 +223,7 @@ removal invalidates painted hits and cannot retarget a pending selection.
 
 Context selection inside an explicitly opened picker uses a separately admitted native lane, including
 when the destination machine is already active or cached. The candidate reads a
-fresh snapshot and verifies the exact Site and context before any attachment.
+fresh snapshot and verifies the exact Session and context before any attachment.
 This path never opens or creates a standalone terminal as a navigation side
 effect. A vanished/replaced target fails without selecting a fallback. An empty
 context bootstraps Empty membership with no viewer or terminal; normal create
@@ -260,7 +260,7 @@ including empty workspaces and unbound placeholders.
 A targeted fresh lane for the same exact endpoint may inherit the bounded,
 render-only text-image bank from that endpoint's active or cached surface before
 the old surface is released. The candidate's fresh canonical Snapshot prunes the
-bank by exact Site, context, Tab, Panel, Presentation and worker/terminal binding;
+bank by exact Session, context, Tab, Panel, Presentation and worker/terminal binding;
 its own newer frame wins an identity collision. Geometry and any known HostEpoch
 remain renderer gates. The handoff carries no attachment, selection, input,
 controller, feedback or retained-context authority, and never crosses an endpoint
@@ -272,7 +272,7 @@ the main sidebar shares the Agent projection described below; Agent cycle
 bindings are described below.
 
 Evidence includes native snapshot-first exact bootstrap, absent/mismatched
-Site/context refusal before effects, empty-context membership, actual machine
+Session/context refusal before effects, empty-context membership, actual machine
 candidate startup and cancellation, duplicate labels and local/remote identity
 separation, same-endpoint active/cached pixel handoff and replacement rejection,
 reordered/stale hits, direct closed-picker candidate admission, latest-intent and
@@ -287,7 +287,7 @@ bounded physical state batches at one Workbench/report revision. Missing,
 unavailable or stale observations are distinct from a successful empty list.
 Only observations with a reported Agent label become rows; primary and child
 Presentations retain their own identity. Labels are sanitized display data.
-Rows carry machine, Site, context, Tab, Panel, Presentation and complete physical
+Rows carry machine, Session, context, Tab, Panel, Presentation and complete physical
 binding; no name or row number grants navigation authority.
 
 At most four observation jobs run concurrently. Each job owns a separately
@@ -308,7 +308,7 @@ mismatch, primary and child placement, stale job cancellation and fairness,
 keyboard/mouse identity, exact bootstrap and Host mismatch before control.
 Live terminal-title tokens and real SSH/OS visual acceptance remain
 separate obligations. Herdr's list and aggregate sidebar enumerate physical panes,
-not unattached canonical sessions. The native canonical Agent list and per-Site
+not unattached canonical sessions. The native canonical Agent list and per-Session
 Agent board already retain those sessions; cross-machine aggregation of them is
 an architectural extension, not a Herdr replacement gap.
 
@@ -350,7 +350,7 @@ input isolation. Live terminal-title tokens and real-network/OS visual acceptanc
 ## Source-owned Agent views
 
 `agent view set --spec <json>`, `agent view clear [--source <name>]` and
-`agent view get` operate on the selected Windows Site. The Server owns one
+`agent view get` operate on the selected Windows Session. The Server owns one
 transient revisioned specification: the latest valid set replaces it; a clear
 without a source removes it, and a source-qualified clear removes only an exact
 match. Restart removes the override. Reads require read permission; changes
@@ -439,7 +439,7 @@ absent/current targets, cancellation and exact cross-machine identity.
 ## Main Agent sidebar
 
 On Windows, the main sidebar joins the Agents picker's eligible projection to
-each exact Machine/Site/Context and renders Agents beneath their owning Workspace
+each exact Machine/Session/Context and renders Agents beneath their owning Workspace
 or Standalone row. Labels never establish ownership. The active machine's source
 view and Client-local status, scope, ordering and search still define eligibility.
 The first nine eligible entries retain their global filtered-list ordinals even
@@ -483,7 +483,7 @@ SSH/emulator visual acceptance remain separate obligations.
 Windows users can select sidebar content through `ui.sidebar.agents.rows`,
 `rows_by_agent` and `row_gap`. The shared Windows settings owner admits the
 bounded whole file and a canonical, closed JSON profile of at most 32 KiB.
-The existing Site configuration owner publishes that profile alongside keys and
+The existing Session configuration owner publishes that profile alongside keys and
 notification policy; only the Client UI owner installs a newer, completely
 validated publication. Fatal source failures retain all previously installed settings. An invalid
 configured sidebar profile uses its safe default, emits a warning and remains part of the complete
@@ -551,7 +551,7 @@ while an observed null title means a confirmed clear. Neither case substitutes a
 pane label or a custom `$terminal_title` token.
 
 A read workflow requests at most four exact physical bindings per batch on the
-existing owned observation lane. The Site checks membership and retained Worker,
+existing owned observation lane. The Session checks membership and retained Worker,
 creation and Host generations before and after the Worker read. The Worker drains
 at most 32 queued Host events per read, yielding to a continuously active stream,
 without attaching a viewer, claiming input or
@@ -581,7 +581,7 @@ change Agent attention or navigation identity.
 Core evidence covers absence versus clear, monotonic revisions and replay,
 identity replacement, bounded framing and exact reply correlation, stripping,
 raw-value rules and custom-token separation. Adapter evidence covers actual
-Windows metadata events and pipes, Site before/after physical fences, collector
+Windows metadata events and pipes, Session before/after physical fences, collector
 cancellation and rendering. No new public CLI command, persisted title registry,
 Host protocol, input authority, or independent terminal acknowledgement follows
 from these presentation tokens.
@@ -590,7 +590,7 @@ Agent rows retain a fixed leading state symbol independently of configured text 
 
 ## Workspace sidebar model
 
-The Windows main sidebar resolves workspace rows from exact Site/context identities,
+The Windows main sidebar resolves workspace rows from exact Session/context identities,
 not display labels or Agent source-view filtering. The settings owner admits
 `ui.sidebar.spaces` rows and `row_gap`, with at most 16 rows and 16 tokens per row.
 Builtins are `state_icon`, `state_text`, `workspace`, `branch` and `git_status`;
@@ -616,7 +616,7 @@ through the same FIFO high lane without waiting; if admission or transport fails
 the Worker still owns the physical job and its five-second TTL. The Server does
 not report that cleanup has been confirmed.
 Literal Git arguments use command-local repository selection without trust
-expansion. Site membership, directory and Worker generation are checked before
+expansion. Session membership, directory and Worker generation are checked before
 and after I/O. Branch text is control-free UTF-8 capped at 1024 bytes;
 ahead/behind counts are uint32. Metadata reads retain their own revision and an empty final
 fence; topology is rechecked before admitting a complete candidate.
@@ -628,12 +628,12 @@ I/O. Workspaces and their expanded Agent children share one Client scroll window
 heights and gaps determine focus reveal, the final page, wheel flushing and
 exact hit rectangles; one wheel flush advances at most a viewport. Changed
 identity, data or settings cancel old pending geometry. Activation rechecks the
-exact machine/Site/context; labels cannot redirect it. The workspace picker
+exact machine/Session/context; labels cannot redirect it. The workspace picker
 provides an additional keyboard navigation path. Small viewports retain that path
 while reducing the visible tree. Text-token widths reserve fixed icon/Git-count widths;
 long branch/custom values shrink before readable ahead/behind counts.
 
-The Site publishes keys, notifications and both bounded canonical sidebar
+The Session publishes keys, notifications and both bounded canonical sidebar
 profiles as one candidate. Fatal source failure or a malformed private publication retains every
 prior Client setting; an invalid configured sidebar uses its safe default and warning in the atomic
 candidate. The two 32 KiB sidebar profiles use a 256 KiB configuration frame,

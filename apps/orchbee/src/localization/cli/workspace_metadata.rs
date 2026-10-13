@@ -5,11 +5,11 @@ use orchbee_workbench_protocol::{
 };
 pub(super) const HELP_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee workspace report-metadata <workspace> --source <id> [--token <name=value>] [--clear-token <name>] [--seq <n>] [--ttl-ms <n>] [--format text|json]",
-    "Report transient display tokens on an existing Workspace. At least one token change is required.\nRepeat token/clear flags in order; later values win. Values normalize to 80 Unicode characters; empty values clear.\nOptional sequence is unsigned 64-bit; stale reports succeed without changing values or TTL. TTL: 1–86400000 ms.\nThis command never starts a Site, changes focus or retries an uncertain report. Total deadline: 5 seconds.",
+    "Report transient display tokens on an existing Workspace. At least one token change is required.\nRepeat token/clear flags in order; later values win. Values normalize to 80 Unicode characters; empty values clear.\nOptional sequence is unsigned 64-bit; stale reports succeed without changing values or TTL. TTL: 1–86400000 ms.\nThis command never starts a session, changes focus or retries an uncertain report. Total deadline: 5 seconds.",
 );
 pub(super) const HELP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee workspace report-metadata <workspace> --source <id> [--token <name=value>] [--clear-token <name>] [--seq <n>] [--ttl-ms <n>] [--format text|json]",
-    "向已有 Workspace 上报临时展示 token，至少设置或清除一个键。可按顺序重复 token／clear 选项，后者覆盖前者。值规范化为至多 80 个 Unicode 字符，空值表示清除。可选序号为无符号 64 位整数；旧序号成功返回但不改变值或 TTL。TTL：1–86400000 毫秒。不会启动 Site、改变焦点或重试不确定的上报。总期限为 5 秒。",
+    "向已有 Workspace 上报临时展示 token，至少设置或清除一个键。可按顺序重复 token／clear 选项，后者覆盖前者。值规范化为至多 80 个 Unicode 字符，空值表示清除。可选序号为无符号 64 位整数；旧序号成功返回但不改变值或 TTL。TTL：1–86400000 毫秒。不会启动会话、改变焦点或重试不确定的上报。总期限为 5 秒。",
 );
 impl Locale {
     pub(crate) const fn cli_workspace_metadata_heading(self) -> &'static str {
@@ -44,8 +44,8 @@ impl Locale {
             Some(Outcome::Failed { reason }) => match (self, reason) {
                 (Self::EnUs, Failure::InvalidRequest) => "Invalid metadata request",
                 (Self::ZhCn, Failure::InvalidRequest) => "元数据请求无效",
-                (Self::EnUs, Failure::SiteMismatch) => "Site identity changed",
-                (Self::ZhCn, Failure::SiteMismatch) => "Site 身份已改变",
+                (Self::EnUs, Failure::SiteMismatch) => "Session identity changed",
+                (Self::ZhCn, Failure::SiteMismatch) => "会话身份已改变",
                 (Self::EnUs, Failure::NotFound) => "Workspace no longer exists",
                 (Self::ZhCn, Failure::NotFound) => "Workspace 已不存在",
                 (Self::EnUs, Failure::Denied) => "Metadata reporting denied",

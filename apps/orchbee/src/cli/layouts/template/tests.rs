@@ -85,7 +85,7 @@ fn every_leaf_is_validated_before_a_plan_escapes() {
         json!({"type":"panel","command":["pwsh","\u{0}"]}),
         json!({"type":"panel","cwd":""}),
         json!({"type":"panel","env":{"PATH":"a","path":"b"}}),
-        json!({"type":"panel","env":{"ORCHBEE_SITE":"x"}}),
+        json!({"type":"panel","env":{"ORCHBEE_SESSION":"x"}}),
         json!({"type":"panel","env":null}),
         json!({"type":"panel","panelId":"one","pane_id":"two"}),
         json!({"type":"panel","focus":true}),

@@ -8,10 +8,7 @@ use super::{
 use serde_json::json;
 
 pub(super) fn build() -> serde_json::Value {
-    #[cfg(windows)]
-    let global_flags = ["--site"].as_slice();
-    #[cfg(not(windows))]
-    let global_flags: &[&str] = &[];
+    let global_flags = super::GLOBAL_FLAGS;
     #[cfg(windows)]
     let prefix_flags = ["--machine"].as_slice();
     #[cfg(not(windows))]
@@ -67,7 +64,7 @@ pub(super) fn build() -> serde_json::Value {
                 !matches!(*verb, "observe" | "control" | "attach" | "session"),
             ["agent", verb, ..] => !matches!(*verb, "doctor" | "attach" | "integration"),
             ["plugin", verb, ..] => !matches!(*verb, "install" | "uninstall" | "config-dir"),
-            ["site", verb, ..] => !matches!(*verb, "start" | "diagnose"),
+            ["server", verb, ..] => !matches!(*verb, "start" | "diagnose"),
             _ => false,
         });
         command["globalFlags"] = json!(if words == json!(["config", "import-herdr"]) {

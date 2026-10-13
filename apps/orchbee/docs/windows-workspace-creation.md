@@ -37,7 +37,7 @@ One absolute deadline covers preparation, launch and optional focus. Metadata/co
 
 Known canonical IDs are retained before follow-up work. A pending or started terminal may proceed to optional focus. Failed, unavailable or unknown terminal startup retains the Workspace receipt and stops focus. Unknown mutation handoff retains its original request identity and stops without retry, rollback or replacement creation.
 
-Focus reads a fresh same-Site snapshot at or beyond the commit revision, resolves the returned Workspace globally, and checks exact context/Tab/Panel membership. Project movement does not invalidate that scope. The Client must retain its semantic selection, or already select the exact newly created Workspace/Tab/Panel through first-Workspace reconciliation. Changed context, Tab, Panel or zoom refuses focus. One Context intent uses the fresh view revision and existing rendered/seen acknowledgement. Cancellation stops waiting, not accepted Server work; later failure preserves earlier receipts.
+Focus reads a fresh same-Session snapshot at or beyond the commit revision, resolves the returned Workspace globally, and checks exact context/Tab/Panel membership. Project movement does not invalidate that scope. The Client must retain its semantic selection, or already select the exact newly created Workspace/Tab/Panel through first-Workspace reconciliation. Changed context, Tab, Panel or zoom refuses focus. One Context intent uses the fresh view revision and existing rendered/seen acknowledgement. Cancellation stops waiting, not accepted Server work; later failure preserves earlier receipts.
 
 ## Machine output and organization commands
 

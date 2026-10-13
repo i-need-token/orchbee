@@ -1,4 +1,4 @@
-//! `site start` witnesses: the headless connect-or-activate command runs the
+//! `server start` witnesses: the headless connect-or-activate command runs the
 //! shared activation core against a real staged cohort — cold start, warm
 //! idempotence, overlapping starts, the marker-without-owner refusal, the
 //! single-deadline timeout, inherited signal death, cohort failures, and the
@@ -12,7 +12,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Output;
 
-/// Run `site start` with a caller-chosen LANG/base override; identical to
+/// Run `server start` with a caller-chosen LANG/base override; identical to
 /// `run_cli` apart from the extra environment pair.
 fn run_start(fixture: &Fixture, arguments: &[&str], lang: &str, base: &std::path::Path) -> Output {
     Command::new(fixture.cohort.join("orchbee"))
@@ -23,7 +23,7 @@ fn run_start(fixture: &Fixture, arguments: &[&str], lang: &str, base: &std::path
         .env_remove("LC_MESSAGES")
         .stdin(Stdio::null())
         .output()
-        .unwrap_or_else(|error| panic!("spawn site start {arguments:?}: {error}"))
+        .unwrap_or_else(|error| panic!("spawn server start {arguments:?}: {error}"))
 }
 
 /// A live Server admitting through the real client socket is the only proof
@@ -45,11 +45,11 @@ fn site_start_invalid_grammar_is_zero_effect() -> TestResult {
     let _guard = process_witness_guard();
     let fixture = Fixture::new();
     for arguments in [
-        vec!["site"],
-        vec!["site", "stop"],
-        vec!["site", "start", "extra"],
-        vec!["site", "start", "--project", "x"],
-        vec!["site", "start", "--format", "yaml"],
+        vec!["server"],
+        vec!["server", "stop"],
+        vec!["server", "start", "extra"],
+        vec!["server", "start", "--project", "x"],
+        vec!["server", "start", "--format", "yaml"],
     ] {
         let output = run_cli(&fixture, &arguments);
         assert_eq!(
@@ -73,7 +73,7 @@ fn site_start_cold_then_warm_reports_the_actual_branch() -> TestResult {
     let validators = validators(&fixture);
 
     // Cold start: this invocation spawns the Server.
-    let (output, document) = run_json(&fixture, &["site", "start", "--format", "json"]);
+    let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     assert_eq!(
         output.status.code(),
         Some(0),
@@ -100,13 +100,13 @@ fn site_start_cold_then_warm_reports_the_actual_branch() -> TestResult {
     let server_pid = fixture.processes("orchbee-server")[0];
 
     // Warm start: the same Site admits the probe — no second spawn.
-    let output = run_cli(&fixture, &["site", "start"]);
+    let output = run_cli(&fixture, &["server", "start"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         String::from_utf8(output.stdout)?,
-        "Local Site is already running.\n"
+        "Local session is already running.\n"
     );
-    let (output, document) = run_json(&fixture, &["site", "start", "--format", "json"]);
+    let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(document["result"]["outcome"], "already-running");
     assert_eq!(
@@ -129,7 +129,7 @@ fn site_start_overlapping_invocations_spawn_exactly_one_server() -> TestResult {
     for _ in 0..3 {
         children.push(
             Command::new(fixture.cohort.join("orchbee"))
-                .args(["site", "start", "--format", "json"])
+                .args(["server", "start", "--format", "json"])
                 .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
                 .env("LANG", "en_US.UTF-8")
                 .env_remove("LC_ALL")
@@ -144,7 +144,7 @@ fn site_start_overlapping_invocations_spawn_exactly_one_server() -> TestResult {
     let mut already_running = 0;
     for child in children {
         let output = support::bounded_wait_with_output(child, STARTUP_OR_CREATE_TIMEOUT)
-            .unwrap_or_else(|timeout| panic!("overlapping site start: {timeout}"));
+            .unwrap_or_else(|timeout| panic!("overlapping server start: {timeout}"));
         assert_eq!(
             output.status.code(),
             Some(0),
@@ -177,7 +177,7 @@ fn site_start_marker_without_owner_is_refused_and_untouched() -> TestResult {
     let marker = fixture.runtime().join("activation.started");
     let before = fs::metadata(&marker)?;
 
-    let (output, document) = run_json(&fixture, &["site", "start", "--format", "json"]);
+    let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     assert_eq!(output.status.code(), Some(3));
     assert_eq!(document["failure"]["kind"], "rejected");
     assert_eq!(
@@ -206,7 +206,7 @@ fn site_start_held_activation_lock_times_out_without_repair() -> TestResult {
         LockAttempt::Contended => panic!("fixture activation lock must be free"),
     };
     let began = Instant::now();
-    let (output, document) = run_json(&fixture, &["site", "start", "--format", "json"]);
+    let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     let elapsed = began.elapsed();
     assert_eq!(output.status.code(), Some(7));
     assert_eq!(document["failure"]["kind"], "timeout");
@@ -232,7 +232,7 @@ fn site_start_sigterm_is_signal_death_not_a_cancel_envelope() -> TestResult {
         LockAttempt::Contended => panic!("fixture activation lock must be free"),
     };
     let child = Command::new(fixture.cohort.join("orchbee"))
-        .args(["site", "start", "--format", "json"])
+        .args(["server", "start", "--format", "json"])
         .env("ORCHBEE_RUNTIME_BASE", &fixture.base)
         .env("LANG", "en_US.UTF-8")
         .env_remove("LC_ALL")
@@ -247,7 +247,7 @@ fn site_start_sigterm_is_signal_death_not_a_cancel_envelope() -> TestResult {
         nix::sys::signal::Signal::SIGTERM,
     )?;
     let output = support::bounded_wait_with_output(child, EXIT_TIMEOUT + Duration::from_secs(3))
-        .unwrap_or_else(|timeout| panic!("signaled site start: {timeout}"));
+        .unwrap_or_else(|timeout| panic!("signaled server start: {timeout}"));
     // WIFSIGNALED, not a fabricated exit-130 envelope: signal death is the
     // honest inherited behavior.
     assert_eq!(
@@ -261,7 +261,7 @@ fn site_start_sigterm_is_signal_death_not_a_cancel_envelope() -> TestResult {
 
     drop(held);
     // The lock's release is the only recovery: a fresh invocation converges.
-    let output = run_cli(&fixture, &["site", "start"]);
+    let output = run_cli(&fixture, &["server", "start"]);
     assert_eq!(output.status.code(), Some(0));
     assert_server_running(&fixture);
     Ok(())
@@ -273,7 +273,7 @@ fn site_start_cohort_failures_classify_typed() -> TestResult {
     // Missing manifest: NotFound → service-unavailable.
     let fixture = Fixture::new();
     fs::remove_file(fixture.cohort.join("cohort.json"))?;
-    let (output, document) = run_json(&fixture, &["site", "start", "--format", "json"]);
+    let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     assert_eq!(output.status.code(), Some(4));
     assert_eq!(document["failure"]["kind"], "service-unavailable");
     assert_eq!(document["failure"]["details"]["stage"], "cohort");
@@ -282,14 +282,14 @@ fn site_start_cohort_failures_classify_typed() -> TestResult {
     let fixture = Fixture::new();
     let server = fixture.cohort.join("orchbee-server");
     fs::write(&server, b"not a server")?;
-    let (output, document) = run_json(&fixture, &["site", "start", "--format", "json"]);
+    let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     assert_eq!(output.status.code(), Some(6));
     assert_eq!(document["failure"]["kind"], "incompatible");
 
     // Malformed manifest: same typed verdict.
     let fixture = Fixture::new();
     fs::write(fixture.cohort.join("cohort.json"), b"{not json")?;
-    let (output, document) = run_json(&fixture, &["site", "start", "--format", "json"]);
+    let (output, document) = run_json(&fixture, &["server", "start", "--format", "json"]);
     assert_eq!(output.status.code(), Some(6));
     assert_eq!(document["failure"]["kind"], "incompatible");
     Ok(())
@@ -311,7 +311,7 @@ fn site_start_non_utf8_base_encodes_path_bytes_hex() -> TestResult {
     let (output, document) = {
         let output = run_start(
             &fixture,
-            &["site", "start", "--format", "json"],
+            &["server", "start", "--format", "json"],
             "en_US.UTF-8",
             &weird,
         );
@@ -348,10 +348,10 @@ fn site_start_non_utf8_base_encodes_path_bytes_hex() -> TestResult {
 fn site_start_text_output_is_localized() -> TestResult {
     let _guard = process_witness_guard();
     let fixture = Fixture::new();
-    let output = run_start(&fixture, &["site", "start"], "zh_CN.UTF-8", &fixture.base);
+    let output = run_start(&fixture, &["server", "start"], "zh_CN.UTF-8", &fixture.base);
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(String::from_utf8(output.stdout)?, "本地 Site 已启动。\n");
-    let output = run_start(&fixture, &["site", "start"], "zh_CN.UTF-8", &fixture.base);
-    assert_eq!(String::from_utf8(output.stdout)?, "本地 Site 已在运行。\n");
+    assert_eq!(String::from_utf8(output.stdout)?, "本地会话已启动。\n");
+    let output = run_start(&fixture, &["server", "start"], "zh_CN.UTF-8", &fixture.base);
+    assert_eq!(String::from_utf8(output.stdout)?, "本地会话已在运行。\n");
     Ok(())
 }

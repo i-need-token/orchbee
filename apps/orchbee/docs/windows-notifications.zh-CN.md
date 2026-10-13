@@ -1,10 +1,10 @@
 # Windows CLI 通知
 
-`notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right] [--sound none|done|request] [--format text|json]` 向已有 Site 提交。标题/正文规范化会合并空白、移除控制字符，并截断为 80/240 个 Unicode 标量；规范化后标题为空则在提交前失败。省略位置时使用各 Client 配置（默认右下），声音默认 none。线协议同时限制规范字符串的标量数和 UTF-8 字节数。
+`notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right] [--sound none|done|request] [--format text|json]` 向已有 Session 提交。标题/正文规范化会合并空白、移除控制字符，并截断为 80/240 个 Unicode 标量；规范化后标题为空则在提交前失败。省略位置时使用各 Client 配置（默认右下），声音默认 none。线协议同时限制规范字符串的标量数和 UTF-8 字节数。
 
 ## 交付模型
 
-现有 Server Workbench 服务拥有临时通知注册表。监听者属于认证连接的 generation，五秒未轮询则过期；每个监听者最多一个待取消息，消息也限时五秒。最多 32 个监听者、256 个请求回执，回执保留 60 秒。成功 Show 向所有当前可接收的在线主 TUI 监听者排入通知，并开始一秒限流。disabled、busy、rate-limited、no-foreground-client 不投递。保留期内精确重放返回原结果而不再次排入；相同身份的不同请求失败。传输不确定后不重试变更。成功回执表示入队，不保证实际显示或声音播放。监听者只取一次；断连和过期释放待处理状态。Site 重启不保留通知。
+现有 Server Workbench 服务拥有临时通知注册表。监听者属于认证连接的 generation，五秒未轮询则过期；每个监听者最多一个待取消息，消息也限时五秒。最多 32 个监听者、256 个请求回执，回执保留 60 秒。成功 Show 向所有当前可接收的在线主 TUI 监听者排入通知，并开始一秒限流。disabled、busy、rate-limited、no-foreground-client 不投递。保留期内精确重放返回原结果而不再次排入；相同身份的不同请求失败。传输不确定后不重试变更。成功回执表示入队，不保证实际显示或声音播放。监听者只取一次；断连和过期释放待处理状态。Session 重启不保留通知。
 
 Client 自有的可取消连接独立于输入/绘制进行轮询，只有 UI 所有者安装通知。启用卡片投递时，单个五秒临时卡片出现在内容区的指定角落，不盖住状态行，不捕获键盘/鼠标，不移动焦点，不改变布局。卡片模式下，已有提示、对话框和覆盖层会暂停接收；竞态下丢弃到达的卡片，不替换用户拥有的界面。空闲到期也触发重绘。显示文字转义终端及方向格式控制字符，按终端显示宽度裁剪。成功绘制后可请求一次安全 Windows 声音：done 使用信息声，request 使用感叹声，none 静音。系统声音策略可能抑制播放。外部投递的声音请求独立于视觉成功；system 模式请求 Windows 通知区域气泡。任何投递均不激活原生窗口，不跳转到 Agent 目标。
 
@@ -16,7 +16,7 @@ Herdr 参照为 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，尤其是 `server/h
 
 ## 自定义通知投递配置
 
-Windows `[ui.toast] delivery` 选择 `off`（默认）、`orchbee`（`herdr` 为导入别名）、`terminal` 或 `system`。`[ui.toast.herdr] position` 用既有四个 CLI 位置名称选择默认角落。CLI 省略位置时使用各接收 Client 的配置，显式位置优先。启动使用 Client 配置；显式 Site 配置发布将有界规范通知配置与键位一起应用，致命来源错误或畸形私有发布同时保留旧策略。其他 Agent/剪贴板/声音偏好不属于本批自定义通知范围。
+Windows `[ui.toast] delivery` 选择 `off`（默认）、`orchbee`（`herdr` 为导入别名）、`terminal` 或 `system`。`[ui.toast.herdr] position` 用既有四个 CLI 位置名称选择默认角落。CLI 省略位置时使用各接收 Client 的配置，显式位置优先。启动使用 Client 配置；显式 Session 配置发布将有界规范通知配置与键位一起应用，致命来源错误或畸形私有发布同时保留旧策略。其他 Agent/剪贴板/声音偏好不属于本批自定义通知范围。
 
 Off 关闭视觉提示，显式请求的自定义声音仍独立生效。没有 Client 时，Server 的 off 策略返回 `disabled`，否则返回 `no-foreground-client`。连接中的 Client 即使使用 off，也可以将传输接纳报告为 `shown`。策略变化丢弃未投递效果和卡片，不重放此前消息。
 
@@ -81,7 +81,7 @@ seen。移除、替换、状态变化、确认已读、有效配置替换或 Cli
 对话框、提示或其他用户所有 surface 会使 sink 繁忙；有界自动候选等待，绝不替换该
 surface。一个已接纳候选最多产生一次效果，Client 退出后不持久化。
 
-Site 将键位、侧栏设置及完整通知 profile 原子发布。启动或 reload 来源不可读、过大、
+Session 将键位、侧栏设置及完整通知 profile 原子发布。启动或 reload 来源不可读、过大、
 非 UTF-8 或 TOML 畸形时保留旧 profile。无效通知叶字段使用安全默认值、产生警告并参与
 完整候选的原子发布；畸形私有线协议 profile 仍在 Client 安装前拒绝。有效且不同的修订会
 取消全部旧自动候选及尚未绘制的通知效果；后续状态转移使用新 profile。自动弹窗默认使用

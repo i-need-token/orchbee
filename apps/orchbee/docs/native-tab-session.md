@@ -58,7 +58,7 @@ separate multi-Client Close-to-Empty process tail.
 
 | Boundary                      | Required native transition                                                                                                                                                                                        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Initial Close                 | Capture the exact selected Site/context/Tab and canonical base. Render the localized all-attached-Clients warning before arming confirmation; coalesced unseen confirmation cannot submit.                        |
+| Initial Close                 | Capture the exact selected Session/context/Tab and canonical base. Render the localized all-attached-Clients warning before arming confirmation; coalesced unseen confirmation cannot submit.                     |
 | Resume                        | Require the exact currently displayed resumable operation/attempt, a fresh rendered confirmation and revalidation at admission. Unknown is never resumable.                                                       |
 | Cancel or local refusal       | Preserve selection, attachment, knowledge, request cursor and mailbox position.                                                                                                                                   |
 | Accepted command              | Retain the canonical primary operation and accepted revision; an alias may acknowledge an older accepted base. Acceptance does not imply removal.                                                                 |
@@ -154,14 +154,14 @@ follows when the finite observation quota, transport or Server continuation is e
 
 Carrier retirement stops automatic scheduling. Only explicit user status Refresh may connect
 again, after exact old-worker join, to the retained trusted-local endpoint/cohort and retained
-Site/target. Mismatch is unavailable, with no adoption. This status-only phase cannot activate a
-Site, Open, Create, Start, Attach or replay a mutation. Retain known facts across join and
+Session/target. Mismatch is unavailable, with no adoption. This status-only phase cannot activate a
+Session, Open, Create, Start, Attach or replay a mutation. Retain known facts across join and
 reconnection; never revive the old Viewer. Reconciliation/Attach can begin only through the
 membership owner's validated Closed/Snapshot handoff outside this phase. Restart persistence
 and changed-authority recovery remain excluded.
 
 After a successful exact Read on the fresh carrier has semantically settled and displayed the
-latest eligible parked status for the same retained authority/Site/target/operation, a new user
+latest eligible parked status for the same retained authority/Session/target/operation, a new user
 Resume intent may leave status-only recovery for one explicit control. Its new confirmation must
 actually render, and admission revalidates the status, generation and display token. Failed Read,
 Unknown, NotClosing, an old token or unseen confirmation cannot open this control stage. Admit one
@@ -271,10 +271,10 @@ separately cover removal and reattachment with a fresh incarnation.
 ## Canonical membership implementation boundary
 
 The shared membership implementation replaces the earlier append-only assumption below. Pure
-validation requires the same Site/context, nondecreasing revision and exact equality of Tabs,
+validation requires the same Session/context, nondecreasing revision and exact equality of Tabs,
 navigation and projects at the same revision. A higher revision may add, remove, reorder and
 rename Tabs; candidate Tab identities stay globally unique within the existing bound, and Panel,
-Presentation and Terminal identities each stay globally unique. Within this Site/context, overlap
+Presentation and Terminal identities each stay globally unique. Within this Session/context, overlap
 of any current and candidate Panel, Presentation or Terminal identity requires the same complete
 immutable member tuple — Panel, Presentation, Presentation label and the complete Worker/terminal
 binding — while the owning Tab is the one authorized delta: a member may relocate across Tabs
@@ -292,7 +292,7 @@ member in the compared current or retained Context. Surviving Presentation/Termi
 identities still require their complete original tuple; changing only a binding or
 moving an old Presentation into another Panel is rejected. Standalone Contexts retain
 the original rule. This preserves the user's layout while keeping Presentation binding
-identity immutable. Site allocators, rather than this two-snapshot comparison, own
+identity immutable. Session allocators, rather than this two-snapshot comparison, own
 lifetime non-reuse.
 
 Replacement of any Panel in the active Tab uses the existing whole-anchor membership
@@ -308,14 +308,14 @@ alias rejection and unchanged-Presentation binding refusal.
 Exact Create and Move commit revisions retain their original strict expectations. At a later
 revision the committed target may be absent, represented by an optional validated target index;
 its historical commit is never erased. A projection-owned `ClosedTabExpectation` checks exact
-Site/context/Tab and minimum Closed revision with the target absent. It proves membership only.
+Session/context/Tab and minimum Closed revision with the target absent. It proves membership only.
 This expectation is implemented in `workbench_projection/closed.rs` with private identity fields
 and read-only accessors. Its pure validator reuses canonical candidate validation, then checks exact
 scope, minimum revision and target absence; tests reject wrong scope, old revision and target
 presence. The Close state owner separately supplies the retained attachment identity and cleanup
 proof when connecting its consumer.
 
-Live Empty retains the validated canonical Site/context/revision and an empty Tab vector, with no
+Live Empty retains the validated canonical Session/context/revision and an empty Tab vector, with no
 provenance entries, active/desired key, viewer/controller, projection, frame or Ready fact. Cold
 bootstrap still requires a nonempty projection. `MailboxMembership::AwaitingBootstrap` is distinct
 from `Live { desired: None }`; Empty permits manual Create and Refresh, plus Close-owned status and
@@ -609,7 +609,7 @@ own checked-add overflow, deadline minus one/equality/plus one, lock contention,
 shared budget, initial and postcommit ID exhaustion, timed deposit and UI consumption after expiry.
 Controlled PTY tests own active PID/marker continuity, usable input/Resize and second-Client
 refresh; worker/UI traces own exact viewer/controller/generation preservation. Internal
-retirement-to-completion is Site/stateful evidence only. These sampled traces do not prove arbitrary permutations, physical platforms or guaranteed recovery success.
+retirement-to-completion is Session/stateful evidence only. These sampled traces do not prove arbitrary permutations, physical platforms or guaranteed recovery success.
 
 ## Projection refinement evidence
 
@@ -750,7 +750,7 @@ fn validate_created_tab(
 ```
 
 The accepted Move refinement replaces the legacy `validate_append_only_refresh` prefix policy:
-require the same Site/context and reject lower revision; same revision requires exact equality of
+require the same Session/context and reject lower revision; same revision requires exact equality of
 the complete projection, including order and labels. At greater revision the shared canonical
 membership rule applies: overlap of any current and candidate Panel, Presentation or Terminal
 identity requires the same complete immutable member tuple with the owning Tab as the authorized
@@ -795,7 +795,7 @@ Tab, whether grouped or ungrouped; Duplicate and candidates that already removed
 contract; the response table below describes foreground creation unless explicitly stated otherwise.
 
 Selected duplication uses each unchanged single-Create lifecycle in sequence. Its private pre-install
-witness validates the old concrete pane, selected Presentation binding, marks and full Site Snapshot
+witness validates the old concrete pane, selected Presentation binding, marks and full Session Snapshot
 before this membership owner changes cache, desired selection or old pane records. Only that correlated, one-shot install may adopt a
 fresh generation; original selection must reach Ready and the prior lease/reply/poll settlement must
 finish before atomic mailbox admission of the next source. A fixed 120-second total bounds per-member
@@ -968,7 +968,7 @@ placement or binding prunes its pixels; no retained-context membership, attachme
 authority crosses the handoff.
 
 A revisit during Starting/Switching, or a Ready viewer converging on a replacement full frame, may
-paint the retained image only while projection status is Empty or WaitingForFullFrame and Site,
+paint the retained image only while projection status is Empty or WaitingForFullFrame and Session,
 terminal context, Tab, Panel, selected presentation, worker/terminal binding and the rendered
 column/row dimensions all match. A known new HostEpoch must also match. A first visit, an evicted
 image, an unbound or faulted terminal, an explicit retryable attachment failure, a different
@@ -1429,7 +1429,7 @@ The worker processes a current Switch marker as one setup operation:
 2. settle any already handed-off Ready-generation Poll/Feedback response on the sequential carrier,
    then read, deposit and validate the current candidate before exact old cleanup and atomic fresh-key
    installation as above; Detach clears only an unsent/staged or exactly answered old projection flight;
-3. exact AttachBinding for the installed candidate's validated Site/Worker/Terminal binding;
+3. exact AttachBinding for the installed candidate's validated Session/Worker/Terminal binding;
 4. build a fresh `TerminalProjection` from returned AttachmentId/HostEpoch;
 5. Acquire; controller-busy becomes ReadOnly, while Acquired begins Resize using latest real
    geometry and a fresh controller sequence;
@@ -1617,7 +1617,7 @@ A current definite denied/unavailable result keeps cache, active ID and terminal
 sets refresh failure; definite unavailability during explicit recovery preserves that recovery.
 The accepted Move refinement applies the strict projector and ID-authoritative replacement rule.
 Lower revision, same-revision difference, missing/duplicate old ID, changed immutable tuple/binding/
-Presentation label, Site/context mismatch or loss of the phase-required active identity retires.
+Presentation label, Session/context mismatch or loss of the phase-required active identity retires.
 Higher-revision supported reorder and Tab-label changes are valid. Success prepares provenance by
 ID, atomically replaces cache/provenance, preserves active ID and derives its new index.
 ProjectionUnavailable additionally validates retained create facts. MoveProjectionUnavailable
@@ -1800,7 +1800,7 @@ staleness, cancellation, retirement and reciprocal state admission. Actual mailb
 capacity, cursor/serial exhaustion, fixed-cutoff refusals, exact ACK and retained worker-loss evidence.
 
 `Ctrl+B ,` opens a state-owned draft for the exact selected Tab in the active context in a live stable phase.
-Capture the canonical baseline, Site/context/Tab and attachment generation without allocating a
+Capture the canonical baseline, Session/context/Tab and attachment generation without allocating a
 request or deadline. Empty, structural/recovery flights and Close/Resume confirmation refuse entry.
 The draft and Close confirmation are mutually exclusive. Applied authority or selection changes
 invalidate the draft; Enter revalidates the captured tuple atomically and never retargets its text.
@@ -2022,7 +2022,7 @@ Historical state counts and narrowed scenario families are not current proof aut
 
 This entry is for a non-initiating native Client whose exact current ordinary Poll returned
 `TerminalRuntimeUnavailable`. It retains that correlated request and attachment key, immutable
-binding, canonical Site/context baseline and historical ordinal. Stale or setup Polls, transport
+binding, canonical Session/context baseline and historical ordinal. Stale or setup Polls, transport
 uncertainty, malformed replies and other failures do not establish this origin. Activation requires
 successful exact old-task join, closed old transport and settlement of all returned facts. Panic or
 missing return evidence cannot establish eligibility. Any retained Close/Read record or flight, or
@@ -2061,7 +2061,7 @@ budget or the separate Close status budget. There is no deadline renewal after a
 Only exact cleanup of a newly attempted setup may use the final reserve. A further parked attempt
 requires another explicit action after the previous carrier has closed and joined.
 
-Before installation the only request is SnapshotRead. The full candidate must preserve Site/context,
+Before installation the only request is SnapshotRead. The full candidate must preserve Session/context,
 nondecreasing revision, exact same-revision membership and every immutable retained identity tuple.
 The old unavailable Tab must be absent, or its selected Workspace Panel must now carry both
 a fresh Presentation and a fresh terminal binding under the replacement rule above. A surviving
@@ -2126,10 +2126,10 @@ The Linux PTY Close witness observes a new Disconnected frame before one explici
 both Clients' Empty state, full public Snapshot equality after exact removal, original shell exit
 and a bounded 500 ms fresh-observation check against automatic Create. The same witness then
 issues manual `c` from the former view-only Client, verifies fresh Tab/Panel/Presentation/Terminal
-identities in the same Site/context and a real new shell, and refreshes the peer into view-only mode.
+identities in the same Session/context and a real new shell, and refreshes the peer into view-only mode.
 Ordinary exit preserves the new shell and original Server/Worker/Host processes. Later bare Open
 returns the same canonical Snapshot, shell PID and shell-local marker. This does not change the
-separate accepted ability of bare Open to bootstrap when the Site is still Empty. Retirement finalization
+separate accepted ability of bare Open to bootstrap when the Session is still Empty. Retirement finalization
 closes and joins the task synchronously before the tick returns for drawing. Run
 `cargo test --locked -p orchbee --all-targets --all-features` with the staged local Server/Worker/Host
 cohort. These checks do not establish remote-reference cleanup, restart adoption or general recovery.
@@ -2145,7 +2145,7 @@ Detach lifecycle.
 
 Every candidate snapshot classifies before it commits. `Candidate` keeps the ordinary membership
 path: the current context still projects. `Removed` requires the full conjunction — validated
-envelope, unchanged Site, nondecreasing revision, the current context id absent from every
+envelope, unchanged Session, nondecreasing revision, the current context id absent from every
 navigation entry, the surviving standalone projecting, the removed context's creation provenance
 carrying no `Pending`/`OutcomeUnknown`, and every structural guard quiet — no pending mutation,
 commit, setup, cleanup handoff, retired attempt, in-flight Create/Close or live

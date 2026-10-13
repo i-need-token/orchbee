@@ -8,13 +8,13 @@ impl Locale {
         let (usage, english, chinese) = match path {
             C::CommandList => (
                 "orchbee command list [--format text|json]",
-                "List commands from the running Site's [[keys.command]] configuration, including their IDs, actions, shortcuts and descriptions. Use the returned ID with orchbee command invoke. Changed configuration invalidates old IDs.",
-                "列出正在运行的 Site 在 [[keys.command]] 中配置的命令，包括 ID、操作、快捷键和说明。将返回的 ID 用于 orchbee command invoke；配置变更会使旧 ID 失效。",
+                "List commands from the running session's [[keys.command]] configuration, including their IDs, actions, shortcuts and descriptions. Use the returned ID with orchbee command invoke. Changed configuration invalidates old IDs.",
+                "列出正在运行的会话在 [[keys.command]] 中配置的命令，包括 ID、操作、快捷键和说明。将返回的 ID 用于 orchbee command invoke；配置变更会使旧 ID 失效。",
             ),
             C::CommandInvoke => (
                 "orchbee command invoke <command-id> [--workspace <id>] [--tab <id>] [--panel <id>] [--client <id>] [--context <json>] [--anchor ROW:COL --cursor ROW:COL --content-revision <n>] [--timeout <ms>] [--format text|json]",
-                "Run a command returned by orchbee command list in an existing Site. An optional source target is focused first. Shell actions run in the background; pane actions open a split; popup actions open an independent terminal; plugin_action runs an installed plugin action. Working directory and environment follow the source terminal.\n\nPlugin selection requires both coordinates and the exact terminal content revision. Configuration changes invalidate old command IDs. An uncertain submission is never replayed; cancellation stops waiting and does not cancel accepted work.",
-                "在已运行的 Site 中执行 orchbee command list 返回的命令，可先聚焦指定来源。shell 在后台运行；pane 打开分屏；popup 打开独立终端；plugin_action 执行已安装的插件操作。工作目录和环境来自来源终端。\n\n插件选区要求两端坐标及精确终端内容修订。配置变化会使旧命令 ID 失效。结果不确定时不重放提交；取消只结束等待，不取消已接纳的任务。",
+                "Run a command returned by orchbee command list in an existing session. An optional source target is focused first. Shell actions run in the background; pane actions open a split; popup actions open an independent terminal; plugin_action runs an installed plugin action. Working directory and environment follow the source terminal.\n\nPlugin selection requires both coordinates and the exact terminal content revision. Configuration changes invalidate old command IDs. An uncertain submission is never replayed; cancellation stops waiting and does not cancel accepted work.",
+                "在已运行的会话中执行 orchbee command list 返回的命令，可先聚焦指定来源。shell 在后台运行；pane 打开分屏；popup 打开独立终端；plugin_action 执行已安装的插件操作。工作目录和环境来自来源终端。\n\n插件选区要求两端坐标及精确终端内容修订。配置变化会使旧命令 ID 失效。结果不确定时不重放提交；取消只结束等待，不取消已接纳的任务。",
             ),
             _ => unreachable!("command help ownership"),
         };

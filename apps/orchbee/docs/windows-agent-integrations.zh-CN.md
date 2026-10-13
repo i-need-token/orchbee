@@ -1,7 +1,7 @@
 # Windows Agent 集成
 
 本文负责原生 `agent integration list`、`explain`、`enable`、`disable` 的 Windows
-细化契约。CLI 负责本机接入，不启动 Site。共享的 provider 分类器与变更流程继续负责
+细化契约。CLI 负责本机接入，不启动 Session。共享的 provider 分类器与变更流程继续负责
 归属、版本方向、计划、回执和残留物。
 
 ## 模型与边界

@@ -18,7 +18,7 @@ including NEL and excluding BOM; Rust, TypeScript and schema evidence must agree
 Clear restores the existing creation fallback. It does not start deriving a Host natural title,
 change a Tab title, change child Presentations or set the outer terminal window title. This is a
 label-lifetime boundary of the native model, rather than a hidden replacement of fallback text.
-Like other native canonical Workbench state, overrides last for the Site process; this operation
+Like other native canonical Workbench state, overrides last for the Session process; this operation
 does not add restart persistence.
 
 The owning implementation consists of the protocol label types and Presentation/action contracts,
@@ -30,7 +30,7 @@ reference with those owners and the independent TypeScript contracts and JSON sc
 
 | Element        | Contract                                                                                                                                                                       |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Input          | An admitted navigation grant, request ID, exact Site and expected revision, context ID, Tab ID, Panel ID and normalized set/clear update.                                      |
+| Input          | An admitted navigation grant, request ID, exact Session and expected revision, context ID, Tab ID, Panel ID and normalized set/clear update.                                   |
 | State          | One validated canonical snapshot and the existing bounded command ledger; no separate label cache or private fallback map.                                                     |
 | Target         | The exact context contains the exact Tab and leaf Panel. Only its primary Presentation receives the update, including while terminal creation is pending.                      |
 | Changed result | Prepare the entire candidate, encoded projection and ledger result before committing exactly one revision. Return `renamed` under the original request ID.                     |
@@ -45,7 +45,7 @@ bindings, topology, order, directories and lifecycle facts remain exact. It neit
 terminal controller nor changes focus, zoom, ratios or attachments. A later split, move or terminal
 creation settlement must preserve an existing override on the surviving Presentation.
 
-The CLI's dedicated `orchbee.panel.rename` version-1 result records the original request/Site/base,
+The CLI's dedicated `orchbee.panel.rename` version-1 result records the original request/Session/base,
 target identities, result revision, `renamed` or `unchanged`, and nullable normalized `customLabel`.
 Request-side metadata is correlated input, not an invented Server observation. Existing text/JSON
 failure envelopes and one absolute submission deadline apply. The CLI performs one snapshot read
@@ -72,9 +72,9 @@ existing rejection behavior. Custom labels are not attachment identity and never
 normalized set/clear, no-op, replay, non-target preservation, pending creation, authorization and
 capacity. [Native projection traces](../src/terminal_session/workbench_projection/tests/label_evolution.rs)
 cover custom-label evolution and immutable identity rejection. These maintained tests do not run
-two native TUIs against one Site.
+two native TUIs against one Session.
 
-Native Windows process validation must use an owned Site and two TUIs to check global display
+Native Windows process validation must use an owned Session and two TUIs to check global display
 convergence, set/clear/no-op, nested Panel isolation and unchanged terminal identity. Run the
 applicable root gate and record this native witness separately; a passing owner test or gate does
 not itself establish that interaction. No separate label TLA model is retained.

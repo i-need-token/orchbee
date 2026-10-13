@@ -6,7 +6,7 @@ Ordinary Workspace/Tab focus shares [Client selection memory](native-context-sel
 
 ## Identity and publication
 
-An authenticated Client Session may publish one interactive view. Its Client identity is the admitted nonzero Session generation encoded as 32 lowercase hexadecimal characters, scoped by Site. Server assigns it; generations never repeat during one Server lifetime. Ordinary CLI connections do not publish views. Synchronization has no caller-supplied Client identity and cannot acknowledge another Session's work.
+An authenticated Client Session may publish one interactive view. Its Client identity is the admitted nonzero Session generation encoded as 32 lowercase hexadecimal characters, scoped by Session. Server assigns it; generations never repeat during one Server lifetime. Ordinary CLI connections do not publish views. Synchronization has no caller-supplied Client identity and cannot acknowledge another Session's work.
 
 The view reports its observed Workbench revision, phase (`starting`, `ready`, `busy`, `unavailable`) and a required nullable selection. Selection carries TerminalContext identity, required nullable Tab/Panel identities, an explicit zoom flag and the active Tab panel count (zero without a Tab, positive with a Tab). A Panel requires a Tab; zoom requires a Panel. These are Client observations, not additional canonical Workbench fields.
 
@@ -44,7 +44,7 @@ One Windows control lane owns a separate admitted connection and a bounded lates
 
 Local navigation or modal intent interrupts further remote steps. Already accepted native work is not described as undone; interruption after such a step is incomplete. Missing targets, stale views, unsupported states and modal/busy admission have explicit outcomes. Geometry changes re-observe viewport sizes and invalidate pointer hit maps before drawing. Applied acknowledgement requires the requested selection/zoom to be observed and a successful draw. A failed draw or lost connection cannot fabricate applied success. A viewport too small to present content is busy. Zoom-on or toggle for a single-Panel Tab returns `zoom-unchanged` after the requested Panel is selected and drawn; it never invents a zoom flag. This outcome requires an observed single-Panel target, `zoomed: false` and the requested minimum revision. Completed draw observations are pinned until acknowledgement, so later local navigation cannot rewrite the receipt.
 
-The lane stops, wakes blocked I/O and joins on TUI exit. Server Session cleanup removes publication and settles retained requests; managed Site stop joins those handlers. Client view/control state is volatile and does not survive Server restart.
+The lane stops, wakes blocked I/O and joins on TUI exit. Server Session cleanup removes publication and settles retained requests; managed Session stop joins those handlers. Client view/control state is volatile and does not survive Server restart.
 
 Before sending its first Synchronize, lane admission has one shared two-second budget. A transient local transport failure—an endpoint not yet present or refusing, an interrupted, reset or aborted connection, a broken pipe, would-block, timeout or handshake EOF—permits at most one retry with the original deadline and a fresh Server-assigned Session generation. Permission, configuration, protocol, rejection, unexpected-response, cancellation and request I/O setup failures stop immediately. After any Synchronize request is sent, every failure remains terminal for that lane: it does not transfer Client identity, replay a control, completion or mutation, or renew the deadline. This retry changes only prepublication admission; it does not weaken the registry's terminal Disconnect semantics for an admitted Session.
 
@@ -52,7 +52,7 @@ Before sending its first Synchronize, lane admission has one shared two-second b
 
 An explicit Client selector chooses that exact live Client. Without it, validated caller Terminal/Worker context selects a unique view focused on that binding; outside such a context, exactly one current view is required. Missing, invalid, stale or ambiguous context is an explicit failure; there is no most-recent or global-focus guess. Target resolution continues to use canonical Workbench identities.
 
-`workbench.client-view` has Synchronize, List, Get, Submit and Read actions, with `workbench.client-view.result` responses. Requests carry protocol version, exchange request identity and Site identity. Synchronize carries required nullable completion; its result carries required nullable next control. Operation identity is separate from exchange identity. Frame kinds 25/26 retain OBWP version 1; request bodies are limited to 16 KiB and results to 64 KiB before allocation. Rust and TypeScript independently validate closed variants, required nullable fields, identity/sequence bounds and cross-field relationships.
+`workbench.client-view` has Synchronize, List, Get, Submit and Read actions, with `workbench.client-view.result` responses. Requests carry protocol version, exchange request identity and Session identity. Synchronize carries required nullable completion; its result carries required nullable next control. Operation identity is separate from exchange identity. Frame kinds 25/26 retain OBWP version 1; request bodies are limited to 16 KiB and results to 64 KiB before allocation. Rust and TypeScript independently validate closed variants, required nullable fields, identity/sequence bounds and cross-field relationships.
 
 The boundary is additive within exact cohort admission. Old cohorts do not silently reinterpret new messages. Rolling back the cohort discards only volatile view/control observations; it does not change canonical Workspace or terminal state. New Mac/Linux control runtimes and Desktop CLI exposure are outside this Windows implementation.
 
@@ -193,7 +193,7 @@ resolution/no-neighbor, human input, deadline and replay; full Windows acceptanc
 
 Direct Panel focus and a resolved directional neighbor may enter a Busy Client for one cancellable
 mode-exit preflight. Before cancelling any draft or shell surface, the control lane reads one fresh
-canonical Snapshot and the Client validates Site, minimum revision and exact Context/Tab/Panel
+canonical Snapshot and the Client validates Session, minimum revision and exact Context/Tab/Panel
 membership. A missing, denied, stale or unavailable target leaves modes untouched. Directional
 geometry resolves once before mode exit; no neighbor returns unchanged without a draw or acknowledgement.
 

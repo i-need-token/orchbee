@@ -19,7 +19,7 @@ launch／profile 互斥。几何尺寸使用既有列／行／单元格像素选
 
 CLI 解析一份规范快照，只提交一次保留的 `panel.create-terminal` 请求。
 Server 负责授权、修订／Close 约束、身份分配、启动及结算。
-`orchbee.panel.terminal-create` v1 保留 Site／请求／基准修订、精确目标、目录来源及完整的等待或最终结果，
+`orchbee.panel.terminal-create` v1 保留 Session／请求／基准修订、精确目标、目录来源及完整的等待或最终结果，
 不导出 argv 或环境变量值。Pending 代表已接受，尚未确认启动。
 已知物理失败／不可用和结果不确定均返回非零，并保留已提交身份。
 写入后回复丢失、无效或关联不符会退役连接并报告不确定，不重试、不补偿关闭。

@@ -9,7 +9,7 @@ fn selected(words: &[&str]) -> Result<SelectedRequest, ParseFailure> {
 #[test]
 fn named_lifecycle_selects_one_exact_site_and_preserves_stop_options() {
     for verb in ["attach", "stop", "delete"] {
-        let mut words = vec!["--site=Work", "session", verb, "Work"];
+        let mut words = vec!["--session=Work", "session", verb, "Work"];
         if verb != "attach" {
             words.push("--confirm");
         }
@@ -79,7 +79,7 @@ fn invalid_lifecycle_grammar_fails_before_selection_or_runtime_effects() {
         vec!["session", "delete", "work", "extra", "--confirm"],
         vec!["session", "delete", "work", "--confirm", "--timeout=1"],
         vec!["session", "stop", "work", "--confirm", "--retry"],
-        vec!["--site=Work", "session", "delete", "work", "--confirm"],
+        vec!["--session=Work", "session", "delete", "work", "--confirm"],
     ] {
         assert!(selected(&words).is_err(), "{words:?}");
     }

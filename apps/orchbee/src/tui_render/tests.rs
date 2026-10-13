@@ -480,7 +480,7 @@ fn wide_render_exposes_the_business_sidebar_and_unavailable_workbench_truth() {
     assert!(rendered.contains("Projects"));
     assert!(rendered.contains("WORKBENCH"));
     assert!(rendered.contains("Terminal unavailable"));
-    assert!(rendered.contains("No Site or Client Session is connected."));
+    assert!(rendered.contains("No Orchbee session is connected."));
     assert!(!rendered.contains("Ctrl+B · shortcuts"));
 }
 
@@ -573,7 +573,13 @@ fn overlays_never_cover_the_status_row() {
     let mut view = ClientView::new(60);
     prefix(&mut view, plain('w'));
     let rows = rendered_rows(60, 12, &view, Locale::ZhCn);
-    assert!(rows[11].contains("快捷键") || rows[11].contains("Site"));
+    // The buffer text helper includes wide-glyph continuation cells as spaces.
+    let status_text = rows[11].replace(' ', "");
+    assert!(
+        status_text.contains("快捷键") || status_text.contains("会话"),
+        "status row: {:?}",
+        rows[11]
+    );
 }
 
 #[test]

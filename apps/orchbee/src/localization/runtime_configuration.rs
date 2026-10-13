@@ -8,13 +8,13 @@ impl Locale {
     ) -> String {
         let text = match (self, outcome) {
             (Self::EnUs, "startup") => {
-                "Site startup baseline; no live configuration has been published yet."
+                "Session startup baseline; no live configuration has been published yet."
             }
-            (Self::ZhCn, "startup") => "Site 启动基线；尚未发布在线配置。",
+            (Self::ZhCn, "startup") => "会话启动基线；尚未发布在线配置。",
             (Self::EnUs, "unknown") => {
-                "Configuration outcome unknown; inspect 'site config' before retrying."
+                "Configuration outcome unknown; inspect 'server config' before retrying."
             }
-            (Self::ZhCn, "unknown") => "配置结果未知；重试前请用 site config 查看当前状态。",
+            (Self::ZhCn, "unknown") => "配置结果未知；重试前请用 server config 查看当前状态。",
             (Self::EnUs, "failed") => {
                 "Configuration reload/read failed; previous published settings retained."
             }
@@ -24,9 +24,9 @@ impl Locale {
             }
             (Self::ZhCn, "warning") => "配置已发布但含警告；请运行 'orchbee config check' 查看。",
             (Self::EnUs, "restart") => {
-                "Configuration published; some settings require a new Site lifetime."
+                "Configuration published; some settings require a new session lifetime."
             }
-            (Self::ZhCn, "restart") => "配置已发布；部分设置需要重新启动 Site。",
+            (Self::ZhCn, "restart") => "配置已发布；部分设置需要重新启动会话。",
             (Self::EnUs, _) => "Configuration published for connected Clients.",
             (Self::ZhCn, _) => "配置已发布，连接中的 Client 将接收更新。",
         };
@@ -95,14 +95,14 @@ impl Locale {
         use crate::invocation::CommandPath as C;
         let (usage, english, chinese) = match path {
             C::SiteConfig => (
-                "orchbee site config [--format text|json]",
-                "Read the configuration currently used by the running Site. This command neither reloads configuration nor starts a Site.",
-                "读取正在运行的 Site 当前使用的配置。本命令不重新加载配置，也不启动 Site。",
+                "orchbee server config [--format text|json]",
+                "Read the configuration currently used by the running session. This command neither reloads configuration nor starts a session.",
+                "读取正在运行的会话当前使用的配置。本命令不重新加载配置，也不启动会话。",
             ),
             C::SiteReloadConfig => (
-                "orchbee site reload-config [--format text|json]",
-                "Reload the configuration path selected when the Site started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Shell defaults affect new terminals; startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing Site; a lost reply is never retried automatically.",
-                "重新加载 Site 启动时选定的配置路径。更新快捷键、窗口标题、Agent 侧边栏布局、通知策略和清单检查。Shell 默认值影响新终端；启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的 Site；应答丢失时不自动重试。",
+                "orchbee server reload-config [--format text|json]",
+                "Reload the configuration path selected when the session started. Updates shortcuts, window titles, Agent sidebar layouts, notification policy and manifest checks. Shell defaults affect new terminals; startup restore settings require a restart.\n\nFile or TOML errors preserve the previous configuration. Individual field warnings use safe defaults. Requires an existing session; a lost reply is never retried automatically.",
+                "重新加载会话启动时选定的配置路径。更新快捷键、窗口标题、Agent 侧边栏布局、通知策略和清单检查。Shell 默认值影响新终端；启动恢复设置需要重启。\n\n文件或 TOML 错误会保留原配置；单字段警告使用安全默认值。需要已运行的会话；应答丢失时不自动重试。",
             ),
             _ => unreachable!("command help ownership"),
         };

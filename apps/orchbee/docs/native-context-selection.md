@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 The native Client selects the standalone Terminal Context or a Workspace in the connected local
-Site. Server owns navigation, membership, revision and terminal lifetime; the Client owns its active
+Session. Server owns navigation, membership, revision and terminal lifetime; the Client owns its active
 location and selection. This reference governs the context-selection extension to the
 [native Tab Session](native-tab-session.md). Maintain it with the Session reducer, transport,
 navigation rendering and their correctness evidence.
@@ -18,7 +18,7 @@ the first surviving member, or Empty when there are no Tabs. Empty can be
 entered and left without creating a terminal. Existing Tab controls act on the active context;
 explicit `c` uses Server's existing directory admission and never falls back to the home directory.
 Windows sidebar Workspace activation on the current machine shares this Session
-selection owner without opening a picker. Exact Site/location identity is checked
+selection owner without opening a picker. Exact Session/location identity is checked
 before admission; Busy precedes the exact-current no-op. The machine UI owner
 retains only the latest unadmitted target while this Session settles accepted work.
 Sidebar current markers, location labels and Tabs read the installed Session
@@ -26,10 +26,10 @@ selection together. See [machine navigation](machines.md#cross-machine-workspace
 for request lifetime, cancellation and cross-machine handoff.
 Bare Windows startup follows the preference below. Without a saved preference,
 [directory startup](native-directory-startup.md) creates the first Workspace only in an eligible
-empty Site; other Sites retain standalone Open. Both use the existing first-frame readiness contract.
+empty Session; other Sessions retain standalone Open. Both use the existing first-frame readiness contract.
 
 Workspace creation, optional Project organization and first-directory configuration belong to
-[Workspace setup](native-workspace-setup.md); directory startup owns automatic empty-Site creation.
+[Workspace setup](native-workspace-setup.md); directory startup owns automatic empty-Session creation.
 Both reuse this context installation owner.
 Panel layouts, remote access and production recovery are excluded.
 This unpublished cohort rolls out and rolls back together.
@@ -56,8 +56,8 @@ double prefix. Printable input, signals, paste and unknown keys never reach the 
 | Transition         | Guard, output and ownership                                                                                                                                                                                                                                                                                                                                                     |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Enter              | Acquire bracketed paste before capture, clear the old prefix, cancel the existing pointer gesture without export, and capture the opening packet. Initially absent rows may acquire their first source and current focus once.                                                                                                                                                  |
-| Paint              | Publish an episode/source/target proof for each complete visible row only after successful drawing. Source is Site, canonical revision and current location. Keyboard activation also requires the painted focus; pointer activation requires the exact hit row. Ellipsis is allowed for labels, but partial geometry, hidden rows, counters and footer are inert.              |
-| Browse / reconcile | Movement and resize revoke old proofs. A changed canonical revision can preserve a still-present focused identity under the same Site/location, but requires repaint. Focused identity loss or Site/location change cancels; terminal output alone changes neither source nor proof.                                                                                            |
+| Paint              | Publish an episode/source/target proof for each complete visible row only after successful drawing. Source is Session, canonical revision and current location. Keyboard activation also requires the painted focus; pointer activation requires the exact hit row. Ellipsis is allowed for labels, but partial geometry, hidden rows, counters and footer are inert.           |
+| Browse / reconcile | Movement and resize revoke old proofs. A changed canonical revision can preserve a still-present focused identity under the same Session/location, but requires repaint. Focused identity loss or Session/location change cancels; terminal output alone changes neither source nor proof.                                                                                      |
 | Activate           | Revalidate exact source and membership at NativeUi admission. Existing refresh, mutation and conflicting-selection guards precede any no-op. Return distinct `ExactCurrent`, `Admitted(generation)` or `Refused`; only the first two close. A proven current target submits nothing. Otherwise resolve its current ordinal once and use the existing context/Tab operation.     |
 | Retire             | Esc, an outside press, accepted activation, covering capture or unpresentable geometry clears local capture. Preserve the retiring packet, pending decoder fragments and input fence until a successful fresh frame and fresh packet. A consumed pointer decision separately owns its matching release beyond repaint, ending on release, focus loss or a new qualifying press. |
 
@@ -87,7 +87,7 @@ failure and preserves the previous location.
 | Transition               | Guard and result                                                                                                                                                                              |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Admit location selection | A stable Session with no unresolved mutation, Close confirmation/reconciliation or membership operation retains an exact target identity and operation generation; otherwise report busy.     |
-| Read target snapshot     | Revalidate the target's canonical owner, Site and revision before changing attachments. Definite unavailable or unsupported target preserves the previous location.                           |
+| Read target snapshot     | Revalidate the target's canonical owner, Session and revision before changing attachments. Definite unavailable or unsupported target preserves the previous location.                        |
 | Clean old attachment     | Fence old input, frames and grants, then detach the exact previous Viewer before installing a different selection. No terminal Dispose or Start is authorized.                                |
 | Install target           | Atomically publish the new context, membership, provenance and optional desired attachment through the existing membership owner and mailbox transaction. Empty has no invented Tab identity. |
 | Attach selected Tab      | Use the exact retained binding and the existing setup, first-frame and controller geometry rules. Late old-generation results cannot become current.                                          |
@@ -108,7 +108,7 @@ the query neither visits the target nor changes navigation, attachments or termi
 
 `state/navigation_memory.rs` owns volatile, Client-private selection history. Each exact location
 holds its last Tab ID and each visited Tab's last Panel ID. Labels, ordinals and terminal bindings
-are not keys. The Site is fixed by the owning Session; this history is neither Server state nor
+are not keys. The Session is fixed by the owning Session; this history is neither Server state nor
 persistent storage. Herdr's Workspace active Tab and Tab layout focus are the reference behavior.
 
 | Input                           | Guard and result                                                                                                                                                                                                     |
@@ -140,13 +140,13 @@ through CLI Tab/Workspace/Panel focus and checks unchanged peer selection and OS
 ## Windows startup preference
 
 Bare local Windows startup remembers the last successfully displayed location, Tab, Panel and
-presentation for the current Windows user and local Site runtime. This is Client-owned navigation
+presentation for the current Windows user and local Session runtime. This is Client-owned navigation
 advice, separate from Server checkpoints and terminal lifetime. Its versioned, bounded JSON record
 lives under the private `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>` cache; the key includes
 the user-scoped runtime directory and runtime base. Version 2 stores Workspace/context identity
 without mutable Project membership. A valid version 1 record is read through its strict historical
 shape and migrated without its Project identity; invalid and unsupported records remain untouched.
-Stable structural IDs survive checkpoint restart. The new Server's Site ID and bindings always
+Stable structural IDs survive checkpoint restart. The new Server's Session ID and bindings always
 come from its validated snapshot.
 
 The renderer returns the stable position and focused pane incarnation only when the workbench is
@@ -161,7 +161,7 @@ without retiring a live terminal.
 Restoration validates current canonical ownership before ordinary bootstrap/attachment. A removed
 member selects the first surviving member in its location. A removed location selects the first
 nonempty canonical location, or standalone Empty when all locations are empty. Both produce a
-localized notice. Without a saved record, the directory-startup policy chooses eligible empty-Site
+localized notice. Without a saved record, the directory-startup policy chooses eligible empty-Session
 creation or existing standalone Open. Invalid or unsupported records are preserved,
 disable preference writes for that invocation and produce a localized notice. Explicit context or
 Agent startup retains its exact target. Preferences never grant input, change Create provenance,

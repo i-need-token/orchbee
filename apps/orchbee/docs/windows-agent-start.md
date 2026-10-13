@@ -1,8 +1,8 @@
 # Windows Agent startup
 
 `agent start` composes the Server's bounded name reservation with existing terminal input,
-process inspection and canonical Agent observations. It operates on a running Windows Site.
-It does not activate a Site, install providers or infer readiness from process creation.
+process inspection and canonical Agent observations. It operates on a running Windows Session.
+It does not activate a Session, install providers or infer readiness from process creation.
 
 ## Invocation and prerequisites
 
@@ -97,7 +97,7 @@ session lifecycle: detaching a still-live session keeps its name until end/remov
 The shared OBAP protocol owns wire validation. Tests exercise real Windows exe/ps1/cmd argument
 boundaries, parser and completion scope, competing reservations, exact expiry, stale bindings,
 canonical readiness, interrupted delivery and lost replies. The Windows CLI named-pipe tests
-retain receipts and prove no automatic replay. Real Site/Worker/Host validation checks the
+retain receipts and prove no automatic replay. Real Session/Worker/Host validation checks the
 combined runtime separately. TLA model execution is not required for this Windows slice.
 
 ## Inspecting completed startup

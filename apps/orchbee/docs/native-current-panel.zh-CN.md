@@ -5,8 +5,8 @@
 本文负责 Windows `panel current` 与 `panel process-info` 的目标选择和进程生命周期。
 [原生 CLI 查询](native-cli-query.zh-CN.md)负责结果投影；
 [Windows Client 控制](windows-client-control.zh-CN.md)负责 Client 记录与路由失败。
-现有调用者解析器负责 Terminal/Worker 身份校验。这些命令只观察已运行的 Site；
-不激活 Site，不改变选择、输入、几何或控制权。
+现有调用者解析器负责 Terminal/Worker 身份校验。这些命令只观察已运行的 Session；
+不激活 Session，不改变选择、输入、几何或控制权。
 
 ## 目标模型
 

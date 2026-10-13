@@ -49,7 +49,7 @@ fn prefix_preserves_sources_and_rejects_local_and_conflicting_modes() {
     }
     for args in [
         vec!["--machine", "work"],
-        vec!["--machine=work", "--site=x", "workspace", "list"],
+        vec!["--machine=work", "--session=x", "workspace", "list"],
         vec!["--machine=work", "machine", "list"],
         vec!["--machine=work", "status", "client"],
         vec!["--machine=work", "tui"],

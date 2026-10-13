@@ -13,11 +13,11 @@ pub(super) fn help(locale: Locale, server: bool) -> crate::localization::HelpDet
         ),
         (Locale::EnUs, true) => crate::localization::HelpDetails::new(
             "orchbee status server [--format text|json]",
-            "Windows: query the selected local Server's version, PID, terminal protocol,\ncohort and implementation capabilities before ordinary Client admission.\nCompare with the querying Client; unknown local metadata stays unknown.\nDoes not start a Site, allocate a Client Session or restart anything.\nOne five-second collection budget. No Server at this scope exits 0; an old\nServer without metadata support is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).",
+            "Windows: query the selected local Server's version, PID, terminal protocol,\ncohort and implementation capabilities before ordinary Client admission.\nCompare with the querying Client; unknown local metadata stays unknown.\nDoes not start a session, allocate a Client Session or restart anything.\nOne five-second collection budget. No Server at this scope exits 0; an old\nServer without metadata support is incompatible (exit 6), not absent.\nJSON schema: orchbee.status.server (v1).",
         ),
         (Locale::ZhCn, true) => crate::localization::HelpDetails::new(
             "orchbee status server [--format text|json]",
-            "Windows：在普通 Client 准入前查询选中本地 Server 的版本、PID、终端协议、\ncohort 及已实现能力，并与查询 Client 比较；未知本地元数据保持未知。不启动 Site、不分配 Client Session，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；旧 Server 不支持元数据查询时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
+            "Windows：在普通 Client 准入前查询选中本地 Server 的版本、PID、终端协议、\ncohort 及已实现能力，并与查询 Client 比较；未知本地元数据保持未知。不启动会话、不分配 Client Session，也不重启任何内容。采集共用五秒时限。该作用域没有 Server 时退出 0；旧 Server 不支持元数据查询时报告不兼容（退出 6），不误报为不存在。\nJSON schema：orchbee.status.server（v1）。",
         ),
     }
 }

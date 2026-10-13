@@ -95,7 +95,7 @@ const HOME_PATH_COMMANDS: &[(&[&str], &str)] = &[
 fn home_path_route_conflict_precedes_execution_context_resolution() {
     for (command, _) in HOME_PATH_COMMANDS {
         let fixture = Fixture::new();
-        let mut arguments = vec!["--machine", "work", "--site", "local"];
+        let mut arguments = vec!["--machine", "work", "--session", "local"];
         arguments.extend_from_slice(command);
         arguments.push("--format=json");
         let output = fixture.run_with_env(
@@ -113,7 +113,7 @@ fn home_path_route_conflict_precedes_execution_context_resolution() {
         assert_eq!(document["failure"]["kind"], "invalid-usage");
         let diagnostic = String::from_utf8(output.stderr).unwrap();
         assert!(
-            diagnostic.contains("Options '--machine' and '--site' cannot be combined."),
+            diagnostic.contains("Options '--machine' and '--session' cannot be combined."),
             "{command:?}: {diagnostic}"
         );
         assert!(!diagnostic.contains("private-invalid-home"));

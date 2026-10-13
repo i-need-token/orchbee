@@ -110,8 +110,8 @@ fn actual_powershell_remote_program_preserves_literal_path_site_and_exit_code() 
     let source = directory.join("fixture.rs");
     fs::write(&source, r#"fn main() {
         let a:Vec<String>=std::env::args().skip(1).collect();
-        if a == ["--site","work-1","status","client","--format","json"] {println!("{{\"literal\":true}}");}
-        else if a == ["--site","work-1","site","start","--format","json"] {std::process::exit(42);}
+        if a == ["--session","work-1","status","client","--format","json"] {println!("{{\"literal\":true}}");}
+        else if a == ["--session","work-1","server","start","--format","json"] {std::process::exit(42);}
         else {std::process::exit(43);}
     }"#).unwrap();
     let executable = directory.join("orchbee.exe");

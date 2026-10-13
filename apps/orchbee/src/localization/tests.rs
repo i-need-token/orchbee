@@ -163,9 +163,9 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
             .any(|row| row == "Ctrl+B w                 切换 Workbench 导航器")
     );
     assert!(joined_shortcut_rows(&english).iter().any(|row| row
-        == "Ctrl+B [ / ]             Select previous / next Workbench location (wraps; requires Site)"));
+        == "Ctrl+B [ / ]             Select previous / next Workbench location (wraps; requires session)"));
     assert!(joined_shortcut_rows(&chinese).iter().any(|row| row
-        == "Ctrl+B [ / ]             选择上一个 / 下一个 Workbench 位置（首尾循环；需要 Site）"));
+        == "Ctrl+B [ / ]             选择上一个 / 下一个 Workbench 位置（首尾循环；需要会话）"));
 }
 
 /// The help-paging row is registry-derived like every other row: the same
@@ -236,8 +236,8 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
     let chinese = Locale::ZhCn.shell();
     for (en, zh, bindings) in [
         (
-            "Ctrl+B h/j/k/l           Move between Panels (requires Site)",
-            "Ctrl+B h/j/k/l           在 Panel 之间移动（需要 Site）",
+            "Ctrl+B h/j/k/l           Move between Panels (requires session)",
+            "Ctrl+B h/j/k/l           在 Panel 之间移动（需要会话）",
             &[
                 (
                     KeyCode::Char('h'),
@@ -258,8 +258,8 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             ][..],
         ),
         (
-            "Ctrl+B - _ \\ |           Split focused Panel below/above/left/right (requires Site)",
-            "Ctrl+B - _ \\ |           将焦点 Panel 向下/上/左/右分屏（需要 Site）",
+            "Ctrl+B - _ \\ |           Split focused Panel below/above/left/right (requires session)",
+            "Ctrl+B - _ \\ |           将焦点 Panel 向下/上/左/右分屏（需要会话）",
             &[
                 (
                     KeyCode::Char('-'),
@@ -280,13 +280,13 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             ][..],
         ),
         (
-            "Ctrl+B Shift+X           Close focused Panel (requires Site)",
-            "Ctrl+B Shift+X           关闭焦点 Panel（需要 Site）",
+            "Ctrl+B Shift+X           Close focused Panel (requires session)",
+            "Ctrl+B Shift+X           关闭焦点 Panel（需要会话）",
             &[(KeyCode::Char('X'), ClientAction::ClosePanel)][..],
         ),
         (
-            "Ctrl+B Shift+H/J/K/L     Move focused Panel to that side (requires Site)",
-            "Ctrl+B Shift+H/J/K/L     将焦点 Panel 移向该侧（需要 Site）",
+            "Ctrl+B Shift+H/J/K/L     Move focused Panel to that side (requires session)",
+            "Ctrl+B Shift+H/J/K/L     将焦点 Panel 移向该侧（需要会话）",
             &[
                 (
                     KeyCode::Char('H'),

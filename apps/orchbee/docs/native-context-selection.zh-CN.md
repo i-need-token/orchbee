@@ -2,7 +2,7 @@
 
 ## 范围与归属
 
-原生 Client 在已连接的本机 Site 中选择独立 Terminal Context 或 Workspace。Server 拥有导航、
+原生 Client 在已连接的本机 Session 中选择独立 Terminal Context 或 Workspace。Server 拥有导航、
 成员、revision 和终端生命周期；Client 拥有活动位置与选择。本参考文档维护
 [原生 Tab Session](native-tab-session.zh-CN.md) 的上下文选择扩展，随 Session reducer、传输、
 导航渲染及其正确性证据一起更新。
@@ -15,16 +15,16 @@ Project 归属和标签是展示元数据。移动 Workspace 或解散其 Projec
 进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
 已有的目录准入，绝不回退到 home 目录。
 Windows 侧栏在当前机器激活 Workspace 时共用此 Session 选择 owner，不打开选择器。
-接纳前核验精确 Site／位置身份；先检查 Busy，再判断精确当前位置无需操作。
+接纳前核验精确 Session／位置身份；先检查 Busy，再判断精确当前位置无需操作。
 Session 结算已接受工作期间，机器 UI owner 只保留最后一个尚未接纳的目标。
 侧栏当前标识、位置标签及 Tab 一起读取已安装的 Session 选择。
 请求生命周期、取消及跨机器交接见[机器导航](machines.zh-CN.md#跨机器工作区导航)。
 Windows 裸启动遵循下面的启动偏好；没有偏好时，
-[目录启动](native-directory-startup.zh-CN.md)只在符合条件的空 Site 创建首个 Workspace，
-其他 Site 保留 standalone Open。两者使用既有首帧就绪契约。
+[目录启动](native-directory-startup.zh-CN.md)只在符合条件的空 Session 创建首个 Workspace，
+其他 Session 保留 standalone Open。两者使用既有首帧就绪契约。
 
 Workspace 创建、可选的 Project 组织和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)；
-目录启动拥有空 Site 自动创建。两者复用这里的上下文安装 owner。
+目录启动拥有空 Session 自动创建。两者复用这里的上下文安装 owner。
 Panel 布局、远程访问和生产恢复不在范围内。
 该未发布 cohort 整体启用和回滚。改变 Client 位置不会修改 canonical 导航或销毁保留的执行。
 [位置标签编辑](native-location-labels.zh-CN.md) 修改 canonical Project 或 Workspace 标签，
@@ -45,8 +45,8 @@ Session 所有，且只请求一次。关闭不会取消已接受的工作。普
 | 转换       | 守卫、输出与归属                                                                                                                                                                                                                                     |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 进入       | 捕获前取得括号粘贴租约，清除旧前缀，通过现有所有者取消指针手势但不导出，并捕获入口数据包。初始缺失的行仅可首次取得来源与当前焦点。                                                                                                                   |
-| 绘制       | 完整绘制成功后，才为每个完整可见行发布轮次／来源／目标凭据。来源为 Site、规范修订和当前位置。键盘激活还要求已绘焦点，指针激活要求精确命中行。标签可省略，但不完整几何、隐藏行、计数器及页脚无效。                                                    |
-| 浏览／协调 | 移动和缩放撤销旧凭据。同一 Site／位置的新规范修订可保留仍存在的焦点身份，但必须重绘。焦点身份丢失或 Site／位置变化会取消；终端输出本身不改变来源或凭据。                                                                                             |
+| 绘制       | 完整绘制成功后，才为每个完整可见行发布轮次／来源／目标凭据。来源为 Session、规范修订和当前位置。键盘激活还要求已绘焦点，指针激活要求精确命中行。标签可省略，但不完整几何、隐藏行、计数器及页脚无效。                                                 |
+| 浏览／协调 | 移动和缩放撤销旧凭据。同一 Session／位置的新规范修订可保留仍存在的焦点身份，但必须重绘。焦点身份丢失或 Session／位置变化会取消；终端输出本身不改变来源或凭据。                                                                                       |
 | 激活       | 在 NativeUi 准入处重新验证精确来源与成员关系。现有刷新、变更和冲突选择守卫优先于无操作。返回可区分的 `ExactCurrent`、`Admitted(generation)` 或 `Refused`；仅前两者关闭。已证实的当前目标不提交请求。否则仅解析一次当前序号并使用现有位置／Tab 操作。 |
 | 退出       | Esc、外部按下、接受的激活、覆盖捕获或无法呈现的几何清除本地捕获。保留退出数据包、待解码片段和输入屏障，直至成功的新帧及新数据包。已消费的指针决策另行持有匹配释放，即使已重绘；释放、失焦或新的合格按下结束该归属。                                  |
 
@@ -70,7 +70,7 @@ Navigator 核心、dispatcher 与 shell 测试覆盖捕获、完整行绘制、�
 | 转换              | 守卫与结果                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | 准入位置选择      | 稳定 Session 没有未解决的 mutation、Close 确认/收敛或成员操作时，保留确切目标身份及操作 generation；否则报告忙。          |
-| 读取目标 snapshot | 改变 attachment 前重新验证目标的 canonical owner、Site 和 revision。确定不可用或不支持的目标保留原位置。                  |
+| 读取目标 snapshot | 改变 attachment 前重新验证目标的 canonical owner、Session 和 revision。确定不可用或不支持的目标保留原位置。               |
 | 清理旧 attachment | 隔离旧输入、帧和 grant，然后在安装不同选择前 detach 确切的原 Viewer。不授权终端 Dispose 或 Start。                        |
 | 安装目标          | 通过既有成员 owner 和 mailbox 事务原子发布新上下文、成员、provenance 和可空的 desired attachment。Empty 不伪造 Tab 身份。 |
 | Attach 所选 Tab   | 使用确切保留 binding 及既有 setup、首帧和 controller geometry 规则。旧 generation 的迟到结果不能成为当前结果。            |
@@ -88,7 +88,7 @@ context 和 Tab 上限约束，只能依据已验证的成员证据修剪。Pend
 无有效记忆时回退首个成员。`selected` 仍为 false；查询不访问目标，不改变导航、附着或终端几何。
 
 `state/navigation_memory.rs` 拥有易失、Client 私有的选择历史。每个确切位置保存上次 Tab ID，
-每个访问过的 Tab 保存上次 Panel ID。标签、序号和终端 binding 都不是键。Site 由所属 Session
+每个访问过的 Tab 保存上次 Panel ID。标签、序号和终端 binding 都不是键。Session 由所属 Session
 固定；历史既不是 Server 状态，也不是持久化存储。Herdr 的 Workspace 活动 Tab 和 Tab 布局
 焦点是参考行为。
 
@@ -117,12 +117,12 @@ OS 前台保持不变。这些是命名实现轨迹，不是 context-selection �
 
 ## Windows 启动偏好
 
-Windows 本地裸启动为当前 Windows 用户和本地 Site runtime 记住最后成功显示的位置、Tab、
+Windows 本地裸启动为当前 Windows 用户和本地 Session runtime 记住最后成功显示的位置、Tab、
 Panel 和 presentation。这是 Client 拥有的导航提示，与 Server checkpoint 及终端生命周期分离。
 有版本、有大小上限的 JSON 记录位于私有 `LOCALAPPDATA/Orchbee/tui-position/<runtime-key>`
 缓存；键包含用户隔离的 runtime 目录和 runtime base。版本 2 保存 Workspace/context 身份，
 不包含可变的 Project 归属。有效的版本 1 记录按严格的历史结构读取，迁移时去除 Project 身份；
-无效和不支持的记录保持原样。结构 ID 随 checkpoint 重启保留；新 Server 的 Site ID 和 binding
+无效和不支持的记录保持原样。结构 ID 随 checkpoint 重启保留；新 Server 的 Session ID 和 binding
 始终取自当前已验证 snapshot。
 
 渲染器只在工作台未被遮挡、可绘制时返回稳定位置和焦点 pane incarnation。Shell 成功绘制和
@@ -133,7 +133,7 @@ flush 后再验证并发布。遮挡、失败、过期或切换中画面不发�
 
 恢复先验证当前 canonical 归属，再进入普通 bootstrap/attachment。成员已删除则选择该位置
 首个现存成员；位置已删除则选择首个非空 canonical 位置，全部为空则进入 standalone Empty。
-两种回退均提示。没有记录时，目录启动策略选择符合条件的空 Site 创建或既有 standalone Open。
+两种回退均提示。没有记录时，目录启动策略选择符合条件的空 Session 创建或既有 standalone Open。
 无效或不支持的记录原样保留，本次禁用
 偏好写入并提示。显式 context 或 Agent 启动仍使用确切目标。偏好不授予输入、不改变 Create
 provenance、不启动或销毁终端、不改 checkpoint，也不移动其他存活 Client。

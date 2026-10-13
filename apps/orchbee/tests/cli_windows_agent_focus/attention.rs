@@ -98,7 +98,7 @@ fn attention_process_foreign_boot_never_exposes_an_old_seen_flag() {
     let output = fixture.run(&[
         "agent",
         "attention",
-        "--session",
+        "--agent-session",
         "sess-alpha",
         "--format=json",
     ]);

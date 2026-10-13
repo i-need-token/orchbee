@@ -747,7 +747,7 @@ fn get_sigint_reports_its_own_operation() -> TestResult {
         &[
             "agent",
             "get",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",
@@ -1095,7 +1095,7 @@ fn get_found_emits_verbatim_outcome() -> TestResult {
         &[
             "agent",
             "get",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",
@@ -1137,7 +1137,7 @@ fn get_text_renders_session_fields() -> TestResult {
             ),
         );
     });
-    let output = run(&base, &["agent", "get", "--session", "sess-alpha"]);
+    let output = run(&base, &["agent", "get", "--agent-session", "sess-alpha"]);
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout).expect("text output is UTF-8");
@@ -1173,7 +1173,14 @@ fn get_not_found_maps_to_agent_failure_document() -> TestResult {
     });
     let output = run(
         &base,
-        &["agent", "get", "--session", "sess-gone", "--format", "json"],
+        &[
+            "agent",
+            "get",
+            "--agent-session",
+            "sess-gone",
+            "--format",
+            "json",
+        ],
     );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(3));
@@ -1215,7 +1222,7 @@ fn explain_found_emits_verbatim_outcome() -> TestResult {
         &[
             "agent",
             "explain",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",
@@ -1257,7 +1264,10 @@ fn explain_text_renders_derived_fields() -> TestResult {
             ),
         );
     });
-    let output = run(&base, &["agent", "explain", "--session", "sess-alpha"]);
+    let output = run(
+        &base,
+        &["agent", "explain", "--agent-session", "sess-alpha"],
+    );
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout).expect("text output is UTF-8");
@@ -1318,7 +1328,7 @@ fn wrong_result_kind_is_protocol_invalid() -> TestResult {
         &[
             "agent",
             "get",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",
@@ -1359,7 +1369,14 @@ fn invalid_session_id_fails_before_any_session() -> TestResult {
     let scope = stage_scope(&base);
     let output = run(
         &base,
-        &["agent", "get", "--session", "bad id!", "--format", "json"],
+        &[
+            "agent",
+            "get",
+            "--agent-session",
+            "bad id!",
+            "--format",
+            "json",
+        ],
     );
     assert_eq!(output.status.code(), Some(2));
     let document = document(&output);
@@ -1464,7 +1481,7 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
         &[
             "agent",
             "get",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",
@@ -1475,7 +1492,7 @@ fn agent_envelopes_validate_and_loose_variants_fail() -> TestResult {
         &[
             "agent",
             "explain",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",
@@ -1677,7 +1694,7 @@ fn wait_matched_emits_wait_envelope_on_one_held_session() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",
@@ -1758,7 +1775,7 @@ fn wait_freshness_gates_status_and_preserves_requested_order() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--until",
             "idle",
@@ -1815,7 +1832,7 @@ fn wait_fence_ahead_refuses_after_one_observation() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--after-revision",
             "9",
@@ -1886,7 +1903,7 @@ fn wait_fence_equal_waits_for_later_revision() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--after-revision",
             "7",
@@ -1940,7 +1957,7 @@ fn wait_mid_wait_not_found_is_agent_failure() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-gone",
             "--format",
             "json",
@@ -1994,7 +2011,7 @@ fn wait_mid_wait_refusal_kinds_keep_their_family() -> TestResult {
             &[
                 "agent",
                 "wait",
-                "--session",
+                "--agent-session",
                 "sess-alpha",
                 "--format",
                 "json",
@@ -2037,7 +2054,7 @@ fn wait_read_deadline_records_the_admitted_budget() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--timeout",
             "60000",
@@ -2106,7 +2123,7 @@ fn wait_deadline_reports_completed_observations() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--timeout",
             "4000",
@@ -2153,7 +2170,7 @@ fn wait_sigint_during_held_exchange_is_typed_cancellation() -> TestResult {
         &[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--format",
             "json",

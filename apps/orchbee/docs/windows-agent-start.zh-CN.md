@@ -1,7 +1,7 @@
 # Windows Agent 启动
 
 `agent start` 将 Server 的有界名称预留与既有终端输入、进程检查和 canonical Agent 观察组合，
-作用于运行中的 Windows Site。它不激活 Site、不安装提供方，也不从进程创建推断就绪。
+作用于运行中的 Windows Session。它不激活 Session、不安装提供方，也不从进程创建推断就绪。
 
 ## 调用与前提
 
@@ -78,7 +78,7 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 [canonical 模型](../../orchbee-server/docs/agent-canonical-model.zh-CN.md)拥有预留状态。
 共享 OBAP 协议拥有 wire 校验。测试覆盖真实 Windows exe/ps1/cmd 参数边界、解析与补全范围、
 竞争预留、精确到期、旧绑定、canonical 就绪、输入中断及响应丢失。Windows CLI 命名管道测试
-保留回执并证明没有自动重放。真实 Site/Worker/Host 验证单独检查组合运行时。
+保留回执并证明没有自动重放。真实 Session/Worker/Host 验证单独检查组合运行时。
 本 Windows 切片不要求执行 TLA 模型。
 
 ## 检查已完成启动

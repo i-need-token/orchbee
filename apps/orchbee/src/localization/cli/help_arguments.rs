@@ -291,7 +291,7 @@ impl Locale {
                 Argument::Profile => ("<selector>", "Launch profile ID or an unambiguous saved name.", "启动配置 ID 或无歧义的保存名称。"),
                 Argument::Schema => ("[<schema-id>]", "Optional schema ID; omit to print the schema dictionary.", "可选 Schema ID；省略时输出结构字典。"),
                 #[cfg(windows)]
-                Argument::Site => ("<name>", "Case-sensitive local Site name. An explicit --site must match.", "区分大小写的本地 Site 名称；显式 --site 必须与其一致。"),
+                Argument::Site => ("<name>", "Case-sensitive local session name. An explicit --session must match.", "区分大小写的本地会话名称；显式 --session 必须与其一致。"),
                 Argument::Title => ("<title>", "Display title as one argument.", "作为一个参数传入的显示标题。"),
                 #[cfg(windows)]
                 Argument::ConfiguredCommand => ("<command-id>", "Exact ID returned by orchbee command list; starts with cmd_.", "orchbee command list 返回的精确 ID，以 cmd_ 开头。"),

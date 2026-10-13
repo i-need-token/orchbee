@@ -38,7 +38,7 @@ The surface requires at least 36 columns by 10 rows; smaller areas close it with
 an actionable notice. Pending feedback begins after 200 ms. The ordered settings
 lane has a two-second exchange deadline, serializes foreground requests with its
 one-second observation poll, and interrupts/joins its owned connection on close.
-A replacement Site/editor episode cannot inherit an old completion.
+A replacement Session/editor episode cannot inherit an old completion.
 
 ## Domain and ownership
 
@@ -46,12 +46,12 @@ A replacement Site/editor episode cannot inherit an old completion.
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                          |
 | Inputs       | Frozen configuration identity, complete confirmed snapshot, exact source token, typed dirty patch, drawn editor token, explicit save/reset intent.                      |
-| Authority    | Workbench Protocol owns values/bounds; Local Site Runtime owns the private record/lock/commit; the native Site and matched Desktop helper use that same store.          |
+| Authority    | Workbench Protocol owns values/bounds; Local Session Runtime owns the private record/lock/commit; the native Session and matched Desktop helper use that same store.    |
 | State        | Last confirmed runtime values, independently frozen draft basis, local changes, one admitted exchange, and explicit refusal/unknown status.                             |
 | Effects      | Only confirmed snapshots update locale, chrome, terminal presentation, copy policy and future feedback; launch/default changes affect new terminal creation.            |
 | Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior. |
 
-The Site freezes its native configuration identity at startup. Clients send no
+The Session freezes its native configuration identity at startup. Clients send no
 paths, raw TOML, alternate device selector or arbitrary file write. Shared values
 live in a bounded sibling private preference record; the old TOML remains an
 explicit one-time import source. Desktop Main and renderer import only their

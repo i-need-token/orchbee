@@ -122,7 +122,7 @@ Network work belongs to a
 separate retained worker; the observer remains the sole rule installation point. Download/cache
 completion and activation are distinct facts, including cancellation and partial success.
 
-The production `site update-agent-manifests` operation consumes this updater and retains the full
+The production `server update-agent-manifests` operation consumes this updater and retains the full
 cache report separately from activation. Explicit and automatic updates use the same cache/version and cleanup rules. Automatic network
 activity requires the release/background policy and update setting; source/cohort rollback leaves overrides and committed cache
 versions intact.

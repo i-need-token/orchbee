@@ -251,9 +251,9 @@ impl Locale {
                 "Read snapshots and offline API schemas.",
                 "读取快照和离线 API 定义。",
             ),
-            HelpTopic::Family(Family::Site) => (
-                "Start, inspect and stop local terminal sessions.",
-                "启动、检查和停止本地终端会话。",
+            HelpTopic::Family(Family::Server) => (
+                "Manage the session's background service.",
+                "管理会话的后台服务。",
             ),
             HelpTopic::Family(Family::Config) => (
                 "Check, import and restore settings.",
@@ -780,6 +780,12 @@ impl Locale {
 pub(crate) enum HelpText {
     Usage,
     QuickStart,
+    SessionConcept,
+    SessionDefinition,
+    SessionSelection,
+    SessionStart,
+    #[cfg(windows)]
+    SessionStartExample,
     Commands,
     Options,
     Arguments,
@@ -797,7 +803,7 @@ pub(crate) enum HelpText {
     ShowHelp,
     ShowVersion,
     ShowSkill,
-    Site,
+    Session,
     Machine,
     DefaultConfig,
     Descend,
@@ -805,7 +811,7 @@ pub(crate) enum HelpText {
     Reference,
     Completion,
     CompletionExample,
-    SiteRules,
+    SessionRules,
     #[cfg(windows)]
     MachineRules,
 }
@@ -813,9 +819,9 @@ pub(crate) enum HelpText {
 impl Locale {
     pub(crate) const fn cli_help_text(self, text: HelpText) -> &'static str {
         let (english, chinese) = match text {
-            HelpText::SiteRules => (
-                "Windows: --site <name> selects a local Site (default: default). Names use 1..64 ASCII letters, digits, dot, underscore or hyphen; . and .. are invalid. Explicit --site overrides inherited routing and ORCHBEE_SITE.",
-                "Windows：--site <name> 选择本地 Site，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符；不能是 . 或 ..。显式 --site 覆盖继承的路由和 ORCHBEE_SITE。",
+            HelpText::SessionRules => (
+                "Windows: --session <name> selects a local session (default: default). Names use 1..64 ASCII letters, digits, dot, underscore or hyphen; . and .. are invalid. Explicit --session overrides inherited routing and ORCHBEE_SESSION.",
+                "Windows：--session <name> 选择本地会话，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符；不能是 . 或 ..。显式 --session 覆盖继承的路由和 ORCHBEE_SESSION。",
             ),
             #[cfg(windows)]
             HelpText::MachineRules => (
@@ -824,6 +830,28 @@ impl Locale {
             ),
             HelpText::Usage => ("Usage", "用法"),
             HelpText::QuickStart => ("Quick start", "快速开始"),
+            HelpText::SessionConcept => ("Orchbee sessions", "Orchbee 会话"),
+            HelpText::SessionDefinition => (
+                "An Orchbee session contains your workspaces, terminals and AI Agents. Closing the interface leaves its programs running; reconnect to continue your work. The server command manages the session's background service.",
+                "一个 Orchbee 会话包含你的工作区、终端和 AI Agent。退出界面后，其中的程序继续运行；重新连接即可继续工作。server 命令管理会话的后台服务。",
+            ),
+            HelpText::SessionSelection if cfg!(windows) => (
+                "Start with the default session; no name is needed. Use workspaces to organize work. --session <name> selects another set of workspaces, terminals and Agents. session list shows local sessions; session attach <name> opens one. --machine selects a saved remote machine.",
+                "首次使用默认会话即可，无需指定名称；用工作区组织工作。需要另一套工作区、终端和 Agent 时，再用 --session <name> 选择命名会话。session list 列出本地会话，session attach <name> 打开指定会话。--machine 选择已保存的远程机器。",
+            ),
+            HelpText::SessionSelection => (
+                "Local commands share this user's Orchbee session. Run orchbee to open it, or server start before using CLI commands. Queries and workspace commands require a running session. Named session selection is currently available on Windows.",
+                "本地命令共用当前用户的 Orchbee 会话。运行 orchbee 打开它；只使用 CLI 时先运行 server start。查询和工作区命令需要会话已在运行。命名会话选择目前支持 Windows。",
+            ),
+            HelpText::SessionStart => (
+                "Start the default background session for CLI commands.",
+                "启动默认后台会话，以使用 CLI 命令。",
+            ),
+            #[cfg(windows)]
+            HelpText::SessionStartExample => (
+                "Start the default session, then create a workspace and its first terminal.",
+                "启动默认会话，再创建工作区及其首个终端。",
+            ),
             HelpText::Commands => ("Commands", "命令"),
             HelpText::Options => ("Options", "选项"),
             HelpText::Arguments => ("Arguments", "参数"),
@@ -851,9 +879,9 @@ impl Locale {
                 "Print the offline Agent guide.",
                 "显示离线 Agent 使用指南。",
             ),
-            HelpText::Site => (
-                "Select a local Site; default: default.",
-                "选择本地 Site；默认 default。",
+            HelpText::Session => (
+                "Select a local Orchbee session; default: default.",
+                "选择本地 Orchbee 会话；默认 default。",
             ),
             HelpText::Machine => (
                 "Select a saved SSH machine by name or ID.",

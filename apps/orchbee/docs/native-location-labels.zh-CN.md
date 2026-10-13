@@ -11,7 +11,7 @@ Standalone 没有这两种快捷键目标，在本地拒绝操作且不发送命
 
 编辑器预填 canonical 标签，精确保留最多 512 个 Unicode scalar，Enter 提交、Escape 取消、
 Backspace 删除、Ctrl+U 清空。每次打开分配新 token，并要求首次完整绘制。共享 modal 的 UTF-8、
-粘贴、fault 和 quiet-drain 规则不变。打开时捕获目标 ID、Site、revision 和原始标签；并发变化
+粘贴、fault 和 quiet-drain 规则不变。打开时捕获目标 ID、Session、revision 和原始标签；并发变化
 不能重新定向草稿或自动 rebase。
 
 重命名保留位置身份、终端 binding、目录关联及 shell 执行。其他 Client 通过显式刷新观察新标签。
@@ -23,7 +23,7 @@ Backspace 删除、Ctrl+U 清空。每次打开分配新 token，并要求首次
 这些动作使用既有结构槽、carrier、单调操作预算及不可变 worker-return 证据。草稿、在途命令和
 未恢复的已知结果排斥并发结构操作。打开、编辑、取消或准入失败不分配命令。
 
-Project 菜单请求单独捕获完整目标 Project，以及发起方的 Site、revision、context、desired pane
+Project 菜单请求单独捕获完整目标 Project，以及发起方的 Session、revision、context、desired pane
 和焦点 pane incarnation。原菜单截止时间约束 mailbox 锁的获取，并在准入锁内再次核对。
 成功准入后该截止时间结束；人工编辑不计时，提交时启动既有操作预算。
 草稿显示并编辑请求的 Project，即使另一个 Project 具有相同标签。
@@ -38,7 +38,7 @@ Project 菜单请求单独捕获完整目标 Project，以及发起方的 Site�
 | Unchanged            | 要求捕获的 revision 和未改变的原始标签；保留已知结果。                           |
 | Renamed              | 要求 checked 后继 revision 及已改变文本；在 snapshot 或 UI 交接前保留确切请求。  |
 | 精确结果 snapshot    | 只允许请求的标签变化，Unchanged 则无变化；保留其他所有投影 canonical 事实。      |
-| 更晚 snapshot        | 验证 Site 和确切目标归属，显示实际 canonical 标签与成员，包括 peer 变化。        |
+| 更晚 snapshot        | 验证 Session 和确切目标归属，显示实际 canonical 标签与成员，包括 peer 变化。     |
 | Snapshot 不可用      | 保留已知重命名结果；显式 `w` 再观察，不重放 mutation。                           |
 | 确定拒绝或排队时退役 | 保留确切 NotApplied 证据与已有终端身份。                                         |
 | 交付存在歧义         | 以确切 unknown 证据退役 carrier，不重试或虚构结果。                              |

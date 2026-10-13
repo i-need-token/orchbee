@@ -2,7 +2,7 @@
 
 This record owns the Windows refinement of native `agent integration list`,
 `explain`, `enable`, and `disable`. The CLI owns local onboarding; it never starts
-a Site. The shared provider classifier and mutation workflow remain authoritative
+a Session. The shared provider classifier and mutation workflow remain authoritative
 for ownership, version direction, plans, receipts, and residuals.
 
 ## Model and boundaries

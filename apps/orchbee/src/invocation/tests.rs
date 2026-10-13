@@ -258,7 +258,7 @@ fn agent_names_admit_one_selector_and_a_bounded_name_before_any_effect() {
             }),
         ),
         (
-            vec!["agent", "rename", "--session=s1", "alpha"],
+            vec!["agent", "rename", "--agent-session=s1", "alpha"],
             AgentNamesCommand::Assign {
                 target: AgentTarget::Session {
                     session_id: session.clone(),
@@ -286,8 +286,15 @@ fn agent_names_admit_one_selector_and_a_bounded_name_before_any_effect() {
         vec!["agent", "rename", "s1", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
         vec!["agent", "rename", "s1", "alpha", "--clear"],
         vec!["agent", "resolve", "s1", "--name", "alpha"],
-        vec!["agent", "resolve", "--session", "s1", "--name", "alpha"],
-        vec!["agent", "names", "--session", "s1"],
+        vec![
+            "agent",
+            "resolve",
+            "--agent-session",
+            "s1",
+            "--name",
+            "alpha",
+        ],
+        vec!["agent", "names", "--agent-session", "s1"],
         vec!["status", "--clear"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
@@ -347,7 +354,7 @@ fn default_config_is_a_sole_offline_root_mode() {
         vec!["--default-config", "--default-config"],
         vec!["--default-config", "--help"],
         vec!["--", "--default-config"],
-        vec!["--site", "work", "--default-config"],
+        vec!["--session", "work", "--default-config"],
         vec!["--machine", "work", "--default-config"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
@@ -487,31 +494,31 @@ fn accepts_every_query_path_with_default_text() {
 fn site_start_admits_only_format() {
     // The bare path defaults to text; `--format` is the sole option.
     assert_eq!(
-        parse(&["site", "start"]),
+        parse(&["server", "start"]),
         Ok(Request::SiteStart {
             format: OutputFormat::Text
         })
     );
     assert_eq!(
-        parse(&["site", "start", "--format", "json"]),
+        parse(&["server", "start", "--format", "json"]),
         Ok(Request::SiteStart {
             format: OutputFormat::Json
         })
     );
     assert_eq!(
-        parse(&["--format=json", "site", "start"]),
+        parse(&["--format=json", "server", "start"]),
         Ok(Request::SiteStart {
             format: OutputFormat::Json
         })
     );
     let cases: &[&[&str]] = &[
         // Operands, filters, and business flags are all out of scope.
-        &["site"],
-        &["site", "stop"],
-        &["site", "start", "extra"],
-        &["site", "start", "--project", "x"],
-        &["site", "start", "--confirm"],
-        &["site", "start", "--mouse", "off"],
+        &["server"],
+        &["server", "stop"],
+        &["server", "start", "extra"],
+        &["server", "start", "--project", "x"],
+        &["server", "start", "--confirm"],
+        &["server", "start", "--mouse", "off"],
     ];
     for arguments in cases {
         assert_eq!(
@@ -522,7 +529,7 @@ fn site_start_admits_only_format() {
     }
     // A missing or unsupported `--format` value names the concrete cause.
     assert_eq!(
-        parse(&["site", "start", "--format"]),
+        parse(&["server", "start", "--format"]),
         Err(ParseFailure {
             kind: ParseFailureKind::InvalidUsage,
             envelope: FailureEnvelope::Silent,
@@ -530,7 +537,7 @@ fn site_start_admits_only_format() {
         })
     );
     assert_eq!(
-        parse(&["site", "start", "--format", "yaml"]),
+        parse(&["server", "start", "--format", "yaml"]),
         Err(ParseFailure {
             kind: ParseFailureKind::InvalidUsage,
             envelope: FailureEnvelope::Silent,
@@ -544,27 +551,27 @@ fn site_start_admits_only_format() {
     );
     // A json envelope selection survives into the usage failure.
     assert_eq!(
-        parse(&["site", "start", "extra", "--format", "json"]),
+        parse(&["server", "start", "extra", "--format", "json"]),
         Err(ParseFailure {
             kind: ParseFailureKind::InvalidUsage,
             envelope: FailureEnvelope::Json,
             usage: Some(UsageReason::UnexpectedArgument {
-                context: UsageContext::Path("site start"),
+                context: UsageContext::Path("server start"),
                 value: "extra".to_owned(),
             }),
         })
     );
     // Help-path resolution: family overview and command help.
     assert_eq!(
-        parse(&["site", "--help"]),
-        Ok(Request::Help(HelpTopic::Family(Family::Site)))
+        parse(&["server", "--help"]),
+        Ok(Request::Help(HelpTopic::Family(Family::Server)))
     );
     assert_eq!(
-        parse(&["site", "start", "--help"]),
+        parse(&["server", "start", "--help"]),
         Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
     );
     assert_eq!(
-        parse(&["help", "site", "start"]),
+        parse(&["help", "server", "start"]),
         Ok(Request::Help(HelpTopic::Command(CommandPath::SiteStart)))
     );
 }
@@ -573,7 +580,7 @@ fn site_start_admits_only_format() {
 fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
     let id = "11111111111111111111111111111111";
     assert!(matches!(
-        parse(&["site", "stop", "--confirm"]),
+        parse(&["server", "stop", "--confirm"]),
         Ok(Request::SiteStop {
             command: SiteStopCommand::Stop {
                 id: None,
@@ -586,7 +593,7 @@ fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
     ));
     assert!(matches!(
         parse(&[
-            "site",
+            "server",
             "stop",
             "--confirm",
             "--request-id",
@@ -607,38 +614,38 @@ fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
         })
     ));
     assert!(matches!(
-        parse(&["site", "stop-status", id]),
+        parse(&["server", "stop-status", id]),
         Ok(Request::SiteStop {
             command: SiteStopCommand::Status { .. },
             ..
         })
     ));
     for args in [
-        vec!["site", "stop"],
-        vec!["site", "stop", "--confirm", "--retry"],
+        vec!["server", "stop"],
+        vec!["server", "stop", "--confirm", "--retry"],
         vec![
-            "site",
+            "server",
             "stop",
             "--confirm",
             "--request-id",
             "00000000000000000000000000000000",
         ],
         vec![
-            "site",
+            "server",
             "stop",
             "--confirm",
             "--request-id",
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         ],
-        vec!["site", "stop", "--confirm", "--timeout=0"],
-        vec!["site", "stop", "--confirm", "--timeout=3600001"],
-        vec!["site", "stop", "--confirm", "--detach", "--detach"],
-        vec!["site", "stop-status", id, "--confirm"],
-        vec!["site", "stop-status", id, "--retry"],
-        vec!["site", "stop-status", "short"],
-        vec!["site", "stop-status"],
-        vec!["site", "start", "--detach"],
-        vec!["site", "diagnose", "--request-id", id],
+        vec!["server", "stop", "--confirm", "--timeout=0"],
+        vec!["server", "stop", "--confirm", "--timeout=3600001"],
+        vec!["server", "stop", "--confirm", "--detach", "--detach"],
+        vec!["server", "stop-status", id, "--confirm"],
+        vec!["server", "stop-status", id, "--retry"],
+        vec!["server", "stop-status", "short"],
+        vec!["server", "stop-status"],
+        vec!["server", "start", "--detach"],
+        vec!["server", "diagnose", "--request-id", id],
         vec!["--retry", "status"],
     ] {
         assert!(parse(&args).is_err(), "{args:?}");
@@ -649,19 +656,19 @@ fn site_stop_requires_confirmation_and_preserves_explicit_recovery_identity() {
 fn site_diagnose_admits_only_format() {
     // The bare path defaults to text; `--format` is the sole option.
     assert_eq!(
-        parse(&["site", "diagnose"]),
+        parse(&["server", "diagnose"]),
         Ok(Request::SiteDiagnose {
             format: OutputFormat::Text
         })
     );
     assert_eq!(
-        parse(&["site", "diagnose", "--format", "json"]),
+        parse(&["server", "diagnose", "--format", "json"]),
         Ok(Request::SiteDiagnose {
             format: OutputFormat::Json
         })
     );
     assert_eq!(
-        parse(&["--format=json", "site", "diagnose"]),
+        parse(&["--format=json", "server", "diagnose"]),
         Ok(Request::SiteDiagnose {
             format: OutputFormat::Json
         })
@@ -669,10 +676,10 @@ fn site_diagnose_admits_only_format() {
     let cases: &[&[&str]] = &[
         // Operands, filters, and business flags are all out of scope —
         // the command needs no `--confirm`: it performs no effect.
-        &["site", "diagnose", "extra"],
-        &["site", "diagnose", "--project", "x"],
-        &["site", "diagnose", "--confirm"],
-        &["site", "diagnose", "--mouse", "off"],
+        &["server", "diagnose", "extra"],
+        &["server", "diagnose", "--project", "x"],
+        &["server", "diagnose", "--confirm"],
+        &["server", "diagnose", "--mouse", "off"],
     ];
     for arguments in cases {
         assert_eq!(
@@ -683,23 +690,23 @@ fn site_diagnose_admits_only_format() {
     }
     // A json envelope selection survives into the usage failure.
     assert_eq!(
-        parse(&["site", "diagnose", "extra", "--format", "json"]),
+        parse(&["server", "diagnose", "extra", "--format", "json"]),
         Err(ParseFailure {
             kind: ParseFailureKind::InvalidUsage,
             envelope: FailureEnvelope::Json,
             usage: Some(UsageReason::UnexpectedArgument {
-                context: UsageContext::Path("site diagnose"),
+                context: UsageContext::Path("server diagnose"),
                 value: "extra".to_owned(),
             }),
         })
     );
     // Help-path resolution: command help is its own topic.
     assert_eq!(
-        parse(&["site", "diagnose", "--help"]),
+        parse(&["server", "diagnose", "--help"]),
         Ok(Request::Help(HelpTopic::Command(CommandPath::SiteDiagnose)))
     );
     assert_eq!(
-        parse(&["help", "site", "diagnose"]),
+        parse(&["help", "server", "diagnose"]),
         Ok(Request::Help(HelpTopic::Command(CommandPath::SiteDiagnose)))
     );
 }
@@ -5275,7 +5282,7 @@ fn agent_read_usage_failures() {
         usage_reason(&["agent", "get"]),
         UsageReason::MissingRequired {
             context: path("agent get"),
-            requirement: "<target> or --session <id> or --name <alias> or --panel <id|selector>",
+            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector>",
         }
     );
     assert_eq!(
@@ -5549,7 +5556,7 @@ fn agent_wait_usage_failures() {
         usage_reason(&["agent", "wait"]),
         UsageReason::MissingRequired {
             context: path("agent wait"),
-            requirement: "<target> or --session <id> or --name <alias> or --panel <id|selector>",
+            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector>",
         }
     );
     assert_eq!(
@@ -6698,7 +6705,7 @@ fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
                 },
             ),
             (
-                vec!["--session", "alpha"],
+                vec!["--agent-session", "alpha"],
                 AgentTarget::Session {
                     session_id: AgentSessionId::parse("alpha").unwrap(),
                 },
@@ -6726,9 +6733,9 @@ fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
         }
         for args in [
             vec!["alpha", "--name", "beta"],
-            vec!["--name", "alpha", "--session", "beta"],
+            vec!["--name", "alpha", "--agent-session", "beta"],
             vec!["--name", "Upper"],
-            vec!["--session", "bad id"],
+            vec!["--agent-session", "bad id"],
             vec!["--name", "alpha", "extra"],
         ] {
             assert!(parse(&[vec!["agent", verb], args].concat()).is_err());
@@ -6779,7 +6786,7 @@ fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effect
             "send-keys",
             "--name",
             "alpha",
-            "--session",
+            "--agent-session",
             "s1",
             "enter",
         ],
@@ -6898,7 +6905,11 @@ fn agent_panel_selectors_are_exclusive_and_preserve_following_operands() {
         )
         .unwrap();
         assert!(!matches!(parsed, Request::Help { .. }));
-        for extra in [["--session", "sess"], ["--name", "alpha"], [panel, "extra"]] {
+        for extra in [
+            ["--agent-session", "sess"],
+            ["--name", "alpha"],
+            [panel, "extra"],
+        ] {
             assert!(
                 parse_request(
                     ["agent", verb, "--panel", panel, extra[0], extra[1]]
@@ -7371,8 +7382,8 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
     use super::parse_selected_request;
     let parse = |words: &[&str]| parse_selected_request(words.iter().map(OsString::from));
     for words in [
-        vec!["--site", "Work", "status"],
-        vec!["status", "--site=Work"],
+        vec!["--session", "Work", "status"],
+        vec!["status", "--session=Work"],
     ] {
         let request = parse(&words).unwrap();
         assert_eq!(request.site.unwrap().as_str(), "Work");
@@ -7382,17 +7393,17 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
         );
     }
     for words in [
-        vec!["--site", "..", "status"],
-        vec!["status", "--site="],
-        vec!["--site", "a", "--site=b", "status"],
-        vec!["--site", "--"],
-        vec!["status", "--", "--site", "a"],
+        vec!["--session", "..", "status"],
+        vec!["status", "--session="],
+        vec!["--session", "a", "--session=b", "status"],
+        vec!["--session", "--"],
+        vec!["status", "--", "--session", "a"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
-    let failure = parse(&["--site=..", "status", "--format=json"]).unwrap_err();
+    let failure = parse(&["--session=..", "status", "--format=json"]).unwrap_err();
     assert_eq!(failure.envelope, super::FailureEnvelope::Json);
-    let offline = parse(&["--site", "CON", "--help"]).unwrap();
+    let offline = parse(&["--session", "CON", "--help"]).unwrap();
     assert_eq!(offline.request, super::Request::RootHelp);
     let launch = parse(&[
         "tab",
@@ -7400,21 +7411,38 @@ fn named_site_selection_preserves_complete_grammar_and_value_ownership() {
         "--standalone",
         "--exec",
         r"C:\Windows\System32\cmd.exe",
-        "--arg=--site",
-        "--site",
+        "--arg=--session",
+        "--session",
         "work",
     ])
     .unwrap();
     assert_eq!(launch.site.unwrap().as_str(), "work");
     let agent = parse(&[
-        "--site",
+        "--session",
         "work",
         "agent",
         "get",
-        "--session",
+        "--agent-session",
         "00000000000000000000000000000001",
     ]);
-    assert!(agent.is_ok());
+    let agent = agent.unwrap();
+    assert_eq!(agent.site.unwrap().as_str(), "work");
+    assert!(matches!(
+        agent.request,
+        Request::Query {
+            command: QueryCommand::AgentGet(AgentTarget::Session { session_id }),
+            ..
+        } if session_id.as_str() == "00000000000000000000000000000001"
+    ));
+    // A runtime selector alone must not become an Agent target.
+    assert!(parse(&["--session", "work", "agent", "get"]).is_err());
+    for words in [
+        vec!["--site", "work", "status"],
+        vec!["site", "start"],
+        vec!["help", "site"],
+    ] {
+        assert!(parse(&words).is_err(), "retired spelling: {words:?}");
+    }
 }
 
 #[cfg(windows)]
@@ -7461,7 +7489,7 @@ fn workspace_creation_defaults_are_accepted_with_and_without_site_selection() {
             "{words:?}"
         );
         let selected = super::parse_selected_request(
-            ["--site", "work"]
+            ["--session", "work"]
                 .iter()
                 .chain(words.iter())
                 .map(OsString::from),
@@ -7633,7 +7661,7 @@ fn reusable_layout_apply_requires_a_source_and_confirmed_exclusive_destination()
 #[test]
 fn manifest_commands_accept_only_their_owned_options() {
     assert!(matches!(
-        parse(&["site", "agent-manifests"]),
+        parse(&["server", "agent-manifests"]),
         Ok(Request::AgentManifests {
             command: ManifestCommand::Current,
             ..
@@ -7641,7 +7669,7 @@ fn manifest_commands_accept_only_their_owned_options() {
     ));
     assert!(
         parse(&[
-            "site",
+            "server",
             "reload-agent-manifests",
             "--request-id",
             "11111111111111111111111111111111"
@@ -7650,22 +7678,22 @@ fn manifest_commands_accept_only_their_owned_options() {
     );
     assert!(
         parse(&[
-            "site",
+            "server",
             "agent-manifests-status",
             "11111111111111111111111111111111"
         ])
         .is_ok()
     );
     for args in [
-        vec!["site", "agent-manifests-status"],
-        vec!["site", "reload-agent-manifests", "--request-id", "bad"],
+        vec!["server", "agent-manifests-status"],
+        vec!["server", "reload-agent-manifests", "--request-id", "bad"],
         vec![
-            "site",
+            "server",
             "agent-manifests",
             "--request-id",
             "11111111111111111111111111111111",
         ],
-        vec!["site", "reload-agent-manifests", "--confirm"],
+        vec!["server", "reload-agent-manifests", "--confirm"],
     ] {
         assert!(parse(&args).is_err());
     }

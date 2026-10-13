@@ -6,7 +6,7 @@
 
 ## 身份与发布
 
-经认证的 Client Session 可发布一个交互视图。Client 身份是已接纳的非零 Session generation，编码为 32 位小写十六进制，作用域为 Site。身份由 Server 分配，generation 在一次 Server 生命周期内不重复。普通 CLI 连接不发布视图。同步不接受调用者指定的 Client 身份，不能确认其他 Session 的操作。
+经认证的 Client Session 可发布一个交互视图。Client 身份是已接纳的非零 Session generation，编码为 32 位小写十六进制，作用域为 Session。身份由 Server 分配，generation 在一次 Server 生命周期内不重复。普通 CLI 连接不发布视图。同步不接受调用者指定的 Client 身份，不能确认其他 Session 的操作。
 
 视图报告已观测 Workbench 修订、阶段（`starting`、`ready`、`busy`、`unavailable`）及必填可空的选择。选择包含 TerminalContext 身份、必填可空的 Tab／Panel 身份、显式缩放标记和活动 Tab 的 Panel 数（没有 Tab 时为零，有 Tab 时为正）。有 Panel 必须有 Tab；缩放必须有 Panel。这些是 Client 观测，不是新增的规范 Workbench 字段。
 
@@ -44,7 +44,7 @@ toggle 由 TUI 解析，并为这次已投递操作保留解析结果。相同�
 
 本地导航或模态意图中断后续远程步骤。已接纳的原生工作不描述为已撤销；此类步骤之后的中断为 incomplete。目标缺失、视图过期、不支持状态及模态／忙碌接纳均有明确结果。几何变化在绘制前重新观测 viewport 尺寸并使指针命中图失效。Applied 确认要求已观测到目标选择／缩放且成功绘制。绘制失败或连接丢失不能伪造 applied 成功。viewport 小到无法显示内容时视为 busy。对单 Panel Tab 开启或切换缩放，在选中并绘制目标 Panel 后返回 `zoom-unchanged`，不伪造 zoom 标记；该结果要求已观测单 Panel 目标、`zoomed: false` 及请求的最低修订。成功绘制的观测固定保留到确认，后续本地导航不能改写回执。
 
-TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清理移除发布并结算保留请求；受管 Site 停止会 join 这些 handler。Client 视图／控制状态易失，不跨 Server 重启保留。
+TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清理移除发布并结算保留请求；受管 Session 停止会 join 这些 handler。Client 视图／控制状态易失，不跨 Server 重启保留。
 
 在发送第一条 Synchronize 前，通道准入共用一个两秒总预算。临时本地传输故障——端点尚不存在或拒绝连接、连接被中断／重置／终止、管道断开、would-block、超时或握手 EOF——最多允许一次重试，重试沿用原截止时间并使用 Server 新分配的 Session generation。权限、配置、协议、拒绝、意外响应、取消及请求 I/O 配置失败立即停止。一旦发出任何 Synchronize 请求，该通道之后的任意失败均为终止状态：不转移 Client 身份，不重放 control、completion 或 mutation，也不续期截止时间。该重试只改变发布前准入，不削弱 registry 对已接纳 Session 的终止性 Disconnect 语义。
 
@@ -52,7 +52,7 @@ TUI 退出时控制通道停止、唤醒阻塞 I/O 并 join。Server Session 清
 
 显式 Client 选择器选择该精确运行中 Client。省略时，经校验的调用者 Terminal／Worker 上下文选择唯一聚焦于该绑定的视图；没有此上下文时要求恰好一个 current 视图。缺失、无效、过期或歧义上下文均明确失败；不猜测最近或全局焦点。目标解析继续使用规范 Workbench 身份。
 
-`workbench.client-view` 包含 Synchronize、List、Get、Submit、Read 动作，响应为 `workbench.client-view.result`。请求携带协议版本、交换请求身份及 Site 身份。Synchronize 携带必填可空 completion，响应携带必填可空的下一条 control。操作身份与交换身份分离。frame kind 25／26 沿用 OBWP 版本 1；分配前请求体限 16 KiB，结果限 64 KiB。Rust 与 TypeScript 独立校验封闭变体、必填可空字段、身份／序列边界及跨字段关系。
+`workbench.client-view` 包含 Synchronize、List、Get、Submit、Read 动作，响应为 `workbench.client-view.result`。请求携带协议版本、交换请求身份及 Session 身份。Synchronize 携带必填可空 completion，响应携带必填可空的下一条 control。操作身份与交换身份分离。frame kind 25／26 沿用 OBWP 版本 1；分配前请求体限 16 KiB，结果限 64 KiB。Rust 与 TypeScript 独立校验封闭变体、必填可空字段、身份／序列边界及跨字段关系。
 
 该边界在精确 cohort 接纳范围内增量添加。旧 cohort 不会默默重新解释新消息。回滚 cohort 只丢弃易失视图／控制观测，不改变规范 Workspace 或终端状态。新增 Mac/Linux 控制运行时和 Desktop CLI 暴露不在本次 Windows 实现范围内。
 
@@ -170,7 +170,7 @@ Presentation 当前已知的 attention 版本，包括隐藏兄弟，以及外�
 ## Panel 聚焦模式退出
 
 直接 Panel 聚焦和已解析出邻居的方向聚焦，可以进入 Busy Client 执行一次可取消模式的
-退出预检。取消草稿或 shell 界面前，控制通道读取一次最新规范 Snapshot，Client 校验 Site、
+退出预检。取消草稿或 shell 界面前，控制通道读取一次最新规范 Snapshot，Client 校验 Session、
 最低版本以及精确 Context／Tab／Panel 成员关系。目标缺失、拒绝、过期或不可用时，保持
 模式不变。方向几何在退出模式前仅解析一次；没有邻居时返回未变，不绘制或确认已查看。
 

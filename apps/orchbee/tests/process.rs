@@ -33,7 +33,7 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
             .env("ORCHBEE_RESUME_AGENTS_ON_RESTORE", "not-a-boolean")
             .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
             .env("ORCHBEE_RUNTIME_SCOPE", "not-a-scope")
-            .env("ORCHBEE_SITE", "..")
+            .env("ORCHBEE_SESSION", "..")
             .output()
     };
 
@@ -52,7 +52,7 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
     for arguments in [
         &["--default-config", "--format=json"][..],
         &["--default-config", "extra"][..],
-        &["--site", "work", "--default-config"][..],
+        &["--session", "work", "--default-config"][..],
     ] {
         let output = invoke(arguments, "en_US.UTF-8")?;
         assert_eq!(output.status.code(), Some(2), "{arguments:?}");
@@ -83,7 +83,7 @@ fn help_is_localized_plain_text_and_precedes_runtime_discovery() -> Result<(), B
             .env("COLUMNS", "not-a-number")
             .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
             .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
-            .env("ORCHBEE_SITE", "..")
+            .env("ORCHBEE_SESSION", "..")
             .output()?;
         assert_eq!(output.status.code(), Some(0));
         assert!(output.stderr.is_empty());
@@ -217,7 +217,7 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
         &["terminal"],
         &["worktree"],
         &["agent"],
-        &["site"],
+        &["server"],
         &["api"],
         &["config"],
         &["completion"],
@@ -250,7 +250,7 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
         &["agent", "list"],
         &["agent", "get"],
         &["agent", "explain"],
-        &["site", "start"],
+        &["server", "start"],
         &["api", "snapshot"],
         &["api", "schema"],
         &["config", "check"],
@@ -425,7 +425,7 @@ check() {
 }
 check --default-config 1 orchbee --d
 check --format 0 orchbee --default-config --f
-check --default-config 0 orchbee --site work --d
+check --default-config 0 orchbee --session work --d
 check --default-config 0 orchbee --machine work --d
 check report-metadata 1 orchbee workspace report-m
 check workspace 1 orchbee --source=hook:agent work
@@ -451,7 +451,7 @@ check --mouse 0 orchbee terminal attach target --mouse off --m
 check --format 0 orchbee terminal attach target --mouse invalid --f
 check --format 0 orchbee terminal read target --mouse off --f
 check --mouse 1 orchbee agent attach --name alpha --m
-check --session 0 orchbee agent attach --name alpha --s
+check --agent-session 0 orchbee agent attach --name alpha --s
 check --name 0 orchbee agent attach alpha --n
 check --format 0 orchbee agent attach alpha --name beta --f
 check --format 0 orchbee agent attach --name alpha extra --f

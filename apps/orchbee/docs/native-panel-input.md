@@ -14,7 +14,7 @@ Terminal is still starting. It is not a Presentation property, controller grant,
 Client-local preference. The default `orchbee` value is omitted when serialized; an absent field
 decodes to that default. Present values must be exactly `orchbee` or `panel`; null is invalid.
 Moving or swapping the complete Panel preserves its policy. Closing the Panel removes it.
-The state has the same Site-process lifetime as canonical layout; restart persistence is not added.
+The state has the same Session-process lifetime as canonical layout; restart persistence is not added.
 
 `orchbee` reserves the right button to the Client. `panel` permits an unmodified right press inside
 the content viewport when the program reports mouse tracking and existing input admission allows
@@ -27,7 +27,7 @@ coordinates and the cell-input fallback; see [mouse input](native-mouse-input.md
 
 | Transition | Rule                                                                                                                                                                         |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Resolve    | One snapshot fixes Site, expected revision and exact context/Tab/Panel membership.                                                                                           |
+| Resolve    | One snapshot fixes Session, expected revision and exact context/Tab/Panel membership.                                                                                        |
 | Set        | Prepare the complete candidate, publication and retained result before committing one successor revision and `panel-input-configured`. Only the target Panel policy changes. |
 | Equal      | Return `unchanged` at the current revision; no identity, publication or Host effect.                                                                                         |
 | Refuse     | Authorization, stale revision, missing membership, exhaustion and capacity failures preserve all state.                                                                      |
@@ -36,7 +36,7 @@ coordinates and the cell-input fallback; see [mouse input](native-mouse-input.md
 | Split      | The new Panel policy is committed with its topology and identities, before terminal-start settlement. There is no second policy-setting mutation.                            |
 
 The setter never changes focus, zoom, ratios, attachments, controller ownership or terminal bytes.
-Its `orchbee.panel.input` v1 receipt records request/Site/base, exact target, requested policy,
+Its `orchbee.panel.input` v1 receipt records request/Session/base, exact target, requested policy,
 known revision and `configured` or `unchanged`. It acknowledges canonical state, not that every
 Client has refreshed or drawn it. Panel reads expose the effective policy. Creation keeps its
 existing staged receipt and does not conflate canonical creation with later Client effects.

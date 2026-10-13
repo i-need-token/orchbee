@@ -3,7 +3,7 @@
 ## 权威与语法
 
 Windows `agent focus` 将规范或物理 Agent 解析为一个可导航的主 Panel，并向一个现有 TUI Client
-路由带确认的聚焦请求。支持一个原生 Agent 位置目标，或 `--session`、`--name`、`--panel`，
+路由带确认的聚焦请求。支持一个原生 Agent 位置目标，或 `--agent-session`、`--name`、`--panel`，
 沿用既有优先级与互斥规则。`--client`、`--request-id`、`--detach`、`--timeout` 和
 `--format text|json` 沿用 Client 控制契约。默认总时限为 30000 毫秒。帮助、补全和解析
 保持离线。不增加 macOS 或 Linux 运行时。
@@ -53,7 +53,7 @@ JSON 不受语言影响。
 验证名称、显式 ID、Panel 选择器、调用者与显式 Client 路由、存活主绑定，以及结束／缺失／
 歧义／仅子附件的拒绝。跟踪单次 Submit 及答复丢失后的保留 Read，验证部分答复取消和
 单一总时限。真实双 TUI Windows 证据检查选中 Panel 以及另一 Client／系统焦点不变，
-之后停止创建的所有 Agent 进程、Site 和控制台。审查由作者完成；不宣称执行 TLA 或
+之后停止创建的所有 Agent 进程、Session 和控制台。审查由作者完成；不宣称执行 TLA 或
 独立审查。最终真实聚焦／确认验收仍须联合 Windows 验证，不能仅凭定向检查结算。
 
 Client 必须报告 Ready 或 Busy；Starting 和 Unavailable 在 Agent 查询前返回

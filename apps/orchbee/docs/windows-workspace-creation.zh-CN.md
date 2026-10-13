@@ -37,7 +37,7 @@ orchbee workspace create --project demo --workspace source --cwd workspace --foc
 
 后续工作前先保留已知 canonical 标识。终端 pending 或 started 时可继续可选聚焦。启动 failed、unavailable 或 unknown 时保留 Workspace 回执并停止聚焦。变更交接结果未知时保留原始请求标识，不重试、不回滚、不创建替代资源。
 
-聚焦读取不早于提交修订的同 Site 新快照，全局解析返回的 Workspace，并核对精确 context/Tab/Panel 归属。Project 移动不使该作用域失效。Client 必须保持语义选择，或已通过首次 Workspace 协调选中精确的新 Workspace/Tab/Panel。context、Tab、Panel 或 zoom 改变时拒绝聚焦。一次 Context intent 使用新的 view revision 和既有 rendered/seen 确认。取消只停止等待，不取消 Server 已接受工作；后续失败保留先前回执。
+聚焦读取不早于提交修订的同 Session 新快照，全局解析返回的 Workspace，并核对精确 context/Tab/Panel 归属。Project 移动不使该作用域失效。Client 必须保持语义选择，或已通过首次 Workspace 协调选中精确的新 Workspace/Tab/Panel。context、Tab、Panel 或 zoom 改变时拒绝聚焦。一次 Context intent 使用新的 view revision 和既有 rendered/seen 确认。取消只停止等待，不取消 Server 已接受工作；后续失败保留先前回执。
 
 ## 机器输出与组织命令
 

@@ -23,7 +23,7 @@ fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
     for words in [
         vec!["agent", "attach", "alpha"],
         vec!["agent", "attach", "--name=alpha"],
-        vec!["agent", "attach", "--session=session-1"],
+        vec!["agent", "attach", "--agent-session=session-1"],
         vec!["agent", "attach", "--panel=@panel:ab"],
     ] {
         let Request::TerminalAttach { command } = parse(&words).unwrap() else {
@@ -54,7 +54,7 @@ fn attach_targets_are_explicit_and_options_are_scoped_before_effects() {
             "agent",
             "attach",
             "--panel=@panel:ab",
-            "--session=session-1",
+            "--agent-session=session-1",
         ],
         vec!["agent", "attach", "--name=alpha", "--stdin"],
     ] {

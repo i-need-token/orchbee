@@ -38,7 +38,7 @@ fn import_requires_both_explicit_files_and_rejects_runtime_or_extra_options() {
             "--confirm",
         ],
         vec![
-            "--site",
+            "--session",
             "named",
             "config",
             "import-herdr",

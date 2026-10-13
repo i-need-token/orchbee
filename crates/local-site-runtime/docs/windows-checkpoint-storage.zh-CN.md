@@ -69,7 +69,7 @@ generation，仅包含有限 outcome，不含 payload 字节或本地化文案�
 Client activation 通过既有私有 runtime owner 读取匹配的提醒。
 提醒发布失败时端点不能 ready。受控恢复提醒测试检查发布失败、ready、Client 连接及旧 generation 读取。
 
-无界面的 `site start` 在 stderr 显示本地化警告，保持既有成功文档和退出码。首次 TUI 通过既有
+无界面的 `server start` 在 stderr 显示本地化警告，保持既有成功文档和退出码。首次 TUI 通过既有
 notice 界面显示相同提醒。同一 activation 的重连可再次显示；旧 generation 不能污染新启动。
 这提供可见的恢复反馈，不读取终端屏幕，也不增加外部通知目的地。
 

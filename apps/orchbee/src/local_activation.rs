@@ -1,5 +1,5 @@
 //! The one app-private local-Site activation algorithm, shared by the TUI
-//! startup path and the headless `site start` command. Cohort validation
+//! startup path and the headless `server start` command. Cohort validation
 //! precedes runtime-directory preparation; one absolute caller-supplied
 //! deadline bounds the whole attempt and is never reset per phase. The
 //! lock/marker/spawn order is identical for both callers; only the failure

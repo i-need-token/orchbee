@@ -1,6 +1,14 @@
 # Orchbee 原生入口
 
-Windows `events subscribe` 从已有 Site 输出有界 NDJSON 观察。`events wait` 在等待片段间保留
+## 会话
+
+一个会话包含你的 Workspace、终端和 Agent；退出界面后，后台服务使其中的程序继续运行。
+首次使用默认会话，用 Workspace 组织日常工作。Windows 支持通过 `--session <name>` 和
+`session attach <name>` 使用独立的命名会话；`server` 命令管理所选会话的后台服务。
+Agent 标识使用 `--agent-session <id>`。[会话契约](docs/native-cli-query.zh-CN.md#会话与后台服务)
+规定术语、支持边界以及保持原样的存储／协议身份。
+
+Windows `events subscribe` 从已有 Session 输出有界 NDJSON 观察。`events wait` 在等待片段间保留
 同一连接及过滤器，区分匹配、确定超时、历史丢失、拒绝与中断。使用 `--event tab.renamed`、
 资源选择器或封闭 `--filter` JSON；`--after-cursor` 固定保留日志历史。输出／滚动探测保留真实
 终端和 Client viewport 所有权。运行 `orchbee events --help` 查看上限与条件；
@@ -10,7 +18,7 @@ Windows `events subscribe` 从已有 Site 输出有界 NDJSON 观察。`events w
 
 实验性的原生 Rust CLI 与 TUI Client。在 Windows、Linux 以及 Apple Silicon macOS 开发包中，
 裸命令从已校验的可执行文件 cohort
-连接或启动本地 Site，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 操作共享
+连接或启动本地 Session，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 操作共享
 Workbench 状态，同时保持独立选择与保留的终端进程。Windows 还支持已保存机器的 SSH 命令路由和
 TUI 实时切换、用户配置，以及完整 cohort 的版本安装与更新，具体契约见下方链接。
 产物名为 `orchbee`，参与根 Cargo 验证。macOS 包是未签名、按用户隔离的 Apple Silicon 开发 cohort；
@@ -23,10 +31,10 @@ TUI 实时切换、用户配置，以及完整 cohort 的版本安装与更新�
 用 `agent rename <session-id> <name>` 设置运行时名称，`agent names` 列出名称，
 `agent resolve <name>` 获取完整会话 ID。`agent rename <target> --clear` 释放名称。
 `agent get/explain/wait <name>` 可直接解析名称；等待固定原会话，不因名称复用而改变目标。
-名称唯一，在会话结束或 Site 停止后消失。
+名称唯一，在会话结束或 Session 停止后消失。
 
 `agent read <name>` 读取唯一绑定的终端；`agent send-keys <name> enter`
-通过既有终端输入回执发送语义按键。两者也接受 `--session <id>` 和 `--name <alias>`，
+通过既有终端输入回执发送语义按键。两者也接受 `--agent-session <id>` 和 `--name <alias>`，
 绑定缺失或有歧义时拒绝操作。
 
 `agent prompt <name> <text> --wait` 在新鲜且无阻塞的预检后提交字面 paste 加 Enter。
@@ -36,7 +44,7 @@ TUI 实时切换、用户配置，以及完整 cohort 的版本安装与更新�
 仅在进程和 canonical 就绪检查通过后绑定名称。配置、限制和恢复见
 [Windows Agent 启动](docs/windows-agent-start.zh-CN.md)。
 
-Windows `channel show [--format text|json]` 从共享用户配置读取严格的 stable/preview 偏好，不激活 Site。参见[配置及频道来源](docs/windows-cli-configuration.zh-CN.md#规则更新策略)。
+Windows `channel show [--format text|json]` 从共享用户配置读取严格的 stable/preview 偏好，不激活 Session。参见[配置及频道来源](docs/windows-cli-configuration.zh-CN.md#规则更新策略)。
 
 Windows `machine list|add|rename|remove|enable|disable` 管理已保存的 SSH 配置，并在添加前检查远端 Windows 就绪状态。持久化、部分结果、命令路由和 TUI 实时切换见[已保存的 Windows 机器](docs/machines.zh-CN.md)。
 
@@ -54,13 +62,13 @@ macOS 上运行下面的本地启动流程。两者使用同一 Client 路径；
 ```text
 orchbee                          # 本地终端（TUI）
 orchbee tui                      # 显式打开同一终端
-orchbee status                   # 运行中 Site 的 Workbench 快照
+orchbee status                   # 运行中 Session 的 Workbench 快照
 orchbee <family> <command>       # 查询与 Workbench 修改命令
 orchbee api snapshot|schema      # 机器快照与内嵌 schema
-orchbee site start               # 确保本地 Site 正在运行（无需 TTY）
-orchbee site diagnose            # 只读的本地 Site 运行时事实
-orchbee site stop --confirm      # 停止托管 Windows Site 及其终端
-orchbee site stop-status <id>    # 查询停止尝试或完成回执
+orchbee server start               # 确保本地 Session 正在运行（无需 TTY）
+orchbee server diagnose            # 只读的本地 Session 运行时事实
+orchbee server stop --confirm      # 停止托管 Windows Session 及其终端
+orchbee server stop-status <id>    # 查询停止尝试或完成回执
 orchbee config check             # 本地运行时检查
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish|powershell|elvish
@@ -71,7 +79,7 @@ orchbee --help | --version
 `launch-profile`、`agent`（`list`/`get`，另有
 `terminal read`/`wait-output`；Windows `worktree list` 接受 `--workspace <target>` 或
 `--cwd <path>`，支持可选的命令局部信任；同时保留严格的 `--directory <directory-id>` 形式；
-`launch-profile` 提供 `list` 与 `get <selector>`——对运行中 Site 启动配置目录的一次类型化读取，
+`launch-profile` 提供 `list` 与 `get <selector>`——对运行中 Session 启动配置目录的一次类型化读取，
 由 Server 端解析、CLI 不做本地预读；
 `agent` 提供 `list`（支持 `--include-ended`/`--limit`/`--cursor` 分页）、`get <session-id>` 与
 `explain <session-id>`——经 OBAP 读取 Server 权威 Agent session 的只读类型化视图，绝不从终端
@@ -85,14 +93,14 @@ Windows `agent explain` 也会将名称和 Panel 解析为精确的物理终端�
 屏幕规则评估。结果包含清单来源/版本、同优先级首条胜出规则、所有规则匹配及有界区域证据。
 生效的完整生命周期权威直接返回明确的屏幕跳过结果，不读取 Host。一次准入与 5 秒 CLI 总预算
 覆盖解析和读取；Server 队列/读取预算为 4 秒。绑定或上报上下文变化时拒绝，不重试。
-不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理 v3 增加实际路径、缓存版本、覆盖状态及类型化警告；v2 对旧版、无清单或跳过结果保持封闭。Windows `site agent-manifests`、`site reload-agent-manifests` 和 `site agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `site update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Site 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
+不发送输入、申请控制器或改变焦点。Windows 启动依次选择本地覆盖、符合条件的远程缓存及内置规则。物理 v3 增加实际路径、缓存版本、覆盖状态及类型化警告；v2 对旧版、无清单或跳过结果保持封闭。Windows `server agent-manifests`、`server reload-agent-manifests` 和 `server agent-manifests-status` 暴露已安装快照及保留的热重载回执。显式 `server update-agent-manifests` 下载并启用经过校验的缓存规则，分别保留逐 provider 缓存结果和启用回执。启用 `update.manifest_check` 时，托管发布版 Session 在启动时及每三十分钟自动检查；调试／测试及独立端点不调度。
 参见[屏幕模型](../orchbee-server/docs/agent-screen-model.zh-CN.md)。
 
 Windows `panel create-terminal` 启动未绑定主项或精确成员，或追加子项，不分割 Panel。
 它保留字面启动选项、返回保留的等待／最终回执，不改变 Client 焦点。
 详见 [Panel 终端创建](docs/windows-panel-terminals.zh-CN.md)。
 
-作用于运行中 Site 的修改命令包括 `project create`/`rename`/`dissolve`/`close-all`、
+作用于运行中 Session 的修改命令包括 `project create`/`rename`/`dissolve`/`close-all`、
 `workspace create`/`rename`/`set-project`/`create-project`/`ungroup`/`accept-directory`/`close`、`tab create`/`rename`/`move`/`close`、
 `panel split`/`move`/`close` 与 `launch-profile create`/`delete`——
 `workspace close <target> --confirm` 在同一 tab-close lifecycle 下关闭 Workspace context 内
@@ -115,11 +123,11 @@ Server 权威探测该字面绝对路径——使 CLI 创建的 Workspace 无需
 `project rename <target> --label <label>` 提交既有 `ProjectRename` 动作——同一
 "一次快照/一条命令" 信封先按精确 ID、显式 `@<kind>:<suffix>` selector 或精确 label
 解析 target——并在专用
-`orchbee.project.rename` 文档下报告 `committed`/`unchanged`。`site start` 是无头
+`orchbee.project.rename` 文档下报告 `committed`/`unchanged`。`server start` 是无头
 激活路径：它执行与 TUI 启动相同的 connect-or-activate 序列——验证 cohort、准备
-运行时目录、取锁、提交标记、在没有运行中 Site 应答时拉起 Server——全程共享一个
+运行时目录、取锁、提交标记、在没有运行中 Session 应答时拉起 Server——全程共享一个
 20 秒绝对 deadline，然后仅当本次调用实际拉起了子进程时报告 `started`，当既有
-Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时也可能产生效果：只有
+Session 准入了其探针时报告 `already-running`。该命令即使在拒绝时也可能产生效果：只有
 语法失败保证零效果；被中断或超时的启动可能遗留已提交的激活状态，后续调用会按该
 持久状态继续处理。Windows 下一次调用只有在全部 guard 下证明 v2–v5 完整登记的旧代确切进程
 全部退出后才自动恢复；
@@ -127,17 +135,17 @@ Site 准入了其探针时报告 `already-running`。该命令即使在拒绝时
 不终止旧进程。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v5；只支持
 v1–v4 的读取器会拒绝 v5，且不改变其字节。这些边界由
 [Windows 恢复契约](../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)维护。
-`site diagnose` 是只读对偶面：它报告运行时目录、标记、锁与有限端点路径的有界事实——
+`server diagnose` 是只读对偶面：它报告运行时目录、标记、锁与有限端点路径的有界事实——
 每行是各自观察瞬间的封闭状态行——共享一个协作式 5 秒预算；它绝不 connect、创建、
 取锁、修复，也不声称任何进程存活或消失。
 `agent integration`（`list`、`explain`、`enable`、`disable`）是本地 provider
 接入命令族：仅在本机对调用用户的 provider 配置做有界读取与受管修改——
-不建 socket、不取锁、不接触 Site；只有经核实归 Orchbee 所有的条目才会被
+不建 socket、不取锁、不接触 Session；只有经核实归 Orchbee 所有的条目才会被
 安装或移除。完整语法、
 target 与 filter 规则、修改结果及含退出分类的 failure matrix 由
 [native CLI query](docs/native-cli-query.zh-CN.md) 持有；`orchbee help <family>` 与
 `orchbee help <family> <command>` 直接从二进制输出同一套语法。端到端的无头
-序列——启动 Site、创建 Project/Workspace/目录、拉起并驱动终端、查看
+序列——启动 Session、创建 Project/Workspace/目录、拉起并驱动终端、查看
 worktree、观察 Agent 并干净地关闭——见
 [原生 CLI 工作流](docs/cli-workflows.zh-CN.md)。
 
@@ -146,7 +154,7 @@ Workspace 与 terminal 准备，再把每个 `<…>` 占位符替换为实际 ID
 provider：
 
 ```sh
-orchbee site start                        # 激活一次本地 Site（无需 TTY）
+orchbee server start                        # 激活一次本地 Session（无需 TTY）
 orchbee status                            # Workbench 是否可达？
 orchbee project create --label demo       # 随后 workspace create / accept-directory
 orchbee tab create --workspace <ws> --label shell \
@@ -154,11 +162,11 @@ orchbee tab create --workspace <ws> --label shell \
 orchbee terminal send <terminal-id> --text 'make test' --enter
 orchbee terminal wait-output <terminal-id> --match 'PASS'
 orchbee agent integration enable --provider <id>   # 一次性本地接入
-orchbee agent list                        # 运行中 Site 观察到的会话
+orchbee agent list                        # 运行中 Session 观察到的会话
 orchbee agent wait <session-id> --until ended
 ```
 
-Apple Silicon macOS 开发 cohort 支持查询 Site 的 `agent list` 及其有界分页选项。按 Client
+Apple Silicon macOS 开发 cohort 支持查询 Session 的 `agent list` 及其有界分页选项。按 Client
 投影的状态（`--client`）仍仅限 Windows；其他 Agent 观察命令继续遵循各自文档中的平台范围。
 
 `orchbee help <family>` 直接从二进制输出同一套语法，
@@ -186,21 +194,21 @@ node scripts/stage-native-site.mjs --output "$env:LOCALAPPDATA\OrchbeeNative"
 内置系统 Shell 选择绝对 PATH 中首个兼容 PowerShell 7 或系统 Windows PowerShell；显式旧
 `terminal.default_shell` 只为未声明共享配置提供初值。
 Shell 模式及启动生命周期见 [Windows 配置](docs/windows-cli-configuration.zh-CN.md#windows-配置-shell)。
-`site start --format json` 也可在非交互控制台中运行。
+`server start --format json` 也可在非交互控制台中运行。
 
-Windows Site 完全为空且没有保存位置时，`cd <project>; orchbee` 创建以当前目录命名的
+Windows Session 完全为空且没有保存位置时，`cd <project>; orchbee` 创建以当前目录命名的
 未分组 Workspace，并在该目录启动首个终端。之后启动恢复最后显示的 Workspace、Tab
 和 Panel；从其他目录启动不会增建 Workspace。详见[目录启动](docs/native-directory-startup.zh-CN.md)
 及[启动位置](docs/native-context-selection.zh-CN.md#windows-启动偏好)。
 
 前缀键为 `Ctrl+B`，随后按 `|` 左右分屏、`-` 上下分屏、`h/j/k/l` 切换窗格，或 `d` 脱离。
-分屏保留当前焦点。再次运行可执行文件即可重新连接保留的 Site。脱离后 Shell 继续运行；退出的 Shell
-仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Site 进程退出后，再次运行可执行文件会自动开始
+分屏保留当前焦点。再次运行可执行文件即可重新连接保留的 Session。脱离后 Shell 继续运行；退出的 Shell
+仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Session 进程退出后，再次运行可执行文件会自动开始
 新代，并恢复已有 checkpoint。旧 owner 仍活着或无法证明退出时拒绝启动；当前恢复不接管活 Host。
 `session list` v2 用 `recoverable` 报告受 guard 保护的冷恢复资格。持续 Workbench checkpoint
 会保留布局变更、采样所得的终端目录及 provider 恢复引用，但不保存屏幕内容；详见
 [Windows Workbench checkpoint 契约](../orchbee-server/docs/workbench-checkpoint.zh-CN.md)。
-`config check --format json` 检查本地 cohort/runtime 输入，不启动 Site。
+`config check --format json` 检查本地 cohort/runtime 输入，不启动 Session。
 
 Windows 已验证原生启动、Unicode 渲染、连续及逐字输入、CLI 终端发送/读取、分屏/焦点/调整大小、
 脱离后保留精确终端身份并重新连接，以及 Git worktree 发现。Console 事件进入既有按键及 SGR 鼠标解码器；
@@ -208,10 +216,10 @@ Windows 已验证原生启动、Unicode 渲染、连续及逐字输入、CLI 终
 管道，不留下分离的 flush 线程。
 
 Windows `agent doctor --provider codex --format json` 现在可以检查本地配置、PATH、Node
-和胶囊完整性，不启动 Site，也不改变 provider 接入配置。版本 3 文档报告 Windows 端点投递
+和胶囊完整性，不启动 Session，也不改变 provider 接入配置。版本 3 文档报告 Windows 端点投递
 尚未检查；已安装配置不证明 Agent 已接通。
 
-Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.16 提供 Claude Code、Codex、Grok 和 GitHub Copilot hook 与 JavaScript 模块，
+Windows `agent integration list/explain/enable/disable --provider <id>` 可管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code。详见 [Windows 集成契约](docs/windows-agent-integrations.zh-CN.md)。Windows `server diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。Capsule 0.4.16 提供 Claude Code、Codex、Grok 和 GitHub Copilot hook 与 JavaScript 模块，
 通过原生 observation 管道与 Console 关联投递。Windows x64 cohort 包含保留关联信息所需的
 固定 ConPTY 运行时。其他 provider 保留既有平台限制。
 `terminal send --stdin` 接受重定向普通文件和 Windows 管道；所属隐藏 Windows PowerShell
@@ -219,7 +227,7 @@ Windows `agent integration list/explain/enable/disable --provider <id>` 可管�
 Shell 补全提供 bash/zsh/fish/powershell/elvish。在 PowerShell 中显式运行
 `Invoke-Expression (orchbee completion powershell | Out-String)` 加载，不会修改 profile。
 在交互式 Elvish 0.21 中执行 `eval (orchbee completion elvish | slurp)`；静态回调注册
-`orchbee` 与 `orchbee.exe`，不查询 Site 或修改 profile。
+`orchbee` 与 `orchbee.exe`，不查询 Session 或修改 profile。
 在 Windows PowerShell 5.1 中使用 Unicode 管道时，在调用脚本内设置 `$OutputEncoding = [Text.UTF8Encoding]::new($false)`；传给原生命令的字节由 PowerShell 编码。Orchbee 原样保留字节，不修复 shell 已经造成的编码损失。
 `orchbee --skill` 离线输出内嵌 [Agent 指引](docs/cli-agent-skill.zh-CN.md)。操作系统服务安装、发布签名、
 应用自动更新和活 Host 接管仍不在这些命令的范围内。
@@ -243,9 +251,9 @@ macOS 使用 `/private/tmp/orchbee-native-dev/orchbee`）。
 已有输出目录会被拒绝。可用 `--cargo-target-dir <absolute-directory>` 复用 Cargo 构建缓存。
 这会暂存一个开发 cohort，不安装系统服务。
 
-Linux 默认 Site 位于 `/tmp/orchbee-native-<effective-uid>`，macOS 默认位于
+Linux 默认 Session 位于 `/tmp/orchbee-native-<effective-uid>`，macOS 默认位于
 `/private/tmp/orchbee-native-<effective-uid>`。开发和测试可将 `ORCHBEE_RUNTIME_BASE`
-指向准入本机文件系统上的另一个已有绝对目录来隔离 Site。
+指向准入本机文件系统上的另一个已有绝对目录来隔离 Session。
 [共享运行时契约](../../crates/local-site-runtime/README.zh-CN.md) 定义 0700 目录、
 0600 锁/socket/不可变启动标记、声明适配器 sidecar 的四可执行文件精确 cohort、
 20 秒共用截止时间和 500 毫秒延迟提示。
@@ -254,7 +262,7 @@ Server + Worker 就绪与终端首帧就绪是不同阶段。初始 Open、snaps
 并满足当前控制模式尺寸。Worker 消费 Ready reply 后才恢复常规请求预算。
 未绘制的 FrameApplied 不会提前发送；NeedSnapshot 恢复反馈可以继续推进首帧获取。
 
-Client 不重启或接管异常 Site。失败/残留运行时明确要求恢复，不自动删除。
+Client 不重启或接管异常 Session。失败/残留运行时明确要求恢复，不自动删除。
 `Ctrl+B q` 或 `Ctrl+B d` 只关闭 Client；再次打开连接同一个保留 shell。
 同时打开的其他 Client 只读，除非它取得独立 controller grant。
 Windows 上用 `Ctrl+B t` 显式接管当前 pane，并提供本窗口的 pane 尺寸；普通打字和点击
@@ -472,7 +480,7 @@ Application-private shell adapter 拥有以下终端与呈现边界。裸 Linux 
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 准入        | 已暂存的 Unix adapter 要求继承的 stdin 与 stdout 都是 TTY，且具有相同 terminal-device identity；它只复制这些已准入 descriptor，并从复制后的 stdout descriptor 读取 cell 与 pixel dimension。它没有 `/dev/tty`、Crossterm global size 或 process fallback。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 生命周期    | 一个已暂存 guard 拥有 raw mode、alternate screen 与 cursor visibility。它会在 operation 可能部分成功前标记 cleanup responsibility，在 inverse 成功前保留每个 flag，并为每个失败的 inverse 最多尝试两次，随后返回一个 aggregate error。Process-lifetime singleton panic hook 只在发生 panic 的 thread 是 active guard owner 时派发，因此其他 thread 无法在保存 terminal state 前清除 setup lease；guard drop 不会移除后来安装的 hook。正常返回、initialization/event/draw failure、owner-thread panic，以及 `SIGHUP`/`SIGINT`/`SIGQUIT`/`SIGTERM` 中的每一种，都有确定性 restoration 或 signal-observation 证据。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Client View | 每个 invocation 拥有 prefix mode、viewport class、sidebar projection、active overlay 与 transient notice。它不拥有任何共享 Tab、Panel、Workspace、Site 或 Terminal fact，也不持久化任何内容。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Client View | 每个 invocation 拥有 prefix mode、viewport class、sidebar projection、active overlay 与 transient notice。它不拥有任何共享 Tab、Panel、Workspace、Session 或 Terminal fact，也不持久化任何内容。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 布局        | [Shell 布局](docs/tui-shell-layout.zh-CN.md) 拥有视口级别、有界侧栏宽度与终端几何。Windows 侧栏将 Agent 嵌在精确归属的 Workspace 或 Standalone 下面，共用一棵可滚动树；展开操作保留终端选择与键盘归属。Tab 顶栏和侧栏的 `+` 控件复用已有创建动作及菜单。规范 Panel 身份与终端归属保持不变。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 输入        | 已暂存 adapter 每次最多从已准入 stdin descriptor poll 并读取 4,096 个 raw byte。一个有界 legacy decoder 把字节流转成 typed item——一个 UTF-8 标量、一个 CSI/SS3 或 kitty-`u` 键、一段原子 bracketed-paste、或一个 non-decision 完整序列。每个正在收集的 frame（ESC 等待、CSI/SS3、UTF-8 标量、paste 段）在有界注入等待内跨 read 持有自己的字节；在被捕获 packet 中打开的 frame 即使跨 read 完成也保留其 owned 归属，越界或超时 frame 会 drain 到可靠边界而不是让尾巴漏进 binding，paste 段只按 opener 记法配对的终结符结束。legacy decoder 对无效 UTF-8、越界或超时的粘贴只产生一次拒绝，不保留 raw 内容，然后静默消费到对应终止符；Pane 不会收到被拒绝的片段，已启用的 prefix 仍保持等待。attach 和文本编辑器保留已有的拒绝反馈，普通 Pane 与 prefix 分派不增加全局提示。每次完整 read 都会先依序 dispatch，之后才允许后续 signal、viewport query 或 resize decision 结束本轮 loop。`Ctrl+B` 进入可见 prefix mode。`b`、`w`、`?`、`q` 与 `d` 驱动本地 shell state 或退出；已连接的 `c`、Tab 选择和 `h`/`j`/`k`/`l` action 由 Native Session 处理。在 prefix、调整模式和独占捕获外，普通 byte——包括 `Ctrl+C`、`Ctrl+D`、escape sequence、UTF-8，以及非模态 shortcut Help 可见时的输入——都会逐字节按原序到达可注入 terminal-input port；单独的 `Esc` 在有界等待后才 forward，prefix 后的 `Ctrl+B` 会 forwarding 一个 literal byte。 |
 | 结果        | Shell 消费准备好的 Session。Bootstrap 拥有激活，Server 拥有终端身份，Host 拥有终端生命周期。Shell 不改变 Workbench 状态。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -508,7 +516,7 @@ interleaving、post-read viewport/resize failure 与 lifecycle fault injection�
 
 已接受的本地终端里程碑让私有 TUI 成为 `LocalClient` 的实际消费者：`run_connected` 接收已准入
 Client 和显式创建或附着意图。它不选择 endpoint、激活服务、改变公开语法或发布共享 Workbench
-事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸 Linux 与 macOS 启动在完成有界 Site 激活后，进入同一个已准备好的 shell。
+事实。真实进程／PTY 见证已经经此 adapter 呈现 Server/Worker/Host 终端；裸 Linux 与 macOS 启动在完成有界 Session 激活后，进入同一个已准备好的 shell。
 
 以下记录保留仅供测试使用的私有 Create/Attach 适配器。其实现位于
 [`terminal_session/tests/legacy.rs`](src/terminal_session/tests/legacy.rs)，服务于现有的
@@ -566,51 +574,51 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 
 只有 help/version/usage 一次性路径仅依赖标准库参数、环境和流。Windows 与 Linux 的 bare invocation 组合共享 runtime、私有 Client transport 与 TUI；platform adapter 负责 console 与 transport effect。原生应用拥有当前开发中的 CLI/TUI 界面。
 
-## POSIX 本机 Site rendezvous 底座
+## POSIX 本机 Session rendezvous 底座
 
 共享所有权与完整原语建模记录现由
 [local-site-runtime](../../crates/local-site-runtime/README.zh-CN.md) 维护；应用不再保留重复实现。
 
-## 已接受的本机 Site activation 建模记录
+## 已接受的本机 Session activation 建模记录
 
-| 字段   | 已接受的 refinement target                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 问题   | 两个并发的本机 `orchbee` TUI invocation 必须通过同一次 Site activation attempt 协调，且二者都不能成为 Server 或 Worker 的 lifetime supervisor。已存在的 compatible Site 不应产生 launch；Site 不存在时至多启动一个 exact installed cohort；每个非成功 outcome 都必须显式。                                                                                                                                                           |
-| 输入   | 两个 Client invocation slot；TUI、help 与 version intent；absent、compatible-ready、incompatible 或 partial 的 initial Site observation；一次 activation-lock result；exact installed Server-plus-Worker cohort capability；typed readiness、incompatibility、partial-cohort 与 launcher-failure observation；以及 abstract monotonic total-deadline expiry。External process outcome 不受信，且可以永远不抵达。                     |
-| 数据   | 每个 Client 的 phase、typed result 与 connection path；一个可选 activation-lock owner；zero-or-one launch count 与 exact-installed cohort tag；Site 与 typed-readiness state；以及 Site-owned ready-service lifetime marker。不包含 PID、path、runtime-base、scope、ACL、process tree、cleanup record、recovery identity、service-manager unit 或 numeric time value。                                                               |
-| 输出   | Compatible present Site 直接连接。Site 不存在时，一个 lock owner 启动 exact installed cohort，contender 等待 typed readiness。成功时连接并释放 caller 的 activation resource。Incompatible Site、partial cohort、launcher failure 与 deadline expiry 是不同的 failure。Help 与 version 完成时不 discovery 或 activate。Client exit 只结束该 Client。                                                                                 |
-| 不变量 | 每条 TUI path 都先尝试 connection 再 activation；activation owner 唯一；launch count 至多为一，且每次 launch 都是在 lock 下启动 exact installed cohort；contender 成为 readiness waiter；只有 ready compatible Site 能产生 connection；settled Client 不拥有 activation resource；ready-service lifetime 属于 Site；failure 与 Client exit 都不停止或改写 Site state；help/version 保留全部 activation fact。                        |
-| 决策   | Invocation kind 决定是否允许执行 Site work。Connection observation 区分 direct success、absent activation、incompatible failure 与 partial-cohort failure。发现 absent 后，lock ownership 区分 launcher 与 waiter；lock winner 在 launch 前重新检查 Site state。Typed readiness、typed failure 或 Client-owned total deadline 结算每个 waiter。在 connection 完成之前，deadline observation 可以胜出。                               |
-| 模型   | 对恰好两个 Client slot 与四种受支持 initial Site class 建模的 bounded workflow。一个 scalar `activationOwner` 对 `activation.lock` 建模；`launchCount` 与 `launchedCohort` 暴露 singleton exact-cohort launch；`serviceLifetimeOwner` 把 ready Site 与每个 Client 区分。External launcher/readiness action 是 nondeterministic，且没有 fairness assumption。                                                                         |
-| 转换   | Present compatible Site 下为 `idle -> connecting -> connected`；present incompatible 或 partial state 下为 `connecting -> failed`；launch winner 为 `connecting -> lock-ready -> lock-held -> waiting-readiness`；contention 为 `lock-ready -> waiting-readiness`；waiting 或 recheck state 会结算为 connected 或一种 typed failure；`connected -> exited` 保留 Site state。Help/version 从 `idle` 直接进入 information completion。 |
-| 依赖   | Model 仅在具名 abstraction 上组合已接受 command contract、当前 private `LocalClient` admission boundary 与 `ModeCheckedLocalSiteRendezvous` lock semantics。未来 runtime refinement 必须提供 installation-owned cohort selection、typed readiness 与一个 monotonic total deadline。本 slice 不增加 process、socket、filesystem、localization 或 public-command implementation。                                                      |
-| 所有权 | `apps/orchbee` 拥有 Client bootstrap workflow、deadline、activation guard 与 typed Client result。Installation composition 拥有 exact cohort capability。Server 与 Worker 在成功后拥有各自 readiness 与 service lifetime。Model 不向 Client 授予 supervise、stop、replace、downgrade、clean up 或 recover Site 的 authority。                                                                                                        |
-| 验证   | 启动状态、期限与真实进程测试覆盖受支持初始 Site 类、竞争 Client、准确 cohort 启动、既有服务保留及失败结算。共享 LocalSiteStartup 核心仅提供其单独声明的有界协议证据。                                                                                                                                                                                                                                                                |
-| 正确性 | LA-01 至 LA-05 仍是启动与准入行为要求。受控期限及进程轨迹必须展示无需假设外部进程响应的结算。已移除激活流程不提供当前 TLC 证明。                                                                                                                                                                                                                                                                                                     |
-| 限制   | 该 abstraction 只证明 checked two-Client、one-Site state space。它不证明 runtime refinement、operating-system scheduling、process creation 或 detachment、daemonization、service-manager behavior、runtime base 或 scope、ACL、socket metadata、cleanup、recovery、retry、update、concrete deadline 或 progress threshold、localization、TUI behavior、packaging、public wiring 或 external process progress。                       |
+| 字段   | 已接受的 refinement target                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 问题   | 两个并发的本机 `orchbee` TUI invocation 必须通过同一次 Session activation attempt 协调，且二者都不能成为 Server 或 Worker 的 lifetime supervisor。已存在的 compatible Session 不应产生 launch；Session 不存在时至多启动一个 exact installed cohort；每个非成功 outcome 都必须显式。                                                                                                                                                        |
+| 输入   | 两个 Client invocation slot；TUI、help 与 version intent；absent、compatible-ready、incompatible 或 partial 的 initial Session observation；一次 activation-lock result；exact installed Server-plus-Worker cohort capability；typed readiness、incompatibility、partial-cohort 与 launcher-failure observation；以及 abstract monotonic total-deadline expiry。External process outcome 不受信，且可以永远不抵达。                        |
+| 数据   | 每个 Client 的 phase、typed result 与 connection path；一个可选 activation-lock owner；zero-or-one launch count 与 exact-installed cohort tag；Session 与 typed-readiness state；以及 Session-owned ready-service lifetime marker。不包含 PID、path、runtime-base、scope、ACL、process tree、cleanup record、recovery identity、service-manager unit 或 numeric time value。                                                               |
+| 输出   | Compatible present Session 直接连接。Session 不存在时，一个 lock owner 启动 exact installed cohort，contender 等待 typed readiness。成功时连接并释放 caller 的 activation resource。Incompatible Session、partial cohort、launcher failure 与 deadline expiry 是不同的 failure。Help 与 version 完成时不 discovery 或 activate。Client exit 只结束该 Client。                                                                              |
+| 不变量 | 每条 TUI path 都先尝试 connection 再 activation；activation owner 唯一；launch count 至多为一，且每次 launch 都是在 lock 下启动 exact installed cohort；contender 成为 readiness waiter；只有 ready compatible Session 能产生 connection；settled Client 不拥有 activation resource；ready-service lifetime 属于 Session；failure 与 Client exit 都不停止或改写 Session state；help/version 保留全部 activation fact。                     |
+| 决策   | Invocation kind 决定是否允许执行 Session work。Connection observation 区分 direct success、absent activation、incompatible failure 与 partial-cohort failure。发现 absent 后，lock ownership 区分 launcher 与 waiter；lock winner 在 launch 前重新检查 Session state。Typed readiness、typed failure 或 Client-owned total deadline 结算每个 waiter。在 connection 完成之前，deadline observation 可以胜出。                               |
+| 模型   | 对恰好两个 Client slot 与四种受支持 initial Session class 建模的 bounded workflow。一个 scalar `activationOwner` 对 `activation.lock` 建模；`launchCount` 与 `launchedCohort` 暴露 singleton exact-cohort launch；`serviceLifetimeOwner` 把 ready Session 与每个 Client 区分。External launcher/readiness action 是 nondeterministic，且没有 fairness assumption。                                                                         |
+| 转换   | Present compatible Session 下为 `idle -> connecting -> connected`；present incompatible 或 partial state 下为 `connecting -> failed`；launch winner 为 `connecting -> lock-ready -> lock-held -> waiting-readiness`；contention 为 `lock-ready -> waiting-readiness`；waiting 或 recheck state 会结算为 connected 或一种 typed failure；`connected -> exited` 保留 Session state。Help/version 从 `idle` 直接进入 information completion。 |
+| 依赖   | Model 仅在具名 abstraction 上组合已接受 command contract、当前 private `LocalClient` admission boundary 与 `ModeCheckedLocalSiteRendezvous` lock semantics。未来 runtime refinement 必须提供 installation-owned cohort selection、typed readiness 与一个 monotonic total deadline。本 slice 不增加 process、socket、filesystem、localization 或 public-command implementation。                                                            |
+| 所有权 | `apps/orchbee` 拥有 Client bootstrap workflow、deadline、activation guard 与 typed Client result。Installation composition 拥有 exact cohort capability。Server 与 Worker 在成功后拥有各自 readiness 与 service lifetime。Model 不向 Client 授予 supervise、stop、replace、downgrade、clean up 或 recover Session 的 authority。                                                                                                           |
+| 验证   | 启动状态、期限与真实进程测试覆盖受支持初始 Session 类、竞争 Client、准确 cohort 启动、既有服务保留及失败结算。共享 LocalSiteStartup 核心仅提供其单独声明的有界协议证据。                                                                                                                                                                                                                                                                   |
+| 正确性 | LA-01 至 LA-05 仍是启动与准入行为要求。受控期限及进程轨迹必须展示无需假设外部进程响应的结算。已移除激活流程不提供当前 TLC 证明。                                                                                                                                                                                                                                                                                                           |
+| 限制   | 该 abstraction 只证明 checked two-Client、one-Session state space。它不证明 runtime refinement、operating-system scheduling、process creation 或 detachment、daemonization、service-manager behavior、runtime base 或 scope、ACL、socket metadata、cleanup、recovery、retry、update、concrete deadline 或 progress threshold、localization、TUI behavior、packaging、public wiring 或 external process progress。                          |
 
-| Transition owner     | Event 与 guard                                                   | Result                                                                                                            |
-| -------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Invocation           | Help 或 version                                                  | Information completion；Site、lock、launch、readiness 与 service-lifetime fact 不变                               |
-| Client connection    | Compatible Site 已 ready                                         | Direct Client connection；无 activation resource 或 launch                                                        |
-| Client connection    | Site incompatible 或 partial                                     | 对应 typed failure；无 activation 或 Site mutation                                                                |
-| Activation contender | Initial connection 找不到 ready Site 且 `activation.lock` 已持有 | 在 caller 的 total deadline 下等待同一个 typed readiness result                                                   |
-| Activation winner    | Lock 已获得、recheck 仍发现 absent 且不存在 launch               | 启动恰好一个 installed Server-plus-Worker cohort，并在持有 guard 时等待                                           |
-| Activation winner    | Recheck 发现 ready、in-progress、incompatible、partial 或 failed | 根据 exact observation 连接、释放并等待或失败；绝不启动第二个 cohort                                              |
-| External cohort      | Launch pending                                                   | 可以发布 ready、incompatible、partial、launcher failure，也可以完全不返回；external completion 没有 fairness      |
-| Pending Client       | 观察到 typed result 或 total deadline                            | 连接或返回 `incompatible`、`partial-cohort`、`launcher-failure` 或 `timeout`；释放 caller 拥有的 activation guard |
-| Connected Client     | Client exits                                                     | 只结束 Client Session；保留 Site、cohort、readiness、launch 与 service-lifetime state                             |
+| Transition owner     | Event 与 guard                                                      | Result                                                                                                            |
+| -------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Invocation           | Help 或 version                                                     | Information completion；Session、lock、launch、readiness 与 service-lifetime fact 不变                            |
+| Client connection    | Compatible Session 已 ready                                         | Direct Client connection；无 activation resource 或 launch                                                        |
+| Client connection    | Session incompatible 或 partial                                     | 对应 typed failure；无 activation 或 Session mutation                                                             |
+| Activation contender | Initial connection 找不到 ready Session 且 `activation.lock` 已持有 | 在 caller 的 total deadline 下等待同一个 typed readiness result                                                   |
+| Activation winner    | Lock 已获得、recheck 仍发现 absent 且不存在 launch                  | 启动恰好一个 installed Server-plus-Worker cohort，并在持有 guard 时等待                                           |
+| Activation winner    | Recheck 发现 ready、in-progress、incompatible、partial 或 failed    | 根据 exact observation 连接、释放并等待或失败；绝不启动第二个 cohort                                              |
+| External cohort      | Launch pending                                                      | 可以发布 ready、incompatible、partial、launcher failure，也可以完全不返回；external completion 没有 fairness      |
+| Pending Client       | 观察到 typed result 或 total deadline                               | 连接或返回 `incompatible`、`partial-cohort`、`launcher-failure` 或 `timeout`；释放 caller 拥有的 activation guard |
+| Connected Client     | Client exits                                                        | 只结束 Client Session；保留 Session、cohort、readiness、launch 与 service-lifetime state                          |
 
 该模型抽象了运行时细化；`LocalSiteStartup` 提供具体的启动安全论证。在声称该模型映射到实现
 之前，未来接线必须补充确定性进程测试。
 
-| Claim                                                                                         | Bound                                                                                                                           |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| LA-01：每个 activating TUI 都先连接；present compatible、help 与 version path 从不 launch。   | 对 command intent 与 abstract observation 建模，不覆盖 parser、transport 或 process refinement。                                |
-| LA-02：并发 absent 在一个 lock 下至多产生一次 exact installed-cohort launch。                 | 恰好两个 Client slot 与一个 activation round；不声称 runtime-base、lock-file 或 process implementation。                        |
-| LA-03：incompatibility、partial cohort、launcher failure 与 timeout 均显式，且不会停止 Site。 | Failure presentation、cleanup、recovery、retry 与 stale-artifact policy 仍不在范围内。                                          |
-| LA-04：connection 释放 Client activation ownership；Client exit 不 supervise 或 stop Site。   | 只对 ready-service ownership 建模；不选择 process 如何 detach 或 service lifetime 如何实现。                                    |
-| LA-05：每个 started TUI 都会结算，且不假设 external process 响应。                            | 假设未来 adapter 确实保证观察到一个 finite monotonic total deadline；不选择 numeric value、OS scheduling 或 external liveness。 |
+| Claim                                                                                            | Bound                                                                                                                           |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| LA-01：每个 activating TUI 都先连接；present compatible、help 与 version path 从不 launch。      | 对 command intent 与 abstract observation 建模，不覆盖 parser、transport 或 process refinement。                                |
+| LA-02：并发 absent 在一个 lock 下至多产生一次 exact installed-cohort launch。                    | 恰好两个 Client slot 与一个 activation round；不声称 runtime-base、lock-file 或 process implementation。                        |
+| LA-03：incompatibility、partial cohort、launcher failure 与 timeout 均显式，且不会停止 Session。 | Failure presentation、cleanup、recovery、retry 与 stale-artifact policy 仍不在范围内。                                          |
+| LA-04：connection 释放 Client activation ownership；Client exit 不 supervise 或 stop Session。   | 只对 ready-service ownership 建模；不选择 process 如何 detach 或 service lifetime 如何实现。                                    |
+| LA-05：每个 started TUI 都会结算，且不假设 external process 响应。                               | 假设未来 adapter 确实保证观察到一个 finite monotonic total deadline；不选择 numeric value、OS scheduling 或 external liveness。 |
 
 ## 测量
 
@@ -628,10 +636,10 @@ guarantee，也不是未来 TUI performance 的证据。
 2026-09-07 的当前 Linux reference 使用源码提交 `ac620e35`、x86_64 WSL2、
 Linux 6.18.33.2、Rust 1.97.0、默认 Cargo release profile 和同 cohort Zig ReleaseSafe
 Host。Python 3.14.4 驱动测量：version 先预热 5 次再测量 50 次；PTY 为 120×32 cell、
-960×640 pixel，测量 5 个全新 Site 和每个 Site 3 次重连。隔离调用环境仅包含账号的
+960×640 pixel，测量 5 个全新 Session 和每个 Session 3 次重连。隔离调用环境仅包含账号的
 HOME/USER/LOGNAME、Cargo 和标准可执行文件路径、仓库根目录 PWD、
 `LANG=LC_ALL=en_US.UTF-8`、`SHELL=/usr/bin/zsh`、`TERM=xterm-256color` 和唯一的
-`ORCHBEE_RUNTIME_BASE`。文件系统缓存已预热；新 Site 不代表冷 OS 缓存。
+`ORCHBEE_RUNTIME_BASE`。文件系统缓存已预热；新 Session 不代表冷 OS 缓存。
 
 记录的界面计时从 Client spawn 到一次完整绘制，其中包含 `[*1 1]` 和当时底行的
 `Tab 1 · Ready · controlling` footer。该节点位于完整帧绘制、精确 FrameApplied /
@@ -649,8 +657,8 @@ attachment 的测量延迟。此前单终端 reference 使用了不同的就绪�
 | Client 可执行文件大小                               | 2,989,768 bytes                  |
 | Version 启动 min / p50 / p95 / max                  | 0.791 / 0.834 / 1.176 / 1.406 ms |
 | Version 峰值驻留内存                                | 2,818,048 bytes                  |
-| 新 Site 完整 Ready 帧 p50 / p95（5 次）             | 485.526 / 501.903 ms             |
-| 热 Site 完整 Ready 帧 p50 / p95（15 次）            | 439.502 / 486.007 ms             |
+| 新 Session 完整 Ready 帧 p50 / p95（5 次）          | 485.526 / 501.903 ms             |
+| 热 Session 完整 Ready 帧 p50 / p95（15 次）         | 439.502 / 486.007 ms             |
 | Client 截至 Ready 的峰值驻留内存 p50 / max（20 次） | 4,792,320 / 4,894,720 bytes      |
 
 这些是该主机的实际观察，不是性能承诺，也不适合直接和其他 OS、driver 或旧 one-shot 产物比较。
@@ -691,7 +699,7 @@ Peer guard 借用 fixture，并负责取消及 join，包括父测试断言失�
 全双工管道、上限、stdin 提前关闭、准入取消、peer join 和受管后代退出。
 
 使用 `ORCHBEE_TEST_NATIVE_COHORT` 指向已暂存的绝对路径，可对实际 Release 产物运行同一套
-真实进程验收。Fixture 先校验该 cohort，再复制到各自隔离目录；测试不改变源产物或默认 Site。
+真实进程验收。Fixture 先校验该 cohort，再复制到各自隔离目录；测试不改变源产物或默认 Session。
 
 ```sh
 ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test local_startup_process --locked
@@ -716,13 +724,13 @@ ORCHBEE_TEST_NATIVE_COHORT=/tmp/orchbee-native-dev cargo test -p orchbee --test 
 
 私有的已连接 TUI 接受 `TerminalIntent::Standalone`。它提交一次
 `submit_terminal_open` 并要求 Opened，然后在同一条已准入连接上读取相关联的 OBWP snapshot。
-它使用 snapshot 中确切的 Site/Worker/Server-terminal binding 提交 OBCS `attach-binding`；
+它使用 snapshot 中确切的 Session/Worker/Server-terminal binding 提交 OBCS `attach-binding`；
 Open create reference 仍是显式旧路径的值，不用于选择此 viewer。Linux 与 macOS 裸入口通过已校验的
-本地 Site 激活与 Worker 按需启动 Host 消费此路径。显式 Create 与 Attach intent
+本地 Session 激活与 Worker 按需启动 Host 消费此路径。显式 Create 与 Attach intent
 保留现有 Create-reference attachment 行为。
 
-Windows 裸启动先读取 canonical 成员关系，再解析保存位置或符合条件的空 Site
-[目录创建](docs/native-directory-startup.zh-CN.md)。已有 Site 没有保存位置时，执行 standalone
+Windows 裸启动先读取 canonical 成员关系，再解析保存位置或符合条件的空 Session
+[目录创建](docs/native-directory-startup.zh-CN.md)。已有 Session 没有保存位置时，执行 standalone
 Open 后重新读取 snapshot。这些路径共享本 bootstrap/attachment owner 和原截止。
 
 纯投影器按稳定身份解析恰好一个规范 context，允许零到 256 个有序 Tab。它保留标签、固定状态、
@@ -751,7 +759,7 @@ projection frame 共用现有 startup ceiling。Observer 不调整大小。Snaps
 | Unknown Open/submission 或不明确的 attachment 结果                                   | 停止，不重放 Open、不改为 Create，也不退回 Create-reference attachment。               |
 
 Snapshot read 不重试。Attachment 后仍须完成现有 controller 与 projection 准入，
-持有 binding 不授予 controller 权限。独立 Site/Worker/Terminal 身份域中的相同编码字节是
+持有 binding 不授予 controller 权限。独立 Session/Worker/Terminal 身份域中的相同编码字节是
 有效的；每个字段独立拥有类型并接受校验。
 
 [Server 所有的记录](../orchbee-server/docs/workbench-authority.zh-CN.md#从-workbench-绑定选择终端)
@@ -778,13 +786,13 @@ Windows 省略时先尝试跟随已解析来源的根进程目录；`--cwd works
 
 面向单个 Agent 的命令还支持 `--panel <id|@panel:suffix>` 或位置参数 Panel ID。位置参数优先按 Session ID 和名称解析，再回退到 Panel。Panel 选择主终端且要求唯一存活 Agent；等待固定到选定的 Session。
 
-## Windows 显式 Site 停止
+## Windows 显式 Session 停止
 
-`site stop --confirm` 结束现有托管 Windows Site 及其终端进程。使用 `--detach` 仅等待准入，保留返回的标识供 `site stop-status <id>` 查询。显式重试必须使用 `--retry --request-id <id> --confirm`。取消或超时不撤销已接受的停止。准确匹配的已停止记录与空闲生命周期锁证明完成；下次 `site start` 消费记录并创建新 Site。详见 [CLI 停止契约](docs/native-cli-query.zh-CN.md#windows-site-停止)。尚未实现 Linux/macOS 停止运行时。
+`server stop --confirm` 结束现有托管 Windows Session 及其终端进程。使用 `--detach` 仅等待准入，保留返回的标识供 `server stop-status <id>` 查询。显式重试必须使用 `--retry --request-id <id> --confirm`。取消或超时不撤销已接受的停止。准确匹配的已停止记录与空闲生命周期锁证明完成；下次 `server start` 消费记录并创建新 Session。详见 [CLI 停止契约](docs/native-cli-query.zh-CN.md#windows-session-停止)。尚未实现 Linux/macOS 停止运行时。
 
 ## Windows Worktree 操作
 
-`worktree create/open/remove/status/resume` 使用 Server 保留操作与 Windows Worker Git 执行。[Worktree 契约](docs/windows-worktrees.zh-CN.md) 拥有来源选择、默认值、确认、部分结果与恢复规则。这些命令不激活 Site。Create／Open 接受可选 `--focus` 与精确 `--client`；默认 `--no-focus` 保持视图。省略来源时 List／Create／Open 跟随经校验的调用者或所选 TUI 上下文。
+`worktree create/open/remove/status/resume` 使用 Server 保留操作与 Windows Worker Git 执行。[Worktree 契约](docs/windows-worktrees.zh-CN.md) 拥有来源选择、默认值、确认、部分结果与恢复规则。这些命令不激活 Session。Create／Open 接受可选 `--focus` 与精确 `--client`；默认 `--no-focus` 保持视图。省略来源时 List／Create／Open 跟随经校验的调用者或所选 TUI 上下文。
 
 ## Windows Workspace 组关闭
 
@@ -796,7 +804,7 @@ Windows CLI 的 Panel／Tab／Workspace Close 会捕获并结束全部已绑定�
 
 [Windows Client 视图控制](docs/windows-client-control.zh-CN.md) 拥有 `client list/get/control-status`、`workspace focus`、`tab focus`、`panel focus` 和 `panel zoom`。导航通过 `--client` 或无歧义且已校验的调用者上下文定位一个 current TUI。只提交一次，并等待绘制确认；超时或 Ctrl+C 仅停止等待。单 Panel 缩放有明确无操作回执。目录 v68 包含 76 个 schema，新增均为 v1 的 `orchbee.client.view`、`orchbee.client.control` 和 `orchbee.cli.failure.client-control`。未增加操作系统窗口激活或 Mac/Linux 控制运行时。
 
-Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `git --exec-path` 定位；该见证要求已安装此 Bash。检查命令动词前后的互斥选项，不连接 Site。PowerShell 另有真实 Shell 语法见证。
+Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `git --exec-path` 定位；该见证要求已安装此 Bash。检查命令动词前后的互斥选项，不连接 Session。PowerShell 另有真实 Shell 语法见证。
 
 ## Windows schema 导出
 
@@ -852,11 +860,11 @@ Unicode，只生成 SGR；`recent-unwrapped` 拼接已验证的软换行。detec
 它不重现原始 PTY 字节、超链接或图形。渲染请求与预备输出各自保持既有 8 MiB 上限；
 渲染资源超限直接失败，不回退、不重试。参见[输出契约](docs/native-terminal-output.zh-CN.md)。
 
-Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Site。裸 `status` 仍查询 Workbench。[运行时状态契约](docs/native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。发布偏好与安装由显式 Windows 更新命令拥有。
+Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。[运行时状态契约](docs/native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。发布偏好与安装由显式 Windows 更新命令拥有。
 
 ## Agent 导航
 
-Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。Starting 或 Unavailable 客户端在 Agent 查询前返回 `client-not-ready`；Busy 允许 Client 执行可取消模式的前置检查。[Agent 导航契约](docs/native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。显式聚焦成功后确认所选 Tab 中当前已知的 Agent 版本，即使外层终端失焦。普通绘制仍要求宿主聚焦。`agent attention <target> [--client <id>]` 独立读取该 Client，不标记已读。
+Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--agent-session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。Starting 或 Unavailable 客户端在 Agent 查询前返回 `client-not-ready`；Busy 允许 Client 执行可取消模式的前置检查。[Agent 导航契约](docs/native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。显式聚焦成功后确认所选 Tab 中当前已知的 Agent 版本，即使外层终端失焦。普通绘制仍要求宿主聚焦。`agent attention <target> [--client <id>]` 独立读取该 Client，不标记已读。
 
 Windows 宿主焦点上报由[原生 Client 提示状态](docs/native-client-attention.zh-CN.md)管理；焦点报告属于 Client 元数据，不是终端文本。提示状态与 CLI 确认的集成仍在开发。
 
@@ -882,11 +890,11 @@ Windows `workspace create` 可省略 Project、名称和目录；按来源终端
 
 共享应用与终端主题通过和 Desktop 相同的偏好权威应用于原生 TUI。旧 Windows 主题值作为迁移输入。参见[原生主题](docs/native-themes.zh-CN.md)。
 
-`config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。`[session] resume_agents_on_restore` 控制下次 Site 启动时恢复 Agent，默认 true，精确 true/false 环境覆盖值优先。`config check` JSON v3 报告有效值和来源。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
+`config check` 还校验 `APPDATA/Orchbee/config.toml`，可由绝对路径 `ORCHBEE_CONFIG_FILE` 覆盖。`[terminal] new_cwd` 设置创建 cwd 默认值；`[worktrees] directory` 选择检出根目录。`[session] resume_agents_on_restore` 控制下次 Session 启动时恢复 Agent，默认 true，精确 true/false 环境覆盖值优先。`config check` JSON v3 报告有效值和来源。显式命令参数覆盖有效配置。参见[配置与优先级](docs/windows-cli-configuration.zh-CN.md)。Windows CLI 每次调用读取；公共 TUI/CLI 激活在提交前读取启动策略。TUI 直接创建和 Server 热重载仍是独立能力。
 
 ## Windows 终端观察流
 
-`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](docs/windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v2 记录。目录 v68 含 76 个 schema、90 条原生命令路径。机器控制现通过 `terminal session control` 接收 NDJSON 输入；交互式 `terminal attach <terminal>` 或 `agent attach --name <name>` 要求控制台 stdin/stdout，并采用实际控制台尺寸。二者均支持 `--takeover`、`--mouse on|off` 和可选总时限 `--timeout`。`Ctrl+B` 后按 `q` 脱离；连续两次前缀发送一个字面前缀。粘贴不会触发脱离。任一全局格式下均显示交互画面。不启动 Site、不改变 Workbench 焦点、不重连或重放输入。
+`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](docs/windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v2 记录。目录 v68 含 76 个 schema、90 条原生命令路径。机器控制现通过 `terminal session control` 接收 NDJSON 输入；交互式 `terminal attach <terminal>` 或 `agent attach --name <name>` 要求控制台 stdin/stdout，并采用实际控制台尺寸。二者均支持 `--takeover`、`--mouse on|off` 和可选总时限 `--timeout`。`Ctrl+B` 后按 `q` 脱离；连续两次前缀发送一个字面前缀。粘贴不会触发脱离。任一全局格式下均显示交互画面。不启动 Session、不改变 Workbench 焦点、不重连或重放输入。
 
 ## Workspace 元数据集成
 
@@ -898,13 +906,13 @@ Windows `panel report-agent`、`report-agent-session`、`clear-agent-authority` 
 
 ## Windows CLI 通知
 
-`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` 向运行中 Site 上可接收的主 TUI Client 排入自定义通知。配置 `[ui.toast] delivery="orchbee"` 显示卡片，`terminal` 或 `system` 使用外部投递；默认 `off`。使用 `--format json` 获取封闭投递回执。详见[投递、边界与生命周期](docs/windows-notifications.zh-CN.md)；接收只表示入队，不确认显示或播放声音。
+`orchbee notification show "Build complete" --body "All checks passed" --position bottom-right --sound done` 向运行中 Session 上可接收的主 TUI Client 排入自定义通知。配置 `[ui.toast] delivery="orchbee"` 显示卡片，`terminal` 或 `system` 使用外部投递；默认 `off`。使用 `--format json` 获取封闭投递回执。详见[投递、边界与生命周期](docs/windows-notifications.zh-CN.md)；接收只表示入队，不确认显示或播放声音。
 
 ## Windows 外层终端标题
 
 `orchbee terminal title set "Build workspace"` 向前台主 TUI 发布覆盖标题；`orchbee terminal title clear` 恢复在线 `ui.window_title` 模板（回退为 `Orchbee`）。两者接受 `--format json`，没有 Client 连接时仍保留发布状态。模板规则及实际宿主限制见[标题归属与恢复](docs/windows-terminal-title.zh-CN.md)。
 
-Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin action list` 离线管理用户共享目录。`plugin action invoke` 向已有 Site 提交具有归属的命令，`plugin log list` 查询保留结果。上下文、进程归属、有界输出、托管安装/卸载及剩余 hook/Pane 集成见 [Windows 插件](docs/windows-plugins.zh-CN.md)。启动回执确认受理，执行结果由日志提供。
+Windows 的 `plugin link/unlink/enable/disable/list/config-dir` 和 `plugin action list` 离线管理用户共享目录。`plugin action invoke` 向已有 Session 提交具有归属的命令，`plugin log list` 查询保留结果。上下文、进程归属、有界输出、托管安装/卸载及剩余 hook/Pane 集成见 [Windows 插件](docs/windows-plugins.zh-CN.md)。启动回执确认受理，执行结果由日志提供。
 
 ## Windows Panel 图形命令
 

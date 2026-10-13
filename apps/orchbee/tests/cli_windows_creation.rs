@@ -17,7 +17,7 @@ fn fixture_child_route_is_default_unless_explicitly_overridden() {
 
     let fixture = Fixture::new();
     let command = fixture.command(&["--help"], None, None, &[]);
-    for name in ["ORCHBEE_RUNTIME_SCOPE", "ORCHBEE_SITE"] {
+    for name in ["ORCHBEE_RUNTIME_SCOPE", "ORCHBEE_SESSION"] {
         assert_eq!(
             command.get_envs().find(|(key, _)| *key == name),
             Some((OsStr::new(name), None)),
@@ -26,7 +26,7 @@ fn fixture_child_route_is_default_unless_explicitly_overridden() {
     }
     let overrides = [
         ("ORCHBEE_RUNTIME_SCOPE", OsStr::new("explicit-scope")),
-        ("ORCHBEE_SITE", OsStr::new("explicit-site")),
+        ("ORCHBEE_SESSION", OsStr::new("explicit-site")),
     ];
     let command = fixture.command(&["--help"], None, None, &overrides);
     for (name, value) in overrides {

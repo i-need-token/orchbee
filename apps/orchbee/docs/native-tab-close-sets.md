@@ -10,7 +10,7 @@ uses only that target. Other/trailing Close exclude pinned Tabs and the target, 
 selected set only when the target belongs to it. Trailing begins after the rightmost selected Tab
 in that case. Direct selected/group Close includes pinned members where applicable.
 
-One confirmation freezes 1–256 exact IDs, Site/context, full canonical Snapshot, names, positions,
+One confirmation freezes 1–256 exact IDs, Session/context, full canonical Snapshot, names, positions,
 local marks and focused selection. Focus includes the logical `PaneKey`, physical `PaneRef`
 incarnation, selected Presentation and binding; a same-key reattach is a change. Background targets
 are planned by exact ID without selecting them or impersonating the selected-only Close planner.
@@ -44,7 +44,7 @@ this tab** separately from set closure, including background members. It uses th
 operation, preserving the known request and attempt generation. It never restarts the remaining
 set, submits another Start, or navigates to a different Tab. Unknown or unseen statuses do not
 offer this action. The keyboard recovery entry addresses the presented operation too.
-Targeted Resume freezes the current target selection, Site/context/revision and concrete local
+Targeted Resume freezes the current target selection, Session/context/revision and concrete local
 focus; it does not reuse the retained record's older selection revision. One predicate validates
 these premises at confirmation retirement, planning and final admission. Only Resume may carry
 this focus fence, and the exact displayed record is required before opening so a missing record

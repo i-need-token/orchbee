@@ -57,7 +57,7 @@
 | 延后细节    | 确切 timeout 和进度阈值、remote targeting、详细 command schema、public release cutover 继续保留。旧源代码退役已获独立接受。                                                                              |
 
 已检查 model 及其 maintained bound 现由
-[`apps/orchbee` 指南](../../apps/orchbee/README.zh-CN.md#已接受的本机-site-activation-建模记录)
+[`apps/orchbee` 指南](../../apps/orchbee/README.zh-CN.md#已接受的本机-session-activation-建模记录)
 维护。它只提供 design evidence；当前 bare route 仍未接线且不可用。
 
 ## 已接受的 TUI Client 契约
@@ -108,7 +108,7 @@ Command 使用显式 resource-first noun/verb 词汇，不支持 fuzzy abbreviat
 | Tab            | `tab list`、`tab get`、`tab create`、`tab focus`、`tab rename`、`tab close`                                                                  | `list` 与 `get` 优先；mutation 仅在其 Server state machine 获准后加入。               |
 | Panel          | `panel list`、`panel get`、`panel focus`、`panel split`、`panel resize`、`panel move`、`panel close`                                         | `list` 与 `get` 优先；mutation 仅在其 Server state machine 获准后加入。               |
 | Terminal       | `terminal list`、`terminal get`、`terminal read`、`terminal open`；后续 `terminal send-text`、`terminal send-keys` 与 `terminal wait-output` | 首批只做只读与 `open`；active input automation 仍是后续单独授权切片。                 |
-| Site lifecycle | `site enable`、`site stop` 与 `site restart`                                                                                                 | 后续 lifecycle slice；不存在 public `orchbee server` command。                        |
+| Site lifecycle | `site enable`、`server stop` 与 `site restart`                                                                                               | 后续 lifecycle slice；不存在 public `orchbee server` command。                        |
 | 后续 domain    | Agent、managed Worktree、Archive、Launch Profile 与 integration command                                                                      | 只有所属 domain 的已接受 contract 才能添加。                                          |
 
 `Tab`、`Panel` 与 `Terminal` 保持不同的产品 noun。不存在 monolithic `--no-session` mode，也不围绕

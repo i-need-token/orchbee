@@ -324,7 +324,7 @@ fn classify_paths(
 }
 
 /// The path one `RendezvousError` names, when it names one — shared with
-/// `site diagnose`, which classifies the same error family onto rows.
+/// `server diagnose`, which classifies the same error family onto rows.
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) fn rendezvous_error_path(error: &RendezvousError) -> Option<&Path> {
     match error {

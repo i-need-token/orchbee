@@ -4,7 +4,7 @@
   use re
   var grammar = (print '__ORCHBEE_GRAMMAR__' | from-json)
   var groups = [
-    [--timeout --forever] [--session --name --panel] [--panel --current]
+    [--timeout --forever] [--agent-session --name --panel] [--panel --current]
     [--workspace --standalone] [--exec --profile] [--arg --profile]
     [--into-tab --new-tab] [--target-panel --new-tab]
     [--text --file --stdin --key] [--key --enter] [--key --paste]
@@ -61,10 +61,10 @@
       } else { set positionals = [$@positionals $word] }
     }
     fn valid-name {|name| put (and (re:match '^[A-Za-z0-9._-]{1,64}$' $name) (not (has-value [. ..] $name))) }
-    if (and (has-key $values --site) (not (valid-name $values[--site]))) { return }
+    if (and (has-key $values --session) (not (valid-name $values[--session]))) { return }
     if (and (> (count $positionals) 2) (eq $positionals[0] session) (has-value [attach stop delete] $positionals[1])) {
       if (not (valid-name $positionals[2])) { return }
-      if (and (has-key $values --site) (not-eq $values[--site] $positionals[2])) { return }
+      if (and (has-key $values --session) (not-eq $values[--session] $positionals[2])) { return }
     }
     var business-seen = []
     for flag $seen { if (not (has-value $grammar[globalFlags] $flag)) { set business-seen = [$@business-seen $flag] } }
@@ -116,7 +116,7 @@
         if (and (eq $path panel:process-info) (has-value $seen --client)) { set limit = 0 }
         if (and (has-value $panel-targets $path) (any $seen [--panel --current])) { set limit = 0 }
         if (has-value $agent-targets $path) {
-          if (any $seen [--session --name --panel]) { set limit = (- $limit 1) }
+          if (any $seen [--agent-session --name --panel]) { set limit = (- $limit 1) }
           if (has-value $seen --clear) { set limit = (- $limit 1) }
         }
         if (> $n (+ $width $limit)) { set valid = $false }
@@ -132,7 +132,7 @@
         if (< $n $width) { set candidates = [$@candidates $command[words][$n]] }
         if (eq $path agent:send-keys) {
           var target = 1
-          if (any $seen [--session --name --panel]) { set target = 0 }
+          if (any $seen [--agent-session --name --panel]) { set target = 0 }
           var keys = (- $n $width $target)
           if (and (>= $keys 0) (< $keys 64)) { var names = $grammar[keys]; set candidates = [$@candidates $@names] }
         }
@@ -145,8 +145,8 @@
           if (and (has-value $panel-targets $path) (> $n $width) (has-value [--panel --current] $flag)) { continue }
           if (has-value $agent-targets $path) {
             var operands = (- $n $width)
-            if (and (> $operands 0) (has-value [--name --session --panel] $flag)) { continue }
-            if (and (eq $flag --clear) (or (> $operands 1) (and (> $operands 0) (any $seen [--name --session --panel])))) { continue }
+            if (and (> $operands 0) (has-value [--name --agent-session --panel] $flag)) { continue }
+            if (and (eq $flag --clear) (or (> $operands 1) (and (> $operands 0) (any $seen [--name --agent-session --panel])))) { continue }
           }
           if (and (has-value $seen $flag) (not (has-value $grammar[repeatable] $flag)) (not (and (eq $flag --provider) (eq $path agent:doctor)))) { continue }
           if (and (eq $flag --arg) (not (has-value $seen --exec)) (not-eq $path agent:start)) { continue }

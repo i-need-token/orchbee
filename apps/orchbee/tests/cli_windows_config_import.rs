@@ -165,7 +165,7 @@ fn import_rejects_bad_sources_and_usage_before_creating_any_destination() {
         assert!(!target.exists());
         assert_eq!(fs::read(&source).unwrap(), bytes);
     }
-    for prefix in [vec!["--site", "work"], vec!["--machine", "remote"]] {
+    for prefix in [vec!["--session", "work"], vec!["--machine", "remote"]] {
         let mut invalid = prefix;
         invalid.extend(args(
             source.to_str().unwrap(),

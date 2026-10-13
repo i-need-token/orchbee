@@ -8,16 +8,16 @@ The UI owns one read lane with its own Client connection, using the existing Age
 
 ## Coherent observation model
 
-A scope contains exact Site, Workbench revision and ordered Panel IDs with their selected Presentation IDs and exact bindings. Read all metadata batches, then all Agent report batches, then fence both independent revisions with empty reads. Every response must match the scope revision, requested Presentations, owning Panels and bindings. Metadata guards resolve against the same round's actual report Agent and authority source. Reject a changed revision, malformed binding, missing row, limit failure or partial round as a whole.
+A scope contains exact Session, Workbench revision and ordered Panel IDs with their selected Presentation IDs and exact bindings. Read all metadata batches, then all Agent report batches, then fence both independent revisions with empty reads. Every response must match the scope revision, requested Presentations, owning Panels and bindings. Metadata guards resolve against the same round's actual report Agent and authority source. Reject a changed revision, malformed binding, missing row, limit failure or partial round as a whole.
 
-| Event                                                               | Result                                                                   |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| New Tab, selected Presentation, binding, Site or Workbench revision | Remove prior scope observations immediately; begin a new bounded read    |
-| Complete correlated round                                           | Publish report and effective metadata together                           |
-| Ordinary refresh in flight                                          | Keep the preceding complete observation for that exact scope             |
-| Failed or expired read                                              | Hide prior report-derived text and mark status unavailable               |
-| Old epoch or old scope completion                                   | Discard without affecting the current view                               |
-| Retirement, replacement or Drop                                     | Interrupt, disconnect and join the owned lane; do not abandon the worker |
+| Event                                                                  | Result                                                                   |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| New Tab, selected Presentation, binding, Session or Workbench revision | Remove prior scope observations immediately; begin a new bounded read    |
+| Complete correlated round                                              | Publish report and effective metadata together                           |
+| Ordinary refresh in flight                                             | Keep the preceding complete observation for that exact scope             |
+| Failed or expired read                                                 | Hide prior report-derived text and mark status unavailable               |
+| Old epoch or old scope completion                                      | Discard without affecting the current view                               |
+| Retirement, replacement or Drop                                        | Interrupt, disconnect and join the owned lane; do not abandon the worker |
 
 The renderer checks the current Presentation ID and binding again. Read-only observation does not alter selection, focus, layout, controller, history position, terminal geometry or canonical attention. Both carriers use `read-presentations` in batches of four unique IDs, including empty revision fences. A `presentations-read` result preserves requested order and carries each Presentation ID with its owning Panel row and exact binding. Two members may share one Panel ID; membership is qualified by Presentation ID. Unknown IDs reject the whole batch; an unbound member returns empty metadata and a null Agent report. Existing primary Panel reads and report writes retain their semantics.
 

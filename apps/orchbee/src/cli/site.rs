@@ -1,4 +1,4 @@
-//! `site start`: headless connect-or-activate for the selected local Site.
+//! `server start`: headless connect-or-activate for the selected local Site.
 //! On Windows the selection is the current SID's default or exact named
 //! scope; on Linux it is the implicit per-euid scope. The command shares the
 //! TUI's private activation and admission path — a transient admission probe
@@ -30,7 +30,7 @@ const START_BUDGET: Duration = Duration::from_secs(20);
 
 pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
     match run() {
-        // Every `site start` failure is answered by the local runtime
+        // Every `server start` failure is answered by the local runtime
         // authority, so the failure document carries the same source the
         // success envelope does; it also selects the localized start
         // diagnostics rather than the shared query wording.

@@ -9,8 +9,8 @@
 省略来源时先使用已验证的调用者上下文，再使用所选 Client 的当前 Panel。显式 `--client` 或
 既有唯一 Client 解析器选择 TUI；Client 不明确时在修改前拒绝。
 
-这是作用于现有 Site 的 Windows 工作流程。总超时默认 30000 ms；`--timeout` 接受
-1 至 3600000 ms。不提供分离模式或调用方指定的工作流程请求 ID。CLI 不启动 Site、不创建
+这是作用于现有 Session 的 Windows 工作流程。总超时默认 30000 ms；`--timeout` 接受
+1 至 3600000 ms。不提供分离模式或调用方指定的工作流程请求 ID。CLI 不启动 Session、不创建
 终端，也不拥有持久工作流程状态。
 
 Server 拥有 canonical 位置，TUI 拥有焦点、缩放与比例，CLI 拥有连接这些操作的有限步骤及回执。
@@ -20,7 +20,7 @@ Server 拥有 canonical 位置，TUI 拥有焦点、缩放与比例，CLI 拥有
 
 ## Canonical 交换
 
-`panel.swap` 携带精确 Site、预期修订、请求 ID、context、Tab 及源／目标 Panel ID。
+`panel.swap` 携带精确 Session、预期修订、请求 ID、context、Tab 及源／目标 Panel ID。
 它在克隆的候选中交换两个完整叶子节点的既有位置。所有 Split 和 slot 身份、方向及结构保持
 精确不变。Panel 与 Presentation 身份、创建／自定义标签、子 Presentation 和终端绑定随叶子
 移动。不分配身份、不产生 Host 生命周期效果，其他 Tab 和 context 不变，因此现有 Client
@@ -62,7 +62,7 @@ Server 拥有 canonical 位置，TUI 拥有焦点、缩放与比例，CLI 拥有
 
 ## 回执与恢复
 
-`orchbee.panel.swap` v1 区分目标解析、canonical 提交和聚焦观察，记录已知的 Site、所选
+`orchbee.panel.swap` v1 区分目标解析、canonical 提交和聚焦观察，记录已知的 Session、所选
 Client、精确 Panel 对及已提交请求 ID。Canonical 的未提交、拒绝、无变化、已提交及未知
 保持不同。Focus 尚未开始时为 null，否则为包含 operationId、observation 和 wait 的紧凑记录。
 观测保留权威聚焦状态（queued/delivered/applied/rejected/incomplete）、直接拒绝、

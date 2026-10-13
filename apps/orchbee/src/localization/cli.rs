@@ -128,7 +128,7 @@ impl Locale {
         if failure.failure_schema == Some("orchbee.cli.failure.agent-start") {
             return self.cli_agent_start_failure(failure);
         }
-        // `site start` failures carry the local-runtime source; the shared
+        // `server start` failures carry the local-runtime source; the shared
         // query/send wording for these kinds would misstate what a start
         // actually did, so each gets a dedicated start diagnostic.
         let local_runtime = failure
@@ -175,14 +175,14 @@ impl Locale {
         }
         match failure.kind {
             FailureKind::Timeout if local_runtime => match self {
-                Self::EnUs if cfg!(windows) => "Local startup reached its time limit before readiness was confirmed. Run orchbee site diagnose with the same --site selection before retrying.\n".to_owned(),
-                Self::ZhCn if cfg!(windows) => "本地启动达到时限，尚未确认就绪。请用相同 --site 选择运行 orchbee site diagnose，再决定是否重试。\n".to_owned(),
+                Self::EnUs if cfg!(windows) => "Local startup reached its time limit before readiness was confirmed. Run orchbee server diagnose with the same --session selection before retrying.\n".to_owned(),
+                Self::ZhCn if cfg!(windows) => "本地启动达到时限，尚未确认就绪。请用相同 --session 选择运行 orchbee server diagnose，再决定是否重试。\n".to_owned(),
                 Self::EnUs => {
-                    "The local Site did not become ready within the time limit; a Server may still be starting, or activation state may have been left behind. No recovery was attempted.\n"
+                    "The local session did not become ready within the time limit; a Server may still be starting, or activation state may have been left behind. No recovery was attempted.\n"
                         .to_owned()
                 }
                 Self::ZhCn => {
-                    "本地 Site 未在时限内就绪：Server 可能仍在启动，也可能遗留了激活状态。未尝试任何恢复。\n"
+                    "本地会话未在时限内就绪：Server 可能仍在启动，也可能遗留了激活状态。未尝试任何恢复。\n"
                         .to_owned()
                 }
             },
@@ -197,36 +197,36 @@ impl Locale {
                     Self::EnUs if cfg!(windows) && reason == "recovery-required" => self.startup_failure(crate::local_startup::StartupFailure::RecoveryRequired).to_owned(),
                     Self::ZhCn if cfg!(windows) && reason == "recovery-required" => self.startup_failure(crate::local_startup::StartupFailure::RecoveryRequired).to_owned(),
                     Self::EnUs => {
-                        format!("The local Site refused the start ({reason}); its activation state requires recovery and no repair was attempted.\n")
+                        format!("The local session refused the start ({reason}); its activation state requires recovery and no repair was attempted.\n")
                     }
                     Self::ZhCn => {
-                        format!("本地 Site 拒绝了启动（{reason}）：其激活状态需要恢复，未尝试任何修复。\n")
+                        format!("本地会话拒绝了启动（{reason}）：其激活状态需要恢复，未尝试任何修复。\n")
                     }
                 }
             }
             FailureKind::Denied if local_runtime => match self {
                 Self::EnUs => {
-                    "The local Site refused the start; the native development cohort is not permitted.\n"
+                    "The local session refused the start; the native development cohort is not permitted.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "本地 Site 拒绝了启动：原生开发 cohort 未获许可。\n".to_owned(),
+                Self::ZhCn => "本地会话拒绝了启动：原生开发 cohort 未获许可。\n".to_owned(),
             },
             FailureKind::ServiceUnavailable if local_runtime => {
                 self.cli_site_unavailable(failure)
             }
             FailureKind::SessionCapacity if local_runtime => match self {
                 Self::EnUs => {
-                    "The local Site has no Client Session capacity for the start probe.\n"
+                    "The local session has no Client Session capacity for the start probe.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "本地 Site 没有可接纳启动探针的 Client Session 容量。\n".to_owned(),
+                Self::ZhCn => "本地会话没有可接纳启动探针的 Client Session 容量。\n".to_owned(),
             },
             FailureKind::TransportLoss if local_runtime => match self {
                 Self::EnUs => {
-                    "The connection to the local Site was lost during the start admission.\n"
+                    "The connection to the local session was lost during the start admission.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "与本地 Site 的连接在启动准入期间中断。\n".to_owned(),
+                Self::ZhCn => "与本地会话的连接在启动准入期间中断。\n".to_owned(),
             },
             FailureKind::InvalidUsage => self.cli_usage(failure.usage.as_deref()),
             FailureKind::InvalidIdentifier => {
@@ -261,15 +261,15 @@ impl Locale {
                     == Some("workbench-command");
                 match (self, command) {
                     (Self::EnUs, true) => {
-                        "The local Site denied the command; nothing was applied.\n".to_owned()
+                        "The local session denied the command; nothing was applied.\n".to_owned()
                     }
                     (Self::EnUs, false) => {
-                        "The local Site denied the read request.\n".to_owned()
+                        "The local session denied the read request.\n".to_owned()
                     }
                     (Self::ZhCn, true) => {
-                        "本地 Site 拒绝了该命令；未应用任何修改。\n".to_owned()
+                        "本地会话拒绝了该命令；未应用任何修改。\n".to_owned()
                     }
-                    (Self::ZhCn, false) => "本地 Site 拒绝了读取请求。\n".to_owned(),
+                    (Self::ZhCn, false) => "本地会话拒绝了读取请求。\n".to_owned(),
                 }
             }
             FailureKind::Rejected => {
@@ -281,10 +281,10 @@ impl Locale {
                     .unwrap_or("");
                 match self {
                     Self::EnUs => {
-                        format!("The local Site rejected the command ({reason}); nothing was applied.\n")
+                        format!("The local session rejected the command ({reason}); nothing was applied.\n")
                     }
                     Self::ZhCn => {
-                        format!("本地 Site 拒绝了该命令（{reason}）；未应用任何修改。\n")
+                        format!("本地会话拒绝了该命令（{reason}）；未应用任何修改。\n")
                     }
                 }
             }
@@ -299,9 +299,9 @@ impl Locale {
             FailureKind::ServiceUnavailable => self.cli_service_unavailable(failure),
             FailureKind::SessionCapacity => match self {
                 Self::EnUs => {
-                    "The local Site has no Client Session capacity for this query.\n".to_owned()
+                    "The local session has no Client Session capacity for this query.\n".to_owned()
                 }
-                Self::ZhCn => "本地 Site 没有可接纳本次查询的 Client Session 容量。\n".to_owned(),
+                Self::ZhCn => "本地会话没有可接纳本次查询的 Client Session 容量。\n".to_owned(),
             },
             FailureKind::TransportLoss => {
                 let stage = failure
@@ -312,35 +312,35 @@ impl Locale {
                     .unwrap_or("");
                 match (self, stage) {
                     (Self::EnUs, "command") => {
-                        "The connection to the local Site failed before the command could be submitted; nothing was sent.\n".to_owned()
+                        "The connection to the local session failed before the command could be submitted; nothing was sent.\n".to_owned()
                     }
                     (Self::ZhCn, "command") => {
-                        "与本地 Site 的连接在命令提交前失败；未发送任何内容。\n".to_owned()
+                        "与本地会话的连接在命令提交前失败；未发送任何内容。\n".to_owned()
                     }
                     (Self::EnUs, "viewer") => {
-                        "The connection to the local Site was lost during the terminal read.\n"
+                        "The connection to the local session was lost during the terminal read.\n"
                             .to_owned()
                     }
-                    (Self::ZhCn, "viewer") => "与本地 Site 的连接在终端读取期间中断。\n".to_owned(),
+                    (Self::ZhCn, "viewer") => "与本地会话的连接在终端读取期间中断。\n".to_owned(),
                     (Self::EnUs, _) => {
-                        "The connection to the local Site was lost before a snapshot arrived.\n"
+                        "The connection to the local session was lost before a snapshot arrived.\n"
                             .to_owned()
                     }
-                    (Self::ZhCn, _) => "与本地 Site 的连接在快照返回前中断。\n".to_owned(),
+                    (Self::ZhCn, _) => "与本地会话的连接在快照返回前中断。\n".to_owned(),
                 }
             }
             FailureKind::ProtocolInvalid => match self {
                 Self::EnUs => {
-                    "The local Site answered with an invalid protocol response.\n".to_owned()
+                    "The local session answered with an invalid protocol response.\n".to_owned()
                 }
-                Self::ZhCn => "本地 Site 返回了无效的协议响应。\n".to_owned(),
+                Self::ZhCn => "本地会话返回了无效的协议响应。\n".to_owned(),
             },
             FailureKind::Incompatible => match self {
                 Self::EnUs => {
-                    "The running local Site is incompatible with this development cohort.\n"
+                    "The running local session is incompatible with this development cohort.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "正在运行的本地 Site 与当前开发 cohort 不兼容。\n".to_owned(),
+                Self::ZhCn => "正在运行的本地会话与当前开发 cohort 不兼容。\n".to_owned(),
             },
             FailureKind::CheckFailed => self.cli_check_failed(failure),
             FailureKind::Timeout => {
@@ -426,11 +426,11 @@ impl Locale {
             },
             SendVerdict::Rejected => match self {
                 Self::EnUs => format!(
-                    "The local Site rejected the input ({}); nothing was sent.{cleanup_note}\n",
+                    "The local session rejected the input ({}); nothing was sent.{cleanup_note}\n",
                     reason.unwrap_or("unknown")
                 ),
                 Self::ZhCn => format!(
-                    "本地 Site 拒绝了该输入（{}）；未发送任何内容。{cleanup_note}\n",
+                    "本地会话拒绝了该输入（{}）；未发送任何内容。{cleanup_note}\n",
                     reason.unwrap_or("unknown")
                 ),
             },
@@ -488,8 +488,8 @@ impl Locale {
                 }
             }
             FailureKind::Denied => match self {
-                Self::EnUs => "The local Site denied the worktree listing.\n".to_owned(),
-                Self::ZhCn => "本地 Site 拒绝了该 worktree 列举。\n".to_owned(),
+                Self::EnUs => "The local session denied the worktree listing.\n".to_owned(),
+                Self::ZhCn => "本地会话拒绝了该 worktree 列举。\n".to_owned(),
             },
             FailureKind::ServiceUnavailable => {
                 let reason = detail("reason");
@@ -515,9 +515,9 @@ impl Locale {
                         "该目录的 Worker 当前无法进行 worktree 列举。\n".to_owned()
                     }
                     (Self::EnUs, _) => {
-                        "The local Site could not run the worktree listing right now.\n".to_owned()
+                        "The local session could not run the worktree listing right now.\n".to_owned()
                     }
-                    (Self::ZhCn, _) => "本地 Site 当前无法执行 worktree 列举。\n".to_owned(),
+                    (Self::ZhCn, _) => "本地会话当前无法执行 worktree 列举。\n".to_owned(),
                 }
             }
             FailureKind::CheckFailed => {
@@ -554,17 +554,17 @@ impl Locale {
             }
             FailureKind::TransportLoss => match self {
                 Self::EnUs => {
-                    "The connection to the local Site was lost during the worktree listing.\n"
+                    "The connection to the local session was lost during the worktree listing.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "与本地 Site 的连接在 worktree 列举期间中断。\n".to_owned(),
+                Self::ZhCn => "与本地会话的连接在 worktree 列举期间中断。\n".to_owned(),
             },
             FailureKind::ProtocolInvalid => match self {
                 Self::EnUs => {
-                    "The local Site answered the worktree listing with an invalid protocol response.\n"
+                    "The local session answered the worktree listing with an invalid protocol response.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "本地 Site 对 worktree 列举返回了无效的协议响应。\n".to_owned(),
+                Self::ZhCn => "本地会话对 worktree 列举返回了无效的协议响应。\n".to_owned(),
             },
             _ => match self {
                 Self::EnUs => "The CLI hit an internal failure; no data was written.\n".to_owned(),
@@ -612,15 +612,15 @@ impl Locale {
                 }
             }
             FailureKind::Denied => match self {
-                Self::EnUs => "The local Site denied the launch profile request.\n".to_owned(),
-                Self::ZhCn => "本地 Site 拒绝了该启动配置请求。\n".to_owned(),
+                Self::EnUs => "The local session denied the launch profile request.\n".to_owned(),
+                Self::ZhCn => "本地会话拒绝了该启动配置请求。\n".to_owned(),
             },
             FailureKind::ServiceUnavailable => match self {
                 Self::EnUs => {
-                    "The local Site could not answer the launch profile request right now.\n"
+                    "The local session could not answer the launch profile request right now.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "本地 Site 当前无法应答该启动配置请求。\n".to_owned(),
+                Self::ZhCn => "本地会话当前无法应答该启动配置请求。\n".to_owned(),
             },
             FailureKind::Timeout => match self {
                 Self::EnUs => {
@@ -631,26 +631,26 @@ impl Locale {
             },
             FailureKind::TransportLoss => match self {
                 Self::EnUs => {
-                    "The connection to the local Site was lost during the launch profile request.\n"
+                    "The connection to the local session was lost during the launch profile request.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "与本地 Site 的连接在启动配置请求期间中断。\n".to_owned(),
+                Self::ZhCn => "与本地会话的连接在启动配置请求期间中断。\n".to_owned(),
             },
             FailureKind::ProtocolInvalid => {
                 let reason = detail("reason");
                 match (self, reason) {
                     (Self::EnUs, "correlation-mismatch") => {
-                        "The local Site answered a different launch profile request.\n".to_owned()
+                        "The local session answered a different launch profile request.\n".to_owned()
                     }
                     (Self::ZhCn, "correlation-mismatch") => {
-                        "本地 Site 应答了另一个启动配置请求。\n".to_owned()
+                        "本地会话应答了另一个启动配置请求。\n".to_owned()
                     }
                     (Self::EnUs, _) => {
-                        "The local Site answered the launch profile request with an invalid protocol response.\n"
+                        "The local session answered the launch profile request with an invalid protocol response.\n"
                             .to_owned()
                     }
                     (Self::ZhCn, _) => {
-                        "本地 Site 对启动配置请求返回了无效的协议响应。\n".to_owned()
+                        "本地会话对启动配置请求返回了无效的协议响应。\n".to_owned()
                     }
                 }
             }
@@ -1436,13 +1436,13 @@ impl Locale {
             }
             (Self::ZhCn, "platform") => "当前平台尚不支持此命令。\n".to_owned(),
             (Self::EnUs, "discovery") => {
-                "No running local Site was found for this user.\n".to_owned()
+                "No running local session was found for this user.\n".to_owned()
             }
-            (Self::ZhCn, "discovery") => "未找到当前用户正在运行的本地 Site。\n".to_owned(),
+            (Self::ZhCn, "discovery") => "未找到当前用户正在运行的本地会话。\n".to_owned(),
             (Self::EnUs, "snapshot") => {
-                "The local Site could not produce a snapshot right now.\n".to_owned()
+                "The local session could not produce a snapshot right now.\n".to_owned()
             }
-            (Self::ZhCn, "snapshot") => "本地 Site 当前无法产出快照。\n".to_owned(),
+            (Self::ZhCn, "snapshot") => "本地会话当前无法产出快照。\n".to_owned(),
             (Self::EnUs, "viewer") => {
                 let reason = failure
                     .details
@@ -1470,14 +1470,14 @@ impl Locale {
                 }
             }
             (Self::EnUs, "command") => {
-                "The local Site could not execute the command right now; nothing was applied.\n"
+                "The local session could not execute the command right now; nothing was applied.\n"
                     .to_owned()
             }
-            (Self::ZhCn, "command") => {
-                "本地 Site 当前无法执行该命令；未应用任何修改。\n".to_owned()
+            (Self::ZhCn, "command") => "本地会话当前无法执行该命令；未应用任何修改。\n".to_owned(),
+            (Self::EnUs, _) => {
+                "The local session could not admit this query connection.\n".to_owned()
             }
-            (Self::EnUs, _) => "The local Site could not admit this query connection.\n".to_owned(),
-            (Self::ZhCn, _) => "本地 Site 无法接纳本次查询连接。\n".to_owned(),
+            (Self::ZhCn, _) => "本地会话无法接纳本次查询连接。\n".to_owned(),
         }
     }
 
@@ -1533,14 +1533,14 @@ impl Locale {
                     .unwrap_or("config check");
                 format!("{command} 仅在 Linux 上受支持。\n")
             }
-            (Self::EnUs, "socket") => "A local Site socket failed its safety checks.\n".to_owned(),
-            (Self::ZhCn, "socket") => "本地 Site 套接字未通过安全检查。\n".to_owned(),
+            (Self::EnUs, "socket") => {
+                "A local session socket failed its safety checks.\n".to_owned()
+            }
+            (Self::ZhCn, "socket") => "本地会话套接字未通过安全检查。\n".to_owned(),
             (Self::EnUs, "runtime-directory") => {
-                "The local Site runtime directory failed its safety checks.\n".to_owned()
+                "The local session runtime directory failed its safety checks.\n".to_owned()
             }
-            (Self::ZhCn, "runtime-directory") => {
-                "本地 Site 运行时目录未通过安全检查。\n".to_owned()
-            }
+            (Self::ZhCn, "runtime-directory") => "本地会话运行时目录未通过安全检查。\n".to_owned(),
             (Self::EnUs, _) => "The runtime base is missing, invalid, or unsafe.\n".to_owned(),
             (Self::ZhCn, _) => "运行时基座缺失、无效或不安全。\n".to_owned(),
         }
@@ -1560,7 +1560,7 @@ impl Locale {
         }
     }
 
-    /// `site start` service-unavailable diagnostics, routed by the failure's
+    /// `server start` service-unavailable diagnostics, routed by the failure's
     /// stage: each one states what the start actually observed.
     fn cli_site_unavailable(self, failure: &Failure) -> String {
         let stage = failure
@@ -1571,43 +1571,43 @@ impl Locale {
             .unwrap_or("");
         match (self, stage) {
             (Self::EnUs, "platform") => {
-                "This Site operation is unavailable on this platform.\n".to_owned()
+                "This session operation is unavailable on this platform.\n".to_owned()
             }
-            (Self::ZhCn, "platform") => "当前平台尚不支持此 Site 操作。\n".to_owned(),
+            (Self::ZhCn, "platform") => "当前平台尚不支持此会话操作。\n".to_owned(),
             (Self::EnUs, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
             (Self::ZhCn, "runtime-directory") => self.cli_socket_path_too_long().to_owned(),
             (Self::EnUs, "discovery") => {
-                "No running local Site answered, and its runtime directory could not be created.\n"
+                "No running local session answered, and its runtime directory could not be created.\n"
                     .to_owned()
             }
             (Self::ZhCn, "discovery") => {
-                "没有运行中的本地 Site 应答，且其运行时目录无法创建。\n".to_owned()
+                "没有运行中的本地会话应答，且其运行时目录无法创建。\n".to_owned()
             }
             (Self::EnUs, "cohort") => {
                 "The native development cohort artifacts are missing.\n".to_owned()
             }
             (Self::ZhCn, "cohort") => "原生开发 cohort 工件缺失。\n".to_owned(),
             (Self::EnUs, _) => {
-                "The local Site could not admit the start probe connection.\n".to_owned()
+                "The local session could not admit the start probe connection.\n".to_owned()
             }
-            (Self::ZhCn, _) => "本地 Site 无法接纳启动探针连接。\n".to_owned(),
+            (Self::ZhCn, _) => "本地会话无法接纳启动探针连接。\n".to_owned(),
         }
     }
 
-    /// `site start` text answer when this invocation performed the
+    /// `server start` text answer when this invocation performed the
     /// activation and the readiness probe was admitted.
     pub(crate) const fn cli_site_started(self) -> &'static str {
         match self {
-            Self::EnUs => "Local Site started.\n",
-            Self::ZhCn => "本地 Site 已启动。\n",
+            Self::EnUs => "Local session started.\n",
+            Self::ZhCn => "本地会话已启动。\n",
         }
     }
 
-    /// `site start` text answer when a running Site admitted the probe.
+    /// `server start` text answer when a running Site admitted the probe.
     pub(crate) const fn cli_site_already_running(self) -> &'static str {
         match self {
-            Self::EnUs => "Local Site is already running.\n",
-            Self::ZhCn => "本地 Site 已在运行。\n",
+            Self::EnUs => "Local session is already running.\n",
+            Self::ZhCn => "本地会话已在运行。\n",
         }
     }
 
@@ -1801,10 +1801,10 @@ impl Locale {
     pub(crate) const fn cli_socket_path_too_long(self) -> &'static str {
         match self {
             Self::EnUs => {
-                "A derived local Site socket path is too long for this platform's socket address limit. Set ORCHBEE_RUNTIME_BASE to a shorter absolute directory.\n"
+                "A derived local session socket path is too long for this platform's socket address limit. Set ORCHBEE_RUNTIME_BASE to a shorter absolute directory.\n"
             }
             Self::ZhCn => {
-                "派生出的本地 Site 套接字路径超出本平台的套接字地址长度限制。请将 ORCHBEE_RUNTIME_BASE 设为更短的绝对目录。\n"
+                "派生出的本地会话套接字路径超出本平台的套接字地址长度限制。请将 ORCHBEE_RUNTIME_BASE 设为更短的绝对目录。\n"
             }
         }
     }
@@ -2374,11 +2374,9 @@ impl Locale {
             }
             (Self::ZhCn, "node-absent") => "以下提供方的钩子负载需要 node，但 PATH 中不存在 node：",
             (Self::EnUs, "endpoint-absent") => {
-                "the observation endpoint socket is absent; hooks deliver only while the managed Site is running."
+                "the observation endpoint socket is absent; hooks deliver only while the managed session is running."
             }
-            (Self::ZhCn, "endpoint-absent") => {
-                "观察端点套接字不存在；钩子仅在托管 Site 运行时投递。"
-            }
+            (Self::ZhCn, "endpoint-absent") => "观察端点套接字不存在；钩子仅在托管会话运行时投递。",
             (Self::EnUs, "windows-endpoint-not-inspected") => {
                 "Windows endpoint delivery is not inspected by this offline command. Managed hooks and modules support the native transport; configuration and capsule presence do not prove a working Agent connection."
             }
@@ -2496,8 +2494,8 @@ impl Locale {
                 }
             }
             FailureKind::Denied => match self {
-                Self::EnUs => "The local Site denied the agent read.\n".to_owned(),
-                Self::ZhCn => "本地 Site 拒绝了本次 Agent 读取。\n".to_owned(),
+                Self::EnUs => "The local session denied the agent read.\n".to_owned(),
+                Self::ZhCn => "本地会话拒绝了本次 Agent 读取。\n".to_owned(),
             },
             FailureKind::Rejected => {
                 let reason = failure
@@ -2508,10 +2506,10 @@ impl Locale {
                     .unwrap_or("");
                 match self {
                     Self::EnUs => {
-                        format!("The local Site rejected the agent list cursor ({reason}).\n")
+                        format!("The local session rejected the agent list cursor ({reason}).\n")
                     }
                     Self::ZhCn => {
-                        format!("本地 Site 拒绝了该 Agent 列表游标（{reason}）。\n")
+                        format!("本地会话拒绝了该 Agent 列表游标（{reason}）。\n")
                     }
                 }
             }
@@ -2529,9 +2527,10 @@ impl Locale {
             },
             FailureKind::TransportLoss => match self {
                 Self::EnUs => {
-                    "The connection to the local Site was lost during the agent read.\n".to_owned()
+                    "The connection to the local session was lost during the agent read.\n"
+                        .to_owned()
                 }
-                Self::ZhCn => "与本地 Site 的连接在 Agent 读取期间中断。\n".to_owned(),
+                Self::ZhCn => "与本地会话的连接在 Agent 读取期间中断。\n".to_owned(),
             },
             FailureKind::Cancelled => match self {
                 Self::EnUs => "The agent read was cancelled.\n".to_owned(),
@@ -2539,10 +2538,10 @@ impl Locale {
             },
             FailureKind::ProtocolInvalid => match self {
                 Self::EnUs => {
-                    "The local Site answered the agent read with an invalid protocol response.\n"
+                    "The local session answered the agent read with an invalid protocol response.\n"
                         .to_owned()
                 }
-                Self::ZhCn => "本地 Site 对本次 Agent 读取返回了无效的协议响应。\n".to_owned(),
+                Self::ZhCn => "本地会话对本次 Agent 读取返回了无效的协议响应。\n".to_owned(),
             },
             _ => match self {
                 Self::EnUs => {
@@ -2846,11 +2845,11 @@ impl Locale {
             (Self::ZhCn, CommandPath::LaunchProfileDelete) => HELP_LAUNCH_PROFILE_DELETE_ZH,
             (Self::EnUs, CommandPath::AgentChanges) => crate::localization::HelpDetails::new(
                 "orchbee agent changes [--cursor <c>] [--limit <n>] [--format text|json]",
-                "Windows: read one bounded Agent change page (limit 1-100, default 50).\nOmit cursor to establish a current-head checkpoint, then reuse its cursor.\nreset-required means history was lost; rebuild your baseline. A previous\nSite boot or invalid cursor is rejected. No subscription or automatic retry.\nTotal read deadline: 5 seconds. JSON schema: orchbee.agent.changes.",
+                "Windows: read one bounded Agent change page (limit 1-100, default 50).\nOmit cursor to establish a current-head checkpoint, then reuse its cursor.\nreset-required means history was lost; rebuild your baseline. A previous\nsession boot or invalid cursor is rejected. No subscription or automatic retry.\nTotal read deadline: 5 seconds. JSON schema: orchbee.agent.changes.",
             ),
             (Self::ZhCn, CommandPath::AgentChanges) => crate::localization::HelpDetails::new(
                 "orchbee agent changes [--cursor <c>] [--limit <n>] [--format text|json]",
-                "Windows：读取一页有界 Agent 变更（limit 1-100，默认 50）。省略 cursor 建立当前头部检查点，再使用其 cursor 继续观察。\nreset-required 表示历史丢失，必须重建基线；先前 Site 启动实例或无效\ncursor 会被拒绝。不订阅、不自动重试。总读取期限 5 秒。\nJSON schema：orchbee.agent.changes。",
+                "Windows：读取一页有界 Agent 变更（limit 1-100，默认 50）。省略 cursor 建立当前头部检查点，再使用其 cursor 继续观察。\nreset-required 表示历史丢失，必须重建基线；先前会话启动实例或无效\ncursor 会被拒绝。不订阅、不自动重试。总读取期限 5 秒。\nJSON schema：orchbee.agent.changes。",
             ),
             #[cfg(windows)]
             (
@@ -2869,29 +2868,29 @@ impl Locale {
             ),
             (Self::EnUs, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
-                "Resolve one live Agent, refuse pending attention, and submit literal paste plus Enter.\nTargets: Session ID/name/Panel ID, --session <id>, --name <alias>, or --panel <id|@panel:suffix>. --until/--timeout/--forever require --wait.\nWait first observes activity, then a matching condition. Windows defaults to\nidle/done/blocked with no total timeout; Linux retains 600000 ms.\n--forever removes the total timeout and conflicts with --timeout.\nWindows Codex adds a Right key between paste and Enter.\nA wait failure retains the accepted input receipt. Never replay uncertain input.\nA matching state does not identify a prompt-specific turn.",
+                "Resolve one live Agent, refuse pending attention, and submit literal paste plus Enter.\nTargets: Session ID/name/Panel ID, --agent-session <id>, --name <alias>, or --panel <id|@panel:suffix>. --until/--timeout/--forever require --wait.\nWait first observes activity, then a matching condition. Windows defaults to\nidle/done/blocked with no total timeout; Linux retains 600000 ms.\n--forever removes the total timeout and conflicts with --timeout.\nWindows Codex adds a Right key between paste and Enter.\nA wait failure retains the accepted input receipt. Never replay uncertain input.\nA matching state does not identify a prompt-specific turn.",
             ),
             (Self::ZhCn, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
-                "定位存活 Agent，有待处理请求时拒绝，再提交字面 paste 加 Enter。目标：Session ID/名称/Panel ID、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。--until/--timeout/--forever 要求 --wait。先观察活动再等待条件匹配；Windows 默认 idle/done/blocked 且无总超时，Linux 保持 600000 毫秒。--forever 取消总期限，与 --timeout 互斥。\nWindows Codex 在 paste 和 Enter 之间增加 Right 键。等待失败保留已接受输入回执。不重放不确定输入；状态匹配不标识本次提示自己的轮次。",
+                "定位存活 Agent，有待处理请求时拒绝，再提交字面 paste 加 Enter。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。--until/--timeout/--forever 要求 --wait。先观察活动再等待条件匹配；Windows 默认 idle/done/blocked 且无总超时，Linux 保持 600000 毫秒。--forever 取消总期限，与 --timeout 互斥。\nWindows Codex 在 paste 和 Enter 之间增加 Right 键。等待失败保留已接受输入回执。不重放不确定输入；状态匹配不标识本次提示自己的轮次。",
             ),
             (Self::EnUs, CommandPath::AgentRead) if cfg!(windows) => HELP_AGENT_OUTPUT_EN,
             (Self::ZhCn, CommandPath::AgentRead) if cfg!(windows) => HELP_AGENT_OUTPUT_ZH,
             (Self::EnUs, CommandPath::AgentRead) => crate::localization::HelpDetails::new(
                 "orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
-                "Read the terminal bound to one live Agent. Target: Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Panel selects its primary terminal;\notherwise exactly one navigable binding is required. Uses terminal\nread/history envelopes; history excludes visible rows.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v2 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.",
+                "Read the terminal bound to one live Agent. Target: Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Panel selects its primary terminal;\notherwise exactly one navigable binding is required. Uses terminal\nread/history envelopes; history excludes visible rows.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v2 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.",
             ),
             (Self::ZhCn, CommandPath::AgentRead) => crate::localization::HelpDetails::new(
                 "orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
-                "读取一个存活 Agent 绑定的终端。目标：Session ID/名称/Panel ID、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。未指定 Panel 时必须有且仅有一个可导航绑定。复用终端 read/history 封套；历史不含可见行。\n\n显式来源：--source visible|recent|recent-unwrapped|detection。\nrecent 合并历史与实时屏幕，默认 80 个物理行；detection 读取光标附近一个屏幕高度，不是 Agent 状态。来源模式 --lines 接受 0..4294967295，钳制到 1000。visible 是当前查看器的实时屏幕。\n--plain 直接输出 UTF-8 文本，默认 recent；与 --format json 冲突。来源/plain 不能与 --history、--rows 或 --unwrap 混用。\nJSON 使用 orchbee.terminal.output；样本过期时失败，不隐藏重试。\n\n--ansi 直接导出带样式文本（默认 recent）；配合 --format json 时改用\norchbee.terminal.output v2，encoding 为 ansi。它与 --plain、--history、\n--rows 和 --unwrap 冲突。保留带样式空格；recent-unwrapped 拼接软换行。\ndetection 仍输出纯文本。这是包含 SGR 的样式快照，不是原始 PTY 字节或图形重放。",
+                "读取一个存活 Agent 绑定的终端。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。未指定 Panel 时必须有且仅有一个可导航绑定。复用终端 read/history 封套；历史不含可见行。\n\n显式来源：--source visible|recent|recent-unwrapped|detection。\nrecent 合并历史与实时屏幕，默认 80 个物理行；detection 读取光标附近一个屏幕高度，不是 Agent 状态。来源模式 --lines 接受 0..4294967295，钳制到 1000。visible 是当前查看器的实时屏幕。\n--plain 直接输出 UTF-8 文本，默认 recent；与 --format json 冲突。来源/plain 不能与 --history、--rows 或 --unwrap 混用。\nJSON 使用 orchbee.terminal.output；样本过期时失败，不隐藏重试。\n\n--ansi 直接导出带样式文本（默认 recent）；配合 --format json 时改用\norchbee.terminal.output v2，encoding 为 ansi。它与 --plain、--history、\n--rows 和 --unwrap 冲突。保留带样式空格；recent-unwrapped 拼接软换行。\ndetection 仍输出纯文本。这是包含 SGR 的样式快照，不是原始 PTY 字节或图形重放。",
             ),
             (Self::EnUs, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
                 "orchbee agent send-keys <target> <key>... [--format text|json]",
-                "Send 1..64 semantic keys or combinations (enter, ctrl-c, alt+left, ctrl+shift+a)\nto one live Agent terminal. Target: Session ID/name/Panel ID, --session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Panel selects its primary terminal.\nUses orchbee.terminal.send receipts. Never replays uncertain input.",
+                "Send 1..64 semantic keys or combinations (enter, ctrl-c, alt+left, ctrl+shift+a)\nto one live Agent terminal. Target: Session ID/name/Panel ID, --agent-session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Panel selects its primary terminal.\nUses orchbee.terminal.send receipts. Never replays uncertain input.",
             ),
             (Self::ZhCn, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
                 "orchbee agent send-keys <target> <key>... [--format text|json]",
-                "向一个存活 Agent 终端发送 1..64 个语义按键或组合（enter、ctrl-c、alt+left、ctrl+shift+a）。目标：Session ID/名称/Panel ID、--session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。使用 orchbee.terminal.send 回执。不重放不确定输入。",
+                "向一个存活 Agent 终端发送 1..64 个语义按键或组合（enter、ctrl-c、alt+left、ctrl+shift+a）。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。使用 orchbee.terminal.send 回执。不重放不确定输入。",
             ),
             (Self::EnUs, CommandPath::AgentAttention) => client_control::HELP_AGENT_ATTENTION_EN,
             (Self::ZhCn, CommandPath::AgentAttention) => client_control::HELP_AGENT_ATTENTION_ZH,
@@ -2903,27 +2902,27 @@ impl Locale {
             (Self::ZhCn, CommandPath::AgentExplain) => HELP_AGENT_EXPLAIN_ZH,
             (Self::EnUs, CommandPath::AgentNames) => crate::localization::HelpDetails::new(
                 "orchbee agent names [--format text|json]",
-                "List this Site runtime's live Agent names. Names disappear when their session ends or the Site stops.",
+                "List this session runtime's live Agent names. Names disappear when their session ends or the session stops.",
             ),
             (Self::ZhCn, CommandPath::AgentNames) => crate::localization::HelpDetails::new(
                 "orchbee agent names [--format text|json]",
-                "列出当前 Site 运行时中的 Agent 名称。会话结束或 Site 停止后名称会释放。",
+                "列出当前会话运行时中的 Agent 名称。会话结束或会话停止后名称会释放。",
             ),
             (Self::EnUs, CommandPath::AgentResolve) => crate::localization::HelpDetails::new(
-                "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --session <id> | --name <alias> | --panel <id|@panel:suffix>",
+                "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:suffix>",
                 "Resolve an exact Session ID first, then a runtime name, then a Panel ID.\nA Panel selects its primary terminal and requires one live Agent. Use --name to select an alias that collides with an ID.",
             ),
             (Self::ZhCn, CommandPath::AgentResolve) => crate::localization::HelpDetails::new(
-                "orchbee agent resolve <target> [--format text|json]\n      orchbee agent resolve --session <id> | --name <alias> | --panel <id|@panel:suffix>",
+                "orchbee agent resolve <target> [--format text|json]\n      orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:suffix>",
                 "优先按完整 Session ID 定位，再查运行时名称，最后回退到 Panel ID。\nPanel 选择主终端，要求唯一存活 Agent。名称与 ID 冲突时，用 --name 明确选择名称。",
             ),
             (Self::EnUs, CommandPath::AgentRename) => crate::localization::HelpDetails::new(
                 "orchbee agent rename <target> <new-name> [--format text|json]\n       orchbee agent rename <target> --clear",
-                "Assign or atomically rename one live Agent. Name: [a-z][a-z0-9_-]{0,31}. Duplicate names are rejected. --clear releases only the name. Replace <target> with --session <id>, --name <alias>, or --panel <id|@panel:suffix> to select explicitly. Names reset when the session ends or the Site stops.",
+                "Assign or atomically rename one live Agent. Name: [a-z][a-z0-9_-]{0,31}. Duplicate names are rejected. --clear releases only the name. Replace <target> with --agent-session <id>, --name <alias>, or --panel <id|@panel:suffix> to select explicitly. Names reset when the session ends or the session stops.",
             ),
             (Self::ZhCn, CommandPath::AgentRename) => crate::localization::HelpDetails::new(
                 "orchbee agent rename <target> <new-name> [--format text|json]\n      orchbee agent rename <target> --clear",
-                "为存活 Agent 命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --session <id> 或 --name <alias>。会话结束或 Site 停止后名称释放。",
+                "为存活 Agent 命名或原子重命名。名称格式为 [a-z][a-z0-9_-]{0,31}，拒绝重名。--clear 只释放名称。可将 <target> 替换成 --agent-session <id> 或 --name <alias>。会话结束或会话停止后名称释放。",
             ),
             (Self::EnUs, CommandPath::AgentWait) => {
                 if cfg!(windows) {
@@ -2974,12 +2973,12 @@ impl Locale {
             #[cfg(windows)]
             (Self::EnUs, CommandPath::ChannelShow) => crate::localization::HelpDetails::new(
                 "orchbee channel show [--format text|json]",
-                "Read the Windows update.channel preference (stable or preview). Defaults to stable.\nValidates the complete config; a missing explicit ORCHBEE_CONFIG_FILE fails.\nDoes not write files, connect to a Site, download, or change the installed cohort.",
+                "Read the Windows update.channel preference (stable or preview). Defaults to stable.\nValidates the complete config; a missing explicit ORCHBEE_CONFIG_FILE fails.\nDoes not write files, connect to a session, download, or change the installed cohort.",
             ),
             #[cfg(windows)]
             (Self::ZhCn, CommandPath::ChannelShow) => crate::localization::HelpDetails::new(
                 "orchbee channel show [--format text|json]",
-                "读取 Windows update.channel 偏好（stable 或 preview），默认 stable。校验完整配置；显式 ORCHBEE_CONFIG_FILE 不存在时失败。不写文件、不连接 Site、不下载，也不改变已安装 cohort。",
+                "读取 Windows update.channel 偏好（stable 或 preview），默认 stable。校验完整配置；显式 ORCHBEE_CONFIG_FILE 不存在时失败。不写文件、不连接会话、不下载，也不改变已安装 cohort。",
             ),
             #[cfg(windows)]
             (Self::EnUs, CommandPath::ChannelSet) => crate::localization::HelpDetails::new(
@@ -2994,12 +2993,12 @@ impl Locale {
             #[cfg(windows)]
             (Self::EnUs, CommandPath::Update) => crate::localization::HelpDetails::new(
                 "orchbee update [--format text|json]",
-                "Install the configured channel as a complete immutable Windows cohort.\nORCHBEE_UPDATE_MANIFEST: explicit HTTPS URL or absolute local manifest path; {channel} expands to stable or preview.\nORCHBEE_INSTALL_DIR defaults to %LOCALAPPDATA%/Programs/Orchbee.\nValidates every file, publishes a release, then updates user PATH. Existing Sites keep their version.\nTotal deadline: 600 seconds. Ctrl+C cancels; receipts retain published paths and cleanup obligations.",
+                "Install the configured channel as a complete immutable Windows cohort.\nORCHBEE_UPDATE_MANIFEST: explicit HTTPS URL or absolute local manifest path; {channel} expands to stable or preview.\nORCHBEE_INSTALL_DIR defaults to %LOCALAPPDATA%/Programs/Orchbee.\nValidates every file, publishes a release, then updates user PATH. Existing sessions keep their version.\nTotal deadline: 600 seconds. Ctrl+C cancels; receipts retain published paths and cleanup obligations.",
             ),
             #[cfg(windows)]
             (Self::ZhCn, CommandPath::Update) => crate::localization::HelpDetails::new(
                 "orchbee update [--format text|json]",
-                "按配置的频道安装完整、独立的 Windows cohort。\nORCHBEE_UPDATE_MANIFEST：显式 HTTPS URL 或本地清单绝对路径；{channel} 替换为 stable 或 preview。\nORCHBEE_INSTALL_DIR 默认为 %LOCALAPPDATA%/Programs/Orchbee。逐文件校验并发布版本，再更新用户 PATH；现有 Site 保留原版本。总时限 600 秒。Ctrl+C 取消；回执保留已发布路径和待清理项。",
+                "按配置的频道安装完整、独立的 Windows cohort。\nORCHBEE_UPDATE_MANIFEST：显式 HTTPS URL 或本地清单绝对路径；{channel} 替换为 stable 或 preview。\nORCHBEE_INSTALL_DIR 默认为 %LOCALAPPDATA%/Programs/Orchbee。逐文件校验并发布版本，再更新用户 PATH；现有会话保留原版本。总时限 600 秒。Ctrl+C 取消；回执保留已发布路径和待清理项。",
             ),
             (Self::EnUs, CommandPath::ConfigCheck) => HELP_CONFIG_CHECK_EN,
             (Self::ZhCn, CommandPath::ConfigCheck) => HELP_CONFIG_CHECK_ZH,
@@ -3029,28 +3028,28 @@ impl Locale {
         }
     }
 
-    /// A localized note line for one `site diagnose` advisory token; an
+    /// A localized note line for one `server diagnose` advisory token; an
     /// unrecognized token renders itself verbatim — the token is the
     /// machine field, the line is only its human gloss.
     pub(crate) fn cli_site_diagnose_advisory(self, advisory: &str) -> &'static str {
         match (self, advisory) {
             (Self::EnUs, "activation-recorded") => {
-                "note: activation recorded; if no existing Site can be joined, fresh activation is blocked by current recovery policy.\n"
+                "note: activation recorded; if no existing session can be joined, fresh activation is blocked by current recovery policy.\n"
             }
             (Self::ZhCn, "activation-recorded") => {
-                "注：已记录一次激活；若无可加入的现有 Site，按当前恢复策略新的激活将被阻止。\n"
+                "注：已记录一次激活；若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n"
             }
             (Self::EnUs, "socket-residue") => {
-                "note: client/worker socket residue observed; if no existing Site can be joined, fresh activation is blocked by current recovery policy.\n"
+                "note: client/worker socket residue observed; if no existing session can be joined, fresh activation is blocked by current recovery policy.\n"
             }
             (Self::ZhCn, "socket-residue") => {
-                "注：观察到 client/worker 套接字残留；若无可加入的现有 Site，按当前恢复策略新的激活将被阻止。\n"
+                "注：观察到 client/worker 套接字残留；若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n"
             }
             (Self::EnUs, "pipe-name-present") => {
-                "note: a client/worker pipe name was observed without connecting or authenticating its owner; if no Site can be joined, current recovery policy blocks fresh activation.\n"
+                "note: a client/worker pipe name was observed without connecting or authenticating its owner; if no session can be joined, current recovery policy blocks fresh activation.\n"
             }
             (Self::ZhCn, "pipe-name-present") => {
-                "注：观察到 client/worker 管道名称，未连接或认证其属主；若无可加入的 Site，当前恢复策略将阻止重新激活。\n"
+                "注：观察到 client/worker 管道名称，未连接或认证其属主；若无可加入的会话，当前恢复策略将阻止重新激活。\n"
             }
             (Self::EnUs, _) => "note: unrecognized advisory.\n",
             (Self::ZhCn, _) => "注：未识别的通告。\n",
@@ -3069,11 +3068,11 @@ const HELP_TUI_ZH: crate::localization::HelpDetails = crate::localization::HelpD
 
 const HELP_STATUS_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee status [--format text|json]",
-    "Read the running Site's reachability and resource counts. This command does not create or start a Site. Use status server for service compatibility details, or status client to inspect this executable offline.",
+    "Read the running session's reachability and resource counts. This command does not create or start a session. Use status server for service compatibility details, or status client to inspect this executable offline.",
 );
 const HELP_STATUS_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee status [--format text|json]",
-    "读取正在运行的 Site 的可达性和资源数量。本命令不创建或启动 Site。使用 status server 查看服务兼容性，或使用 status client 离线检查当前程序。",
+    "读取正在运行的会话的可达性和资源数量。本命令不创建或启动会话。使用 status server 查看服务兼容性，或使用 status client 离线检查当前程序。",
 );
 
 const HELP_TERMINAL_OBSERVE_EN: crate::localization::HelpDetails =
@@ -3089,71 +3088,71 @@ const HELP_TERMINAL_OBSERVE_ZH: crate::localization::HelpDetails =
 
 #[cfg(windows)]
 const HELP_SITE_START_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee site start [--format text|json]",
-    "Ensure the selected local Site is running within one 20-second budget.\nTUI startup uses the same activation and recovery path. Complete catalog v2/v3\nregistration permits automatic cold recovery only after all exact PID/creation\nidentities are gone, locks are free and endpoints absent. Background and\nclean-stop checkpoints restore layouts, Launch Profiles, sampled per-terminal\ncwd and unique provider session references. Unreadable snapshots are retained;\nstartup falls back to an older valid copy or opens an empty workspace and warns\non stderr. Live Host, unknown/incomplete identity and legacy Active records\nrefuse without deleting data. Run site diagnose with the same --site selection\nor use orchbee --site recovery-work site start for another name. New activation\npublishes catalog v3 before checkpoint storage; binaries limited to v1/v2 cannot\noperate v3 sessions, even after clean stop. Live Host adoption remains separate.\n\nJSON uses orchbee.site.start: started means this invocation spawned Server;\nalready-running means an existing Site admitted it. Resume providers is enabled\nby default; ORCHBEE_RESUME_AGENTS_ON_RESTORE accepts only true/false. Live Agent\nstate, terminal history and screen contents are not restored.",
+    "orchbee server start [--format text|json]",
+    "Ensure the selected local session is running within one 20-second budget.\nTUI startup uses the same activation and recovery path. Complete catalog v2/v3\nregistration permits automatic cold recovery only after all exact PID/creation\nidentities are gone, locks are free and endpoints absent. Background and\nclean-stop checkpoints restore layouts, Launch Profiles, sampled per-terminal\ncwd and unique provider session references. Unreadable snapshots are retained;\nstartup falls back to an older valid copy or opens an empty workspace and warns\non stderr. Live Host, unknown/incomplete identity and legacy Active records\nrefuse without deleting data. Run server diagnose with the same --session selection\nor use orchbee --session recovery-work server start for another name. New activation\npublishes catalog v3 before checkpoint storage; binaries limited to v1/v2 cannot\noperate v3 sessions, even after clean stop. Live Host adoption remains separate.\n\nJSON uses orchbee.site.start: started means this invocation spawned Server;\nalready-running means an existing session admitted it. Resume providers is enabled\nby default; ORCHBEE_RESUME_AGENTS_ON_RESTORE accepts only true/false. Live Agent\nstate, terminal history and screen contents are not restored.",
 );
 #[cfg(not(windows))]
 const HELP_SITE_START_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee site start [--format text|json]",
-    "Ensure the implicit per-user local Site is running. When no admitted\nSite answers, this invocation performs the existing activation sequence\n— the same locks, marker, Server spawn, and readiness admission the TUI\nstartup uses — and reports 'started'. On Windows, background and clean-stop\ncheckpoints restore layouts, Launch Profiles, sampled per-terminal cwd and\nunique provider session references. Provider resume is enabled by default; set\nORCHBEE_RESUME_AGENTS_ON_RESTORE=false before activation to restore shells\nwithout resuming providers. Only true/false are accepted. Unreadable snapshots\nare retained; startup falls back to an older valid copy or opens an empty\nworkspace and warns on stderr. Live Agent state, terminal history and screen\ncontents are not restored.\nWhen a running Site admits the readiness probe,\nit reports 'already-running'. One absolute 20-second budget covers the whole\ninvocation.\n\n'--format json' emits the orchbee.site.start envelope. An interrupted\nor timed-out start may leave activation state behind; a later invocation\nthen answers refused with a recovery-required reason. The command never\nrepairs, stops, or deletes runtime state.",
+    "orchbee server start [--format text|json]",
+    "Ensure the implicit per-user local session is running. When no admitted\nsession answers, this invocation performs the existing activation sequence\n— the same locks, marker, Server spawn, and readiness admission the TUI\nstartup uses — and reports 'started'. On Windows, background and clean-stop\ncheckpoints restore layouts, Launch Profiles, sampled per-terminal cwd and\nunique provider session references. Provider resume is enabled by default; set\nORCHBEE_RESUME_AGENTS_ON_RESTORE=false before activation to restore shells\nwithout resuming providers. Only true/false are accepted. Unreadable snapshots\nare retained; startup falls back to an older valid copy or opens an empty\nworkspace and warns on stderr. Live Agent state, terminal history and screen\ncontents are not restored.\nWhen a running session admits the readiness probe,\nit reports 'already-running'. One absolute 20-second budget covers the whole\ninvocation.\n\n'--format json' emits the orchbee.site.start envelope. An interrupted\nor timed-out start may leave activation state behind; a later invocation\nthen answers refused with a recovery-required reason. The command never\nrepairs, stops, or deletes runtime state.",
 );
 #[cfg(windows)]
 const HELP_SITE_START_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee site start [--format text|json]",
-    "在一个 20 秒总预算内确保选中的本地 Site 正在运行。TUI 使用相同激活和恢复路径。仅当清单 v2/v3 登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 会话引用。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和旧版\nActive 记录均拒绝且不删除数据。请用相同 --site 选择执行 site diagnose，或用\norchbee --site recovery-work site start 另开命名会话。新激活会先发布 catalog v3\n再使用检查点存储；只支持 v1/v2 的二进制即使在正常停止后也不能操作 v3 会话。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.site.start：started 表示本次拉起了 Server；\nalready-running 表示既有 Site 准入了本次调用。默认恢复 provider；\nORCHBEE_RESUME_AGENTS_ON_RESTORE 仅接受 true／false。不恢复存活 Agent 状态、终端历史或屏幕内容。",
+    "orchbee server start [--format text|json]",
+    "在一个 20 秒总预算内确保选中的本地会话正在运行。TUI 使用相同激活和恢复路径。仅当清单 v2/v3 登记完整、所有确切 PID／创建时间身份消失、锁空闲且端点缺席时，才自动冷恢复。后台及正常停止 checkpoint 会恢复布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 会话引用。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。活 Host、未知／不完整身份和旧版\nActive 记录均拒绝且不删除数据。请用相同 --session 选择执行 server diagnose，或用\norchbee --session recovery-work server start 另开命名会话。新激活会先发布 catalog v3\n再使用检查点存储；只支持 v1/v2 的二进制即使在正常停止后也不能操作 v3 会话。活 Host 接管仍另行实现。\n\nJSON 使用 orchbee.site.start：started 表示本次拉起了 Server；\nalready-running 表示既有会话准入了本次调用。默认恢复 provider；\nORCHBEE_RESUME_AGENTS_ON_RESTORE 仅接受 true／false。不恢复存活 Agent 状态、终端历史或屏幕内容。",
 );
 #[cfg(not(windows))]
 const HELP_SITE_START_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee site start [--format text|json]",
-    "确保隐式的每用户本地 Site 正在运行。若没有已准入的 Site 应答，本次调用执行既有的激活序列——与 TUI 启动相同的锁、标记、Server 拉起与就绪准入——并报告 'started'。Windows 会从后台及正常停止 checkpoint 恢复布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 会话引用。默认启用\nprovider 恢复；激活前设置 ORCHBEE_RESUME_AGENTS_ON_RESTORE=false 可只恢复 shell。该变量仅接受 true／false。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。不恢复存活 Agent 状态、终端历史或屏幕内容。若运行中的 Site 准入了就绪探针，则报告 'already-running'。整个调用共享一个 20 秒绝对预算。\n\n'--format json' 输出 orchbee.site.start 封套。被中断或超时的启动可能遗留激活状态；后续调用将以拒绝加 recovery-required 原因应答。本命令绝不修复、停止或删除运行时状态。",
+    "orchbee server start [--format text|json]",
+    "确保隐式的每用户本地会话正在运行。若没有已准入的会话应答，本次调用执行既有的激活序列——与 TUI 启动相同的锁、标记、Server 拉起与就绪准入——并报告 'started'。Windows 会从后台及正常停止 checkpoint 恢复布局、Launch Profile、采样所得的逐终端 cwd 和唯一 provider 会话引用。默认启用\nprovider 恢复；激活前设置 ORCHBEE_RESUME_AGENTS_ON_RESTORE=false 可只恢复 shell。该变量仅接受 true／false。不可读存档会保留；启动会回退到较早的有效副本，或打开空工作区并在 stderr 警告。不恢复存活 Agent 状态、终端历史或屏幕内容。若运行中的会话准入了就绪探针，则报告 'already-running'。整个调用共享一个 20 秒绝对预算。\n\n'--format json' 输出 orchbee.site.start 封套。被中断或超时的启动可能遗留激活状态；后续调用将以拒绝加 recovery-required 原因应答。本命令绝不修复、停止或删除运行时状态。",
 );
 
 const HELP_AGENT_LIST_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--client <id>] [--format text|json]",
-    "List Agent sessions observed by the running local Site. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50);\n'--cursor' continues from a previous page's server-minted nextCursor.\n'--format json' emits the orchbee.agent.list envelope.\nWindows --client joins that exact TUI's observed status without focusing it.",
+    "List Agent sessions observed by the running local session. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50);\n'--cursor' continues from a previous page's server-minted nextCursor.\n'--format json' emits the orchbee.agent.list envelope.\nWindows --client joins that exact TUI's observed status without focusing it.",
 );
 const HELP_AGENT_LIST_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--client <id>] [--format text|json]",
-    "列出运行中的本地 Site 观察到的 Agent 会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）；'--cursor' 从上一页服务端铸造的 nextCursor 继续。'--format json' 输出 orchbee.agent.list 封套。\nWindows --client 加入指定 TUI 观察到的状态，不移动焦点。",
+    "列出运行中的本地会话观察到的 Agent 会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）；'--cursor' 从上一页服务端铸造的 nextCursor 继续。'--format json' 输出 orchbee.agent.list 封套。\nWindows --client 加入指定 TUI 观察到的状态，不移动焦点。",
 );
 
 const HELP_AGENT_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent get <target> [--client <id>] [--format text|json]",
-    "Show one Agent session by its opaque session identity: lifecycle, semantic\nstatus, observation freshness, location, capabilities, pending requests,\nand presentation attachments. '--format json' emits the\norchbee.agent.get envelope.\nTarget: one positional Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.\n\nWindows --client adds that exact Client's focused/seen and idle/done projection\nwith version 8. Canonical session status stays unchanged. A missing or lagging\nClient observation has null seen; no read acknowledges or changes focus.\nThe same five-second total includes cursor authentication and version joining.\nWindows Get without --client uses version 7. Runtime includes the primary\nTerminal process sample and promptReady submission preflight; cwd/argv remain\nnullable. Binding changes discard the sample. This is not interactive UI\nreadiness or an input lease. Process reads share the original total deadline.\nWindows terminal adds raw/stripped title, cwd/cwdSource and foregroundCwd,\nwith frame/process provenance from one read-only attachment. An unavailable\nprocess sample preserves frame metadata without claiming prompt readiness.\nAgent binding and Workbench revision changes discard sampled metadata.",
+    "Show one Agent session by its opaque session identity: lifecycle, semantic\nstatus, observation freshness, location, capabilities, pending requests,\nand presentation attachments. '--format json' emits the\norchbee.agent.get envelope.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.\n\nWindows --client adds that exact Client's focused/seen and idle/done projection\nwith version 8. Canonical session status stays unchanged. A missing or lagging\nClient observation has null seen; no read acknowledges or changes focus.\nThe same five-second total includes cursor authentication and version joining.\nWindows Get without --client uses version 7. Runtime includes the primary\nTerminal process sample and promptReady submission preflight; cwd/argv remain\nnullable. Binding changes discard the sample. This is not interactive UI\nreadiness or an input lease. Process reads share the original total deadline.\nWindows terminal adds raw/stripped title, cwd/cwdSource and foregroundCwd,\nwith frame/process provenance from one read-only attachment. An unavailable\nprocess sample preserves frame metadata without claiming prompt readiness.\nAgent binding and Workbench revision changes discard sampled metadata.",
 );
 const HELP_AGENT_GET_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent get <target> [--client <id>] [--format text|json]",
-    "按会话 ID 或运行时名称显示一个 Agent 会话：生命周期、语义状态、观察新鲜度、位置、能力、待处理请求与 Presentation 附着。'--format json' 输出\norchbee.agent.get 封套。目标：一个位置参数 Session ID/名称/Panel ID、--session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。\n\nWindows --client 以版本 8 附加指定 Client 的聚焦、已看见及 idle/done 投影。规范 session 状态保持不变。Client 观测缺失或滞后时 seen 为空；读取不确认已看见、不改变焦点。游标认证与版本合并共用五秒总预算。\nWindows 不带 --client 的 Get 使用版本 7；runtime 包含主 Terminal 的进程样本及 promptReady 提交预检，cwd/argv 可为空。绑定变化时丢弃样本。这不表示交互 UI 就绪或输入租约；进程读取共用原始总期限。\nWindows terminal 增加原始／整理标题、cwd/cwdSource、foregroundCwd，以及同一次只读附着的帧／进程来源。进程样本不可用时仍保留帧元数据，但不宣称提示就绪；Agent 绑定或 Workbench 修订变化时丢弃样本。",
+    "按会话 ID 或运行时名称显示一个 Agent 会话：生命周期、语义状态、观察新鲜度、位置、能力、待处理请求与 Presentation 附着。'--format json' 输出\norchbee.agent.get 封套。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。\n\nWindows --client 以版本 8 附加指定 Client 的聚焦、已看见及 idle/done 投影。规范 session 状态保持不变。Client 观测缺失或滞后时 seen 为空；读取不确认已看见、不改变焦点。游标认证与版本合并共用五秒总预算。\nWindows 不带 --client 的 Get 使用版本 7；runtime 包含主 Terminal 的进程样本及 promptReady 提交预检，cwd/argv 可为空。绑定变化时丢弃样本。这不表示交互 UI 就绪或输入租约；进程读取共用原始总期限。\nWindows terminal 增加原始／整理标题、cwd/cwdSource、foregroundCwd，以及同一次只读附着的帧／进程来源。进程样本不可用时仍保留帧元数据，但不宣称提示就绪；Agent 绑定或 Workbench 修订变化时丢弃样本。",
 );
 
 const HELP_AGENT_EXPLAIN_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent explain <target> [--format text|json]",
-        "Explain a canonical Agent session or a Windows physical terminal.\nPhysical targets return effective state and a fresh rule evaluation: manifest\nsource/version, winner, all rule matches and bounded region evidence. Live full\nlifecycle authority explicitly skips the screen read. No input or focus change.\nCanonical sessions retain their derived view: the canonical status basis,\nfreshness meaning, capability ceiling, observation source and fidelity,\nand the navigate-only action boundary. '--format json' emits the\norchbee.agent.explain envelope: v1 canonical session, v2 physical terminal, v3 with active rules provenance.\nTarget: one positional Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
+        "Explain a canonical Agent session or a Windows physical terminal.\nPhysical targets return effective state and a fresh rule evaluation: manifest\nsource/version, winner, all rule matches and bounded region evidence. Live full\nlifecycle authority explicitly skips the screen read. No input or focus change.\nCanonical sessions retain their derived view: the canonical status basis,\nfreshness meaning, capability ceiling, observation source and fidelity,\nand the navigate-only action boundary. '--format json' emits the\norchbee.agent.explain envelope: v1 canonical session, v2 physical terminal, v3 with active rules provenance.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
     );
 const HELP_AGENT_EXPLAIN_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent explain <target> [--format text|json]",
-        "解释规范 Agent 会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据；生效的完整生命周期权威明确跳过屏幕读取。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 封套：v1 为规范会话，v2 为物理终端，v3 增加生效规则来源。目标：一个位置参数 Session ID/名称/Panel ID、--session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
+        "解释规范 Agent 会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据；生效的完整生命周期权威明确跳过屏幕读取。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 封套：v1 为规范会话，v2 为物理终端，v3 增加生效规则来源。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
     );
 
 const HELP_AGENT_WAIT_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent wait <target> [--until <condition>]... [--after-revision <n>] [--timeout <ms> | --forever] [--format text|json]",
-    "Poll one Agent session on a held Client Session until a requested\ncondition matches, the revision fence refuses, the session answer is\nterminal, or the total deadline lands. '--until' is repeatable and takes\none of: blocked, done, needs-attention, failed, succeeded, canceled, interrupted,\nworking, idle, unknown, ended, fresh, stale, disconnected (default:\nneeds-attention failed succeeded canceled interrupted idle ended).\nStatus conditions require fresh freshness; the three freshness\nconditions match the observation directly. '--after-revision' is a\nglobal-revision fence, not a turn identity; '--timeout' bounds the whole\nwait at 1-3600000 ms (default 600000). --forever removes the total\ntimeout and conflicts with --timeout; every read remains bounded.\nblocked matches fresh needs-attention; done matches fresh completed\noutcomes (succeeded/failed/canceled/interrupted), not an unseen marker.\nPolling samples current state: a\ntransition that begins and ends between two completed observations is\nmissed. '--format json' emits the orchbee.agent.wait envelope.\nTarget: one positional Session ID/name/Panel ID, --session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
+    "Poll one Agent session on a held Client Session until a requested\ncondition matches, the revision fence refuses, the session answer is\nterminal, or the total deadline lands. '--until' is repeatable and takes\none of: blocked, done, needs-attention, failed, succeeded, canceled, interrupted,\nworking, idle, unknown, ended, fresh, stale, disconnected (default:\nneeds-attention failed succeeded canceled interrupted idle ended).\nStatus conditions require fresh freshness; the three freshness\nconditions match the observation directly. '--after-revision' is a\nglobal-revision fence, not a turn identity; '--timeout' bounds the whole\nwait at 1-3600000 ms (default 600000). --forever removes the total\ntimeout and conflicts with --timeout; every read remains bounded.\nblocked matches fresh needs-attention; done matches fresh completed\noutcomes (succeeded/failed/canceled/interrupted), not an unseen marker.\nPolling samples current state: a\ntransition that begins and ends between two completed observations is\nmissed. '--format json' emits the orchbee.agent.wait envelope.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
 );
 const HELP_AGENT_WAIT_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent wait <target> [--until <条件>]... [--after-revision <n>] [--timeout <毫秒> | --forever] [--format text|json]",
-    "在持有的 Client Session 上轮询一个 Agent 会话，直到请求的条件命中、修订栅栏拒绝、会话应答终止，或总截止到达。'--until' 可重复，取值为：\nblocked、done、needs-attention、failed、succeeded、canceled、interrupted、working、\nidle、unknown、ended、fresh、stale、disconnected（默认：\nneeds-attention failed succeeded canceled interrupted idle ended）。状态条件要求 fresh 新鲜度；三个新鲜度条件直接匹配观察。\n'--after-revision' 是全局修订栅栏而非回合身份；'--timeout' 将整个等待界于 1-3600000 毫秒（默认 600000）。--forever 取消总期限，与 --timeout 互斥，单次读取仍有界。blocked 匹配 fresh needs-attention；\ndone 匹配 fresh 的 succeeded/failed/canceled/interrupted，不代表未读。轮询采样当前状态：在两次已完成观察之间开始又结束的跃迁会被错过。'--format json' 输出\norchbee.agent.wait 封套。目标：一个位置参数 Session ID/名称/Panel ID、--session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
+    "在持有的 Client Session 上轮询一个 Agent 会话，直到请求的条件命中、修订栅栏拒绝、会话应答终止，或总截止到达。'--until' 可重复，取值为：\nblocked、done、needs-attention、failed、succeeded、canceled、interrupted、working、\nidle、unknown、ended、fresh、stale、disconnected（默认：\nneeds-attention failed succeeded canceled interrupted idle ended）。状态条件要求 fresh 新鲜度；三个新鲜度条件直接匹配观察。\n'--after-revision' 是全局修订栅栏而非回合身份；'--timeout' 将整个等待界于 1-3600000 毫秒（默认 600000）。--forever 取消总期限，与 --timeout 互斥，单次读取仍有界。blocked 匹配 fresh needs-attention；\ndone 匹配 fresh 的 succeeded/failed/canceled/interrupted，不代表未读。轮询采样当前状态：在两次已完成观察之间开始又结束的跃迁会被错过。'--format json' 输出\norchbee.agent.wait 封套。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
 );
 const HELP_SITE_DIAGNOSE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee site diagnose [--format text|json]",
-        "Report bounded facts about the implicit per-user local Site runtime —\nits base and scope directory, the activation marker and locks, and the\nfinite client/worker/pending/observation/host endpoint paths. Every row\nis a pathname or descriptor fact at its own observation instant: 'held'\nmeans some owner held the lifetime lock then — never that a Site or any\nprocess is alive — and 'absent' is a pathname fact, never proof that an\nexecution ended. A 'known' marker or a valid client/worker socket leaf\nadds a conditional advisory: if no existing Site can be joined, fresh\nactivation is blocked by current recovery policy.\n\nThe command never connects to an endpoint, never creates or deletes a\npath, never acquires the activation lock, and never repairs, stops, or\npredicts a later start. A cooperative five-second budget is checked\nbetween bounded filesystem operations; rows it cannot reach close as\n'uninspectable'. '--format json' emits the orchbee.site.diagnose\nenvelope on Linux; Windows emits orchbee.site.diagnose.windows with\nprivate-DACL and bounded pipe-name observations instead of POSIX facts.",
+        "orchbee server diagnose [--format text|json]",
+        "Report bounded facts about the implicit per-user local session runtime —\nits base and scope directory, the activation marker and locks, and the\nfinite client/worker/pending/observation/host endpoint paths. Every row\nis a pathname or descriptor fact at its own observation instant: 'held'\nmeans some owner held the lifetime lock then — never that a session or any\nprocess is alive — and 'absent' is a pathname fact, never proof that an\nexecution ended. A 'known' marker or a valid client/worker socket leaf\nadds a conditional advisory: if no existing session can be joined, fresh\nactivation is blocked by current recovery policy.\n\nThe command never connects to an endpoint, never creates or deletes a\npath, never acquires the activation lock, and never repairs, stops, or\npredicts a later start. A cooperative five-second budget is checked\nbetween bounded filesystem operations; rows it cannot reach close as\n'uninspectable'. '--format json' emits the orchbee.site.diagnose\nenvelope on Linux; Windows emits orchbee.site.diagnose.windows with\nprivate-DACL and bounded pipe-name observations instead of POSIX facts.",
     );
 const HELP_SITE_DIAGNOSE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee site diagnose [--format text|json]",
-        "报告隐式每用户本地 Site 运行时的有界事实——基目录与 scope 目录、激活标记与锁，以及有限的 client/worker/pending/observation/host 端点路径。每一行都是其各自观察瞬间的路径名或描述符事实：'held' 表示某个属主在那一刻持有生命周期锁——绝不表示某个 Site 或进程存活；\n'absent' 是路径名事实，绝不证明某个执行已结束。观察到 'known' 标记或合法的 client/worker 套接字叶时附加一条条件通告：若无可加入的现有 Site，按当前恢复策略新的激活将被阻止。\n\n本命令绝不连接任何端点，绝不创建或删除路径，绝不获取激活锁，也绝不修复、停止或预测后续启动。协作式五秒预算在有界的文件系统操作之间检查；无法到达的行以 'uninspectable' 闭合。'--format json'\n在 Linux 输出 orchbee.site.diagnose 封套；Windows 输出\norchbee.site.diagnose.windows，使用私有 DACL 和有界管道名称观察，不虚构 POSIX 事实。",
+        "orchbee server diagnose [--format text|json]",
+        "报告隐式每用户本地会话运行时的有界事实——基目录与 scope 目录、激活标记与锁，以及有限的 client/worker/pending/observation/host 端点路径。每一行都是其各自观察瞬间的路径名或描述符事实：'held' 表示某个属主在那一刻持有生命周期锁——绝不表示某个会话或进程存活；\n'absent' 是路径名事实，绝不证明某个执行已结束。观察到 'known' 标记或合法的 client/worker 套接字叶时附加一条条件通告：若无可加入的现有会话，按当前恢复策略新的激活将被阻止。\n\n本命令绝不连接任何端点，绝不创建或删除路径，绝不获取激活锁，也绝不修复、停止或预测后续启动。协作式五秒预算在有界的文件系统操作之间检查；无法到达的行以 'uninspectable' 闭合。'--format json'\n在 Linux 输出 orchbee.site.diagnose 封套；Windows 输出\norchbee.site.diagnose.windows，使用私有 DACL 和有界管道名称观察，不虚构 POSIX 事实。",
     );
 const HELP_AGENT_DOCTOR_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
@@ -3213,12 +3212,12 @@ const HELP_AGENT_INTEGRATION_DISABLE_ZH: crate::localization::HelpDetails =
 const HELP_PROJECT_LIST_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project list [--format text|json]",
-        "List every Project in the running local Site: id, label, directory and\nworkspace counts. An empty Site prints just the table header.",
+        "List every Project in the running local session: id, label, directory and\nworkspace counts. An empty session prints just the table header.",
     );
 const HELP_PROJECT_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project list [--format text|json]",
-        "列出本地 Site 中所有 Project：ID、label、目录与工作区计数。空 Site 仅输出表头。",
+        "列出本地会话中所有 Project：ID、label、目录与工作区计数。空会话仅输出表头。",
     );
 
 const HELP_PROJECT_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3395,11 +3394,11 @@ const HELP_TAB_MOVE_ZH: crate::localization::HelpDetails = crate::localization::
 
 const HELP_TAB_CLOSE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab close <target> --confirm [--format text|json]",
-    "Close one Tab selected by exact ID, @tab:<suffix>, or exact label.\n'--confirm' is\nrequired. An accepted result carries the accepted revision and the close\nrequest id; the Site finishes the close asynchronously.",
+    "Close one Tab selected by exact ID, @tab:<suffix>, or exact label.\n'--confirm' is\nrequired. An accepted result carries the accepted revision and the close\nrequest id; the session finishes the close asynchronously.",
 );
 const HELP_TAB_CLOSE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab close <target> --confirm [--format text|json]",
-    "关闭一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。'--confirm' 为必填。\naccepted 结果携带已接受修订与关闭请求 ID；Site 异步完成关闭。",
+    "关闭一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。'--confirm' 为必填。\naccepted 结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
 );
 
 const HELP_PANEL_LIST_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3431,11 +3430,11 @@ const HELP_PANEL_SPLIT_ZH: crate::localization::HelpDetails = crate::localizatio
 
 const HELP_PANEL_CLOSE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel close <panel-id> --confirm [--format text|json]",
-    "Close one Panel selected by complete typed ID or @panel:<suffix>.\n'--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the Site finishes the close asynchronously.",
+    "Close one Panel selected by complete typed ID or @panel:<suffix>.\n'--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the session finishes the close asynchronously.",
 );
 const HELP_PANEL_CLOSE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel close <panel-id> --confirm [--format text|json]",
-    "关闭一个由完整类型化 ID 或 @panel:<suffix> 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；Site 异步完成关闭。",
+    "关闭一个由完整类型化 ID 或 @panel:<suffix> 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
 );
 
 #[cfg(not(windows))]
@@ -3521,12 +3520,12 @@ const HELP_TERMINAL_SEND_ZH: crate::localization::HelpDetails =
 const HELP_LAUNCH_PROFILE_LIST_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee launch-profile list [--format text|json]",
-        "List every Launch Profile in the running local Site's catalog: profile\nID, name, and the stored exec/args launch. '--format json' emits the\norchbee.launch-profile.list envelope with the catalog revision.",
+        "List every Launch Profile in the running local session's catalog: profile\nID, name, and the stored exec/args launch. '--format json' emits the\norchbee.launch-profile.list envelope with the catalog revision.",
     );
 const HELP_LAUNCH_PROFILE_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee launch-profile list [--format text|json]",
-        "列出运行中本地 Site 目录里的所有启动配置：profile ID、名称及存储的\nexec/args 启动。'--format json' 输出携带目录修订的\norchbee.launch-profile.list 封套。",
+        "列出运行中本地会话目录里的所有启动配置：profile ID、名称及存储的\nexec/args 启动。'--format json' 输出携带目录修订的\norchbee.launch-profile.list 封套。",
     );
 
 const HELP_LAUNCH_PROFILE_GET_EN: crate::localization::HelpDetails =
@@ -3543,12 +3542,12 @@ const HELP_LAUNCH_PROFILE_GET_ZH: crate::localization::HelpDetails =
 const HELP_LAUNCH_PROFILE_CREATE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee launch-profile create --name <name> --exec <abs> [--arg <v>]... [--format text|json]",
-        "Store one named Launch Profile in the running Site's catalog. '--name'\nis required (1–512 UTF-8 bytes; uniqueness is not required). '--exec'\nselects the launched program by absolute path and each '--arg' appends\none verbatim argument. The result carries the committed revision, the\ncatalog revision, the minted profile ID, and the stored name.",
+        "Store one named Launch Profile in the running session's catalog. '--name'\nis required (1–512 UTF-8 bytes; uniqueness is not required). '--exec'\nselects the launched program by absolute path and each '--arg' appends\none verbatim argument. The result carries the committed revision, the\ncatalog revision, the minted profile ID, and the stored name.",
     );
 const HELP_LAUNCH_PROFILE_CREATE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee launch-profile create --name <name> --exec <abs> [--arg <v>]... [--format text|json]",
-        "在运行中 Site 的目录里存储一个命名启动配置。'--name' 必填（1–512 个\nUTF-8 字节；不要求唯一）。'--exec' 以绝对路径选择启动程序，每个\n'--arg' 逐字追加一个参数。结果携带已提交修订、目录修订、新铸造的\nprofile ID 及存储的名称。",
+        "在运行中会话的目录里存储一个命名启动配置。'--name' 必填（1–512 个\nUTF-8 字节；不要求唯一）。'--exec' 以绝对路径选择启动程序，每个\n'--arg' 逐字追加一个参数。结果携带已提交修订、目录修订、新铸造的\nprofile ID 及存储的名称。",
     );
 
 const HELP_LAUNCH_PROFILE_DELETE_EN: crate::localization::HelpDetails =
@@ -3565,12 +3564,12 @@ const HELP_LAUNCH_PROFILE_DELETE_ZH: crate::localization::HelpDetails =
 const HELP_WORKTREE_LIST_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee worktree list [--workspace <target>|--cwd <path>] [--trust-repository] [--client <id>] [--format text|json]\norchbee worktree list --directory <directory-id> [--format text|json]",
-        "Windows: list Git checkouts and associated Workspaces. With no source selector,\n--client selects an exact ready TUI; otherwise use the validated caller, then a unique\ncurrent ready TUI, then CLI cwd only when neither exists. A Workspace source keeps its exact identity and must have a primary directory. No Project is required for a directory query. Invalid caller identity\nnever falls back. --trust-repository trusts this repository for this query only.\nThe query is read-only, does not activate a Site, and has a 5-second total budget.\nJSON source queries emit orchbee.worktree.query; failed Server results keep typed reasons.\nThe globally stable --directory selector keeps orchbee.worktree.list and its failure schema;\nthese selectors cannot be combined with --workspace, --cwd, --client or --trust-repository.\nWorkspace targets accept exact IDs, @workspace:<suffix> or exact labels; ambiguity is rejected.\nBranches keep refs/heads/ prefixes; all-zero HEAD marks an unborn repository.\nWindows --cwd accepts absolute, relative and ~ paths; the final executing CLI resolves its own cwd/home after routing. Home precedence: USERPROFILE, HOMEDRIVE+HOMEPATH, HOME.",
+        "Windows: list Git checkouts and associated Workspaces. With no source selector,\n--client selects an exact ready TUI; otherwise use the validated caller, then a unique\ncurrent ready TUI, then CLI cwd only when neither exists. A Workspace source keeps its exact identity and must have a primary directory. No Project is required for a directory query. Invalid caller identity\nnever falls back. --trust-repository trusts this repository for this query only.\nThe query is read-only, does not activate a session, and has a 5-second total budget.\nJSON source queries emit orchbee.worktree.query; failed Server results keep typed reasons.\nThe globally stable --directory selector keeps orchbee.worktree.list and its failure schema;\nthese selectors cannot be combined with --workspace, --cwd, --client or --trust-repository.\nWorkspace targets accept exact IDs, @workspace:<suffix> or exact labels; ambiguity is rejected.\nBranches keep refs/heads/ prefixes; all-zero HEAD marks an unborn repository.\nWindows --cwd accepts absolute, relative and ~ paths; the final executing CLI resolves its own cwd/home after routing. Home precedence: USERPROFILE, HOMEDRIVE+HOMEPATH, HOME.",
     );
 const HELP_WORKTREE_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee worktree list [--workspace <target>|--cwd <路径>] [--trust-repository] [--client <id>] [--format text|json]\norchbee worktree list --directory <directory-id> [--format text|json]",
-        "Windows：列出 Git 检出目录及关联 Workspace。省略来源选择器时，已验证的调用者终端\n优先，其次为唯一当前就绪 TUI，均无时才使用 CLI cwd。--client 选择精确就绪 TUI，\n覆盖隐式调用者。Workspace 来源保留其精确标识且必须有主目录。目录查询无需 Project。无效调用者身份\n绝不回退。--trust-repository 仅在本次查询中信任该仓库。\n查询只读、不激活 Site，总预算 5 秒。来源查询 JSON 使用 orchbee.worktree.query，\nServer 失败结果保留类型化原因。全局稳定 --directory 选择器保留 orchbee.worktree.list\n及其失败 Schema；不可混用 --workspace、--cwd、--client 或 --trust-repository。\nWorkspace 目标支持精确 ID、@workspace:<suffix> 或精确标签；拒绝歧义。\n分支保留 refs/heads/ 前缀；全零 HEAD 表示未出生仓库。\nWindows --cwd 接受绝对、相对和 ~ 路径；路由后由最终执行的 CLI 使用自身 cwd／主目录解析。主目录优先级：USERPROFILE、HOMEDRIVE+HOMEPATH、HOME。",
+        "Windows：列出 Git 检出目录及关联 Workspace。省略来源选择器时，已验证的调用者终端\n优先，其次为唯一当前就绪 TUI，均无时才使用 CLI cwd。--client 选择精确就绪 TUI，\n覆盖隐式调用者。Workspace 来源保留其精确标识且必须有主目录。目录查询无需 Project。无效调用者身份\n绝不回退。--trust-repository 仅在本次查询中信任该仓库。\n查询只读、不激活会话，总预算 5 秒。来源查询 JSON 使用 orchbee.worktree.query，\nServer 失败结果保留类型化原因。全局稳定 --directory 选择器保留 orchbee.worktree.list\n及其失败 Schema；不可混用 --workspace、--cwd、--client 或 --trust-repository。\nWorkspace 目标支持精确 ID、@workspace:<suffix> 或精确标签；拒绝歧义。\n分支保留 refs/heads/ 前缀；全零 HEAD 表示未出生仓库。\nWindows --cwd 接受绝对、相对和 ~ 路径；路由后由最终执行的 CLI 使用自身 cwd／主目录解析。主目录优先级：USERPROFILE、HOMEDRIVE+HOMEPATH、HOME。",
     );
 
 const HELP_API_SNAPSHOT_EN: crate::localization::HelpDetails =
@@ -3596,12 +3595,12 @@ const HELP_API_SCHEMA_ZH: crate::localization::HelpDetails = crate::localization
 const HELP_CONFIG_CHECK_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee config check [--format text|json]",
-        "Run the five local checks (runtime-base, runtime-directory, cohort, locale,\nsockets) and report pass/warning/fail/not-applicable. Exit 0 when no check\nfails, including when user-config has admitted field warnings; exit 1 on a\nfatal check. Windows user-config reads APPDATA/Orchbee/config.toml or the\nabsolute ORCHBEE_CONFIG_FILE override. Unreadable, oversized, non-UTF-8 or\ninvalid TOML and an invalid supported environment override are fatal. Unknown\nor Herdr-only fields warn and are ignored; an invalid supported leaf warns and\nuses its safe default. A bad key binding disables only that explicit action.\nSupported settings include terminal defaults/cwd, worktree root, restore policy,\nupdate policy, keys, title, notifications and both sidebar profiles.\nORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false overrides the file. JSON v13 adds\nbounded diagnostics and their exact omitted count; versions 1-12 stay closed.\nsite reload-config atomically publishes admitted settings and diagnostics;\nrestore changes require restart. Explicit creation arguments override admitted\nsettings. A missing default file uses defaults; a missing explicit file fails.",
+        "Run the five local checks (runtime-base, runtime-directory, cohort, locale,\nsockets) and report pass/warning/fail/not-applicable. Exit 0 when no check\nfails, including when user-config has admitted field warnings; exit 1 on a\nfatal check. Windows user-config reads APPDATA/Orchbee/config.toml or the\nabsolute ORCHBEE_CONFIG_FILE override. Unreadable, oversized, non-UTF-8 or\ninvalid TOML and an invalid supported environment override are fatal. Unknown\nor Herdr-only fields warn and are ignored; an invalid supported leaf warns and\nuses its safe default. A bad key binding disables only that explicit action.\nSupported settings include terminal defaults/cwd, worktree root, restore policy,\nupdate policy, keys, title, notifications and both sidebar profiles.\nORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false overrides the file. JSON v13 adds\nbounded diagnostics and their exact omitted count; versions 1-12 stay closed.\nserver reload-config atomically publishes admitted settings and diagnostics;\nrestore changes require restart. Explicit creation arguments override admitted\nsettings. A missing default file uses defaults; a missing explicit file fails.",
     );
 const HELP_CONFIG_CHECK_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee config check [--format text|json]",
-        "运行五项本地检查（runtime-base、runtime-directory、cohort、locale、\nsockets），逐项报告 pass/warning/fail/not-applicable。只要没有检查失败就退出 0，包括 user-config 仅含已接纳字段警告时；致命检查退出 1。Windows\nuser-config 读取 APPDATA/Orchbee/config.toml 或 ORCHBEE_CONFIG_FILE 指定的绝对文件。文件不可读、过大、非 UTF-8、TOML 无效或已支持的环境覆盖无效均为致命错误。未知或仅属于 Herdr 的字段会警告并忽略；已支持叶字段无效时会警告并使用其安全默认值。错误快捷键只禁用对应的显式动作。支持的设置包括终端默认值/cwd、worktree 根目录、恢复和更新策略、按键、标题、通知与两种侧栏 profile。ORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false\n覆盖文件。JSON v13 增加有界诊断及精确省略数；版本 1-12 保持封闭。\nsite reload-config 原子发布已接纳设置和诊断；恢复策略变化需要重启。显式创建参数覆盖已接纳设置。默认文件不存在时使用默认值；显式文件不存在则失败。",
+        "运行五项本地检查（runtime-base、runtime-directory、cohort、locale、\nsockets），逐项报告 pass/warning/fail/not-applicable。只要没有检查失败就退出 0，包括 user-config 仅含已接纳字段警告时；致命检查退出 1。Windows\nuser-config 读取 APPDATA/Orchbee/config.toml 或 ORCHBEE_CONFIG_FILE 指定的绝对文件。文件不可读、过大、非 UTF-8、TOML 无效或已支持的环境覆盖无效均为致命错误。未知或仅属于 Herdr 的字段会警告并忽略；已支持叶字段无效时会警告并使用其安全默认值。错误快捷键只禁用对应的显式动作。支持的设置包括终端默认值/cwd、worktree 根目录、恢复和更新策略、按键、标题、通知与两种侧栏 profile。ORCHBEE_RESUME_AGENTS_ON_RESTORE=true|false\n覆盖文件。JSON v13 增加有界诊断及精确省略数；版本 1-12 保持封闭。\nserver reload-config 原子发布已接纳设置和诊断；恢复策略变化需要重启。显式创建参数覆盖已接纳设置。默认文件不存在时使用默认值；显式文件不存在则失败。",
     );
 
 // ---- text presentation labels --------------------------------------------
@@ -3731,8 +3730,8 @@ const EN_US_LABELS: CliLabels = CliLabels {
     reachable: "reachable",
     revision_label: "revision",
     root: "Root",
-    site: "Site",
-    site_id: "Site ID",
+    site: "session",
+    site_id: "Orchbee session ID",
     slot_path: "Slot path",
     tab: "Tab",
     tab_id: "Tab ID",
@@ -3850,8 +3849,8 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     reachable: "可达",
     revision_label: "修订",
     root: "根节点",
-    site: "Site",
-    site_id: "Site ID",
+    site: "session",
+    site_id: "Orchbee 会话 ID",
     slot_path: "Slot 路径",
     tab: "Tab",
     tab_id: "Tab ID",
@@ -3955,12 +3954,12 @@ impl Locale {
 const HELP_PANEL_CURRENT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel current [--panel <panel-id> | --current] [--client <id>] [--format text|json]",
-        "Read a Panel, Tab and Workspace from a running Windows Site.\nAn explicit Panel ID or @panel:<suffix> ignores caller environment and needs no TUI.\nOtherwise use validated ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID. If both are absent,\nuse the only current TUI Client; multiple Clients require --client. --client ignores\ncaller environment and cannot combine with --panel. Partial, invalid or stale caller\nmetadata never falls back. The Client must be ready or busy with a valid selected Panel.\nIncludes primary Agent status, terminal title/cwd and process observation.\nA selected Client supplies focus and scroll; changes during the read are rejected.\nFive-second total deadline; Ctrl+C cancels. No focus changes or Site activation.",
+        "Read a Panel, Tab and Workspace from a running Windows session.\nAn explicit Panel ID or @panel:<suffix> ignores caller environment and needs no TUI.\nOtherwise use validated ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID. If both are absent,\nuse the only current TUI Client; multiple Clients require --client. --client ignores\ncaller environment and cannot combine with --panel. Partial, invalid or stale caller\nmetadata never falls back. The Client must be ready or busy with a valid selected Panel.\nIncludes primary Agent status, terminal title/cwd and process observation.\nA selected Client supplies focus and scroll; changes during the read are rejected.\nFive-second total deadline; Ctrl+C cancels. No focus changes or session activation.",
     );
 const HELP_PANEL_CURRENT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel current [--panel <panel-id> | --current] [--client <id>] [--format text|json]",
-        "从运行中的 Windows Site 读取 Panel、Tab 和 Workspace。显式 Panel ID 或 @panel:<suffix> 忽略调用者环境，无需 TUI。否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，使用唯一 current TUI Client，多个 Client 必须用 --client 指定。--client 忽略调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须处于就绪或忙碌状态，且所选 Panel 仍有效。补齐主 Agent 状态、终端标题/cwd 和进程观察。选定 Client 时包含焦点和滚动信息；读取中途变化则拒绝。总期限五秒；Ctrl+C 取消。不改变焦点，不激活 Site。",
+        "从运行中的 Windows 会话读取 Panel、Tab 和 Workspace。显式 Panel ID 或 @panel:<suffix> 忽略调用者环境，无需 TUI。否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，使用唯一 current TUI Client，多个 Client 必须用 --client 指定。--client 忽略调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须处于就绪或忙碌状态，且所选 Panel 仍有效。补齐主 Agent 状态、终端标题/cwd 和进程观察。选定 Client 时包含焦点和滚动信息；读取中途变化则拒绝。总期限五秒；Ctrl+C 取消。不改变焦点，不激活会话。",
     );
 
 impl Locale {
@@ -4249,22 +4248,22 @@ impl Locale {
 }
 
 const HELP_SITE_STOP_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee site stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>] [--format text|json]",
-    "Stop the existing managed Windows Site and its terminals. This ends running\nprocesses after a fresh final save of Workbench configuration, sampled\nper-terminal cwd and provider restart references. Save failure keeps preceding\nvalid snapshots, retained invalid originals and running terminals; resolve it\nand explicitly retry. Live Agent state, terminal history and screen contents\nare not saved. --confirm is required; there is no interactive prompt and no\nSite activation. --detach returns the admitted attempt immediately. Otherwise\nwait up to 65000 ms by default (1–3600000 ms). Cancellation/timeout stops\nwaiting, not the accepted shutdown.\n\nA nonzero 32-character lowercase hexadecimal request ID is generated if omitted.\nDuplicate starts observe the existing attempt; --retry requires --request-id\nand explicitly retries only that failed stop. Use site stop-status <id> to\nrecover a result. Completion requires the matching stopped record and a free\nlifetime lock; pipe disappearance alone is insufficient. A later site start\nconsumes the receipt. Linux and macOS are unsupported.",
+    "orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>] [--format text|json]",
+    "Stop the existing managed Windows session and its terminals. This ends running\nprocesses after a fresh final save of Workbench configuration, sampled\nper-terminal cwd and provider restart references. Save failure keeps preceding\nvalid snapshots, retained invalid originals and running terminals; resolve it\nand explicitly retry. Live Agent state, terminal history and screen contents\nare not saved. --confirm is required; there is no interactive prompt and no\nsession activation. --detach returns the admitted attempt immediately. Otherwise\nwait up to 65000 ms by default (1–3600000 ms). Cancellation/timeout stops\nwaiting, not the accepted shutdown.\n\nA nonzero 32-character lowercase hexadecimal request ID is generated if omitted.\nDuplicate starts observe the existing attempt; --retry requires --request-id\nand explicitly retries only that failed stop. Use server stop-status <id> to\nrecover a result. Completion requires the matching stopped record and a free\nlifetime lock; pipe disappearance alone is insufficient. A later server start\nconsumes the receipt. Linux and macOS are unsupported.",
 );
 const HELP_SITE_STOP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee site stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>] [--format text|json]",
-    "停止现有托管 Windows Site 及其终端；先对 Workbench 配置、采样所得的逐终端 cwd\n及 provider 恢复引用执行最新 final 保存，再结束进程。保存失败会保留此前的有效存档、无效原件及运行中的终端；解决故障后显式重试。不保存存活 Agent 状态、终端历史或屏幕内容。必须提供 --confirm；不弹出交互确认，也不激活 Site。--detach 立即返回已准入尝试；否则默认等待 65000 毫秒（范围 1–3600000）。取消或超时只停止等待，不取消已接受的停止。\n\n省略请求标识时自动生成非零 32 位小写十六进制标识。重复开始只观察现有尝试；\n--retry 必须搭配 --request-id，显式重试该失败停止。使用 site stop-status <id>\n恢复结果。仅准确匹配的已停止记录加空闲生命周期锁能证明完成，管道消失不够。后续 site start 会消费回执。Linux 和 macOS 尚不支持。",
+    "orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>] [--format text|json]",
+    "停止现有托管 Windows 会话及其终端；先对 Workbench 配置、采样所得的逐终端 cwd\n及 provider 恢复引用执行最新 final 保存，再结束进程。保存失败会保留此前的有效存档、无效原件及运行中的终端；解决故障后显式重试。不保存存活 Agent 状态、终端历史或屏幕内容。必须提供 --confirm；不弹出交互确认，也不激活会话。--detach 立即返回已准入尝试；否则默认等待 65000 毫秒（范围 1–3600000）。取消或超时只停止等待，不取消已接受的停止。\n\n省略请求标识时自动生成非零 32 位小写十六进制标识。重复开始只观察现有尝试；\n--retry 必须搭配 --request-id，显式重试该失败停止。使用 server stop-status <id>\n恢复结果。仅准确匹配的已停止记录加空闲生命周期锁能证明完成，管道消失不够。后续 server start 会消费回执。Linux 和 macOS 尚不支持。",
 );
 const HELP_SITE_STOP_STATUS_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee site stop-status <request-id> [--format text|json]",
-        "Read a managed Windows stop attempt or its completed activation receipt.\nNever starts or stops a Site. One five-second deadline bounds the query.\nA later start consumes the completed receipt; not-recorded does not prove\nthat a previous stop failed. Use --format json for phase and failure details.",
+        "orchbee server stop-status <request-id> [--format text|json]",
+        "Read a managed Windows stop attempt or its completed activation receipt.\nNever starts or stops a session. One five-second deadline bounds the query.\nA later start consumes the completed receipt; not-recorded does not prove\nthat a previous stop failed. Use --format json for phase and failure details.",
     );
 const HELP_SITE_STOP_STATUS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee site stop-status <request-id> [--format text|json]",
-        "读取托管 Windows 停止尝试或其已完成激活回执，绝不启动或停止 Site。查询共用五秒截止时间。后续启动会消费完成回执，未记录不代表此前停止失败。使用 --format json 查看阶段和失败详情。",
+        "orchbee server stop-status <request-id> [--format text|json]",
+        "读取托管 Windows 停止尝试或其已完成激活回执，绝不启动或停止会话。查询共用五秒截止时间。后续启动会消费完成回执，未记录不代表此前停止失败。使用 --format json 查看阶段和失败详情。",
     );
 
 impl Locale {
@@ -4284,10 +4283,10 @@ impl Locale {
             (Self::ZhCn, "failed") => "失败",
             (Self::EnUs, "not-recorded") => "not recorded",
             (Self::ZhCn, "not-recorded") => "未记录",
-            (Self::EnUs, "busy") => "another stop owns this Site",
-            (Self::ZhCn, "busy") => "另一停止请求已占用此 Site",
-            (Self::EnUs, "unmanaged") => "not a managed Site",
-            (Self::ZhCn, "unmanaged") => "非托管 Site",
+            (Self::EnUs, "busy") => "another stop owns this session",
+            (Self::ZhCn, "busy") => "另一停止请求已占用此会话",
+            (Self::EnUs, "unmanaged") => "not a managed session",
+            (Self::ZhCn, "unmanaged") => "非托管会话",
             (Self::EnUs, "unavailable") => "unavailable",
             (Self::ZhCn, "unavailable") => "不可用",
             (Self::EnUs, _) => "outcome unknown",
@@ -4304,10 +4303,10 @@ impl Locale {
         };
         match self {
             Self::EnUs => format!(
-                "Site stop: {state}{waiting}\nRequest: {id}\nInspect: orchbee site stop-status {id} --format json\n"
+                "Session stop: {state}{waiting}\nRequest: {id}\nInspect: orchbee server stop-status {id} --format json\n"
             ),
             Self::ZhCn => format!(
-                "Site 停止：{state}{waiting}\n请求：{id}\n检查：orchbee site stop-status {id} --format json\n"
+                "会话停止：{state}{waiting}\n请求：{id}\n检查：orchbee server stop-status {id} --format json\n"
             ),
         }
     }
@@ -4359,13 +4358,13 @@ impl Locale {
 const HELP_AGENT_WAIT_WINDOWS_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent wait <target> [--client <id>] [--until <condition>]... [--after-revision <n>] [--timeout <ms> | --forever] [--format text|json]",
-        "Wait on one pinned Agent, using current samples and retained change pages.\nWindows defaults to idle, done, blocked with no total timeout. --timeout\nsets 1-3600000 ms for the entire operation; --forever is an explicit synonym\nfor no total timeout and conflicts with --timeout. Each read is bounded to\nfive seconds. Ctrl+C ends the wait; no read failure reconnects.\nConditions: blocked, done, needs-attention, failed, succeeded, canceled,\ninterrupted, working, idle, unknown, ended, fresh, stale, disconnected.\nStatus conditions require fresh observations. blocked means needs-attention;\ndone means succeeded/failed/canceled/interrupted, without Client unseen state.\n--after-revision is a global fence, not a turn identity.\nTransient matching changes remain evidence even if the latest state differs.\nVersion 3 JSON separates matchedChange from the current session/revision;\nnull matchedChange means the current sample matched. Lost history or a\nforeign cursor fails explicitly. An ended session without a match is rejected.\n--client pins one exact TUI. Its current seen resting state means idle;\nunseen resting state means done. Missing/stale versions keep waiting.\nThese Client states are sampled; canonical idle/done events cannot prove\npast acknowledgements. Version 4 adds the Client projection.\nTarget: Session ID/name/Panel ID, --session <id>, --name <alias>, or\n--panel <id|@panel:suffix>. Resolution occurs once, before waiting.",
+        "Wait on one pinned Agent, using current samples and retained change pages.\nWindows defaults to idle, done, blocked with no total timeout. --timeout\nsets 1-3600000 ms for the entire operation; --forever is an explicit synonym\nfor no total timeout and conflicts with --timeout. Each read is bounded to\nfive seconds. Ctrl+C ends the wait; no read failure reconnects.\nConditions: blocked, done, needs-attention, failed, succeeded, canceled,\ninterrupted, working, idle, unknown, ended, fresh, stale, disconnected.\nStatus conditions require fresh observations. blocked means needs-attention;\ndone means succeeded/failed/canceled/interrupted, without Client unseen state.\n--after-revision is a global fence, not a turn identity.\nTransient matching changes remain evidence even if the latest state differs.\nVersion 3 JSON separates matchedChange from the current session/revision;\nnull matchedChange means the current sample matched. Lost history or a\nforeign cursor fails explicitly. An ended session without a match is rejected.\n--client pins one exact TUI. Its current seen resting state means idle;\nunseen resting state means done. Missing/stale versions keep waiting.\nThese Client states are sampled; canonical idle/done events cannot prove\npast acknowledgements. Version 4 adds the Client projection.\nTarget: Session ID/name/Panel ID, --agent-session <id>, --name <alias>, or\n--panel <id|@panel:suffix>. Resolution occurs once, before waiting.",
     );
 
 const HELP_AGENT_WAIT_WINDOWS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent wait <target> [--client <id>] [--until <条件>]... [--after-revision <n>] [--timeout <毫秒> | --forever] [--format text|json]",
-        "固定一个 Agent，结合当前样本和保留变更页等待。\nWindows 默认 idle、done、blocked，无总超时。--timeout 设置整个操作的\n1-3600000 毫秒期限；--forever 是无总超时的显式同义选项，与 --timeout 互斥。每次读取最多五秒；Ctrl+C 结束等待，读取失败不重新连接。条件：blocked、done、needs-attention、failed、succeeded、canceled、\ninterrupted、working、idle、unknown、ended、fresh、stale、disconnected。状态条件要求 fresh；blocked 表示 needs-attention；done 表示\nsucceeded/failed/canceled/interrupted，尚不合并 Client 未看见状态。\n--after-revision 是全局修订门槛，不代表回合身份。即使最新状态不同，短暂命中的变更仍作为证据返回。版本 3 JSON\n将 matchedChange 与当前 session/revision 分开；空 matchedChange 表示当前样本命中。历史丢失或游标跨启动周期时明确失败。会话已结束且没有条件命中时拒绝。\n--client 固定一个 TUI；其当前已看见的静止状态为 idle，未看见为 done。缺失或过期版本继续等待。Client 状态仅采样，规范 idle/done 事件不能证明过去的已读确认。版本 4 增加 Client 投影。目标：Session ID/名称/Panel ID、--session <id>、--name <alias> 或\n--panel <id|@panel:suffix>。等待前只解析一次。",
+        "固定一个 Agent，结合当前样本和保留变更页等待。\nWindows 默认 idle、done、blocked，无总超时。--timeout 设置整个操作的\n1-3600000 毫秒期限；--forever 是无总超时的显式同义选项，与 --timeout 互斥。每次读取最多五秒；Ctrl+C 结束等待，读取失败不重新连接。条件：blocked、done、needs-attention、failed、succeeded、canceled、\ninterrupted、working、idle、unknown、ended、fresh、stale、disconnected。状态条件要求 fresh；blocked 表示 needs-attention；done 表示\nsucceeded/failed/canceled/interrupted，尚不合并 Client 未看见状态。\n--after-revision 是全局修订门槛，不代表回合身份。即使最新状态不同，短暂命中的变更仍作为证据返回。版本 3 JSON\n将 matchedChange 与当前 session/revision 分开；空 matchedChange 表示当前样本命中。历史丢失或游标跨启动周期时明确失败。会话已结束且没有条件命中时拒绝。\n--client 固定一个 TUI；其当前已看见的静止状态为 idle，未看见为 done。缺失或过期版本继续等待。Client 状态仅采样，规范 idle/done 事件不能证明过去的已读确认。版本 4 增加 Client 投影。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias> 或\n--panel <id|@panel:suffix>。等待前只解析一次。",
     );
 
 const HELP_TERMINAL_CONTROL_EN: crate::localization::HelpDetails =
@@ -4450,22 +4449,22 @@ impl Locale {
 const HELP_TERMINAL_ATTACH_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:suffix; never starts a Site or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+B then q detaches; Ctrl+B twice sends a literal Ctrl+B. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
+        "Windows interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:suffix; never starts a session or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+B then q detaches; Ctrl+B twice sends a literal Ctrl+B. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
     );
 const HELP_TERMINAL_ATTACH_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:suffix，不启动 Site，也不聚焦 Workbench Panel。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
+        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:suffix，不启动会话，也不聚焦 Workbench Panel。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
     );
 const HELP_AGENT_ATTACH_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent attach <target> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Resolve a unique live Agent terminal, then use the Windows terminal attach\ninterface. Target may be a name, session or Panel; --name, --session and\n--panel are explicit alternatives to the positional target. No focus or launch.\nCtrl+B then q detaches; Ctrl+C reaches the application. Console stdin/stdout\nare required. Default duration unlimited and mouse on. See help terminal attach\nfor takeover, timeout, cleanup and input semantics.",
+        "Resolve a unique live Agent terminal, then use the Windows terminal attach\ninterface. Target may be a name, session or Panel; --name, --agent-session and\n--panel are explicit alternatives to the positional target. No focus or launch.\nCtrl+B then q detaches; Ctrl+C reaches the application. Console stdin/stdout\nare required. Default duration unlimited and mouse on. See help terminal attach\nfor takeover, timeout, cleanup and input semantics.",
     );
 const HELP_AGENT_ATTACH_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent attach <target> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "解析唯一的活动 Agent 终端，再进入 Windows terminal attach 界面。目标可为名称、会话或 Panel；--name、--session 和 --panel 可显式替代位置参数。不聚焦或启动资源。Ctrl+B 后按 q 脱离，Ctrl+C 交付应用；必须使用控制台\nstdin/stdout。默认不限总时长、启用鼠标。接管、超时、清理和输入语义见\nhelp terminal attach。",
+        "解析唯一的活动 Agent 终端，再进入 Windows terminal attach 界面。目标可为名称、会话或 Panel；--name、--agent-session 和 --panel 可显式替代位置参数。不聚焦或启动资源。Ctrl+B 后按 q 脱离，Ctrl+C 交付应用；必须使用控制台\nstdin/stdout。默认不限总时长、启用鼠标。接管、超时、清理和输入语义见\nhelp terminal attach。",
     );
 
 const HELP_WORKSPACE_MOVE_EN: crate::localization::HelpDetails =
@@ -4644,12 +4643,12 @@ const HELP_TERMINAL_READ_ZH: crate::localization::HelpDetails =
 const HELP_AGENT_OUTPUT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-        "Read one live Agent's terminal, defaulting to recent output (80 physical rows).\nTargets: Session ID/name/Panel ID, --session <id>, --name <alias>, or --panel <id>.\nA Panel selects its primary terminal; otherwise require one navigable binding.\n--lines permits zero and clamps to 1000. Bare --unwrap selects recent-unwrapped.\n--source visible selects the live screen; detection reads screen-height output,\nnot Agent state. --plain exports UTF-8 and excludes JSON. --ansi exports style.\nJSON uses orchbee.terminal.output v1 (text) or v2 (ANSI).\nExplicit --history --rows preserves the history-only document; it excludes\nsource/plain/ANSI. See terminal read help for bounds, conflicts and cleanup.",
+        "Read one live Agent's terminal, defaulting to recent output (80 physical rows).\nTargets: Session ID/name/Panel ID, --agent-session <id>, --name <alias>, or --panel <id>.\nA Panel selects its primary terminal; otherwise require one navigable binding.\n--lines permits zero and clamps to 1000. Bare --unwrap selects recent-unwrapped.\n--source visible selects the live screen; detection reads screen-height output,\nnot Agent state. --plain exports UTF-8 and excludes JSON. --ansi exports style.\nJSON uses orchbee.terminal.output v1 (text) or v2 (ANSI).\nExplicit --history --rows preserves the history-only document; it excludes\nsource/plain/ANSI. See terminal read help for bounds, conflicts and cleanup.",
     );
 const HELP_AGENT_OUTPUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-        "读取一个存活 Agent 的终端，默认最近输出（80 个物理行）。目标可用 Session ID、名称、\nPanel ID、--session <id>、--name <alias> 或 --panel <id>。Panel 选择主终端；其他选择要求唯一可导航绑定。--lines 允许零并钳制到 1000。裸 --unwrap 选择 recent-unwrapped。\n--source visible 选择实时屏幕；detection 读取一个屏幕高度的输出，不是 Agent 状态。\n--plain 导出 UTF-8，与 JSON 互斥；--ansi 导出样式。\nJSON 使用 orchbee.terminal.output v1（文本）或 v2（ANSI）。显式 --history --rows 保留纯历史文档，与 source/plain/ANSI 互斥。边界、冲突和清理规则见 terminal read 帮助。",
+        "读取一个存活 Agent 的终端，默认最近输出（80 个物理行）。目标可用 Session ID、名称、\nPanel ID、--agent-session <id>、--name <alias> 或 --panel <id>。Panel 选择主终端；其他选择要求唯一可导航绑定。--lines 允许零并钳制到 1000。裸 --unwrap 选择 recent-unwrapped。\n--source visible 选择实时屏幕；detection 读取一个屏幕高度的输出，不是 Agent 状态。\n--plain 导出 UTF-8，与 JSON 互斥；--ansi 导出样式。\nJSON 使用 orchbee.terminal.output v1（文本）或 v2（ANSI）。显式 --history --rows 保留纯历史文档，与 source/plain/ANSI 互斥。边界、冲突和清理规则见 terminal read 帮助。",
     );
 #[cfg(windows)]
 const HELP_TERMINAL_WAIT_OUTPUT_EN: crate::localization::HelpDetails =
@@ -4688,27 +4687,27 @@ const HELP_CONFIG_RESET_KEYS_ZH: crate::localization::HelpDetails =
 const HELP_TERMINAL_SELECTION_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
-        "Windows: read one inclusive screen-buffer selection, independent of Client viewport.\nUse a complete terminal ID or @terminal:<suffix>. Coordinates are zero-based;\nrow 0..4294967295, column 0..65535, at most 4096 selected rows and an 8 MiB\nrow window. Reversed endpoints are ordered. Wide/combining glyphs remain whole;\nverified soft wraps join, hard-line padding is trimmed.\nContent revision is optional full-u64; generation is optional positive full-u64.\nBoth pin expected content before reading. Changed/evicted content fails whole.\nOne cancellable five-second existing-Site read; no input, clipboard or user\nselection changes. JSON: orchbee.terminal.selection v1; text escapes controls.",
+        "Windows: read one inclusive screen-buffer selection, independent of Client viewport.\nUse a complete terminal ID or @terminal:<suffix>. Coordinates are zero-based;\nrow 0..4294967295, column 0..65535, at most 4096 selected rows and an 8 MiB\nrow window. Reversed endpoints are ordered. Wide/combining glyphs remain whole;\nverified soft wraps join, hard-line padding is trimmed.\nContent revision is optional full-u64; generation is optional positive full-u64.\nBoth pin expected content before reading. Changed/evicted content fails whole.\nOne cancellable five-second existing-session read; no input, clipboard or user\nselection changes. JSON: orchbee.terminal.selection v1; text escapes controls.",
     );
 #[cfg(windows)]
 const HELP_TERMINAL_SELECTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
-        "Windows：读取包含两个端点的屏幕缓冲区选区，与 Client 视口无关。使用完整终端 ID 或 @terminal:<suffix>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有 Site 读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
+        "Windows：读取包含两个端点的屏幕缓冲区选区，与 Client 视口无关。使用完整终端 ID 或 @terminal:<suffix>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有会话读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
     );
 
 #[cfg(windows)]
 const HELP_CONFIG_IMPORT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]",
-        "Convert supported explicit Herdr settings into a new Orchbee file (Windows).\nBoth file operands are required. Relative paths use the caller directory;\n~ uses the current home. Directories inside the source use its parent.\nRead one regular UTF-8 TOML source, at most 64 KiB. Skip unsupported fields\nand report invalid fields without displaying their values. Existing targets\nare never overwritten. Creation requires an existing private local parent.\n--dry-run opens no destination; JSON preview alone includes candidateToml.\nA failed write retains the newly created file and reports recoveryRequired.\nInspect it before recovery; no deletion or retry is performed. A crash can\nleave a new file without a receipt. Select the new file with ORCHBEE_CONFIG_FILE\nfor a new Client; select the old file to roll back. No Site discovery, launch,\nor reload; --site and --machine are rejected. Exit 0 on preview/creation,\n1 on failure, 2 on usage error.",
+        "Convert supported explicit Herdr settings into a new Orchbee file (Windows).\nBoth file operands are required. Relative paths use the caller directory;\n~ uses the current home. Directories inside the source use its parent.\nRead one regular UTF-8 TOML source, at most 64 KiB. Skip unsupported fields\nand report invalid fields without displaying their values. Existing targets\nare never overwritten. Creation requires an existing private local parent.\n--dry-run opens no destination; JSON preview alone includes candidateToml.\nA failed write retains the newly created file and reports recoveryRequired.\nInspect it before recovery; no deletion or retry is performed. A crash can\nleave a new file without a receipt. Select the new file with ORCHBEE_CONFIG_FILE\nfor a new Client; select the old file to roll back. No session discovery, launch,\nor reload; --session and --machine are rejected. Exit 0 on preview/creation,\n1 on failure, 2 on usage error.",
     );
 
 #[cfg(windows)]
 const HELP_CONFIG_IMPORT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]",
-        "将 herdr 支持的显式设置转换为 Orchbee 新文件（Windows）。两个文件参数必填。相对路径以调用目录为基准；~ 使用当前用户主目录。来源中的目录以来源父目录为基准。仅读取一份普通 UTF-8 TOML 来源，最多 64 KiB。跳过不支持的字段；报告无效字段，不显示其值。绝不覆盖已有目标。创建要求已有的私有本地父目录。\n--dry-run 不打开目标；只有 JSON 预览包含 candidateToml。写入失败会保留本次新建的文件并报告 recoveryRequired。恢复前检查该文件；不删除或重试。崩溃可能留下没有回执的新文件。用 ORCHBEE_CONFIG_FILE 为新 Client 选择新文件；选择旧文件即可回退。不查找、启动或重载 Site；拒绝 --site 和 --machine。预览或创建成功退出 0，失败退出 1，用法错误退出 2。",
+        "将 herdr 支持的显式设置转换为 Orchbee 新文件（Windows）。两个文件参数必填。相对路径以调用目录为基准；~ 使用当前用户主目录。来源中的目录以来源父目录为基准。仅读取一份普通 UTF-8 TOML 来源，最多 64 KiB。跳过不支持的字段；报告无效字段，不显示其值。绝不覆盖已有目标。创建要求已有的私有本地父目录。\n--dry-run 不打开目标；只有 JSON 预览包含 candidateToml。写入失败会保留本次新建的文件并报告 recoveryRequired。恢复前检查该文件；不删除或重试。崩溃可能留下没有回执的新文件。用 ORCHBEE_CONFIG_FILE 为新 Client 选择新文件；选择旧文件即可回退。不查找、启动或重载会话；拒绝 --session 和 --machine。预览或创建成功退出 0，失败退出 1，用法错误退出 2。",
     );
 
 const HELP_WORKSPACE_MOVE_BLOCK_EN: crate::localization::HelpDetails =

@@ -29,7 +29,7 @@ and cause neither terminal reads nor a later default-shell launch. No environmen
 At most 24 Panels, 16 levels including the root, 16 children per Panel and 1 MiB are admitted.
 Split IDs, ordered slots and every bound primary/child must match the captured tree. Runtime facts
 are joined by exact Presentation identity and binding. Unknown launch facts or unavailable runtime
-observations fail without partial success. The source contains Site/revision and the Client/view
+observations fail without partial success. The source contains Session/revision and the Client/view
 revision used for preflight, not a later publication revision. Sequential cwd samples are not an
 atomic process snapshot. A final canonical revision check rejects interleaved membership changes.
 
@@ -78,7 +78,7 @@ The result is `orchbee.layout.apply` v2: completed/incomplete, stage, old/new Ta
 bounded effect receipts, recovery, structured final layout and failure, under the native 8 MiB
 output ceiling. The final export still has its own 1 MiB limit; exceeding it leaves an incomplete
 post-ready receipt with the new Tab and effects preserved. Layout effects record only
-action, Site, request, base revision and validated outcome, never launch arguments or environment.
+action, Session, request, base revision and validated outcome, never launch arguments or environment.
 Catalog v98 describes both v2 outputs and the unchanged layout-apply failure v1. Text diagnostics
 remain localized. Group/pin roundtrip and complete saved-focus restoration remain separate work.
 

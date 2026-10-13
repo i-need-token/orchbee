@@ -4,8 +4,8 @@ impl Locale {
     pub(crate) fn cli_update_message(self, code: &str) -> &'static str {
         let pair = match code {
             "complete" => (
-                "Update installed. Open a new terminal or sign in again to use it. Existing Sites keep their current version.",
-                "更新已安装。请新开终端或重新登录后使用；现有 Site 继续运行原版本。",
+                "Update installed. Open a new terminal or sign in again to use it. Existing sessions keep their current version.",
+                "更新已安装。请新开终端或重新登录后使用；现有会话继续运行原版本。",
             ),
             "channel-saved" => (
                 "Channel preference saved. It remains saved if the update fails.",

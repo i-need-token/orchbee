@@ -3,6 +3,7 @@
 ## Windows: create a usable Workspace first
 
 ```powershell
+orchbee server start
 orchbee workspace create
 orchbee workspace create --cwd C:/code/demo --label main --format json
 orchbee workspace create-project main --label demo
@@ -11,7 +12,7 @@ orchbee workspace ungroup <workspace>
 orchbee project dissolve demo
 ```
 
-The first two commands each launch a Workspace and default shell in one request, with no required Project/label or automatic AI program. Placement defaults to ungrouped; only explicit `--project` selects an existing Project. Read `workspace.result` in `orchbee.workspace.creation` v2, including required-nullable `projectId`. Existing exec/profile/env/geometry and optional focus controls remain available. The last four commands change organization metadata while preserving stable IDs, directories, PTYs and global order. Projects may organize multiple repositories; ordinary and worktree Workspaces are peers.
+After starting the background service, the two Workspace creation commands each launch a Workspace and default shell in one request, with no required Project/label or automatic AI program. Placement defaults to ungrouped; only explicit `--project` selects an existing Project. Read `workspace.result` in `orchbee.workspace.creation` v2, including required-nullable `projectId`. Existing exec/profile/env/geometry and optional focus controls remain available. The last four commands change organization metadata while preserving stable IDs, directories, PTYs and global order. Projects may organize multiple repositories; ordinary and worktree Workspaces are peers.
 
 ```powershell
 orchbee workspace close <workspace> --confirm
@@ -23,7 +24,7 @@ orchbee project close-resume --request <operation-id> --generation <attempt> --c
 Ordinary close affects only the selected Workspace and preserves checkout and branch. Project close-all closes captured members and retains the Project. Dissolve only ungroups, retaining Workspaces. Never replay unknown mutations automatically. The Linux examples below retain their separately declared creation flow; current Windows behavior follows the [creation contract](windows-workspace-creation.md).
 
 Windows directory Workspace quick start and the existing Linux headless `orchbee`
-CLI sequence: start the local Site, build a Project/Workspace/directory, launch and
+CLI sequence: start the local Session, build a Project/Workspace/directory, launch and
 drive a terminal, inspect worktrees, observe Agents, and close cleanly. The
 command inventory lives in the [README](../README.md); the full grammar,
 target rules, and failure matrix are owned by
@@ -42,7 +43,7 @@ function Invoke-OrchbeeJson([string[]]$Words) {
     if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
     ($output -join "`n") | ConvertFrom-Json
 }
-Invoke-OrchbeeJson -Words @('site', 'start')
+Invoke-OrchbeeJson -Words @('server', 'start')
 $project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
 $created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
     '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
@@ -51,12 +52,12 @@ $created.workspace.result
 & $cli tui
 # Close this Workspace when finished:
 & $cli workspace close $created.workspace.result.workspaceId --confirm --format json
-# Or stop the whole Windows Site and all its terminals:
-$stopped = Invoke-OrchbeeJson -Words @('site', 'stop', '--confirm')
-& $cli site stop-status $stopped.result.requestId --format json
+# Or stop the whole Windows Session and all its terminals:
+$stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
+& $cli server stop-status $stopped.result.requestId --format json
 ```
 
-Check `workspace.result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `site diagnose` reports local Windows runtime facts without activating the Site. The numbered POSIX examples below describe the existing Linux path.
+Check `workspace.result.terminal.outcome` before using the terminal: `started` confirms launch, while pending, failed, unavailable or unknown results require inspection of the returned resources. Closing the TUI does not close the Workspace. The command creates the first terminal automatically and leaves client focus unchanged. Windows Codex onboarding uses `agent integration enable --provider codex`; `server diagnose` reports local Windows runtime facts without activating the Session. The numbered POSIX examples below describe the existing Linux path.
 
 ## Windows Agent diagnostics
 
@@ -90,32 +91,32 @@ does not establish Agent-board readiness. Managed enable/disable and `agent star
 
 - `jq` on `PATH` if you follow the id-extraction snippets below; otherwise
   read the same fields from `--format json` output manually.
-- Role split: `config check`, `site diagnose`, `api schema`,
+- Role split: `config check`, `server diagnose`, `api schema`,
   `agent doctor`, and the whole `agent integration` family are purely
-  local (no connection, lock, or Site effect); `help`, `completion`, and
-  `--version` print fixed text without touching runtime state; `site
+  local (no connection, lock, or Session effect); `help`, `completion`, and
+  `--version` print fixed text without touching runtime state; `server
 start` performs the one effectful activation; every other command —
   and the bare/`tui` entry's connect-or-activate — talks to the local
-  Site.
-- Agent rows appear only when the running Site observes sessions from a
+  Session.
+- Agent rows appear only when the running Session observes sessions from a
   supported Agent integration that is already enabled. Provider onboarding
   is the `agent integration` family in section 6 — local, bounded, and
-  never Site-touching — and there is no `agent launch`; an enabled
+  never Session-touching — and there is no `agent launch`; an enabled
   provider's installed executable is launched like any other program —
   through the generic `--exec` route in section 3.
 
-## 1. Check local inputs and start the Site
+## 1. Check local inputs and start the Session
 
 ```sh
 orchbee config check   # local inputs only; exits 1 on any failed check
-orchbee site start     # one 20-second budget; "started" or "already-running"
-orchbee status         # the running Site's Workbench snapshot
+orchbee server start     # one 20-second budget; "started" or "already-running"
+orchbee status         # the running Session's Workbench snapshot
 ```
 
-`site start` runs the same connect-or-activate sequence the TUI uses. An
+`server start` runs the same connect-or-activate sequence the TUI uses. An
 interrupted or timed-out start can leave committed activation state behind;
 a later invocation then answers `rejected` with a recovery-required reason.
-Linux has no Site stop, repair or deletion command. Windows supports `site stop --confirm` and `site stop-status <id>`; a completed stop allows a later `site start`. Stop ends all terminal processes and discards the Site's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop.
+Linux has no Session stop, repair or deletion command. Windows supports `server stop --confirm` and `server stop-status <id>`; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop.
 
 ## 2. Create a Project, Workspace, and directory
 
@@ -218,7 +219,7 @@ unborn repository and `null` marks the bare entry.
 `agent integration` manages the local onboarding of a supported provider —
 inspect its state, explain the enable plan, and enable or disable the
 managed integration. These commands run on the invoking user's machine and
-PATH only: they never contact a Site, and every mutation stays bounded and
+PATH only: they never contact a Session, and every mutation stays bounded and
 non-interactive.
 
 ```sh
@@ -231,7 +232,7 @@ orchbee agent integration disable --provider codex
 Only entries verifiably owned by Orchbee are installed or removed; a
 foreign or newer-versioned entry is refused before any effect.
 
-With a supported integration enabled and the Site observing sessions —
+With a supported integration enabled and the Session observing sessions —
 nothing below performs provider lifecycle or control:
 
 ```sh
@@ -247,7 +248,7 @@ A session id is the opaque identity printed by `agent list`, never a label;
 a page's `nextCursor` token continues with `--cursor`. These reads submit
 no Workbench mutation and no provider command — nothing is created,
 activated, or mutated — and an ended session stays queryable only while
-the Site retains it. A terminal binding that has closed is not navigable.
+the Session retains it. A terminal binding that has closed is not navigable.
 `agent wait` polls one session on a held Client Session until an `--until`
 condition matches or `--timeout` lands (default 600000 ms): status
 conditions need `fresh` freshness, `fresh`/`stale`/`disconnected` match the
@@ -258,13 +259,13 @@ that begins and ends between two completed observations is missed.
 ## 7. Close cleanly
 
 ```sh
-orchbee tab close "$TAB" --confirm          # accepted; the Site finishes async
+orchbee tab close "$TAB" --confirm          # accepted; the Session finishes async
 orchbee panel close <panel-id> --confirm
 orchbee workspace close "$WS" --confirm     # closes the whole context's terminals
 ```
 
 `--confirm` is required. An `accepted` receipt carries `closeRequestId`
-while the Site completes the close asynchronously. `workspace close` reuses
+while the Session completes the close asynchronously. `workspace close` reuses
 the same lifecycle at the Workspace's context scope, removes the Workspace
 and its terminal context after cleanup, and preserves its checkout,
 branch, and directories. The retained operation stays answerable by strict stable
@@ -281,12 +282,12 @@ status, ending in a `closed` tombstone revision; `close-resume` opens one
 fresh attempt window only on a resumable retained operation — a stale
 `--generation` answers `rejected`/`stale-generation`, and unknown outcomes
 are non-resumable. Closing tabs does not
-stop the Site, and nothing in this guide deletes runtime state.
+stop the Session, and nothing in this guide deletes runtime state.
 
 ## JSON and automation notes
 
 - `--format json` selects the machine envelope on the commands that accept
-  it — the families above, `status`, `site start`, and `config check`;
+  it — the families above, `status`, `server start`, and `config check`;
   `help`, `completion`, and `--version` do not take it. A failure envelope
   likewise needs an explicit `--format json` for its stdout document.
 - u64 fields serialize as decimal strings (for example `"revision": "9"`).
@@ -298,7 +299,7 @@ For native Windows Cursor, use `agent integration enable --provider cursor`, the
 
 ## Edit the focused terminal's scrollback
 
-`orchbee terminal edit-scrollback <terminal> [--client <id>] [--timeout <ms>] [--format json|text]` asks one current Windows TUI to open its focused bound primary or child terminal's complete retained plain UTF-8 scrollback in the selected editor. The terminal target uses the normal full ID, typed suffix selector or exact-label resolver. The existing Site and a Ready TUI are required; the CLI does not start either or switch focus to make a target eligible. Explicit `--client` selects exactly that Client; otherwise the existing caller-context/unique-current-Client rule applies. A target that differs from the selected native member fails before editor submission.
+`orchbee terminal edit-scrollback <terminal> [--client <id>] [--timeout <ms>] [--format json|text]` asks one current Windows TUI to open its focused bound primary or child terminal's complete retained plain UTF-8 scrollback in the selected editor. The terminal target uses the normal full ID, typed suffix selector or exact-label resolver. The existing Session and a Ready TUI are required; the CLI does not start either or switch focus to make a target eligible. Explicit `--client` selects exactly that Client; otherwise the existing caller-context/unique-current-Client rule applies. A target that differs from the selected native member fails before editor submission.
 
 One invocation deadline covers snapshot, exact target/Client selection, passive current-Presentation read, unchanged Client-view check, one editor control submission and retained status reads. `--timeout` defaults to 30000 ms and accepts 1-3600000 ms. No stdin, executable, cwd, environment, dimensions or controller flags are accepted. The CLI never attaches, controls or resizes the source terminal: the TUI owns its separate read-only capture connection. It sends no source keystrokes or focus acknowledgement.
 

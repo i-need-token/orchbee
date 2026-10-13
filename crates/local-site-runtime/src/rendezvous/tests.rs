@@ -708,7 +708,7 @@ fn activation_marker_aliases_and_socket_impostors_are_rejected() -> TestResult {
     Ok(())
 }
 
-/// `site diagnose` descriptors: every named observation answers raw facts
+/// `server diagnose` descriptors: every named observation answers raw facts
 /// through the validated directory descriptor — absent, present-with-kind,
 /// symlinks never followed — and creates nothing of its own.
 #[test]

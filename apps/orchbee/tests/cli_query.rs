@@ -951,8 +951,11 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     // `status` reports the same snapshot's real counts; `api snapshot`
     // re-encodes the document itself.
     let status = &documents[13]["result"];
-    assert_eq!(status["site"]["siteId"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    assert_eq!(status["site"]["revision"], "7");
+    assert_eq!(
+        status["server"]["siteId"],
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+    assert_eq!(status["server"]["revision"], "7");
     assert_eq!(
         status["counts"],
         serde_json::json!({
@@ -971,7 +974,7 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     // Negative mutations prove the two new schema assertions are not vacuous.
     let status_schema = compiled_schema(&base, "orchbee.status");
     let mut unreachable_site = documents[13].clone();
-    unreachable_site["result"]["site"]["reachable"] = serde_json::json!(false);
+    unreachable_site["result"]["server"]["reachable"] = serde_json::json!(false);
     assert!(!status_schema.is_valid(&unreachable_site));
     let mut extra_count = documents[13].clone();
     extra_count["result"]["counts"]["bogus"] = serde_json::json!(0);

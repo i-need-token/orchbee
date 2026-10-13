@@ -91,7 +91,7 @@ Selection/movement remain keyboard-accessible from the Tab submenu; Shift gestur
 host. Move to New Window is disabled with a host-capability explanation.
 
 `tui_pointer::tabs::TabDrag` admits a plain left press only against the last successful frame's
-exact Site/revision, context, ordered metadata and token rectangles. A two-cell horizontal move
+exact Session/revision, context, ordered metadata and token rectangles. A two-cell horizontal move
 or a row change starts a static grabbed highlight and insertion marker; terminal output continues.
 Motion is private. A valid left release emits exactly one `move-tabs-by-drag` with a bounded
 selected ID set, original-order insertion boundary and nullable destination group.
@@ -174,7 +174,7 @@ metadata-committed and terminal-started counts; there is no all-or-nothing batch
 
 The private selected-duplication state bounds the sequence to 120 seconds. Each existing 50-second
 Create budget is capped by that absolute deadline, with its one five-second cleanup reserve. Before
-every Start it compares the complete Site Snapshot, context, marks and selected concrete PaneRef /
+every Start it compares the complete Session Snapshot, context, marks and selected concrete PaneRef /
 Presentation / binding. The revision CAS remains authoritative. Only the exact next revision and
 pure single-duplicate successor, with unrelated contexts/groups unchanged, may continue the sequence.
 

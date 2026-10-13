@@ -1,10 +1,10 @@
 # Orchbee 原生 CLI Agent 指引
 
-Windows 命名 Site 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 发布最终检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--site` 一致。列表输出 `orchbee.session.list` v2（保留封闭的 v1），增加 `recoverable`；删除保留 v1，内嵌 schema 清单为 v143。启动仅在 v2–v5 登记完整、全部确切进程消失且资源检查通过时自动恢复。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v5；Stopped v1/v2 要求主检查点，Stopped v3–v5 准入固定槽位与精确的自有损坏原件名。只支持 v1–v4 的读取器会在产生效果前拒绝 v5。历史格式归一化后若超过未改变的 Snapshot 字节上限，会拒绝启动并保留原检查点，不作为损坏执行回退。后台及正常停止检查点会恢复布局、Launch Profile、采样 cwd 和唯一 provider 恢复引用；损坏字节会保留，启动在回退或打开空工作区时发出警告。旧版 Active、存活或不确定所有者均拒绝且不删除；用相同 `--site` 诊断，或另开命名 Site。不保存存活 Agent 状态、终端历史或屏幕内容；活 Host 接管仍另行实现。
+Windows 命名 Session 生命周期：`session list [--format json]` 读取有界本地清单；`session attach <name> [--mouse on|off]` 进入真实 TUI；`session stop <name> --confirm` 发布最终检查点。`session delete <name> --confirm` 只移除经证明已停止或未使用的自有运行时和检查点状态，绝不删除用户项目/worktree 目录。它拒绝 default、不确定或运行中状态。未完成的删除会阻止启动；解决所报告原因后再次执行相同删除命令。名称操作数必须与显式 `--session` 一致。列表输出 `orchbee.session.list` v2（保留封闭的 v1），增加 `recoverable`；删除保留 v1，内嵌 schema 清单为 v143。启动仅在 v2–v5 登记完整、全部确切进程消失且资源检查通过时自动恢复。新激活会在提交标记、拉起 Server 或发布检查点存储前先发布 catalog v5；Stopped v1/v2 要求主检查点，Stopped v3–v5 准入固定槽位与精确的自有损坏原件名。只支持 v1–v4 的读取器会在产生效果前拒绝 v5。历史格式归一化后若超过未改变的 Snapshot 字节上限，会拒绝启动并保留原检查点，不作为损坏执行回退。后台及正常停止检查点会恢复布局、Launch Profile、采样 cwd 和唯一 provider 恢复引用；损坏字节会保留，启动在回退或打开空工作区时发出警告。旧版 Active、存活或不确定所有者均拒绝且不删除；用相同 `--session` 诊断，或另开命名 Session。不保存存活 Agent 状态、终端历史或屏幕内容；活 Host 接管仍另行实现。
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
 
-用 `agent rename <session-id> <name>` 设置唯一运行时别名，`agent names` 列出绑定。`agent get <name>`、`agent explain <name>` 与 `agent wait <name>` 可直接解析名称；等待固定原会话，不因后续名称复用而改变目标。`agent resolve <name>` 也可显式取得完整 ID。名称与会话 ID 冲突时，`--name <alias>` 明确选择别名，`--session <id>` 明确选择 ID。`agent rename <target> --clear` 只释放名称。会话结束或 Site dispose 后名称消失。重命名回复丢失是结果未知，禁止盲目重放。
+用 `agent rename <session-id> <name>` 设置唯一运行时别名，`agent names` 列出绑定。`agent get <name>`、`agent explain <name>` 与 `agent wait <name>` 可直接解析名称；等待固定原会话，不因后续名称复用而改变目标。`agent resolve <name>` 也可显式取得完整 ID。名称与会话 ID 冲突时，`--name <alias>` 明确选择别名，`--agent-session <id>` 明确选择 ID。`agent rename <target> --clear` 只释放名称。会话结束或 Session dispose 后名称消失。重命名回复丢失是结果未知，禁止盲目重放。
 
 Windows `terminal read` 和 `agent read` 默认读取 recent（80 个物理行），输出 `orchbee.terminal.output` v1。`--source visible|recent|recent-unwrapped|detection` 显式选择来源；裸 `--unwrap` 选择 recent-unwrapped。`--lines` 允许零并钳制到 1000。`--plain` 原样导出 UTF-8，与 JSON 互斥。显式 source/plain/ANSI 不能与旧 history/rows/unwrap 混用。显式 `--history --rows` 保留纯历史文档。[输出契约](native-terminal-output.zh-CN.md)负责样本验证及迁移。
 
@@ -14,16 +14,17 @@ Windows `terminal wait-output` 默认 recent80 且无总超时，显式来源选
 
 使用 `orchbee --help`、`orchbee help <family>` 和 `orchbee help <family> <command>` 获取精确语法。`orchbee --version`、`orchbee --skill`、`orchbee completion powershell` 和 `orchbee api schema` 均可离线使用；Windows 另提供离线的 `orchbee --default-config`。`orchbee api schema <schema-id>` 输出内嵌结果 schema。原生程序与 Desktop CLI 的能力不同；应读取实际调用程序的帮助。
 
-不带参数的 `orchbee` 会启动交互 TUI。自动化应使用显式命令。帮助和补全不启动 Site。`orchbee site start --format json` 显式启动或连接已配置的本地 Site。现有运行时选择使用 `ORCHBEE_RUNTIME_BASE`；不要猜测端点路径，也不要仅为查看帮助而激活 Site。
+不带参数的 `orchbee` 会启动交互 TUI。自动化应使用显式命令。帮助和补全不启动 Session。`orchbee server start --format json` 显式启动或连接已配置的本地 Session。现有运行时选择使用 `ORCHBEE_RUNTIME_BASE`；不要猜测端点路径，也不要仅为查看帮助而激活 Session。
 
 ## 解析目标和检查状态
 
-Windows 上，`--site <name>` 为启动、查询、输入和停止选择命名本地 Site。
-`default` 选择原默认 Site，并覆盖继承的 `ORCHBEE_RUNTIME_SCOPE` 与 `ORCHBEE_SITE`。
+Windows 上，`--session <name>` 为启动、查询、输入和停止选择命名本地 Session。
+`default` 选择原默认 Session，并覆盖继承的 `ORCHBEE_RUNTIME_SCOPE` 与 `ORCHBEE_SESSION`。
+旧的 `ORCHBEE_SITE` 保留为更低优先级的环境变量兼容入口。
 托管子终端继承其精确所属路由。名称区分大小写，由 1–64 个 ASCII 字母、数字、点、下划线或连字符组成，
-排除 `.` 和 `..`。Agent `--session <id>` 与 Site 选择器独立。只有激活操作会创建 Site。
+排除 `.` 和 `..`。Agent `--agent-session <id>` 与 Session 选择器独立。只有激活操作会创建 Session。
 
-使用 `orchbee status --format json` 或 `orchbee api snapshot` 检查运行中的 Site，再使用相应的 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree` 或 `agent` list/get 命令。遵循各命令声明的过滤参数，使用返回的稳定 ID。仅在帮助声明支持时使用标签和后缀选择器；有歧义的目标必须明确解析。
+使用 `orchbee status --format json` 或 `orchbee api snapshot` 检查运行中的 Session，再使用相应的 `project`、`workspace`、`tab`、`panel`、`terminal`、`worktree` 或 `agent` list/get 命令。遵循各命令声明的过滤参数，使用返回的稳定 ID。仅在帮助声明支持时使用标签和后缀选择器；有歧义的目标必须明确解析。
 
 `orchbee terminal read <terminal-id> --history --rows 50 --lines 50 --unwrap --format json` 读取保留输出。输出可能含有秘密，只转发任务需要的内容。读取/查询不会创建缺失资源。Windows 上直接使用 `workspace create` 创建未分组 Workspace 和默认 shell，无需先创建 Project 或填写名称，不自动启动 AI。可用 `--cwd`、`--label`、显式 `--project` 和既有 exec/profile/env/尺寸选项；`--no-focus` 只改变聚焦策略。所有形式返回 `orchbee.workspace.creation` v2；从 `workspace.result` 读取 ID、可空 `projectId` 及终端事实，失败后保留部分回执。CLI 不执行默认 Project 准备阶段。
 
@@ -49,9 +50,9 @@ Windows 上，`--site <name>` 为启动、查询、输入和停止选择命名�
 
 使用 `agent list/get/explain` 获取 canonical session 事实，使用声明了条件、超时及可选 `--after-revision` 的 `agent wait` 等待后续状态。`terminal wait-output` 可能匹配已有保留输出。旧的匹配行或 idle 状态都不能证明新提交的任务完成。使用 `agent prompt <target> <text> --wait` 提交字面 paste 加 Enter，先观察活动，再匹配条件。有待处理请求、状态过期或未知时拒绝。活动停滞、等待超时或取消仍保留已接受回执；再次操作前请检查回执。已在 working 的 Agent 可能结束既有轮次，匹配不保证本次提示自己的轮次完成。`--until` 和 `--timeout` 要求 `--wait`，Windows 默认无总超时；有界自动化应显式设置超时。使用 `agent start alpha --kind codex --panel <id>` 在空闲 Windows 终端启动并等待就绪验证。默认超时 30000 毫秒，允许 3001–300000。未指定 `--panel` 时要求有效调用者上下文。`--` 后参数按字面传递，也可重复使用 `--arg=<value>`。`agent names` 可查看启动预留。超时或取消不会终止进程；保留输入与预留事实，不要盲目重放。
 
-Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration list/explain/enable/disable --provider <id>` 管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code（`claude-code`、`codex`、`grok`、`github-copilot`、`opencode`、`kilo`、`pi`、`omp`、`gemini`、`qwen-code`）；检查回执后再 list 确认观测状态。其他 provider 仍为 manual-only。Windows `site diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。其他不支持的操作返回类型化失败；不要用猜测的状态替代失败。
+Windows 上可用 `agent doctor` 离线检查本机配置。`agent integration list/explain/enable/disable --provider <id>` 管理 Claude Code、Codex、Grok、GitHub Copilot、OpenCode、Kilo、Pi、OMP、Gemini 和 Qwen Code（`claude-code`、`codex`、`grok`、`github-copilot`、`opencode`、`kilo`、`pi`、`omp`、`gemini`、`qwen-code`）；检查回执后再 list 确认观测状态。其他 provider 仍为 manual-only。Windows `server diagnose` 使用 `orchbee.site.diagnose.windows` v2 报告只读运行时、锁和管道名称事实。其他不支持的操作返回类型化失败；不要用猜测的状态替代失败。
 
-破坏性的 close/delete 命令需要 `--confirm`。关闭 Workspace 不会删除其 Git 检出或分支。关闭结果需要恢复时使用 Workspace close-status/close-resume。退出一个 TUI 客户端不等于停止 Site。
+破坏性的 close/delete 命令需要 `--confirm`。关闭 Workspace 不会删除其 Git 检出或分支。关闭结果需要恢复时使用 Workspace close-status/close-resume。退出一个 TUI 客户端不等于停止 Session。
 
 ## 消费结果
 
@@ -98,9 +99,9 @@ Windows 的 `agent send-keys` 与 `agent prompt` 会核对实际运行的 provid
 请检查 process-info 与 Agent 事实解决拒绝；只有明确要直接操作终端时才用 `terminal send`。
 进程仍可能在预检后退出，因此需要检查发送回执。
 
-## Windows Site 停止
+## Windows Session 停止
 
-`site stop --confirm --format json` 结束托管 Site 及其终端进程。可用 `--detach` 在准入后返回，保留 `requestId`，通过 `site stop-status <request-id> --format json` 查询。超时或 Ctrl+C 只结束等待。使用相同 `--request-id` 重复调用只观察既有尝试；只有 `--retry --request-id <id> --confirm` 才重试失败停止。准确匹配的已停止记录是完成回执，会被后续 `site start` 消费；未记录不能否定先前停止。绝不通过管道不存在推断完成。Linux 和 macOS 尚不支持停止。
+`server stop --confirm --format json` 结束托管 Session 及其终端进程。可用 `--detach` 在准入后返回，保留 `requestId`，通过 `server stop-status <request-id> --format json` 查询。超时或 Ctrl+C 只结束等待。使用相同 `--request-id` 重复调用只观察既有尝试；只有 `--retry --request-id <id> --confirm` 才重试失败停止。准确匹配的已停止记录是完成回执，会被后续 `server start` 消费；未记录不能否定先前停止。绝不通过管道不存在推断完成。Linux 和 macOS 尚不支持停止。
 
 ## 保留 Worktree 操作身份
 
@@ -108,7 +109,7 @@ Windows 上按命令帮助使用 `worktree create/open/remove`。保留返回的
 
 ## 从来源查询 Worktree
 
-Windows 上 `worktree list --cwd C:/code/repo --format json` 无需 Project。可用 `--workspace <target>` 或省略两者使用已验证调用者/当前目录。无效调用者拒绝而不回退。`--trust-repository` 仅作用于本次查询。`orchbee.worktree.query` v2 保留多个 Workspace 关联及其必填可空 `projectId`。注册目录形式仅用 `--directory <id>`，返回不含 Project 的 `orchbee.worktree.list` v2，不能混用来源参数。两种形式均不激活 Site 或变更 Git。
+Windows 上 `worktree list --cwd C:/code/repo --format json` 无需 Project。可用 `--workspace <target>` 或省略两者使用已验证调用者/当前目录。无效调用者拒绝而不回退。`--trust-repository` 仅作用于本次查询。`orchbee.worktree.query` v2 保留多个 Workspace 关联及其必填可空 `projectId`。注册目录形式仅用 `--directory <id>`，返回不含 Project 的 `orchbee.worktree.list` v2，不能混用来源参数。两种形式均不激活 Session 或变更 Git。
 
 Worktree create/open 的 Workspace 来源可以未分组；Server 原子创建 Project 并分组来源和新同级 Workspace，或复用现有分组。打开已关联 checkout 会复用该 Workspace；只有显式 `--focus` 才切换已有 TUI。仅 Directory 来源可指定已有 `--project`。`orchbee.worktree.operation` v5 的可空 Project 元数据是原请求数据，不是 Workspace 当前分组；按稳定 Workspace ID 查询和聚焦。
 
@@ -174,11 +175,11 @@ Unicode，只生成 SGR；`recent-unwrapped` 拼接已验证的软换行。detec
 它不重现原始 PTY 字节、超链接或图形。渲染请求与预备输出各自保持既有 8 MiB 上限；
 渲染资源超限直接失败，不回退、不重试。参见[输出契约](native-terminal-output.zh-CN.md)。
 
-Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Site。裸 `status` 仍查询 Workbench。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
+Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
 
 ## Agent 导航
 
-Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。未就绪客户端在 Agent 查询前返回 `client-not-ready`。[Agent 导航契约](native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。成功绘制可见窗格后，Client 提示状态所有者可确认已观察的 Agent 版本；已知宿主失焦时禁止确认。`agent attention <target> [--client <id>]` 独立读取该 Client，不标记已读。
+Windows `agent focus <target> [--client <id>]` 在一次客户端控制提交前，将名称、会话或窗格解析为唯一活动的主窗格。显式 `--agent-session`、`--name` 和 `--panel` 使用现有解析器；`--request-id`、`--detach` 和默认 30000 ms 总期限沿用导航恢复契约。未就绪客户端在 Agent 查询前返回 `client-not-ready`。[Agent 导航契约](native-agent-navigation.zh-CN.md) 定义主呈现绑定、歧义、取消和保留操作查询。成功绘制可见窗格后，Client 提示状态所有者可确认已观察的 Agent 版本；已知宿主失焦时禁止确认。`agent attention <target> [--client <id>]` 独立读取该 Client，不标记已读。
 
 Windows 上使用 `agent changes --format json` 建立当前头部 cursor，再用 `agent changes --cursor <cursor> --limit 100 --format json` 读取保留的转换。HasMore 为真时继续读页。这是单页读取，不是订阅。Reset-required 或 cursor-invalid 表示连续性丢失，必须显式重建会话基线。不能将新检查点理解为已交付错过的事件。Catalog v51 包含 72 个 schema 和 85 条命令路径。
 
@@ -212,12 +213,12 @@ Windows provider 选择还支持 `cursor`、`qodercli` 和 `antigravity-cli`；�
 
 ## Windows 终端观察流
 
-`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v2 记录。目录 v68 含 76 个 schema、90 条原生命令路径。机器控制现通过 `terminal session control` 接收 NDJSON 输入；交互式 `terminal attach <terminal>` 或 `agent attach --name <name>` 要求控制台 stdin/stdout，并采用实际控制台尺寸。二者均支持 `--takeover`、`--mouse on|off` 和可选总时限 `--timeout`。`Ctrl+B` 后按 `q` 脱离；连续两次前缀发送一个字面前缀。粘贴不会触发脱离。任一全局格式下均显示交互画面。不启动 Site、不改变 Workbench 焦点、不重连或重放输入。
+`terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>]` 从一个已有绑定输出 NDJSON，不获取控制权，也不改变 Host 尺寸。[流契约](windows-terminal-streams.zh-CN.md) 拥有完整安全 ANSI 帧、重置、先刷新后确认、期限和清理规则。默认视口为 120×40，默认不限时。两种输出格式均产生 `orchbee.terminal.stream` v2 记录。目录 v68 含 76 个 schema、90 条原生命令路径。机器控制现通过 `terminal session control` 接收 NDJSON 输入；交互式 `terminal attach <terminal>` 或 `agent attach --name <name>` 要求控制台 stdin/stdout，并采用实际控制台尺寸。二者均支持 `--takeover`、`--mouse on|off` 和可选总时限 `--timeout`。`Ctrl+B` 后按 `q` 脱离；连续两次前缀发送一个字面前缀。粘贴不会触发脱离。任一全局格式下均显示交互画面。不启动 Session、不改变 Workbench 焦点、不重连或重放输入。
 
 ## 上报 Workspace 展示数据
 
-`orchbee workspace report-metadata <workspace> --source hook:build --token summary=testing --seq 42 --ttl-ms 60000 --format json` 上报临时值。用 `--clear-token summary` 删除键。各来源共用 Workspace 的一个键值映射；序号新鲜度按来源判断。旧或相等序号成功但不修改值、不刷新 TTL。`workspace list/get` 返回 `tokens` 与 `metadataSource`。Site 重启清空上报数据。结果未知（退出 8）时可能已生效：保留请求身份，检查当前值，不盲目重放以免延长 TTL。边界和规范化见 [Workspace 元数据契约](windows-workspace-metadata.zh-CN.md)。
+`orchbee workspace report-metadata <workspace> --source hook:build --token summary=testing --seq 42 --ttl-ms 60000 --format json` 上报临时值。用 `--clear-token summary` 删除键。各来源共用 Workspace 的一个键值映射；序号新鲜度按来源判断。旧或相等序号成功但不修改值、不刷新 TTL。`workspace list/get` 返回 `tokens` 与 `metadataSource`。Session 重启清空上报数据。结果未知（退出 8）时可能已生效：保留请求身份，检查当前值，不盲目重放以免延长 TTL。边界和规范化见 [Workspace 元数据契约](windows-workspace-metadata.zh-CN.md)。
 
 Windows `panel report-metadata <panel> --source <id>` 上报展示字段和 token 补丁，支持可选序号／TTL。使用 `--title`、`--display-agent`、可重复的 `--state-label STATE=TEXT` 或显式清除标记。上报跟随精确主终端绑定，不赋予 Agent 权威或修改 OSC 标题。保留退出码 8 的未知回执，切勿自动重试。守卫和替换语义见 [Panel 元数据](windows-panel-metadata.zh-CN.md)。Panel list/get/current 和 Agent Get 现提供带来源的 `metadata`；TUI 消费和真实 Agent 权威守卫上下文仍需补齐。
 
-Windows 可用 `config import-herdr --input-file SOURCE --output-file DEST --dry-run --format json` 检查明确选定的 herdr 配置转换。只有此预览包含候选值，请按来源数据处理。去掉 `--dry-run` 才会创建新文件；创建后或回执丢失时不要重试。已有目标会被拒绝。先检查保留的恢复文件，再决定如何处理。导入不启动 Site、不查找配置，并拒绝 `--site`/`--machine`。为新 Client 明确选择新配置，保留旧文件用于回退。
+Windows 可用 `config import-herdr --input-file SOURCE --output-file DEST --dry-run --format json` 检查明确选定的 herdr 配置转换。只有此预览包含候选值，请按来源数据处理。去掉 `--dry-run` 才会创建新文件；创建后或回执丢失时不要重试。已有目标会被拒绝。先检查保留的恢复文件，再决定如何处理。导入不启动 Session、不查找配置，并拒绝 `--session`/`--machine`。为新 Client 明确选择新配置，保留旧文件用于回退。

@@ -180,7 +180,7 @@ The pending work is one latest snapshot, not an unbounded queue.
 When every retained copy was invalid, the saver retains the exact initial empty checkpoint in
 memory and does not publish that baseline. A later layout, cached directory or provider-reference
 change must alter the complete checkpoint before automatic publication can replace an invalid slot.
-This suppression applies only to unattended background saves. An explicit `site stop --confirm`
+This suppression applies only to unattended background saves. An explicit `server stop --confirm`
 confirms the current workspace, so its fresh final capture may publish the unchanged empty state;
 the storage owner archives the displaced invalid bytes before that commit.
 

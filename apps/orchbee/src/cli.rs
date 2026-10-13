@@ -657,13 +657,13 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
     mutation::run(&command, format, locale)
 }
 
-/// `site start` is neither a query nor a workbench mutation: it runs the
+/// `server start` is neither a query nor a workbench mutation: it runs the
 /// shared connect-or-activate core once and reports the branch it took.
 pub(crate) fn site_start(format: OutputFormat, locale: Locale) -> Output {
     site::start(format, locale)
 }
 
-/// `site diagnose` is neither a query nor a mutation: it reports bounded
+/// `server diagnose` is neither a query nor a mutation: it reports bounded
 /// local runtime facts and the limits of those observations — it never
 /// connects, creates, repairs, or predicts a later start.
 pub(crate) fn site_diagnose(format: OutputFormat, locale: Locale) -> Output {

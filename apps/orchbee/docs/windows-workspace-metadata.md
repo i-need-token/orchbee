@@ -34,7 +34,7 @@ applies only to values set by this patch. Omitted TTL cancels their previous exp
 keys keep their own expiry. A clear removes the value, not source sequence history.
 
 The report uses the existing five-second total admission/selection/submission budget. Its
-`orchbee.workspace.metadata` v1 receipt contains request, Site and Workspace identities and
+`orchbee.workspace.metadata` v1 receipt contains request, Session and Workspace identities and
 an observation: either the correlated Server reply or an unknown result with a closed transport
 reason. A reply lost after transport handoff remains unknown (exit 8), including cancellation;
 a settled reply survives a late interrupt. Before handoff, ordinary CLI failure meanings apply.
@@ -58,7 +58,7 @@ The registry has a checked monotonic revision independent of the Workbench revis
 | Too many resulting keys or new sequenced sources | Capacity would be exceeded                    | Reject all writes; do not consume sequence                       |
 | Expiry                                           | Deadline is at or before now                  | Remove due values, preserve source high-water                    |
 | Overwrite before old expiry                      | Current value has a later/no deadline         | Old deadline cannot remove the replacement                       |
-| Workspace disappears or Site stops               | Identity no longer belongs to this owner      | Release its transient state                                      |
+| Workspace disappears or Session stops            | Identity no longer belongs to this owner      | Release its transient state                                      |
 
 The registry admits at most 4096 resource states and 16 MiB of accounted retained state
 (UTF-8 payload plus fixed per-entry overhead). It rejects capacity exhaustion without
@@ -77,7 +77,7 @@ is unknown, with request identity and exit 8, and is never silently replayed. Un
 duplicate reports intentionally reapply; sequence freshness is the replay guard when supplied.
 
 Read takes 0–8 ordered unique Workspace IDs; an empty batch reads only the revision fence.
-Every requested Workspace must exist. Replies carry Site, Workbench revision and metadata
+Every requested Workspace must exist. Replies carry Session, Workbench revision and metadata
 revision, with one row per requested ID. Report distinguishes applied and stale outcomes.
 Unknown fields, noncanonical strings, oversized maps and invalid TTL or counters are rejected
 by both bindings. Rust raw JSON decoding also rejects duplicate token properties; the
@@ -92,7 +92,7 @@ Cancel and transport outcomes keep their own meaning. Values and sources are esc
 locales, never interpreted as terminal control sequences.
 
 `orchbee.workspace.list/get` v6 adds a `tokens` map to every row, including an empty map
-when no values remain. Root `metadataSource` carries Site, Workbench and metadata revisions
+when no values remain. Root `metadataSource` carries Session, Workbench and metadata revisions
 and all read request IDs. `orchbee.cli.failure.workbench-query` v2 adds `metadata-changed`.
 The embedded catalog is v84 with 88 documents; the native CLI has 99 command paths.
 

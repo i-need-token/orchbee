@@ -4,11 +4,11 @@
 
 每条命令接受可选的 `--presentation <id>`：属于位置参数 Panel 的完整、非零、32 位小写
 十六进制 Presentation ID。省略时仍指向主项。显式选择绝不回退到其他成员、调用者或 Client。
-CLI 在提交前解析规范成员关系并要求成员已绑定；Server 在既有 Site 门内复核精确所属 Panel
+CLI 在提交前解析规范成员关系并要求成员已绑定；Server 在既有 Session 门内复核精确所属 Panel
 与期望绑定。报告仍由绑定及物理代次拥有；来源排序与报告策略保持不变。
 
 精确写入采用现有载体中封闭的 `report-presentation` / `presentation-reported` 变体。
-成功回复必须匹配请求、Site、Panel、Presentation 和绑定；旧 `report` / `reported` 仍仅针对
+成功回复必须匹配请求、Session、Panel、Presentation 和绑定；旧 `report` / `reported` 仍仅针对
 主项。只有显式选择成员时，CLI 才输出 `orchbee.panel.agent-report` v4，已知或未知的已提交
 结果均保留请求的 `presentationId`。旧 v1/v2 保持封闭；主项上报使用 v3。本地化文本标识成员。所有阶段保留下文
 唯一五秒期限、取消及禁止重放规则。
@@ -19,7 +19,7 @@ CLI 在提交前解析规范成员关系并要求成员已绑定；Server 在既
 
 ## 命令
 
-四个命令向运行中的 Site 提交显式终端上报：
+四个命令向运行中的 Session 提交显式终端上报：
 
 ```text
 orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
@@ -29,7 +29,7 @@ orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
 ```
 
 全部接受 `--format text|json`、完整 Panel ID 或 `@panel:<suffix>`，以及 Windows 全局
-`--site` 选择器。帮助和 PowerShell 补全提供各命令的选项和状态值。
+`--session` 选择器。帮助和 PowerShell 补全提供各命令的选项和状态值。
 `clear-agent-authority` 为 Herdr 仅 API 提供的操作增加原生命令。
 
 ## 输入与上报归属
@@ -51,12 +51,12 @@ Provider ID、路径和启动原因交给 [Server 上报所有者](../../orchbee
 
 ## 提交与回执
 
-一次已有 Site 连接、快照和提交共享五秒期限及信号所有者。只解析一次所请求成员（默认主项），提交预期绑定。
-未绑定目标在提交前失败，绑定变化返回相关拒绝。不启动 Site、不改变焦点、不输入终端、
+一次已有 Session 连接、快照和提交共享五秒期限及信号所有者。只解析一次所请求成员（默认主项），提交预期绑定。
+未绑定目标在提交前失败，绑定变化返回相关拒绝。不启动 Session、不改变焦点、不输入终端、
 不执行 provider 或自动重试。交接后应答丢失、畸形、不匹配或超时保留请求 ID 并报告结果未知。
 迟到中断保留已经收到的结果并设置 `interrupted`。
 
-最初的 `orchbee.panel.agent-report` v1 引入请求/Site/Panel ID、Server 回执或封闭的未知原因、
+最初的 `orchbee.panel.agent-report` v1 引入请求/Session/Panel ID、Server 回执或封闭的未知原因、
 `interrupted` 和 `cleanupFailed`。回执包含独立 Workbench/上报修订号、绑定、
 applied/ignored/deferred 处理结果、实际变更标记及有效上报视图，其中可含外部 provider 会话引用。
 已应用、已忽略和暂存退出 0；目标、权限、容量拒绝退出 3；不可用退出 4；请求无效退出 5；
@@ -76,9 +76,9 @@ applied/ignored/deferred 处理结果、实际变更标记及有效上报视图�
 
 解析测试覆盖作用域、来源区别、标签/引用保留及完整编码请求上限。命名管道故障测试覆盖提交前
 期限、应答相关性、绑定不匹配、丢失、畸形、迟到应答及不重放。回执测试在迟到取消、双语言及
-封闭 JSON schema 下保留三种处理结果。Windows 验收使用匹配 cohort 和隔离 Site，通过这些
+封闭 JSON schema 下保留三种处理结果。Windows 验收使用匹配 cohort 和隔离 Session，通过这些
 公开命令操作；不代表已执行认证 provider 任务或完成最终 TUI/全量回归验收。
 
 ## 通过 Host 读取确认进程
 
-Windows Site 在后台采样 Host 进程，无需用户发起查询。每轮按轮转顺序访问最多八个主／子绑定，轮间等待 250 毫秒，目标之间使用一秒预算；carrier I/O 和清理可能延迟一轮，因此不承诺新鲜度。临时只读 viewer 释放后才采样另一终端；清理结果不确定会暂停采样，责任保留至 Site 停止流程。成功的 `panel process-info` 及 Panel／Agent 查询中的终端观察也进入同一可信进程适配器。它再次校验精确的 Worker／Host 代际，识别唯一进程链，并可激活匹配的暂存生命周期上报。后续完整样本可证明保留的 PID／创建时间身份已离开，同时原子清理对应上报及适用元数据。缺失／失败／歧义样本不虚构退出；未改变的身份不会反复推进修订。Panel／Agent 查询先采集 Host 观察，再读取上报／元数据修订，因此自身成功接纳的进程确认可以出现在同一次结果中。之后若并发改变修订，查询返回既有 `metadata-changed` 失败，不发布混合结果。周期采样器还按 [屏幕检测模型](../../orchbee-server/docs/agent-screen-model.zh-CN.md) 发布相关联的实时屏幕回退；进程识别不认证 provider，也不创建规范 Agent 会话。
+Windows Session 在后台采样 Host 进程，无需用户发起查询。每轮按轮转顺序访问最多八个主／子绑定，轮间等待 250 毫秒，目标之间使用一秒预算；carrier I/O 和清理可能延迟一轮，因此不承诺新鲜度。临时只读 viewer 释放后才采样另一终端；清理结果不确定会暂停采样，责任保留至 Session 停止流程。成功的 `panel process-info` 及 Panel／Agent 查询中的终端观察也进入同一可信进程适配器。它再次校验精确的 Worker／Host 代际，识别唯一进程链，并可激活匹配的暂存生命周期上报。后续完整样本可证明保留的 PID／创建时间身份已离开，同时原子清理对应上报及适用元数据。缺失／失败／歧义样本不虚构退出；未改变的身份不会反复推进修订。Panel／Agent 查询先采集 Host 观察，再读取上报／元数据修订，因此自身成功接纳的进程确认可以出现在同一次结果中。之后若并发改变修订，查询返回既有 `metadata-changed` 失败，不发布混合结果。周期采样器还按 [屏幕检测模型](../../orchbee-server/docs/agent-screen-model.zh-CN.md) 发布相关联的实时屏幕回退；进程识别不认证 provider，也不创建规范 Agent 会话。

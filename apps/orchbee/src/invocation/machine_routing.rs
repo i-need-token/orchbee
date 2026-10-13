@@ -67,7 +67,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             UsageReason::ConflictingOptions {
                 context: UsageContext::Root,
                 first: "--machine",
-                second: "--site",
+                second: "--session",
             },
             envelope,
         ));

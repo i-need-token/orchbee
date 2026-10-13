@@ -4,7 +4,7 @@
 
 Windows `agent focus` resolves a canonical or physical Agent to one navigable primary Panel and routes an
 acknowledged focus request to one existing TUI Client. It accepts one positional native Agent
-target, `--session`, `--name` or `--panel`, with the existing precedence and mutual exclusions.
+target, `--agent-session`, `--name` or `--panel`, with the existing precedence and mutual exclusions.
 `--client`, `--request-id`, `--detach`, `--timeout` and `--format text|json` use the existing
 Client control contract. The default total timeout is 30000 ms. Help, completion and parsing
 remain offline. There is no new macOS or Linux runtime.
@@ -60,7 +60,7 @@ Verify names, explicit IDs, Panel selectors, caller versus explicit Client routi
 bindings and rejection of ended/missing/ambiguous/child-only bindings. Trace a single Submit and
 retained Read after a lost reply; exercise partial response cancellation and one total deadline.
 Actual two-TUI Windows evidence must check the selected Panel and unchanged other Client/OS focus,
-with all created Agent processes, Sites and consoles stopped afterward. Review is by the author;
+with all created Agent processes, Sessions and consoles stopped afterward. Review is by the author;
 TLA execution and independent review are not claimed. Final live focus/acknowledgement acceptance
 remains pending the combined Windows verification; targeted checks alone do not discharge it.
 

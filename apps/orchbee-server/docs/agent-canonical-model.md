@@ -578,7 +578,7 @@ identity recorded at bind — a replaced or foreign path is never removed.
 
 Production activation is live for the accepted managed local Site path:
 `local_site_service::managed` creates or obtains the runtime directory, binds this
-endpoint before publishing Site readiness, and fails `site start` honestly when the
+endpoint before publishing Site readiness, and fails `server start` honestly when the
 bind or endpoint initialization fails — there is no silent Agent-unavailable mode.
 The managed path constructs the canonical `AgentService` once through
 `open_observing(policy, socket_path)` — the socket path is bound into the translator

@@ -3,7 +3,7 @@
 ## 输入与所有权
 
 Windows `tab create` 和 `panel split` 先创建一个规范资源，再执行可选的共享比例及 Client 本地操作。
-它们使用已有 Site，绝不启动 Site 或重试结果不确定的创建。`--focus` 与 `--no-focus`
+它们使用已有 Session，绝不启动 Session 或重试结果不确定的创建。`--focus` 与 `--no-focus`
 互斥，默认不聚焦。`--client` 指定一个精确交互客户端。总 `--timeout` 默认 30000 ms，
 范围为 1 至 3600000 ms。不提供脱离等待模式或调用者指定的创建身份。
 

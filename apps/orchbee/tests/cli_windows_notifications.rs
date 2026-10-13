@@ -162,7 +162,7 @@ fn notification_rejects_bad_arguments_before_admission_and_never_starts_site() {
         ],
         vec!["notification", "show"],
         vec!["notification", "show", "hello", "extra"],
-        vec!["site", "config", "--body", "a"],
+        vec!["server", "config", "--body", "a"],
     ] {
         assert_eq!(
             fixture.run(&arguments).status.code(),

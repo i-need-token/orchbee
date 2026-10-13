@@ -58,7 +58,7 @@ fn wire_rejects_extra_authority_and_preserves_binary_input_and_failed_exit() {
     for args in [
         vec!["--machine=x", "workspace", "list"],
         vec!["--machine-relay-v1"],
-        vec!["--site=x", "workspace", "list"],
+        vec!["--session=x", "workspace", "list"],
         vec!["machine", "list"],
         vec!["terminal", "send", "@terminal:22", "--file=local-secret"],
     ] {

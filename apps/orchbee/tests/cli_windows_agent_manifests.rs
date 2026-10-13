@@ -119,7 +119,7 @@ fn cli_manifest_query_reload_status_and_lost_receipts_are_not_replayed() {
             assert_closed(&mut stream);
         });
         let text = matches!(case, "en" | "zh");
-        let mut args = vec!["site"];
+        let mut args = vec!["server"];
         match case {
             "current" | "automatic" | "en" | "zh" => args.push("agent-manifests"),
             "status" => args.extend(["agent-manifests-status", "11111111111111111111111111111111"]),
@@ -272,7 +272,7 @@ fn cli_update_polls_only_status_and_reports_partial_or_unknown_effects() {
         });
         let output = fixture.run_with_env(
             &[
-                "site",
+                "server",
                 "update-agent-manifests",
                 "--request-id",
                 "11111111111111111111111111111111",

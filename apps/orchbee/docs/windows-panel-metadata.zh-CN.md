@@ -3,12 +3,12 @@
 ## 精确成员目标
 
 `--presentation <id>` 选择位置参数 Panel 的一个规范成员，ID 为完整、非零、32 位小写十六
-进制。省略时仍指向主项。CLI 在交接前拒绝缺失或未绑定成员；Server 在 Site 门内复核精确
+进制。省略时仍指向主项。CLI 在交接前拒绝缺失或未绑定成员；Server 在 Session 门内复核精确
 所属及期望绑定。错误所属或过期绑定的写入不能影响其他成员。已有绑定索引元数据所有者
 保留来源序列、守卫、资源限制与 TTL。
 
 精确请求／回复使用现有载体中的 `report-presentation` / `presentation-reported`；旧
-`report` / `reported` 仍仅针对主项。回复关联请求、Site、Panel、Presentation 和绑定。
+`report` / `reported` 仍仅针对主项。回复关联请求、Session、Panel、Presentation 和绑定。
 显式成员输出 `orchbee.panel.metadata` v4，必需携带 `presentationId`，包括未知或失败的已
 提交结果；v1/v2 保持封闭；主项上报使用 v3。文本标识成员。准入前检查请求边界，绝不重放结果不确定的写入。
 
@@ -37,19 +37,19 @@ Agent 守卫不会被截断或移除内部控制字符：超出现有 80 标量�
 在连接前失败。自定义标签的这一限制仍与 Herdr 的上报输入有差异，需在完整 Agent 上报
 能力中继续补齐。原生进程 provider ID 保留独立的识别契约。
 
-一次已有 Site 准入和快照共享可取消的五秒期限。只解析一次所请求成员的绑定（默认主项），并作为 `expectedBinding`
-提交；Server 拒绝已变化的绑定。未绑定 Panel 在提交前失败。命令只提交一次，不启动 Site、
+一次已有 Session 准入和快照共享可取消的五秒期限。只解析一次所请求成员的绑定（默认主项），并作为 `expectedBinding`
+提交；Server 拒绝已变化的绑定。未绑定 Panel 在提交前失败。命令只提交一次，不启动 Session、
 导航 Client、修改拓扑、改变 OSC 标题或自动重试。交接后的信号保留回执并设置 `interrupted`。
 应答丢失、畸形、不匹配或迟到时保留请求 ID，以未知结果和退出码 8 返回。交接前遵循普通 CLI
 失败。已知 applied 或 stale 上报退出 0；目标／权限／容量拒绝退出 3，不可用退出 4，无效请求
 退出 5，修订号／期限／结果边界失败退出 1。清理失败退出 1，但提交结果已未知时仍退出 8。
 
-`orchbee.panel.metadata` v1 包含请求／Site／Panel ID、observation（带原始应答的 `server`，
+`orchbee.panel.metadata` v1 包含请求／Session／Panel ID、observation（带原始应答的 `server`，
 或带封闭原因的 `unknown`）、`interrupted` 和 `cleanupFailed`。目录 v90 包含 90 个 schema。
 OBWP 33/34 承载 `workbench.panel-metadata` 及其结果；请求上限 16 KiB，结果上限 512 KiB。
-Server 在 Site 锁内按读取权限读取、按导航权限上报。读取返回至多四个有序且唯一 Panel 的来源
+Server 在 Session 锁内按读取权限读取、按导航权限上报。读取返回至多四个有序且唯一 Panel 的来源
 记录。元数据与 Workbench 修订号独立。需部署匹配 cohort；旧端拒绝未知通信类型。无持久化
-迁移，Site 重启清空上报。
+迁移，Session 重启清空上报。
 
 协议／owner 测试覆盖原子变更、重放和 TTL；Rust／TypeScript／JSON 共享用例覆盖边界和畸形
 输入；命名管道测试检查包括绑定在内的精确关联、应答丢失、期限和不重放。解析、回执、本地化
@@ -68,10 +68,10 @@ Panel 和可空绑定；见[当前成员信息增强](native-current-panel.zh-CN
 期间任一类都不能静默变化。发生变化以 `metadata-changed` 拒绝查询，包括会改变元数据守卫
 上下文的上报变化。外层仍校验规范状态及所选 Client 状态，不自动重试或发布部分投影。
 
-各 `metadata` 对象包含 `source`（Site、Workbench、元数据修订号及其读取请求 ID）、`binding`、
+各 `metadata` 对象包含 `source`（Session、Workbench、元数据修订号及其读取请求 ID）、`binding`、
 `tokens`、原始来源 `presentations`、守卫 `context`（`agent`、`authoritySource`）及计算出的
 `presentation`（title、displayAgent、stateLabels）。同级 `reportedAgent` 包含自身 `source`
-（Site、Workbench、上报修订号及上报读取请求 ID）、同一逻辑 `binding`，以及 `view`（Agent 标签、
+（Session、Workbench、上报修订号及上报读取请求 ID）、同一逻辑 `binding`，以及 `view`（Agent 标签、
 状态、权威来源、消息及可选外部 provider 会话引用）。未绑定行的 binding/view 为 null；已绑定
 但没有上报的终端给出明确 unknown 视图。守卫使用真实 Server 上报视图，缺失事实保留 null，
 永不满足守卫。不得用通用观察类别、用户命名或规范 provider ID 替代上下文。

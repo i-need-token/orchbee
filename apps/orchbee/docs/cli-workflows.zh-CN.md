@@ -3,6 +3,7 @@
 ## Windows：先创建可用 Workspace
 
 ```powershell
+orchbee server start
 orchbee workspace create
 orchbee workspace create --cwd C:/code/demo --label main --format json
 orchbee workspace create-project main --label demo
@@ -11,7 +12,7 @@ orchbee workspace ungroup <workspace>
 orchbee project dissolve demo
 ```
 
-前两条命令都用一次 launch 创建 Workspace 和默认 shell；不要求 Project/名称，不自动启动 AI。默认未分组，只有显式 `--project` 才加入已有项目。读取 `orchbee.workspace.creation` v2 的 `workspace.result`，其中 `projectId` 必填可空。既有 exec/profile/env/尺寸和可选 focus 参数保持可用。后四条是组织元数据操作，保留稳定 ID、目录、PTY 与全局顺序。Project 可组织多个仓库，普通 Workspace 与 worktree Workspace 同级。
+启动后台服务后，两条 Workspace 创建命令都用一次 launch 创建 Workspace 和默认 shell；不要求 Project/名称，不自动启动 AI。默认未分组，只有显式 `--project` 才加入已有项目。读取 `orchbee.workspace.creation` v2 的 `workspace.result`，其中 `projectId` 必填可空。既有 exec/profile/env/尺寸和可选 focus 参数保持可用。后四条是组织元数据操作，保留稳定 ID、目录、PTY 与全局顺序。Project 可组织多个仓库，普通 Workspace 与 worktree Workspace 同级。
 
 ```powershell
 orchbee workspace close <workspace> --confirm
@@ -23,7 +24,7 @@ orchbee project close-resume --request <operation-id> --generation <attempt> --c
 普通关闭只影响选中 Workspace，不删除 checkout 或分支；Project close-all 关闭捕获成员并保留 Project。Dissolve 只取消分组，保留 Workspace。未知变更绝不自动重放。后续 Linux 示例保留其单独声明的创建流程；Windows 当前规则以[创建契约](windows-workspace-creation.zh-CN.md)为准。
 
 Windows 目录工作区快速开始及已有 Linux 原生 `orchbee` CLI 的无头序列：启动
-本地 Site、建立 Project/Workspace/目录、拉起并驱动终端、查看
+本地 Session、建立 Project/Workspace/目录、拉起并驱动终端、查看
 worktree、观察 Agent，以及干净地关闭。命令清单见
 [README](../README.zh-CN.md)；完整语法、target 规则与 failure matrix
 由 [native CLI query](native-cli-query.zh-CN.md) 持有。本指南只覆盖受
@@ -41,7 +42,7 @@ function Invoke-OrchbeeJson([string[]]$Words) {
     if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
     ($output -join "`n") | ConvertFrom-Json
 }
-Invoke-OrchbeeJson -Words @('site', 'start')
+Invoke-OrchbeeJson -Words @('server', 'start')
 $project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
 $created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
     '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
@@ -50,12 +51,12 @@ $created.workspace.result
 & $cli tui
 # Close this Workspace when finished:
 & $cli workspace close $created.workspace.result.workspaceId --confirm --format json
-# Or stop the whole Windows Site and all its terminals:
-$stopped = Invoke-OrchbeeJson -Words @('site', 'stop', '--confirm')
-& $cli site stop-status $stopped.result.requestId --format json
+# Or stop the whole Windows Session and all its terminals:
+$stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
+& $cli server stop-status $stopped.result.requestId --format json
 ```
 
-使用终端前检查 `workspace.result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Codex 接入使用 `agent integration enable --provider codex`；`site diagnose` 报告 Windows 本地运行时事实，不激活 Site。下方编号的 POSIX 示例描述已有 Linux 路径。
+使用终端前检查 `workspace.result.terminal.outcome`：`started` 确认启动；pending、failed、unavailable 或 unknown 需要根据返回 ID 查询资源。退出 TUI 不会关闭 Workspace。命令自动创建首个终端，并保持客户端焦点。Windows Codex 接入使用 `agent integration enable --provider codex`；`server diagnose` 报告 Windows 本地运行时事实，不激活 Session。下方编号的 POSIX 示例描述已有 Linux 路径。
 
 ## Windows Agent 诊断
 
@@ -87,29 +88,29 @@ Doctor 不执行该传输。已安装 hook 或 `complete:true` 不代表 Agent �
 
 - 若按下方片段提取 ID，需要 `PATH` 上有 `jq`；否则请手动从
   `--format json` 输出中读取相同字段。
-- 角色区分：`config check`、`site diagnose`、`api schema`、
+- 角色区分：`config check`、`server diagnose`、`api schema`、
   `agent doctor` 与整个 `agent integration` 命令族纯属本地（不连接、
-  不加锁、无 Site 副作用）；`help`、`completion` 与 `--version` 输出
-  固定文本，不触碰运行时状态；`site start` 执行唯一一次有副作用的
+  不加锁、无 Session 副作用）；`help`、`completion` 与 `--version` 输出
+  固定文本，不触碰运行时状态；`server start` 执行唯一一次有副作用的
   激活；其余每条命令——包括裸 orchbee/`tui` 入口的
-  connect-or-activate——都与本地 Site 通信。
-- 只有当运行中的 Site 从已启用的受支持 Agent 集成中观察到会话时，
+  connect-or-activate——都与本地 Session 通信。
+- 只有当运行中的 Session 从已启用的受支持 Agent 集成中观察到会话时，
   Agent 行才会出现。provider 接入即第 6 节的 `agent integration` 命令
-  族——本地、有界、绝不接触 Site——且没有 `agent launch`；已启用的
+  族——本地、有界、绝不接触 Session——且没有 `agent launch`；已启用的
   provider 可执行文件与其他程序一样，经第 3 节的通用 `--exec` 途径
   启动。
 
-## 1. 检查本地输入并启动 Site
+## 1. 检查本地输入并启动 Session
 
 ```sh
 orchbee config check   # 仅检查本地输入；任一检查失败以 1 退出
-orchbee site start     # 共享一个 20 秒预算；"started" 或 "already-running"
-orchbee status         # 运行中 Site 的 Workbench 快照
+orchbee server start     # 共享一个 20 秒预算；"started" 或 "already-running"
+orchbee status         # 运行中 Session 的 Workbench 快照
 ```
 
-`site start` 运行与 TUI 相同的连接或激活序列。被中断或超时的启动可能
+`server start` 运行与 TUI 相同的连接或激活序列。被中断或超时的启动可能
 遗留已提交的激活状态；后续调用将以 `rejected` 加 recovery-required
-原因应答。Linux 尚无 Site 停止、修复或删除命令。Windows 支持 `site stop --confirm` 和 `site stop-status <id>`；完成停止后可再次 `site start`。停止会结束全部终端进程并丢弃 Site 内存状态。超时或取消仅结束 CLI 等待：保留请求 ID 并查询状态。仅需显式重试失败停止时使用 `--retry --request-id <id>`。
+原因应答。Linux 尚无 Session 停止、修复或删除命令。Windows 支持 `server stop --confirm` 和 `server stop-status <id>`；完成停止后可再次 `server start`。停止会结束全部终端进程并丢弃 Session 内存状态。超时或取消仅结束 CLI 等待：保留请求 ID 并查询状态。仅需显式重试失败停止时使用 `--retry --request-id <id>`。
 
 ## 2. 创建 Project、Workspace 与目录
 
@@ -205,7 +206,7 @@ orchbee worktree list --directory "$DIR"
 
 `agent integration` 管理受支持 provider 的本地接入——检查其状态、解
 释 enable 计划，以及启用或禁用受管集成。这些命令只在调用用户的机器
-与 PATH 上运行：绝不接触 Site，且每次变更都保持有界、非交互。
+与 PATH 上运行：绝不接触 Session，且每次变更都保持有界、非交互。
 
 ```sh
 orchbee agent integration list                     # 每个 provider 的本地状态
@@ -217,7 +218,7 @@ orchbee agent integration disable --provider codex
 只有经核实归 Orchbee 所有的条目才会被安装或移除；外来或更新版本的
 条目在任何效应前被拒绝。
 
-在受支持的集成已启用、且 Site 正在观察会话的前提下——以下任何命令
+在受支持的集成已启用、且 Session 正在观察会话的前提下——以下任何命令
 都不执行 provider 生命周期或控制操作：
 
 ```sh
@@ -232,7 +233,7 @@ orchbee agent wait <session-id> --until ended --until failed
 会话 ID 是 `agent list` 打印的不透明身份，绝不是 label；某页的
 `nextCursor` 令牌用 `--cursor` 继续。这些读取不提交任何 Workbench 修
 改命令或 provider 命令——不创建、不激活、不修改任何状态——已结束会
-话只在 Site 保留期间可查询。已关闭的终端绑定不可导航。
+话只在 Session 保留期间可查询。已关闭的终端绑定不可导航。
 `agent wait` 在一个持有的 Client Session 上轮询单个会话，直到某个
 `--until` 条件命中或 `--timeout` 到达（默认 600000 毫秒）：状态条件
 要求 `fresh` 新鲜度，`fresh`/`stale`/`disconnected` 直接匹配观察，
@@ -242,12 +243,12 @@ orchbee agent wait <session-id> --until ended --until failed
 ## 7. 干净地关闭
 
 ```sh
-orchbee tab close "$TAB" --confirm          # accepted；Site 异步完成关闭
+orchbee tab close "$TAB" --confirm          # accepted；Session 异步完成关闭
 orchbee panel close <panel-id> --confirm
 orchbee workspace close "$WS" --confirm     # 关闭整个 context 的终端
 ```
 
-`--confirm` 为必填。`accepted` 回执携带 `closeRequestId`，由 Site
+`--confirm` 为必填。`accepted` 回执携带 `closeRequestId`，由 Session
 异步完成关闭。`workspace close` 在 Workspace 的 context scope 上复用同一
 lifecycle，清理完成后移除 Workspace 及其 terminal context，保留
 checkout、branch 与磁盘目录。保留的操作即使在 Workspace 离开 active projection 之后仍可
@@ -262,13 +263,13 @@ orchbee workspace close-resume --workspace <workspace-id> \
 `close-status` 报告 scope lifecycle 及每个被捕获 member 的状态，最终以
 `closed` tombstone revision 落定；`close-resume` 仅在可恢复的保留操作上开启
 一个新的尝试窗口——陈旧的 `--generation` 以 `rejected`/`stale-generation` 作答，
-未知结果不可恢复。关闭 Tab 不会停止 Site，本指南中也没有任何删除运行时
+未知结果不可恢复。关闭 Tab 不会停止 Session，本指南中也没有任何删除运行时
 状态的步骤。
 
 ## JSON 与自动化说明
 
 - `--format json` 在接受它的命令上选择机器封套——上述各 family 以及
-  `status`、`site start`、`config check`；`help`、`completion` 与
+  `status`、`server start`、`config check`；`help`、`completion` 与
   `--version` 不接受它。失败封套的 stdout 文档同样需要显式的
   `--format json`。
 - u64 字段序列化为十进制字符串（例如 `"revision": "9"`）。
@@ -280,7 +281,7 @@ orchbee workspace close-resume --workspace <workspace-id> \
 
 ## 编辑当前聚焦终端的滚动记录
 
-`orchbee terminal edit-scrollback <terminal> [--client <id>] [--timeout <ms>] [--format json|text]` 请求一个当前 Windows TUI，在所选编辑器中打开其聚焦的已绑定主终端或子终端完整保留纯 UTF-8 滚动记录。终端目标使用常规完整 ID、带类型后缀选择器或精确标签解析。需要已有 Site 和 Ready TUI；CLI 不启动两者，也不通过切换焦点让目标变成可用。显式 `--client` 只选择该 Client，否则采用既有调用者上下文／唯一当前 Client 规则。目标与当前选择的原生成员不同时，在提交编辑器前失败。
+`orchbee terminal edit-scrollback <terminal> [--client <id>] [--timeout <ms>] [--format json|text]` 请求一个当前 Windows TUI，在所选编辑器中打开其聚焦的已绑定主终端或子终端完整保留纯 UTF-8 滚动记录。终端目标使用常规完整 ID、带类型后缀选择器或精确标签解析。需要已有 Session 和 Ready TUI；CLI 不启动两者，也不通过切换焦点让目标变成可用。显式 `--client` 只选择该 Client，否则采用既有调用者上下文／唯一当前 Client 规则。目标与当前选择的原生成员不同时，在提交编辑器前失败。
 
 一次调用期限覆盖快照、准确目标／Client 选择、被动当前 Presentation 读取、Client 视图不变检查、一次编辑器控制提交及保留状态读取。`--timeout` 默认 30000 毫秒，接受 1–3600000 毫秒。不接受 stdin、可执行文件、cwd、环境、尺寸或 controller 参数。CLI 不附着、控制或缩放来源终端，TUI 拥有独立只读捕获连接；不向来源发送按键或确认焦点已读。
 

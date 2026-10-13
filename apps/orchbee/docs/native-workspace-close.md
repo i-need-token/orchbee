@@ -31,15 +31,15 @@ Pending and Unknown permit observation only.
 
 ## Inputs and ownership
 
-| Fact                                                   | Owner and validation                                                                                                                                                                     |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Site, Workspace identity and optional Project metadata | Validated Workbench snapshot projected as `NativeContextTabs`; grouping changes do not change Context identity                                                                           |
-| Confirmation                                           | `WorkspaceCloseState`: typed Workspace/Context or Project target, frozen full snapshot with the origin Context and desired pane, label, Project member count and monotonic display token |
-| Complete draw and geometry                             | Pure renderer returns a typed receipt; UI acknowledges only the offered token after a complete draw                                                                                      |
-| Request identity, queue, lease and deadlines           | Command mailbox; one bounded Refresh flight serializes closure with structural work                                                                                                      |
-| Captured membership and terminal lifecycle             | Server retains scope, member and child identities; Worker/Host owns disposal                                                                                                             |
-| Submission and observation evidence                    | Carrier retains typed admission and observations before another read or UI wait; mailbox and joined-worker handoff preserve them                                                         |
-| Selection and Viewer cleanup                           | Existing context-removal and membership owners consume canonical snapshots and exact attachment identities                                                                               |
+| Fact                                                      | Owner and validation                                                                                                                                                                     |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session, Workspace identity and optional Project metadata | Validated Workbench snapshot projected as `NativeContextTabs`; grouping changes do not change Context identity                                                                           |
+| Confirmation                                              | `WorkspaceCloseState`: typed Workspace/Context or Project target, frozen full snapshot with the origin Context and desired pane, label, Project member count and monotonic display token |
+| Complete draw and geometry                                | Pure renderer returns a typed receipt; UI acknowledges only the offered token after a complete draw                                                                                      |
+| Request identity, queue, lease and deadlines              | Command mailbox; one bounded Refresh flight serializes closure with structural work                                                                                                      |
+| Captured membership and terminal lifecycle                | Server retains scope, member and child identities; Worker/Host owns disposal                                                                                                             |
+| Submission and observation evidence                       | Carrier retains typed admission and observations before another read or UI wait; mailbox and joined-worker handoff preserve them                                                         |
+| Selection and Viewer cleanup                              | Existing context-removal and membership owners consume canonical snapshots and exact attachment identities                                                                               |
 
 The existing confirmation packet owner decodes keys. Modified keys, uppercase `Y`, Enter, paste
 and trailing bytes never confirm or reach the terminal. Missing or incomplete draw evidence cannot

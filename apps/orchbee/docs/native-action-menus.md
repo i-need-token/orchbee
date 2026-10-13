@@ -8,7 +8,7 @@ row. Opening or cancelling does not change focus. Pane content retains its confi
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
 The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.
 The Workspace sidebar admits right-click only for an exact, still-present row on the
-current machine and painted Site. It uses the existing Workspace menu and never
+current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
 Pointer opening anchors the frame to the triggering host cell, including sidebar
@@ -139,7 +139,7 @@ Worktree actions retain their current-Workspace prerequisite.
 The same Project and optional context proof must survive confirmation and handoff;
 an origin change or a replaced record cancels the episode rather than retargeting it.
 
-All object-entry adapters pass the successfully painted `DrawnMenuSource` Site and
+All object-entry adapters pass the successfully painted `DrawnMenuSource` Session and
 revision. The sidebar owner also checks the current machine and stable focused row.
 Right-click, the row's visible action entry and an object-menu key use that same target.
 Object keys belong only to explicit sidebar navigation; terminal-owned keys retain
@@ -196,7 +196,7 @@ Released capture stays released even when the keyboard opens a menu. Menu captur
 swallows motion and decision tails instead of sending them to an embedded program;
 pane tracking and any pre-existing gesture retain their original ownership outside it.
 
-Object-entry admission checks the Site and Workbench revision of the successfully painted
+Object-entry admission checks the Session and Workbench revision of the successfully painted
 hit map before freezing live records. Workspace and current-context proofs retain the
 exact Workspace and primary Directory, including Worker and path; Tab proofs retain
 the full projected record. Owned navigation candidates and the final selected target

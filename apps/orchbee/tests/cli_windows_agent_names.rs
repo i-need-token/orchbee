@@ -54,7 +54,7 @@ fn names_commands_exchange_correlated_typed_results_on_windows() {
             include_str!("../src/cli/schemas/orchbee.agent.resolve.json"),
         ),
         (
-            &["agent", "rename", "--session", "s1", "alpha"],
+            &["agent", "rename", "--agent-session", "s1", "alpha"],
             "name.assign",
             json!({"kind":"assigned","sessionId":"s1","name":"alpha","previousName":null}),
             include_str!("../src/cli/schemas/orchbee.agent.rename.json"),
@@ -156,7 +156,14 @@ fn invalid_names_and_conflicting_selectors_fail_before_runtime_creation() {
         vec!["agent", "read", "alpha", "--history"],
         vec!["agent", "get", "s1", "--name", "alpha"],
         vec!["agent", "wait", "--name", "Upper"],
-        vec!["agent", "explain", "--name", "alpha", "--session", "s1"],
+        vec![
+            "agent",
+            "explain",
+            "--name",
+            "alpha",
+            "--agent-session",
+            "s1",
+        ],
     ] {
         let output = fixture.run(&[arguments.as_slice(), &["--format", "json"]].concat());
         assert_eq!(output.status.code(), Some(2));
@@ -346,7 +353,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
     let output = fixture.run(&[
         "agent",
         "get",
-        "--session",
+        "--agent-session",
         "sess-alpha",
         "--format",
         "json",
@@ -795,7 +802,7 @@ fn infinite_wait_preserves_condition_names_and_rejects_a_different_session() {
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--forever",
             "--until",
@@ -843,7 +850,7 @@ fn infinite_wait_still_times_out_a_stalled_read_without_reconnecting() {
     let output = fixture.run(&[
         "agent",
         "wait",
-        "--session",
+        "--agent-session",
         "sess-alpha",
         "--forever",
         "--format",

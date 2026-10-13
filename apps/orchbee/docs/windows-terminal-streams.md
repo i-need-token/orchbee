@@ -3,7 +3,7 @@
 ## Scope and ownership
 
 `terminal session observe <terminal>` emits NDJSON from one existing Windows terminal binding.
-It never activates a Site, starts a terminal, reads stdin, acquires control, or changes Host geometry.
+It never activates a Session, starts a terminal, reads stdin, acquires control, or changes Host geometry.
 `terminal session control <terminal>` adds exclusive input, resize and history commands.
 Interactive attach remains a dependent surface. Both commands select existing terminal IDs/selectors.
 
@@ -12,7 +12,7 @@ Interactive attach remains a dependent surface. Both commands select existing te
 | State           | Action and next state                                                               | Authority and invariant                                                  |
 | --------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Parsed          | Validate all operands before effects                                                | CLI owns grammar; default viewport is 120×40                             |
-| Admitting       | Discover existing Site, read Snapshot, attach exact binding                         | One five-second budget; no fallback target                               |
+| Admitting       | Discover existing Session, read Snapshot, attach exact binding                      | One five-second budget; no fallback target                               |
 | Observing       | Poll one retained Viewer, validate frame, emit and flush record, then acknowledge   | TerminalProjection owns sequence/base/epoch checks; no ACK before output |
 | Resynchronizing | Emit reset, request snapshot, resume observation                                    | Never present a missing frame interval as continuous                     |
 | Ending          | Detach once, drop connection, emit one terminal record when output remains writable | Two-second cleanup reserve; never stop the underlying terminal           |
@@ -98,8 +98,8 @@ the observation exit classes and bounded cleanup reserve.
 
 `terminal attach <terminal>` and `agent attach <target>` are Windows terminal interfaces.
 They accept `--takeover`, `--timeout <ms>` and `--mouse on|off` (default on); Agent selectors also
-accept `--session`, `--name` or `--panel`. Grammar validation precedes admission of inherited
-interactive stdin/stdout. Neither interface starts a Site, changes Workbench focus or falls back
+accept `--agent-session`, `--name` or `--panel`. Grammar validation precedes admission of inherited
+interactive stdin/stdout. Neither interface starts a Session, changes Workbench focus or falls back
 to another terminal. Agent resolution selects one live binding under the original cancellable
 admission budget. Output remains an interactive screen even with a global format selection.
 
@@ -135,7 +135,7 @@ keyboard-mode residuals remain obligations until their own implementation and Wi
 Deterministic core and scripted Windows transport checks cover exact binding, repeated frames,
 resets, partial output, cancellation, expiry and cleanup. Pipe tests must prove a blocked consumer
 cannot strand the relay. Same-author tests do not establish independent review, TLA execution,
-remote/named Site routing, other platforms or graphics streams. Control evidence must
+remote/named Session routing, other platforms or graphics streams. Control evidence must
 cover ordered input, partial acceptance, invalid-record continuation, resize, release/EOF, history
 feedback ordering and cancellation of an in-flight controller exchange.
 

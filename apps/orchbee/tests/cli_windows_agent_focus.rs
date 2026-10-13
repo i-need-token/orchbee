@@ -201,13 +201,13 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
     for selector in [
         vec!["alpha"],
         vec!["--name", "alpha"],
-        vec!["--session", "sess-alpha"],
+        vec!["--agent-session", "sess-alpha"],
         vec!["--panel", "@panel:08"],
     ] {
         let fixture = FocusFixture::new();
         let rendezvous = fixture.rendezvous();
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
-        let direct = selector[0] == "--session";
+        let direct = selector[0] == "--agent-session";
         let pinned = selector[0] == "--panel";
         let busy = selector[0] == "--name";
         let server = peer(&fixture, listener, move |mut stream| {

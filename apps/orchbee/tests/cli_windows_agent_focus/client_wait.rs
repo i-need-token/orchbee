@@ -79,7 +79,7 @@ fn selected_wait_matches_actual_state_independently_of_seen_or_missing_acknowled
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),
@@ -131,7 +131,7 @@ fn selected_wait_client_read_shares_the_total_deadline_and_missing_client_does_n
         let output = fixture.run(&[
             "agent",
             "wait",
-            "--session",
+            "--agent-session",
             "sess-alpha",
             "--client",
             &id(7),

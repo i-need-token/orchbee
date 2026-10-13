@@ -62,7 +62,7 @@ invocation behavior. This proposal owns its command-facing boundary:
 | Deferred detail | Exact timeout values and progress thresholds, remote targeting, detailed command schemas, public release cutover remain reserved. Legacy source retirement is separately accepted.                                                                         |
 
 The checked model and its maintained bounds now live in the
-[`apps/orchbee` guide](../../apps/orchbee/README.md#accepted-local-site-activation-modeling-record).
+[`apps/orchbee` guide](../../apps/orchbee/README.md#accepted-local-session-activation-modeling-record).
 It supplies design evidence only; the current bare route remains unwired and unavailable.
 
 ## Accepted TUI Client contract
@@ -115,7 +115,7 @@ public aliases for private executable names. The accepted target command familie
 | Tab             | `tab list`, `tab get`, `tab create`, `tab focus`, `tab rename`, `tab close`                                                                     | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
 | Panel           | `panel list`, `panel get`, `panel focus`, `panel split`, `panel resize`, `panel move`, `panel close`                                            | `list` and `get` first; mutations follow only after their Server state machines are admitted.                    |
 | Terminal        | `terminal list`, `terminal get`, `terminal read`, `terminal open`; later `terminal send-text`, `terminal send-keys`, and `terminal wait-output` | Read-only and `open` first; active input automation remains a later explicitly authorized slice.                 |
-| Site lifecycle  | `site enable`, `site stop`, and `site restart`                                                                                                  | Later lifecycle slices; there is no public `orchbee server` command.                                             |
+| Site lifecycle  | `site enable`, `server stop`, and `site restart`                                                                                                | Later lifecycle slices; there is no public `orchbee server` command.                                             |
 | Later domains   | Agent, managed Worktree, Archive, Launch Profile, and integration commands                                                                      | Added only by their owning accepted domain contracts.                                                            |
 
 `Tab`, `Panel`, and `Terminal` remain distinct product nouns. There is no monolithic

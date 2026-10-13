@@ -51,10 +51,10 @@ Windows Client 拥有最多 512 个 Agent 摘要及其已确认状态版本。�
 终端 Agent 使用报告所有者的语义序号和完整物理绑定，不使用规范 Session 或 provider
 观察计数。有界 `states` 读取指定最多 64 个唯一展示（含子展示），按请求顺序返回精简的
 当前绑定／序号／Agent／状态行。空行表示没有当前物理观察；展示不存在则拒绝读取。
-Site 成员关系、保留的 Host 创建／epoch／终端身份及当前 Worker 门槛一起检查。
+Session 成员关系、保留的 Host 创建／epoch／终端身份及当前 Worker 门槛一起检查。
 这些读取不修改报告，也不确认用户已经看过。
 
-Client 在独立后台读取通道观察 Site 全部展示；只允许一个待决轮次，读取预算五秒，
+Client 在独立后台读取通道观察 Session 全部展示；只允许一个待决轮次，读取预算五秒，
 最多保留 4,096 个物理条目和 8 MiB 精简数据。完整分批轮次中的 Workbench 成员关系与
 报告修订必须一致。Client 注意力所有者将物理确认与规范版本分别保存；规范观察不可用时
 不能作为物理证据，反之亦然。
@@ -100,7 +100,7 @@ Wait／prompt 条件独立于已读确认消费状态证据；done 保留既有�
 
 Workbench 协议复用有界 Agent 协议身份、游标及安全整数 DTO，不依赖运行时。提示状态提交和完成使用上限 64 KiB 的请求类型 29；结果类型 26 已有该上限。Server 回执存储预留提示状态载荷容量，并在发布前验证请求与结果会话完全对应。保留回执不会自行刷新或重复读取。共享 Rust、TypeScript 和 schema 检查覆盖形状、边界、重复、顺序、版本及归属；Windows 进程与双 Client 见证覆盖路由和实际绘制确认。
 
-`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v51 仍有 72 个 schema，原生命令路径增至 86 个。
+`agent attention <target> [--client <id>]` 一次解析会话/名称/窗格，读取该 Client 而不聚焦。`--agent-session`、`--name` 和 `--panel` 可显式选择。支持现有 `--request-id`、`--detach`、`--timeout`（默认 30000 ms）及 `--format` 回执生命周期。`client control-status` 也认证提示状态游标。文本报告已读、未读或尚未观察到；JSON 使用 `orchbee.client.control` v1。目录 v51 仍有 72 个 schema，原生命令路径增至 86 个。
 
 ## 合并规范 Agent 读取
 

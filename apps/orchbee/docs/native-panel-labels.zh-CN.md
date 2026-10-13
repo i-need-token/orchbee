@@ -15,7 +15,7 @@ White_Space，包含 NEL、不包含 BOM；Rust、TypeScript 与 schema 证据�
 
 清除恢复已有创建时回退标签。它不开始派生 Host 自然标题，不修改 Tab 标题、子 Presentation
 或外层终端窗口标题。这是原生模型的标签生命周期边界，不会偷偷替换回退文本。与其他原生
-规范 Workbench 状态相同，覆盖项持续到 Site 进程结束；此操作不增加重启持久化。
+规范 Workbench 状态相同，覆盖项持续到 Session 进程结束；此操作不增加重启持久化。
 
 实现归属包括协议标签类型及 Presentation／动作契约、Server 的纯 Workbench authority、
 共享原生标签改名 carrier、CLI mutation 适配器，以及
@@ -26,7 +26,7 @@ TypeScript 契约及 JSON schema 同步维护。
 
 | 要素     | 契约                                                                                                                                  |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 输入     | 已准入的 navigation grant、请求 ID、精确 Site 与预期 revision、context ID、Tab ID、Panel ID，以及规范化的设置／清除更新。             |
+| 输入     | 已准入的 navigation grant、请求 ID、精确 Session 与预期 revision、context ID、Tab ID、Panel ID，以及规范化的设置／清除更新。          |
 | 状态     | 一份已验证的规范快照及既有有界命令 ledger；没有另一份标签缓存或私有回退映射。                                                         |
 | 目标     | 精确 context 包含精确 Tab 与叶子 Panel。仅更新其主 Presentation，包括终端创建尚未完成时。                                             |
 | 变化结果 | 在提交前准备完整候选、编码投影和 ledger 结果，然后恰好推进一个 revision。使用原请求 ID 返回 `renamed`。                               |
@@ -40,7 +40,7 @@ TypeScript 契约及 JSON schema 同步维护。
 生命周期事实保持精确不变。它不获取终端 controller，也不改变焦点、缩放、比例或 attachment。
 后续 split、move 或终端创建结算必须保留存续 Presentation 上的已有覆盖项。
 
-CLI 专用 `orchbee.panel.rename` 第 1 版结果记录原请求／Site／base、目标身份、结果 revision、
+CLI 专用 `orchbee.panel.rename` 第 1 版结果记录原请求／Session／base、目标身份、结果 revision、
 `renamed` 或 `unchanged`，以及可空的规范化 `customLabel`。请求侧元数据是关联输入，不是
 编造的 Server 观察。沿用现有 text／JSON 失败 envelope 与单一绝对提交截止时间。CLI 只进行
 一次快照读取及一次 mutation；不等待 Client，也不单独提交聚焦操作。
@@ -62,9 +62,9 @@ revision 的矛盾，以及不可变回退标签或绑定变化仍按原规则�
 
 [Server 权威测试](../../orchbee-server/src/workbench_authority/tests/panel_labels.rs)覆盖规范化设置/清除、
 无变化、重放、非目标保留、pending 创建、授权及容量。[原生投影轨迹](../src/terminal_session/workbench_projection/tests/label_evolution.rs)
-覆盖自定义标签演进及不可变身份拒绝。这些维护中的测试不会针对同一 Site 运行两个原生 TUI。
+覆盖自定义标签演进及不可变身份拒绝。这些维护中的测试不会针对同一 Session 运行两个原生 TUI。
 
-原生 Windows 进程验证必须使用专属 Site 与两个 TUI，检查全局显示收敛、设置/清除/无变化、
+原生 Windows 进程验证必须使用专属 Session 与两个 TUI，检查全局显示收敛、设置/清除/无变化、
 嵌套 Panel 隔离及终端身份不变。运行适用根门禁，并单独记录该原生见证；仅通过所有者测试或
 门禁本身不证明该交互。不保留独立标签 TLA 模型。
 

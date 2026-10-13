@@ -1,4 +1,4 @@
-//! `site diagnose` coverage at the function boundary: every row
+//! `server diagnose` coverage at the function boundary: every row
 //! mapping, the conditional advisories, the directory-failure
 //! classification, and real scratch-runtime collections — including
 //! the no-creation invariant and a spent budget.

@@ -3,7 +3,7 @@
 状态：原生 `orchbee` 命令中有界过小窗口启动等待的已接受实现与正确性契约：当继承终端
 上报的几何不可绘制时，启动会等待真实的可绘制几何，而不是准入失败或虚构几何。等待完全
 运行在从 `run` 入口起算的原始启动截止时间之内；它从不延长、重置或替换该截止时间，且
-在等待期间不执行任何 cohort、Site、server、session 或 terminal 工作。
+在等待期间不执行任何 cohort、Session、server、session 或 terminal 工作。
 
 权威：本记录拥有等待模型、结果契约、截止优先规则、依赖注入面，以及
 `src/startup_wait.rs` 中实现并在 `src/local_startup.rs` 中接线的输入与生命周期纪律。
@@ -25,9 +25,9 @@ TTY 准入验证终端身份与描述符安全，并探测几何查询本身可�
 结果：
 
 - `Available(geometry)`：观测到真实的可绘制几何。等待返回前先恢复模式；正常启动路径
-  随后计算线上几何，并照常进入 cohort、Site、连接与 session 工作。
+  随后计算线上几何，并照常进入 cohort、Session、连接与 session 工作。
 - `Cancelled`：用户输入了既有前缀退出绑定（Ctrl+B 后接 `q`/`d`）。进程返回成功；不
-  创建任何 cohort、Site、连接、session 或服务。
+  创建任何 cohort、Session、连接、session 或服务。
 - `TimedOut`：原始启动截止时间到期。返回本地化的 `TimedOut` 启动失败；在此之前先
   恢复模式。
 - `Fault`：I/O 或模式所有者故障。在尝试恢复模式之后返回映射后的启动失败。
@@ -44,7 +44,7 @@ TTY 准入验证终端身份与描述符安全，并探测几何查询本身可�
   终端输入端口，因此等待中消费的字节不会到达其后的终端 session。
 - 等待只使用继承 TTY：它复制继承的输入/输出句柄，绝不重新打开 `/dev/tty`。模式所有权
   保持在既有生命周期守卫中。
-- 等待从不创建 cohort、Site、server、session 或 terminal 对象；这些只在 `Available`
+- 等待从不创建 cohort、Session、server、session 或 terminal 对象；这些只在 `Available`
   返回后经由不变的启动序列启动。
 
 ## 测试契约
@@ -54,7 +54,7 @@ TTY 准入验证终端身份与描述符安全，并探测几何查询本身可�
 重试、模式恢复顺序与不可重放都在无终端环境下被验证。
 
 聚焦 PTY 旅程覆盖真实路径：过小或初始零单元格的启动显示本地化提示；等待中退出返回
-成功、终端模式恢复且不创建任何 Site 进程；调整到可绘制尺寸后继续进入完整 Ready
+成功、终端模式恢复且不创建任何 Session 进程；调整到可绘制尺寸后继续进入完整 Ready
 workbench——在帧的真实末行上验证——并干净退出。上报零像素的可绘制启动同样到达
 Ready，覆盖合法的 pixel 未知状态。PTY 观察器是与初始 winsize 无关的固定容量画布，
 超出该容量的 witness resize 被拒绝。

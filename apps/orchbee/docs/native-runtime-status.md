@@ -4,7 +4,7 @@
 
 This reference owns Windows `status server` and `status client` reads this executable's compiled version, operating system, architecture and lossless executable path, and independently validates its sibling native cohort. A missing, invalid, denied, timed-out or unreadable cohort is explicit unavailable metadata. With a valid cohort, a missing `release.json` means development delivery; an installed release must have an admitted manifest whose SHA-256 matches the immutable directory name, whose version matches the Client, and whose cohort.json digest binds the independently verified cohort. This yields actual installed channel, version, buildId and manifest identity. Corrupt, moved or inaccessible metadata yields unknown delivery and no guessed channel. The configured channel preference is independent. This read never contacts a Server or updates files.
 
-`status server` probes only the selected implicit local Windows Site. It does not start a Server,
+`status server` probes only the selected implicit local Windows Session. It does not start a Server,
 create a runtime directory or lock file, repair a marker, attach a terminal, change focus or create
 a Client Session. Its successful response reports facts supplied by the responding same-user
 Server, not values copied from the querying Client or inferred from a pipe name.
@@ -19,7 +19,7 @@ Server, not values copied from the querying Client or inferred from a pipe name.
 | Outputs    | One bounded localized text answer or versioned JSON document, or one existing typed failure; no partial output.                                                                                                                |
 | Invariants | Peer proof before request; one completed connection and one request; no ordinary Client hello, generation allocation, Workbench Session, activation, lock creation, process launch or mutation.                                |
 | Decisions  | Missing selected runtime/endpoint before connection can be absence; partial replies, permission errors, busy/deadline, malformed metadata and EOF after connection cannot.                                                     |
-| Ownership  | Local Site runtime owns private path admission; local Client protocol owns bounded metadata framing/transport; Server owns its build/cohort/mode/implementation facts; CLI owns comparisons and presentation.                  |
+| Ownership  | Local Session runtime owns private path admission; local Client protocol owns bounded metadata framing/transport; Server owns its build/cohort/mode/implementation facts; CLI owns comparisons and presentation.               |
 | Lifetime   | Candidate drops after the single reply or any failure, before presentation. Cancellation releases its wait source through the existing emit finalizer.                                                                         |
 | Budget     | Five seconds from collection start; connection, partial I/O and settlement never renew it. File hashing checks the remaining budget between bounded reads; synchronous kernel/filesystem calls are cooperative, not preempted. |
 | Evidence   | Codec counterexamples, Windows named-pipe peers, Server admission/state tests, CLI process/schema/completion tests and actual staged PowerShell 5.1/7 probes.                                                                  |
@@ -68,7 +68,7 @@ handoff, restart, channel change or named/remote routing is performed.
 
 An older Server rejects the unknown metadata request as a malformed frame or wrong message; the CLI reports incompatible metadata
 support, not not-running. Roll out or roll back the complete development cohort together. The new
-commands and schemas are additive, bare `status` and `site diagnose` keep their meanings, and no
+commands and schemas are additive, bare `status` and `server diagnose` keep their meanings, and no
 durable state or migration is introduced.
 
 ## Public output and evidence
@@ -86,11 +86,11 @@ Required evidence includes maximum/truncated/invalid/unknown-bit payloads and un
 goldens; same-user Windows metadata response, wrong replies, silence, expiry and cancellation;
 Server metadata with full Session capacity and while stopping without allocating a generation;
 local-cohort mismatch/absence and old-Server rejection; offline Client/help/schema/completion;
-and actual matched-cohort PowerShell 5.1/7 probes with all owned Sites stopped afterward.
+and actual matched-cohort PowerShell 5.1/7 probes with all owned Sessions stopped afterward.
 Review is performed by the implementation author. This workflow uses implementation tests, and neither
 independent review nor unexecuted formal proof is claimed.
 
 The Server status scope accepts both the default `orchbee-native-` identity
 (32 hex digits) and the named Windows `orchbee-session-` identity (47 hex digits),
 as produced by `WindowsSiteName::scope_for_user`. This observation does not
-activate a missing named Site. The version-1 schema admits both existing forms.
+activate a missing named Session. The version-1 schema admits both existing forms.

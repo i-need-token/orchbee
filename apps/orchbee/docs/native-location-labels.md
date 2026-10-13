@@ -13,7 +13,7 @@ reference extends [Workspace setup](native-workspace-setup.md) and
 The editor starts with the canonical label, preserves exact text up to 512 Unicode scalars, and
 uses Enter to submit, Escape to cancel, Backspace to delete and Ctrl+U to clear. Each opening has
 a fresh token and requires a complete first draw. Shared modal UTF-8, paste, fault and quiet-drain
-rules remain unchanged. Target IDs, Site, revision and original label are captured at opening;
+rules remain unchanged. Target IDs, Session, revision and original label are captured at opening;
 concurrent changes never retarget or automatically rebase a draft.
 
 Renaming preserves location identity, terminal bindings, directory associations and live shell
@@ -28,7 +28,7 @@ evidence serve these actions. Drafts, pending commands and unresolved known resu
 competing structural work. No command is allocated on open, edit, cancel or failed admission.
 
 A Project-menu request captures the complete target Project separately from the initiating
-Site, revision, context, desired pane and focused pane incarnation. The original menu deadline
+Session, revision, context, desired pane and focused pane incarnation. The original menu deadline
 bounds mailbox lock acquisition and is checked again under the admission lock. Successful admission
 ends that deadline; human editing is untimed and submission starts the existing operation budget.
 The draft displays and edits the requested Project, even when another Project has the same label.
@@ -36,18 +36,18 @@ Removed or replaced targets and changed source/focus actively discard the draft 
 with a localized refusal. A fresh frame is required before terminal input resumes. This proof ends
 at accepted submission: the committed rename cannot invalidate its own retained receipt or recovery.
 
-| Event                                 | Result                                                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Project-menu admission                | Require a live exact target/source proof and unexpired deadline; open one draft without navigation or a command.    |
-| Target/source/focus invalidation      | Discard the unsubmitted draft, release structural ownership and report refusal without retargeting.                 |
-| Submit                                | Freeze one exact Project or Workspace rename request after validating target, input and first draw.                 |
-| Unchanged                             | Require the captured revision and unchanged original label; preserve the retained known result.                     |
-| Renamed                               | Require checked successor revision and changed text; preserve the exact request before snapshot or UI handoff.      |
-| Exact result snapshot                 | Require only the requested label change, or no change for Unchanged; preserve all other projected canonical facts.  |
-| Later snapshot                        | Validate Site and exact target ownership, then display actual canonical labels and members, including peer changes. |
-| Snapshot unavailable                  | Retain the known rename result; explicit `w` observes again without replaying the mutation.                         |
-| Definite refusal or queued retirement | Preserve exact NotApplied evidence and existing terminal identity.                                                  |
-| Ambiguous delivery                    | Retire the carrier with exact unknown evidence, without retry or a fabricated result.                               |
+| Event                                 | Result                                                                                                                 |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Project-menu admission                | Require a live exact target/source proof and unexpired deadline; open one draft without navigation or a command.       |
+| Target/source/focus invalidation      | Discard the unsubmitted draft, release structural ownership and report refusal without retargeting.                    |
+| Submit                                | Freeze one exact Project or Workspace rename request after validating target, input and first draw.                    |
+| Unchanged                             | Require the captured revision and unchanged original label; preserve the retained known result.                        |
+| Renamed                               | Require checked successor revision and changed text; preserve the exact request before snapshot or UI handoff.         |
+| Exact result snapshot                 | Require only the requested label change, or no change for Unchanged; preserve all other projected canonical facts.     |
+| Later snapshot                        | Validate Session and exact target ownership, then display actual canonical labels and members, including peer changes. |
+| Snapshot unavailable                  | Retain the known rename result; explicit `w` observes again without replaying the mutation.                            |
+| Definite refusal or queued retirement | Preserve exact NotApplied evidence and existing terminal identity.                                                     |
+| Ambiguous delivery                    | Retire the carrier with exact unknown evidence, without retry or a fabricated result.                                  |
 
 Snapshot installation uses the existing membership owner. Label changes alone neither detach nor
 reattach a terminal; real peer membership changes follow the existing exact cleanup rules.

@@ -81,7 +81,7 @@ outcome, never payload bytes or localized prose. A normal restoration clears the
 Client activation reads the matching notice through the existing private runtime owner.
 Notice publication failure prevents endpoint readiness. Controlled restore-notice tests check publication failure, readiness, Client connection and stale-generation reads.
 
-Headless `site start` renders a localized warning on stderr while preserving its existing success
+Headless `server start` renders a localized warning on stderr while preserving its existing success
 document and exit code. The initial TUI displays the same warning through its existing notice
 surface. Reattachment can display the notice for the same activation. Stale generations do not
 warn a new boot. This provides visible recovery feedback without reading terminal screens or

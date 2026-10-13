@@ -253,7 +253,7 @@ pub(crate) enum Family {
     TerminalSession,
     Worktree,
     LaunchProfile,
-    Site,
+    Server,
     Api,
     Config,
     #[cfg(windows)]
@@ -299,7 +299,7 @@ impl Family {
             #[cfg(windows)]
             Self::Popup => "popup",
             Self::Notification => "notification",
-            Self::Site => "site",
+            Self::Server => "server",
             Self::Api => "api",
             Self::Config => "config",
             #[cfg(windows)]
@@ -715,10 +715,10 @@ impl CommandPath {
             Self::ChannelSet => "channel set",
             #[cfg(windows)]
             Self::Update => "update",
-            Self::SiteStart => "site start",
-            Self::SiteDiagnose => "site diagnose",
-            Self::SiteConfig => "site config",
-            Self::SiteReloadConfig => "site reload-config",
+            Self::SiteStart => "server start",
+            Self::SiteDiagnose => "server diagnose",
+            Self::SiteConfig => "server config",
+            Self::SiteReloadConfig => "server reload-config",
             Self::TerminalTitleSet => "terminal title set",
             Self::TerminalTitleClear => "terminal title clear",
             #[cfg(windows)]
@@ -752,12 +752,12 @@ impl CommandPath {
             #[cfg(windows)]
             Self::PluginPaneClose => "plugin pane close",
             Self::NotificationShow => "notification show",
-            Self::SiteAgentManifests => "site agent-manifests",
-            Self::SiteUpdateAgentManifests => "site update-agent-manifests",
-            Self::SiteReloadAgentManifests => "site reload-agent-manifests",
-            Self::SiteAgentManifestsStatus => "site agent-manifests-status",
-            Self::SiteStop => "site stop",
-            Self::SiteStopStatus => "site stop-status",
+            Self::SiteAgentManifests => "server agent-manifests",
+            Self::SiteUpdateAgentManifests => "server update-agent-manifests",
+            Self::SiteReloadAgentManifests => "server reload-agent-manifests",
+            Self::SiteAgentManifestsStatus => "server agent-manifests-status",
+            Self::SiteStop => "server stop",
+            Self::SiteStopStatus => "server stop-status",
         }
     }
 }
@@ -1658,7 +1658,7 @@ pub(crate) enum Request {
         command: MutationCommand,
         format: OutputFormat,
     },
-    /// `site start`: the headless connect-or-activate command — neither a
+    /// `server start`: the headless connect-or-activate command — neither a
     /// Workbench query nor a mutation; it runs the shared activation core.
     SiteStart {
         format: OutputFormat,
@@ -2241,7 +2241,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--seq",
     "--ttl-ms",
     #[cfg(windows)]
-    "--site",
+    "--session",
     "--output",
     "--client",
     "--branch",
@@ -2282,7 +2282,7 @@ const VALUE_FLAGS: &[&str] = &[
     "--match",
     "--mouse",
     "--name",
-    "--session",
+    "--agent-session",
     "--project",
     "--provider",
     "--profile",
@@ -2788,7 +2788,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                 usage_with(
                     UsageReason::InvalidValue {
                         context: UsageContext::Root,
-                        option: "--site",
+                        option: "--session",
                         value: name,
                         expected: ExpectedValue::SiteName,
                     },
@@ -2803,7 +2803,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         return Err(usage_with(
             UsageReason::UnexpectedOption {
                 context: UsageContext::Literal("orchbee --default-config"),
-                option: "--site",
+                option: "--session",
             },
             envelope,
         ));
@@ -2813,7 +2813,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
         return Err(usage_with(
             UsageReason::UnexpectedOption {
                 context: UsageContext::Path("config import-herdr"),
-                option: "--site",
+                option: "--session",
             },
             envelope,
         ));
@@ -2826,7 +2826,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             return Err(usage_with(
                 UsageReason::ConflictingOptions {
                     context: UsageContext::Path("session"),
-                    first: "--site",
+                    first: "--session",
                     second: "<name>",
                 },
                 envelope,
@@ -2937,7 +2937,7 @@ fn apply_value_flag(
         "--seq" => &mut options.metadata.sequence,
         "--ttl-ms" => &mut options.metadata.ttl,
         #[cfg(windows)]
-        "--site" => &mut options.site,
+        "--session" => &mut options.site,
         "--output" => &mut options.output,
         "--branch" => &mut options.branch,
         "--base" => &mut options.base,
@@ -2984,7 +2984,7 @@ fn apply_value_flag(
         "--cursor" => &mut options.cursor,
         "--after-revision" => &mut options.after_revision,
         "--name" => &mut options.name,
-        "--session" => &mut options.session,
+        "--agent-session" => &mut options.session,
         #[cfg(windows)]
         "--remote-session" => &mut options.remote_session,
         "--profile" => &mut options.profile,
@@ -4582,8 +4582,8 @@ fn resolve_words(
             reject_filters(options, UsageContext::Path("config check"), envelope)?;
             Ok(query(QueryCommand::ConfigCheck, options))
         }
-        ["site", "start"] => {
-            reject_filters(options, UsageContext::Path("site start"), envelope)?;
+        ["server", "start"] => {
+            reject_filters(options, UsageContext::Path("server start"), envelope)?;
             Ok(Request::SiteStart {
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
@@ -4700,13 +4700,13 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", verb @ ("config" | "reload-config")] => {
+        ["server", verb @ ("config" | "reload-config")] => {
             reject_filters(
                 options,
                 UsageContext::Path(if *verb == "config" {
-                    "site config"
+                    "server config"
                 } else {
-                    "site reload-config"
+                    "server reload-config"
                 }),
                 envelope,
             )?;
@@ -4719,10 +4719,10 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", "agent-manifests"] => {
+        ["server", "agent-manifests"] => {
             reject_filters(
                 options,
-                UsageContext::Path("site agent-manifests"),
+                UsageContext::Path("server agent-manifests"),
                 envelope,
             )?;
             Ok(Request::AgentManifests {
@@ -4731,14 +4731,14 @@ fn resolve_words(
             })
         }
         [
-            "site",
+            "server",
             verb @ ("reload-agent-manifests" | "update-agent-manifests"),
         ] => {
             let update = *verb == "update-agent-manifests";
             let context = UsageContext::Path(if update {
-                "site update-agent-manifests"
+                "server update-agent-manifests"
             } else {
-                "site reload-agent-manifests"
+                "server reload-agent-manifests"
             });
             check_scope(
                 options,
@@ -4763,8 +4763,8 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", "agent-manifests-status", id] => {
-            let context = UsageContext::Path("site agent-manifests-status");
+        ["server", "agent-manifests-status", id] => {
+            let context = UsageContext::Path("server agent-manifests-status");
             reject_filters(options, context, envelope)?;
             Ok(Request::AgentManifests {
                 command: ManifestCommand::Status {
@@ -4773,23 +4773,23 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", "agent-manifests-status"] => Err(missing_required(
-            UsageContext::Path("site agent-manifests-status"),
+        ["server", "agent-manifests-status"] => Err(missing_required(
+            UsageContext::Path("server agent-manifests-status"),
             "<operation-id>",
             envelope,
         )),
-        ["site", "diagnose"] => {
-            reject_filters(options, UsageContext::Path("site diagnose"), envelope)?;
+        ["server", "diagnose"] => {
+            reject_filters(options, UsageContext::Path("server diagnose"), envelope)?;
             Ok(Request::SiteDiagnose {
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", "stop"] => Ok(Request::SiteStop {
-            command: stop_command(options, UsageContext::Path("site stop"), envelope)?,
+        ["server", "stop"] => Ok(Request::SiteStop {
+            command: stop_command(options, UsageContext::Path("server stop"), envelope)?,
             format: options.format.unwrap_or(OutputFormat::Text),
         }),
-        ["site", "stop-status", id] => {
-            let context = UsageContext::Path("site stop-status");
+        ["server", "stop-status", id] => {
+            let context = UsageContext::Path("server stop-status");
             reject_filters(options, context, envelope)?;
             Ok(Request::SiteStop {
                 command: SiteStopCommand::Status {
@@ -4798,8 +4798,8 @@ fn resolve_words(
                 format: options.format.unwrap_or(OutputFormat::Text),
             })
         }
-        ["site", "stop-status"] => Err(missing_required(
-            UsageContext::Path("site stop-status"),
+        ["server", "stop-status"] => Err(missing_required(
+            UsageContext::Path("server stop-status"),
             "<request-id>",
             envelope,
         )),
@@ -5334,28 +5334,32 @@ fn resolve_words(
             verb,
             envelope,
         )),
-        ["site"] => Err(missing_command(UsageContext::Path("site"), envelope)),
-        ["site", "start", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("site start"),
+        ["server"] => Err(missing_command(UsageContext::Path("server"), envelope)),
+        ["server", "start", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("server start"),
             extra,
             envelope,
         )),
-        ["site", "diagnose", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("site diagnose"),
+        ["server", "diagnose", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("server diagnose"),
             extra,
             envelope,
         )),
-        ["site", "stop", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("site stop"),
+        ["server", "stop", extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("server stop"),
             extra,
             envelope,
         )),
-        ["site", "stop-status", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("site stop-status"),
+        ["server", "stop-status", _, extra, ..] => Err(unexpected_argument(
+            UsageContext::Path("server stop-status"),
             extra,
             envelope,
         )),
-        ["site", verb, ..] => Err(unknown_command(UsageContext::Path("site"), verb, envelope)),
+        ["server", verb, ..] => Err(unknown_command(
+            UsageContext::Path("server"),
+            verb,
+            envelope,
+        )),
         ["completion"] => Err(missing_required(
             UsageContext::Path("completion"),
             "<shell>",
@@ -6408,7 +6412,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
         return Some("--asset-root");
     }
     if options.session.is_some() && !scope.session {
-        return Some("--session");
+        return Some("--agent-session");
     }
     if options.forever && !scope.forever {
         return Some("--forever");
@@ -7873,7 +7877,7 @@ fn agent_selector(
             UsageReason::ConflictingOptions {
                 context,
                 first: "<target>",
-                second: "--session / --name / --panel",
+                second: "--agent-session / --name / --panel",
             },
             envelope,
         ));
@@ -7906,7 +7910,7 @@ fn agent_selector(
     Err(usage_with(
         UsageReason::MissingRequired {
             context,
-            requirement: "<target> or --session <id> or --name <alias> or --panel <id|selector>",
+            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector>",
         },
         envelope,
     ))

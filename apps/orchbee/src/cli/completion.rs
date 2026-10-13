@@ -104,6 +104,12 @@ mod powershell;
 
 use crate::invocation::CompletionShell;
 
+/// Runtime selectors are distinct from command-scoped Agent targets.
+const GLOBAL_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--session",
+];
+
 /// Top-level words the grammar accepts before any option.
 const ROOT_WORDS: &[&str] = &[
     #[cfg(windows)]
@@ -130,7 +136,7 @@ const ROOT_WORDS: &[&str] = &[
     "project",
     #[cfg(windows)]
     "session",
-    "site",
+    "server",
     "status",
     "tab",
     "terminal",
@@ -166,7 +172,7 @@ const FORMAT_ROOT_WORDS: &[&str] = &[
     "project",
     #[cfg(windows)]
     "session",
-    "site",
+    "server",
     "status",
     "tab",
     "terminal",
@@ -293,7 +299,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     ("session", &["list", "attach", "stop", "delete"]),
     (
-        "site",
+        "server",
         &[
             "diagnose",
             "start",
@@ -497,7 +503,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--asset-root",
     "--profile",
     "--name",
-    "--session",
+    "--agent-session",
     "--clear",
     "--wait",
     "--forever",
@@ -762,7 +768,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--timeout",
             "--mouse",
             "--name",
-            "--session",
+            "--agent-session",
             "--panel",
         ],
     ),
@@ -868,10 +874,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--toggle",
         ],
     ),
-    ("site:reload-agent-manifests", &["--request-id"]),
-    ("site:update-agent-manifests", &["--request-id"]),
+    ("server:reload-agent-manifests", &["--request-id"]),
+    ("server:update-agent-manifests", &["--request-id"]),
     (
-        "site:stop",
+        "server:stop",
         &[
             "--confirm",
             "--request-id",
@@ -889,11 +895,14 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &["--include-ended", "--limit", "--cursor", "--client"],
     ),
     ("agent:changes", &["--limit", "--cursor"]),
-    ("agent:get", &["--session", "--name", "--panel", "--client"]),
+    (
+        "agent:get",
+        &["--agent-session", "--name", "--panel", "--client"],
+    ),
     (
         "agent:focus",
         &[
-            "--session",
+            "--agent-session",
             "--name",
             "--panel",
             "--client",
@@ -905,7 +914,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "agent:attention",
         &[
-            "--session",
+            "--agent-session",
             "--name",
             "--panel",
             "--client",
@@ -917,7 +926,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "agent:read",
         &[
-            "--session",
+            "--agent-session",
             "--panel",
             "--name",
             "--history",
@@ -929,11 +938,11 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--ansi",
         ],
     ),
-    ("agent:send-keys", &["--session", "--name", "--panel"]),
+    ("agent:send-keys", &["--agent-session", "--name", "--panel"]),
     (
         "agent:prompt",
         &[
-            "--session",
+            "--agent-session",
             "--panel",
             "--name",
             "--client",
@@ -943,17 +952,17 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--forever",
         ],
     ),
-    ("agent:explain", &["--session", "--name", "--panel"]),
-    ("agent:resolve", &["--session", "--name", "--panel"]),
+    ("agent:explain", &["--agent-session", "--name", "--panel"]),
+    ("agent:resolve", &["--agent-session", "--name", "--panel"]),
     (
         "agent:rename",
-        &["--session", "--name", "--panel", "--clear"],
+        &["--agent-session", "--name", "--panel", "--clear"],
     ),
     ("agent:doctor", &["--provider", "--asset-root"]),
     (
         "agent:wait",
         &[
-            "--session",
+            "--agent-session",
             "--client",
             "--panel",
             "--name",
@@ -1528,8 +1537,8 @@ const OPERAND_PATHS: &[&str] = &[
     "session:stop",
     #[cfg(windows)]
     "session:delete",
-    "site:stop-status",
-    "site:agent-manifests-status",
+    "server:stop-status",
+    "server:agent-manifests-status",
     "agent:start",
     "agent:explain",
     "agent:get",
@@ -1605,7 +1614,7 @@ const HELP_TOPICS: &[&str] = &[
     "project",
     #[cfg(windows)]
     "session",
-    "site",
+    "server",
     "status",
     "tab",
     "terminal",
@@ -1734,7 +1743,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
     #[cfg(windows)]
     ("session", &["list", "attach", "stop", "delete"]),
     (
-        "site",
+        "server",
         &[
             "diagnose",
             "start",
@@ -1986,7 +1995,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--asset-root" => "seen_asset_root",
         "--profile" => "seen_profile",
         "--name" => "seen_name",
-        "--session" => "seen_session",
+        "--agent-session" => "seen_session",
         "--clear" => "seen_clear",
         "--wait" => "seen_prompt_wait",
         "--forever" => "seen_forever",
@@ -2049,6 +2058,10 @@ pub(super) fn help_flags(path: crate::invocation::CommandPath) -> Vec<&'static s
     } else {
         command_flags(&path.as_str().replace(' ', ":")).to_vec()
     };
+    #[cfg(windows)]
+    if path != CommandPath::ConfigImportHerdr {
+        flags.extend(GLOBAL_FLAGS);
+    }
     let accepts_format = path != CommandPath::Tui;
     #[cfg(windows)]
     let accepts_format = accepts_format && path != CommandPath::SessionAttach;
@@ -2574,7 +2587,7 @@ fn extras_cases_bash() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} || {}", conflicts.join(" || ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--session" | "--panel")) {
+                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--agent-session" | "--panel")) {
                         format!("                [[ $state != operand ]] && (( !({cond}) )) && extras=\"$extras {flag}\"")
                     } else { format!("                (({cond})) || extras=\"$extras {flag}\"") }
                 })
@@ -2757,7 +2770,7 @@ fn bash() -> String {
             "            continue\n",
             "        fi\n",
             "        if [[ $family:$sub == agent:attach ]]; then\n",
-            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
+            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
             "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel)); then done=1; fi\n",
             "        fi\n",
             "        case \"$word\" in\n",
@@ -3140,7 +3153,7 @@ fn zsh() -> String {
             "            continue\n",
             "        fi\n",
             "        if [[ $family:$sub == agent:attach ]]; then\n",
-            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
+            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
             "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel)); then done=1; fi\n",
             "        fi\n",
             "        case \"$word\" in\n",
@@ -3778,7 +3791,7 @@ fn extras_cases_fish() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| format!("${} -eq 0", flag_bit(flag))).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} -a {}", conflicts.join(" -a ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--session" | "--panel")) {
+                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--agent-session" | "--panel")) {
                         format!("                if test $state != operand; and test {cond}; set -a candidates {flag}; end")
                     } else { format!("                if test {cond}; set -a candidates {flag}; end") }
                 })
@@ -3972,7 +3985,7 @@ fn fish() -> String {
             "            continue\n",
             "        end\n",
             "        if test \"$family:$sub\" = agent:attach\n",
-            "            if test \"$state\" = operand; and contains -- (string split -m1 '=' -- $word)[1] --name --session --panel; set done 1; end\n",
+            "            if test \"$state\" = operand; and contains -- (string split -m1 '=' -- $word)[1] --name --agent-session --panel; set done 1; end\n",
             "            if test \"$state\" = after; and not string match -q -- '-*' $word; and test (math \"$seen_name + $seen_session + $seen_panel\") -gt 0; set done 1; end\n",
             "        end\n",
             "        switch \"$word\"\n",
@@ -4421,9 +4434,9 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         }
         ("panel:move", "--focus") => &["--no-focus"],
         ("panel:move", "--no-focus") => &["--focus"],
-        ("agent:attach", "--name") => &["--session", "--panel"],
-        ("agent:attach", "--session") => &["--name", "--panel"],
-        ("agent:attach", "--panel") => &["--name", "--session"],
+        ("agent:attach", "--name") => &["--agent-session", "--panel"],
+        ("agent:attach", "--agent-session") => &["--name", "--panel"],
+        ("agent:attach", "--panel") => &["--name", "--agent-session"],
         ("worktree:create" | "worktree:open", "--focus") => &["--no-focus", "--detach"],
         ("worktree:create" | "worktree:open", "--no-focus" | "--detach") => &["--focus"],
         ("worktree:create" | "worktree:open", "--project") => &["--workspace"],

@@ -2,7 +2,7 @@
 
 ## 目录模型
 
-原生插件目录属于用户共享配置，独立于 Site 生命周期。Windows 的 `plugin link PATH`、`unlink ID`、`enable ID`、`disable ID`、`list [ID]`、`config-dir ID` 和 `action list [ID]` 不启动 Site，直接使用此目录。链接仅登记清单，不执行 build 或 startup 命令。解除链接仅移除登记，保留源文件和用户配置/状态目录。
+原生插件目录属于用户共享配置，独立于 Session 生命周期。Windows 的 `plugin link PATH`、`unlink ID`、`enable ID`、`disable ID`、`list [ID]`、`config-dir ID` 和 `action list [ID]` 不启动 Session，直接使用此目录。链接仅登记清单，不执行 build 或 startup 命令。解除链接仅移除登记，保留源文件和用户配置/状态目录。
 
 `plugin link` 在语法解析阶段校验路径写法；只有最终执行的 CLI 在完整语法和路由准入之后、访问插件目录之前，才展开用户主目录或当前目录路径。已保存机器的发送端和中继保留原始参数，不使用自身进程上下文展开路径。盘符绝对路径保持字面值。主目录写法（`~`、`~/`、`~\`）依次选择执行进程中首个可用来源：非空的 `USERPROFILE`，其次是 `HOMEDRIVE` 与 `HOMEPATH`，最后是 `HOME`。已选中的非空来源格式错误时不回退。其他相对路径使用该进程的当前目录。所需上下文无效时仍返回普通用法错误，不创建插件目录或运行时目录。
 
@@ -21,19 +21,19 @@ local-site-runtime 插件边界负责有界 TOML 校验和持久目录。目录�
 
 ## 运行时 action 与日志
 
-`plugin action invoke ACTION [--plugin ID] [--client ID] [--context JSON]` 向已有 Site 提交普通 action ID 或 `plugin.action` 完整 ID。`plugin log list [ID] [--plugin ID] [--limit 1..200]` 查询最新保留日志，默认 50 条。list 和 action-list 也支持用 `--plugin` 替代位置过滤参数。均支持 `--format text|json`，运行时命令不启动 Site。上下文是封闭的 camelCase 对象，包含可选 workspace/tab/Pane 展示字段、worktree、选中文字、调用来源、关联 ID、点击 URL 和链接处理器 ID；编码总量最多 16 KiB，选中文字最多 8 KiB。上下文不携带授权。省略调用来源时使用 `cli`；关联 ID 默认取本次调用的操作 ID。
+`plugin action invoke ACTION [--plugin ID] [--client ID] [--context JSON]` 向已有 Session 提交普通 action ID 或 `plugin.action` 完整 ID。`plugin log list [ID] [--plugin ID] [--limit 1..200]` 查询最新保留日志，默认 50 条。list 和 action-list 也支持用 `--plugin` 替代位置过滤参数。均支持 `--format text|json`，运行时命令不启动 Session。上下文是封闭的 camelCase 对象，包含可选 workspace/tab/Pane 展示字段、worktree、选中文字、调用来源、关联 ID、点击 URL 和链接处理器 ID；编码总量最多 16 KiB，选中文字最多 8 KiB。上下文不携带授权。省略调用来源时使用 `cli`；关联 ID 默认取本次调用的操作 ID。
 
 调用在同一个十秒期限内先推导上下文。显式 Client 优先于继承的调用者身份；否则从规范快照中的精确调用者绑定选择终端成员，或由唯一当前 Client 选择观察到的成员。多个当前 Client 需指定 `--client`；没有调用者且没有当前 Client 时按全局动作调用，不编造选区。Ready 和稳定 Busy 视图可读。补充信息期间规范成员、元数据、Client 选区及成员代际必须保持一致，否则不提交动作。运行时 cwd 与 Agent 观察属于该精确成员；该成员显式上报的 Agent 名称及非 unknown 状态优先，否则采用唯一观察到的 provider 及聚合状态；缺失的观察保持空值。工作区 cwd 优先采用观察到的 Pane cwd，再取工作区目录。Worktree 使用现有只读查询，不绕过信任，保留原生字段 `workerId`、`repositoryRoot`、`commonDirectory`、`repositoryName`、`checkoutPath`、`linked`；不可用时保持缺失。显式非 null 上下文字段覆盖推导的展示字段，但不选择或授权任何目标。API 调用不抓取 Client 选中文字，调用者显式提供 `selectedText`，与参考 API 一致。
 
-Server 在解析调用前要求读取、终端创建和生命周期权限。确认 Site、action 唯一且源有效、已启用、支持 Windows 后，固定 argv、源 cwd 和环境。Worker 在插件根目录执行独立参数；显式 shell 命令保留自身 shell 语义。相对程序从插件根目录解析，再使用 Windows PATH/PATHEXT。原生上下文通过 `ORCHBEE_PLUGIN_CONTEXT_JSON` 及插件 ID/root/action/config/state 路径、`ORCHBEE_BIN_PATH`、可选 workspace/tab/Pane ID 和链接字段提供。受管 Worker 用自身 Site 路由覆盖 runtime base/scope。这些是 Orchbee 变量和 API 语义，Herdr 专属脚本可能需要调整。安装本次字段前会清除继承的插件/终端身份。
+Server 在解析调用前要求读取、终端创建和生命周期权限。确认 Session、action 唯一且源有效、已启用、支持 Windows 后，固定 argv、源 cwd 和环境。Worker 在插件根目录执行独立参数；显式 shell 命令保留自身 shell 语义。相对程序从插件根目录解析，再使用 Windows PATH/PATHEXT。原生上下文通过 `ORCHBEE_PLUGIN_CONTEXT_JSON` 及插件 ID/root/action/config/state 路径、`ORCHBEE_BIN_PATH`、可选 workspace/tab/Pane ID 和链接字段提供。受管 Worker 用自身 Session 路由覆盖 runtime base/scope。这些是 Orchbee 变量和 API 语义，Herdr 专属脚本可能需要调整。安装本次字段前会清除继承的插件/终端身份。
 
 每个 Worker 生命周期最多拥有 32 个并发命令和 200 条日志。每个命令保留线程及 Windows Job，在 CLI 断开后继续运行。保留期内相同操作 ID 返回原回执，不同意图产生冲突；已淘汰日志不构成持久重放记录。CLI 在回复不确定时不重新提交修改。启动回执只确认受理，不确认执行成功。日志包含序号、起止时间、退出码、类型化失败、stdout/stderr 和显式截断标记。每路原始输出保留 64 KiB，超出后继续排空；无效 UTF-8 用替换字符解码。文本输出转义控制字符。优先淘汰最旧的已完成日志，运行中的命令保留归属。命令结束后提供输出。
 
-运行时日志在同一个十秒 CLI 截止时间内按每页四条读取，并固定 Worker/generation 和递减序号游标。新增命令不会推移后续页面；Worker 变化会拒绝旧游标。调用使用 `orchbee.plugin.runtime` v1；历史使用 `orchbee.plugin.logs` v1，通过一个展平的 `logs` 数组按所选最近记录的时间正序返回，默认 50 条，与参照一致。内部游标分页仍为倒序。两者遵守常规 8 MiB 输出上限；旧 runtime schema 继续用于历史回执。日志查询将进程失败作为数据返回，不因此让每次历史查询失败。私有 get/cancel 请求指向准确 Worker 和 job ID。取消及 Site 停止会清理根进程和后代、排空输出并等待线程结束；Job 清理不确定时阻止新执行，重试不能将未知清理变成成功。没有隐藏辅助窗口、脱离归属的管道读取线程或任意命令时长限制。
+运行时日志在同一个十秒 CLI 截止时间内按每页四条读取，并固定 Worker/generation 和递减序号游标。新增命令不会推移后续页面；Worker 变化会拒绝旧游标。调用使用 `orchbee.plugin.runtime` v1；历史使用 `orchbee.plugin.logs` v1，通过一个展平的 `logs` 数组按所选最近记录的时间正序返回，默认 50 条，与参照一致。内部游标分页仍为倒序。两者遵守常规 8 MiB 输出上限；旧 runtime schema 继续用于历史回执。日志查询将进程失败作为数据返回，不因此让每次历史查询失败。私有 get/cancel 请求指向准确 Worker 和 job ID。取消及 Session 停止会清理根进程和后代、排空输出并等待线程结束；Job 清理不确定时阻止新执行，重试不能将未知清理变成成功。没有隐藏辅助窗口、脱离归属的管道读取线程或任意命令时长限制。
 
 ## 托管源码安装与移除
 
-`plugin install owner/repo[/subdir] --yes [--ref REF] [--timeout MS]` 不需要 Site，要求 Windows PATH 中有 Git。`--yes` 显式授权执行下载源码中的构建命令；原生 CLI 不提示确认或读取终端。执行期限默认 600000 毫秒，范围 1..3600000；中断或超时后，活动 Windows Job 另有最多五秒的清理预算。`plugin uninstall plugin-id|owner/repo[/subdir]` 移除登记及托管源码，保留用户配置/状态和本地链接源文件。两者均支持 text 或 JSON 输出。
+`plugin install owner/repo[/subdir] --yes [--ref REF] [--timeout MS]` 不需要 Session，要求 Windows PATH 中有 Git。`--yes` 显式授权执行下载源码中的构建命令；原生 CLI 不提示确认或读取终端。执行期限默认 600000 毫秒，范围 1..3600000；中断或超时后，活动 Windows Job 另有最多五秒的清理预算。`plugin uninstall plugin-id|owner/repo[/subdir]` 移除登记及托管源码，保留用户配置/状态和本地链接源文件。两者均支持 text 或 JSON 输出。
 
 共享私有目录在有限的 checkout/build/commit/cleanup 流程内持有写锁，读取仍可继续。新代目录先登记，再创建于 `plugins/managed/i-<operation-id>/checkout`。Git 初始化目录，获取一个分支/标签/提交（默认 HEAD），检出确切提交并记录哈希。生效的 Windows build argv 从 manifest 根目录执行。禁用 Git hooks 和符号链接检出；构建以当前用户运行，不宣称具备沙箱。构建子进程继承用户工具环境，移除 `ORCHBEE_*` 运行时上下文并禁止交互式 Git 凭据提示。同步 CLI 拥有每个 Job、有界输出读取和中断；契约不允许这些进程在所有者退出后继续存活。
 
@@ -94,7 +94,7 @@ Client 最多拥有 32 个临时覆盖层记录，以精确 context、Tab、Pane
 | 源／成员丢失 | 丢弃无效视图记录，沿用确定性选择修复，绝不选择复用身份                                            |
 | Client 关闭  | 中断并 join 独立生命周期通道；Server 继续拥有已接受 Close 和规范终端                              |
 
-Server 串行拥有临时观察 viewer，以及结果不明的清理，直到精确 detach／disposal 或 Site 物理关闭；清理未解决时拒绝另一次观察。生命周期通道一次拥有一个有限读取／关闭工作，不阻塞渲染，不重试结果不明的变更。测试必须区分自然终止、显式关闭、读取不可用、嵌套移除、导航和重新绑定，并覆盖实际渲染与 Windows CLI 传输。同作者定向证据不代表操作系统终端模拟器或已部署 Host 验收。
+Server 串行拥有临时观察 viewer，以及结果不明的清理，直到精确 detach／disposal 或 Session 物理关闭；清理未解决时拒绝另一次观察。生命周期通道一次拥有一个有限读取／关闭工作，不阻塞渲染，不重试结果不明的变更。测试必须区分自然终止、显式关闭、读取不可用、嵌套移除、导航和重新绑定，并覆盖实际渲染与 Windows CLI 传输。同作者定向证据不代表操作系统终端模拟器或已部署 Host 验收。
 
 ## 终端 Pane 创建
 
@@ -121,7 +121,7 @@ Server 验证来源成员及规范标签，将 `invocationSource` 固定为 `plu
 | 非活动上下文中的 Tab | 精确观察 Client 以只读方式记住的活动 Tab 和布局焦点；核对规范父级成员后观察该 Panel 的主成员                    |
 | 空或 headless 目的地 | 可用时提供规范 Workspace 标签、cwd 和 worktree；省略未知 Tab、焦点和物理事实，不猜测树中的第一个成员            |
 
-Client 拥有记住的 Tab／焦点；Site 拥有规范成员和标签；已有物理收集器拥有经核实的 cwd／Agent 观察及临时 viewer 清理。后台布局探测仅将规范 Panel 用作查询锚点，不将它当作焦点 fallback。非活动上下文中的原生子终端选择未由这些只读记忆契约暴露，因此后台来源为规范主成员，对齐 Herdr 每个 Pane 一个终端的模型。
+Client 拥有记住的 Tab／焦点；Session 拥有规范成员和标签；已有物理收集器拥有经核实的 cwd／Agent 观察及临时 viewer 清理。后台布局探测仅将规范 Panel 用作查询锚点，不将它当作焦点 fallback。非活动上下文中的原生子终端选择未由这些只读记忆契约暴露，因此后台来源为规范主成员，对齐 Herdr 每个 Pane 一个终端的模型。
 
 来源流程依次解析规范目标、观察精确记忆／成员、收集物理事实、重新读取后台 Tab／焦点及原始 Client，最后提交已有的单次创建请求。所有阶段共用创建 deadline 和取消所有者。父级错误、revision 过时、记住的 Tab／焦点或原始 Client 变化均在创建前拒绝；读取不会导航、聚焦、zoom、启动或重试 mutation。来源上下文仍为显示数据，不能改变 plugin-root cwd、program／argv 或 Worker 权限。聚焦证据必须覆盖不同显式目标、记住的 Tab 和 Pane 都不是首项的非活动目的地、当前／调用者子成员保留、空／headless 缺省，以及变化或无效记忆时拒绝。这些检查证明原生 Windows CLI 传输和有主观察投影，不证明已部署 Host／模拟器验收。
 
@@ -129,7 +129,7 @@ Client 拥有记住的 Tab／焦点；Site 拥有规范成员和标签；已有�
 
 Windows 支持独立插件 popup 终端及原生关闭入口。冻结的 Herdr 基线在当前 Pane 区域上方创建一个独立终端，不改变规范 Tab／分屏成员；外框宽高默认各占可用区域的一半，支持单元格数和 1–100 百分比，并在终端结束后关闭。popup 的按键和粘贴先于普通绑定处理：Escape 和配置的前缀键属于其中的程序。区域外鼠标事件不能激活底下布局。原生标题栏关闭按钮是额外的明确关闭入口。
 
-既有终端协调器负责身份分配和独立 Terminal Create；popup 不预留隐藏 Tab、Panel 或 Presentation。一个独立且已认证的 Client 连接最多持有一个 popup；Site 最多保留 32 个 popup 所有者，含清理不确定项。Server 在预留之前解析已启用的 Windows 目录入口，冻结 argv、插件根 cwd、受保护环境及已验证的来源展示上下文。调用输入只有选择器、有界上下文、可选 cwd 和普通启动环境，不能提供受保护环境或物理身份。UI 另按精确 Client／视图版本和来源成员准入一个 popup。来源身份复用完整 Client Presentation selection：已绑定 attachment generation／incarnation，或未绑定 selection generation；帧和滚动更新不改变成员身份。尺寸是有类型的单元格数或百分比；省略时先采用清单值，再采用半区域默认值。外框居中并限制在至少 6×4 单元格，原生边框内容宽高各减两个单元格。视口过小时暂停 popup 输入和尺寸调整，不把终端缩成零。
+既有终端协调器负责身份分配和独立 Terminal Create；popup 不预留隐藏 Tab、Panel 或 Presentation。一个独立且已认证的 Client 连接最多持有一个 popup；Session 最多保留 32 个 popup 所有者，含清理不确定项。Server 在预留之前解析已启用的 Windows 目录入口，冻结 argv、插件根 cwd、受保护环境及已验证的来源展示上下文。调用输入只有选择器、有界上下文、可选 cwd 和普通启动环境，不能提供受保护环境或物理身份。UI 另按精确 Client／视图版本和来源成员准入一个 popup。来源身份复用完整 Client Presentation selection：已绑定 attachment generation／incarnation，或未绑定 selection generation；帧和滚动更新不改变成员身份。尺寸是有类型的单元格数或百分比；省略时先采用清单值，再采用半区域默认值。外框居中并限制在至少 6×4 单元格，原生边框内容宽高各减两个单元格。视口过小时暂停 popup 输入和尺寸调整，不把终端缩成零。
 
 | 状态／转换         | 归属与守卫                                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -137,14 +137,14 @@ Windows 支持独立插件 popup 终端及原生关闭入口。冻结的 Herdr �
 | 打开中到活动       | 关联且已知的立即启动，以精确创建引用附加，获取控制权，接纳可绘制的有界投影                              |
 | 活动输入／调整尺寸 | 独立串行通道，精确 attachment／controller／frame 围栏；按键和粘贴只到 popup，鼠标使用最近完整绘制的矩形 |
 | 终端结束           | 只读观察精确物理生命周期；安排一次关闭，不把缺帧或断连当作进程结束                                      |
-| 显式关闭／断连     | 先撤销输入；Server 将关闭责任交给既有 Site 维护通道                                                     |
+| 显式关闭／断连     | 先撤销输入；Server 将关闭责任交给既有 Session 维护通道                                                  |
 | 已知释放           | 完整 Worker 代际、binding fence 和 Host 身份；已知物理释放后才删除 popup binding 和所有者               |
 | 启动或关闭不确定   | 保留有界 Server 所有者并停止重放变更；不宣称清理成功，也不在同一连接启动替代 popup                      |
-| Client 退出        | 取消并回收独立通道；连接析构把已接纳的终端交给 Site 清理                                                |
-| Site 退出          | 既有物理 Site／Worker 关闭收尾保留的不确定所有者；状态不持久化，也不伪造恢复                            |
+| Client 退出        | 取消并回收独立通道；连接析构把已接纳的终端交给 Session 清理                                             |
+| Session 退出       | 既有物理 Session／Worker 关闭收尾保留的不确定所有者；状态不持久化，也不伪造恢复                         |
 
 `plugin pane open --placement popup [--width CELLS|PERCENT%] [--height CELLS|PERCENT%]` 使用清单尺寸默认值，可由参数覆盖。popup 布局在产生效果前拒绝规范几何、target、Workspace 和 direction 覆盖。`popup close [--client ID] [--timeout MS]` 即使从无规范 Pane 的终端调用，也按 Client 定位。两者使用 `orchbee.popup.result` v1；通用 Client control 使用 v9。打开完成要求已接纳帧及完成绘制；关闭完成等待已知物理释放。没有 popup 时关闭返回 `hadPopup=false`，保留其他对话框。旧创建及 Client-control CLI schema 保持封闭。
 
-私有 Workbench 插件协议提供连接归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Site 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Site 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；不宣称 Herdr RPC 名称或 Desktop 功能相同。不引入新 Host 能力、依赖、进程框架或持久化存储。
+私有 Workbench 插件协议提供连接归属的 popup 打开、生命周期读取和关闭动作及封闭的有类型结果。Open 需要 read、create 和 lifecycle 权限；Read 需要 read；Close 需要 read 和 lifecycle 权限。自然结束观察按精确独立创建引用附着，不占用独占生命周期关闭所有者。显式关闭先撤销输入并围栏 binding，Session 维护再提交 Force，通过有界 inventory 观察精确目标 exited／failed，最后提交 Dispose。Inventory 观察采用协作式五秒窗口，每次遍历最多八页、最多 32 个生命周期步骤；进行中的 Worker 交换仍有独立传输界限。只有已知 Dispose 才释放保留的 binding。启动或关闭回执丢失时保留不确定状态，不重放变更；UI 显示重启 Session 提示并阻止替代 popup。启动前已知拒绝允许重试。Rust／TypeScript 对端需一起部署；不宣称 Herdr RPC 名称或 Desktop 功能相同。不引入新 Host 能力、依赖、进程框架或持久化存储。
 
 定向验收覆盖重复准入、来源／目录拒绝时不启动、规范布局不变、丢失启动／关闭答复、完整身份释放、连接退休、尺寸、已解码按键／粘贴／鼠标归属、实际 Ratatui 组合绘制和原生 Windows CLI 传输。测试拥有其根目录、管道、线程和 Job，直到最后消费者结束。定向 fixture 证据不代表已部署 Host／终端模拟器验收；最终集成需通过更广的 Windows 验收流程。

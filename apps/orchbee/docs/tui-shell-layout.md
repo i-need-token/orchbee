@@ -141,11 +141,11 @@ a keyboard-focused current-Machine Project row has a `+` beside its row menu. Di
 are disjoint. The glyph is locale-neutral; action labels and unavailable reasons use
 the existing English and Chinese catalogs.
 
-| Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tab-strip `+`     | `DrawnTabCreate` freezes the Site, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
-| New workspace row | An unmodified left press delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It creates an independent Workspace and first shell without opening the creation menu. The decision packet is captured before the terminal target can change.                                                                           |
-| Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                           |
+| Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab-strip `+`     | `DrawnTabCreate` freezes the Session, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
+| New workspace row | An unmodified left press delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It creates an independent Workspace and first shell without opening the creation menu. The decision packet is captured before the terminal target can change.                                                                              |
+| Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                              |
 
 Right-clicking the Tab-strip `+` opens the separate new-Tab menu (plain Tab, recent group,
 or new group); the global menu provides its keyboard entry. It retains the same exact
@@ -173,7 +173,7 @@ visible navigation entries, including Project and Context rows, and reports a
 range only on overflow. It does not present that count as an Agent total.
 
 A collapsed Project or Context retains its complete observed Agent count and waiting
-count on continuation rows. These counts use exact Machine/Site/Context membership
+count on continuation rows. These counts use exact Machine/Session/Context membership
 before Agent filters; a filter that hides every child does not hide that evidence.
 Missing or incomplete observations do not become zero counts. Zero totals are omitted;
 positive waiting counts use the warning role. Current-Workspace styling remains on the
@@ -219,7 +219,7 @@ Projects and Workspaces.
 
 `machine_picker::Picker` owns Project expansion, independent Agent-list collapse
 preferences per Context, keyboard row focus and one shared window. `SidebarTarget::Project`
-carries Machine/Site/Project identity; `SidebarTarget::Context` carries Machine
+carries Machine/Session/Project identity; `SidebarTarget::Context` carries Machine
 and the full `NativeContextTarget`; `SidebarTarget::Agent` also retains exact
 member and physical binding identity. Optional Project membership is Context metadata,
 resolved by `Picker::sidebar_parent` from the current projection. Moving a Workspace or
@@ -259,7 +259,7 @@ without claiming pixel or backend equivalence.
 
 | Claim                                     | Executable evidence and limits                                                                                                                                                                                                             |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Site/Context joins, duplicate labels, ungrouped Workspaces, Standalone, multiple default-expanded lists, retained collapse preferences and exact Tab/Panel activation.                            |
+| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Session/Context joins, duplicate labels, ungrouped Workspaces, Standalone, multiple default-expanded lists, retained collapse preferences and exact Tab/Panel activation.                         |
 | Valid focus and scroll                    | Bounded generated navigation traces cover topology and grouping changes; focused cases cover regroup/dissolve, removed ancestors, Agent-parent movement, current-Agent reveal and manual-scroll disclosure. No unbounded proof is claimed. |
 | Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, collapsed counts/current evidence, empty Project controls, stale hits, wheel cancellation and disclosure without focus transfer.     |
 
@@ -377,7 +377,7 @@ styles. Reference overlays preserve pane focus and use an unfocused frame. Sideb
 use primary bold text rather than focus color.
 On Windows the Machine picker and Worktree draft also suppress pane focus and
 the terminal cursor while they own input.
-The Site status colors only its glyph; its text uses the primary text role.
+The Session status colors only its glyph; its text uses the primary text role.
 Ready uses the existing success role, while other phases retain their warning
 role. Live and retained terminal cells share the theme-default color projection:
 default-marked foreground and background follow the theme, and explicit program

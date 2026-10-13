@@ -513,8 +513,8 @@ impl Locale {
                 ),
                 "--remote-session" => (
                     "<name>",
-                    "Remote Site name; default: default.",
-                    "远端 Site 名称；默认 default。",
+                    "Remote session name; default: default.",
+                    "远端会话名称；默认 default。",
                 ),
                 "--request" => (
                     "<id>",
@@ -546,10 +546,15 @@ impl Locale {
                     "Monotonic sequence number for this source.",
                     "此来源单调递增的序号。",
                 ),
-                "--session" => (
+                "--agent-session" => (
                     "<id>",
                     "Select an Agent session explicitly.",
                     "显式选择 Agent 会话。",
+                ),
+                "--session" => (
+                    "<name>",
+                    "Select the local Orchbee session; default: default.",
+                    "选择本地 Orchbee 会话；默认 default。",
                 ),
                 "--session-start-source" => (
                     "<source>",

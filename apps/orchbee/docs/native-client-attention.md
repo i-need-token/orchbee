@@ -53,10 +53,10 @@ Terminal-backed Agents use the report owner's semantic sequence and full physica
 canonical Session or provider observation counter. A bounded `states` read names at most 64 unique
 presentations, including children, and returns compact current binding/sequence/Agent/state rows in
 request order. A null row means no current physical observation; a missing presentation refuses the
-read. Site membership, retained Host creation/epoch/terminal identity and the current Worker gate
+read. Session membership, retained Host creation/epoch/terminal identity and the current Worker gate
 are checked together. These reads never change reports or acknowledge user attention.
 
-The Client observes all Site presentations on an isolated background read lane with one outstanding
+The Client observes all Session presentations on an isolated background read lane with one outstanding
 round, a five-second read budget, at most 4,096 physical entries and 8 MiB of retained compact data.
 Workbench membership and report revisions must remain coherent across a complete batched round.
 The Client attention owner stores physical acknowledgements separately from canonical versions;
@@ -107,7 +107,7 @@ The snapshot carries the canonical changes cursor and revision, nullable outer-f
 
 Workbench protocol consumes bounded Agent protocol identity, cursor and safe-integer DTOs, with no runtime dependency. Attention submissions and completions use bounded 64 KiB request kind 29; result kind 26 already has that bound. Server receipt storage reserves attention payload capacity and validates exact request/result session correspondence before publication. A retained receipt does not refresh itself or repeat a read. Shared Rust, TypeScript and schema checks cover shape, bounds, duplicates, ordering, revision and attribution; Windows process and two-Client witnesses cover routing and actual paint acknowledgement.
 
-`agent attention <target> [--client <id>]` resolves a session/name/Panel once and reads that Client without focusing it. `--session`, `--name` and `--panel` select explicitly. It supports the existing `--request-id`, `--detach`, `--timeout` (default 30000 ms) and `--format` receipt lifecycle. `client control-status` authenticates attention cursors too. Text reports seen, unseen or not observed; JSON uses `orchbee.client.control` v1. Catalog v51 retains 72 schemas and admits 86 native command paths.
+`agent attention <target> [--client <id>]` resolves a session/name/Panel once and reads that Client without focusing it. `--agent-session`, `--name` and `--panel` select explicitly. It supports the existing `--request-id`, `--detach`, `--timeout` (default 30000 ms) and `--format` receipt lifecycle. `client control-status` authenticates attention cursors too. Text reports seen, unseen or not observed; JSON uses `orchbee.client.control` v1. Catalog v51 retains 72 schemas and admits 86 native command paths.
 
 ## Joining canonical Agent reads
 

@@ -6,11 +6,11 @@ Each command accepts optional `--presentation <id>`, a full nonzero 32-character
 hexadecimal Presentation ID belonging to the positional Panel. Omission retains the primary
 target. Explicit selection never falls back to a different member, caller or Client. The CLI
 resolves canonical membership and requires a bound member before submission. The Server rechecks
-the exact owning Panel and expected binding under its existing Site gate. Reports remain owned
+the exact owning Panel and expected binding under its existing Session gate. Reports remain owned
 by the binding and physical generation; source ordering and report policy are unchanged.
 
 Exact writes use the closed `report-presentation` / `presentation-reported` variants of the
-existing carrier. Positive replies must match request, Site, Panel, Presentation and binding;
+existing carrier. Positive replies must match request, Session, Panel, Presentation and binding;
 legacy `report` / `reported` remain primary-only. The CLI emits `orchbee.panel.agent-report` v4
 only for explicit member selection, including the requested `presentationId` for known and
 unknown submitted outcomes. Earlier v1/v2 remain closed; primary reports use v3. Localized text identifies the member.
@@ -23,7 +23,7 @@ Full provider, multi-Client and visual acceptance remains part of the final gate
 
 ## Commands
 
-Four commands submit explicit terminal reports to the running Site:
+Four commands submit explicit terminal reports to the running Session:
 
 ```text
 orchbee panel report-agent <panel> --source <id> --agent <label> --state idle|working|blocked|done|error|unknown [--message <text>] [--seq <n>] [--agent-session-id <id>] [--agent-session-path <path>]
@@ -33,7 +33,7 @@ orchbee panel release-agent <panel> --source <id> --agent <label> [--seq <n>]
 ```
 
 All accept `--format text|json`, a full Panel ID or `@panel:<suffix>`, and the Windows global
-`--site` selector. Help and PowerShell completion expose their command-specific options and state
+`--session` selector. Help and PowerShell completion expose their command-specific options and state
 values. `clear-agent-authority` provides a native command for Herdr's API-only operation.
 
 ## Input and report ownership
@@ -60,14 +60,14 @@ can have different outcomes, so the returned disposition and `changed` flag are 
 
 ## Submission and receipt
 
-One existing-Site connection, snapshot and submission share a five-second deadline and signal
+One existing-Session connection, snapshot and submission share a five-second deadline and signal
 owner. Resolve the requested member once (primary by default) and submit the expected binding. Unbound targets fail
-before submission; changed bindings receive a correlated rejection. No Site starts, focus changes,
+before submission; changed bindings receive a correlated rejection. No Session starts, focus changes,
 terminal input, provider execution or automatic retries occur. After handoff, a lost, malformed,
 mismatched or late response preserves the request ID and reports an unknown outcome. A late
 interrupt preserves a received result and sets `interrupted`.
 
-The original `orchbee.panel.agent-report` v1 introduced request/Site/Panel IDs, a Server reply or closed unknown
+The original `orchbee.panel.agent-report` v1 introduced request/Session/Panel IDs, a Server reply or closed unknown
 reason, `interrupted` and `cleanupFailed`. The reply contains independent Workbench/report revisions,
 binding, applied/ignored/deferred disposition, actual change flag and effective report view including
 an optional external provider session reference. Applied, ignored and deferred exit 0; target,
@@ -94,9 +94,9 @@ Parser tests cover scope, source distinctions, label/reference preservation and 
 request bounds. Named-pipe fault tests cover pre-submission deadlines, response correlation,
 binding mismatch, loss, malformed replies, late replies and no replay. Receipt tests preserve all
 three dispositions through late cancellation, both locales and the closed JSON schema. Windows
-acceptance uses a matched cohort and isolated Site through these public command paths; it does not
+acceptance uses a matched cohort and isolated Session through these public command paths; it does not
 claim an authenticated provider task or final TUI/full-regression acceptance.
 
 ## Process confirmation through Host reads
 
-On Windows, the Site samples Host processes in the background without a user query. Each round visits at most eight primary/child bindings in round-robin order, with a 250 ms wait between rounds and a one-second between-target budget; carrier I/O and cleanup can delay a round, so this is not a freshness guarantee. One temporary read-only viewer is released before sampling another terminal; uncertain cleanup pauses sampling and remains owned through Site shutdown. Successful `panel process-info` and the terminal observations used by Panel/Agent queries also feed the same trusted process adapter. It rechecks the exact Worker/Host generation, recognizes a unique process chain, and can activate matching deferred lifecycle reports. A later complete sample can prove departure of the retained PID/creation identity and clear its reports plus applicable metadata atomically. Missing/failed/ambiguous samples do not invent exits; unchanged identities do not churn revisions. Panel/Agent queries collect Host observations before reading report/metadata revisions, so their own admitted confirmation can appear in the same result. A later concurrent revision change returns the existing `metadata-changed` failure, never a mixed result. The periodic sampler also publishes correlated live screen fallback under the [screen detection model](../../orchbee-server/docs/agent-screen-model.md); process recognition does not authenticate a provider or create canonical Agent Sessions.
+On Windows, the Session samples Host processes in the background without a user query. Each round visits at most eight primary/child bindings in round-robin order, with a 250 ms wait between rounds and a one-second between-target budget; carrier I/O and cleanup can delay a round, so this is not a freshness guarantee. One temporary read-only viewer is released before sampling another terminal; uncertain cleanup pauses sampling and remains owned through Session shutdown. Successful `panel process-info` and the terminal observations used by Panel/Agent queries also feed the same trusted process adapter. It rechecks the exact Worker/Host generation, recognizes a unique process chain, and can activate matching deferred lifecycle reports. A later complete sample can prove departure of the retained PID/creation identity and clear its reports plus applicable metadata atomically. Missing/failed/ambiguous samples do not invent exits; unchanged identities do not churn revisions. Panel/Agent queries collect Host observations before reading report/metadata revisions, so their own admitted confirmation can appear in the same result. A later concurrent revision change returns the existing `metadata-changed` failure, never a mixed result. The periodic sampler also publishes correlated live screen fallback under the [screen detection model](../../orchbee-server/docs/agent-screen-model.md); process recognition does not authenticate a provider or create canonical Agent Sessions.

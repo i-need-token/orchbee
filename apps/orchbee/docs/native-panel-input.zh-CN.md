@@ -14,7 +14,7 @@ Server 拥有 `PanelNode.Panel.rightClick`，主 Terminal 尚在启动时也属�
 默认值 `orchbee` 在序列化时省略，缺失字段解码为该默认值。
 出现时必须恰为 `orchbee` 或 `panel`，null 无效。
 移动或交换完整 Panel 会保留策略，关闭 Panel 会移除策略。
-其生命周期与规范布局一致，限于 Site 进程，不增加重启持久化。
+其生命周期与规范布局一致，限于 Session 进程，不增加重启持久化。
 
 `orchbee` 将右键保留给 Client。`panel` 允许无修饰键的右键按下事件在内容视口内，
 且程序启用鼠标上报、现有输入准入允许时透传。Shift 始终属于 Host。
@@ -26,7 +26,7 @@ Server 拥有 `PanelNode.Panel.rightClick`，主 Terminal 尚在启动时也属�
 
 | 转换     | 规则                                                                                                    |
 | -------- | ------------------------------------------------------------------------------------------------------- |
-| 解析     | 一次快照固定 Site、期望修订及精确 context/Tab/Panel 成员关系。                                          |
+| 解析     | 一次快照固定 Session、期望修订及精确 context/Tab/Panel 成员关系。                                       |
 | 设置     | 在提交一个后继修订及 `panel-input-configured` 前，准备完整候选、发布及保留结果；只改变目标 Panel 策略。 |
 | 相等     | 在当前修订返回 `unchanged`，不改变身份、发布或 Host。                                                   |
 | 拒绝     | 授权、陈旧修订、成员缺失、耗尽及容量失败保持所有状态。                                                  |
@@ -35,7 +35,7 @@ Server 拥有 `PanelNode.Panel.rightClick`，主 Terminal 尚在启动时也属�
 | 分屏     | 新 Panel 策略与拓扑、身份一起提交，先于终端启动结算；没有第二次策略修改。                               |
 
 设置操作不改变焦点、缩放、比例、附着、控制权或终端字节。
-`orchbee.panel.input` v1 回执记录请求/Site/基础修订、精确目标、请求策略、
+`orchbee.panel.input` v1 回执记录请求/Session/基础修订、精确目标、请求策略、
 已知修订及 `configured` 或 `unchanged`。
 它确认规范状态，不确认每个 Client 都已刷新或绘制。Panel 读取暴露有效策略。
 创建保留现有分阶段回执，不混淆规范创建与后续 Client 效果。

@@ -1,6 +1,6 @@
 # Windows 外层终端标题
 
-`terminal title set <title>` 和 `terminal title clear` 向已有 Site 提交一次变更，均接受 `--format text|json`。Set 移除控制字符、截取至多 200 个 Unicode 标量再 trim；结果为空则在提交前失败，内部空格保留。不创建 Site 或终端。
+`terminal title set <title>` 和 `terminal title clear` 向已有 Session 提交一次变更，均接受 `--format text|json`。Set 移除控制字符、截取至多 200 个 Unicode 标量再 trim；结果为空则在提交前失败，内部空格保留。不创建 Session 或终端。
 
 ## 状态与投递
 
@@ -24,6 +24,6 @@ Server 拥有一个临时覆盖值及单调修订，与 Panel 标签独立。没
 
 Windows `[ui] window_title` 默认为 `{hostname}: {workspace}`。支持 `{hostname}`、`{workspace}`、`{tab}`、`{pane}`（手动 Panel 覆盖标签）、`{terminal_title}`（去除活动前缀的焦点终端标题），允许变量名周围空白，`{{`/`}}` 表示字面花括号。缺失值为空。显式空模板是合法的自动写入禁用方式。非空括号/变量语法错误、类型错误或超过 4096 个 UTF-8 字节时，仅该叶字段回退到 `{hostname}: {workspace}` 并发出有界配置警告，不丢弃其他设置。最终渲染先移除控制字符、截取 200 个 Unicode 标量，再 trim；结果为空使用 `Orchbee`。
 
-Site 按已接纳配置和 OS 主机名渲染，使用前台监听者提供的有界展示上下文。Windows 上 Orchbee 查询 OS 名称；固定版本 Herdr 读取 `COMPUTERNAME`，因此覆盖该环境变量不会更改 Orchbee 主机名变量。这些字符串不授予导航或终端权限。UI 每次 tick 更新选择标签及精确的实时焦点帧；过期/未绑定帧不提供终端标题。显式 CLI 覆盖在重载和选择变化后继续优先。Clear 移除覆盖并调度最新配置标题，禁用时使用回退标题。禁用自动标题保持宿主上一次标题。投递修订与 API 回执修订独立；空闲重复渲染被抑制，提升为前台时重新应用当前策略。
+Session 按已接纳配置和 OS 主机名渲染，使用前台监听者提供的有界展示上下文。Windows 上 Orchbee 查询 OS 名称；固定版本 Herdr 读取 `COMPUTERNAME`，因此覆盖该环境变量不会更改 Orchbee 主机名变量。这些字符串不授予导航或终端权限。UI 每次 tick 更新选择标签及精确的实时焦点帧；过期/未绑定帧不提供终端标题。显式 CLI 覆盖在重载和选择变化后继续优先。Clear 移除覆盖并调度最新配置标题，禁用时使用回退标题。禁用自动标题保持宿主上一次标题。投递修订与 API 回执修订独立；空闲重复渲染被抑制，提升为前台时重新应用当前策略。
 
-`site reload-config` 无需重启终端即可发布标题变更。`site config` v8 暴露有效 `windowTitle` 及已接纳诊断记录；`config check` v13 暴露同一警告，并保留针对有效模板的可空语法诊断。旧公开版本保持封闭。私有监听请求现在要求有界四字段 `context`，匹配 cohort 同步升级/回退。不新增 live-handoff 或持久化覆盖。
+`server reload-config` 无需重启终端即可发布标题变更。`server config` v8 暴露有效 `windowTitle` 及已接纳诊断记录；`config check` v13 暴露同一警告，并保留针对有效模板的可空语法诊断。旧公开版本保持封闭。私有监听请求现在要求有界四字段 `context`，匹配 cohort 同步升级/回退。不新增 live-handoff 或持久化覆盖。

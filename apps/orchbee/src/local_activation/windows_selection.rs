@@ -47,9 +47,12 @@ fn resolve(
             name: None,
         });
     } else {
-        let value = environment("ORCHBEE_SITE").unwrap_or_else(|| OsString::from("default"));
-        let text = value.to_str().ok_or_else(|| invalid("ORCHBEE_SITE"))?;
-        WindowsSiteName::parse(text).map_err(|_| invalid("ORCHBEE_SITE"))?
+        let (variable, value) = environment("ORCHBEE_SESSION")
+            .map(|value| ("ORCHBEE_SESSION", value))
+            .or_else(|| environment("ORCHBEE_SITE").map(|value| ("ORCHBEE_SITE", value)))
+            .unwrap_or_else(|| ("ORCHBEE_SESSION", OsString::from("default")));
+        let text = value.to_str().ok_or_else(|| invalid(variable))?;
+        WindowsSiteName::parse(text).map_err(|_| invalid(variable))?
     };
     Ok(Location {
         base,

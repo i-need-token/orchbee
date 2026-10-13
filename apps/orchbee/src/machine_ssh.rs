@@ -72,7 +72,7 @@ pub(crate) fn program(executable: Option<&str>, session: &str, action: &str) -> 
         || "$program=(Get-Command orchbee.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Path".to_owned(),
         |path| format!("$program={}", literal(path)));
     let args = if action == "start" {
-        "'site' 'start'".to_owned()
+        "'server' 'start'".to_owned()
     } else {
         format!("'status' {}", literal(action))
     };
@@ -81,7 +81,7 @@ pub(crate) fn program(executable: Option<&str>, session: &str, action: &str) -> 
         [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);\
         $OutputEncoding=[Console]::OutputEncoding;\
         try{{{resolve};if(-not $program){{exit 125}};\
-        & $program '--site' {} {args} '--format' 'json';exit $LASTEXITCODE}}catch{{exit 125}}",
+        & $program '--session' {} {args} '--format' 'json';exit $LASTEXITCODE}}catch{{exit 125}}",
         literal(session)
     );
     let encoded = base64::engine::general_purpose::STANDARD.encode(

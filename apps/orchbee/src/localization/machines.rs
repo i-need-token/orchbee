@@ -292,8 +292,8 @@ impl Locale {
             ),
             C::MachineAdd => (
                 "orchbee machine add <ssh-target> --label <label> [--remote-session <name>] [--format text|json]",
-                "Windows remote with an installed compatible Orchbee cohort is required. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save a profile; an already started remote Site is retained. Automatic remote installation and interactive authentication are not yet supported.",
-                "远端须为 Windows 且已安装兼容的 Orchbee cohort。会话默认 default。准备过程总期限为 60 秒。准备失败不保存配置；已启动的远端 Site 会保留。暂不支持自动安装远端程序及交互认证。",
+                "Windows remote with an installed compatible Orchbee cohort is required. Session defaults to default. Preparation has a 60-second total deadline. Failed preparation does not save a profile; an already started remote session is retained. Automatic remote installation and interactive authentication are not yet supported.",
+                "远端须为 Windows 且已安装兼容的 Orchbee cohort。会话默认 default。准备过程总期限为 60 秒。准备失败不保存配置；已启动的远端会话会保留。暂不支持自动安装远端程序及交互认证。",
             ),
             C::MachineRename => (
                 "orchbee machine rename <profile-id> --label <label> [--format text|json]",
@@ -307,13 +307,13 @@ impl Locale {
             ),
             C::MachineEnable => (
                 "orchbee machine enable <profile-id> [--format text|json]",
-                "Enable the saved profile. This command does not establish a connection or start a remote Site.",
-                "启用已保存的配置。本命令不会建立连接或启动远端 Site。",
+                "Enable the saved profile. This command does not establish a connection or start a remote session.",
+                "启用已保存的配置。本命令不会建立连接或启动远端会话。",
             ),
             C::MachineDisable => (
                 "orchbee machine disable <profile-id> [--format text|json]",
-                "Disable the saved profile without stopping its remote Site.",
-                "禁用已保存的配置，不停止远端 Site。",
+                "Disable the saved profile without stopping its remote session.",
+                "禁用已保存的配置，不停止远端会话。",
             ),
             _ => unreachable!("command help ownership"),
         };
@@ -342,9 +342,9 @@ impl Locale {
             }
             (Self::ZhCn, "already-committed") => "目录变更已在本次中断或失败前提交。",
             (Self::EnUs, "remote-retained") => {
-                "The remote Site may be running; this command does not roll it back."
+                "The remote session may be running; this command does not roll it back."
             }
-            (Self::ZhCn, "remote-retained") => "远端 Site 可能仍在运行；本命令不会回滚它。",
+            (Self::ZhCn, "remote-retained") => "远端会话可能仍在运行；本命令不会回滚它。",
             (Self::EnUs, "configuration") => "The Windows configuration location is unavailable.",
             (Self::ZhCn, "configuration") => "Windows 配置位置不可用。",
             (Self::EnUs, "invalid-catalog") => {
@@ -388,9 +388,9 @@ impl Locale {
                 "远端 Windows Orchbee 版本、协议或 cohort 不兼容，请先安装匹配的 cohort。"
             }
             (Self::EnUs, "remote-not-ready") => {
-                "The remote Site could not be confirmed ready through a new SSH connection."
+                "The remote session could not be confirmed ready through a new SSH connection."
             }
-            (Self::ZhCn, "remote-not-ready") => "无法通过新的 SSH 连接确认远端 Site 已就绪。",
+            (Self::ZhCn, "remote-not-ready") => "无法通过新的 SSH 连接确认远端会话已就绪。",
             (Self::EnUs, "cancelled") => "Machine operation interrupted.",
             (Self::ZhCn, "cancelled") => "机器操作已中断。",
             (Self::EnUs, "timeout") => "The machine operation deadline expired.",

@@ -1,5 +1,29 @@
 # 原生 CLI 查询
 
+## 会话与后台服务
+
+一个 **Orchbee 会话（Session）** 是包含 Workspace、Tab、Panel、终端和 Agent 的独立工作环境。
+后台服务拥有共享状态和进程，CLI 与 TUI Client 连接到它。退出 Client 后，其中的程序继续运行。
+首次使用默认会话，用 Workspace 组织日常工作；Windows 命名会话通过独立的运行时端点和
+持久化状态，管理不同的终端程序集合。
+
+`--session <name>` 选择该工作环境；`session list/attach/stop/delete` 管理命名会话，
+`server start/diagnose/stop/config/reload-config` 管理所选会话的后台服务。
+**Agent 会话** 标识一个 Agent 对话／运行时记录，通过 `--agent-session <id>` 或普通 Agent 目标选择。
+协议中的 **Client Session** 标识一次已准入的连接，不代表另一套工作环境。
+
+| 旧拼写                     | 规范拼写                         |
+| -------------------------- | -------------------------------- |
+| `--site <name>`            | `--session <name>`               |
+| `ORCHBEE_SITE`             | `ORCHBEE_SESSION`                |
+| `site <command>`           | `server <command>`               |
+| `agent ... --session <id>` | `agent ... --agent-session <id>` |
+
+CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的旧环境变量兼容入口，
+使现有配置继续指向原会话。现有运行时名称、scope 哈希、清单、检查点和 JSON schema 保持原样；
+`siteId` 等机器字段以及 `orchbee.site.start` 等 schema 标识保留既有协议含义。
+本次术语调整不会使 Electron Desktop 运行时成为原生会话服务的消费者。
+
 ## 独立 Agent 状态的 Schema 版本
 
 当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 144。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
@@ -27,8 +51,8 @@ Navigation 的 `directories` 和 `workspaces` 为全局数组；`projects` 只�
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` 在一个输入请求中粘贴命令，再发送 Enter。命令须为一个引号字符串；保持原始文本，目标只接受完整 ID 或 `@terminal:<suffix>`。回执确认输入提交，不保证 Shell 已就绪、命令完成或退出状态；部分或未知结果不得重放。 [命令提交契约](native-terminal-run.zh-CN.md).
 
 状态：原生 `orchbee` 命令行的当前实现与正确性契约，覆盖查询、Workbench 修改、
-终端观察与输入、Agent 名称及本地 provider 接入。查询观察已有 Site；Workbench 修改
-遵循下文 mutation 契约。只有显式的 `site start` 和 TUI 启动路径可以激活 Site。
+终端观察与输入、Agent 名称及本地 provider 接入。查询观察已有 Session；Workbench 修改
+遵循下文 mutation 契约。只有显式的 `server start` 和 TUI 启动路径可以激活 Session。
 Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断；名称由 Server
 管理，`agent integration` 只管理调用用户的本地 provider 配置。每个命令的效果、
 预算和资源释放边界见相应章节。命令无需 TTY；交互式 TUI 有独立的终端准入要求。
@@ -39,12 +63,12 @@ Agent 状态来自 Server 的 canonical Agent 模型，不从终端文字推断�
 
 ## 清空终端输出
 
-Windows `terminal clear <terminal>` 在已有 Site 中清空一个精确绑定的主终端或子终端。
+Windows `terminal clear <terminal>` 在已有 Session 中清空一个精确绑定的主终端或子终端。
 保留光标所在的完整软折行提示行，删除此前历史及其他输出，清除选区并将视口返回活动屏幕。
 备用屏幕会被拒绝，内容不变。终端模式、标题、工作目录和子进程保持不变。
 该行为遵循固定版本 Herdr 的 `pane.clear` 实现，不通过注入终端输入模拟。
 
-公开终端控制动作 `clear` 指定一个已准入的只读 viewer。Server 核对当前 Site 暴露、
+公开终端控制动作 `clear` 指定一个已准入的只读 viewer。Server 核对当前 Session 暴露、
 精确物理绑定和 Worker 代次，然后分配独立的临时输入 attachment 标识。
 Worker 使用该 viewer 的精确 Host 目标，附加仅输入权限且不申请尺寸租约，
 提交一次带 `preservePrompt: true` 的 Host `ClearTerminal`，验证 attachment/terminal
@@ -56,7 +80,7 @@ CLI 发现和提交共用一个可取消的五秒预算。Host 操作使用三�
 已确认清空但清理未确认时保留已知效果并退出 8。失败 Host 通道会关闭，
 由连接释放临时 attachment，避免累积状态不明的 attachment。
 CLI 在最后一个消费者结束后于所有结果路径释放 viewer。
-取消保留已提交回执并退出 130。清空不启动 Site、不聚焦 Client、不接管控制权、
+取消保留已提交回执并退出 130。清空不启动 Session、不聚焦 Client、不接管控制权、
 不发送 PTY 输入、不重置进程，也不触发浏览器效果。
 
 封闭的 `orchbee.terminal.clear` v1 携带精确目标、操作标识和类型化结果；
@@ -73,7 +97,7 @@ Windows `terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL`
 从已有终端读取包含两个端点的非矩形范围。坐标以零开始，行指完整保留屏幕
 缓冲区的物理行，与 Client 视口无关；行是无符号 32 位、列是无符号 16 位整数。
 反向端点先排序。选区最多跨 4096 行，使用现有单次 8 MiB 行窗口预算。
-无效坐标、重复或其他命令选项、过大跨度均在发现 Site 前拒绝。
+无效坐标、重复或其他命令选项、过大跨度均在发现 Session 前拒绝。
 
 可选 `--content-revision <u64>` 固定预期内容修订；
 `--generation <positive-u64>` 额外固定其几何／存储 generation。
@@ -81,9 +105,9 @@ Windows `terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL`
 Host epoch、尺寸及保留行总数。过期或已回收数据整体失败，不重试或输出部分文本。
 超出帧的行／列会拒绝，不会改选邻近单元格。
 
-命令持有一次可取消的五秒既有 Site 总预算和一个临时只读 viewer，最后消费者
+命令持有一次可取消的五秒既有 Session 总预算和一个临时只读 viewer，最后消费者
 结束后在所有结果路径释放。不取得控制者、不改变选区／视口、不发送输入、
-不写剪贴板、不确认用户已查看、不启动 Site，也不导航 Client。
+不写剪贴板、不确认用户已查看、不启动 Session，也不导航 Client。
 单元格字节映射保留完整宽字和组合字形；硬行尾填充被移除，相邻且经验证的
 软换行直接连接。结果包含原始端点、精确终端 binding 与捕获的内容修订／
 generation／Host epoch。`orchbee.terminal.selection` v1 为封闭 JSON 回执；
@@ -104,7 +128,7 @@ Windows `terminal link-resolve <terminal> --cursor ROW:COL` 解析显式原生�
 行数减去 offset。Offset 超出保留历史或光标超出捕获尺寸均失败。这个 CLI
 拥有的视口独立于 TUI Client 的焦点和滚动，不改变任何 Client 视口。精确绑定
 的主／子终端目标、可选完整 u64 `--content-revision` 与正 u64 `--generation`
-沿用选区／复制的既有 Site 只读五秒 viewer 和完整帧／Host／绑定围栏。
+沿用选区／复制的既有 Session 只读五秒 viewer 和完整帧／Host／绑定围栏。
 
 解析器先严格读取一行 render，检查被点击完整字形的 OSC 8 目标，包括宽字尾。
 显式超链接返回完整 URI 与空 regions，遵循参考实现将帧拥有的 OSC 8 高亮和
@@ -124,7 +148,7 @@ Windows `terminal link-resolve <terminal> --cursor ROW:COL` 解析显式原生�
 成功无链接结果，包括其探查预算耗尽的情况。
 错误／重复／外来参数在运行时发现前拒绝；过期／回收／误路由／不完整记录整体
 失败，不重试，也不返回部分区域。本操作不取得 controller、不发输入、不确认
-用户 attention、不改选区／剪贴板／焦点、不启动 Site、不写持久状态。
+用户 attention、不改选区／剪贴板／焦点、不启动 Session、不写持久状态。
 Schema／帮助／限定范围 Windows 补全与机器只读转发共用类型化请求。TUI 悬停／
 点击接线及物理 Host／模拟器验收是另外明确界定的消费路径。
 
@@ -148,7 +172,7 @@ context 16 KiB、request 32 KiB；匹配 URL 无法准入时在提交前失败�
 
 Server 独自解析当前动作可执行文件、插件根 cwd 与保护环境；已有 Worker Job
 拥有启动、输出日志和取消。显示数据不能提供 argv、目录策略或 Worker 权限。
-本命令不打开浏览器、不发终端输入、不导航／聚焦、不改剪贴板、不启动 Site。
+本命令不打开浏览器、不发终端输入、不导航／聚焦、不改剪贴板、不启动 Session。
 一个既有 viewer 与全部预检／提交共用五秒和取消。匹配的效果路径在最终内容／成员
 围栏后、提交插件前，必须取得一次相关联的 Detach 确认；Detach 被拒或结果不明时不
 提交插件，也不重试。只读及无效果结果保留尽力 Detach 与会话 EOF 清理。已准入的
@@ -187,7 +211,7 @@ Windows `terminal copy-search <terminal> --cursor ROW:COL --query <literal>`
 结果保留精确总数及全局当前位置，并返回最多 1024 项、以当前匹配居中的窗口
 及其局部索引。零匹配的当前索引为 null；u64 索引／计数使用十进制字符串。
 
-两命令复用 selection-read 的既有 Site、五秒取消、精确终端／帧修订／generation／
+两命令复用 selection-read 的既有 Session、五秒取消、精确终端／帧修订／generation／
 Host／几何及 viewer 释放所有者。移动可选 `--content-revision`，搜索必须指定；
 二者另接受 `--generation <positive-u64>`。每次行请求有递增独立序号，使用既有
 逐窗口字节／单元格限制；相邻窗口的软换行连续标记必须一致。
@@ -218,7 +242,7 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 规范值相同，并非推断的进程或 Agent 标题。JSON 原样保留标签；文本输出转义标签，
 并限制列表中的显示宽度。
 
-这些投影消费单个已验证 Workbench 快照，保留其来源修订号、仅连接已有 Site 的准入、
+这些投影消费单个已验证 Workbench 快照，保留其来源修订号、仅连接已有 Session 的准入、
 有界输出和无 TUI 时的可用性。不执行导航或变更；运行时观察见下文。Windows 在这六个 list/get
 查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
@@ -268,7 +292,7 @@ Windows `workspace report-metadata <workspace> --source <id> --token <key=value>
 约束各来源的新鲜度，`--ttl-ms` 使本次设置的值过期。[Workspace 元数据契约](windows-workspace-metadata.zh-CN.md)
 负责边界、旧序号无操作、过期、未知结果回执及独立 Server 修订。Workspace list/get v7
 包含 `tokens` 和根级 `metadataSource`，在原五秒总期限内分批读取并最终复核修订。
-读取不会激活 Site 或执行导航。
+读取不会激活 Session 或执行导航。
 
 ## Workspace worktree 观察
 
@@ -286,10 +310,10 @@ Windows Workspace list/get 将每个权威主 Directory 交给既有的
 | Git／Worker 不可用、不支持、启动／I/O／大小失败          | `unavailable`，请求 ID、类型化原因，worktree 为 null | 不回退、不重放、不覆盖信任策略 |
 | 拒绝访问、来源缺失／改变、无效结果、传输丢失、超时或取消 | 整条命令失败，不返回部分成功                         | 既有查询清理                   |
 
-每次请求指定精确 Workspace 和 `trustRepository: false`。成功应答必须与原始 Site、
+每次请求指定精确 Workspace 和 `trustRepository: false`。成功应答必须与原始 Session、
 Workbench 修订、主 Directory 路径及 Worker 一致，且来源检出项必须包含该 Workspace。
 全部行、Agent／Client 关联及最终权威／Client 一致性检查共用一个已准入连接、信号所有者
-和原有五秒总期限。查询不激活 Site、不改变关联、不导航、不启动终端、不写 Git 配置。
+和原有五秒总期限。查询不激活 Session、不改变关联、不导航、不启动终端、不写 Git 配置。
 Git 清理仍归既有 Worker 读取任务所有。外部文件系统变化不受栅栏约束：这些是依次进行的
 实时观察，不是原子 Git 快照或 Herdr 的缓存关联。`unavailable` 绝不表示“不是仓库”。
 
@@ -341,18 +365,18 @@ Panel 读取接纳当前 Ready 或 Busy Client，包括历史浏览。直接对�
 原子快照。Windows Panel list/get 使用 schema 8，保留的视口控制使用 `orchbee.client.control` 3，
 catalog 88 包含 91 份 schema。
 
-## Windows 命名 Site 选择
+## Windows 命名 Session 选择
 
-全局 `--site <name>` / `--site=<name>` 为整个调用选择本地 Windows Site，包括
-`site start`、`site stop`、查询和 `tui`，不改变 Agent `--session` 选择器。
+全局 `--session <name>` / `--session=<name>` 为整个调用选择本地 Windows Session，包括
+`server start`、`server stop`、查询和 `tui`，不改变 Agent `--agent-session` 选择器。
 名称区分大小写，包含 1–64 个 ASCII 字母、数字、`.` / `_` / `-`，不能是 `.` 或 `..`。
-`default` 选择现有默认 Site。先验证完整参数语法，再应用选择；离线 help、completion、
+`default` 选择现有默认 Session。先验证完整参数语法，再应用选择；离线 help、completion、
 version 和 schema 操作不会因为提供名称而发现运行时。
 
-选择优先级为显式 `--site`、托管终端的 `ORCHBEE_RUNTIME_SCOPE`、`ORCHBEE_SITE`，最后
+选择优先级为显式 `--session`、托管终端的 `ORCHBEE_RUNTIME_SCOPE`、`ORCHBEE_SESSION`、旧的 `ORCHBEE_SITE`，最后
 为 `default`。`ORCHBEE_RUNTIME_BASE` 仍选择已存在的绝对基目录。Worker 将准入后的基目录和
-scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server 继承了其他名称。
-显式 `--site default` 覆盖继承的 scope。选中的环境变量值无效时，发现失败，不静默回退默认 Site。
+scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server 继承了其他名称。
+显式 `--session default` 覆盖继承的 scope。选中的环境变量值无效时，发现失败，不静默回退默认 Session。
 
 命名运行时叶目录由当前 SID 和精确名称散列得到，名称不作为文件系统路径组件。
 激活在现有 activation lock 下注册有界私有身份，再提交启动标记；只读发现验证该身份且不创建它。
@@ -362,9 +386,9 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 报告 running、stopping、stopped、absent、starting、deleting、recoverable 或 recovery-required。未知／不安全清单明确失败。
 
 `session attach <name> [--mouse on|off]` 激活或重连真实 TUI。`session stop <name> --confirm`
-复用 `site stop`，包括其 timeout、detach、request-id、retry 参数及现有结果 schema。
+复用 `server stop`，包括其 timeout、detach、request-id、retry 参数及现有结果 schema。
 `session delete <name> --confirm` 只移除该已停止命名会话的保留检查点和自有运行时文件，拒绝 default、
-运行中或不确定状态，绝不删除 Project／worktree／用户目录。名称位置参数必须与显式 `--site` 一致。
+运行中或不确定状态，绝不删除 Project／worktree／用户目录。名称位置参数必须与显式 `--session` 一致。
 状态缺席时删除幂等成功；部分移除保留删除意图阻止启动，并明确失败，重复 delete 完成清理，不能用 start 修复。
 删除在每个文件系统阶段前检查 Ctrl+C，中断退出 130。已完成移除不会回滚；保留的意图支持继续清理。`interrupted` 结果报告是否仍有待完成意图，也覆盖清理完成后才收到中断的情况。
 
@@ -373,11 +397,11 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v141。
 
 持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
-即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`site start` 会重建
-路由并恢复检查点。`site start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的 v2/v3 Active 代次，
+即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`server start` 会重建
+路由并恢复检查点。`server start` 和 TUI 启动会自动恢复登记完整且证明全部死亡的 v2/v3 Active 代次，
 也支持运行时叶目录丢失，并保留最近检查点。第一阶段保留数据、拒绝活 Host、未知／不完整身份和旧版 Active；
-不终止旧进程，不伪造正常停止回执。使用相同 `--site` 选择执行 `orchbee site diagnose` 检查拒绝原因，
-或执行 `orchbee --site recovery-work site start` 另开命名会话。新激活会在提交标记、拉起 Server 或发布
+不终止旧进程，不伪造正常停止回执。使用相同 `--session` 选择执行 `orchbee server diagnose` 检查拒绝原因，
+或执行 `orchbee --session recovery-work server start` 另开命名会话。新激活会在提交标记、拉起 Server 或发布
 检查点存储前先发布 catalog v3。Stopped v1/v2 要求主检查点；Stopped v3 准入固定槽位与精确的自有
 损坏原件名。只支持 v1/v2 的读取器即使面对正常停止的会话，也会在产生效果前拒绝 v3。详见
 [恢复合同](../../../crates/local-site-runtime/docs/windows-crash-recovery.zh-CN.md)。待删除状态也会在临时
@@ -389,12 +413,12 @@ scope 传给子终端，使内部 CLI 命令保持所属 Site，即使 Server �
 
 ## Agent 会话名称
 
-`agent names` 列出运行中 Site 的所有存活别名。`agent resolve <target>` 返回 canonical 会话 ID 或精确终端目标，
+`agent names` 列出运行中 Session 的所有存活别名。`agent resolve <target>` 返回 canonical 会话 ID 或精确终端目标，
 优先检查精确 ID 是否存在，再查别名。`agent rename <target> <new-name>` 赋名或原子替换
 名称；`agent rename <target> --clear` 只释放名称，不停止会话。可把目标位置参数替换成
-`--session <id>`、`--name <alias>` 或 `--panel <id|@panel:suffix>` 明确选择；必须且只能使用一种选择器。
+`--agent-session <id>`、`--name <alias>` 或 `--panel <id|@panel:suffix>` 明确选择；必须且只能使用一种选择器。
 名称格式为 `[a-z][a-z0-9_-]{0,31}`，区分大小写且唯一，canonical 名称、终端名称与待完成启动预留共用 512 条上限。
-会话结束、移除或 Site 运行时 dispose 后释放名称；Site 重启后仅可恢复已接纳的已完成托管名称。
+会话结束、移除或 Session 运行时 dispose 后释放名称；Session 重启后仅可恢复已接纳的已完成托管名称。
 
 Windows 终端名称要求真实的上报、进程识别或保留 provider 身份；普通未命名 shell 不符合条件。
 目标携带 presentation ID、创建 generation、Host epoch 和终端 ID。首次 provider reference
@@ -418,13 +442,13 @@ version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Window
 和 OBAP request ID。这四份文档与提示契约一起纳入 Schema 目录 version 64。非法名称或冲突选择器在
 任何运行时访问前以退出码 2 失败。重名以退出码 3 拒绝并标明占用者，绝不覆盖其名称。
 
-每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Site、接纳、可选 Panel 解析和最终 OBAP 交换。
+每个命令的单一五秒截止覆盖 cohort 校验、仅查已有 Session、接纳、可选 Panel 解析和最终 OBAP 交换。
 信号参与传输等待；会话在信号仲裁与输出前关闭。确认回复与信号竞态时，已确认回复仍为
 权威结果。已提交修改若没有可信匹配回复，包括取消时，返回 outcome-unknown（退出码 8），
-绝不重放。已知在提交前取消返回 130。不引入别名缓存、不调用 provider、不创建 Site，
+绝不重放。已知在提交前取消返回 130。不引入别名缓存、不调用 provider、不创建 Session，
 也不修改 canonical 会话文档。
 
-`get`、`explain` 和 `wait` 接受相同的位置目标或显式 `--session`/`--name`/`--panel` 选择器。
+`get`、`explain` 和 `wait` 接受相同的位置目标或显式 `--agent-session`/`--name`/`--panel` 选择器。
 精确的保留会话 ID 优先于名称；显式 ID 与不可能是名称或 Panel 的不透明 token 直接读取。其余目标在
 同一个已接纳的 Client Session 上先发 Resolve。解析与读取共享原来的截止和信号所有者，
 不二次接纳或续期。wait 的首次解析受 `min(remaining_ms, 5000)` 约束，固定解析结果后再轮询；
@@ -434,7 +458,7 @@ Windows 进程证据覆盖真实管道接纳、名称解析后读取、固定目
 显式 ID 直读、schema 合规失败、丢失或不匹配的修改回复，以及效果前解析。
 
 Windows 物理 Agent Get 输出 v15，在封闭 v14 形状上包含 `semantic: {source, observation}`。
-来源记录 Site、Workbench／报告修订和请求 ID；观察包含精确绑定、有效报告视图、终端局部
+来源记录 Session、Workbench／报告修订和请求 ID；观察包含精确绑定、有效报告视图、终端局部
 序号及空变化列表。主展示与子展示读取各自报告资源；主面板元数据／报告投影须与语义报告
 修订一致。文本按所选语言呈现有效报告。带 `--client` 时，v16 还要求 `clientView`：所选
 Client／操作／视图、报告修订、可空 sequence／seen／status 和外层焦点。只有完整绑定和
@@ -471,11 +495,11 @@ Wait v5 返回 `terminal-matched`、物理观察、可空匹配变化、条件�
 ## Agent 终端操作
 
 `agent read <target>` 和 `agent send-keys <target> <key>...` 接受与 `agent get`
-相同的 Session ID、运行时名称或 Panel 选择器，包括显式 `--session`、`--name` 和 `--panel`。
+相同的 Session ID、运行时名称或 Panel 选择器，包括显式 `--agent-session`、`--name` 和 `--panel`。
 读取支持 `--history --rows <n>`、`--unwrap` 和 `--lines <n>`，边界和含义与
 `terminal read` 相同。发送最多接受 64 个语义按键或修饰键组合，产生任何效果前验证整个序列。
 
-CLI 组合既有责任方：在一个仅连接既有 Site 的 Client Session 中读取 Workbench
+CLI 组合既有责任方：在一个仅连接既有 Session 的 Client Session 中读取 Workbench
 快照，按需解析别名，再读取权威 Agent 会话。只有活动会话中可导航且存活的 presentation
 附件才能选中终端。关联时比较快照中已绑定终端的完整 presentation ID；不会将 Panel ID
 当成 presentation ID。显式或回退得到的 Panel 将关联限制在其主 presentation。
@@ -492,7 +516,7 @@ Server 仍验证终端当前绑定。
 
 成功复用 `orchbee.terminal.read`、`orchbee.terminal.history` 或
 `orchbee.terminal.send` schema 及实际终端来源。Agent 解析或读取失败保留自身关联的来源和
-失败 schema。不引入 provider 命令、Agent 生命周期转换、新 Site、别名缓存、输入所有权
+失败 schema。不引入 provider 命令、Agent 生命周期转换、新 Session、别名缓存、输入所有权
 或逐轮因果保证。信号沿用既有终端操作行为；此组合不宣称新增可取消的 viewer 或输入传输。
 证据须覆盖互异的 presentation/Panel ID、非活动及不可导航附件、歧义绑定、效果前解析、
 单次会话准入以及发送失败不重放。
@@ -508,7 +532,7 @@ Server 仍验证终端当前绑定。
 命令 64 KiB argv 封套限制。`--until` 和 `--timeout` 要求 `--wait`；Windows 默认 idle/done/blocked 且无总超时，
 显式有限超时最长一小时。不等待时总预算为五秒。
 
-一个仅连接既有 Site 的 Client Session 负责快照查找、一次 Agent 身份解析、权威预检 Get、
+一个仅连接既有 Session 的 Client Session 负责快照查找、一次 Agent 身份解析、权威预检 Get、
 一次 paste 加 Enter 发送以及后续 Get。预检要求会话存活、新鲜、状态已知且唯一绑定可导航
 终端。有待处理请求/needs-attention 时，在发送任何输入前以 `agent-blocked` 拒绝。这是
 采样预检，不会锁定 provider 后续状态或前台所有权。Server 在输入准入时仍验证终端绑定。
@@ -571,7 +595,7 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   Linux 上 provider 目标前缀所用的 `HOME`。Windows 使用原生用户配置目录，
   并读取可选非空 `CODEX_HOME` 选择 Codex 配置。调用者模式的 `panel current` 还读取下文说明的
   `ORCHBEE_TERMINAL_ID` 与 `ORCHBEE_WORKER_ID`。不读取其他任何环境变量。
-- 文件系统：解析出的运行基座、Site scope 目录 `orchbee-native-<euid>` 及其
+- 文件系统：解析出的运行基座、Session scope 目录 `orchbee-native-<euid>` 及其
   `client.sock`/`worker.sock`、activation 标记、当前可执行文件同目录的 `cohort.json` 与四个
   artifact 只被观察、绝不写入。清单还声明 `agent-observation-adapters` sidecar 摘要——
   启动绝不打开或遍历该目录。所有目录遍历使用既有 no-follow、属主/模式校验的 rendezvous 归属
@@ -610,7 +634,7 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   membership 活得更久，必须按稳定身份重新证明。
 - `--directory <directory-id>`：带值 flag，单次使用，用于 `worktree list` 的注册目录形式，其他命令上均非法。Windows 另有不带此 flag 的来源形式；参见 [Windows Worktree](windows-worktrees.zh-CN.md#按来源发现-worktree)。值仅为 `WorkbenchDirectoryId`——严格非零 32 位小写十六进制标识符，
   绝非文件系统路径、标签或前缀。缺失、畸形、大写、全零或宽度错误的值在任何运行时访问
-  之前即为 `invalid-usage`；CLI 不做目录 membership 预检——membership 由运行中 Site
+  之前即为 `invalid-usage`；CLI 不做目录 membership 预检——membership 由运行中 Session
   权威判定，well-formed 但不存在的目录以 worktree 失败 envelope 下的
   `not-found` `{resource:"directory"}` 作答。
 - `--standalone`：无值布尔 flag，单次使用，仅 `tab list` 与 `tab create`；两处均与
@@ -791,10 +815,10 @@ orchbee panel focus [<target>] [--panel <target> | --current] [--client <id>]
 orchbee panel zoom [<target>] [--panel <target> | --current] [--toggle | --on | --off] [--client <id>]
 orchbee api snapshot
 orchbee api schema [<schema-id>] [--output <path>]
-orchbee site start
-orchbee site stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>]
-orchbee site stop-status <request-id>
-orchbee site diagnose
+orchbee server start
+orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>]
+orchbee server stop-status <request-id>
+orchbee server diagnose
 orchbee config check
 orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --default-config  # Windows
@@ -811,7 +835,7 @@ orchbee <recognized path> -h|--help
 完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
 已给出的业务参数或多余 token（`project get x --help`、`status extra --help` 都是 usage）。未列出的
 目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
-`--skill`、`completion`、不带 `--output` 的 `api schema` 与 Windows `--default-config` 绝不触碰平台、运行、cohort 或 Site 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
+`--skill`、`completion`、不带 `--output` 的 `api schema` 与 Windows `--default-config` 绝不触碰平台、运行、cohort 或 Session 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
 帮助在 `en-US` 和 `zh-CN` 中均分为三个信息层级：
 
 - 根帮助介绍 Orchbee，展示少量常用示例，将每个已接纳的顶层命令归入一个分组，
@@ -832,7 +856,7 @@ orchbee <recognized path> -h|--help
 
 在 Windows 上，`--default-config` 必须是根命令的唯一参数，直接从构建输出规范 UTF-8 TOML，不读取用户配置或运行时选择环境。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
-补全是静态语法投影：绝不执行用户表达式或查询 Site；需显式加载，不修改 shell profile。
+补全是静态语法投影：绝不执行用户表达式或查询 Session；需显式加载，不修改 shell profile。
 
 Elvish 补全与 PowerShell 使用同一份由 Rust 维护的 JSON 语法。回调接收交互编辑器提供的
 字面词语（命令在首位，未完成词在末位）。每次调用的纯解析器记录已完成的位置参数、已见
@@ -856,14 +880,14 @@ Windows ConPTY 证据单独检查实际交互注册与加载。这证明静态�
 `help`、`completion`、`tui`、`--version`、`--skill`、裸调用与 Windows `--default-config` 是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`workspace close-status`、`agent explain`、`agent doctor`、`agent wait`、
-`api snapshot`、`api schema`、`site start`、`site stop`、`site stop-status`、`site diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
+`api snapshot`、`api schema`、`server start`、`server stop`、`server stop-status`、`server diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
 两种 format 下输出同一份 JSON 文档；`api` 失败则与其他命令一样跟随所选 format——text/默认下
 只写 stderr、stdout 为空，只有 `--format json` 才产出失败 envelope。
 
 `orchbee completion` 打印本语法的静态投影：动词、完整帮助路径、每条命令已声明的 flag
 （分写与 `--flag=value` 连写两种拼写）、`--format` 的两种拼写及其 `text`/`json` 值、
 封闭词表值在两种拼写下的补全（`--mouse`、`--direction`、`--key`、`--until`、`--provider`）、
-`--` 终止与 flag 值消费上下文。不枚举任何 Site 状态、资源名或运行时数据，也绝不猜测
+`--` 终止与 flag 值消费上下文。不枚举任何 Session 状态、资源名或运行时数据，也绝不猜测
 自由形式的值。
 
 ### 目标与过滤器
@@ -884,7 +908,7 @@ selector 语法。其他 token 在 resource 允许 label 时视为精确、区�
 tab 内解析）。`api schema` 接受非空
 schema ID；空串是 `invalid-identifier`（`resource="schema"`），无匹配是 `not-found`。
 `agent get`、`agent explain` 与 `agent wait` 的位置目标是 `[A-Za-z0-9._:-]` 的
-1–128 字符 token（也支持显式 Panel 前缀）；按上述 ID 优先规则解析，或用 `--session`/`--name`/`--panel` 明确选择。
+1–128 字符 token（也支持显式 Panel 前缀）；按上述 ID 优先规则解析，或用 `--agent-session`/`--name`/`--panel` 明确选择。
 畸形 token 在任何运行时访问前即 `invalid-usage`。
 `launch-profile get` 与 `launch-profile delete` 接受一个位置 `<selector>`，
 `--profile` 携带同一 token：`LaunchProfileSelector`——非空 UTF-8 字面量、至多 512
@@ -930,15 +954,15 @@ selector 候选是命令本已读取的那份快照中可见的成员——对�
 7. **Map** —— 把已验证快照纯函数式地投影为命令结果。
 
 `config check` 纯本地：不 connect socket、不取锁、不 mkdir/chmod；其 cohort 检查使用单独的
-checked 5 秒预算。`site diagnose` 同属纯本地命令——只做描述符相对的路径与锁观察；绝不
+checked 5 秒预算。`server diagnose` 同属纯本地命令——只做描述符相对的路径与锁观察；绝不
 connect、绝不创建锁或标记、绝不修复——共享一个在有界文件系统操作之间检查的协作式 5 秒
 预算。Linux 和 Windows 以外的平台对网络查询与 mutation 产出 `service-unavailable`
 `{stage:"platform",reason:"unsupported-platform"}`，对 `config check` 产出同 details 的
-`check-failed`；不存在向无界连接 API 的回退。`site start` 在 Linux/Windows 以外、
-`site diagnose` 在 Linux/Windows 以外的平台以同 details 的 `service-unavailable` 应答。
+`check-failed`；不存在向无界连接 API 的回退。`server start` 在 Linux/Windows 以外、
+`server diagnose` 在 Linux/Windows 以外的平台以同 details 的 `service-unavailable` 应答。
 
 `agent doctor` 是离线 provider 钩子诊断：仅凭有界文件系统事实解释 Agent 观察为何可能无法
-到达。它不执行 provider 命令、不 connect socket、不发现 Site、不取锁、不做任何写入——检查集
+到达。它不执行 provider 命令、不 connect socket、不发现 Session、不取锁、不做任何写入——检查集
 即上文声明的集合，每次 lstat/read/list/PATH 扫描都运行在同一个 5 秒协作预算下，至多 64 个探测
 项、聚合 16 MiB 读取与单文件/计数上限，项间设取消检查点。Linux 和 Windows 以外的平台以
 `check-failed` `{stage:"platform",reason:"unsupported-platform",command:"agent doctor"}`
@@ -952,7 +976,7 @@ Windows `agent doctor` 拥有相同的有界离线观察流程，输出 `orchbee
 版本 3；Linux 保持版本 1，schema 继续保留原版本 2 词汇。Capsule 0.4.16 支持
 原生 Windows Codex hook 传输，但 doctor 不连接命名管道，也不写 Console 关联 hint。
 端点保持 `not-inspected`，原因改为 `windows-endpoint-not-inspected`；配置和胶囊
-完整性不证明事件投递或 Site 存活。`complete` 描述探测覆盖率。
+完整性不证明事件投递或 Session 存活。`complete` 描述探测覆盖率。
 Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.md) 负责；Windows Agent 启动见 [Windows Agent 启动](windows-agent-start.zh-CN.md)；prompt 组合契约见上文。
 
 | 字段         | 契约                                                                                                                                                                                                                                                                               |
@@ -961,7 +985,7 @@ Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.
 | 准入         | 打开普通文件时不跟随末级重解析点，在有界读取前根据已打开句柄检查元数据。拒绝设备命名空间和相对路径；重解析条目不检查。祖先路径分量与同步文件系统延迟不属于硬截止时间保证。                                                                                                         |
 | 决策         | provider 配置缺失、禁用、冲突或不可读，原生可执行文件或脚本可见或缺失，Node 可见或缺失，胶囊自洽、损坏或预算不足，以及 Windows 端点尚未检查，分别报告。PATH 搜索不执行条目，也不推断插件命令支持。                                                                                 |
 | 兼容性       | Windows 接受原生绝对路径及 Windows 路径使用的单行 TOML 字面量字符串。既有 Linux 扫描语义和输出版本不变。嵌入 schema 将新增 Windows endpoint 词汇限定到版本 3；版本 2 保留原有封闭词汇。                                                                                            |
-| 副作用与边界 | 不执行 provider、不连接 socket、不激活 Site、不加锁、不写入。沿用 5 秒协作预算、64 项、16 MiB 总读取量及各探测上限。取消返回 130；生成完整或部分诊断文档均返回 0。                                                                                                                 |
+| 副作用与边界 | 不执行 provider、不连接 socket、不激活 Session、不加锁、不写入。沿用 5 秒协作预算、64 项、16 MiB 总读取量及各探测上限。取消返回 130；生成完整或部分诊断文档均返回 0。                                                                                                              |
 | 证据与限制   | Windows 隔离进程测试覆盖本地化及 schema 合法输出、路径和配置隔离、缺失及已安装声明、损坏资源与零安装副作用。文件系统测试覆盖拒绝重解析点及读取预算。doctor 测试不证明 hook 投递；未完成独立评审；按用户要求不执行 TLA。                                                            |
 
 `terminal read` 沿用第 1–5 步原样不变，然后在同一 deadline 内让已准入的 session 保持存活
@@ -1070,7 +1094,7 @@ Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.
    `not-found`（3），details 为 `{resource:"terminal",target}`，session 随之 drop。
    绝不查询 label。
 2. **发送** —— 一条 `terminal.send` 请求携带有序记录序列，在新的请求身份下使用
-   快照中的 Site、Worker 与终端事实。`--text` 生成一条 UTF-8 记录（含可选 CR 共
+   快照中的 Session、Worker 与终端事实。`--text` 生成一条 UTF-8 记录（含可选 CR 共
    4096 字节）；`--file`/`--stdin` 生成一条不透明字节记录（含可选 CR 共 1 MiB），
    较小的 UTF-8 内容沿用文本路径。`--paste` 改为生成一条粘贴记录（256 KiB）及
    可选的独立 Enter 记录。重复 `--key` 按参数顺序生成最多 64 条语义键记录；键
@@ -1285,9 +1309,9 @@ envelope（version 2）携带 `matchedConditions`、命中的 `revision`、完�
 requestId——失败、取消与不可信交换均不发布。text 输出为单行：
 `session <id> matched <conditions> at revision <n> after <ms>ms`。
 
-## Site 激活
+## Session 激活
 
-`site start` 是 TUI 本地启动的无头形态：两者调用同一个共享 connect-or-activate 核
+`server start` 是 TUI 本地启动的无头形态：两者调用同一个共享 connect-or-activate 核
 （`src/local_activation.rs`）——序列完全一致，仅失败投影不同。一个 20 秒绝对 deadline 在
 cohort 验证之前开始，且绝不按阶段重置：
 
@@ -1303,25 +1327,25 @@ cohort 验证之前开始，且绝不按阶段重置：
    `{stage:"runtime-directory",reason:"address-too-long"}`。
 4. **Connect or activate** —— 尝试一个已准入 `LocalClient`（socket 缺失或拒连在 deadline
    内可重试；其他 connect 失败逐字沿用查询的 `admission` 映射）；取激活锁，复查 socket，
-   读标记，取 Site 生存期锁；当标记或 socket 显示无存活属主时拒绝
+   读标记，取 Session 生存期锁；当标记或 socket 显示无存活属主时拒绝
    `rejected`/`{stage:"activation",reason:"recovery-required"}`；提交标记，按已验证 cohort
    spawn `orchbee-server --local-site <runtime-directory>`，随后轮询 connect 加 `try_wait`
    直至就绪。spawn 或 `try_wait` 失败同样是 `recovery-required` 拒绝——标记可能已提交，故
    答案绝不是干净超时声明。
 5. **Probe** —— 已准入的探针 `LocalClient` 在输出前释放；成功不意味持有 session、grant 或
-   Site 身份收据。
+   Session 身份收据。
 
 `result.outcome` 报告本次调用实际走的分支：`started` 仅当本次调用拉起了 Server 子进程，
-`already-running` 当既有 Site 准入了其探针。Linux 的 `timeout` 答案意为就绪未能确认——标记提交之前
+`already-running` 当既有 Session 准入了其探针。Linux 的 `timeout` 答案意为就绪未能确认——标记提交之前
 无遗留；提交与 spawn 之间可能残留无存活属主的标记（后续调用随即应答
 `recovery-required`）；spawn 之后 Server 可能仍在运行。该命令绝不声称超时证明没有 Server
 启动，绝不重试 `recovery-required`，不强制清理不确定的运行时。Windows 可能在标记提交前已发布新代；
 下一次调用复查确切进程身份、登记和全部恢复 guard，只有证明死亡的代才能自动对账，并保留 checkpoint。信号保持继承：不存在捕获
 阶段，中断即进程死亡，按惯例 `128 + signo` 退出，绝不产出 `cancelled` envelope。下文说明 Windows 显式停止和后续启动；没有修复动词。
 
-## Site 诊断
+## Session 诊断
 
-Windows `site diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v2，保留
+Windows `server diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v2，保留
 Linux v1 文档。原生目录为 v69/76。复用已有运行时路径／SID scope，不进行 cohort
 准入、激活、端点连接或进程发现。有序行描述选定基目录、已准入运行时目录、标记、
 激活／生命周期锁及五个命名管道地址。Windows 不输出文件系统 Host socket scope 行，
@@ -1342,11 +1366,11 @@ Linux v1 文档。原生目录为 v69/76。复用已有运行时路径／SID sco
 测试覆盖 absent/held/free、非法标记、中文路径、schema、本地化文本和零创建；
 runtime／IPC 测试覆盖准入、真实监听器和有界观察。
 
-`site diagnose` 是激活的只读对偶面：它报告隐式 per-euid 本地 Site 运行时的有界事实，
-不 connect 任何东西、不创建任何东西、不修复任何东西。运行时基座与 `site start`
+`server diagnose` 是激活的只读对偶面：它报告隐式 per-euid 本地 Session 运行时的有界事实，
+不 connect 任何东西、不创建任何东西、不修复任何东西。运行时基座与 `server start`
 完全同规则解析（`ORCHBEE_RUNTIME_BASE` 或 `/tmp`，scope `orchbee-native-<euid>`），
 随后命令经由 rendezvous 自身已验证的目录描述符检查一组有限具名路径——描述符相对的
-`fstatat` 加 `AT_SYMLINK_NOFOLLOW`；仅对 Site 生存期锁追加一次"仅存性打开"探针，
+`fstatat` 加 `AT_SYMLINK_NOFOLLOW`；仅对 Session 生存期锁追加一次"仅存性打开"探针，
 其 `try_lock` 结果在同一描述符上立即释放。激活锁仅为元数据（存在性/类别/属主/模式/
 链接数），命令绝不获取它。任何端点都不 connect——`client.sock` 尤其如此，一次
 connect 就会消耗一个准入槽——也不枚举、发信号或散列任何进程。
@@ -1360,7 +1384,7 @@ connect 就会消耗一个准入槽——也不枚举、发信号或散列任何
 `invalid-lock`、`denied`、`io-error`、`invalid-path`、`identity-changed`、
 `unsafe-parent`、`parent-unavailable` 或 `deadline`。`Present` 行携带判定所依据的
 原始事实（`kind`、`ownerMatch`、`mode`、`size`、`linkCount`）。`held` 生存期锁
-仅意为某属主在该观察瞬间持有锁——绝不意为 Site、Worker 或任何进程存活——`absent`
+仅意为某属主在该观察瞬间持有锁——绝不意为 Session、Worker 或任何进程存活——`absent`
 是路径名事实，绝不证明执行已结束。Host 目录先获准入，然后才检查 Host 端点名；父级
 不可准入时端点行不穿透遍历地关闭为 `uninspectable`/`unsafe-parent`。`complete` 是
 "已尝试或已分类"的覆盖度事实——仅当协作式 5 秒预算在操作之间耗尽时为 `false`——
@@ -1369,9 +1393,9 @@ connect 就会消耗一个准入槽——也不枚举、发信号或散列任何
 `result.advisories` 携带现行激活谓词自身事实所支持的条件性通告：观察到完全有效的
 标记时 `activation-recorded`；观察到完全有效的 client 或 worker socket 叶时
 `socket-residue`——文本中分别注释为 "activation recorded" 或 "socket residue
-observed; if no existing Site can be joined, fresh activation is blocked by current
+observed; if no existing Session can be joined, fresh activation is blocked by current
 recovery policy"。该通告在已观察事实上引述现行策略；它绝不预测非原子未来
-`site start` 的结果——后者在读任何残留之前先尝试认证接入。
+`server start` 的结果——后者在读任何残留之前先尝试认证接入。
 
 命令以完整或部分事实文档退出 0——unsafe 与 uninspectable 行是事实而非命令失败。
 调用、引擎与输出准备失败经正常失败面应答（`invalid-usage`、非 Linux 平台的
@@ -1397,8 +1421,8 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
   `expectedRevision`——已产出的 mutation 结果，以及有效读取之后 command 阶段的失败。
 - `source.kind="embedded"`：随二进制编译内嵌的 schema 字典（`api schema` 结果及其
   `not-found` 失败）。
-- `source.kind="local-runtime"`：已产出的 `config check` 结果、`agent doctor` 结果、`site start` 的每个
-  应答，以及每份 `site diagnose` 文档——本地运行时是激活 outcome、拒绝、离线诊断与
+- `source.kind="local-runtime"`：已产出的 `config check` 结果、`agent doctor` 结果、`server start` 的每个
+  应答，以及每份 `server diagnose` 文档——本地运行时是激活 outcome、拒绝、离线诊断与
   有界运行时观察的应答权威。
 - `source.kind="terminal.send"`：`siteId`、send `requestId`，以及解析出该绑定的十进制
   字符串 `snapshotRevision`——出现在类型化 `terminal send` 应答上。
@@ -1611,18 +1635,18 @@ endpoint:{socket},environment:{observationSocketEnv},asset:{roots:[<root>…]},h
   `en-US` 观察句——机器文档保持 locale 中立，文本输出会按 `id` 与 `evidence` 重新本地化
   同一句子。`complete:false` 标记受预算限制的部分文档；命令仍以 0 退出。
 - `orchbee.site.start` → `{outcome,scope,runtimeBase}`：`outcome` 取值 `started` 或
-  `already-running`（本次调用实际走的分支，而非 Site 身份收据），`scope` 为
+  `already-running`（本次调用实际走的分支，而非 Session 身份收据），`scope` 为
   `orchbee-native-<euid>`，`runtimeBase` 恰携带 `path`（UTF-8）或 `pathBytesHex`
   （非 UTF-8，绝非有损显示串）之一。
 - `orchbee.site.diagnose` → `{complete,scope,runtimeBase,runtimeDirectory,marker,locks,
-endpoints,hostScope,advisories}`：Site 诊断一节描述的有界观察文档——封闭行状态与
+endpoints,hostScope,advisories}`：Session 诊断一节描述的有界观察文档——封闭行状态与
   reason、`locks:{activation,siteLifetime}`、
   `endpoints:{client,worker,clientPending,agentObservation,hostEndpoint}`、两个目录行的
   `path`/`pathBytesHex`，以及条件性 `advisories` token 清单。
 - `orchbee.cli.failure` → `{schema:"orchbee.cli.failure",version:1,failure:{kind,details?},
 source?}`；不存在英文 `message` 字段。`source` 只取自已可信来源（读取后失败用已验证快照；
   `api schema` not-found 用 `embedded`；mutation command 阶段失败一律用
-  `workbench-command`；`site start` 的每个应答含其拒绝一律用 `local-runtime`；`terminal get`
+  `workbench-command`；`server start` 的每个应答含其拒绝一律用 `local-runtime`；`terminal get`
   在可信 join 之后的输出准备失败用 `terminal-launch-read`）；读取之前
   的失败与语法失败没有 source。
 - `orchbee.cli.failure.source` → `{schema:"orchbee.cli.failure.source",version:1,
@@ -1646,7 +1670,7 @@ service-unavailable,timeout,transport-loss}`，`details` 为按 kind 封闭的�
 | 检查项              | 规则                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `runtime-base`      | 解析并观测 `ORCHBEE_RUNTIME_BASE`/默认值：存在且为目录则 pass；路径非法、缺失、不安全项或 I/O 错误则 fail。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `runtime-directory` | 基座失败、或合法基座下 scope 目录不存在时为 `not-applicable`（Site 未运行不是配置错误）；既有目录通过校验为 pass；属主/模式/类型不安全或 I/O 错误为 fail。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `runtime-directory` | 基座失败、或合法基座下 scope 目录不存在时为 `not-applicable`（Session 未运行不是配置错误）；既有目录通过校验为 pass；属主/模式/类型不安全或 I/O 错误为 fail。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `cohort`            | `NativeCohort::current` 在其 5 秒预算内验证通过则 pass（`verified:true`）；缺失、非法、散列不符（`invalid-cohort`）或超时（`deadline`）为 fail。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `locale`            | 信息性 pass，携带 `locale`（`en-US`/`zh-CN`）与 `source`（`LC_ALL`/`LC_MESSAGES`/`LANG`/`default`）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `sockets`           | `client`/`worker` 在运行目录可安全检查后报告 `presence` 为 `present`/`absent`/`unchecked`，沿用既有 类型+属主+`0600`+no-follow 规则。`clientPending`/`host` 是仅派生路径预算条目：`presence` 恒为 `unchecked`，地址可容纳时为 `not-applicable`/`presence-not-inspected`，超预算时为 `fail`/`address-too-long`；两者始终携带 `path`/`pathBytesHex` 与 `addressBytes`/`addressCapacityBytes`。任一条目 `fail` 则整体 fail；否则至少一个合规存在的 `client`/`worker` 为 pass；其余为 `not-applicable`。存在绝不宣称服务或 Worker 活性，预算可容纳也绝不宣称端点存在——此处的 `not-applicable` 指刻意未检查 presence，而非预算未知。派生 socket 路径的字节长度超出本平台 `sockaddr_un` 容量时，无论 presence 如何都以 `address-too-long` fail——该地址永远无法 bind 或 connect。 |
@@ -1752,7 +1776,7 @@ close-resume` 是唯一的来源例外：保留 lifecycle 的 resume 没有 `wor
 Client 使用的全部终端，在整个 context scope 上复用与 `tab close`/`panel close` 相同的
 terminal-tab-close lifecycle 机械。终端清理完成后，Workspace 及其 terminal context
 从 active projection 移除；checkout、branch 与磁盘目录保留。`accepted` 收据携带 `acceptedRevision`、该
-操作的 `closeRequestId` 与已解析的 `workspaceId`/`terminalContextId`；Site
+操作的 `closeRequestId` 与已解析的 `workspaceId`/`terminalContextId`；Session
 异步完成关闭，保留的操作记录比 Workspace 的 active projection 活得更久。重复运行
 `workspace close` 绝不是 resume——可恢复的保留操作只能经 `workspace close-resume` 继续。
 
@@ -1765,7 +1789,7 @@ scope 以 `not-closing` 作答。`workspace close-resume` 是保留 lifecycle �
 lifecycle 状态可以 resume——未知结果不可恢复——陈旧栅栏以类型化 `stale` 应答落定，在
 close 失败 envelope 下报告为 `rejected`、`reason:"stale-generation"`，绝不产生第二次尝试。
 
-明确不交付：`project close`、`panel resize`、终端 open 操作、Site restart、disable、recovery 或
+明确不交付：`project close`、`panel resize`、终端 open 操作、Session restart、disable、recovery 或
 修复命令（Windows 已支持 stop/status），以及一切远端操作。
 
 ## 失败矩阵
@@ -1872,14 +1896,14 @@ disposition 交付——OS 默认终止遵循 shell 的 `128 + signal` 约定，
 | 预备输出超 8 MiB                                                                                                                    | `output-too-large`                                                         | 1         | `{limitBytes:8388608}`                                                                        |
 | stdout 写/flush 失败                                                                                                                | `output-failed`                                                            | 1         | 不追加第二份 stdout 文档                                                                      |
 | `config check` 完成但存在失败项                                                                                                     | 成功 schema `ok:false`                                                     | 1         | 五项全部保留                                                                                  |
-| `site start` cohort `InvalidData`/`NotFound`/`PermissionDenied`/`TimedOut`/其他 io kind                                             | `incompatible`/`service-unavailable`/`denied`/`timeout`/`internal-failure` | 6/4/3/7/1 | `{stage:"cohort"}`                                                                            |
-| `site start` socket 路径超 `sockaddr_un` 预算                                                                                       | `service-unavailable`                                                      | 4         | `{stage:"runtime-directory",reason:"address-too-long"}`                                       |
-| `site start` connect/admission 失败                                                                                                 | 同上方 `ConnectClientError` 各行，逐字一致                                 | 4/5/6     | `{stage:"admission"}`                                                                         |
-| `site start` 标记或 socket 已提交但无存活属主；Server spawn 或 `try_wait` io 失败                                                   | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                             |
-| `site start` 激活 deadline 到期；取锁 `TimedOut`                                                                                    | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                        |
-| `site start` 标记/探针/锁 io 失败（非超时）                                                                                         | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                        |
-| `site diagnose` 完整或部分事实文档——unsafe/uninspectable 行是事实而非失败                                                           | 类型化 `orchbee.site.diagnose` 文档                                        | 0         | 行 `state`/`reason` 字段                                                                      |
-| `site diagnose` 在 Linux/Windows 以外；网络查询、mutation、`site start`、`config check` 或 `agent doctor` 在 Linux/Windows 以外     | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                  |
+| `server start` cohort `InvalidData`/`NotFound`/`PermissionDenied`/`TimedOut`/其他 io kind                                           | `incompatible`/`service-unavailable`/`denied`/`timeout`/`internal-failure` | 6/4/3/7/1 | `{stage:"cohort"}`                                                                            |
+| `server start` socket 路径超 `sockaddr_un` 预算                                                                                     | `service-unavailable`                                                      | 4         | `{stage:"runtime-directory",reason:"address-too-long"}`                                       |
+| `server start` connect/admission 失败                                                                                               | 同上方 `ConnectClientError` 各行，逐字一致                                 | 4/5/6     | `{stage:"admission"}`                                                                         |
+| `server start` 标记或 socket 已提交但无存活属主；Server spawn 或 `try_wait` io 失败                                                 | `rejected`                                                                 | 3         | `{stage:"activation",reason:"recovery-required"}`                                             |
+| `server start` 激活 deadline 到期；取锁 `TimedOut`                                                                                  | `timeout`                                                                  | 7         | `{stage:"activation"}`                                                                        |
+| `server start` 标记/探针/锁 io 失败（非超时）                                                                                       | `internal-failure`                                                         | 1         | `{stage:"activation"}`                                                                        |
+| `server diagnose` 完整或部分事实文档——unsafe/uninspectable 行是事实而非失败                                                         | 类型化 `orchbee.site.diagnose` 文档                                        | 0         | 行 `state`/`reason` 字段                                                                      |
+| `server diagnose` 在 Linux/Windows 以外；网络查询、mutation、`server start`、`config check` 或 `agent doctor` 在 Linux/Windows 以外 | `service-unavailable`/`check-failed`                                       | 4/1       | `{stage:"platform",reason:"unsupported-platform"[,command]}`                                  |
 | `agent doctor` 在探测项之间捕获合格信号                                                                                             | `cancelled`                                                                | 130       | `{stage:"agent-doctor"}`——部分文档仅由预算耗尽产生                                            |
 | `terminal wait-output` 期限耗尽未命中                                                                                               | `timeout`                                                                  | 7         | `{stage:"wait",timeoutMs,observed}`                                                           |
 | `terminal wait-output` 期间收到 HUP/INT/QUIT/TERM                                                                                   | `cancelled`                                                                | 130       | `{stage:"wait",cleanup}`                                                                      |
@@ -1923,7 +1947,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
   该命令不接受的选项或参数、重复选项、冲突选项、缺少选项值、缺少必需选项或操作数、缺少
   命令、未知帮助路径、错位的 help/version 标志、非法选项值或几何参数组合、非 Unicode 或
   超限参数表——并以帮助提示结尾。提示对可识别的命令或族上下文给出 `orchbee <path>
---help`，否则回落到 `orchbee --help`；每条发出的提示都是无需 Site 即可退出 0 的真实
+--help`，否则回落到 `orchbee --help`；每条发出的提示都是无需 Session 即可退出 0 的真实
   路径。回显的不可信 token 复用下述带引号转义渲染，并先截到 256 个 Unicode 标量前缀、
   仍有剩余标量时显式追加省略号；非 Unicode 或超限参数表绝不回显。机器 envelope 不变——
   诊断只存在于 stderr。
@@ -1941,7 +1965,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 
 - 语法非法的调用绝不触碰文件系统、cohort 或 socket。
 - 离线命令（`help`、`--version`、`--skill`、`completion`、`api schema` 与 Windows
-  `--default-config`）绝不执行平台、运行、cohort 或 Site 发现。
+  `--default-config`）绝不执行平台、运行、cohort 或 Session 发现。
 - 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
   例外是 `terminal read`/`terminal wait-output`，其只读能力 viewer attachment 是唯一被
   认可的读路径副作用，最小化持有并在输出前释放。至多持有一个短暂 Client Session，且绝不
@@ -1976,11 +2000,11 @@ deadline 到期在 wire 请求尚不存在时即退出。
 - 失败 envelope 绝不虚构 `source`：siteId/revision 只来自已验证快照。
 - Ambiguous 绝不猜测：报告有界候选与真实总数。
 - `api schema`、help 与 completion 只枚举同一次构建中真实交付的命令。
-- `site start` 是唯一的激活面，也是唯一会创建本地运行时状态的命令：它可能创建运行时目录、
+- `server start` 是唯一的激活面，也是唯一会创建本地运行时状态的命令：它可能创建运行时目录、
   持有激活/生存期锁、提交标记并拉起 Server——只有语法失败保证零副作用。其 20 秒绝对
   deadline 绝不按阶段重置；已返回的 `recovery-required` 拒绝不重试或强制清理；Windows 冷恢复在开始新代前
   复查独立文档中的死亡证明 guard。超时绝不声称
-  没有 Server 启动。`site diagnose` 是观察面，除其有界生存期锁探针外无任何效应：不
+  没有 Server 启动。`server diagnose` 是观察面，除其有界生存期锁探针外无任何效应：不
   connect、不创建、不取锁、不修复，也不作存活或重启声明。
 - 各 CLI 自有 5 秒预算都是 checked deadline；其构造失败是 `internal-failure`，而 transport
   内部 `RequestNotSubmitted` 一律保持 `transport-loss`。
@@ -1996,7 +2020,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 已验证快照 → 各结果形状、空集合、null                                                                                                                                    | 精确 JSON/text fixture                                                           | `src/cli` 输出测试 + JSON Schema 校验（dev `jsonschema`）         |
 | Schema 字典 ↔ 实际 envelope                                                                                                                                              | 每个成功/失败 fixture 通过校验；被拒变体不通过                                   | schema 对比测试                                                   |
 | API 失败格式：text/默认失败保持 stdout 为空，`--format json` 产出 envelope                                                                                               | `api schema`/`api snapshot` 失败遵守调用方 format                                | `tests/cli_query.rs` + `src/cli` 测试                             |
-| 无 Site 磁盘状态                                                                                                                                                         | `service-unavailable`，零 fs/进程/锁变更                                         | `tests/cli_query.rs`                                              |
+| 无 Session 磁盘状态                                                                                                                                                      | `service-unavailable`，零 fs/进程/锁变更                                         | `tests/cli_query.rs`                                              |
 | 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                                                                           | 成功/`session-capacity`/结构不变                                                 | `tests/local_startup_process`                                     |
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                                                                           | 按矩阵 typed kind；绝不冒称真实 Server 证据                                      | `tests/cli_query.rs`                                              |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连                                               | `terminal read` 成功 + typed viewer-stage 失败                                   | `tests/cli_query.rs`                                              |
@@ -2027,8 +2051,8 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 非 TTY；stdout 阻塞时 session 已释放；各 format 预备 >8 MiB；真实写失败                                                                                                  | 文档化退出；阻塞前 transport 句柄已 drop                                         | `tests/local_startup_process` + emit 单元测试                     |
 | `config check` 矩阵：每项 pass/fail/not-applicable、`exists` 语义                                                                                                        | 五项运行时检查齐全；Windows 额外校验用户配置                                     | `tests/cli_query.rs` + `src/cli/config` 测试                      |
 | `agent doctor` 语法：provider/asset-root 准入、去重、上限、帮助路径；合成 fixture → 全序判定（codex 阶梯、guarded/capsule/root/socket 探测）、封闭词汇                   | 确定性离线事实；产出文档通过 schema 校验；无 provider 执行、无 socket connect    | `src/invocation` 测试 + `src/agent_doctor` 测试                   |
-| `site start` 真实 staged cohort：冷启动拉起+准入、第二次/并发启动、无属主标记拒止、持锁 deadline、cohort 故障、信号、非 UTF-8 base、zh-CN 文本                           | `started`/`already-running` 分支真实；被拒 wedge 后标记逐字节不变；deadline 有界 | `tests/local_startup_process`                                     |
-| `site diagnose` 语法 + 观察矩阵：仅 format 选项、每行 state/reason、条件性通告、held/free/unsafe 生存期锁、未准入父级、耗尽预算、零创建                                  | 精确 parse；封闭事实行；无 connect/创建/修复；无存活声明                         | `src/invocation` 测试 + `src/cli/site_diagnose` + rendezvous 测试 |
+| `server start` 真实 staged cohort：冷启动拉起+准入、第二次/并发启动、无属主标记拒止、持锁 deadline、cohort 故障、信号、非 UTF-8 base、zh-CN 文本                         | `started`/`already-running` 分支真实；被拒 wedge 后标记逐字节不变；deadline 有界 | `tests/local_startup_process`                                     |
+| `server diagnose` 语法 + 观察矩阵：仅 format 选项、每行 state/reason、条件性通告、held/free/unsafe 生存期锁、未准入父级、耗尽预算、零创建                                | 精确 parse；封闭事实行；无 connect/创建/修复；无存活声明                         | `src/invocation` 测试 + `src/cli/site_diagnose` + rendezvous 测试 |
 | 补全脚本投影语法（bash/zsh 实执行，fish 结构对齐）                                                                                                                       | 正/负上下文；无运行时枚举                                                        | `tests/cli_query.rs`                                              |
 | 双语文本/失败输出                                                                                                                                                        | 精确 en-US/zh-CN 字符串                                                          | `tests/process.rs` + `tests/cli_query.rs`                         |
 
@@ -2091,8 +2115,8 @@ Windows 当前 Panel 使用 `orchbee.panel.current` v8，显式携带 `currentPr
 非 Windows current 保留 v3。此流程采用实现测试。
 
 Windows Worker 身份在每次连接 Server 时由已有 OS 随机源重新生成；同一 Worker
-的终端共享该 ID。不同 Site 可能复用 Terminal ID，因此精确匹配 Worker 可拒绝
-来自上一轮或另一 Site 的调用者。不引入重连或接管。Tab close 接纳并非移除：
+的终端共享该 ID。不同 Session 可能复用 Terminal ID，因此精确匹配 Worker 可拒绝
+来自上一轮或另一 Session 的调用者。不引入重连或接管。Tab close 接纳并非移除：
 Server 发布移除前，查询仍反映成员状态；发布后才找不到旧绑定。
 
 ## 目录工作区创建
@@ -2105,7 +2129,7 @@ Worker 先探测请求目录，Server 再用一次修订原子登记 Workspace�
 
 ## Agent Panel 目标模型
 
-面向单个 Agent 的命令接受 `--panel <id|@panel:suffix>`，与位置目标、`--session`
+面向单个 Agent 的命令接受 `--panel <id|@panel:suffix>`，与位置目标、`--agent-session`
 和 `--name` 互斥。位置参数中的完整 Panel ID 优先按保留的精确 Session ID 或运行时
 名称解析；只有明确未找到才回退到 Panel。显式 Session／名称不回退。带 `@panel:`
 前缀的目标直接选择 Panel，不查询名称。Workbench 拥有 Panel 身份及其主 presentation；
@@ -2115,7 +2139,7 @@ Client Session 上读取一次 Workbench 快照，将主 presentation ID 交给�
 一个为选中，多个会话为歧义。同一会话的重复附件只计一次。不分页、不取首个匹配，
 不推断终端文本，也不维护客户端名称表。
 
-工作流为解析 → 仅接入已有 Site → 可选的精确 ID／名称解析 → Panel 快照解析 →
+工作流为解析 → 仅接入已有 Session → 可选的精确 ID／名称解析 → Panel 快照解析 →
 OBAP presentation 解析／操作 → 固定 Session 的读取、等待或终端操作。全程共享调用者的
 截止时间和取消唤醒；最终名称变更之前的失败属于读取失败，不是结果未知的变更。变更
 回执丢失仍为 outcome-unknown，绝不重放。等待者不会跟随 Panel 后来的使用者。终端操作
@@ -2127,7 +2151,7 @@ Session／名称行为和已有回执来源不变。解析回执可报告 `resol
 原生语法与 Panel 投影测试覆盖选择器互斥及主／子 presentation 区分；Agent 折叠测试
 覆盖零／一／多会话、已结束／不可导航／隐藏附件及重命名的原子拒绝。Windows 进程测试
 覆盖共享接入、ID／名称优先级、固定目标等待、变更前读取失败和精确终端选择。
-真实 Site／Worker／ConPTY 证据覆盖集成命令路径。这些检查不证明 provider 前台所有权
+真实 Session／Worker／ConPTY 证据覆盖集成命令路径。这些检查不证明 provider 前台所有权
 或就绪状态。此流程采用实现测试。
 
 ## Panel 进程信息
@@ -2176,9 +2200,9 @@ Windows Job。上述检查不证明 provider 任务完成、身份认证或原�
 
 `panel process-info [<panel-id>] [--panel <panel-id> | --client <id> | --current]` 读取精确 Terminal 的 Windows Job。位置参数与显式 Panel 目标互斥；完整 ID 和 `@panel:<suffix>` 使用现有 Panel 解析器及主绑定。没有显式选择器时，有效的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID` 保留调用者的精确主终端或子终端；部分或过期元数据失败。调用者元数据缺席时要求唯一当前 Client；`--client` 指定精确当前 Client 并忽略调用者元数据。Client 选择被动解析实际成员，并在发布前验证同一绑定及本地附着标识。[当前 Panel 契约](native-current-panel.zh-CN.md) 负责修订栅栏、期限和取消。成员不可用时不回退到主终端。
 
-一次仅接入既有 Site 的 Client Session 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。会话 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
+一次仅接入既有 Session 的 Client Session 与一个绝对五秒预算覆盖快照、临时只读 viewer 接入、一次进程读取及尽力 detach。会话 drop 回收剩余 viewer。Server 再验证 Worker generation 与物理终端绑定；Worker 和 Host 保留进程事实授权边界。成功时发布确切的类型化 Windows Job 样本、Panel/Terminal 路由上下文和相关联的读取来源。顺序获取的快照与样本不宣称跨所有者原子观察。Host 失败保持明确，不转为空进程成功，也不重试。文本中的字符串经过转义，机器输出的创建时间保留十进制字符串。响应描述归属终端的进程，不代表 Windows 前台进程组或 Agent 的交互就绪状态。
 
-JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Site/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
+JSON 封套为 `orchbee.panel.process-info` v2，schema 目录及双语帮助、补全与命令共同交付。证据覆盖隐式和显式目标、I/O 前的冲突拒绝、主与子终端选择、主绑定缺失、读取拒绝、响应身份错误、Host 错误保留、输出限额、viewer 回收，以及真实 Windows Session/Worker/Host 进程路由。共享类型化读取也是后续 Agent 启动和就绪工作的实际依赖，本身不关闭这些义务。
 
 Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界的错误代码；非法响应与传输失败使用通用 CLI 失败契约。成功的 `source` 同时记录快照 revision、OBCS request ID 与 Host correlation、epoch、attachment 和物理 Terminal ID；它们不是同一个身份。目录 version 39 包含 74 份 schema。
 
@@ -2186,11 +2210,11 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 [Windows Agent 启动](windows-agent-start.zh-CN.md)拥有 `agent start`、名称预留与就绪流程、Windows 引用、预算和恢复契约。`agent names` v2 独立显示启动预留；名称失败对 launch-pending 使用 v3。Schema 目录为 v69，含 78 个 schema。
 
-## Windows Site 停止
+## Windows Session 停止
 
 托管 Windows Server 在 Workbench 提交变化后以 500ms 防抖保存，每 30 秒补存采样所得的逐终端目录及 provider 恢复引用，并在正常停止释放终端前执行最新 final 保存。后续已准入启动恢复布局／Launch Profile，并启动新的默认 shell 或所选 provider 恢复。保存的终端 cwd 优先于工作区／home 默认值；保存目录不存在时回退到 Worker home。保存失败保留此前的有效存档、无效原件及运行终端，解决后可显式重试。启动会保留不可读存档并回退到较早有效副本；全部副本无效时会提示并打开空工作区。归属的[检查点契约](../../orchbee-server/docs/workbench-checkpoint.zh-CN.md)定义兼容性与恢复边界。不恢复旧进程、活跃 Agent 状态、Client 视图、终端屏幕或历史。
 
-`site stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Site，绝不激活新 Site。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `site stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.site.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果；pending 可携带 detached、timed-out 或 cancelled 等待状态。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
+`server stop --confirm [--request-id <32-hex>] [--retry] [--detach] [--timeout <ms>]` 停止现有托管 Windows Session，绝不激活新 Session。标识为非零小写 128 位十六进制值，省略时仅生成一次；`--retry` 必须提供标识。CLI 仅发送一次开始或重试请求，之后仅查询状态。`--detach` 立即返回已准入尝试；否则一个绝对截止时间（默认 65000 毫秒，范围 1–3600000 毫秒）覆盖运行时/cohort 准入、请求和轮询。取消或超时仅停止等待，不回滚已准入停止。每个运行时答案均保留请求标识，供 `server stop-status <id>` 查询。状态是事实文档，不是第二次变更。`orchbee.site.stop` v1 封套区分 stopped、pending、failed、busy、not-recorded、unmanaged 及 unavailable/unknown 传输结果；pending 可携带 detached、timed-out 或 cancelled 等待状态。已知 Server 失败保留尝试、阶段、原因及本次释放数量。只有准确匹配的严格已停止激活记录加上空闲的既有生命周期锁才能证明完成；端点消失、非法记录及不同标识均不能证明。后续启动消费该回执，因此未记录不能否定此前停止。Linux/macOS 返回 unsupported-platform，不产生运行时效果。
 
 ## Windows 保留 Worktree 操作
 
@@ -2202,7 +2226,7 @@ Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部�
 
 Windows `project close-all <target> --confirm` 显式关闭一个 Project 捕获的成员，支持 `--request-id`、`--detach` 和 `--timeout`（1–3600000 毫秒，默认 120000）。`project close-status --request <operation-id>` 使用五秒纯读取预算；`project close-resume --request <operation-id> --generation <1..64> --confirm` 使用相同 detach/timeout 选项。普通 `workspace close` 只关闭选中 Workspace；旧 `--group` 形式拒绝。两种关闭都保留 Git checkout/分支；Project 全部关闭仍保留 Project，dissolve 仅取消分组而保留 Workspace。
 
-`orchbee.project.close-all` v1 将 Server 保留事实与可空等待状态分开。source 为 `local-workspace-group`，Site ID 必填可空。结果只有 Project scope；至多 256 个捕获成员仅携带 Workspace ID、label 和可空子 Close，空组有效。Start/Resume 只提交一次，后续仅读取相同 attempt/成员；未知不重放。退出码和保留部分事实见 [Project 全部关闭](windows-worktrees.zh-CN.md#project-全部关闭)。帮助、`--skill` 与补全都离线声明该命令。
+`orchbee.project.close-all` v1 将 Server 保留事实与可空等待状态分开。source 为 `local-workspace-group`，Session ID 必填可空。结果只有 Project scope；至多 256 个捕获成员仅携带 Workspace ID、label 和可空子 Close，空组有效。Start/Resume 只提交一次，后续仅读取相同 attempt/成员；未知不重放。退出码和保留部分事实见 [Project 全部关闭](windows-worktrees.zh-CN.md#project-全部关闭)。帮助、`--skill` 与补全都离线声明该命令。
 
 ## Windows Client 导航
 
@@ -2212,7 +2236,7 @@ Windows `project close-all <target> --confirm` 显式关闭一个 Project 捕获
 
 `api schema [<schema-id>] --output <path>` 显式发布与 stdout 完全相同的完整 JSON 文档。`--format text|json` 控制失败呈现；成功时 stdout 与文件字节均为带末尾换行的相同 JSON。省略 `--output` 时保留现有只读行为。
 
-解析器接受非空、不超过 4,096 UTF-8 字节的字面文件路径，在副作用前校验全部参数，不展开变量或前导波浪号。相对路径以调用进程目录为基准。拒绝 Windows 设备名、备用数据流和含糊的盘符相对路径。此命令不选择或启动 Site，不读取运行时配置，也不从网络获取 schema。本次不新增 Mac/Linux 文件导出运行时。
+解析器接受非空、不超过 4,096 UTF-8 字节的字面文件路径，在副作用前校验全部参数，不展开变量或前导波浪号。相对路径以调用进程目录为基准。拒绝 Windows 设备名、备用数据流和含糊的盘符相对路径。此命令不选择或启动 Session，不读取运行时配置，也不从网络获取 schema。本次不新增 Mac/Linux 文件导出运行时。
 
 Schema 所有者先解析内嵌 ID，并在任何文件操作前准备完整的有界文档。未知 ID 保留现有 not-found 结果且不创建内容。Windows 导出器解析目标，拒绝已有的非普通文件或重解析目标，以独占方式创建随机同目录临时文件 `.orchbee-schema-<nonce>.tmp`，写入并同步完整文档，关闭句柄，再通过一次重命名发布。允许替换已有普通目标文件；不创建父目录，不回退为截断写入，不自动重试。
 
@@ -2255,7 +2279,7 @@ Windows 上，`tab move <id|@tab:suffix|label> (--direction previous|next|first|
 或隐式聚焦。
 
 索引移动输出 `orchbee.tab.move` v1，包含 `action: tab.move`、请求的 `insertIndex`、精确上下文/Tab、
-请求/Site/基础 revision，以及提交或未变化的 revision。方向移动保留 `orchbee.mutation.result` v4。
+请求/Session/基础 revision，以及提交或未变化的 revision。方向移动保留 `orchbee.mutation.result` v4。
 目录 v69 包含 78 个 schema 和 94 个命令路径。确定的越界拒绝保留 Server 原因。提交结果不明时
 退役载体、报告 outcome unknown，绝不重放或补偿。原方向行为保留已有平台支持；此新增 CLI 形式
 仅支持 Windows。不引入磁盘持久化或迁移。
@@ -2278,7 +2302,7 @@ Unicode，只生成 SGR；`recent-unwrapped` 拼接已验证的软换行。detec
 它不重现原始 PTY 字节、超链接或图形。渲染请求与预备输出各自保持既有 8 MiB 上限；
 渲染资源超限直接失败，不回退、不重试。参见[输出契约](native-terminal-output.zh-CN.md)。
 
-Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Site。裸 `status` 仍查询 Workbench。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
+Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
 
 ## Agent 导航
 
@@ -2322,7 +2346,7 @@ Hermes 新增 Windows 插件激活及不含内容的会话观察。其离线 doc
 
 [Windows CLI 配置](windows-cli-configuration.zh-CN.md) 拥有有界 TOML 读取器、`ORCHBEE_CONFIG_FILE`、`[terminal] new_cwd`、`[worktrees] directory` 及创建副作用前的优先级。Windows `config check` v2 保留五项运行时检查并增加 `user-config`；v1 仍是五项检查。`orchbee.cli.failure.configuration` v1 报告有界准备错误。目录 v69 包含 78 个 schema 和 94 条命令路径。
 
-当前 Windows `config check` v13 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量不会放宽 v1-v12。`site config`／`site reload-config` v8 在每个成功快照中携带同一份已接纳警告记录，v1-v7 保持封闭。内嵌 schema 目录为 v141。
+当前 Windows `config check` v13 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量不会放宽 v1-v12。`server config`／`server reload-config` v8 在每个成功快照中携带同一份已接纳警告记录，v1-v7 保持封闭。内嵌 schema 目录为 v141。
 
 ## Windows 终端观察流
 
@@ -2386,24 +2410,24 @@ Windows `layout export` 输出带比例、手工标签、观测目录及冻结�
 
 启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
 
-Windows Site 重启默认恢复保留的官方 provider 引用，每个不同的来源／Agent／引用种类／值仅尝试一次。激活前设置 ORCHBEE_RESUME_AGENTS_ON_RESTORE=false 可启动普通 shell 并保留引用；仅接受精确 true／false。已运行的 Site 不受影响。Server 读取 SystemRoot 解析系统 Windows PowerShell，并继承 PATH 发现 provider 程序。shell 启动不证明 provider 就绪。失败、去重及其余恢复边界参见 Server 的[重启模型](../../orchbee-server/docs/agent-restart-reference.zh-CN.md)。
+Windows Session 重启默认恢复保留的官方 provider 引用，每个不同的来源／Agent／引用种类／值仅尝试一次。激活前设置 ORCHBEE_RESUME_AGENTS_ON_RESTORE=false 可启动普通 shell 并保留引用；仅接受精确 true／false。已运行的 Session 不受影响。Server 读取 SystemRoot 解析系统 Windows PowerShell，并继承 PATH 发现 provider 程序。shell 启动不证明 provider 就绪。失败、去重及其余恢复边界参见 Server 的[重启模型](../../orchbee-server/docs/agent-restart-reference.zh-CN.md)。
 
 ## 已安装的 Agent 检测清单
 
-Windows `site agent-manifests` 读取运行中 Site 已安装的规则、修订、引擎版本、配置目录及每个
+Windows `server agent-manifests` 读取运行中 Session 已安装的规则、修订、引擎版本、配置目录及每个
 provider 的实际来源、版本、路径、缓存和警告，也显示启动时冻结的更新目录源、来源错误、最近
 一次更新事实及持久化状态错误。
-`site reload-agent-manifests [--request-id <operation-id>]` 重读启动配置目录及已有状态，
+`server reload-agent-manifests [--request-id <operation-id>]` 重读启动配置目录及已有状态，
 重置屏幕稳定状态，并同时切换采样和 Explain。
-`site update-agent-manifests [--request-id <operation-id>]` 通过 Server 持有的 Windows curl
+`server update-agent-manifests [--request-id <operation-id>]` 通过 Server 持有的 Windows curl
 工作线程下载并校验规则，提交符合条件的缓存版本，再启用当前本地覆盖、缓存或内置规则的选择结果。
 本地覆盖继续优先。目录源由 `ORCHBEE_AGENT_DETECTION_MANIFEST_CATALOG_URL` 指定，默认
 `https://herdr.dev/agent-detection/index.toml`；无效覆盖值停用 Update，但本地规则仍可使用。
-来源在 Site 启动时冻结。`update.manifest_check` 为 true（默认）时，托管发布版 Site 在启动时及
+来源在 Session 启动时冻结。`update.manifest_check` 为 true（默认）时，托管发布版 Session 在启动时及
 每三十分钟自动检查；调试／测试及独立端点不调度。规则 Reload 也从冻结配置路径刷新此开关，
 配置无效保留旧策略与检测器。自动结果使用独立的最近结果槽，不消耗手动回执。
-`site agent-manifests-status <operation-id>` 读取重载或更新回执，不重新提交。
-这些命令要求 Site 已运行，不会聚焦 Client 或发送终端输入。
+`server agent-manifests-status <operation-id>` 读取重载或更新回执，不重新提交。
+这些命令要求 Session 已运行，不会聚焦 Client 或发送终端输入。
 
 每次调用共用一个五秒接纳及交换预算。Reload 和 Update 只提交一次，之后仅查询状态。
 待处理或效果未知时保留操作 ID 并退出 8；只读传输结果不确定时退出 4。
@@ -2412,7 +2436,7 @@ provider 的实际来源、版本、路径、缓存和警告，也显示启动�
 均成功时，更新才退出 0。即使部分缓存已写入，部分失败或启用失败、未启用仍退出 1。
 晚到中断保留最后一份已接纳回执。ID 为非零的 32 位小写十六进制值；省略时自动生成。
 相同类型复用已接纳 ID 只读原回执；跨类型复用失败。Reload 与 Update 共用一个活动槽，
-每个 Site 代次最多保留 1,024 条回执，不淘汰。重启结束回执范围；最近缓存报告仍保留在磁盘。
+每个 Session 代次最多保留 1,024 条回执，不淘汰。重启结束回执范围；最近缓存报告仍保留在磁盘。
 
 `orchbee.site.agent-manifests` v1 对旧结果保持封闭。v2 增加 Update、维护信息、更新报告及
 效果未知回执。v3 增加自动策略门控、设置来源及最近自动操作；v1/v2 保持封闭。报告将尝试版本、缓存版本、逐 provider 失败与启用修订、失败原因分开呈现。
@@ -2425,7 +2449,7 @@ Server [已安装规则维护契约](../../orchbee-server/docs/agent-screen-mode
 ## 来源所属 Agent 视图命令
 
 Windows `agent view get`、`agent view set --spec <json>` 和
-`agent view clear [--source <name>]` 使用所选 Site，包括 `--machine` 路由。
+`agent view clear [--source <name>]` 使用所选 Session，包括 `--machine` 路由。
 [来源所属视图契约](machines.zh-CN.md#来源所属的-agent-视图)拥有归一化、有界
 过滤／多字段排序语义、临时来源替换、插件资格、Client 关注状态及 TUI 投影。
 `orchbee.agent.view` v1 回执区分服务端失败、交换失败和未知修改；目录 v121 包含 105 个 schema
@@ -2433,7 +2457,7 @@ Windows `agent view get`、`agent view set --spec <json>` 和
 
 ## Agent 侧栏配置发布
 
-Windows `config check` v10 与 `site config`/`site reload-config` v5 暴露必需的有界 `agentSidebarProfile`；配置失败 v7 增加侧栏接纳诊断。旧公开版本保持封闭。[Windows 配置所有者](windows-cli-configuration.zh-CN.md#windows-agent-侧栏布局)定义启动、致命来源边界、字段级准入、规范发布及 Client 原子应用。目录 v122 仍含 105 个 schema 和 141 条命令路径。
+Windows `config check` v10 与 `server config`/`server reload-config` v5 暴露必需的有界 `agentSidebarProfile`；配置失败 v7 增加侧栏接纳诊断。旧公开版本保持封闭。[Windows 配置所有者](windows-cli-configuration.zh-CN.md#windows-agent-侧栏布局)定义启动、致命来源边界、字段级准入、规范发布及 Client 原子应用。目录 v122 仍含 105 个 schema 和 141 条命令路径。
 
 ## Windows CLI 进程验证
 

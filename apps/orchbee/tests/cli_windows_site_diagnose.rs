@@ -33,7 +33,7 @@ impl Fixture {
 
     fn run(&self, format: &str, locale: &str) -> Output {
         Command::new(env!("CARGO_BIN_EXE_orchbee"))
-            .args(["site", "diagnose", "--format", format])
+            .args(["server", "diagnose", "--format", format])
             .env("ORCHBEE_RUNTIME_BASE", &self.0)
             .env("LC_ALL", locale)
             .stdin(Stdio::null())
