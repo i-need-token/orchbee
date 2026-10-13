@@ -68,7 +68,6 @@ pub(crate) fn root(locale: Locale) -> String {
                 ),
             ],
         },
-        session_concept(locale),
     ];
     for (heading, names) in ROOT_GROUPS {
         let rows = names
@@ -174,24 +173,21 @@ pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
             },
         ];
     }
-    let explains_session = topic == HelpTopic::Family(Family::Server);
     #[cfg(windows)]
-    let explains_session = explains_session || topic == HelpTopic::Family(Family::Session);
-    if explains_session {
-        sections.insert(1, session_concept(locale));
-        sections.push(Section::Examples {
-            heading: locale.cli_help_text(HelpText::Examples).into(),
-            examples: session_examples(locale),
-        });
+    {
+        let notes = match topic {
+            HelpTopic::Family(Family::Server | Family::Session) => Some(HelpText::SessionRules),
+            HelpTopic::Family(Family::Machine) => Some(HelpText::MachineRules),
+            _ => None,
+        };
+        if let Some(notes) = notes {
+            sections.push(Section::Paragraphs {
+                heading: locale.cli_help_text(HelpText::Notes).into(),
+                paragraphs: vec![locale.cli_help_text(notes).into()],
+            });
+        }
     }
     let mut footer = Vec::new();
-    if cfg!(windows) && explains_session {
-        footer.push(locale.cli_help_text(HelpText::SessionRules).into());
-    }
-    #[cfg(windows)]
-    if topic == HelpTopic::Family(Family::Machine) {
-        footer.push(locale.cli_help_text(HelpText::MachineRules).into());
-    }
     if topic != HelpTopic::Family(Family::Completion) {
         footer.push(locale.cli_help_next(path));
     }
@@ -202,39 +198,6 @@ pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
         sections,
         footer,
     }
-}
-
-fn session_concept(locale: Locale) -> Section {
-    Section::Paragraphs {
-        heading: locale.cli_help_text(HelpText::SessionConcept).into(),
-        paragraphs: vec![
-            locale.cli_help_text(HelpText::SessionDefinition).into(),
-            locale.cli_help_text(HelpText::SessionSelection).into(),
-        ],
-    }
-}
-
-fn session_examples(locale: Locale) -> Vec<Row> {
-    let mut examples = vec![row("orchbee", locale.cli_help_text(HelpText::OpenTerminal))];
-    #[cfg(windows)]
-    examples.extend([
-        row(
-            "orchbee server start\norchbee workspace create",
-            locale.cli_help_text(HelpText::SessionStartExample),
-        ),
-        row(
-            "orchbee session attach work",
-            locale.cli_help_summary(HelpTopic::Command(
-                crate::invocation::CommandPath::SessionAttach,
-            )),
-        ),
-    ]);
-    #[cfg(not(windows))]
-    examples.push(row(
-        "orchbee server start",
-        locale.cli_help_text(HelpText::SessionStart),
-    ));
-    examples
 }
 
 fn row(label: &str, description: &str) -> Row {

@@ -87,6 +87,12 @@ reference is a defect, and so is the reverse.
   failure.
 - Help describes the command's operands, options, value sets, and effect class in the effective
   locale. It never enumerates live resources.
+- Help pages at the same level share section headings and ordering, omitting inapplicable sections.
+  Root help contains the executable summary, usage, optional quick start, command groups, global
+  options, and navigation; it never inserts feature-specific concept sections.
+- Concept explanations and onboarding belong in the owning application's guide. Command-specific
+  examples and operational constraints use the shared examples and details sections, rather than
+  custom headings or explanatory layouts for individual command families.
 - `--version` is legal only as the sole argument and prints one line naming the executable and its
   version.
 - `completion <shell>` prints a static projection of the grammar for a declared closed set of

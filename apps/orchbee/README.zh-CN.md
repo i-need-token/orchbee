@@ -173,6 +173,10 @@ Apple Silicon macOS 开发 cohort 支持查询 Session 的 `agent list` 及其�
 `orchbee completion <shell>` 打印对应的按键发现脚本，由你的 shell
 自行 source。
 
+帮助在每个层级使用共用的章节标题与顺序。根帮助提供快速开始、命令分组和全局选项；
+命令族帮助列出直接子项；命令帮助描述参数、选项、示例和操作约束。会话概念及新手引导
+保留在本指南中，不另设帮助章节。
+
 Help 只写 stdout，失败只写 stderr；Version 写入一行与 locale 无关的 `orchbee <version>`。
 正常关闭 TUI、help、version 以及查询、修改、检查成功的开发退出状态为 `0`；usage failure 为 `2`；
 其余失败分类以持有记录的 failure matrix 为准。这些不是未来稳定公开退出状态表。

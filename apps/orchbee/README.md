@@ -189,6 +189,11 @@ observation commands retain their documented platform limits.
 `orchbee completion <shell>` prints the matching key-driven discovery script
 for your shell to source.
 
+Help uses shared section headings and ordering at each level. Root help provides quick start,
+command groups and global options; family help lists direct children; command help describes
+arguments, options, examples and operational constraints. Session concepts and onboarding stay
+in this guide rather than introducing a separate help section.
+
 Help writes stdout, failures write stderr, and version writes one locale-neutral
 `orchbee <version>` line. Development status is `0` for normal TUI close/help/version and for
 successful queries, mutations, and checks; `2` for usage failure; the remaining failure classes
