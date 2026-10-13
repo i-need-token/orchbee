@@ -56,6 +56,9 @@
 - **前端键盘快捷键**：`docs/frontend/keyboard-shortcuts.md` — Action 所有权、绑定、平台显示、冲突和验证
 - **前端浏览器存储**：`docs/frontend/browser-storage.md` — 本地持久化所有权、键版本控制、验证、隐私和验证
 - **TUI 视觉基础**：`docs/tui/visual-foundations.md` — 颜色角色、主题契约、文本层级、框架、字形和显示宽度
+- **TUI 组件**：`docs/tui/components.md` — 组件归属、复用、控件状态、动作可辨识性、列表、编辑器、选择器及共享 chrome
+- **TUI 动作**：`docs/tui/actions.md` — 语义身份、可用性、调用、执行、并发、取消和结果
+- **TUI 设置**：`docs/tui/settings.md` — 设置元数据、作用域、值状态、预览、提交、重置及持久化反馈
 - **TUI 布局**：`docs/tui/layout.md` — 区域、尺寸层级、降级顺序、覆盖层几何、截断和尺寸变化
 - **TUI 键盘输入**：`docs/tui/keyboard-input.md` — 按键解码、绑定模型、输入归属、编辑约定和发现
 - **TUI 鼠标输入**：`docs/tui/mouse-input.md` — 捕获策略、命中测试、手势词汇、透传、滚轮归一化和选择

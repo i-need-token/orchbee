@@ -13,6 +13,11 @@ follows [`terminal-environment.md`](terminal-environment.md). Shared GUI/TUI mea
 and theme correspondence follow [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). The frontend CSS
 registry in [`frontend/design-tokens.md`](../frontend/design-tokens.md) and the native theme module
 implement those roles in their respective media; rendering consumes roles and themes supply values.
+Reusable controls and their state combinations follow [`components.md`](components.md).
+
+The role inventory below is the required contract for new and migrated rendering code. Its presence
+does not assert that every existing native theme or surface has completed adoption; implementation
+support is established only by source and the required render evidence.
 
 The content of a terminal pane belongs to the program running inside it. These rules govern only
 Orchbee-drawn cells.
@@ -24,8 +29,10 @@ Orchbee-drawn cells.
 - Rendering code references semantic roles only. `ratatui::style::Color::Rgb`,
   `Color::Indexed`, and named ANSI variants appear only inside the theme module that maps roles to
   values. Review enforces this rule; no automated check exists yet.
-- Every visible state has one role. Do not compose a state from two roles, borrow a status color
-  for emphasis, or express hierarchy through color instead of modifiers.
+- Each visual channel of a visible state has one role. A control may combine independent channels,
+  such as a background for pointer interaction, a marker for keyboard focus, and a glyph for a
+  chosen value at the control's declared boundary. Do not combine two roles in one channel, borrow a
+  status color for emphasis, or bypass the `text` roles with a component-local color or modifier.
 - Explicit user-configured token foreground/bold/dim overrides are presentation data. The theme
   boundary applies them over each token's semantic role; rendering code still does not construct
   colors. State tokens keep state roles, ordinary values keep text roles, and focus/ordinal
@@ -35,38 +42,51 @@ Orchbee-drawn cells.
 
 ## Color roles and themes
 
-A theme maps every role below to one concrete value. A theme with a missing role is invalid. Roles
-are stable names; themes change values.
+A theme maps every role below to one concrete style. A style may include a foreground, background,
+or permitted modifier. A theme with a missing role is invalid. Roles are stable names; themes
+change values.
 
-| Role family | Roles                                                                 | Use when                                                                                                                                 |
-| ----------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `text`      | `primary`, `secondary`, `disabled`, `inverse`                         | Content and chrome text by information priority; `inverse` only on a filled surface                                                      |
-| `accent`    | `focus`, `selection`, `link`                                          | The focused frame or control, the current selection, and activatable references                                                          |
-| `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `unread` | Outcome and state meaning only; never decoration or hierarchy                                                                            |
-| `frame`     | `focused`, `unfocused`, `divider`                                     | Pane and overlay borders and split boundaries                                                                                            |
-| `surface`   | `canvas`, `chrome`, `overlay`, `selection`, `current`, `inactive`     | Backgrounds for the terminal canvas, persistent chrome, overlays, selected rows, persistent current context, and the unfocused-pane mask |
-| `hint`      | `key`, `label`                                                        | Key glyphs and their action labels in footers and help                                                                                   |
+| Role family | Roles                                                                                 | Use when                                                                                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `text`      | `primary`, `secondary`, `disabled`, `inverse`                                         | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                  |
+| `accent`    | `action`, `focus`, `selection`, `link`                                                | The primary action at rest, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references                                   |
+| `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `unread`                 | Outcome and state meaning only; never decoration or hierarchy                                                                                                                        |
+| `frame`     | `focused`, `unfocused`, `divider`                                                     | Pane and overlay borders and split boundaries                                                                                                                                        |
+| `surface`   | `canvas`, `chrome`, `overlay`, `hover`, `pressed`, `selection`, `current`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, overlays, pointer feedback, pressed controls, provisional or range selection, persistent current context, and inactive panes |
+| `hint`      | `key`, `label`                                                                        | Key glyphs and their action labels in footers and help                                                                                                                               |
 
 Theme rules:
 
 - Every native Client ships a `terminal-native` theme and uses it whenever host appearance or color
   level is unknown. It is the default until an explicit user setting selects another theme.
-- The `terminal-native` theme maps text and surface roles to the terminal default foreground and
-  background (`Color::Reset`) and accent, status, and frame roles to named ANSI-16 colors. It uses
-  the `DIM` modifier, not a gray color, for `text-secondary`, so de-emphasis follows the host
-  palette on both light and dark backgrounds.
+- The `terminal-native` theme maps text and base surfaces (`canvas`, `chrome`, and `overlay`) to the
+  terminal default foreground and background (`Color::Reset`). It resolves current and interaction
+  surfaces through the paired colors and modifier fallbacks below, and maps accent, status, and
+  frame roles to named ANSI-16 colors. It uses the `DIM` modifier, not a gray color, for
+  `text-secondary`, so de-emphasis follows the host palette on both light and dark backgrounds.
 - `surface-current` uses a neutral fill to distinguish persistent context from an accented selection.
   In `terminal-native`, this is a paired ANSI foreground/background: host-relative body and metadata
   text adopt the paired foreground without DIM on this fill. Status and explicit token colors retain
   their meaning. RGB themes keep their text hierarchy. When quantization collapses the fill onto
   chrome, retain a text marker independently of configurable text emphasis.
+- `surface-hover`, `surface-pressed`, `surface-selection`, and `surface-current` remain ordered and
+  distinguishable after quantization. When a terminal-native or reduced-color mapping cannot
+  provide four distinct fills, hover uses the resolver's `REVERSED` band, pressed also bolds the
+  action's primary label, provisional selection retains its `accent-selection` marker, and current
+  context retains its current marker or `BOLD`. Individual components apply the semantic state but
+  never branch on the palette.
+- `accent-action` identifies the one primary action in the current decision context while it is at
+  rest. It never identifies keyboard focus, selection, or a successful outcome; those meanings keep
+  their own roles.
 - An RGB theme is designed for one background polarity and may be selected only when the host
   appearance is known through a probe or an explicit setting. It declares its polarity.
 - The theme owner quantizes theme values once at startup to the detected color level (truecolor,
-  256-color, or 16-color) using the nearest perceptual match. Rendering code never inspects the
-  color level and never branches on the active theme.
-- A theme value change is reviewed against every surface that consumes the role; a role addition
-  updates every shipped theme in the same change.
+  256-color, or 16-color) using the nearest perceptual match, then resolves any collapsed
+  interaction roles to their documented modifier and marker fallbacks. Rendering code never
+  inspects the color level and never branches on the active theme.
+- A theme value change is reviewed against every surface that consumes the role. When runtime code
+  adopts a new role, that implementation change updates every shipped theme atomically; a partially
+  populated runtime role inventory is invalid.
 - Paint a region's complete background, including padding and empty cells, through its surface
   role. RGB themes distinguish canvas, persistent chrome and overlays; a border alone is not the
   region's surface. Terminal-native and lower color levels retain their admitted host behavior.
@@ -86,30 +106,46 @@ Hierarchy describes information priority, not interaction state.
 | Secondary | `text-secondary`        | Supporting copy, metadata, timestamps, and key hint labels  |
 | Disabled  | `text-disabled`         | Unavailable actions that remain visible for discoverability |
 
-- Use at most these three visible levels in one region. Additional structure comes from spacing,
-  grouping, or a frame, not from more colors or `ITALIC`.
-- `BOLD` marks a heading or the active item; it never marks a warning. `UNDERLINED` marks only
-  `accent-link`. `REVERSED` and `BLINK` are forbidden in chrome; `BLINK` is forbidden everywhere.
+- Use at most the heading, primary, and secondary hierarchy levels in one region. Disabled is an
+  availability treatment applied to affected content, not a fourth hierarchy level. Additional
+  structure comes from spacing, grouping, or a frame, not from more colors or `ITALIC`.
+- `BOLD` marks a heading, the active item, or the primary label of a pressed action; it never marks
+  a warning. `UNDERLINED` marks only `accent-link`. `REVERSED` is available only to the theme
+  resolver as a terminal-native or reduced-color fallback for an interactive band; component
+  renderers never request it directly. `BLINK` is forbidden everywhere.
 - Status roles color the status glyph or the status word, not the whole line.
 
 ## Interaction states
 
-| State           | Presentation                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------ |
-| Focused region  | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated row marker        |
-| Unfocused pane  | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it           |
-| Selected row    | `surface-selection` background across the full row width                                                     |
-| Current context | Neutral `surface-current` across the full row width; current identity uses `BOLD` independently of focus     |
-| Active tab      | Filled `accent-selection` + `BOLD`; inactive tabs use `text-secondary`                                       |
-| Pointer hover   | A capturing menu selects the painted row with `surface-selection`; other regions retain their ordinary state |
-| Pending         | `status-pending` glyph plus a localized verb; frames are fixed-width                                         |
-| Disabled        | `text-disabled`; the action stays in help with its reason                                                    |
+| State                 | Presentation                                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                           |
+| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                          |
+| Pointer hover         | `surface-hover` across the effective hit rectangle; it never moves keyboard focus or the provisional cursor                 |
+| Pointer pressed       | `surface-pressed` plus `BOLD` on the primary action label while the primary button remains held on the armed target         |
+| Provisional selection | `surface-selection` across the complete row plus an `accent-selection` indicator when the component provides one            |
+| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn      |
+| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus   |
+| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent    |
+| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate |
+| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                 |
+| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                    |
 
 Exactly one region shows focus at a time. Focus is visible in every layout tier.
 
 Current context and keyboard focus are separate facts. The current context remains identifiable
 while input belongs elsewhere; moving keyboard focus must not erase that indication. A surface
 documents both presentations and their simultaneous appearance.
+
+A checked value may represent a staged or parent-draft value as well as a confirmed domain value. It
+does not by itself prove persistence. When it differs from the confirmed or effective basis, the
+control retains a separate changed-draft cue defined by [`components.md`](components.md#value-controls).
+
+Current, checked, provisional, focus, hover, pressed, availability, and pending are independent
+facts. Within the background channel, precedence is pressed, provisional selection, hover, current,
+then the component's base surface. Markers, glyphs, text hierarchy, and status remain visible when a
+higher-priority background wins. [`components.md`](components.md#state-model) owns required
+combinations and control behavior.
 
 ## Frames and borders
 
@@ -151,10 +187,10 @@ documents both presentations and their simultaneous appearance.
 
 ## Verification
 
-| Change                     | Required check                                                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| New or changed surface     | Rendered under `terminal-native` and one RGB theme at every required geometry in [`verification.md`](verification.md#render-evidence) |
-| Theme role or value change | Every consuming surface re-rendered; the 16-color quantization result contains no `Rgb` or `Indexed` cell                             |
-| Text with external origin  | A test proves control characters and escape sequences do not reach the buffer                                                         |
-| Truncation or wrapping     | A test includes wide characters and a token wider than the line                                                                       |
-| Glyph addition             | Its ASCII fallback is declared and rendered in the simplified-glyph test                                                              |
+| Change                             | Required check                                                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| New or changed surface             | Rendered under `terminal-native` and one RGB theme at every required geometry in [`verification.md`](verification.md#render-evidence) |
+| Runtime theme role or value change | Every consuming surface re-rendered; the 16-color quantization result contains no `Rgb` or `Indexed` cell                             |
+| Text with external origin          | A test proves control characters and escape sequences do not reach the buffer                                                         |
+| Truncation or wrapping             | A test includes wide characters and a token wider than the line                                                                       |
+| Glyph addition                     | Its ASCII fallback is declared and rendered in the simplified-glyph test                                                              |

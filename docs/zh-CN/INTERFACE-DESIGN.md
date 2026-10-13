@@ -51,6 +51,8 @@
 
 各呈现端使用稳定动作身份。若既有运行时使用不同的本地标识符，在功能契约中保留明确对应关系；
 不得从翻译标签推断对应关系。
+GUI 调用遵循 [`frontend/actions.md`](frontend/actions.md)，原生 TUI 调用遵循
+[`tui/actions.md`](tui/actions.md)。两者投射既有语义所有者，不在呈现者中创建第二套操作或结果模型。
 
 ## 快捷键迁移规则
 
@@ -86,14 +88,20 @@
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
 | 主要与辅助信息                 | `--ob-sys-color-text-primary`、`--ob-sys-color-text-secondary`                                                                 | `text-primary`、`text-secondary`                                  |
 | 键盘焦点                       | `--ob-sys-color-border-focus` 及控件焦点几何                                                                                   | `frame-focused` 或 `accent-focus`                                 |
+| 主要动作                       | `--ob-sys-color-action-primary` 及其控件变体                                                                                   | 动作控件上的 `accent-action`                                      |
+| 指针 hover                     | `--ob-sys-color-surface-hovered` 或控件声明的 hover 变体                                                                       | 有效命中目标上的 `surface-hover`                                  |
+| 指针按下                       | 前端基础下控件声明的按下反馈                                                                                                   | `surface-pressed`，配合独立焦点和身份提示                         |
 | 持久当前上下文                 | 导航中的中性 `--ob-sys-color-surface-selected`                                                                                 | 中性 `surface-current`                                            |
 | 临时选择                       | 控件拥有的选择表面与指示器                                                                                                     | `surface-selection` 与 `accent-selection`                         |
+| 已勾选值                       | 控件声明的值模型中的勾选指示器，独立于导航光标                                                                                 | 使用 `accent-selection` 的稳定已选字形                            |
 | 成功、警告、错误与信息         | `--ob-sys-color-status-success`、`--ob-sys-color-status-warning`、`--ob-sys-color-status-danger`、`--ob-sys-color-status-info` | `status-success`、`status-warning`、`status-error`、`status-info` |
 | 处理中                         | 忙碌指示器和本地化操作文本                                                                                                     | `status-pending` 指示器和本地化操作文本                           |
 | 画布、持久 chrome 和临时覆盖层 | 按表面需要使用 `--ob-sys-color-surface-canvas`、`--ob-sys-color-surface-raised`、`--ob-sys-color-surface-overlay`              | `surface-canvas`、`surface-chrome`、`surface-overlay`             |
 
-焦点、当前上下文、选择、可用性与操作状态是独立事实。在所属表面定义它们同时出现时的样式；
-移动焦点不能抹去当前上下文。主要动作和焦点使用动作或焦点角色，不得仅为强调而使用成功角色。
+焦点、hover、按下、当前上下文、临时选择、已选值、可用性与操作状态是独立事实。在所属表面
+定义它们同时出现时的样式；移动焦点不能抹去当前上下文，hover 绝不提交值或改变焦点。
+勾选状态属于控件声明的编辑边界，可以投射父级草稿或权威值；该指示器本身不能证明已经持久化。
+主要动作和焦点使用动作或焦点角色，不得仅为强调而使用成功角色。
 处理中和未知结果不得看起来像成功。颜色必须配合有意义的文字、形状、字形或强调，使区别在
 颜色能力降低或修饰符不可用时仍可辨识。
 
@@ -144,9 +152,14 @@ CSS 注册表仍是 [`frontend/design-tokens.md`](frontend/design-tokens.md) 下
 
 共享设置的含义不意味着该设置已经同步。其既有存储和配置所有者声明作用域、持久化、传播及
 冲突规则。不得静默宣称 Client 本地设置是全局设置，也不得在某个渲染器重新解释共享设置。
+同一设置在两端保持相同提交和应用时机。已保存、生效、草稿、预览及导航值保持独立。纯呈现预览
+必须可逆；关闭选择器不得暗中持久化预览。GUI 表面规则遵循
+[`frontend/settings.md`](frontend/settings.md)，原生表面规则遵循
+[`tui/settings.md`](tui/settings.md)。
 
 在各端内部复用已评审组合。GUI 发现流程仍为
-[`frontend/experience-components.md`](frontend/experience-components.md)；TUI 表面选择仍为
+[`frontend/experience-components.md`](frontend/experience-components.md)；TUI 发现、归属和可复用控件
+契约遵循 [`tui/components.md`](tui/components.md)，TUI 表面选择遵循
 [`tui/overlays-and-status.md`](tui/overlays-and-status.md)。跨端共享交互契约与领域操作，
 组件仍保留在既有所有者中。
 

@@ -2,11 +2,18 @@
 
 ## Authority and scope
 
-This standard owns surface selection, overlay composition, input capture, confirmations, the status
-line, hints, transient notices, and pending indication for Orchbee-authored terminal interfaces.
+This standard owns surface selection, overlay composition, input capture, interaction lifecycle,
+confirmations, the status line, hints, transient notices, and asynchronous outcome presentation for
+Orchbee-authored terminal interfaces.
 Geometry follows [`layout.md`](layout.md#overlays); colors and hierarchy follow
 [`visual-foundations.md`](visual-foundations.md); key ownership follows
-[`keyboard-input.md`](keyboard-input.md#input-ownership).
+[`keyboard-input.md`](keyboard-input.md#input-ownership); reusable overlay shells and controls follow
+[`components.md`](components.md).
+
+These rules are required for new and materially changed TUI behavior; their presence does not claim
+every current Client conforms. Runtime adoption requires source and the evidence in
+[`verification.md`](verification.md#contract-review). Record any staged gap with its owner and
+completion condition.
 
 The interruption budget in
 [`frontend/dialogs-and-forms.md`](../frontend/dialogs-and-forms.md#interruption-budget) applies
@@ -28,24 +35,74 @@ changes capture kind while open.
 
 ## Overlay composition
 
-An overlay is one bordered region with these slots in order:
+An overlay is one bordered region with the following reusable slots. Required slots are always
+present; optional slots are omitted without reordering the remaining slots or recreating them
+inside content.
 
-| Slot    | Contract                                                                                  |
-| ------- | ----------------------------------------------------------------------------------------- |
-| Header  | One localized title in the frame's top border or first row; optional one-line description |
-| Content | The task representation: list, editor, prompt, text, or progress; scrolls when too tall   |
-| Footer  | The exit binding always, then the primary binding, then at most two secondary bindings    |
-| Actions | Optional row of selectable actions when keys alone would be ambiguous                     |
+| Slot       | Requirement | Contract                                                                                   |
+| ---------- | ----------- | ------------------------------------------------------------------------------------------ |
+| Header     | Required    | One localized task title; an optional one-line description names its target or consequence |
+| Navigation | Optional    | Return path, breadcrumb, or tabs for movement within the same task                         |
+| Query      | Optional    | Search or filter editor; query text is draft state, not a committed domain value           |
+| Status     | Optional    | Validation, freshness, pending, failure, or recovery information for this task             |
+| Content    | Required    | List, editor, prompt, reference text, or progress; the only slot that scrolls by default   |
+| Actions    | Optional    | Selectable actions when footer bindings alone would be ambiguous                           |
+| Footer     | Required    | Exit or return first, primary binding second, then at most two secondary bindings          |
 
-- One overlay is open at a time. A subtask replaces the current content and footer under the same
+- One overlay is open at a time. A child task replaces the shell's task slots under the same capture
   owner; it never opens a second overlay above the first.
 - The header states what the overlay is about, not the action name alone. A confirmation header
   names the object being affected.
 - A non-capturing overlay states in its footer that typing reaches the pane.
 - An overlay whose content depends on remote state shows the content's age or a refresh binding; it
   never presents stale content as current without indication.
-- Closing an overlay returns focus and layout to the state before it opened. Overlays do not
-  reorder panes or change selection as a side effect of closing.
+- Header, navigation, query, status, actions, and footer remain fixed while content scrolls. If the
+  fixed slots leave less than the content minimum in [`layout.md`](layout.md#overlays), refuse a
+  newly requested overlay; suspend an existing one instead of hiding its return or primary control.
+
+## Lifecycle and return
+
+- Opening an overlay records the invoking region and focus identity. Entering a child task also
+  records the parent's focus, selection, query or filter, viewport anchor, draft, and reversible
+  preview. A visible return action exists whenever that parent state exists.
+- Returning from a child restores the recorded parent state. Closing the root restores the invoker
+  when it still exists; otherwise focus moves to the nearest surviving item in the same region,
+  then that region's documented default. Neither path reorders panes or changes domain selection as
+  a side effect; a selection that already crossed its commit boundary remains committed.
+- `Esc` takes the next local back step derived from the current surface state. That step may dismiss
+  completed feedback, leave editing, clear a provisional selection, revert a preview, return from a
+  child task, or close the root; the surface model defines which one is current rather than applying
+  a universal cancellation order. Each step restores that layer's entry state. `Esc`, Back, and
+  closing a surface never cancel running work; cancellation is a separate, explicitly named domain
+  action.
+- Dismissal discards only the current layer's uncommitted UI state. It does not roll back an
+  immediate setting or another operation that already crossed its declared commit boundary. Hiding
+  or closing after an accepted submission neither undoes the submission nor cancels the work it
+  started.
+- Replacing or closing a surface releases capture before focus restoration. The decoded input
+  packet containing that decision remains owned and is consumed through its end, so trailing bytes
+  never reach the new owner. Only a subsequent, separately decoded input event is resolved by the
+  new owner; it is never delivered to the dismissed surface.
+- A surface that stops fitting after it opened is suspended, not implicitly dismissed. Preserve its
+  parent state, draft, required decision, accepted submission, pending work, and recovery. The
+  too-small state exposes only a currently valid return, exit, or recovery binding and never
+  accepts a hidden submit or confirmation; restoring sufficient geometry resumes the same surface
+  instance. A required decision follows the parking or close-refusal policy of its owning action.
+
+## Preview and commitment
+
+- Typing a query changes only the visible result set. Moving focus or selection may preview an item
+  only when the preview is reversible; neither operation activates the item or writes domain state.
+- Every editor, picker, and setting declares its commit boundary through its domain owner. Immediate
+  settings commit at their control; an atomic staged draft exposes one outcome-named primary action.
+  Do not infer a page-wide Save action from the presence of an overlay.
+- Activation accepts the focused choice only after current validation succeeds and crosses the
+  surface's declared boundary. The owner decides whether that acceptance updates a parent draft or
+  commits domain state. Back or `Esc` restores only an active, unaccepted reversible preview. Once
+  accepted, later return or `Esc` preserves the edit in its parent draft or domain and dismisses
+  only the current uncommitted layer.
+- Asynchronous validation and preview results bind to the exact target and draft revision that
+  produced them. A result for an older draft cannot enable commitment or replace current feedback.
 
 ## Confirmations
 
@@ -53,11 +110,11 @@ An overlay is one bordered region with these slots in order:
   affects other attached Clients. It names the consequence and its scope in one sentence.
 - The confirm key is one exact key; `Esc` cancels; the default outcome is cancel. No other key is
   interpreted, and the decision packet is captured as described in
-  [`keyboard-input.md`](keyboard-input.md#editing-conventions).
+  [`keyboard-input.md`](keyboard-input.md#editing-and-drafts).
 - A confirmation is not used for reversible effects, routine edits, or information. Prefer direct
   execution with a notice.
-- A confirmation that cannot be drawn at the current geometry is refused with a status notice; the
-  effect does not run.
+- A confirmation that cannot be drawn when requested is refused with a status notice; the effect
+  does not run. A confirmation already awaiting a decision follows the suspension contract instead.
 
 ## Status line
 
@@ -93,16 +150,28 @@ covered cells. While visible it stays above other overlays. Its segments, from l
   contains raw error text; failures map to localized messages with stable codes.
 - Notices never block input and never move layout.
 
-## Pending and progress
+## Pending, completion, and attention
 
 - An operation that has not completed within a documented short delay shows a pending indicator in
   the affected region or the status line. Before that delay nothing changes.
 - A pending indicator is a fixed-width glyph sequence plus a localized verb. It never blocks
   drawing or input for other regions.
+- A surface request carries the surface instance, target identity, and request generation. Only a
+  completion that still matches all three may change selection, preview, pending state, or visible
+  feedback. Replacing or closing the surface invalidates its presentation ownership without
+  cancelling domain work. The effect owner may still settle authoritative domain state, but the
+  completion cannot reopen the surface or mutate a replacement surface instance.
 - An operation with a deadline shows the deadline's effect on completion: success, a definite
   failure, or an unknown outcome with the recovery binding. Unknown is presented as unknown, never
   as success or failure.
-- Progress that can continue in the background does not open an overlay.
+- Failure feedback stays beside the affected task or control, preserves retryable non-secret draft
+  state, and provides a localized recovery action. Raw errors remain outside product copy.
+- Attention is ordered as: a decision currently captured from the person, recovery for the current
+  task, other current-task status, then background or unread state. Lower-priority feedback never
+  displaces a required decision or persistent failure.
+- Progress and completion that can continue in the background do not open an overlay, move focus or
+  selection, replace the current draft, or switch context. They update their owning region or an
+  unread/status indication until the person navigates to them.
 
 ## Empty states
 
@@ -112,10 +181,12 @@ covered cells. While visible it stays above other overlays. Its segments, from l
 
 ## Verification
 
-| Change                | Required check                                                                                                                                  |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overlay addition      | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence); footer shows the exit binding; capture kind tested |
-| Confirmation addition | Tests prove only the exact key confirms, `Esc` cancels, and the refused-geometry path does not run the effect                                   |
-| Status segment change | Tests cover every tier and prove the input indicator survives to the smallest tier                                                              |
-| Notice change         | A test with injected time proves expiry schedules a redraw and a persistent error is not replaced                                               |
-| Pending indicator     | A test proves nothing is drawn before the delay and the indicator has constant width across frames                                              |
+| Change                  | Required check                                                                                                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overlay addition        | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence); fixed slots and footer order remain visible; new-size refusal, open-size suspension and resumption, and capture kind are tested                      |
+| Child or dismissal flow | Tests restore focus, selection, query, viewport anchor, draft, and preview; each `Esc` unwinds one layer and leaves running work unchanged                                                                                                        |
+| Preview or commit flow  | Tests distinguish focus, unaccepted reversible preview, validation, activation, immediate commit, staged commit, and cancellation; cancellation reverts only the active unaccepted preview and preserves an accepted parent draft or domain value |
+| Confirmation addition   | Tests prove only the exact key confirms, `Esc` cancels, and the refused-geometry path does not run the effect                                                                                                                                     |
+| Status segment change   | Tests cover every tier and prove the input indicator survives to the smallest tier                                                                                                                                                                |
+| Notice change           | A test with injected time proves expiry schedules a redraw and a persistent error is not replaced                                                                                                                                                 |
+| Asynchronous operation  | Tests prove delayed pending, active-generation completion, stale-result rejection, definite failure, unknown recovery, and that background completion does not focus                                                                              |

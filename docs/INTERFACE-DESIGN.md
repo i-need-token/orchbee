@@ -58,6 +58,9 @@ needed for the task. Missing data, loading, disconnection, and an empty result a
 
 Use stable action identity across presenters. If existing runtimes use different local identifiers,
 keep their explicit correspondence with the feature contract; never infer it from translated labels.
+GUI invocation follows [`frontend/actions.md`](frontend/actions.md); native TUI invocation follows
+[`tui/actions.md`](tui/actions.md). Both project the existing semantic owner instead of creating a
+second operation or result model in the presenter.
 
 ## Keyboard transfer rules
 
@@ -101,14 +104,21 @@ to common roles as follows; the mapping does not require identical token names o
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
 | Primary and supporting information               | `--ob-sys-color-text-primary`, `--ob-sys-color-text-secondary`                                                                 | `text-primary`, `text-secondary`                                  |
 | Keyboard focus                                   | `--ob-sys-color-border-focus` and control focus geometry                                                                       | `frame-focused` or `accent-focus`                                 |
+| Primary action                                   | `--ob-sys-color-action-primary` and its control variants                                                                       | `accent-action` on the action control                             |
+| Pointer hover                                    | `--ob-sys-color-surface-hovered` or the control's declared hover variant                                                       | `surface-hover` across the effective hit target                   |
+| Pointer press                                    | The control's declared pressed feedback under frontend foundations                                                             | `surface-pressed` with independent focus and identity cues        |
 | Persistent current context                       | Neutral `--ob-sys-color-surface-selected` in navigation                                                                        | Neutral `surface-current`                                         |
 | Provisional selection                            | Selection surface and indicator owned by the control                                                                           | `surface-selection` and `accent-selection`                        |
+| Checked value                                    | The control's checked indicator for its declared value model, independent of its navigation cursor                             | Stable checked glyph with `accent-selection`                      |
 | Success, warning, error, and information         | `--ob-sys-color-status-success`, `--ob-sys-color-status-warning`, `--ob-sys-color-status-danger`, `--ob-sys-color-status-info` | `status-success`, `status-warning`, `status-error`, `status-info` |
 | Work in progress                                 | Busy indicator and localized operation text                                                                                    | `status-pending` indicator and localized operation text           |
 | Canvas, persistent chrome, and temporary overlay | `--ob-sys-color-surface-canvas`, `--ob-sys-color-surface-raised`, `--ob-sys-color-surface-overlay` as the surface requires     | `surface-canvas`, `surface-chrome`, `surface-overlay`             |
 
-Focus, current context, selection, availability, and operation status are independent facts. Define
-their combined appearance at the owning surface; moving focus does not erase current context.
+Focus, hover, press, current context, provisional selection, checked value, availability, and
+operation status are independent facts. Define their combined appearance at the owning surface;
+moving focus does not erase current context, and hover never commits a value or changes focus.
+Checked state belongs to the control's declared editing boundary, which may project a parent draft
+or an authoritative value; the indicator alone never proves persistence.
 Primary actions and focus use action or focus roles, never success merely for emphasis. Pending
 and unknown outcomes must not look successful. Color is accompanied by meaningful text, shape,
 glyph, or emphasis so the distinction survives reduced color and unavailable modifiers.
@@ -172,10 +182,16 @@ terminal input follow the active input owner rather than a cross-client global i
 A shared setting's meaning does not imply that it is already synchronized. Its existing storage
 and configuration owner declares scope, persistence, propagation, and conflicts. Never silently
 claim a Client-local setting is global or reinterpret a shared setting at one renderer.
+The same setting keeps the same commit and application timing across adapters. Saved, effective,
+draft, preview, and navigation values remain distinct. Presentation-only preview must be reversible;
+closing a picker must not silently persist it. GUI surface rules follow
+[`frontend/settings.md`](frontend/settings.md), and native surface rules follow
+[`tui/settings.md`](tui/settings.md).
 
 Reuse reviewed compositions within each Client. The GUI discovery workflow remains
-[`frontend/experience-components.md`](frontend/experience-components.md); TUI surface selection
-remains [`tui/overlays-and-status.md`](tui/overlays-and-status.md). Share the interaction contract
+[`frontend/experience-components.md`](frontend/experience-components.md); TUI discovery, ownership,
+and recurring control contracts follow [`tui/components.md`](tui/components.md), and TUI surface
+selection follows [`tui/overlays-and-status.md`](tui/overlays-and-status.md). Share the interaction contract
 and domain operation across adapters, while retaining components with their existing owners.
 
 ## Development and verification

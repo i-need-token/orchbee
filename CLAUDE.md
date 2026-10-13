@@ -56,6 +56,9 @@
 - **Frontend Keyboard Shortcuts**: `docs/frontend/keyboard-shortcuts.md` — action ownership, bindings, platform display, conflicts, and verification
 - **Frontend Browser Storage**: `docs/frontend/browser-storage.md` — local persistence ownership, key versioning, validation, privacy, and verification
 - **TUI Visual Foundations**: `docs/tui/visual-foundations.md` — color roles, theme contract, text hierarchy, frames, glyphs, and display width
+- **TUI Components**: `docs/tui/components.md` — component ownership, reuse, control states, action affordance, lists, editors, pickers, and shared chrome
+- **TUI Actions**: `docs/tui/actions.md` — semantic identity, availability, invocation, execution, concurrency, cancellation, and outcomes
+- **TUI Settings**: `docs/tui/settings.md` — setting metadata, scope, value states, preview, commit, reset, and persistence feedback
 - **TUI Layout**: `docs/tui/layout.md` — regions, size tiers, degradation order, overlay geometry, truncation, and resize
 - **TUI Keyboard Input**: `docs/tui/keyboard-input.md` — key decoding, binding model, input ownership, editing conventions, and discovery
 - **TUI Mouse Input**: `docs/tui/mouse-input.md` — capture policy, hit testing, gesture vocabulary, passthrough, wheel normalization, and selection
