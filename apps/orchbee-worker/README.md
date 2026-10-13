@@ -864,11 +864,13 @@ InspectSource resolves the checkout containing the source directory; Open permit
 
 The launch-fact owner recognizes only `powershell[.exe]` and `pwsh[.exe]` on Windows,
 with no arguments or at most three exact case-insensitive `-NoLogo`, `-NoProfile`,
-`-NoExit` switches. It preserves those switches and appends a constant in-process
-prompt wrapper through `-NoExit -Command`. Unknown flags, scripts, command strings,
+`-NoExit` switches. It preserves those switches and appends fixed in-process
+initialization through `-NoExit -Command`. Unknown flags, scripts, command strings,
 other executables and other platforms retain verbatim launch arguments.
 
-The wrapper captures the profile-defined prompt, invokes it first so status-aware prompts
+Initialization sets this child's native-output decoding and outgoing pipeline encoding to
+UTF-8 without a BOM. Native CLI JSON therefore survives PowerShell pipelines on both 5.1
+and 7. It changes no external shell or stored profile. The wrapper captures the profile-defined prompt, invokes it first so status-aware prompts
 observe the previous command's success, then synchronizes a FileSystem provider location
 to `[Environment]::CurrentDirectory`. Non-filesystem providers and failed assignments leave
 the process directory unchanged. It installs once per process, never writes a user profile,
@@ -877,7 +879,8 @@ can then observe directory changes for native CLI creation without acquiring ter
 
 This is launch preparation before the existing Host handoff, not a second shell/process or
 an acknowledgment that a terminal launched. Existing terminals receive no retrofit. Unit
-admission cases and actual Windows PowerShell 5.1/7 prompt tests cover custom prompts, failed
+admission cases and actual Windows PowerShell 5.1/7 prompt and pipeline tests cover native
+UTF-8 decoding, custom prompts, failed
 commands, Unicode directories, non-filesystem providers and idempotence. Real ConPTY creation
 checks the root process cwd after Set-Location. Arbitrary custom startup commands remain outside
 this integration; no current-directory accuracy claim is made for their private shell state.

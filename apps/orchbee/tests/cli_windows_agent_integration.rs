@@ -1343,6 +1343,89 @@ fn grok_inventory_joins_local_configuration_and_runs_shipped_powershell_hooks() 
 }
 
 #[test]
+fn windows_codex_prepares_a_missing_default_profile_before_provider_commands() {
+    let fixture = Fixture::new();
+    fs::remove_file(fixture.home().join(".codex/config.toml")).unwrap();
+    fs::remove_dir(fixture.home().join(".codex")).unwrap();
+    let output = fixture
+        .command("enable", "codex", &fixture.config_home(), &[])
+        .env_remove("CODEX_HOME")
+        .env(
+            "ORCHBEE_TEST_CODEX_KNOWN_FOLDER",
+            fixture.0.join("other-profile"),
+        )
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(document["result"]["observed"]["item"]["state"], "enabled");
+    assert!(
+        document["result"]["attempted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|step| step["operation"] == "prepare-codex-home")
+    );
+    assert!(fixture.home().join(".codex/config.toml").is_file());
+    assert!(!fixture.0.join("other-profile").exists());
+}
+
+#[test]
+fn windows_codex_successful_exit_requires_an_observed_configuration_effect() {
+    let fixture = Fixture::new();
+    let output = fixture
+        .command("enable", "codex", &fixture.config_home(), &[])
+        .env("ORCHBEE_TEST_CODEX_NO_EFFECT", "1")
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "a provider exit cannot invent installation"
+    );
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(document["result"]["outcome"], "failed");
+    assert_eq!(document["result"]["failure"]["code"], "verification-failed");
+    assert_eq!(
+        document["result"]["observed"]["item"]["state"],
+        "not-installed"
+    );
+    assert!(!fixture.config_home().join("config.toml").exists());
+}
+
+#[test]
+fn windows_codex_mutations_use_the_same_default_profile_as_inspection() {
+    for override_value in [None, Some("")] {
+        let fixture = Fixture::new();
+        let fallback = fixture.0.join("provider known folder");
+        fs::create_dir_all(&fallback).unwrap();
+        fs::write(fallback.join("config.toml"), b"other_user = 'untouched'\n").unwrap();
+        for (verb, expected_state) in [("enable", "enabled"), ("disable", "not-installed")] {
+            let mut command = fixture.command(verb, "codex", &fixture.config_home(), &[]);
+            command.env("ORCHBEE_TEST_CODEX_KNOWN_FOLDER", &fallback);
+            if let Some(value) = override_value {
+                command.env("CODEX_HOME", value);
+            } else {
+                command.env_remove("CODEX_HOME");
+            }
+            let output = command.output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(
+                document["result"]["observed"]["item"]["state"], expected_state,
+                "{document}"
+            );
+            assert_eq!(
+                fs::read(fallback.join("config.toml")).unwrap(),
+                b"other_user = 'untouched'\n"
+            );
+            assert!(!fallback.join("calls.jsonl").exists());
+            assert!(!fixture.config_home().join("calls.jsonl").exists());
+        }
+        assert!(fixture.home().join(".codex/calls.jsonl").is_file());
+    }
+}
+
+#[test]
 fn windows_codex_inspects_complete_toml_without_rewriting_unrelated_settings() {
     let fixture = Fixture::new();
     fixture.document("enable", 0);
@@ -1960,7 +2043,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
             jsonschema::validator_for(&schema).unwrap().is_valid(&doc),
             "{doc}"
         );
-        assert_eq!(doc["version"], 2);
+        assert_eq!(doc["version"], 4);
         let result = &doc["result"];
         assert_eq!(result["inspectedCount"], 1);
         assert_eq!(result["outdatedOnly"], true);

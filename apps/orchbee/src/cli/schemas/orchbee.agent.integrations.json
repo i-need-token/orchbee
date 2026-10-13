@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.integrations"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3, 4]
 		},
 		"source": {
 			"type": "object",
@@ -35,7 +35,7 @@
 				},
 				"integrations": {
 					"type": "array",
-					"maxItems": 14,
+					"maxItems": 20,
 					"items": {
 						"$ref": "#/$defs/item"
 					}
@@ -46,11 +46,11 @@
 				"inspectedCount": {
 					"type": "integer",
 					"minimum": 1,
-					"maximum": 11
+					"maximum": 20
 				},
 				"unresolvedProviderIds": {
 					"type": "array",
-					"maxItems": 14,
+					"maxItems": 20,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -58,7 +58,7 @@
 				},
 				"blockedProviderIds": {
 					"type": "array",
-					"maxItems": 14,
+					"maxItems": 20,
 					"uniqueItems": true,
 					"items": {
 						"$ref": "#/$defs/item/properties/integrationId"
@@ -168,7 +168,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 2
+						"enum": [2, 4]
 					}
 				}
 			},
@@ -213,6 +213,35 @@
 									"required": ["blockedProviderIds"]
 								}
 							]
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [1, 2]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"integrations": {
+								"maxItems": 14
+							},
+							"unresolvedProviderIds": {
+								"maxItems": 14
+							},
+							"blockedProviderIds": {
+								"maxItems": 14
+							},
+							"inspectedCount": {
+								"maximum": 11
+							}
 						}
 					}
 				}

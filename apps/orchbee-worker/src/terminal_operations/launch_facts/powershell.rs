@@ -1,6 +1,6 @@
 //! Process-local cwd synchronization for recognized interactive Windows shells.
 
-use orchbee_local_site_runtime::WINDOWS_DIRECTORY_PROMPT as PROMPT;
+use orchbee_local_site_runtime::windows_interactive_powershell_initialization;
 
 pub(super) fn interactive_arguments(executable: &str, mut arguments: Vec<String>) -> Vec<String> {
     let name = executable.rsplit(['/', '\\']).next().unwrap_or(executable);
@@ -22,7 +22,10 @@ pub(super) fn interactive_arguments(executable: &str, mut arguments: Vec<String>
     {
         arguments.push("-NoExit".to_owned());
     }
-    arguments.extend(["-Command".to_owned(), PROMPT.to_owned()]);
+    arguments.extend([
+        "-Command".to_owned(),
+        windows_interactive_powershell_initialization(),
+    ]);
     arguments
 }
 

@@ -1,6 +1,7 @@
 //! Offline catalog commands and admitted runtime invocation/log commands.
 #[cfg(windows)]
 pub(in crate::cli) mod context;
+mod failure;
 pub(in crate::cli) mod links;
 mod panes;
 mod popup;

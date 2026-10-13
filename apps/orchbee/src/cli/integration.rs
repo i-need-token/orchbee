@@ -196,7 +196,7 @@ impl Prepared {
                 }
                 let mut document = json!({
                     "schema": INTEGRATIONS_SCHEMA,
-                    "version": if outdated_only {2} else {1},
+                    "version": if outdated_only {4} else {3},
                     "source": { "kind": "local-inspection" },
                     "result": {
                         "complete": complete,

@@ -26,7 +26,7 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 
 ## 独立 Agent 状态的 Schema 版本
 
-当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 144。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
+当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 145。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
 
 | 命令                                        | 版本        | 适用变体                                       |
 | ------------------------------------------- | ----------- | ---------------------------------------------- |
@@ -41,6 +41,21 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 | `panel get; panel list`                     | 10/11       | Linux／Windows                                 |
 | `tab get; tab list`                         | 6/5         | Get／List                                      |
 | `workspace get; workspace list`             | 8           | 规范 Agent 聚合                                |
+
+## 当前 CLI 发现与平台契约
+
+Launch Profile list/get 现输出 v2，接纳 wire 契约中的 POSIX、驱动器绝对路径和 verbatim
+驱动器可执行路径；v1 保留仅 POSIX 的模式。Windows 诊断输出 v3，覆盖默认与命名 Session
+scope；v2 保留原 native scope。集成列表输出 v3，或在带 `--outdated-only` 时输出 v4，
+边界覆盖全部 20 个提供方；v1/v2 保留原有边界。通用失败 v3 通过 `stage: plugin` 携带封闭的
+本地插件准备原因；v1/v2 保留既有形状。Session 清单与启动环境失败包含对应运行时阶段，
+不再缺少详情或误归类为 internal-failure。客户端选择诊断明确指向客户端，并说明适用的
+`--client` 处理方式。这些投影不编造缺失的观察。
+
+事件流 Schema 在 `$defs/filter` 暴露结构化筛选输入，插件 runtime 在 `$defs/context` 暴露
+上下文输入。帮助包含有效 JSON 示例与 Schema 查找提示。Schema 描述结构输入；CLI 解码
+还执行语义组合、Unicode scalar 解码和 UTF-8 字节边界。人类表格测得宽度超过 80 个单元格
+时使用带标签的记录。字段块始终分隔标签和值，保留完整 ID 供复制；文本布局不改变 JSON 投影。
 
 ## Workspace 与可选 Project
 
@@ -757,7 +772,8 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   一个字面绝对路径，指向开发/测试用的 adapter 负载，替换本次调用内打包的 cohort
   来源。相对路径或重复使用均为 `invalid-usage`。
 - `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
-- `-h`/`--help`：根级独占 token，或已识别帮助路径（family 或完整命令路径）的单一后缀。
+- `-h`/`--help`：`--` 前任意位置的单个开关，选择精确族路径或最长的已识别命令路径，
+  忽略操作数和业务必需条件且不产生效果。
 - `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
   `orchbee project get -- --help` 解析的是字面 label `--help`。
 
@@ -830,10 +846,11 @@ orchbee <recognized path> -h|--help
 帮助主题：根级；`client`、`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`launch-profile`、`agent`、
 `agent integration`、`api`、`site`、
 `config`、`completion` 等族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
-过滤器、不带 format）。路径末尾的 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
+过滤器、不带 format）。`--` 前的单个 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
 `project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
-完全相同。后缀 help 优先于缺失的业务参数（`project get --help` 描述 `project get`），但不优先于
-已给出的业务参数或多余 token（`project get x --help`、`status extra --help` 都是 usage）。未列出的
+完全相同。开关 help 也接受已提供的操作数和已识别的选项（`project get x --format json --help`
+以文本描述 `project get`），绝不应用这些选项或读取运行时状态。未知选项、缺值、重复选项和
+未知族动词仍是 usage。未列出的
 目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
 `--skill`、`completion`、不带 `--output` 的 `api schema` 与 Windows `--default-config` 绝不触碰平台、运行、cohort 或 Session 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
 帮助在 `en-US` 和 `zh-CN` 中均分为三个信息层级：
@@ -1345,8 +1362,8 @@ cohort 验证之前开始，且绝不按阶段重置：
 
 ## Session 诊断
 
-Windows `server diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v2，保留
-Linux v1 文档。原生目录为 v69/76。复用已有运行时路径／SID scope，不进行 cohort
+Windows `server diagnose` 输出独立闭合的 `orchbee.site.diagnose.windows` v3，保留
+Linux v1 文档。当前目录及版本见上文。复用已有运行时路径／SID scope，不进行 cohort
 准入、激活、端点连接或进程发现。有序行描述选定基目录、已准入运行时目录、标记、
 激活／生命周期锁及五个命名管道地址。Windows 不输出文件系统 Host socket scope 行，
 也不虚构 POSIX mode／UID。`private` 只表示已检查当前用户归属和运行时 DACL 白名单，
@@ -1413,7 +1430,7 @@ Project 查询遵循 `navigation.projects` 顺序。Workspace 查询遵循 `work
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v8（其他平台保持 v3），`orchbee.api.snapshot` 因全局导航及可空 Workspace 分组为 v6。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。当前目录为 v143，包含 121 份必需文档：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v8（其他平台保持 v3），`orchbee.api.snapshot` 因全局导航及可空 Workspace 分组为 v6。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。目录版本及文档数量见上文：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。
@@ -2218,7 +2235,7 @@ Host 的预期拒绝使用 `orchbee.cli.failure.process-info` v1，保留有界�
 
 ## Windows 保留 Worktree 操作
 
-[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选 --client、--focus／--no-focus、标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` v5 封套包含可空的原请求 Project 元数据、可选聚焦及 shell 恢复回执，无 Project 准备阶段。其 schema 为旧消费者保留封闭的 v1–v4 文档；当前目录为 v143。
+[Worktree 契约](windows-worktrees.zh-CN.md) 拥有 `worktree create/open/remove/status/resume`、来源／Project 推导、各命令 flag、操作身份、确认、等待、输出与恢复规则。它扩展本记录早先仅 list 的语法：Create/Open 接受可选 --client、--focus／--no-focus、标签和终端尺寸、源 Workspace 或 cwd，以及路径／分支选择器；Create 另接受 base。Remove 接受 force，要求 Workspace 及确认；Resume 要求操作 ID、generation 及确认。五条均接受 text/JSON；只有修改命令按该契约接受请求身份、信任与等待。`orchbee.worktree.operation` v5 封套包含可空的原请求 Project 元数据、可选聚焦及 shell 恢复回执，无 Project 准备阶段。其 schema 为旧消费者保留封闭的 v1–v4 文档；当前目录见上文。
 
 Windows `worktree list` 额外接受来源 Workspace/cwd 与可选命令局部信任，默认采用已验证调用者／所选 Client，均无时才使用 cwd，无需 Project。本记录前面的已注册目录语法及封套仅适用于注册 `--directory` 形式（v2，不含 Project）。[来源发现契约](windows-worktrees.zh-CN.md#按来源发现-worktree) 拥有独立的 `orchbee.worktree.query` v2 结果（目录 v143）、互斥规则、总 deadline、失败退出码及已知 Workspace 关联。
 
@@ -2394,7 +2411,7 @@ panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab
 
 ## 可复用布局导出
 
-Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 包含在当前目录 v97（91 份文档）中。
+Windows `layout export` 输出带比例、手工标签、观测目录及冻结启动命令的可复用 JSON 树。[布局契约](windows-layouts.zh-CN.md)拥有导出目标、Client 选择、边界、取消、无副作用与一致性规则，以及已实现的 `layout apply` 创建／替换流程和效果回执。`orchbee.layout.export` v1 和 `orchbee.cli.failure.layout` v1 在目录 v97（91 份文档）中引入。
 
 ## 程序化语义按键
 

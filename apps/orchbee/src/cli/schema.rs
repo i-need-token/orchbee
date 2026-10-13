@@ -587,7 +587,7 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     let document = json!({
         "schema": "orchbee.api.schema",
         // Independent Agent status/read state and explicit terminal outcome vocabularies.
-        "version": 144,
+        "version": 145,
         "source": embedded_source(),
         "result": result,
     });

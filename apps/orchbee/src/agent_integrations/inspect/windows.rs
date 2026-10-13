@@ -69,7 +69,7 @@ fn module_source(bytes: &[u8], kind: BootstrapKind, id: IntegrationId) -> Option
     (module_bootstrap(kind, id, &source).as_bytes() == bytes).then_some(source)
 }
 
-fn configuration_path(home: &Path, variable: &str, default: &str) -> Option<PathBuf> {
+fn configuration_home(home: &Path, variable: &str, default: &str) -> Option<PathBuf> {
     let configured = std::env::var_os(variable);
     let root = match configured.as_deref().filter(|value| !value.is_empty()) {
         Some(value) => {
@@ -79,7 +79,15 @@ fn configuration_path(home: &Path, variable: &str, default: &str) -> Option<Path
         }
         None => home.join(default),
     };
-    super::super::files::path_admitted(&root).then(|| root.join("config.toml"))
+    super::super::files::path_admitted(&root).then_some(root)
+}
+
+pub(super) fn codex_home(home: &Path) -> Option<PathBuf> {
+    configuration_home(home, "CODEX_HOME", ".codex")
+}
+
+fn configuration_path(home: &Path, variable: &str, default: &str) -> Option<PathBuf> {
+    configuration_home(home, variable, default).map(|root| root.join("config.toml"))
 }
 
 fn read_configuration(path: &Path) -> Option<Table> {
@@ -98,7 +106,8 @@ fn codex_state(state: State) -> CodexInspection {
 }
 
 pub(super) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInspection {
-    configuration_path(home, "CODEX_HOME", ".codex")
+    codex_home(home)
+        .map(|root| root.join("config.toml"))
         .and_then(|path| read_configuration(&path))
         .map(|configuration| codex_configuration(&configuration, options))
         .unwrap_or_else(|| codex_state(State::Unknown))

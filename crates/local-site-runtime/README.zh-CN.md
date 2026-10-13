@@ -391,6 +391,10 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 
 共享纯函数 `windows_reported_directory` 解码并保留有效终端上报的驱动器／UNC 观察；调用方单独执行更窄的启动路径约束。`WINDOWS_DIRECTORY_PROMPT` 在原提示符之后同步 PowerShell 进程 cwd，保留状态且不改变非文件系统 provider。普通 Worker shell 与编码恢复 shell 使用同一钩子。
 
+`windows_interactive_powershell_initialization` 将此钩子与子进程内的 UTF-8 原生输出解码和向外
+发送的管道编码组合。Worker 交互 shell 与编码启动／恢复 shell 使用同一固定初始化。
+它不写 profile、不改变外部 PowerShell 进程；实际 5.1／7 管道与 prompt 证据覆盖托管路径。
+
 ## Windows 用户设置
 
 同一读取器拥有 `WindowsUpdateChannel`（`stable`/`preview`，默认 stable）及 default/file 来源。文件值非法时仅让该叶字段回退并进入警告记录；已记录的环境边界仍为致命错误。原生 `channel show` 离线读取有效偏好，不推断已安装的发布身份，也不执行更新器。

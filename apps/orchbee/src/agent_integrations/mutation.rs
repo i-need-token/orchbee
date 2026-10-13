@@ -45,6 +45,8 @@ pub(crate) enum Direction {
 }
 
 #[cfg(windows)]
+mod codex_windows;
+#[cfg(windows)]
 mod file_publication_windows;
 #[cfg(windows)]
 mod hermes_windows;
@@ -542,6 +544,7 @@ pub(crate) fn mutate(
 
     if attempt == Attempt::Attempted {
         if providers::guarded_spec(id).is_some()
+            || cfg!(windows) && id == IntegrationId::Codex
             || matches!(
                 id,
                 IntegrationId::Cursor
@@ -983,6 +986,59 @@ fn run_sequence(
 
 // -- Provider vectors -------------------------------------------------------
 
+/// Codex mutations use the inspection profile explicitly on Windows. Other
+/// platforms retain their existing provider environment and conformance vectors.
+fn run_codex_sequence(
+    executable: &Path,
+    commands: &[Vec<String>],
+    context: &ProviderContext,
+    reserve_slots: usize,
+    attempted: &mut Vec<AttemptedStep>,
+    effect: &mut bool,
+) -> Attempt {
+    #[cfg(not(windows))]
+    return run_sequence(
+        executable,
+        commands,
+        context,
+        reserve_slots,
+        attempted,
+        effect,
+    );
+    #[cfg(windows)]
+    {
+        let _profile_pins =
+            match codex_windows::prepare_home(context, reserve_slots, attempted, effect) {
+                Ok(pins) => pins,
+                Err(attempt) => return attempt,
+            };
+        for command in commands {
+            let argv: Vec<&str> = command.iter().map(String::as_str).collect();
+            let result = run_step_with(
+                executable,
+                &argv,
+                context,
+                reserve_slots,
+                attempted,
+                effect,
+                |arguments| {
+                    exec::run_codex_command(
+                        executable,
+                        arguments,
+                        context.home,
+                        context.deadline,
+                        context.cancel,
+                    )
+                },
+            );
+            if result != Attempt::Attempted {
+                return result;
+            }
+        }
+        Attempt::Attempted
+    }
+}
+
 /// The read pass's guard dimensions the vectors plan against — destructured
 /// per provider kind so a vector never re-issues a provider read command.
 struct VectorInspection {
@@ -1205,7 +1261,7 @@ fn enable_vector(
                         inspect::CODEX_PLUGIN_ID.into(),
                         "--json".into(),
                     ]);
-                    run_sequence(&exe, &commands, context, reserve, attempted, effect)
+                    run_codex_sequence(&exe, &commands, context, reserve, attempted, effect)
                 }
             }
         }
@@ -1503,7 +1559,7 @@ fn disable_vector(
                     if commands.is_empty() {
                         Attempt::Attempted
                     } else {
-                        run_sequence(&exe, &commands, context, reserve, attempted, effect)
+                        run_codex_sequence(&exe, &commands, context, reserve, attempted, effect)
                     }
                 }
             }
@@ -2236,6 +2292,10 @@ pub(crate) fn plan_enable(
             match inspection.state {
                 State::Enabled | State::Conflict | State::Unknown | State::StaleSide => {}
                 _ => {
+                    #[cfg(windows)]
+                    if let Some(target) = codex_windows::missing_default_home(context.home) {
+                        steps.push(PlannedStep::GuardedWrite { target });
+                    }
                     if inspection.plugin_present {
                         steps.push(command(
                             "codex",

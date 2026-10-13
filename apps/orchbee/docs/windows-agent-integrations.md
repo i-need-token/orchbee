@@ -62,7 +62,7 @@ action remains outside this cooperative teardown claim.
 
 Windows `agent integration list --outdated-only` performs the usual bounded local inspection once and shows only update-required entries, including owned installations needing repair. It never installs or downloads. `agent integration enable --provider <id>` remains the explicit guarded update/repair action; conflict and newer entries are not replaced.
 
-Filtered lists use v2 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflict/newer entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list keeps v1 and its existing behavior. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
+Filtered lists use v4 with outdatedOnly true, inspectedCount, unresolvedProviderIds for unknown inspections and blockedProviderIds for conflict/newer entries. Complete is calculated from the entire selected inspection before filtering; an empty list cannot hide inspection failures. Text includes these counts and the same filtered entries. The default list uses v3. Both current versions admit all 20 canonical providers; v1/v2 retain their original collection and inspection bounds. The flag has no non-Windows runtime; original 40-second deadline, cancellation, profile isolation and local-only ownership remain. Detailed installed-version reporting and remaining provider Windows hook support are separate obligations.
 
 ## Claude exec hooks
 
@@ -79,6 +79,17 @@ Capsule 0.4.16 uses Copilot's exec hook form with Node. The fixed import guard r
 A newer reported Claude or Copilot plugin version blocks Windows repair even when its marketplace root is an older owned capsule. Missing version data cannot authorize replacement.
 
 ## Windows TOML and Grok local state
+
+Windows Codex inspection and mutation share one validated configuration root: a nonempty
+`CODEX_HOME`, or `USERPROFILE/.codex` when it is absent or empty. Every owned Codex command
+receives that root as its child-only `CODEX_HOME`; provider known-folder discovery cannot
+select another profile. Invalid explicit roots refuse without fallback. A missing profile
+default is created under guarded ancestors before provider commands, recorded as
+`prepare-codex-home`, and included as a guarded write in the plan. Existing roots stay pinned
+through the command sequence; explicit nonempty roots must already exist. Successful provider
+commands are followed by a fresh bounded inspection of the same configuration; an unobserved
+installation/removal returns `verification-failed` instead of a completed receipt. Isolated
+CLI tests cover default and explicit roots, empty overrides and successful exits with no effect.
 
 Windows Codex and Grok inspection parses each complete UTF-8 TOML document within the existing 512 KiB read bound. Syntax errors, duplicate assignments, invalid UTF-8 and unreadable data yield unknown; valid quoted/dotted keys, inline tables and trailing comments retain their meaning. Parsing never writes configuration or echoes its contents. Typed plugin booleans and exact local source ownership remain required. The Windows-only toml 1.1.6 dependency enables std, parse and serde with defaults disabled; serialization/display, unsafe parser acceleration and SIMD are not enabled. Its added tree is serde_spanned 1.1.1, toml_datetime 1.1.1, toml_parser 1.1.3 and winnow 1.0.4, reusing existing serde_core 1.0.229. The read-only toml dependency does not require display; Kimi editing below additionally compiles the already-locked toml_writer 1.1.2. These add no build scripts or proc macros; toml-family licenses are MIT OR Apache-2.0 and winnow is MIT. Winnow contains internal unsafe slice operations; authored code remains unsafe-forbidden. The legacy Unix parser is unchanged.
 

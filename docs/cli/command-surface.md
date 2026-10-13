@@ -82,9 +82,14 @@ reference is a defect, and so is the reverse.
 
 ## Help, version, and completion
 
-- `-h` or `--help` as the final token of a recognized path emits the same text as `help <path>`.
-  Help for a recognized path exits `0` without any runtime; an unrecognized path is a usage
-  failure.
+- A single `-h` or `--help` anywhere before `--` emits the same text as `help <path>` for the
+  longest recognized command path, ignoring supplied operands and business requirements.
+  Recognized option values are scanned but never applied; help always emits text even with
+  `--format json`. Unknown options, missing values and duplicate options remain usage failures.
+  Family paths must match exactly, so a misspelled verb never becomes its parent's help.
+  Command-specific options without a command path remain out of scope.
+  Help exits `0` without any runtime; an unrecognized path is a usage failure. Literal tokens
+  after `--` retain their ordinary operand meaning.
 - Help describes the command's operands, options, value sets, and effect class in the effective
   locale. It never enumerates live resources.
 - Help pages at the same level share section headings and ordering, omitting inapplicable sections.

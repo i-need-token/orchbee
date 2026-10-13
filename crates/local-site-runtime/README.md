@@ -470,6 +470,11 @@ stop processes, acquire lifecycle authority, or perform automatic recovery.
 
 The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `WINDOWS_DIRECTORY_PROMPT` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Both ordinary Worker shells and encoded resume shells use this single hook.
 
+`windows_interactive_powershell_initialization` combines that hook with child-local UTF-8
+native-output decoding and outgoing pipeline encoding. Worker interactive shells and encoded
+launch/resume shells use the same fixed initialization. It writes no profile and changes no
+external PowerShell process; actual 5.1/7 pipeline and prompt witnesses cover the managed path.
+
 ## Windows user settings
 
 The same reader owns `WindowsUpdateChannel` (`stable`/`preview`, default stable) and default/file provenance. An invalid file value defaults that leaf and enters the warning record; the documented environment boundary remains fatal. Native `channel show` consumes the effective preference offline; it does not infer installed release identity or run an updater.

@@ -863,8 +863,8 @@ impl Locale {
                 "选择本地 Orchbee 会话；默认 default。",
             ),
             HelpText::Machine => (
-                "Select a saved SSH machine by name or ID.",
-                "按名称或 ID 选择已保存的 SSH 机器。",
+                "Select a saved SSH machine; place this option first, before the command.",
+                "选择已保存的 SSH 机器；此选项必须放在命令之前的第一个位置。",
             ),
             HelpText::DefaultConfig => ("Print the default configuration.", "输出默认配置。"),
             HelpText::Descend => (

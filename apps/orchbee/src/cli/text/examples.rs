@@ -278,7 +278,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::TerminalTitleSet => &["Review"],
         CommandPath::TerminalTitleClear => &[],
         #[cfg(windows)]
-        CommandPath::EventsSubscribe => &["--event", "workspace.created"],
+        CommandPath::EventsSubscribe => &["--event", "workspace.created", "--timeout", "30000"],
         #[cfg(windows)]
         CommandPath::EventsWait => &[
             "--event",
@@ -301,7 +301,11 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         #[cfg(windows)]
         CommandPath::PluginPaneClose => &["00000000000000000000000000000001"],
         #[cfg(windows)]
-        CommandPath::PluginActionInvoke => &["example.plugin.action"],
+        CommandPath::PluginActionInvoke => &[
+            "example.plugin.action",
+            "--context",
+            "{\"selectedText\":\"example\"}",
+        ],
         #[cfg(windows)]
         CommandPath::PluginLogList => &["--plugin", "example.plugin", "--limit", "20"],
         #[cfg(windows)]

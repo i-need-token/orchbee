@@ -6,22 +6,38 @@
 	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
-		"schema": { "const": "orchbee.launch-profile.get" },
-		"version": { "const": 1 },
-		"source": { "$ref": "#/$defs/catalogSource" },
+		"schema": {
+			"const": "orchbee.launch-profile.get"
+		},
+		"version": {
+			"enum": [1, 2]
+		},
+		"source": {
+			"$ref": "#/$defs/catalogSource"
+		},
 		"result": {
 			"type": "object",
 			"required": ["catalogRevision", "profile"],
 			"additionalProperties": false,
 			"properties": {
-				"catalogRevision": { "$ref": "#/$defs/revision" },
-				"profile": { "$ref": "#/$defs/profile" }
+				"catalogRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"profile": {
+					"$ref": "#/$defs/profile"
+				}
 			}
 		}
 	},
 	"$defs": {
-		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
-		"revision": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
 		"profileId": {
 			"type": "string",
 			"pattern": "^[0-9A-Za-z][0-9A-Za-z._:-]{0,127}$"
@@ -31,18 +47,30 @@
 			"required": ["profileId", "name", "launch"],
 			"additionalProperties": false,
 			"properties": {
-				"profileId": { "$ref": "#/$defs/profileId" },
-				"name": { "type": "string", "minLength": 1, "maxLength": 512 },
+				"profileId": {
+					"$ref": "#/$defs/profileId"
+				},
+				"name": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512
+				},
 				"launch": {
 					"type": "object",
 					"required": ["exec", "args"],
 					"additionalProperties": false,
 					"properties": {
-						"exec": { "type": "string", "minLength": 1, "pattern": "^/" },
+						"exec": {
+							"type": "string",
+							"minLength": 1,
+							"pattern": "^(/|(\\\\\\\\\\?\\\\)?[A-Za-z]:[\\\\/])"
+						},
 						"args": {
 							"type": "array",
 							"maxItems": 128,
-							"items": { "type": "string" }
+							"items": {
+								"type": "string"
+							}
 						}
 					}
 				}
@@ -53,10 +81,46 @@
 			"required": ["kind", "siteId", "catalogRevision"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": { "const": "launch-profile-catalog" },
-				"siteId": { "$ref": "#/$defs/id" },
-				"catalogRevision": { "$ref": "#/$defs/revision" }
+				"kind": {
+					"const": "launch-profile-catalog"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"catalogRevision": {
+					"$ref": "#/$defs/revision"
+				}
 			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"profile": {
+								"properties": {
+									"launch": {
+										"properties": {
+											"exec": {
+												"pattern": "^/"
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

@@ -4,6 +4,23 @@ use crate::client_view::{BackendAction, Notice};
 
 use super::{Locale, ShellText, select_locale};
 
+#[test]
+fn agent_start_preserves_the_caller_context_usage_hint() {
+    let mut failure = crate::cli::Failure::new(crate::cli::FailureKind::InvalidUsage)
+        .failure_schema("orchbee.cli.failure.agent-start");
+    failure.usage = Some(Box::new(
+        crate::invocation::UsageReason::CallerContextUnavailable,
+    ));
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let message = locale.cli_failure(&failure);
+        assert!(message.contains("--panel"), "{message}");
+        assert!(
+            !message.contains("confirmed") && !message.contains("确认"),
+            "{message}"
+        );
+    }
+}
+
 #[cfg(unix)]
 mod location_labels;
 

@@ -72,6 +72,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
 /// match detail on a wait — so flag-free output stays byte-identical.
 pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
     match command {
+        QueryCommand::LaunchProfileList | QueryCommand::LaunchProfileGet(_) => 2,
         #[cfg(windows)]
         QueryCommand::AgentWait {
             client: Some(_), ..

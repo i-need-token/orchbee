@@ -1936,6 +1936,7 @@ pub(crate) enum UsageReason {
         word: String,
     },
     UnknownOption {
+        context: UsageContext,
         option: String,
     },
     UnexpectedOption {
@@ -2768,6 +2769,12 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             _ if token.starts_with('-') && token.len() > 1 => {
                 return Err(usage_with(
                     UsageReason::UnknownOption {
+                        context: help_context(
+                            &positionals
+                                .iter()
+                                .filter_map(word_literal)
+                                .collect::<Vec<_>>(),
+                        ),
                         option: token.clone(),
                     },
                     envelope,
@@ -3042,14 +3049,15 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
         )?;
         return Ok(Request::Version);
     }
-    // A trailing -h/--help applies to a recognized help path only.
-    let (path, suffix_help) = match positionals.last() {
-        Some(Token::HelpFlag(_)) => (&positionals[..positionals.len() - 1], true),
-        _ => (&positionals[..], false),
-    };
-    if suffix_help {
-        return resolve_help_suffix(path, &options, envelope);
+    // Help overrides business requirements after lexical option validation.
+    // Tokens after `--`, including a literal --help operand, are only Words.
+    if positionals
+        .iter()
+        .any(|token| matches!(token, Token::HelpFlag(_)))
+    {
+        return resolve_help_flag(&positionals, &options, envelope);
     }
+    let path = &positionals[..];
     if let Some(flag) = path.iter().find_map(flag_literal) {
         let words: Vec<&str> = path.iter().filter_map(word_literal).collect();
         return Err(usage_with(
@@ -3097,39 +3105,47 @@ fn word_literal(token: &Token) -> Option<&str> {
 /// The help-path context of already-recognized words; unrecognized paths fall
 /// back to the root so a hint never points at a nonexistent topic.
 fn help_context(words: &[&str]) -> UsageContext {
-    match help_topic(words) {
+    match help::context_topic(words) {
         Some(topic) => UsageContext::Path(help::diagnostic_path(topic)),
         None => UsageContext::Root,
     }
 }
 
-fn resolve_help_suffix(
+fn resolve_help_flag(
     tokens: &[Token],
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let words: Vec<&str> = tokens.iter().filter_map(word_literal).collect();
     let context = help_context(&words);
-    // -h/--help must be the sole suffix of a recognized help path; other flag
-    // tokens, a selected format, filters, or business arguments make it usage.
-    reject_extras(options, context, envelope)?;
-    if let Some(flag) = tokens.iter().find_map(flag_literal) {
+    let mut seen_help = false;
+    if let Some(flag) = tokens.iter().find_map(|token| {
+        if matches!(token, Token::HelpFlag(_)) && !seen_help {
+            seen_help = true;
+            None
+        } else {
+            flag_literal(token)
+        }
+    }) {
         return Err(usage_with(
             UsageReason::MisplacedFlag { context, flag },
             envelope,
         ));
     }
     if words.is_empty() {
+        reject_filters(options, UsageContext::Root, envelope)?;
         return Ok(Request::RootHelp);
     }
-    help_topic(&words).map(Request::Help).ok_or_else(|| {
-        usage_with(
-            UsageReason::UnknownHelpTopic {
-                path: words.join(" "),
-            },
-            envelope,
-        )
-    })
+    help::invocation_topic(&words)
+        .map(Request::Help)
+        .ok_or_else(|| {
+            usage_with(
+                UsageReason::UnknownHelpTopic {
+                    path: words.join(" "),
+                },
+                envelope,
+            )
+        })
 }
 
 fn resolve_words(

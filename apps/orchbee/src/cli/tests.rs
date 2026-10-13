@@ -4,12 +4,162 @@
 
 use serde_json::{Value, json};
 
+#[cfg(any(unix, windows))]
+#[test]
+fn integration_list_documents_cover_the_entire_provider_registry() {
+    use crate::agent_integrations::model::{Availability, ManagementMode};
+    use crate::agent_integrations::{CapsuleStatus, IntegrationId, SnapshotItem, State};
+    let schema: Value =
+        serde_json::from_str(include_str!("schemas/orchbee.agent.integrations.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for outdated_only in [false, true] {
+        let items = IntegrationId::ALL
+            .into_iter()
+            .map(|integration_id| SnapshotItem {
+                availability: Availability::Available,
+                integration_id,
+                issue: None,
+                management_mode: ManagementMode::ManagedLocal,
+                state: State::UpdateRequired,
+                timed_out: false,
+            })
+            .collect();
+        let prepared = super::integration::Prepared::List {
+            items,
+            capsule: CapsuleStatus {
+                ready: false,
+                root: "/isolated-capsule".into(),
+                source_kind: "absent",
+                binding_failure: false,
+                unsupported_version: None,
+                declared_payload_version: None,
+            },
+            outdated_only,
+        };
+        let output = prepared.render(OutputFormat::Json, Locale::EnUs);
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validator
+            .validate(&document)
+            .unwrap_or_else(|error| panic!("{document}: {error}"));
+        assert_eq!(document["version"], if outdated_only { 4 } else { 3 });
+        assert_eq!(
+            document["result"]["integrations"].as_array().unwrap().len(),
+            IntegrationId::ALL.len()
+        );
+        let mut legacy = document;
+        legacy["version"] = json!(if outdated_only { 2 } else { 1 });
+        assert!(!validator.is_valid(&legacy));
+    }
+}
+
+#[test]
+fn launch_profile_documents_preserve_platform_paths_and_legacy_constraints() {
+    use super::results::{LaunchProfileCatalogDoc, LaunchProfileCatalogSelection};
+    use orchbee_workbench_protocol::{
+        LaunchProfileCatalogRevision, LaunchProfileEntry, LaunchProfileId, LaunchProfileName,
+        LaunchProfileSelector, LaunchSelection,
+    };
+    for executable in [
+        "/bin/zsh",
+        r"C:\Program Files\PowerShell\7\pwsh.exe",
+        r"\\?\C:\tools\shell.exe",
+    ] {
+        let entry = LaunchProfileEntry {
+            profile_id: LaunchProfileId::parse("shell").unwrap(),
+            name: LaunchProfileName::parse("Development shell").unwrap(),
+            launch: LaunchSelection::new(executable.to_owned(), vec!["-NoProfile".to_owned()])
+                .unwrap(),
+        };
+        for list in [false, true] {
+            let (command, selection) = if list {
+                (
+                    QueryCommand::LaunchProfileList,
+                    LaunchProfileCatalogSelection::List(vec![entry.clone()]),
+                )
+            } else {
+                (
+                    QueryCommand::LaunchProfileGet(LaunchProfileSelector::parse("shell").unwrap()),
+                    LaunchProfileCatalogSelection::Profile(entry.clone()),
+                )
+            };
+            let projection = Projection::LaunchProfileCatalog(LaunchProfileCatalogDoc {
+                catalog_revision: LaunchProfileCatalogRevision::new(7),
+                selection,
+            });
+            let output = super::success_output(
+                projection,
+                json!({"kind":"launch-profile-catalog","siteId":ID,"catalogRevision":"7"}),
+                &command,
+                OutputFormat::Json,
+                Locale::EnUs,
+            );
+            let mut document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            let schema: Value = serde_json::from_str(if list {
+                include_str!("schemas/orchbee.launch-profile.list.json")
+            } else {
+                include_str!("schemas/orchbee.launch-profile.get.json")
+            })
+            .unwrap();
+            let validator = jsonschema::validator_for(&schema).unwrap();
+            validator.validate(&document).unwrap();
+            assert_eq!(document["version"], 2);
+            document["version"] = json!(1);
+            assert_eq!(validator.is_valid(&document), executable.starts_with('/'));
+            document["version"] = json!(2);
+            let profile = if list {
+                &mut document["result"]["profiles"][0]
+            } else {
+                &mut document["result"]["profile"]
+            };
+            profile["launch"]["exec"] = json!("relative-shell.exe");
+            assert!(!validator.is_valid(&document));
+        }
+    }
+}
+
 use super::results::{ContextRef, Projection, TabDoc, TabRow, TerminalRow};
 use super::{OutputFormat, output};
 use crate::invocation::{ParseFailure, ParseFailureKind, QueryCommand, Target};
 use crate::localization::Locale;
 
 const ID: &str = "0123456789abcdef0123456789abcdef";
+
+#[test]
+fn wide_terminal_lists_keep_full_ids_in_readable_record_blocks() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let projection = Projection::TerminalList(vec![TerminalRow {
+            terminal_id: ID.into(),
+            worker_id: "1".repeat(32),
+            presentation_id: "2".repeat(32),
+            panel_id: "3".repeat(32),
+            tab_id: "4".repeat(32),
+            terminal_context_id: "5".repeat(32),
+        }]);
+        let output = super::success_output(
+            projection,
+            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+            &QueryCommand::TerminalList,
+            OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(text.lines().count(), 6);
+        assert!(
+            text.lines()
+                .all(|line| super::escape::display_width(line) <= 80)
+        );
+        for value in [
+            ID.to_owned(),
+            "1".repeat(32),
+            "2".repeat(32),
+            "3".repeat(32),
+            "4".repeat(32),
+            "5".repeat(32),
+        ] {
+            assert!(text.contains(&value), "{text}");
+        }
+    }
+}
 
 fn oversized_terminals() -> Projection {
     // ~42k rows × ~200 rendered bytes exceeds the 8 MiB preparation bound in
@@ -747,6 +897,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     collect(&["plugin", "log", "list", "--help"]);
     collect(&["help", "plugin", "log", "list"]);
     for (root, family, verbs) in [
+        ("terminal", "session", &["observe", "control"][..]),
         ("plugin", "pane", &["open", "focus", "close"][..]),
         ("agent", "view", &["get", "set", "clear"][..]),
         ("panel", "graphics", &["set", "clear", "info", "stream"][..]),
@@ -853,6 +1004,7 @@ fn usage_reason_never_reaches_the_machine_envelope() {
         kind: ParseFailureKind::InvalidUsage,
         envelope: crate::invocation::FailureEnvelope::Json,
         usage: Some(crate::invocation::UsageReason::UnknownOption {
+            context: crate::invocation::UsageContext::Root,
             option: "--bogus".to_owned(),
         }),
     };

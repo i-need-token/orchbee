@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn catalog_checks_publish_the_failed_runtime_stage() {
+    let schema: Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.cli.failure.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    for stage in ["runtime-base", "runtime-directory", "socket"] {
+        let failure = local_error_at(io::ErrorKind::NotFound.into(), stage);
+        assert_eq!(failure.details.as_ref().unwrap()["stage"], stage);
+        validator.validate(&failure.document()).unwrap();
+    }
+}
+
+#[test]
 fn recoverable_session_is_closed_to_v2_and_does_not_claim_a_running_server() {
     let schema: Value =
         serde_json::from_str(include_str!("../schemas/orchbee.session.list.json")).unwrap();

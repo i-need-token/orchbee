@@ -29,7 +29,7 @@ does not make the Electron Desktop runtime a consumer of the native Session serv
 
 ## Schema versions for independent Agent status
 
-Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 144. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
+Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 145. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
 
 | Command                                     | Version     | Variant                                                             |
 | ------------------------------------------- | ----------- | ------------------------------------------------------------------- |
@@ -44,6 +44,25 @@ Current outputs separate actual Agent status from Client read acknowledgement. E
 | `panel get; panel list`                     | 10/11       | Linux / Windows                                                     |
 | `tab get; tab list`                         | 6/5         | Get / List                                                          |
 | `workspace get; workspace list`             | 8           | Canonical Agent aggregate                                           |
+
+## Current CLI discovery and platform contracts
+
+Launch Profile list/get now emit v2, admitting the wire contract's POSIX, drive-absolute
+and verbatim drive executable paths; v1 retains its POSIX-only pattern. Windows diagnosis
+emits v3 for both default and named Session scopes; v2 retains its original native scope.
+Integration lists emit v3, or v4 with `--outdated-only`, with bounds covering all 20 providers;
+v1/v2 retain their original bounds. Generic failure v3 carries closed local plugin preparation
+reasons at `stage: plugin`; v1/v2 keep their previous shapes. Session catalog and startup
+environment failures include their failed runtime stage, rather than missing details or an
+internal-failure classification. Client selection diagnostics identify Clients and show the
+applicable `--client` remedy. These projections do not invent missing observations.
+
+The event stream schema exposes typed filter input at `$defs/filter`; plugin runtime exposes
+context input at `$defs/context`. Help includes valid JSON examples and schema lookup hints.
+Schema validation describes structural input; CLI decoding also enforces semantic combinations,
+Unicode scalar decoding and UTF-8 byte bounds. Wide human tables use labeled records when
+their measured width exceeds 80 cells. Field blocks always separate labels and values, and
+full IDs remain available for copying; JSON projections are unchanged by text layout.
 
 ## Workspaces and optional Projects
 
@@ -942,8 +961,8 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   adapter payload that replaces the packaged cohort source for that invocation.
   A relative path or a repeat is `invalid-usage`.
 - `--version`: legal only as the sole root invocation; any other position or company is usage.
-- `-h`/`--help`: root sole token, or the single suffix of a recognized help path (a family
-  name or a complete command path).
+- `-h`/`--help`: one flag anywhere before `--`; selects an exact family or the longest
+  recognized command path, ignoring operands and business requirements without effects.
 - `--` positionals: tokens after `--` are positional only, so `orchbee -- status` queries
   status and `orchbee project get -- --help` resolves the literal label `--help`.
 
@@ -1016,11 +1035,12 @@ orchbee <recognized path> -h|--help
 Help topics: root; families `client`, `project`, `workspace`, `worktree`, `tab`, `panel`, `terminal`, `launch-profile`, `agent`,
 `agent integration`, `api`,
 `site`, `config`, `completion`; and every complete command path including `tui`. `help` takes only a recognized
-path (no filters, no format). A trailing `-h` or `--help` is the same request on the same path:
+path (no filters, no format). A single `-h` or `--help` before `--` is the same request on the same path:
 `orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
-`help project`, and `help project get` emit. Suffix help takes precedence over missing business
-arguments (`project get --help` describes `project get`) but not over supplied business
-arguments or extra tokens (`project get x --help`, `status extra --help` are usage). Unlisted
+`help project`, and `help project get` emit. Flag help also accepts supplied operands and
+recognized options (`project get x --format json --help` describes `project get` as text).
+It never applies those options or reads runtime state. Unknown options, missing values,
+duplicate options and unknown family verbs remain usage failures. Unlisted
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
 `--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `--default-config` never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
 Help has three information levels, in both `en-US` and `zh-CN`:
@@ -1647,8 +1667,8 @@ envelope. Windows explicit stop and subsequent start are described below; there 
 
 ## Session diagnostics
 
-On Windows, `server diagnose` emits `orchbee.site.diagnose.windows` v2, a separate
-closed schema preserving the Linux v1 document. The native catalog is v69/76.
+On Windows, `server diagnose` emits `orchbee.site.diagnose.windows` v3, a separate
+closed schema preserving the Linux v1 document. The current catalog and versions are listed above.
 The same existing-only runtime path/SID scope is used without cohort admission,
 activation, endpoint connection or process discovery. Ordered rows describe the
 selected base, admitted runtime directory, marker, activation/lifetime locks and
@@ -1729,7 +1749,7 @@ falling back to global `navigation.workspaces` order when absent or empty. Other
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v8 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v6 with global navigation and nullable Workspace grouping. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The current catalog is v143 with 121 required documents: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v8 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v6 with global navigation and nullable Workspace grouping. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The catalog version and document count are listed above: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -2640,7 +2660,7 @@ The managed Windows Server saves committed Workbench changes after a 500ms debou
 
 ## Windows retained Worktree operations
 
-The [Worktree contract](windows-worktrees.md) owns `worktree create/open/remove/status/resume`, their source/Project inference, per-command flags, operation identity, confirmation, waiting, output and recovery. It extends this record's earlier list-only grammar: Create/Open admit optional --client, --focus/--no-focus, label and terminal geometry, source Workspace or cwd, and path/branch selectors; Create also admits base. Remove admits force and requires Workspace plus confirmation; Resume requires operation ID, generation and confirmation. All five admit text/JSON; only mutation commands admit request identity, trust and waiting as documented there. The `orchbee.worktree.operation` v5 envelope includes nullable original Project metadata, optional focus and shell restoration receipts, without a Project preparation phase. Its schema retains closed v1–v4 documents for older consumers; the current catalog is v143.
+The [Worktree contract](windows-worktrees.md) owns `worktree create/open/remove/status/resume`, their source/Project inference, per-command flags, operation identity, confirmation, waiting, output and recovery. It extends this record's earlier list-only grammar: Create/Open admit optional --client, --focus/--no-focus, label and terminal geometry, source Workspace or cwd, and path/branch selectors; Create also admits base. Remove admits force and requires Workspace plus confirmation; Resume requires operation ID, generation and confirmation. All five admit text/JSON; only mutation commands admit request identity, trust and waiting as documented there. The `orchbee.worktree.operation` v5 envelope includes nullable original Project metadata, optional focus and shell restoration receipts, without a Project preparation phase. Its schema retains closed v1–v4 documents for older consumers; see the current catalog above.
 
 Windows `worktree list` additionally accepts a source Workspace/cwd and optional command-local trust, with validated caller/selected-Client defaults and cwd only when both are absent and no Project requirement. The earlier registered-directory grammar and envelope in this record apply only to the registered `--directory` form (v2, no Project). The [source discovery contract](windows-worktrees.md#source-based-discovery) owns the separate `orchbee.worktree.query` v2 result (catalog v143), mutual exclusions, total deadline, failure exits and known Workspace associations.
 
@@ -2833,7 +2853,7 @@ Catalog v72 contains 81 schemas and retains 96 command paths.
 
 ## Reusable layout export
 
-Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 are included in the current catalog v97 (91 documents).
+Windows `layout export` emits a reusable JSON tree with ratios, manual labels, observed directories and frozen launch commands. The [layout contract](windows-layouts.md) owns export targets, Client selection, bounds, cancellation, absence of terminal effects and consistency, together with the implemented `layout apply` creation/replacement workflow and its effect receipts. `orchbee.layout.export` v1 and `orchbee.cli.failure.layout` v1 were introduced in catalog v97 (91 documents).
 
 ## Programmatic semantic keys
 

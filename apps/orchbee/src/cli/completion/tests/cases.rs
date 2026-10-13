@@ -219,6 +219,18 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee plugin in", "install", true),
     ("orchbee help plugin unin", "uninstall", true),
     ("orchbee plugin install owner/repo --y", "--yes", true),
+    ("orchbee plugin install owner/repo --yes ", "--ref", true),
+    (
+        "orchbee plugin install owner/repo --yes --y",
+        "--yes",
+        false,
+    ),
+    ("orchbee panel create-terminal --child ", "--label", true),
+    (
+        "orchbee panel create-terminal --child --ch",
+        "--child",
+        false,
+    ),
     ("orchbee plugin install owner/repo --r", "--ref", true),
     ("orchbee plugin uninstall id --y", "--yes", false),
     ("orchbee plugin list --r", "--ref", false),

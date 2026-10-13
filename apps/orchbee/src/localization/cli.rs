@@ -68,6 +68,23 @@ impl Locale {
     /// escaped before it reaches the terminal.
     pub(crate) fn cli_failure(self, failure: &Failure) -> String {
         use crate::cli::FailureKind;
+        if failure.failure_schema.is_none()
+            && failure.version == 3
+            && failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("stage"))
+                .and_then(|stage| stage.as_str())
+                == Some("plugin")
+        {
+            let reason = failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("reason"))
+                .and_then(|reason| reason.as_str())
+                .unwrap_or("");
+            return self.cli_plugin_preparation_failure(reason).to_owned();
+        }
         #[cfg(windows)]
         if failure.failure_schema == Some("orchbee.cli.failure.workbench-query") {
             let reason = failure
@@ -79,6 +96,16 @@ impl Locale {
         }
         if failure.failure_schema == Some("orchbee.cli.failure.client-query") {
             return self.cli_client_query_failure(failure.kind).to_owned();
+        }
+        if failure.failure_schema == Some("orchbee.cli.failure.client-control")
+            && let Some(message) = failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("reason"))
+                .and_then(|reason| reason.as_str())
+                .and_then(|reason| self.cli_client_selection_failure(reason))
+        {
+            return message.to_owned();
         }
         if failure.failure_schema == Some("orchbee.cli.failure.configuration") {
             let field = failure
@@ -1164,12 +1191,14 @@ impl Locale {
                 },
                 hint(*ctx),
             ),
-            UsageReason::UnknownOption { option } => (
+            UsageReason::UnknownOption { context, option } => (
                 match self {
+                    Self::EnUs if cfg!(windows) && (option == "--machine" || option.starts_with("--machine=")) => "The --machine routing option must be first: orchbee --machine <target> <command>.".to_owned(),
+                    Self::ZhCn if cfg!(windows) && (option == "--machine" || option.starts_with("--machine=")) => "--machine 路由选项必须放在第一个位置：orchbee --machine <target> <command>。".to_owned(),
                     Self::EnUs => format!("Unknown option {}.", echo(option)),
                     Self::ZhCn => format!("未知选项 {}。", echo(option)),
                 },
-                hint(UsageContext::Root),
+                hint(*context),
             ),
             UsageReason::UnexpectedOption {
                 context: ctx,
@@ -1408,22 +1437,6 @@ impl Locale {
     }
 
     fn cli_service_unavailable(self, failure: &Failure) -> String {
-        if failure.failure_schema == Some("orchbee.cli.failure.client-control")
-            && failure
-                .details
-                .as_ref()
-                .and_then(|details| details.get("reason"))
-                .and_then(|reason| reason.as_str())
-                == Some("client-not-ready")
-        {
-            return match self {
-                Self::EnUs => {
-                    "The selected TUI Client is not ready; retry after it becomes ready.\n"
-                }
-                Self::ZhCn => "所选 TUI 客户端尚未就绪；请在其就绪后重试。\n",
-            }
-            .to_owned();
-        }
         let stage = failure
             .details
             .as_ref()
@@ -4156,6 +4169,15 @@ impl Locale {
     }
 
     fn cli_agent_start_failure(self, failure: &Failure) -> String {
+        if matches!(
+            failure.usage.as_deref(),
+            Some(crate::invocation::UsageReason::CallerContextUnavailable)
+        ) {
+            return match self {
+                Self::EnUs => "Calling terminal context is missing or invalid. Run inside an Orchbee terminal, or pass --panel <id> to agent start. Inspect `orchbee agent start --help`.\n",
+                Self::ZhCn => "调用终端上下文缺失或无效。请在 Orchbee 终端内运行，或为 agent start 传入 --panel <id>。查看 `orchbee agent start --help`。\n",
+            }.to_owned();
+        }
         let field = |key| {
             failure
                 .details

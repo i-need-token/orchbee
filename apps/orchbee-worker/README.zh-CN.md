@@ -768,9 +768,11 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 
 启动事实所有者仅在 Windows 识别 `powershell[.exe]` 和 `pwsh[.exe]`，
 参数为空或最多三个完整且忽略大小写的 `-NoLogo`、`-NoProfile`、`-NoExit` 开关。
-保留这些开关，通过 `-NoExit -Command` 添加固定的进程内 prompt 包装。
+保留这些开关，通过 `-NoExit -Command` 添加固定的进程内初始化。
 未知开关、脚本、命令字符串、其他程序和其他平台均保留原始启动参数。
 
+初始化将该子进程的原生输出解码与向外发送的管道编码设为无 BOM 的 UTF-8，
+使原生 CLI JSON 能在 PowerShell 5.1 与 7 的管道中正确传递，不改变外部 shell 或保存的 profile。
 包装捕获 profile 定义的 prompt，首先调用它，使依赖状态的 prompt 能看到上条命令的成功状态，
 随后将 FileSystem provider 位置同步到 `[Environment]::CurrentDirectory`。
 非文件系统 provider 或赋值失败保留进程目录。每进程只安装一次，不写用户 profile，
@@ -778,7 +780,8 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 无需获取终端输入权。
 
 这属于既有 Host 交接之前的启动准备，不是第二个 Shell／进程，也不表示终端已启动。
-现有终端不会补装。准入单测和实际 Windows PowerShell 5.1／7 prompt 测试覆盖自定义 prompt、
+现有终端不会补装。准入单测和实际 Windows PowerShell 5.1／7 prompt 与管道测试覆盖原生
+UTF-8 解码、自定义 prompt、
 失败命令、Unicode 目录、非文件系统 provider 和幂等。实际 ConPTY 创建检查 Set-Location 后的
 根进程 cwd。任意自定义启动命令不在集成范围内，不声称其 Shell 私有状态的目录准确性。
 

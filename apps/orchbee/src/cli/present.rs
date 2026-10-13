@@ -45,6 +45,19 @@ fn table<Row>(
             widths[index] = widths[index].max(display_width(cell));
         }
     }
+    // Full IDs remain copyable. Wide tables degrade to labeled records instead
+    // of pushing the important columns beyond an ordinary 80-cell terminal.
+    if widths.iter().sum::<usize>() + headers.len().saturating_sub(1) * 2 > 80 && !rows.is_empty() {
+        for (index, row) in rows.iter().enumerate() {
+            if index > 0 {
+                out.push("\n")?;
+            }
+            for (header, cell) in headers.iter().zip(cells(row)) {
+                field(out, header, &cell)?;
+            }
+        }
+        return Ok(());
+    }
     let render_row = |cells: &[String], out: &mut Bounded| -> Result<(), TooLarge> {
         for (index, cell) in cells.iter().enumerate() {
             if index > 0 {
@@ -72,7 +85,8 @@ fn table<Row>(
 }
 
 fn field(out: &mut Bounded, name: &str, value: &str) -> Result<(), TooLarge> {
-    out.write(format_args!("{name:<14}{value}\n"))
+    let padding = 14_usize.saturating_sub(display_width(name)).max(2);
+    out.write(format_args!("{name}{}{value}\n", " ".repeat(padding)))
 }
 
 fn context_text(context: &ContextRef) -> String {

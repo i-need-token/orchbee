@@ -273,6 +273,42 @@ fn help_flag_aliases_match_the_help_command_at_every_recognized_path() -> Result
 }
 
 #[test]
+fn help_overrides_business_operands_and_options_before_runtime_discovery()
+-> Result<(), Box<dyn Error>> {
+    for (arguments, topic) in [
+        (&["--help", "status"][..], &["status"][..]),
+        (&["-h", "status"][..], &["status"][..]),
+        (
+            &["project", "get", "x", "--help"][..],
+            &["project", "get"][..],
+        ),
+        (&["status", "extra", "--help"][..], &["status"][..]),
+        (
+            &["status", "--help", "--format", "text"][..],
+            &["status"][..],
+        ),
+        (
+            &["workspace", "get", "work", "--format", "json", "-h"][..],
+            &["workspace", "get"][..],
+        ),
+    ] {
+        let canonical = run(topic.iter().copied().chain(["--help"]), "en_US.UTF-8")?;
+        assert_eq!(canonical.status.code(), Some(0));
+        let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+            .args(arguments)
+            .env("LC_ALL", "en_US.UTF-8")
+            .env("ORCHBEE_CONFIG_FILE", "relative-config.toml")
+            .env("ORCHBEE_RUNTIME_BASE", "relative-runtime")
+            .env("ORCHBEE_SESSION", "..")
+            .output()?;
+        assert_eq!(output.status.code(), Some(0), "{arguments:?}");
+        assert_eq!(output.stdout, canonical.stdout, "{arguments:?}");
+        assert!(output.stderr.is_empty(), "{arguments:?}");
+    }
+    Ok(())
+}
+
+#[test]
 fn help_flag_ownership_terminator_and_conflicts_stay_usage() -> Result<(), Box<dyn Error>> {
     let cases: &[(&[&str], &str)] = &[
         // A flag value owns the next word: --format consumes --help, leaving
@@ -301,7 +337,7 @@ fn help_flag_ownership_terminator_and_conflicts_stay_usage() -> Result<(), Box<d
         ),
         (
             &["--help", "--version"],
-            "'--help' is not valid in this position. Run 'orchbee --help'.\n",
+            "'--version' is not valid in this position. Run 'orchbee --help'.\n",
         ),
         (
             &["--help", "--help"],
@@ -310,29 +346,6 @@ fn help_flag_ownership_terminator_and_conflicts_stay_usage() -> Result<(), Box<d
         (
             &["-h", "-h"],
             "'-h' is not valid in this position. Run 'orchbee --help'.\n",
-        ),
-        // A help flag mid-path is not a suffix.
-        (
-            &["--help", "status"],
-            "'--help' is not valid in this position. Run 'orchbee status --help'.\n",
-        ),
-        (
-            &["-h", "status"],
-            "'-h' is not valid in this position. Run 'orchbee status --help'.\n",
-        ),
-        // Business arguments suppress suffix help.
-        (
-            &["project", "get", "x", "--help"],
-            "No help topic matches \"project get x\". Run 'orchbee --help'.\n",
-        ),
-        (
-            &["status", "extra", "--help"],
-            "No help topic matches \"status extra\". Run 'orchbee --help'.\n",
-        ),
-        // Format on a help request is a syntax failure.
-        (
-            &["status", "--help", "--format", "text"],
-            "'--format' is not a valid option for 'orchbee status'. Run 'orchbee status --help'.\n",
         ),
     ];
     for (arguments, stderr) in cases {
@@ -354,11 +367,11 @@ fn rejects_unknown_short_and_additional_arguments_before_output() -> Result<(), 
         ),
         (
             &["--help", "--version"],
-            "'--help' is not valid in this position. Run 'orchbee --help'.\n",
+            "'--version' is not valid in this position. Run 'orchbee --help'.\n",
         ),
         (
             &["status", "--bogus"],
-            "Unknown option \"--bogus\". Run 'orchbee --help'.\n",
+            "Unknown option \"--bogus\". Run 'orchbee status --help'.\n",
         ),
     ];
     for (arguments, stderr) in cases {

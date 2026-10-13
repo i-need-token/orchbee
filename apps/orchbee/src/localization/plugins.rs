@@ -1,6 +1,95 @@
 use super::Locale;
 use orchbee_local_site_runtime::PluginRegistryError as Error;
 impl Locale {
+    pub(super) fn cli_plugin_preparation_failure(self, reason: &str) -> &'static str {
+        match (self, reason) {
+            (Self::EnUs, "registry-unavailable") => {
+                "The plugin registry could not be read. Inspect `orchbee plugin list` and the user configuration directory.\n"
+            }
+            (Self::ZhCn, "registry-unavailable") => {
+                "无法读取插件注册表。请用 `orchbee plugin list` 查看，并检查用户配置目录。\n"
+            }
+            (Self::EnUs, "plugin-not-found") => {
+                "The plugin is not registered. Inspect `orchbee plugin list` and use its exact ID.\n"
+            }
+            (Self::ZhCn, "plugin-not-found") => {
+                "插件尚未注册。请用 `orchbee plugin list` 查看并使用其精确 ID。\n"
+            }
+            (Self::EnUs, "plugin-disabled") => {
+                "The plugin is disabled or has a registry warning. Inspect `orchbee plugin list` before opening its pane.\n"
+            }
+            (Self::ZhCn, "plugin-disabled") => {
+                "插件已禁用或存在注册表警告。请先用 `orchbee plugin list` 查看，再打开其面板。\n"
+            }
+            (Self::EnUs, "pane-not-found") => {
+                "No plugin pane matches this target or entrypoint. Inspect `orchbee plugin list` and `orchbee panel list`.\n"
+            }
+            (Self::ZhCn, "pane-not-found") => {
+                "没有与目标或入口匹配的插件面板。请用 `orchbee plugin list` 和 `orchbee panel list` 查看。\n"
+            }
+            (Self::EnUs, "unsupported-platform") => {
+                "This plugin pane does not support the current platform.\n"
+            }
+            (Self::ZhCn, "unsupported-platform") => "此插件面板不支持当前平台。\n",
+            (Self::EnUs, "invalid-title") => {
+                "The plugin pane title is invalid. Check its manifest.\n"
+            }
+            (Self::ZhCn, "invalid-title") => "插件面板标题无效。请检查其清单。\n",
+            (Self::EnUs, "invalid-geometry" | "invalid-popup-spec") => {
+                "The plugin pane geometry or popup specification is invalid. Inspect `orchbee plugin pane open --help`.\n"
+            }
+            (Self::ZhCn, "invalid-geometry" | "invalid-popup-spec") => {
+                "插件面板的几何参数或弹窗规格无效。请查看 `orchbee plugin pane open --help`。\n"
+            }
+            (Self::EnUs, "popup-focus-required") => {
+                "A popup requires focus. Remove --no-focus, or select a tab or split placement.\n"
+            }
+            (Self::ZhCn, "popup-focus-required") => {
+                "弹窗需要焦点。请移除 --no-focus，或选择 tab／split 放置方式。\n"
+            }
+            (Self::EnUs, "popup-target-unsupported") => {
+                "This placement uses the current Client selection. Remove explicit target or launch geometry overrides; inspect `orchbee plugin pane open --help`.\n"
+            }
+            (Self::ZhCn, "popup-target-unsupported") => {
+                "此放置方式使用当前客户端选择。请移除显式目标或启动几何覆盖，并查看 `orchbee plugin pane open --help`。\n"
+            }
+            (Self::EnUs, "client-listing-unavailable" | "client-not-ready") => {
+                "The TUI Client selection is unavailable or not ready. Inspect `orchbee client list` and pass --client <id>.\n"
+            }
+            (Self::ZhCn, "client-listing-unavailable" | "client-not-ready") => {
+                "TUI 客户端选择不可用或尚未就绪。请用 `orchbee client list` 查看并传入 --client <id>。\n"
+            }
+            (Self::EnUs, "binding-unavailable") => {
+                "The current Client has no available terminal binding for this popup. Select a terminal panel first.\n"
+            }
+            (Self::ZhCn, "binding-unavailable") => {
+                "当前客户端没有可供此弹窗使用的终端绑定。请先选择终端面板。\n"
+            }
+            (Self::EnUs, "client-changed" | "pane-changed") => {
+                "The selected Client or plugin pane changed during preparation. Inspect the current selection before retrying.\n"
+            }
+            (Self::ZhCn, "client-changed" | "pane-changed") => {
+                "所选客户端或插件面板在准备期间发生变化。请检查当前选择后再重试。\n"
+            }
+            (Self::EnUs, "context-invalid") => {
+                "The plugin invocation context is invalid. Inspect `orchbee plugin action invoke --help`.\n"
+            }
+            (Self::ZhCn, "context-invalid") => {
+                "插件调用上下文无效。请查看 `orchbee plugin action invoke --help`。\n"
+            }
+            (Self::EnUs, "transport-loss" | "invalid-reply" | "plugin-unavailable") => {
+                "The local session could not provide the plugin pane information. Inspect its status before retrying.\n"
+            }
+            (Self::ZhCn, "transport-loss" | "invalid-reply" | "plugin-unavailable") => {
+                "本地会话无法提供插件面板信息。请检查其状态后再重试。\n"
+            }
+            (Self::EnUs, _) => {
+                "Plugin preparation failed before submission. Inspect the plugin configuration.\n"
+            }
+            (Self::ZhCn, _) => "插件准备在提交前失败。请检查插件配置。\n",
+        }
+    }
+
     pub(crate) fn cli_popup_opened(
         self,
         popup_id: &orchbee_workbench_protocol::WorkbenchRequestId,
@@ -79,13 +168,13 @@ impl Locale {
             ),
             C::PluginActionInvoke => (
                 "orchbee plugin action invoke <action-id> [--plugin <id>] [--client <id>] [--context <json>] [--format text|json]",
-                "Run an installed plugin action in an existing session. The ID can be local or qualified as plugin.action. Context follows the caller or the single current client; --client selects explicitly and --context overrides display fields. Accepted work continues after the CLI exits; session shutdown stops it.",
-                "在已运行的会话中执行插件操作。ID 可使用本地名称或 plugin.action 完整名称。上下文来自调用者或唯一当前客户端；--client 显式选择客户端，--context 覆盖显示字段。CLI 退出后，已接纳的任务继续运行；会话关闭时停止。",
+                "Run an installed plugin action in an existing session. The ID can be local or qualified as plugin.action. Context follows the caller or the single current client; --client selects explicitly and --context overrides display fields. Inspect orchbee api schema orchbee.plugin.runtime ($defs/context); fields use camelCase, such as selectedText. Accepted work continues after the CLI exits; session shutdown stops it.",
+                "在已运行的会话中执行插件操作。ID 可使用本地名称或 plugin.action 完整名称。上下文来自调用者或唯一当前客户端；--client 显式选择客户端，--context 覆盖显示字段。使用 orchbee api schema orchbee.plugin.runtime 查看输入结构（$defs/context）；字段使用 camelCase，例如 selectedText。CLI 退出后，已接纳的任务继续运行；会话关闭时停止。",
             ),
             C::PluginPaneOpen => (
                 "orchbee plugin pane open --plugin <id> --entrypoint <id> [--placement tab|split|zoomed|overlay|popup] [--width <cells|percent%>] [--height <cells|percent%>] [--workspace <id>] [--target-pane <id>] [--direction right|down] [--cwd <path>] [--env NAME=VALUE] [--client <id>] [--focus|--no-focus] [--format text|json]",
-                "Open a plugin terminal in an existing session. The default working directory is the plugin root.\n\nPopup placement opens an independent terminal in the selected current client. Width and height apply only to popups: use terminal cells or percentages. Defaults come from the manifest, otherwise half of the available area. Standard terminal geometry options do not apply. Escape and prefix keys reach the popup program. Click its close button or run orchbee popup close to dispose of it.",
-                "在已运行的会话中打开插件终端，工作目录默认为插件根目录。\n\nPopup 在选中的当前客户端中打开独立终端。宽高仅适用于 popup，可使用终端单元格数量或百分比；默认取清单配置，否则占可用区域的一半。不使用普通终端尺寸选项。Esc 和前缀键会传给弹出窗口中的程序；点击关闭按钮或执行 orchbee popup close 可关闭。",
+                "Open a plugin terminal in an existing session. The default working directory is the plugin root.\n\nPopup placement opens an independent terminal in the selected current client and requires focus; --no-focus is refused. Width and height apply only to popups: use terminal cells or percentages. Defaults come from the manifest, otherwise half of the available area. Standard terminal geometry options do not apply. Escape and prefix keys reach the popup program. Click its close button or run orchbee popup close to dispose of it.",
+                "在已运行的会话中打开插件终端，工作目录默认为插件根目录。\n\nPopup 在选中的当前客户端中打开独立终端且需要焦点；拒绝 --no-focus。宽高仅适用于 popup，可使用终端单元格数量或百分比；默认取清单配置，否则占可用区域的一半。不使用普通终端尺寸选项。Esc 和前缀键会传给弹出窗口中的程序；点击关闭按钮或执行 orchbee popup close 可关闭。",
             ),
             C::PluginPaneFocus => (
                 "orchbee plugin pane focus <pane-id> [--client <id>] [--timeout <ms>] [--format text|json]",

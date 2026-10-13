@@ -207,7 +207,7 @@ fn collect_at(base: &Path, scope: &str, deadline: Instant) -> Result<DiagnoseDoc
             .map(|(key, value)| (key.clone(), Value::Object(value.clone()))),
     );
     Ok(DiagnoseDocument {
-        envelope: json!({"schema":"orchbee.site.diagnose.windows", "version":2,
+        envelope: json!({"schema":"orchbee.site.diagnose.windows", "version":3,
             "source":config::local_runtime_source(), "result":result}),
         rows,
         advisories,

@@ -621,6 +621,18 @@ fn client_control_routing_failures_are_closed_schema_documents() {
         );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
         validator.validate(&document).unwrap();
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let diagnostic = locale.cli_failure(&selection::failure(kind, reason, vec![]));
+            assert!(
+                !diagnostic.contains("project") && !diagnostic.contains("项目"),
+                "{diagnostic}"
+            );
+            assert!(
+                diagnostic.contains("Client") || diagnostic.contains("客户端"),
+                "{diagnostic}"
+            );
+            assert!(!diagnostic.contains("\"\""), "{diagnostic}");
+        }
     }
 }
 

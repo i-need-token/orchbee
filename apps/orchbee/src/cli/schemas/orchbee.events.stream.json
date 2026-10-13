@@ -2673,6 +2673,360 @@
 			},
 			"required": ["workspaceId", "position", "workbenchRevision", "event", "data"],
 			"additionalProperties": false
+		},
+		"filter": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "event"
+						},
+						"event": {
+							"enum": [
+								"workspace.created",
+								"workspace.updated",
+								"workspace.metadata_updated",
+								"workspace.renamed",
+								"workspace.moved",
+								"workspace.reordered",
+								"workspace.closed",
+								"workspace.focused",
+								"worktree.created",
+								"worktree.opened",
+								"worktree.removed",
+								"tab.created",
+								"tab.closed",
+								"tab.focused",
+								"tab.renamed",
+								"tab.moved",
+								"pane.created",
+								"pane.closed",
+								"pane.updated",
+								"pane.focused",
+								"pane.moved",
+								"pane.exited",
+								"pane.agent_detected",
+								"pane.agent_status_changed",
+								"pane.output_changed",
+								"pane.output_matched",
+								"pane.scroll_changed",
+								"layout.updated"
+							]
+						},
+						"scope": {
+							"$ref": "#/$defs/filterScope"
+						},
+						"condition": {
+							"$ref": "#/$defs/filterCondition"
+						}
+					},
+					"required": ["kind", "event", "scope", "condition"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "output-matched"
+						},
+						"target": {
+							"$ref": "#/$defs/filterTarget"
+						},
+						"source": {
+							"enum": ["recent", "recent-unwrapped", "history", "viewport", "detection"]
+						},
+						"lines": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 4096
+						},
+						"matcher": {
+							"oneOf": [
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "substring"
+										},
+										"value": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 4096,
+											"pattern": "^[^\\u0000]*$"
+										}
+									},
+									"required": ["kind", "value"],
+									"additionalProperties": false
+								},
+								{
+									"type": "object",
+									"properties": {
+										"kind": {
+											"const": "regex"
+										},
+										"value": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 4096,
+											"pattern": "^[^\\u0000]*$"
+										}
+									},
+									"required": ["kind", "value"],
+									"additionalProperties": false
+								}
+							]
+						},
+						"stripAnsi": {
+							"type": "boolean"
+						},
+						"clientId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/d1"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "target", "source", "lines", "matcher", "stripAnsi", "clientId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "agent-status-changed"
+						},
+						"target": {
+							"$ref": "#/$defs/filterTarget"
+						},
+						"state": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/d60"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "target", "state"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "scroll-changed"
+						},
+						"target": {
+							"$ref": "#/$defs/filterTarget"
+						},
+						"clientId": {
+							"$ref": "#/$defs/d1"
+						}
+					},
+					"required": ["kind", "target", "clientId"],
+					"additionalProperties": false
+				}
+			],
+			"$comment": "Typed --filter input from the canonical Workbench filter. CLI parsing additionally enforces semantic combinations, UTF-8 byte bounds and Unicode scalar decoding."
+		},
+		"filterWorkspaceId": {
+			"$ref": "#/$defs/d1",
+			"title": "WorkbenchWorkspaceId"
+		},
+		"filterTerminalContextId": {
+			"$ref": "#/$defs/d1",
+			"title": "WorkbenchTerminalContextId"
+		},
+		"filterTabId": {
+			"$ref": "#/$defs/d1",
+			"title": "WorkbenchTabId"
+		},
+		"filterPanelId": {
+			"$ref": "#/$defs/d1",
+			"title": "WorkbenchPanelId"
+		},
+		"filterScope": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "all"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "workspace"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/filterWorkspaceId"
+						}
+					},
+					"required": ["kind", "workspaceId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "terminal-context"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/filterTerminalContextId"
+						}
+					},
+					"required": ["kind", "terminalContextId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "tab"
+						},
+						"tabId": {
+							"$ref": "#/$defs/filterTabId"
+						}
+					},
+					"required": ["kind", "tabId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "pane"
+						},
+						"panelId": {
+							"$ref": "#/$defs/filterPanelId"
+						}
+					},
+					"required": ["kind", "panelId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "client"
+						},
+						"clientId": {
+							"$ref": "#/$defs/d1"
+						}
+					},
+					"required": ["kind", "clientId"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"filterLabel": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"filterCondition": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "any"
+						}
+					},
+					"required": ["kind"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "label"
+						},
+						"label": {
+							"$ref": "#/$defs/filterLabel"
+						}
+					},
+					"required": ["kind", "label"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "output-revision"
+						},
+						"minimumRevision": {
+							"$ref": "#/$defs/d2"
+						}
+					},
+					"required": ["kind", "minimumRevision"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "agent"
+						},
+						"agent": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 241
+						}
+					},
+					"required": ["kind", "agent"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "agent-state"
+						},
+						"state": {
+							"$ref": "#/$defs/d60"
+						}
+					},
+					"required": ["kind", "state"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"filterPresentationId": {
+			"$ref": "#/$defs/d1",
+			"title": "TerminalPresentationId"
+		},
+		"filterTarget": {
+			"type": "object",
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/filterPanelId"
+				},
+				"presentationId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/filterPresentationId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["panelId", "presentationId"],
+			"additionalProperties": false
 		}
 	}
 }

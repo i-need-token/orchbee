@@ -9,6 +9,15 @@ use super::{
 use crate::invocation::CompletionShell;
 
 #[test]
+fn switches_do_not_consume_the_next_completion_word() {
+    let grammar = super::grammar::build();
+    let values = grammar["valueFlags"].as_array().unwrap();
+    for flag in ["--child", "--yes"] {
+        assert!(!values.iter().any(|value| value == flag), "{flag}");
+    }
+}
+
+#[test]
 fn scripts_cover_the_implemented_surface() {
     for shell in [
         CompletionShell::Bash,

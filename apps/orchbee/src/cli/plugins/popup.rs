@@ -1,4 +1,5 @@
 //! Popup commands address one current Client and preserve one mutation's receipt.
+use super::failure::Reason;
 use crate::{
     cli::{
         Failure, FailureKind, Output,
@@ -90,19 +91,19 @@ fn execute(
         signals,
     )?;
     let ClientViewOutcome::Listed { clients } = listed.outcome else {
-        return Err(Failure::new(FailureKind::ServiceUnavailable));
+        return Err(Reason::ClientListingUnavailable.failure());
     };
     let selected = client_control::selection::select(&clients, explicit, caller.as_ref())?.clone();
     let id = query::request_id()?;
     let intent = if let Some(command) = command {
         if selected.view.phase != ClientViewPhase::Ready {
-            return Err(Failure::new(FailureKind::Rejected));
+            return Err(Reason::ClientNotReady.failure());
         }
         let selection = selected
             .view
             .selection
             .as_ref()
-            .ok_or_else(|| Failure::new(FailureKind::Rejected))?;
+            .ok_or_else(|| Reason::BindingUnavailable.failure())?;
         let (context, member) = super::context::observe(
             &mut client,
             &snapshot,
@@ -112,24 +113,24 @@ fn execute(
             deadline,
             signals,
         )?;
-        let member = member.ok_or_else(|| Failure::new(FailureKind::ServiceUnavailable))?;
+        let member = member.ok_or_else(|| Reason::BindingUnavailable.failure())?;
         let spec = PluginPopupSpec {
             selector: command
                 .creation
                 .options
                 .plugin_pane
                 .clone()
-                .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?,
+                .ok_or_else(|| Reason::SelectorUnavailable.failure())?,
             source: ClientPopupSource {
                 terminal_context_id: selection.terminal_context_id.clone(),
                 tab_id: selection
                     .tab_id
                     .clone()
-                    .ok_or_else(|| Failure::new(FailureKind::Rejected))?,
+                    .ok_or_else(|| Reason::BindingUnavailable.failure())?,
                 panel_id: selection
                     .panel_id
                     .clone()
-                    .ok_or_else(|| Failure::new(FailureKind::Rejected))?,
+                    .ok_or_else(|| Reason::BindingUnavailable.failure())?,
                 member,
             },
             context: Box::new(context),
@@ -139,7 +140,7 @@ fn execute(
             height: command.height,
         };
         spec.validate()
-            .map_err(|_| Failure::new(FailureKind::Rejected))?;
+            .map_err(|_| Reason::InvalidPopupSpec.failure())?;
         ClientViewIntent::PopupOpen {
             spec: Box::new(spec),
         }
@@ -159,7 +160,7 @@ fn execute(
         if client.view_revision == selected.view_revision && client.view == selected.view
             && client.availability == orchbee_workbench_protocol::ClientViewAvailability::Current)
     {
-        return Err(Failure::new(FailureKind::Rejected));
+        return Err(Reason::ClientChanged.failure());
     }
     let answer = client_control::windows::submit_control(
         &mut client,

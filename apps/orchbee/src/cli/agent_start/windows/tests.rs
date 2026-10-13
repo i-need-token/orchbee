@@ -39,6 +39,47 @@ fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
 }
 
 #[test]
+fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
+    for shell in ["powershell.exe", "pwsh.exe"] {
+        for prompt in [
+            orchbee_local_site_runtime::WINDOWS_DIRECTORY_PROMPT.to_owned(),
+            orchbee_local_site_runtime::windows_interactive_powershell_initialization(),
+        ] {
+            let mut sample = TerminalProcessInfo {
+                attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16])
+                    .unwrap(),
+                terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([2; 16]).unwrap(),
+                root_pid: 1,
+                processes: vec![TerminalProcess {
+                    pid: 1,
+                    parent_pid: None,
+                    creation_time: 1,
+                    image: Some(shell.into()),
+                    command_line: Some(format!(
+                        "{shell} -NoLogo -NoProfile -NoExit -Command \"{prompt}\""
+                    )),
+                    current_directory: None,
+                }],
+            };
+            assert!(
+                idle_shell(&sample).is_ok(),
+                "runtime-created {shell} must admit startup"
+            );
+            for command in [
+                format!("{shell} -NoExit -Command task"),
+                format!("{shell} -Command \"{prompt}\""),
+                format!("{shell} -NoExit -Command \"{prompt}; Start-Sleep 10\""),
+                format!("{shell} -NoExit -Command \"{prompt}\" extra"),
+                format!("{shell} -ExecutionPolicy Bypass -NoExit -Command \"{prompt}\""),
+            ] {
+                sample.processes[0].command_line = Some(command.clone());
+                assert!(idle_shell(&sample).is_err(), "unsafe shell: {command}");
+            }
+        }
+    }
+}
+
+#[test]
 fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() {
     use orchbee_client_server_protocol::{SendCleanupStatus, SendProgress, TerminalSendOutcome};
     let options = AgentStartCommand {

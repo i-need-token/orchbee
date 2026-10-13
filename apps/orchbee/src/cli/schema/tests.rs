@@ -3,6 +3,43 @@ use super::DOCUMENTS;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
+#[cfg(windows)]
+#[test]
+fn json_option_inputs_have_named_definitions_and_executable_examples() {
+    use serde_json::json;
+    for (schema_id, definition, input, arguments) in [
+        (
+            "orchbee.events.stream",
+            "filter",
+            json!({"kind":"event","event":"workspace.created","scope":{"kind":"all"},"condition":{"kind":"any"}}),
+            vec!["events", "wait", "--filter"],
+        ),
+        (
+            "orchbee.plugin.runtime",
+            "context",
+            json!({"selectedText":"example"}),
+            vec![
+                "plugin",
+                "action",
+                "invoke",
+                "example.plugin.action",
+                "--context",
+            ],
+        ),
+    ] {
+        let schema: Value = serde_json::from_str(super::document(schema_id).unwrap()).unwrap();
+        let input_schema = json!({"$ref":format!("#/$defs/{definition}"),"$defs":schema["$defs"]});
+        let validator = jsonschema::validator_for(&input_schema).unwrap();
+        validator.validate(&input).unwrap();
+        let encoded = serde_json::to_string(&input).unwrap();
+        let args = arguments.into_iter().chain([encoded.as_str()]);
+        assert!(crate::invocation::parse_request(args.map(std::ffi::OsString::from)).is_ok());
+        let mut invalid = input;
+        invalid["unknown"] = true.into();
+        assert!(!validator.is_valid(&invalid));
+    }
+}
+
 #[test]
 fn notification_configuration_failure_v9_admits_current_details_and_keeps_older_versions_closed() {
     let schema: Value =

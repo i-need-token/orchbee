@@ -173,6 +173,13 @@ fn classify(failure: ActivationFailure) -> Failure {
                 super::query::classify_connect(error)
             }
         }
+        Some(ActivationCause::RuntimeLocation(error)) => {
+            if error.kind() == std::io::ErrorKind::TimedOut {
+                timeout()
+            } else {
+                Failure::new(FailureKind::CheckFailed).details(stage_details("runtime-base"))
+            }
+        }
         // Lock/marker/probe I/O: a TimedOut kind means the shared budget
         // expired; anything else is an internal runtime fault.
         Some(ActivationCause::RuntimeIo(error)) => {
@@ -236,3 +243,6 @@ fn socket_budget() -> Failure {
         "address-too-long",
     ))
 }
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]
+mod tests;

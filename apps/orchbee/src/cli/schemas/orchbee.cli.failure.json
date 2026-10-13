@@ -10,7 +10,7 @@
 			"const": "orchbee.cli.failure"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3]
 		},
 		"failure": {
 			"type": "object",
@@ -568,30 +568,200 @@
 				]
 			},
 			"else": {
-				"properties": {
-					"failure": {
-						"required": ["details"],
-						"properties": {
-							"kind": {
-								"enum": [
-									"not-found",
-									"service-unavailable",
-									"protocol-invalid",
-									"transport-loss",
-									"timeout",
-									"cancelled"
-								]
-							},
-							"details": {
-								"type": "object",
-								"additionalProperties": false,
-								"required": ["stage"],
-								"properties": {
-									"stage": {
-										"const": "workspace-creation"
+				"if": {
+					"properties": {
+						"version": {
+							"const": 2
+						}
+					}
+				},
+				"then": {
+					"properties": {
+						"failure": {
+							"required": ["details"],
+							"properties": {
+								"kind": {
+									"enum": [
+										"not-found",
+										"service-unavailable",
+										"protocol-invalid",
+										"transport-loss",
+										"timeout",
+										"cancelled"
+									]
+								},
+								"details": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["stage"],
+									"properties": {
+										"stage": {
+											"const": "workspace-creation"
+										}
 									}
 								}
 							}
+						}
+					}
+				},
+				"else": {
+					"properties": {
+						"failure": {
+							"required": ["details"],
+							"properties": {
+								"kind": {
+									"enum": [
+										"internal-failure",
+										"not-found",
+										"service-unavailable",
+										"rejected",
+										"transport-loss",
+										"protocol-invalid"
+									]
+								},
+								"details": {
+									"$ref": "#/$defs/pluginDetails"
+								}
+							},
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"kind": {
+												"const": "internal-failure"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"details": {
+												"properties": {
+													"reason": {
+														"enum": ["selector-unavailable"]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"kind": {
+												"const": "not-found"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"details": {
+												"properties": {
+													"reason": {
+														"enum": ["plugin-not-found", "pane-not-found"]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"kind": {
+												"const": "service-unavailable"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"details": {
+												"properties": {
+													"reason": {
+														"enum": [
+															"registry-unavailable",
+															"client-listing-unavailable",
+															"binding-unavailable",
+															"plugin-unavailable"
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"kind": {
+												"const": "rejected"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"details": {
+												"properties": {
+													"reason": {
+														"enum": [
+															"plugin-disabled",
+															"unsupported-platform",
+															"invalid-title",
+															"invalid-geometry",
+															"popup-focus-required",
+															"popup-target-unsupported",
+															"client-not-ready",
+															"invalid-popup-spec",
+															"client-changed",
+															"context-invalid",
+															"pane-changed"
+														]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"kind": {
+												"const": "transport-loss"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"details": {
+												"properties": {
+													"reason": {
+														"enum": ["transport-loss"]
+													}
+												}
+											}
+										}
+									}
+								},
+								{
+									"if": {
+										"properties": {
+											"kind": {
+												"const": "protocol-invalid"
+											}
+										}
+									},
+									"then": {
+										"properties": {
+											"details": {
+												"properties": {
+													"reason": {
+														"enum": ["invalid-reply"]
+													}
+												}
+											}
+										}
+									}
+								}
+							]
 						}
 					}
 				}
@@ -1163,6 +1333,40 @@
 			"properties": {
 				"stage": {
 					"const": "current-panel"
+				}
+			}
+		},
+		"pluginDetails": {
+			"type": "object",
+			"required": ["stage", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"stage": {
+					"const": "plugin"
+				},
+				"reason": {
+					"enum": [
+						"selector-unavailable",
+						"plugin-not-found",
+						"pane-not-found",
+						"registry-unavailable",
+						"client-listing-unavailable",
+						"binding-unavailable",
+						"plugin-unavailable",
+						"plugin-disabled",
+						"unsupported-platform",
+						"invalid-title",
+						"invalid-geometry",
+						"popup-focus-required",
+						"popup-target-unsupported",
+						"client-not-ready",
+						"invalid-popup-spec",
+						"client-changed",
+						"context-invalid",
+						"pane-changed",
+						"transport-loss",
+						"invalid-reply"
+					]
 				}
 			}
 		}

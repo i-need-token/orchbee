@@ -26,7 +26,7 @@ impl HelpPath {
     }
 }
 
-/// Every accepted help path in this build, including existing alternate paths.
+/// Every accepted help path in this build.
 pub(crate) fn help_paths() -> &'static [HelpPath] {
     HELP_PATHS
 }
@@ -35,6 +35,30 @@ pub(super) fn topic(words: &[&str]) -> Option<HelpTopic> {
     HELP_PATHS
         .iter()
         .find(|path| path.words == words)
+        .map(|path| path.topic)
+}
+
+/// A command's operands do not become help-path words. Families still require
+/// an exact match so a misspelled verb cannot silently show its parent's help.
+pub(super) fn invocation_topic(words: &[&str]) -> Option<HelpTopic> {
+    HELP_PATHS
+        .iter()
+        .filter(|path| {
+            words.starts_with(path.words)
+                && (matches!(
+                    path.topic,
+                    HelpTopic::Command(_) | HelpTopic::Family(Family::Completion)
+                ) || words == path.words)
+        })
+        .max_by_key(|path| path.words.len())
+        .map(|path| path.topic)
+}
+
+pub(super) fn context_topic(words: &[&str]) -> Option<HelpTopic> {
+    HELP_PATHS
+        .iter()
+        .filter(|path| words.starts_with(path.words))
+        .max_by_key(|path| path.words.len())
         .map(|path| path.topic)
 }
 
@@ -483,14 +507,6 @@ const HELP_PATHS: &[HelpPath] = &[
     HelpPath::new(
         &["terminal", "get"],
         HelpTopic::Command(CommandPath::TerminalGet),
-    ),
-    HelpPath::new(
-        &["terminal", "observe"],
-        HelpTopic::Command(CommandPath::TerminalObserve),
-    ),
-    HelpPath::new(
-        &["terminal", "control"],
-        HelpTopic::Command(CommandPath::TerminalControl),
     ),
     HelpPath::new(
         &["terminal", "read"],

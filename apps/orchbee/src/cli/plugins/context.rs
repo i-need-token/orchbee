@@ -142,7 +142,7 @@ pub(in crate::cli) fn observe(
     let context = context.with_overrides(provided);
     context
         .validate()
-        .map_err(|_| Failure::new(FailureKind::Rejected))?;
+        .map_err(|_| super::failure::Reason::ContextInvalid.failure())?;
     Ok((context, source_member))
 }
 
@@ -173,7 +173,7 @@ fn infer(
             record.view.phase,
             ClientViewPhase::Ready | ClientViewPhase::Busy
         ) {
-            return Err(Failure::new(FailureKind::ServiceUnavailable));
+            return Err(super::failure::Reason::ClientListingUnavailable.failure());
         }
         let Some(view) = &record.view.selection else {
             return Ok((result, None));

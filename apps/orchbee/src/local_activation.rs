@@ -66,6 +66,8 @@ pub(crate) enum ActivationCause {
     /// Activation-lifetime lock acquisition failure — the rendezvous error
     /// a `try_acquire_*_lock` call carries.
     LockFailure(orchbee_local_site_runtime::RendezvousError),
+    /// Selection or initial catalog preparation failed before activation effects.
+    RuntimeLocation(io::Error),
     /// Marker, socket-presence probe, or marker-commit I/O.
     RuntimeIo(io::Error),
     /// Server spawn or post-spawn liveness probe failure — a wedge-class
@@ -121,28 +123,28 @@ pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, Acti
         )
     })?;
     #[cfg(windows)]
-    let mut selection = windows_selection::location().map_err(runtime_failure)?;
+    let mut selection = windows_selection::location().map_err(runtime_location_failure)?;
     #[cfg(windows)]
     let (base, scope_text) = (selection.base.clone(), selection.scope.clone());
     #[cfg(not(windows))]
-    let (base, scope_text) = runtime_location().map_err(runtime_failure)?;
+    let (base, scope_text) = runtime_location().map_err(runtime_location_failure)?;
     let scope = SiteScope::parse(&scope_text)
         .map_err(|_| ActivationFailure::bare(StartupFailure::Runtime))?;
     let scope_directory = base.join(&scope_text);
     #[cfg(windows)]
     let _named_catalog =
         if orchbee_local_site_runtime::WindowsNamedSiteCatalog::supports_scope(&scope_text)
-            .map_err(runtime_failure)?
+            .map_err(runtime_location_failure)?
         {
             let local = std::env::var_os("LOCALAPPDATA")
                 .map(PathBuf::from)
-                .ok_or_else(|| runtime_failure(io::ErrorKind::NotFound.into()))?;
+                .ok_or_else(|| runtime_location_failure(io::ErrorKind::NotFound.into()))?;
             loop {
                 check_deadline(deadline)?;
                 match orchbee_local_site_runtime::WindowsNamedSiteCatalog::try_lock(&base, &local) {
                     Ok(owner) => break Some(owner),
                     Err(error) if error.kind() == io::ErrorKind::WouldBlock => pause(deadline)?,
-                    Err(error) => return Err(runtime_failure(error)),
+                    Err(error) => return Err(runtime_location_failure(error)),
                 }
             }
         } else {
@@ -415,6 +417,13 @@ fn connect(
 /// error rides along for CLI kind classification.
 fn runtime_failure(error: io::Error) -> ActivationFailure {
     ActivationFailure::caused(StartupFailure::Runtime, ActivationCause::RuntimeIo(error))
+}
+
+fn runtime_location_failure(error: io::Error) -> ActivationFailure {
+    ActivationFailure::caused(
+        StartupFailure::Runtime,
+        ActivationCause::RuntimeLocation(error),
+    )
 }
 
 #[cfg(windows)]

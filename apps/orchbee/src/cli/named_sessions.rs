@@ -99,11 +99,13 @@ fn delete(
     };
     let result = (|| {
         signals.check_before(deadline)?;
-        let (base, _) = crate::local_activation::runtime_location().map_err(local_error)?;
+        let (base, _) = crate::local_activation::runtime_location()
+            .map_err(|error| local_error_at(error, "runtime-base"))?;
         let local_app_data = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
-            .ok_or_else(|| Failure::new(FailureKind::CheckFailed))?;
-        let catalog = Catalog::try_lock(&base, &local_app_data).map_err(local_error)?;
+            .ok_or_else(|| local_error(io::ErrorKind::NotFound.into()))?;
+        let catalog = Catalog::try_lock(&base, &local_app_data)
+            .map_err(|error| local_error_at(error, "runtime-base"))?;
         Ok::<_, Failure>(catalog.delete(name, &local_app_data, deadline, || {
             signals.take().map(|signal| signal.is_some())
         }))
@@ -142,11 +144,14 @@ fn failed(failure: Failure, format: OutputFormat, locale: Locale) -> Output {
     )
 }
 fn local_error(error: io::Error) -> Failure {
-    Failure::new(if error.kind() == io::ErrorKind::TimedOut {
-        FailureKind::Timeout
+    local_error_at(error, "runtime-directory")
+}
+fn local_error_at(error: io::Error, stage: &str) -> Failure {
+    if error.kind() == io::ErrorKind::TimedOut {
+        Failure::new(FailureKind::Timeout)
     } else {
-        FailureKind::CheckFailed
-    })
+        Failure::new(FailureKind::CheckFailed).details(super::stage_details(stage))
+    }
 }
 
 fn list(format: OutputFormat, locale: Locale) -> Output {
@@ -156,11 +161,13 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };
     let collected = (|| {
-        let (base, _) = crate::local_activation::runtime_location().map_err(local_error)?;
+        let (base, _) = crate::local_activation::runtime_location()
+            .map_err(|error| local_error_at(error, "runtime-base"))?;
         let local = std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
-            .ok_or_else(|| Failure::new(FailureKind::CheckFailed))?;
-        let entries = Catalog::list(&base, &local, deadline).map_err(local_error)?;
+            .ok_or_else(|| local_error(io::ErrorKind::NotFound.into()))?;
+        let entries = Catalog::list(&base, &local, deadline)
+            .map_err(|error| local_error_at(error, "runtime-base"))?;
         let mut documents = Vec::new();
         let mut text = String::new();
         for entry in entries {
@@ -233,7 +240,7 @@ fn observe(
             };
             return Ok((state, None));
         }
-        Err(_) => return Err(Failure::new(FailureKind::CheckFailed)),
+        Err(_) => return Err(local_error(io::ErrorKind::InvalidData.into())),
     };
     match exchange_server_metadata_before(site.client_socket_path(), deadline, signals.poll_fd()) {
         Ok(metadata) => Ok((
@@ -262,7 +269,7 @@ fn observe(
         Err(ConnectClientError::ConnectFailed(error) | ConnectClientError::Io(error)) => {
             Err(local_error(error))
         }
-        Err(_) => Err(Failure::new(FailureKind::CheckFailed)),
+        Err(_) => Err(local_error_at(io::ErrorKind::InvalidData.into(), "socket")),
     }
 }
 

@@ -10,7 +10,7 @@
 			"const": "orchbee.site.diagnose.windows"
 		},
 		"version": {
-			"const": 2
+			"enum": [2, 3]
 		},
 		"source": {
 			"type": "object",
@@ -41,7 +41,7 @@
 				},
 				"scope": {
 					"type": "string",
-					"pattern": "^orchbee-native-[0-9a-f]{32}$"
+					"pattern": "^(orchbee-native-[0-9a-f]{32}|orchbee-session-[0-9a-f]{47})$"
 				},
 				"runtimeBase": {
 					"$ref": "#/$defs/row"
@@ -158,5 +158,27 @@
 				}
 			]
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"scope": {
+								"pattern": "^orchbee-native-[0-9a-f]{32}$"
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

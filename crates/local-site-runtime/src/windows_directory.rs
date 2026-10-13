@@ -5,6 +5,15 @@
 // command-line quoting differences. No launch argument is interpolated here.
 pub const WINDOWS_DIRECTORY_PROMPT: &str = r"if ($null -eq $global:__OrchbeeDirectoryPrompt) { $global:__OrchbeeDirectoryPrompt = $function:prompt; function global:prompt { $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '; $loc = $ExecutionContext.SessionState.Path.CurrentLocation; if ($loc.Provider.Name -eq 'FileSystem') { try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {} }; $out } }";
 
+/// Fixed initialization for runtime-owned interactive PowerShell processes.
+/// UTF-8 governs native output decoding and pipeline input only in this child.
+#[must_use]
+pub fn windows_interactive_powershell_initialization() -> String {
+    format!(
+        "$global:OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $global:OutputEncoding; {WINDOWS_DIRECTORY_PROMPT}"
+    )
+}
+
 /// Decodes reported paths as observations; callers separately admit launchable path syntax.
 #[must_use]
 pub fn windows_reported_directory(value: &str) -> Option<String> {

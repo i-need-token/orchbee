@@ -25,6 +25,40 @@ pub(super) const HELP_AGENT_ATTENTION_ZH: crate::localization::HelpDetails =
     );
 
 impl Locale {
+    pub(super) fn cli_client_selection_failure(self, reason: &str) -> Option<&'static str> {
+        Some(match (self, reason) {
+            (Self::EnUs, "client-not-found") => {
+                "No current TUI Client matches the selection. Start `orchbee tui`, inspect `orchbee client list`, or pass --client <id>.\n"
+            }
+            (Self::ZhCn, "client-not-found") => {
+                "没有与选择匹配的当前 TUI 客户端。请启动 `orchbee tui`，用 `orchbee client list` 查看，或传入 --client <id>。\n"
+            }
+            (Self::EnUs, "client-ambiguous") => {
+                "More than one current TUI Client matches the selection. Use `orchbee client list` and pass --client <id>.\n"
+            }
+            (Self::ZhCn, "client-ambiguous") => {
+                "多个当前 TUI 客户端与选择匹配。请用 `orchbee client list` 查看并传入 --client <id>。\n"
+            }
+            (Self::EnUs, "client-panel-unavailable") => {
+                "The selected TUI Client has no available current panel. Select a panel in that Client or pass an explicit panel target.\n"
+            }
+            (Self::ZhCn, "client-panel-unavailable") => {
+                "所选 TUI 客户端没有可用的当前面板。请在该客户端选择面板，或传入显式面板目标。\n"
+            }
+            (Self::EnUs, "client-stale") => {
+                "The selected TUI Client is stale. Inspect `orchbee client list` and choose a current Client.\n"
+            }
+            (Self::ZhCn, "client-stale") => {
+                "所选 TUI 客户端已过期。请用 `orchbee client list` 查看并选择当前客户端。\n"
+            }
+            (Self::EnUs, "client-not-ready") => {
+                "The selected TUI Client is not ready; retry after it becomes ready.\n"
+            }
+            (Self::ZhCn, "client-not-ready") => "所选 TUI 客户端尚未就绪；请在其就绪后重试。\n",
+            _ => return None,
+        })
+    }
+
     pub(crate) fn cli_creation(self, document: &Value) -> String {
         let (
             title,

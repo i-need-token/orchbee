@@ -1,6 +1,7 @@
 //! Pane commands use canonical terminal creation and its postcommit receipt.
+use super::failure::Reason;
 use crate::{
-    cli::{Failure, FailureKind, Output, creation, failure_output},
+    cli::{Output, creation, failure_output},
     invocation::{CreationKind, OutputFormat, plugins::panes::Open},
     localization::Locale,
 };
@@ -15,41 +16,43 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
             .options
             .plugin_pane
             .as_ref()
-            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+            .ok_or_else(|| Reason::SelectorUnavailable.failure())?;
         let registry = PluginRegistry::from_environment(|name| std::env::var_os(name))
-            .map_err(|_| Failure::new(FailureKind::ServiceUnavailable))?;
+            .map_err(|_| Reason::RegistryUnavailable.failure())?;
         let catalog = registry
             .list(Some(&selector.plugin_id))
-            .map_err(|_| Failure::new(FailureKind::ServiceUnavailable))?;
+            .map_err(|_| Reason::RegistryUnavailable.failure())?;
         let entry = catalog
             .plugins
             .first()
-            .ok_or_else(|| Failure::new(FailureKind::NotFound))?;
+            .ok_or_else(|| Reason::PluginNotFound.failure())?;
         if !entry.enabled || entry.warning.is_some() {
-            return Err(Failure::new(FailureKind::Rejected));
+            return Err(Reason::PluginDisabled.failure());
         }
         let pane = entry
             .manifest
             .panes
             .iter()
             .find(|pane| pane.id == selector.entrypoint_id)
-            .ok_or_else(|| Failure::new(FailureKind::NotFound))?;
+            .ok_or_else(|| Reason::PaneNotFound.failure())?;
         if !entry.manifest.supports_windows(&pane.platforms) {
-            return Err(Failure::new(FailureKind::Rejected));
+            return Err(Reason::UnsupportedPlatform.failure());
         }
-        command.creation.label = Some(
-            WorkbenchLabel::parse(&pane.title).map_err(|_| Failure::new(FailureKind::Rejected))?,
-        );
+        command.creation.label =
+            Some(WorkbenchLabel::parse(&pane.title).map_err(|_| Reason::InvalidTitle.failure())?);
         let placement = command.placement.unwrap_or(pane.placement);
         if placement != PluginPanePlacement::Popup
             && (command.width.is_some() || command.height.is_some())
         {
-            return Err(Failure::new(FailureKind::Rejected));
+            return Err(Reason::InvalidGeometry.failure());
         }
         match placement {
             PluginPanePlacement::Popup => {
+                if !command.creation.focus {
+                    return Err(Reason::PopupFocusRequired.failure());
+                }
                 if command.active_target_overrides || command.popup_geometry_override {
-                    return Err(Failure::new(FailureKind::Rejected));
+                    return Err(Reason::PopupTargetUnsupported.failure());
                 }
                 let size = |size: &orchbee_local_site_runtime::PluginPopupSize| match size {
                     orchbee_local_site_runtime::PluginPopupSize::Cells(value) => {
@@ -73,7 +76,7 @@ pub(super) fn open(mut command: Open, format: OutputFormat, locale: Locale) -> O
             PluginPanePlacement::Split => {}
             PluginPanePlacement::Overlay => {
                 if command.active_target_overrides {
-                    return Err(Failure::new(FailureKind::Rejected));
+                    return Err(Reason::PopupTargetUnsupported.failure());
                 }
                 command.creation.kind = CreationKind::Split {
                     right_click: Default::default(),

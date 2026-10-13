@@ -2,8 +2,13 @@
 // It accepts only the Codex plugin argv exercised by the native adapter.
 import fs from 'node:fs';
 import path from 'node:path';
-const root = process.env.CODEX_HOME;
+// Model a native provider's known-folder fallback, independent of USERPROFILE.
+// Both choices are owned fixture directories; never consult the real user profile.
+const root = process.env.CODEX_HOME || process.env.ORCHBEE_TEST_CODEX_KNOWN_FOLDER;
+if (process.env.CODEX_HOME && !fs.existsSync(root)) process.exit(1);
+fs.mkdirSync(root, { recursive: true });
 const words = process.argv.slice(2);
+if (process.env.ORCHBEE_TEST_CODEX_NO_EFFECT === '1') process.exit(0);
 const statePath = path.join(root, 'fixture-state.json');
 const state = fs.existsSync(statePath)
 	? JSON.parse(fs.readFileSync(statePath, 'utf8'))

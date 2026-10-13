@@ -2014,7 +2014,7 @@ fn flag_bit(flag: &str) -> &'static str {
 /// owned value stays opaque (`filter`).
 fn flag_value(flag: &str) -> Option<&'static str> {
     match flag {
-        "--json" | "--enabled" | "--disabled" | "--dry-run" => None,
+        "--json" | "--enabled" | "--disabled" | "--dry-run" | "--yes" | "--child" => None,
         "--on" | "--off" | "--toggle" | "--focus" | "--no-focus" => None,
         "--cwd" => Some("cwd"),
         "--right-click" => Some("right_click"),

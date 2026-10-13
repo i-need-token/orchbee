@@ -19,7 +19,9 @@ characters are refused, and the encoded command must fit 8000 ASCII characters.
 
 The terminal must contain an observed idle cmd, PowerShell or pwsh process. Running commands,
 missing process details and additional processes other than known console infrastructure
-refuse startup. Provider hooks must report readiness. [Windows integrations](windows-agent-integrations.md)
+refuse startup. The runtime's exact PowerShell initialization is admitted only with `-NoExit`
+and the ordinary interactive switches. Arbitrary command bodies, appended arguments and
+noninteractive launches remain refused. Provider hooks must report readiness. [Windows integrations](windows-agent-integrations.md)
 defines managed setup and each provider's identity/state limits. Recognizing an executable does not
 establish hook coverage or verify a provider's own interactive UI.
 

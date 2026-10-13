@@ -60,7 +60,10 @@ pub use windows_user_settings::{
 #[cfg(windows)]
 mod windows_directory;
 #[cfg(windows)]
-pub use windows_directory::{WINDOWS_DIRECTORY_PROMPT, windows_reported_directory};
+pub use windows_directory::{
+    WINDOWS_DIRECTORY_PROMPT, windows_interactive_powershell_initialization,
+    windows_reported_directory,
+};
 #[cfg(windows)]
 mod windows_command;
 #[cfg(windows)]

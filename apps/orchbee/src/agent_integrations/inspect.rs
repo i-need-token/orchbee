@@ -607,6 +607,12 @@ pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInsp
     windows::inspect_codex(home, options)
 }
 
+/// One validated Windows profile selection shared by reads and provider mutations.
+#[cfg(windows)]
+pub(crate) fn codex_home(home: &Path) -> Option<PathBuf> {
+    windows::codex_home(home)
+}
+
 #[cfg(unix)]
 pub(crate) fn inspect_codex(home: &Path, options: &ResourceOptions) -> CodexInspection {
     let configuration_path = home.join(".codex/config.toml");

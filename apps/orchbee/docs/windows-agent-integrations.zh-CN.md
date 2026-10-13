@@ -56,7 +56,7 @@ threading 以及 implement/interface 过程宏。过程宏复用现有 syn/quote
 
 Windows `agent integration list --outdated-only` 只执行一次原有有界本地检查，仅显示 update-required 条目，包括需要修复的自有安装。它不安装、不下载。`agent integration enable --provider <id>` 仍是显式且受保护的更新／修复操作；冲突及更新版本条目不会被替换。
 
-筛选列表使用 v2，包含 outdatedOnly true、inspectedCount、表示检查未知的 unresolvedProviderIds，以及表示冲突／更新版本的 blockedProviderIds。Complete 在筛选前根据全部所选检查计算；空列表不能隐藏检查失败。文本包含这些计数和相同筛选条目。默认列表保持 v1 及既有行为。此参数不新增非 Windows 运行时；原有 40 秒期限、取消、用户目录隔离及仅本地归属保持不变。详细已安装版本报告及其余 provider 的 Windows hook 支持仍是独立义务。
+筛选列表使用 v4，包含 outdatedOnly true、inspectedCount、表示检查未知的 unresolvedProviderIds，以及表示冲突／更新版本的 blockedProviderIds。Complete 在筛选前根据全部所选检查计算；空列表不能隐藏检查失败。文本包含这些计数和相同筛选条目。默认列表使用 v3。两个当前版本均接纳全部 20 个规范提供方；v1/v2 保留原有集合与检查计数边界。此参数不新增非 Windows 运行时；原有 40 秒期限、取消、用户目录隔离及仅本地归属保持不变。详细已安装版本报告及其余 provider 的 Windows hook 支持仍是独立义务。
 
 ## Claude exec hooks
 
@@ -73,6 +73,14 @@ Capsule 0.4.16 使用 Copilot 的 Node exec hook 形式。固定导入保护将 
 即使 marketplace 根目录是旧版自有 capsule，Claude 或 Copilot 报告的更新插件版本仍会阻止 Windows 修复。版本数据缺失不能授权替换。
 
 ## Windows TOML 和 Grok 本地状态
+
+Windows Codex 的检查与修改共用一个经过校验的配置根：非空 `CODEX_HOME`，或在其缺失／为空时
+使用 `USERPROFILE/.codex`。每条自有 Codex 命令都通过仅属于子进程的 `CODEX_HOME` 接收该根，
+提供方的已知文件夹发现不能选择另一份用户配置。无效显式根拒绝且不回退。缺失的默认目录
+在提供方命令前通过受保护祖先创建，记录为 `prepare-codex-home`，并在计划中作为 guarded write
+呈现。现有根在整个命令序列中保持固定；显式非空根必须已存在。提供方命令成功后，
+会对同一配置进行新的有界检查；未观察到安装／移除时返回 `verification-failed`，不报告完成。
+隔离 CLI 测试覆盖默认与显式根、空覆盖值，以及退出成功但未产生效果的情况。
 
 Windows Codex 和 Grok 检查在既有 512 KiB 读取上限内解析完整 UTF-8 TOML 文档。语法错误、重复赋值、无效 UTF-8 和不可读数据返回 unknown；合法引号键／点分键、内联表和行尾注释保留原有含义。解析不写配置，也不回显其内容。仍要求插件布尔值类型正确及本地来源所有权精确匹配。仅 Windows 使用 toml 1.1.6，禁用默认特性，只启用 std、parse 和 serde；不启用序列化／display、unsafe 解析加速或 SIMD。新增依赖树为 serde_spanned 1.1.1、toml_datetime 1.1.1、toml_parser 1.1.3 和 winnow 1.0.4，复用已有 serde_core 1.0.229。只读 toml 依赖不需要 display；下述 Kimi 编辑额外编译已锁定的 toml_writer 1.1.2。不新增构建脚本或过程宏；toml 系列许可为 MIT OR Apache-2.0，winnow 为 MIT。Winnow 内部包含 unsafe 切片操作；自有代码继续禁止 unsafe。既有 Unix 解析器不变。
 

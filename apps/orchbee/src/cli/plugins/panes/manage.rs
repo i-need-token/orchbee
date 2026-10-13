@@ -75,21 +75,21 @@ fn execute(
             deadline,
             signals.poll_fd(),
         )
-        .map_err(|_| Failure::new(FailureKind::TransportLoss))?;
+        .map_err(|_| super::Reason::TransportLoss.failure())?;
     signals.check_before(deadline)?;
     let (revision, pane) = match reply.outcome {
         PluginOutcome::PaneFound { revision, pane } => (revision, pane),
         PluginOutcome::Failed {
             reason: PluginFailure::NotFound,
-        } => return Err(Failure::new(FailureKind::NotFound)),
+        } => return Err(super::Reason::PaneNotFound.failure()),
         PluginOutcome::Failed {
             reason: PluginFailure::Denied,
         } => return Err(Failure::new(FailureKind::Denied)),
-        PluginOutcome::Failed { .. } => return Err(Failure::new(FailureKind::ServiceUnavailable)),
-        _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+        PluginOutcome::Failed { .. } => return Err(super::Reason::PluginUnavailable.failure()),
+        _ => return Err(super::Reason::InvalidReply.failure()),
     };
     if revision != snapshot.revision {
-        return Err(Failure::new(FailureKind::Rejected));
+        return Err(super::Reason::PaneChanged.failure());
     }
     if pane.panel_id != *panel_id
         || pane.tab_id != tab.tab_id
@@ -99,7 +99,7 @@ fn execute(
                 || presentation.binding.as_ref() != Some(&pane.binding)
         })
     {
-        return Err(Failure::new(FailureKind::ProtocolInvalid));
+        return Err(super::Reason::InvalidReply.failure());
     }
     if !command.focus {
         let receipt = mutation::submit_action(
@@ -132,7 +132,7 @@ fn execute(
     let clients = match reply.outcome {
         ClientViewOutcome::Listed { clients } => clients,
         ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
-        _ => return Err(Failure::new(FailureKind::ServiceUnavailable)),
+        _ => return Err(super::Reason::ClientListingUnavailable.failure()),
     };
     let selected =
         client_control::selection::select(&clients, command.client.as_ref(), caller.as_ref())?;

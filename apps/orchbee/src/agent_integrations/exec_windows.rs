@@ -88,16 +88,39 @@ pub(crate) fn run_hermes_command(
         executable,
         arguments,
         home,
-        Some(&profile),
+        Some(("HERMES_HOME", &profile)),
         deadline,
         cancel,
     )
 }
+
+pub(crate) fn run_codex_command(
+    executable: &Path,
+    arguments: &[String],
+    home: &Path,
+    deadline: Instant,
+    cancel: Option<&dyn crate::termination_signal::TerminationSource>,
+) -> CommandResult {
+    let Some(profile) = super::inspect::codex_home(home) else {
+        return CommandResult::Failed;
+    };
+    // Codex's native known-folder fallback does not follow an isolated USERPROFILE.
+    // Bind only this child's configuration home to the same path inspection selected.
+    run_scoped_command(
+        executable,
+        arguments,
+        home,
+        Some(("CODEX_HOME", &profile)),
+        deadline,
+        cancel,
+    )
+}
+
 fn run_scoped_command(
     executable: &Path,
     arguments: &[String],
     home: &Path,
-    hermes_home: Option<&Path>,
+    provider_home: Option<(&str, &Path)>,
     invocation_deadline: Instant,
     cancel: Option<&dyn crate::termination_signal::TerminationSource>,
 ) -> CommandResult {
@@ -121,8 +144,8 @@ fn run_scoped_command(
         .stdin(Stdio::null())
         .stdout(writer)
         .stderr(Stdio::null());
-    if let Some(profile) = hermes_home {
-        command.env("HERMES_HOME", profile);
+    if let Some((variable, profile)) = provider_home {
+        command.env(variable, profile);
     }
     let mut wrapped = CommandWrap::from(command);
     wrapped

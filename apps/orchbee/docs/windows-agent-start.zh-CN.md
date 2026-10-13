@@ -15,7 +15,9 @@ orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format jso
 两种形式混用会被拒绝。保留空参数，拒绝控制字符，编码后命令不能超过 8000 个 ASCII 字符。
 
 终端必须有已观察到的空闲 cmd、PowerShell 或 pwsh 进程。运行中的命令、缺失的进程详情，
-或已知控制台基础设施以外的额外进程均拒绝启动。提供方 hook 必须报告就绪。
+或已知控制台基础设施以外的额外进程均拒绝启动。运行时的完整 PowerShell 初始化脚本
+仅在带有 `-NoExit` 和常规交互开关时被接受。任意命令脚本、附加参数和非交互启动仍被拒绝。
+提供方 hook 必须报告就绪。
 [Windows 集成](windows-agent-integrations.zh-CN.md)定义托管安装及各提供方的身份／状态边界。
 识别可执行文件不代表具有 hook 覆盖，也不验证提供方自身的交互界面。
 

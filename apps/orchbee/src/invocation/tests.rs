@@ -1,7 +1,21 @@
 use super::PanelQueryTarget;
 use super::{CreationCommand, CreationKind, SiteStopCommand};
 use super::{CreationDirectory, ManifestCommand};
+use crate::localization::Locale;
 use std::ffi::OsString;
+
+#[test]
+fn unknown_options_point_to_the_recognized_command_help() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let failure = parse(&["workspace", "get", "work", "--fomat", "json"]).unwrap_err();
+        let output = crate::cli::parse_failure(failure, locale);
+        assert!(
+            output.stderr.contains("orchbee workspace get --help"),
+            "{}",
+            output.stderr
+        );
+    }
+}
 
 fn expected_terminal_read(
     target: Target,
@@ -116,7 +130,6 @@ fn runtime_status_scopes_preserve_bare_status_and_closed_options() {
             vec!["--current"],
             vec!["--client=x"],
             vec!["--timeout=1"],
-            vec!["--format=json", "--help"],
         ] {
             assert!(
                 parse_request(
@@ -856,8 +869,6 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["-x"],
         &["--unknown"],
         &["status", "--unknown"],
-        &["--help", "status"],
-        &["status", "--help", "extra"],
         &["help", "--help"],
         &["help", "help"],
         &["help", "version"],
@@ -882,7 +893,6 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["tui", "--mouse=bogus"],
         &["tui", "--mouse", "bogus"],
         &["tui", "--mouse", "off", "--mouse", "on"],
-        &["tui", "--mouse", "off", "--help"],
         &["tui", "--", "--mouse", "off"],
         &["completion"],
         &["completion", "unknown-shell"],
@@ -901,6 +911,38 @@ fn text_and_unselected_syntax_failures_stay_silent() {
             Err(usage(FailureEnvelope::Text)),
             "{arguments:?}"
         );
+    }
+}
+
+#[test]
+fn help_recognizes_command_paths_with_operands_and_options_without_execution() {
+    assert_eq!(parse(&["--format=json", "--help"]), Ok(Request::RootHelp));
+    for args in [
+        vec!["workspace", "get", "work", "--help"],
+        vec!["workspace", "get", "--format", "json", "--help"],
+        vec!["--help", "workspace", "get", "work"],
+        vec!["workspace", "--help", "get", "work"],
+    ] {
+        assert_eq!(
+            parse(&args),
+            Ok(Request::Help(HelpTopic::Command(CommandPath::WorkspaceGet))),
+            "{args:?}"
+        );
+    }
+    for args in [
+        vec!["workspace", "get", "--bogus", "--help"],
+        vec!["workspace", "get", "--label", "--help"],
+        vec!["workspace", "get", "--help", "--help"],
+        vec!["workspace", "misspelled", "--help"],
+        vec!["terminal", "observe", "--help"],
+        vec!["help", "terminal", "control"],
+    ] {
+        assert!(parse(&args).is_err(), "{args:?}");
+    }
+    for path in super::help::help_paths() {
+        if let HelpTopic::Command(command) = path.topic() {
+            assert_eq!(path.words().join(" "), command.as_str());
+        }
     }
 }
 
@@ -1110,27 +1152,42 @@ fn suffix_help_resolves_any_recognized_help_path() {
         assert_eq!(parse(&aliased), Ok(Request::Help(*topic)), "{aliased:?}");
     }
 
-    let cases: &[&[&str]] = &[
-        // Business arguments with suffix help are usage.
-        &["project", "get", "x", "--help"],
-        &["api", "schema", "orchbee.status", "--help"],
-        &["completion", "bash", "--help"],
-        &["workspace", "list", "--project", "x", "--help"],
-        &["tab", "list", "--standalone", "--help"],
-        // Format on a help request is a syntax failure.
-        &["status", "--help", "--format", "text"],
-        &["--format", "text", "status", "--help"],
+    let cases: &[(&[&str], HelpTopic)] = &[
+        (
+            &["project", "get", "x", "--help"],
+            HelpTopic::Command(CommandPath::ProjectGet),
+        ),
+        (
+            &["api", "schema", "orchbee.status", "--help"],
+            HelpTopic::Command(CommandPath::ApiSchema),
+        ),
+        (
+            &["completion", "bash", "--help"],
+            HelpTopic::Family(Family::Completion),
+        ),
+        (
+            &["workspace", "list", "--project", "x", "--help"],
+            HelpTopic::Command(CommandPath::WorkspaceList),
+        ),
+        (
+            &["tab", "list", "--standalone", "--help"],
+            HelpTopic::Command(CommandPath::TabList),
+        ),
+        (
+            &["status", "--help", "--format", "text"],
+            HelpTopic::Command(CommandPath::Status),
+        ),
+        (
+            &["--format", "text", "status", "--help"],
+            HelpTopic::Command(CommandPath::Status),
+        ),
     ];
-    for arguments in cases {
-        assert_eq!(
-            parse(arguments),
-            Err(usage(FailureEnvelope::Text)),
-            "{arguments:?}"
-        );
+    for (arguments, topic) in cases {
+        assert_eq!(parse(arguments), Ok(Request::Help(*topic)), "{arguments:?}");
     }
     assert_eq!(
         parse(&["status", "--help", "--format", "json"]),
-        Err(usage(FailureEnvelope::Json))
+        Ok(Request::Help(HelpTopic::Command(CommandPath::Status)))
     );
 }
 
@@ -3579,15 +3636,21 @@ fn mutation_help_paths_resolve_both_forms() {
     for (arguments, topic) in topics {
         assert_eq!(parse(arguments), Ok(Request::Help(*topic)), "{arguments:?}");
     }
-    // Business arguments keep suffix help a usage failure.
-    for arguments in [
-        &["workspace", "create", "--project", "p", "--help"][..],
-        &["tab", "close", ID, "--confirm", "--help"][..],
-        &["panel", "move", ID, "--help"][..],
+    // Help never executes mutations, even when destructive options are supplied.
+    for (arguments, topic) in [
+        (
+            &["workspace", "create", "--project", "p", "--help"][..],
+            CommandPath::WorkspaceCreate,
+        ),
+        (
+            &["tab", "close", ID, "--confirm", "--help"][..],
+            CommandPath::TabClose,
+        ),
+        (&["panel", "move", ID, "--help"][..], CommandPath::PanelMove),
     ] {
         assert_eq!(
             parse(arguments),
-            Err(usage(FailureEnvelope::Text)),
+            Ok(Request::Help(HelpTopic::Command(topic))),
             "{arguments:?}"
         );
     }
@@ -3658,12 +3721,14 @@ fn usage_failures_carry_their_concrete_reason() {
         (
             &["--bogus"],
             UsageReason::UnknownOption {
+                context: UsageContext::Root,
                 option: "--bogus".to_owned(),
             },
         ),
         (
             &["-x"],
             UsageReason::UnknownOption {
+                context: UsageContext::Root,
                 option: "-x".to_owned(),
             },
         ),
@@ -3802,20 +3867,6 @@ fn usage_failures_carry_their_concrete_reason() {
             },
         ),
         (
-            &["status", "--help", "--format", "text"],
-            UsageReason::UnexpectedOption {
-                context: path("status"),
-                option: "--format",
-            },
-        ),
-        (
-            &["status", "--project", "x", "--help"],
-            UsageReason::UnexpectedOption {
-                context: path("status"),
-                option: "--project",
-            },
-        ),
-        (
             &["help", "status", "--project", "x"],
             UsageReason::UnexpectedOption {
                 context: path("status"),
@@ -3833,14 +3884,7 @@ fn usage_failures_carry_their_concrete_reason() {
             &["--help", "--version"],
             UsageReason::MisplacedFlag {
                 context: UsageContext::Root,
-                flag: "--help",
-            },
-        ),
-        (
-            &["-h", "status"],
-            UsageReason::MisplacedFlag {
-                context: path("status"),
-                flag: "-h",
+                flag: "--version",
             },
         ),
         (
@@ -3848,12 +3892,6 @@ fn usage_failures_carry_their_concrete_reason() {
             UsageReason::MisplacedFlag {
                 context: UsageContext::Root,
                 flag: "--help",
-            },
-        ),
-        (
-            &["project", "get", "x", "--help"],
-            UsageReason::UnknownHelpTopic {
-                path: "project get x".to_owned(),
             },
         ),
         // Scope failures name the first out-of-scope flag in declaration order.
@@ -4136,6 +4174,11 @@ fn ownership_and_terminator_keep_their_reasons() {
         assert_eq!(
             failure.usage.as_ref(),
             Some(&UsageReason::UnknownOption {
+                context: UsageContext::Path(if arguments[0] == "tab" {
+                    "tab list"
+                } else {
+                    "workspace list"
+                }),
                 option: arguments.last().expect("listed").to_string(),
             }),
             "{arguments:?}"
@@ -4148,6 +4191,7 @@ fn ownership_and_terminator_keep_their_reasons() {
     assert_eq!(
         failure.usage.as_ref(),
         Some(&UsageReason::UnknownOption {
+            context: UsageContext::Path("status"),
             option: "--bogus".to_owned(),
         })
     );

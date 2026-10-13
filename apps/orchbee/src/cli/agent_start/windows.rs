@@ -577,7 +577,27 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
     {
         return Err(refuse());
     }
-    for arg in &args[1..] {
+    let switches = &args[1..];
+    // The worker's fixed initialization finishes before the interactive prompt. Arbitrary
+    // command bodies and noninteractive launches still cannot establish an idle shell.
+    let runtime_initialization = shell != "cmd"
+        && switches.last().is_some_and(|script| {
+            script == orchbee_local_site_runtime::WINDOWS_DIRECTORY_PROMPT
+                || script
+                    == &orchbee_local_site_runtime::windows_interactive_powershell_initialization()
+        });
+    let flags = if switches.len() >= 3
+        && runtime_initialization
+        && switches[switches.len() - 2].eq_ignore_ascii_case("-Command")
+        && switches[..switches.len() - 2]
+            .iter()
+            .any(|flag| flag.eq_ignore_ascii_case("-NoExit"))
+    {
+        &switches[..switches.len() - 2]
+    } else {
+        switches
+    };
+    for arg in flags {
         let arg = arg.to_ascii_lowercase();
         if if shell == "cmd" {
             !matches!(
