@@ -120,6 +120,24 @@ fn emits_one_locale_neutral_version_line() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_agent_list_reaches_site_admission_instead_of_platform_stub() -> Result<(), Box<dyn Error>>
+{
+    // The unadorned Cargo binary has no cohort sidecar, so the read must stop
+    // at that real admission check rather than report unsupported-platform.
+    let output = Command::new(env!("CARGO_BIN_EXE_orchbee"))
+        .args(["agent", "list", "--format=json"])
+        .env("ORCHBEE_RUNTIME_BASE", "invalid-relative-runtime")
+        .output()?;
+    assert_eq!(output.status.code(), Some(1));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["failure"]["kind"], "check-failed");
+    assert_eq!(document["failure"]["details"]["stage"], "cohort");
+    assert!(!output.stderr.is_empty());
+    Ok(())
+}
+
 #[test]
 fn bare_non_tty_invocation_fails_before_startup() -> Result<(), Box<dyn Error>> {
     for arguments in [Vec::<&str>::new(), vec!["tui"]] {

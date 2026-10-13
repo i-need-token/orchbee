@@ -1473,6 +1473,10 @@ command's own timeout. They skip the Workbench snapshot read entirely. On the si
 admitted Client Session they resolve the target when necessary as described above,
 then perform one Agent Observation Protocol (OBAP) read exchange:
 
+Apple Silicon macOS development builds currently expose this path for `agent list` without
+`--client`; `get`, `explain`, `wait`, `changes`, and the Client projection retain their documented
+platform limits.
+
 1. **Request** — one OBAP frame (`OBAP` magic, version 1) under a freshly minted
    `ObapRequestId`: `agent.session.list.request` (kind 1) carrying `includeEnded`,
    `limit`, and an optional `cursor` (omitted on the first page — never serialized as

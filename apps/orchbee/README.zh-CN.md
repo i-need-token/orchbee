@@ -158,6 +158,9 @@ orchbee agent list                        # 运行中 Site 观察到的会话
 orchbee agent wait <session-id> --until ended
 ```
 
+Apple Silicon macOS 开发 cohort 支持查询 Site 的 `agent list` 及其有界分页选项。按 Client
+投影的状态（`--client`）仍仅限 Windows；其他 Agent 观察命令继续遵循各自文档中的平台范围。
+
 `orchbee help <family>` 直接从二进制输出同一套语法，
 `orchbee completion <shell>` 打印对应的按键发现脚本，由你的 shell
 自行 source。

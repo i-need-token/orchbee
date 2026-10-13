@@ -1199,6 +1199,9 @@ cohort → discovery → socket → admission 前导，但共享一个在调用�
 timeout。它们完全跳过 Workbench 快照读取。它们在唯一已准入的 Client Session 上
 必要时先完成上述名称解析，再执行一次 Agent Observation Protocol（OBAP）读取交换：
 
+Apple Silicon macOS 开发构建目前仅通过此路径提供不带 `--client` 的 `agent list`；`get`、
+`explain`、`wait`、`changes` 与 Client 投影仍遵循各自文档中的平台范围。
+
 1. **请求**——一个 OBAP 帧（`OBAP` magic，version 1），使用全新铸造的
    `ObapRequestId`：`agent.session.list.request`（kind 1）携带 `includeEnded`、
    `limit` 与可选 `cursor`（首页省略——绝不序列化为 `null`，线上显式 `null`

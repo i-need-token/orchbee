@@ -172,6 +172,10 @@ orchbee agent list                        # sessions the running Site observes
 orchbee agent wait <session-id> --until ended
 ```
 
+The Apple Silicon macOS development cohort supports the Site-backed `agent list` query and its
+bounded page options. The per-Client projection (`--client`) remains Windows-only; other Agent
+observation commands retain their documented platform limits.
+
 `orchbee help <family>` prints the same grammar from the binary itself, and
 `orchbee completion <shell>` prints the matching key-driven discovery script
 for your shell to source.
