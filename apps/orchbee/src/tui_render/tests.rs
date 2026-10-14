@@ -9,6 +9,7 @@ use crate::{
     },
     localization::Locale,
     tui_layout::ViewportTier,
+    tui_theme::Role,
 };
 
 use super::render_shell;
@@ -23,8 +24,8 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
             frame,
             frame.area(),
             &view,
+            None,
             Locale::EnUs,
-            Locale::EnUs.shell(),
             "terminal · Close cleanup blocked",
             Some("Close request was not applied"),
             false,
@@ -32,6 +33,7 @@ fn close_request_notice_does_not_replace_the_exact_status_text() {
             false,
             ViewportTier::Full,
             &crate::tui_theme::Theme::rgb_test_dark(),
+            None,
         );
     }));
     assert!(visible.is_some());
@@ -67,8 +69,8 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
                         frame,
                         frame.area(),
                         &view,
+                        None,
                         locale,
-                        locale.shell(),
                         &status,
                         Some(&notice),
                         false,
@@ -76,6 +78,7 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
                         false,
                         ViewportTier::Full,
                         &crate::tui_theme::Theme::one_light(),
+                        None,
                     );
                 }));
                 let text = buffer_rows(&terminal, 120, 1).concat();
@@ -97,9 +100,17 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
                     );
                 } else {
                     assert!(without_cell_padding(&text).contains(&without_cell_padding(&status)));
+                    let idle_hint = format!(
+                        "{} {}",
+                        crate::client_view::format_binding_with_glyphs(
+                            &view.bindings().prefix,
+                            crate::client_view::LabelStyle::for_host(),
+                            crate::client_view::KeyLabelGlyphs::Unicode,
+                        ),
+                        locale.status().shortcuts,
+                    );
                     assert!(
-                        without_cell_padding(&text)
-                            .contains(&without_cell_padding(locale.shell().prefix_idle)),
+                        without_cell_padding(&text).contains(&without_cell_padding(&idle_hint)),
                         "{locale:?} missing idle hint: {text:?}"
                     );
                 }
@@ -110,12 +121,12 @@ fn ux_status_matching_native_notice_is_painted_once_and_keeps_hints() {
 
 #[cfg(windows)]
 #[test]
-fn sidebar_status_keeps_a_blank_before_hints_without_attesting_truncated_text() {
+fn sidebar_status_keeps_canonical_whole_hints_and_drops_oversized_facts() {
     use crate::{
+        machine_picker::{SidebarCommand, sidebar_binding_label},
         terminal_text::display_width,
         tui_theme::{GlyphSet, Theme},
     };
-    use ratatui::{layout::Rect, style::Style, text::Span};
 
     for width in [70, 120] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -124,17 +135,39 @@ fn sidebar_status_keeps_a_blank_before_hints_without_attesting_truncated_text() 
                 let mut view = ClientView::new(width);
                 view.machines.available = true;
                 assert!(view.machines.enter_sidebar_navigation());
-                let hint = locale.sidebar_navigation_hint(width == 120);
-                let hint_width = u16::try_from(display_width(&hint)).unwrap();
-                let left = Rect::new(0, 0, width - hint_width.max(24), 1);
-                let separator = left.right() - 1;
+                let mut commands = vec![SidebarCommand::Exit];
+                if width == 120 {
+                    commands.extend([
+                        SidebarCommand::Activate,
+                        SidebarCommand::OpenMenu,
+                        SidebarCommand::Help,
+                    ]);
+                }
+                let key_glyphs = if glyphs == GlyphSet::ASCII {
+                    crate::client_view::KeyLabelGlyphs::Ascii
+                } else {
+                    crate::client_view::KeyLabelGlyphs::Unicode
+                };
+                let hints = commands
+                    .into_iter()
+                    .map(|command| {
+                        format!(
+                            "{} {}",
+                            sidebar_binding_label(command, key_glyphs).unwrap(),
+                            locale.sidebar_navigation_action(command),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(&format!(" {} ", theme.glyphs.middle_dot));
+                let expected = format!(
+                    "{} {} {hints}",
+                    locale.status().sidebar,
+                    theme.glyphs.middle_dot,
+                );
                 for (status, fits) in [
                     ("Ready".to_owned(), true),
-                    ("x".repeat(usize::from(left.width)), false),
-                    (
-                        format!("{}界", "x".repeat(usize::from(left.width - 2))),
-                        false,
-                    ),
+                    ("Q".repeat(usize::from(width)), false),
+                    (format!("{}界", "Q".repeat(usize::from(width - 2))), false),
                 ] {
                     let mut terminal = infallible(Terminal::new(TestBackend::new(width, 1)));
                     let mut visible = None;
@@ -143,8 +176,8 @@ fn sidebar_status_keeps_a_blank_before_hints_without_attesting_truncated_text() 
                             frame,
                             frame.area(),
                             &view,
+                            None,
                             locale,
-                            locale.shell(),
                             &status,
                             None,
                             false,
@@ -152,34 +185,40 @@ fn sidebar_status_keeps_a_blank_before_hints_without_attesting_truncated_text() 
                             false,
                             ViewportTier::from_size(width, 30),
                             &theme,
+                            None,
                         );
                     }));
                     assert_eq!(
                         visible,
-                        fits.then_some(left),
+                        fits.then_some(ratatui::layout::Rect::new(
+                            0,
+                            0,
+                            u16::try_from(display_width(&status)).unwrap(),
+                            1,
+                        )),
                         "{locale:?} {width}: {status}"
                     );
                     let buffer = terminal.backend().buffer();
-                    assert_eq!(buffer[(separator, 0)].symbol(), " ");
-                    let mut x = 0;
-                    let mut retained = String::new();
-                    while x < separator {
-                        let symbol = buffer[(x, 0)].symbol();
-                        retained.push_str(symbol);
-                        x += u16::try_from(display_width(symbol).max(1)).unwrap();
-                        assert!(x <= separator, "wide glyph crossed the separator");
-                    }
+                    let retained = (0..width)
+                        .map(|x| buffer[(x, 0)].symbol())
+                        .collect::<String>();
                     if fits {
-                        assert_eq!(retained.trim_end(), status);
+                        assert!(retained.starts_with(&status));
                     } else {
-                        assert!(retained.trim_end().ends_with(glyphs.ellipsis));
+                        assert!(!retained.starts_with('Q'));
+                        assert!(!retained.contains(glyphs.ellipsis));
                     }
-                    let mut x = width - hint_width;
-                    for grapheme in Span::raw(&hint).styled_graphemes(Style::default()) {
-                        assert_eq!(buffer[(x, 0)].symbol(), grapheme.symbol);
-                        x += u16::try_from(display_width(grapheme.symbol)).unwrap();
+                    assert!(
+                        without_cell_padding(&retained).ends_with(&without_cell_padding(&expected)),
+                        "{retained:?}"
+                    );
+                    if glyphs == GlyphSet::ASCII {
+                        assert!(
+                            !['↑', '↓', '←', '→']
+                                .into_iter()
+                                .any(|arrow| retained.contains(arrow))
+                        );
                     }
-                    assert_eq!(x, width);
                 }
             }
         }
@@ -245,6 +284,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                             frame,
                             viewport,
                             menu.view().unwrap(),
+                            &crate::client_view::Bindings::default(),
                             locale,
                             &theme,
                             &mut hits,
@@ -336,6 +376,7 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                                 frame,
                                 viewport,
                                 menu.view().unwrap(),
+                                &crate::client_view::Bindings::default(),
                                 locale,
                                 &theme,
                                 &mut hits,
@@ -453,6 +494,275 @@ fn without_cell_padding(value: &str) -> String {
     value.replace(' ', "")
 }
 
+#[cfg(windows)]
+#[test]
+fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
+    use crate::{
+        client_view::{ClientAction, SidebarSurface},
+        terminal_text::display_width,
+        tui_layout::project_shell_areas,
+        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_theme::{Role, Theme},
+    };
+    use ratatui::{layout::Rect, style::Modifier};
+
+    for (width, height) in [(50, 10), (80, 24), (120, 40)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let mut view = ClientView::new(width);
+            view.machines.available = true;
+            if view.sidebar_surface() != SidebarSurface::Hidden {
+                let transition = view.decide_action(ClientAction::ToggleBusinessSidebar);
+                view.commit(transition, SessionActionDisposition::KeepNavigator);
+            }
+            assert_eq!(view.sidebar_surface(), SidebarSurface::Hidden);
+
+            let projected =
+                project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
+            let theme = Theme::one_dark();
+            let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
+            let mut hits = HitMapBuilder::new();
+            infallible(terminal.draw(|frame| {
+                super::render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+            }));
+            let map = hits.finish();
+            let buffer = terminal.backend().buffer();
+            let target_rect = |target: &HitTarget| {
+                let cells = (0..height)
+                    .flat_map(|y| (0..width).map(move |x| (x, y)))
+                    .filter(|&(x, y)| map.hit_target_at(x, y) == Some(target))
+                    .collect::<Vec<_>>();
+                if cells.is_empty() {
+                    return None;
+                }
+                let y = cells[0].1;
+                assert!(cells.iter().all(|(_, candidate_y)| *candidate_y == y));
+                let left = cells.iter().map(|(x, _)| *x).min().unwrap();
+                let right = cells.iter().map(|(x, _)| *x).max().unwrap() + 1;
+                assert_eq!(cells.len(), usize::from(right - left));
+                Some(Rect::new(left, y, right - left, 1))
+            };
+            let assert_action = |rect: Rect, label: &str| {
+                assert_eq!(
+                    usize::from(rect.width),
+                    display_width(label) + 5,
+                    "one focus cell plus canonical `[ Label ]` grammar"
+                );
+                let text = (rect.x..rect.right())
+                    .map(|x| buffer[(x, rect.y)].symbol())
+                    .collect::<String>();
+                assert_eq!(without_cell_padding(&text), format!("[{label}]"));
+                let expected = theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    None,
+                    Some(Role::TextPrimary),
+                    theme.style(Role::TextPrimary),
+                );
+                let mut x = rect.x;
+                while x < rect.right() {
+                    let cell = &buffer[(x, rect.y)];
+                    assert_eq!(cell.style(), expected, "action cell at column {x}");
+                    assert!(!cell.modifier.contains(Modifier::BOLD));
+                    // A wide grapheme's lead cell owns the terminal style for its complete
+                    // display width; TestBackend represents continuation cells as padding.
+                    x = x.saturating_add(
+                        u16::try_from(display_width(cell.symbol()).max(1))
+                            .expect("one action glyph fits in the terminal width"),
+                    );
+                }
+                assert_eq!(x, rect.right(), "action styles cover the exact target");
+            };
+
+            let menu = target_rect(&HitTarget::MenuButton).expect("global Menu action");
+            assert_action(menu, locale.menu_title());
+            if projected.tabs.is_empty() {
+                assert_eq!(menu.right() + 1, projected.workbench.right());
+                assert!(target_rect(&HitTarget::SidebarRestoreButton).is_none());
+            } else {
+                assert_eq!(menu.right(), projected.tabs.right());
+                let restore = target_rect(&HitTarget::SidebarRestoreButton)
+                    .expect("hidden available sidebar restore action");
+                assert_action(restore, locale.sidebar_restore_label());
+                assert_eq!(restore.x, projected.tabs.x);
+                assert!(restore.right() <= menu.x);
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn too_small_root_compositor_paints_only_the_notice_and_status() {
+    use crate::{
+        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_theme::Theme,
+    };
+
+    #[derive(Clone, Copy, Debug)]
+    enum Scenario {
+        Ordinary,
+        Help,
+        Resize,
+    }
+
+    for (width, height) in [(100, 1), (100, 3), (100, 4), (19, 24)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for scenario in [Scenario::Ordinary, Scenario::Help, Scenario::Resize] {
+                let mut view = ClientView::new(width);
+                view.machines.available = true;
+                match scenario {
+                    Scenario::Ordinary => {}
+                    Scenario::Help => prefix(&mut view, plain('?')),
+                    Scenario::Resize => prefix(&mut view, plain('P')),
+                }
+
+                let theme = Theme::one_dark();
+                let key_glyphs = match theme.glyphs.mode() {
+                    crate::tui_theme::GlyphMode::Unicode => {
+                        crate::client_view::KeyLabelGlyphs::Unicode
+                    }
+                    crate::tui_theme::GlyphMode::Simplified => {
+                        crate::client_view::KeyLabelGlyphs::Ascii
+                    }
+                };
+                let exit_key = view
+                    .bindings()
+                    .action_labels_with_glyphs(
+                        crate::client_view::PrefixAction::Client(
+                            crate::client_view::ClientAction::Exit,
+                        ),
+                        key_glyphs,
+                    )
+                    .into_iter()
+                    .next()
+                    .expect("the effective Exit action remains bound");
+                let exit_hint = format!("{exit_key} {}", locale.status().exit);
+                let resize_exit = crate::client_view::format_binding_with_glyphs(
+                    &crate::client_view::Binding::new(
+                        crate::client_view::KeyCode::Esc,
+                        crate::client_view::Modifiers::NONE,
+                    ),
+                    crate::client_view::LabelStyle::for_host(),
+                    key_glyphs,
+                );
+                let mut terminal = infallible(Terminal::new(TestBackend::new(width, height)));
+                let mut hits = HitMapBuilder::new();
+                infallible(terminal.draw(|frame| {
+                    super::render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+                }));
+                assert_eq!(
+                    hits.painted_panes().count(),
+                    0,
+                    "{width}x{height} {scenario:?}"
+                );
+                let map = hits.finish();
+                assert_eq!(
+                    map.help_draw_source(),
+                    None,
+                    "{width}x{height} {scenario:?} published hidden Help metadata"
+                );
+                for row in 0..height {
+                    for column in 0..width {
+                        if let Some(target) = map.hit_target_at(column, row) {
+                            assert_eq!(
+                                target,
+                                &HitTarget::OverlaySurface,
+                                "{width}x{height} {scenario:?} published {target:?}"
+                            );
+                        }
+                    }
+                }
+
+                let rows = buffer_rows(&terminal, width, height);
+                let body_rows = &rows[..usize::from(height.saturating_sub(1))];
+                let visible_body = body_rows
+                    .iter()
+                    .map(|row| without_cell_padding(row))
+                    .filter(|row| !row.is_empty())
+                    .collect::<Vec<_>>();
+                let marker = format!("{} ", theme.glyphs.status_bullet);
+                let marker_width = crate::terminal_text::display_width(&marker);
+                let expected_notice = if marker_width < usize::from(width) {
+                    format!(
+                        "{marker}{}",
+                        crate::terminal_text::truncate_display(
+                            locale.shell().too_small_notice,
+                            usize::from(width) - marker_width,
+                            theme.glyphs.ellipsis,
+                        )
+                    )
+                } else {
+                    crate::terminal_text::truncate_display(
+                        locale.shell().too_small_notice,
+                        usize::from(width),
+                        theme.glyphs.ellipsis,
+                    )
+                };
+                let expected_body = (height > 1)
+                    .then(|| without_cell_padding(&expected_notice))
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    visible_body, expected_body,
+                    "{width}x{height} {scenario:?} painted hidden chrome"
+                );
+                if height > 1 {
+                    let buffer = terminal.backend().buffer();
+                    let notice_row = (0..height - 1)
+                        .find(|&row| {
+                            (0..width).any(|column| {
+                                buffer[(column, row)].symbol() == theme.glyphs.status_bullet
+                            })
+                        })
+                        .expect("TooSmall warning marker");
+                    let marker_column = (0..width)
+                        .find(|&column| {
+                            buffer[(column, notice_row)].symbol() == theme.glyphs.status_bullet
+                        })
+                        .expect("TooSmall warning marker column");
+                    let separator_column = marker_column
+                        + u16::try_from(crate::terminal_text::display_width(
+                            theme.glyphs.status_bullet,
+                        ))
+                        .expect("glyph width is bounded by the frame");
+                    assert_eq!(
+                        buffer[(separator_column, notice_row)].fg,
+                        theme.color(Role::TextPrimary),
+                        "the warning role must end at the marker glyph"
+                    );
+                    for column in 0..width {
+                        let cell = &buffer[(column, notice_row)];
+                        if cell.symbol().trim().is_empty() {
+                            continue;
+                        }
+                        let role = if cell.symbol() == theme.glyphs.status_bullet {
+                            Role::StatusWarning
+                        } else {
+                            Role::TextPrimary
+                        };
+                        assert_eq!(
+                            cell.fg,
+                            theme.color(role),
+                            "{width}x{height} {scenario:?} misstyled {:?}",
+                            cell.symbol()
+                        );
+                    }
+                }
+                let status = &rows[usize::from(height - 1)];
+                match scenario {
+                    Scenario::Resize => assert!(
+                        without_cell_padding(status).contains(&without_cell_padding(&resize_exit)),
+                        "{width}x{height} resize lost its exit hint: {status:?}"
+                    ),
+                    Scenario::Ordinary | Scenario::Help => assert!(
+                        without_cell_padding(status).contains(&without_cell_padding(&exit_hint)),
+                        "{width}x{height} {scenario:?} lost the available exit hint: {status:?}"
+                    ),
+                }
+            }
+        }
+    }
+}
+
 fn plain(c: char) -> PrefixInput {
     PrefixInput::Key(KeyEvent::press(KeyCode::Char(c), Modifiers::NONE))
 }
@@ -481,7 +791,63 @@ fn wide_render_exposes_the_business_sidebar_and_unavailable_workbench_truth() {
     assert!(rendered.contains("WORKBENCH"));
     assert!(rendered.contains("Terminal unavailable"));
     assert!(rendered.contains("No Orchbee session is connected."));
-    assert!(!rendered.contains("Ctrl+B · shortcuts"));
+    assert!(!rendered.contains("Ctrl+b · shortcuts"));
+}
+
+#[test]
+fn unconnected_guidance_remains_readable_beside_the_overlay_sidebar_in_both_locales() {
+    for width in [70, 80] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let mut view = ClientView::new(width);
+            prefix(&mut view, plain('b'));
+            let areas = crate::tui_layout::project_shell_areas(
+                ratatui::layout::Rect::new(0, 0, width, 24),
+                view.sidebar_surface(),
+            );
+            let sidebar = areas.sidebar.expect("the explicit sidebar is visible");
+            assert_eq!(sidebar.layer, crate::tui_layout::SidebarLayer::Overlay);
+            let mut terminal = infallible(Terminal::new(TestBackend::new(width, 24)));
+            infallible(terminal.draw(|frame| {
+                render_shell(
+                    frame,
+                    &view,
+                    locale,
+                    &crate::tui_theme::Theme::rgb_test_dark(),
+                );
+            }));
+            let buffer = terminal.backend().buffer();
+            let exposed: String = (1..23)
+                .flat_map(|row| {
+                    (sidebar.area.right() + 1..width - 1)
+                        .map(move |column| buffer[(column, row)].symbol())
+                })
+                .flat_map(str::chars)
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            let header: String = (sidebar.area.right()..width)
+                .map(|column| buffer[(column, 0)].symbol())
+                .collect();
+            assert!(
+                without_cell_padding(&header)
+                    .contains(&without_cell_padding(locale.shell().workbench_title))
+            );
+            for fact in [
+                locale.shell().shell_only_detail,
+                locale.shell().no_client_session,
+            ] {
+                let complete: String = fact.chars().filter(|c| !c.is_whitespace()).collect();
+                assert!(exposed.contains(&complete), "{width} {locale:?}: {fact}");
+            }
+            assert_eq!(
+                crate::tui_layout::project_shell_areas(
+                    ratatui::layout::Rect::new(0, 0, width, 24),
+                    view.sidebar_surface(),
+                ),
+                areas,
+                "guidance paint must not reserve or resize terminal geometry",
+            );
+        }
+    }
 }
 
 #[test]
@@ -502,23 +868,23 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     let mut view = ClientView::new(120);
     commit(&mut view, ctrl_b());
     let prefix_mode = rendered_text(120, 32, &view, Locale::ZhCn);
-    assert!(without_cell_padding(&prefix_mode).contains("前缀Ctrl+B"));
+    assert!(without_cell_padding(&prefix_mode).contains("前缀Ctrl+b"));
 
     commit(&mut view, plain('?'));
     let help = rendered_text(120, 32, &view, Locale::ZhCn);
     let compact_help = without_cell_padding(&help);
     assert!(compact_help.contains("键盘快捷键"));
-    assert!(help.contains("Ctrl+B c"));
-    assert!(help.contains("Ctrl+B ,"));
-    assert!(compact_help.contains("Ctrl+B?关闭此帮助"));
-    assert!(compact_help.contains("输入仍会传递到终端"));
+    assert!(help.contains("Ctrl+b c"));
+    assert!(help.contains("Ctrl+b ,"));
+    assert!(compact_help.contains("Ctrl+b?关闭帮助"));
+    assert!(compact_help.contains("输入继续传递"));
 
     // The composed registry paginates whole groups at this size: the
     // literal-prefix row sits on a later page. Page forward with the
     // documented `Ctrl+B PageDown` binding until it renders.
     let mut paged = String::new();
     for _ in 0..8 {
-        if paged.contains("Ctrl+B Ctrl+B") {
+        if paged.contains("Ctrl+b Ctrl+b") {
             break;
         }
         commit(&mut view, ctrl_b());
@@ -529,7 +895,7 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
         paged = rendered_text(120, 32, &view, Locale::ZhCn);
     }
     assert!(
-        paged.contains("Ctrl+B Ctrl+B"),
+        paged.contains("Ctrl+b Ctrl+b"),
         "the literal-prefix row must render on a reachable help page"
     );
 }
@@ -552,8 +918,19 @@ fn ordinary_state_omits_status_chrome_except_the_too_small_exit_hint() {
         let rows = rendered_rows(width, height, &view, Locale::EnUs);
         assert_eq!(rows.len(), height as usize + 1, "{width}x{height}");
         let status = &rows[height as usize - 1];
+        let exit_key = view
+            .bindings()
+            .action_labels_with_glyphs(
+                crate::client_view::PrefixAction::Client(crate::client_view::ClientAction::Exit),
+                crate::client_view::KeyLabelGlyphs::Unicode,
+            )
+            .into_iter()
+            .next()
+            .expect("the effective Exit action remains bound");
+        let exit_hint = format!("{exit_key} {}", Locale::EnUs.status().exit);
         assert!(
-            status.contains("Ctrl+B") == (width < 20 || height < 5),
+            without_cell_padding(status).contains(&without_cell_padding(&exit_hint))
+                == (width < 20 || height < 5),
             "status row {width}x{height}: {status:?}"
         );
     }
@@ -586,14 +963,14 @@ fn overlays_never_cover_the_status_row() {
 fn degrades_to_minimal_chrome_below_sixty_columns_or_twelve_rows() {
     let view = ClientView::new(50);
     let rendered = rendered_text(50, 10, &view, Locale::EnUs);
-    assert!(!rendered.contains("Ctrl+B q · exit"));
+    assert!(!rendered.contains("Ctrl+b q · exit"));
     assert!(!rendered.contains("ORCHBEE"));
     assert!(!rendered.contains("WORKBENCH · "));
 
     // Width alone qualifies as Full; height forces Minimal.
     let view = ClientView::new(120);
     let short = rendered_text(120, 10, &view, Locale::EnUs);
-    assert!(!short.contains("Ctrl+B q · exit"));
+    assert!(!short.contains("Ctrl+b q · exit"));
     assert!(!short.contains("ORCHBEE"));
 
     let mut toggled = ClientView::new(50);
@@ -605,9 +982,23 @@ fn degrades_to_minimal_chrome_below_sixty_columns_or_twelve_rows() {
 #[test]
 fn paints_only_the_localized_too_small_notice_and_the_status_line() {
     let view = ClientView::new(15);
+    let exit_key = view
+        .bindings()
+        .action_labels_with_glyphs(
+            crate::client_view::PrefixAction::Client(crate::client_view::ClientAction::Exit),
+            crate::client_view::KeyLabelGlyphs::Unicode,
+        )
+        .into_iter()
+        .next()
+        .expect("the effective Exit action remains bound");
     let english = rendered_rows(15, 4, &view, Locale::EnUs);
     assert!(english.iter().any(|row| row.contains("Too small")));
-    assert!(english[3].contains("Ctrl+B q"));
+    let english_exit = format!("{exit_key} {}", Locale::EnUs.status().exit);
+    assert!(
+        without_cell_padding(&english[3]).contains(&without_cell_padding(&english_exit)),
+        "{:?}",
+        english[3]
+    );
     assert!(!english.iter().any(|row| row.contains("WORKBENCH")));
 
     let chinese = rendered_rows(15, 4, &view, Locale::ZhCn);
@@ -616,7 +1007,12 @@ fn paints_only_the_localized_too_small_notice_and_the_status_line() {
             .iter()
             .any(|row| without_cell_padding(row).contains("窗口太小"))
     );
-    assert!(chinese[3].contains("Ctrl+B q"));
+    let chinese_exit = format!("{exit_key} {}", Locale::ZhCn.status().exit);
+    assert!(
+        without_cell_padding(&chinese[3]).contains(&without_cell_padding(&chinese_exit)),
+        "{:?}",
+        chinese[3]
+    );
 
     // Width below 20 alone also triggers the too-small surface.
     let narrow = rendered_rows(19, 30, &view, Locale::EnUs);
@@ -632,322 +1028,6 @@ fn buffer_rows(terminal: &Terminal<TestBackend>, width: u16, height: u16) -> Vec
                 .collect::<String>()
         })
         .collect()
-}
-
-#[test]
-fn help_paginates_wrapped_rows_and_clamps_the_requested_page() {
-    let theme = crate::tui_theme::Theme::rgb_test_dark();
-    let text = Locale::EnUs.shell();
-    let mut terminal = infallible(Terminal::new(TestBackend::new(60, 12)));
-    let mut placed = None;
-
-    // Wrapped shortcut rows in an 8-line page budget -> several pages; the
-    // requested page 99 clamps to the last one and the footer stays visible.
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            99,
-            &theme,
-        );
-    }));
-    let (_, page) = placed.expect("help must fit in 60x12");
-    assert!(page >= 1, "wrapped help must need more than one page");
-    let last = page + 1;
-    let rows = buffer_rows(&terminal, 60, 12);
-    assert!(rows[9].contains(&format!("{last}/{last}")), "{:?}", rows[9]);
-    assert!(rows[8].contains("Ctrl+B ? closes"), "{:?}", rows[8]);
-    // The last page holds the trailing "other keys" registry row, whose
-    // description wrapped onto an aligned continuation line.
-    assert!(rows.iter().any(|row| row.contains("terminal")), "{rows:?}");
-    let body = rows[2..8]
-        .iter()
-        .map(|row| row.trim_matches(&[' ', '│'][..]))
-        .collect::<Vec<_>>()
-        .join(" ");
-    assert!(body.contains("input port"), "{rows:?}");
-    // Rows from earlier pages are not drawn.
-    assert!(!rows.iter().any(|row| row.contains("Ctrl+B a")));
-
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            0,
-            &theme,
-        );
-    }));
-    let (_, page) = placed.expect("help must fit in 60x12");
-    assert_eq!(page, 0);
-    let rows = buffer_rows(&terminal, 60, 12);
-    let entries = text.configured_shortcut_rows(&ClientView::new(100));
-    let first = entries.first().unwrap().0.trim();
-    assert!(rows.iter().any(|row| row.contains(first)), "{rows:?}");
-    assert!(rows[9].contains("1/"), "{:?}", rows[9]);
-
-    // Adding a row may move an existing shortcut to the next page. Every
-    // offered chord must still appear in the content of at least one page,
-    // and each page must preserve its effective number and exit footer.
-    let mut content = Vec::new();
-    for requested in 0..last {
-        infallible(terminal.draw(|frame| {
-            placed = super::render_shortcut_help(
-                frame,
-                frame.area(),
-                text,
-                &ClientView::new(100),
-                requested,
-                &theme,
-            );
-        }));
-        assert_eq!(placed.map(|(_, page)| page), Some(requested));
-        let rows = buffer_rows(&terminal, 60, 12);
-        assert!(rows[9].contains(&format!("{}/{last}", requested + 1)));
-        assert!(rows[8].contains("Ctrl+B ? closes"));
-        content.extend_from_slice(&rows[2..8]);
-    }
-    for (chord, _) in entries {
-        assert!(
-            content.iter().any(|row| row.contains(chord.trim())),
-            "missing shortcut {chord:?}: {content:?}"
-        );
-    }
-}
-
-#[test]
-fn help_wraps_long_descriptions_instead_of_clipping_them() {
-    let theme = crate::tui_theme::Theme::rgb_test_dark();
-    let text = Locale::EnUs.shell();
-    // A 46-column overlay leaves ~28 cells for labels: long descriptions
-    // must wrap onto continuation lines rather than clip at the right edge.
-    let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
-    let mut placed = None;
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            0,
-            &theme,
-        );
-    }));
-    placed.expect("46x20 help must fit with wrapping");
-    let rows = buffer_rows(&terminal, 46, 20);
-    let mut all_rows = rows.clone();
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            99,
-            &theme,
-        );
-    }));
-    let (_, last_page) = placed.expect("same geometry must retain help placement");
-    for page in 1..=last_page {
-        infallible(terminal.draw(|frame| {
-            placed = super::render_shortcut_help(
-                frame,
-                frame.area(),
-                text,
-                &ClientView::new(100),
-                page,
-                &theme,
-            );
-        }));
-        assert_eq!(placed.map(|(_, page)| page), Some(page));
-        all_rows.extend(buffer_rows(&terminal, 46, 20));
-    }
-    let joined = all_rows.join("\n");
-    // The longest English descriptions appear whole across wrapped lines.
-    for word in ["Workspace", "directory", "Project"] {
-        assert!(joined.contains(word), "clipped {word}: {joined}");
-    }
-    // Continuation lines align under the description column: after the left
-    // border they begin with the key-column padding and still carry text.
-    assert!(
-        rows.iter().any(|row| {
-            let inner = row.trim_start().trim_start_matches(['│', '|', '+']);
-            inner.starts_with("              ") && !inner[14..].trim().is_empty()
-        }),
-        "no aligned continuation line: {rows:?}"
-    );
-}
-
-#[test]
-fn help_wraps_chinese_descriptions_on_grapheme_boundaries() {
-    let theme = crate::tui_theme::Theme::rgb_test_dark();
-    let text = Locale::ZhCn.shell();
-    let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
-    let mut placed = None;
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            0,
-            &theme,
-        );
-    }));
-    placed.expect("zh help must fit with wrapping");
-    let rows = buffer_rows(&terminal, 46, 20);
-    // A wide-character description hard-wraps without dropping its tail.
-    let tail = rows.concat();
-    assert!(tail.contains('页'), "wrapped zh tail lost: {rows:?}");
-    assert!(
-        rows.iter().any(|row| row.contains("PgUp/PgDn")),
-        "paging footer missing: {rows:?}"
-    );
-}
-
-#[test]
-fn wrap_display_refuses_widths_that_cannot_hold_a_grapheme() {
-    // Zero budget is unrenderable for real text; empty text needs no cell.
-    assert_eq!(super::wrap_display("ab", 0), None);
-    assert_eq!(super::wrap_display("", 0), Some(vec![String::new()]));
-    // A one-cell line can hold ASCII but never a two-cell CJK grapheme —
-    // the honest answer is `None`, not a forged wider line.
-    assert_eq!(
-        super::wrap_display("ab", 1),
-        Some(vec!["a".into(), "b".into()])
-    );
-    assert_eq!(super::wrap_display("中", 1), None);
-    assert_eq!(super::wrap_display("a中", 1), None);
-    assert_eq!(super::wrap_display("中", 2), Some(vec!["中".into()]));
-    // A combining sequence is one grapheme: it fits a 1-cell line whole.
-    assert_eq!(
-        super::wrap_display("a\u{301}", 1),
-        Some(vec!["a\u{301}".into()])
-    );
-    // An empty word between spaces still returns at least one line.
-    assert_eq!(super::wrap_display("", 5), Some(vec![String::new()]));
-}
-
-#[test]
-fn help_footer_falls_back_to_the_explicit_short_form_then_refuses() {
-    let theme = crate::tui_theme::Theme::rgb_test_dark();
-    let text = Locale::EnUs.shell();
-    // 46x20: the long dismiss line (56 cells) exceeds the 40-cell inner
-    // width, so the localized short form renders — close chord, typing
-    // purpose, full paging chord, and page number all still visible.
-    let mut terminal = infallible(Terminal::new(TestBackend::new(46, 20)));
-    let mut placed = None;
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            0,
-            &theme,
-        );
-    }));
-    placed.expect("46x20 must fit the short footer");
-    let rows = buffer_rows(&terminal, 46, 20).concat();
-    assert!(
-        rows.contains("Ctrl+B ? closes · typing continues"),
-        "{rows}"
-    );
-    assert!(rows.contains("Ctrl+B PgUp/PgDn turns pages"), "{rows}");
-
-    // 38 columns: even the 34-cell short dismiss line cannot fit the
-    // 32-cell inner width, so the overlay refuses — no keyless footer.
-    let mut terminal = infallible(Terminal::new(TestBackend::new(38, 12)));
-    let mut placed = Some((ratatui::layout::Rect::default(), 0usize));
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            0,
-            &theme,
-        );
-    }));
-    assert_eq!(
-        placed, None,
-        "38-wide help must refuse, not clip the footer"
-    );
-}
-
-#[test]
-fn help_paging_line_leads_with_the_page_number() {
-    let theme = crate::tui_theme::Theme::rgb_test_dark();
-    let text = Locale::EnUs.shell();
-    // `page/total` always leads the paging line, ahead of the full paging
-    // chord — it can never be clipped away by a right-edge cutoff.
-    let mut terminal = infallible(Terminal::new(TestBackend::new(60, 12)));
-    infallible(terminal.draw(|frame| {
-        super::render_shortcut_help(frame, frame.area(), text, &ClientView::new(100), 0, &theme);
-    }));
-    let rows = buffer_rows(&terminal, 60, 12);
-    let paging = rows
-        .iter()
-        .find(|row| row.contains("PgUp"))
-        .expect("paging footer line missing")
-        .trim_start_matches([' ', '│', '|', '+'])
-        .to_owned();
-    assert!(
-        paging.starts_with("1/"),
-        "page number not leading: {paging:?}"
-    );
-    assert!(paging.contains("Ctrl+B PgUp/PgDn"), "{paging:?}");
-}
-
-#[test]
-fn paginate_help_rows_groups_whole_rows_into_page_budgets() {
-    // Uniform one-line rows paginate exactly like the old row division.
-    assert_eq!(
-        super::paginate_help_rows(&[1; 21], 6),
-        Some(vec![(0, 6), (6, 12), (12, 18), (18, 21)])
-    );
-    assert_eq!(super::paginate_help_rows(&[1; 5], 5), Some(vec![(0, 5)]));
-    assert_eq!(super::paginate_help_rows(&[], 4), Some(vec![(0, 0)]));
-    // A multi-line row counts every rendered line and is never split.
-    assert_eq!(
-        super::paginate_help_rows(&[3, 3, 1, 4], 5),
-        Some(vec![(0, 1), (1, 3), (3, 4)])
-    );
-    // A row taller than the page refuses placement instead of clipping.
-    assert_eq!(super::paginate_help_rows(&[1, 6, 1], 4), None);
-    assert_eq!(super::paginate_help_rows(&[2], 0), None);
-}
-
-#[test]
-fn help_refuses_placement_that_would_clip_rows_or_footer() {
-    let theme = crate::tui_theme::Theme::rgb_test_dark();
-    let text = Locale::EnUs.shell();
-    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 7)));
-    let mut placed = Some((ratatui::layout::Rect::default(), 0usize));
-
-    // A 5-row placed overlay leaves 3 inner rows — only 1 row per page, below
-    // the 2-row minimum, so the overlay refuses instead of clipping.
-    infallible(terminal.draw(|frame| {
-        placed = super::render_shortcut_help(
-            frame,
-            frame.area(),
-            text,
-            &ClientView::new(100),
-            0,
-            &theme,
-        );
-    }));
-    assert_eq!(placed, None);
-    let text = terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect::<String>();
-    assert!(text.trim().is_empty(), "refused overlay drew: {text:?}");
 }
 
 #[test]
@@ -982,10 +1062,10 @@ fn sidebar_status_truncates_with_ellipsis_on_grapheme_boundaries() {
 }
 
 #[test]
-fn the_zoom_badge_rides_the_status_label_in_both_locales() {
-    for (locale, needle) in [
-        (Locale::EnUs, "zoomed · Ctrl+B z restores"),
-        (Locale::ZhCn, "已放大 · Ctrl+B z 恢复"),
+fn zoom_context_and_restore_hint_are_projected_separately_in_both_locales() {
+    for (locale, context, hint) in [
+        (Locale::EnUs, "Zoomed", "Ctrl+b z restore"),
+        (Locale::ZhCn, "已放大", "Ctrl+b z 恢复"),
     ] {
         let mut terminal = infallible(Terminal::new(TestBackend::new(120, 1)));
         let view = ClientView::new(120);
@@ -994,8 +1074,8 @@ fn the_zoom_badge_rides_the_status_label_in_both_locales() {
                 frame,
                 frame.area(),
                 &view,
+                None,
                 locale,
-                locale.shell(),
                 "terminal · Ready · controlling",
                 None,
                 true,
@@ -1003,6 +1083,7 @@ fn the_zoom_badge_rides_the_status_label_in_both_locales() {
                 false,
                 ViewportTier::Full,
                 &crate::tui_theme::Theme::rgb_test_dark(),
+                None,
             );
         }));
         let text = terminal
@@ -1014,8 +1095,12 @@ fn the_zoom_badge_rides_the_status_label_in_both_locales() {
             .collect::<String>();
         // Cell padding splits wide glyphs — compare on collapsed text.
         assert!(
-            without_cell_padding(&text).contains(&without_cell_padding(needle)),
-            "{locale:?} missing badge: {text:?}"
+            without_cell_padding(&text).contains(&without_cell_padding(context)),
+            "{locale:?} missing context: {text:?}"
+        );
+        assert!(
+            without_cell_padding(&text).contains(&without_cell_padding(hint)),
+            "{locale:?} missing effective restore hint: {text:?}"
         );
     }
 }
@@ -1455,83 +1540,372 @@ fn history_preserves_styles_defaults_wide_cells_and_sanitization() {
 
 #[cfg(windows)]
 #[test]
-fn popup_draw_clears_the_underlying_cells_and_records_only_its_painted_close_and_body() {
+fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
     use crate::{
         terminal_input::{
             MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
         },
         terminal_session::PopupView,
-        tui_pointer::{HitMapBuilder, PointerState},
+        tui_pointer::{
+            HitMapBuilder, HitTarget, InteractionTarget, MotionObservability, PointerOutcome,
+            PointerState, PrimaryContract,
+        },
+        tui_theme::{GlyphSet, Theme},
     };
     use orchbee_workbench_protocol::{PluginPopupSize, WorkbenchRequestId};
     use ratatui::{layout::Rect, widgets::Paragraph};
-    let mut terminal = infallible(Terminal::new(TestBackend::new(40, 12)));
+    struct Port(Vec<(WorkbenchRequestId, Rect)>);
+    impl TerminalInputPort for Port {
+        fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            panic!("popup paint leaked input");
+        }
+        fn popup_mouse(&mut self, id: &WorkbenchRequestId, rect: Rect, _: MouseEvent) {
+            self.0.push((id.clone(), rect));
+        }
+    }
+    let event = |column, row, action, button| MouseEvent {
+        column,
+        row,
+        action,
+        button,
+        mods: Modifiers::NONE,
+    };
+    for glyphs in [GlyphSet::UTF8, GlyphSet::ASCII] {
+        for closing in [false, true] {
+            let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
+            let popup = PopupView {
+                id: &id,
+                title: "Dashboard",
+                projection: None,
+                width: Some(PluginPopupSize::Cells(20)),
+                height: Some(PluginPopupSize::Cells(8)),
+                closing,
+            };
+            let theme = Theme::rgb_test_dark().with_glyphs(glyphs);
+            let paint = |pointer: &PointerState| {
+                let mut terminal = infallible(Terminal::new(TestBackend::new(40, 12)));
+                let mut hits = HitMapBuilder::with_pointer(pointer.projection());
+                infallible(terminal.draw(|frame| {
+                    frame.render_widget(
+                        Paragraph::new("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n".repeat(12)),
+                        frame.area(),
+                    );
+                    super::render_popup(
+                        frame,
+                        Rect::new(0, 0, 40, 12),
+                        &popup,
+                        Locale::EnUs,
+                        &theme,
+                        &mut hits,
+                    );
+                }));
+                (terminal, hits.finish())
+            };
+            let mut pointer = PointerState::default();
+            pointer.set_capture(true);
+            pointer.set_motion_observability(MotionObservability::AnyMotion);
+            let (terminal, hits) = paint(&pointer);
+            let buffer = terminal.backend().buffer();
+            assert_eq!(
+                buffer[(11, 3)].symbol(),
+                Locale::EnUs
+                    .plugin_popup_pending(closing)
+                    .chars()
+                    .next()
+                    .unwrap()
+                    .to_string(),
+            );
+            assert_ne!(buffer[(11, 8)].symbol(), "X");
+            assert_eq!(buffer[(9, 3)].symbol(), "X");
+            assert_eq!(buffer[(26, 2)].symbol(), "[");
+            assert_eq!(buffer[(27, 2)].symbol(), "x");
+            assert_eq!(buffer[(28, 2)].symbol(), "]");
+            assert_eq!(
+                buffer[(27, 2)].fg,
+                theme.color(if closing {
+                    Role::TextDisabled
+                } else {
+                    Role::TextSecondary
+                })
+            );
+            assert_eq!(
+                (0..40)
+                    .flat_map(|x| (0..12).map(move |y| (x, y)))
+                    .filter(|&(x, y)| matches!(
+                        hits.hit_target_at(x, y),
+                        Some(HitTarget::PopupClose(target)) if target.id() == &id
+                    ))
+                    .count(),
+                3
+            );
+            assert!(!matches!(
+                hits.hit_target_at(25, 2),
+                Some(HitTarget::PopupClose(_))
+            ));
+            assert!(!matches!(
+                hits.hit_target_at(29, 2),
+                Some(HitTarget::PopupClose(_))
+            ));
+
+            pointer.publish(hits);
+            let mut port = Port(Vec::new());
+            for action in [MouseAction::Press, MouseAction::Release] {
+                assert_eq!(
+                    pointer.popup_event(&mut port, event(11, 3, action, MouseButton::Left),),
+                    PointerOutcome::Handled
+                );
+            }
+            assert_eq!(
+                port.0,
+                [
+                    (id.clone(), Rect::new(11, 3, 18, 6)),
+                    (id.clone(), Rect::new(11, 3, 18, 6)),
+                ]
+            );
+
+            if closing {
+                assert_eq!(
+                    pointer.popup_event(
+                        &mut port,
+                        event(27, 2, MouseAction::Press, MouseButton::Left),
+                    ),
+                    PointerOutcome::Handled
+                );
+                continue;
+            }
+
+            assert!(matches!(
+                pointer.popup_event(
+                    &mut port,
+                    event(27, 2, MouseAction::Motion, MouseButton::None),
+                ),
+                PointerOutcome::IdleMotion { changed: true }
+            ));
+            let (mut hovered, hits) = paint(&pointer);
+            assert_eq!(
+                hovered.backend().buffer()[(27, 2)].bg,
+                theme.color(Role::SurfaceHover)
+            );
+            if glyphs == GlyphSet::UTF8 {
+                crate::tui_render::test_capture::capture_screen(
+                    &mut hovered,
+                    "alignment-popup-close-hover-en-us-40x12-direct-renderer-fixture",
+                    Locale::EnUs,
+                    &theme,
+                );
+            }
+            pointer.publish(hits);
+            assert_eq!(
+                pointer.popup_event(
+                    &mut port,
+                    event(27, 2, MouseAction::Press, MouseButton::Left),
+                ),
+                PointerOutcome::Handled
+            );
+            let (pressed, hits) = paint(&pointer);
+            assert_eq!(
+                pressed.backend().buffer()[(27, 2)].bg,
+                theme.color(Role::SurfacePressed)
+            );
+            pointer.publish(hits);
+            assert!(matches!(
+                pointer.popup_event(
+                    &mut port,
+                    event(27, 2, MouseAction::Release, MouseButton::Left),
+                ),
+                PointerOutcome::Interaction {
+                    target: InteractionTarget::PopupClose(target),
+                    contract: PrimaryContract::ActivateOnRelease,
+                } if target.id() == &id
+            ));
+            assert_eq!(
+                port.0.len(),
+                2,
+                "native close never enters the program lane"
+            );
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn popup_draw_rejects_incomplete_geometry_before_clearing_or_publishing_targets() {
+    use crate::{terminal_session::PopupView, tui_pointer::HitMapBuilder};
+    use orchbee_workbench_protocol::WorkbenchRequestId;
+    use ratatui::{layout::Rect, widgets::Paragraph};
+
     let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
     let popup = PopupView {
         id: &id,
         title: "Dashboard",
         projection: None,
-        width: Some(PluginPopupSize::Cells(20)),
-        height: Some(PluginPopupSize::Cells(8)),
-        closing: true,
+        width: None,
+        height: None,
+        closing: false,
     };
+    let mut terminal = infallible(Terminal::new(TestBackend::new(5, 3)));
     let mut hits = HitMapBuilder::new();
     infallible(terminal.draw(|frame| {
-        frame.render_widget(
-            Paragraph::new("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n".repeat(12)),
-            frame.area(),
-        );
+        frame.render_widget(Paragraph::new("XXXXX\nXXXXX\nXXXXX"), frame.area());
         super::render_popup(
             frame,
-            Rect::new(0, 0, 40, 12),
+            Rect::new(0, 0, 5, 3),
             &popup,
             Locale::EnUs,
             &crate::tui_theme::Theme::rgb_test_dark(),
             &mut hits,
         );
     }));
-    let buffer = terminal.backend().buffer();
-    assert_eq!(buffer[(11, 3)].symbol(), "C");
-    assert_ne!(buffer[(11, 8)].symbol(), "X");
-    assert_eq!(buffer[(9, 3)].symbol(), "X");
-    assert_eq!(buffer[(27, 2)].symbol(), "×");
-    struct Port(Vec<(WorkbenchRequestId, Rect, bool)>);
+    assert!(
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .all(|cell| cell.symbol() == "X")
+    );
+    let map = hits.finish();
+    assert!((0..5).all(|x| (0..3).all(|y| map.hit_target_at(x, y).is_none())));
+}
+
+#[cfg(windows)]
+#[test]
+fn divider_hover_and_press_style_every_exact_target_cell_without_leaking_to_the_frame() {
+    use std::time::Instant;
+
+    use crate::{
+        client_view::{ClientView, Modifiers, Notice},
+        terminal_input::{
+            MouseAction, MouseButton, MouseEvent, TerminalInputPort, TerminalInputUnavailable,
+        },
+        tui_layout::{DividerSource, DrawnDivider, divide_panes},
+        tui_pointer::{HitMapBuilder, MotionObservability, PointerState},
+        tui_theme::{Role, Theme},
+    };
+    use orchbee_workbench_protocol::{
+        ClientSplitRatio, PanelOrientation, SiteId, WorkbenchPanelId, WorkbenchPanelSlotId,
+        WorkbenchRevision, WorkbenchSplitId, WorkbenchTabId, WorkbenchTerminalContextId,
+    };
+    use ratatui::{layout::Rect, style::Modifier, widgets::Paragraph};
+
+    struct Port;
     impl TerminalInputPort for Port {
         fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
-            panic!("popup paint leaked input");
+            Ok(())
         }
-        fn popup_mouse(&mut self, id: &WorkbenchRequestId, rect: Rect, _: MouseEvent, close: bool) {
-            self.0.push((id.clone(), rect, close));
+
+        fn pointer_divider_ready(&mut self, _: &DrawnDivider) -> Result<(), Notice> {
+            Ok(())
         }
     }
+
+    let panel = Rect::new(0, 0, 11, 5);
+    let orientation = PanelOrientation::Horizontal;
+    let ratio = ClientSplitRatio::new(0.5).unwrap();
+    let divider = divide_panes(panel, orientation, ratio).unwrap().divider;
+    let target = DrawnDivider {
+        source: DividerSource {
+            site: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+            context: WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap(),
+            tab: WorkbenchTabId::parse(&format!("{:032x}", 3)).unwrap(),
+            focus: WorkbenchPanelId::parse(&format!("{:032x}", 4)).unwrap(),
+            revision: WorkbenchRevision::new(1),
+        },
+        viewport: panel,
+        split: WorkbenchSplitId::parse(&format!("{:032x}", 5)).unwrap(),
+        first: WorkbenchPanelSlotId::parse(&format!("{:032x}", 6)).unwrap(),
+        second: WorkbenchPanelSlotId::parse(&format!("{:032x}", 7)).unwrap(),
+        orientation,
+        ratio,
+        area: panel,
+        divider,
+    };
+    let mut published = HitMapBuilder::new();
+    published.record_divider(target.clone());
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
-    pointer.publish(hits.finish());
-    let mut port = Port(Vec::new());
-    for (column, row, action) in [
-        (11, 3, MouseAction::Press),
-        (11, 3, MouseAction::Release),
-        (27, 2, MouseAction::Press),
-    ] {
-        pointer.popup_event(
-            &mut port,
-            MouseEvent {
-                column,
-                row,
-                action,
-                button: MouseButton::Left,
-                mods: Modifiers::NONE,
-            },
-        );
-    }
-    assert_eq!(
-        port.0,
-        [
-            (id.clone(), Rect::new(11, 3, 18, 6), false),
-            (id.clone(), Rect::new(11, 3, 18, 6), false),
-            (id, Rect::default(), true)
-        ]
+    pointer.publish(published.finish());
+    pointer.set_motion_observability(MotionObservability::AnyMotion);
+    let mut view = ClientView::new(panel.width);
+    let mut port = Port;
+    let event = |action, button| MouseEvent {
+        action,
+        button,
+        mods: Modifiers::NONE,
+        column: divider.x,
+        row: divider.y.saturating_add(1),
+    };
+    pointer.event(
+        &mut view,
+        &mut port,
+        Instant::now(),
+        event(MouseAction::Motion, MouseButton::None),
     );
+
+    let theme = Theme::rgb_test_dark();
+    let paint = |pointer: &PointerState| {
+        let mut terminal = infallible(Terminal::new(TestBackend::new(panel.width, panel.height)));
+        let mut hits = HitMapBuilder::with_pointer(pointer.projection());
+        infallible(terminal.draw(|frame| {
+            frame.render_widget(
+                Paragraph::new("...........\n".repeat(5)).style(theme.style(Role::SurfaceCanvas)),
+                frame.area(),
+            );
+            super::render_dividers(
+                frame,
+                &[divider],
+                panel,
+                &theme,
+                std::slice::from_ref(&target),
+                &mut hits,
+            );
+        }));
+        terminal
+    };
+    let assert_projection = |terminal: &Terminal<TestBackend>, interaction| {
+        let expected = theme.content_on_surface(
+            Role::SurfaceCanvas,
+            Some(interaction),
+            Some(Role::FrameDivider),
+            theme.style(Role::FrameDivider),
+        );
+        let buffer = terminal.backend().buffer();
+        let boundary = theme.content_on_surface(
+            Role::SurfaceCanvas,
+            None,
+            Some(Role::FrameUnfocused),
+            theme.style(Role::FrameUnfocused),
+        );
+        for row in divider.y..divider.bottom() {
+            let cell = &buffer[(divider.x, row)];
+            assert_eq!(cell.style(), expected, "target cell at row {row}");
+            assert!(!cell.modifier.contains(Modifier::BOLD));
+        }
+        for (column, row) in [
+            (divider.x - 1, panel.y),
+            (divider.x + 1, panel.y),
+            (divider.x - 1, panel.bottom() - 1),
+            (divider.x + 1, panel.bottom() - 1),
+        ] {
+            assert_eq!(
+                buffer[(column, row)].style(),
+                boundary,
+                "interaction leaked to boundary cell ({column}, {row})"
+            );
+        }
+        assert_eq!(buffer[(panel.x, panel.y + 2)].symbol(), ".");
+    };
+
+    let hovered = paint(&pointer);
+    assert_projection(&hovered, Role::SurfaceHover);
+    pointer.event(
+        &mut view,
+        &mut port,
+        Instant::now(),
+        event(MouseAction::Press, MouseButton::Left),
+    );
+    let pressed = paint(&pointer);
+    assert_projection(&pressed, Role::SurfacePressed);
 }
 
 #[cfg(windows)]
@@ -1547,6 +1921,20 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
             ] {
                 let mut view = ClientView::new(width);
                 prefix(&mut view, plain('P'));
+                let glyphs = match theme.glyphs.mode() {
+                    crate::tui_theme::GlyphMode::Unicode => {
+                        crate::client_view::KeyLabelGlyphs::Unicode
+                    }
+                    crate::tui_theme::GlyphMode::Simplified => {
+                        crate::client_view::KeyLabelGlyphs::Ascii
+                    }
+                };
+                let resize_exit = view
+                    .resize_help_rows_with_glyphs(glyphs)
+                    .into_iter()
+                    .find(|(_, desc)| *desc == crate::client_view::PrefixDesc::ResizeExit)
+                    .map(|(key, _)| key)
+                    .expect("Resize retains its local exit binding");
                 for pending in [false, true] {
                     view.resize_pending = pending;
                     view.configuration_notice(crate::client_view::Notice::ResizeBusy);
@@ -1561,15 +1949,29 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
                         .iter()
                         .map(|cell| cell.symbol())
                         .collect();
-                    assert!(
-                        without_cell_padding(&rendered).contains(if locale == Locale::EnUs {
-                            "RESIZE"
-                        } else {
-                            "调整"
-                        }),
+                    let indicator = if pending {
+                        locale.status().resize_pending
+                    } else {
+                        locale.status().resize
+                    };
+                    let resize_exit_hint = format!("{resize_exit} {}", locale.status().exit);
+                    let indicator_fits = crate::terminal_text::display_width(indicator)
+                        .saturating_add(
+                            crate::terminal_text::display_width(theme.glyphs.middle_dot)
+                                .saturating_add(2),
+                        )
+                        .saturating_add(crate::terminal_text::display_width(&resize_exit_hint))
+                        <= usize::from(width);
+                    assert_eq!(
+                        without_cell_padding(&rendered).contains(&without_cell_padding(indicator)),
+                        indicator_fits,
                         "{width}x{height}: {rendered}"
                     );
-                    assert!(rendered.contains("Esc"));
+                    assert!(
+                        without_cell_padding(&rendered)
+                            .contains(&without_cell_padding(&resize_exit_hint)),
+                        "{width}x{height}: {rendered}"
+                    );
                 }
             }
         }

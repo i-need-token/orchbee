@@ -34,6 +34,12 @@ impl<'a> NativePanelCloseConfirmationView<'a> {
     pub(crate) const fn dissolves_tab(&self) -> bool {
         self.inner.dissolves_tab()
     }
+    pub(crate) const fn interactive(&self) -> bool {
+        self.inner.interactive()
+    }
+    pub(crate) const fn presentation(&self) -> crate::tui_presentation::PresentationPhase {
+        self.inner.presentation()
+    }
 }
 
 impl<'a> NativeSessionView<'a> {
@@ -55,13 +61,16 @@ impl NativeUi {
             .state
             .as_ref()
             .and_then(|state| state.view().panel_close_confirmation())
-            .is_some_and(|prompt| prompt.token() == token)
+            .is_some_and(|prompt| prompt.token() == token && prompt.interactive())
         {
-            self.capture_panel_confirmation_key(if confirm {
-                ClientKey::Plain('y')
-            } else {
-                ClientKey::Escape
-            });
+            self.capture_panel_confirmation_key(
+                token,
+                if confirm {
+                    ClientKey::Plain('y')
+                } else {
+                    ClientKey::Escape
+                },
+            );
         }
     }
     pub(super) fn panel_close_confirmation_armed(&self) -> bool {
@@ -134,9 +143,18 @@ impl NativeUi {
     /// a notice before any key is decided.
     pub(in crate::terminal_session) fn capture_panel_confirmation_key(
         &mut self,
+        expected: NativePanelCloseConfirmationToken,
         key: ClientKey,
     ) -> bool {
-        if !self.panel_close_confirmation_armed() {
+        let Some((actual, interactive)) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.view().panel_close_confirmation())
+            .map(|prompt| (prompt.token(), prompt.interactive()))
+        else {
+            return false;
+        };
+        if actual != expected {
             return false;
         }
         if self
@@ -144,6 +162,12 @@ impl NativeUi {
             .as_mut()
             .is_some_and(|state| state.settle_stale_close_confirmations())
         {
+            return true;
+        }
+        if !interactive {
+            if key == ClientKey::Escape {
+                self.cancel_panel_close();
+            }
             return true;
         }
         match key {
@@ -171,7 +195,7 @@ impl NativeUi {
             }
             Some(ModalPresentation::NotPresented) => {
                 state.acknowledge_panel_close_draw(None);
-                state.settle_panel_close_not_presented();
+                let _ = state.settle_panel_close_not_presented();
             }
             None => state.acknowledge_panel_close_draw(None),
         }

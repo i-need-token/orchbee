@@ -31,19 +31,24 @@ Pending and Unknown permit observation only.
 
 ## Inputs and ownership
 
-| Fact                                                      | Owner and validation                                                                                                                                                                     |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session, Workspace identity and optional Project metadata | Validated Workbench snapshot projected as `NativeContextTabs`; grouping changes do not change Context identity                                                                           |
-| Confirmation                                              | `WorkspaceCloseState`: typed Workspace/Context or Project target, frozen full snapshot with the origin Context and desired pane, label, Project member count and monotonic display token |
-| Complete draw and geometry                                | Pure renderer returns a typed receipt; UI acknowledges only the offered token after a complete draw                                                                                      |
-| Request identity, queue, lease and deadlines              | Command mailbox; one bounded Refresh flight serializes closure with structural work                                                                                                      |
-| Captured membership and terminal lifecycle                | Server retains scope, member and child identities; Worker/Host owns disposal                                                                                                             |
-| Submission and observation evidence                       | Carrier retains typed admission and observations before another read or UI wait; mailbox and joined-worker handoff preserve them                                                         |
-| Selection and Viewer cleanup                              | Existing context-removal and membership owners consume canonical snapshots and exact attachment identities                                                                               |
+| Fact                                                      | Owner and validation                                                                                                                                                                                     |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session, Workspace identity and optional Project metadata | Validated Workbench snapshot projected as `NativeContextTabs`; grouping changes do not change Context identity                                                                                           |
+| Confirmation                                              | `WorkspaceCloseState`: typed Workspace/Context or Project target, frozen full snapshot with the origin Context and desired pane, label, Project member count and monotonic display token                 |
+| Complete draw and geometry                                | Pure renderer returns `ModalPresentation`; `tui_presentation` and `WorkspaceCloseState` distinguish a blocked first draw from suspension after admission, while exact shown-token proof remains separate |
+| Request identity, queue, lease and deadlines              | Command mailbox; one bounded Refresh flight serializes closure with structural work                                                                                                                      |
+| Captured membership and terminal lifecycle                | Server retains scope, member and child identities; Worker/Host owns disposal                                                                                                                             |
+| Submission and observation evidence                       | Carrier retains typed admission and observations before another read or UI wait; mailbox and joined-worker handoff preserve them                                                                         |
+| Selection and Viewer cleanup                              | Existing context-removal and membership owners consume canonical snapshots and exact attachment identities                                                                                               |
 
 The existing confirmation packet owner decodes keys. Modified keys, uppercase `Y`, Enter, paste
 and trailing bytes never confirm or reach the terminal. Missing or incomplete draw evidence cannot
-submit. A source revision, membership or selection change invalidates the prompt. The addressed
+submit. Before the first complete presentation, an evaluated geometry block refuses the new prompt
+and leaves the localized resize fallback visible. After presentation, the same block suspends the
+existing prompt while retaining its token, frozen source and focus: `y` and stale pointer releases
+are inert, local `Esc` still cancels, and a later complete draw of the same token restores it. A
+missing receipt only revokes shown authority; it does not classify geometry or discard the prompt.
+A source revision, membership or selection change invalidates the prompt. The addressed
 Workspace must still name the exact captured terminal Context; disappearance or identity replacement
 invalidates confirmation even when the current Context and revision are unchanged. Before handoff,
 a fresh snapshot must equal the frozen projection, including background membership. Changed or
@@ -65,7 +70,10 @@ Project evidence preserves frozen member order and every known child Close ident
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Open                                   | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                               |
 | Draw                                   | Complete content at admitted geometry; acknowledge only its token                                                                                   |
-| Esc, stale source or refused geometry  | Cancel without allocating or submitting a Close request                                                                                             |
+| Geometry block before first draw       | Refuse and remove the new prompt without allocating a Close request or reporting user cancellation                                                  |
+| Geometry block after a successful draw | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again             |
+| Missing or covered draw receipt        | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                |
+| Esc or stale source                    | Cancel without allocating or submitting a Close request                                                                                             |
 | Exact `y` or valid close-button click  | Same fully drawn source; atomically allocate and queue one typed operation                                                                          |
 | Execute                                | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                           |
 | Definitely unsent or admission refusal | Retain evidence without an admission claim or automatic retry                                                                                       |

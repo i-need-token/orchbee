@@ -4,6 +4,30 @@ use crate::{
     terminal_text::sanitize_terminal_text,
 };
 impl Locale {
+    pub(crate) const fn workspace_close_cancel_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Cancel",
+            Self::ZhCn => "取消",
+        }
+    }
+    pub(crate) const fn workspace_close_cancel_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "cancel",
+            Self::ZhCn => "取消",
+        }
+    }
+    pub(crate) const fn workspace_close_confirm_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Close",
+            Self::ZhCn => "关闭",
+        }
+    }
+    pub(crate) const fn workspace_close_confirm_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "close",
+            Self::ZhCn => "关闭",
+        }
+    }
     pub(crate) const fn workspace_close_title(self) -> &'static str {
         match self {
             Self::EnUs => "Close Workspace?",
@@ -32,18 +56,6 @@ impl Locale {
             Self::ZhCn => format!(
                 "关闭全部工作区（当前 {count} 个）并结束其全部终端，影响所有 Client；保留项目、Git 分支和检出目录。"
             ),
-        }
-    }
-    pub(crate) const fn workspace_close_cancel_button(self) -> &'static str {
-        match self {
-            Self::EnUs => "[Esc · cancel]",
-            Self::ZhCn => "[Esc · 取消]",
-        }
-    }
-    pub(crate) const fn workspace_close_confirm_button(self) -> &'static str {
-        match self {
-            Self::EnUs => "[y · close]",
-            Self::ZhCn => "[y · 关闭]",
         }
     }
     pub(crate) fn workspace_close_status(self, view: WorkspaceCloseStatusView<'_>) -> String {

@@ -532,7 +532,7 @@ fn unprefixed_page_keys_still_reach_the_terminal() {
 }
 
 #[test]
-fn the_help_page_counter_is_bounded_and_settles_the_renderers_effective_page() {
+fn help_page_requests_are_bounded_and_only_an_exact_draw_settles_clamping() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
     commit(&mut view, plain('?'));
@@ -549,14 +549,15 @@ fn the_help_page_counter_is_bounded_and_settles_the_renderers_effective_page() {
     commit(&mut view, key(KeyCode::PageUp));
     assert_eq!(view.help_page(), bound - 1);
 
-    // The UI loop's write-back of the renderer's effective page is the
-    // only way an out-of-range index (e.g. after a resize shrank the page
-    // count) reconciles — render never mutates view state itself.
-    view.settle_help_page(3);
+    // Only a successfully published exact source settles the effective page
+    // after geometry shrinks the real page count.
+    let candidate = view.help_draw_candidate().unwrap();
+    view.settle_help_draw(candidate.presented(3, 3));
     assert_eq!(view.help_page(), 3);
-    view.settle_help_page(usize::MAX);
+    // A page request revokes that source and remains bounded by the registry.
+    view.request_help_page(usize::MAX);
     assert_eq!(view.help_page(), bound);
-    view.settle_help_page(0);
+    view.request_help_page(0);
     assert_eq!(view.help_page(), 0);
 }
 

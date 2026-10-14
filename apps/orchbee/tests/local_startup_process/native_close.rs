@@ -1,3 +1,4 @@
+use super::tui_observer::NativeHeader;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
@@ -69,6 +70,7 @@ struct CloseCopy {
     ready: &'static str,
     title: &'static str,
     warning: &'static str,
+    hints: &'static str,
     actions: &'static str,
 }
 
@@ -77,21 +79,24 @@ const ENGLISH: CloseCopy = CloseCopy {
     ready: "Tab 1 · Ready · controlling",
     title: "Close terminal Tab?",
     warning: "Closing this Tab ends its execution for all attached Clients.",
-    actions: "y · confirm    Esc · cancel",
+    hints: "Esc cancel · y close",
+    actions: "[ Cancel ]   [ Close ]",
 };
 const CHINESE: CloseCopy = CloseCopy {
     locale: "zh_CN.UTF-8",
     ready: "Tab 1 · 已就绪 · 可控制",
     title: "关闭终端 Tab？",
     warning: "关闭此 Tab 将终止其执行，影响所有已连接的 Client。",
-    actions: "y · 确认    Esc · 取消",
+    hints: "Esc 取消 · y 关闭",
+    actions: "[ 取消 ]   [ 关闭 ]",
 };
 
 fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseCopy) {
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        &["[*1 1]", copy.ready],
+        NativeHeader::active("Standalone terminal", 1, "1"),
+        &[copy.ready],
         &[copy.title],
         &[],
         &mut [],
@@ -101,12 +106,20 @@ fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseC
 fn prompt(client: &mut Client, copy: CloseCopy) {
     let checkpoint = client.checkpoint();
     client.send(b"\x02x");
-    client.wait_frame_text_after(
+    client.wait_close_prompt_after(
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
-        &[copy.title, copy.warning, copy.actions],
-        &[],
-        &["1"],
+        "Standalone terminal",
+        &[
+            copy.title,
+            "",
+            "1",
+            "",
+            copy.warning,
+            "",
+            copy.hints,
+            copy.actions,
+        ],
         &mut [],
     );
 }
@@ -190,35 +203,32 @@ fn refresh_empty(client: &mut Client, peer: &mut Client, deadline: Instant, revi
     client.send(b"\x02w");
     let success = revision.map(|revision| format!("Tabs refreshed · revision {revision}"));
     let mut required = vec![
-        "No terminal tabs · Ctrl+B c to create a Tab",
+        "No terminal tabs",
+        "Ctrl+b c create Tab",
         "Workbench navigator",
-        "[*1] Standalone terminal",
+        "› * 1 Standalone terminal",
     ];
     if let Some(success) = &success {
         required.push(success);
     }
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         deadline,
+        NativeHeader::empty("Standalone terminal"),
         &required,
-        &["[*1 1]", "[ 1 1]", "[*1] 1", "[ 1] 1"],
+        &[],
         &[],
         &mut [peer],
     );
     // `w` toggles the navigator: leave it visibly closed so the next `w` requests a refresh.
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        &["No terminal tabs · Ctrl+B c to create a Tab"],
-        &[
-            "Workbench navigator",
-            "[*1 1]",
-            "[ 1 1]",
-            "[*1] 1",
-            "[ 1] 1",
-        ],
+        NativeHeader::empty("Standalone terminal"),
+        &["No terminal tabs", "Ctrl+b c create Tab"],
+        &["Workbench navigator"],
         &[],
         &mut [peer],
     );
@@ -321,7 +331,7 @@ fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> Te
     controller.wait_frame_text_after(
         retired_checkpoint,
         deadline,
-        &["Terminal disconnected · Ctrl+B then q to exit"],
+        &["Terminal disconnected", "Ctrl+b q / Ctrl+b d exit"],
         &[],
         &[],
         &mut [&mut peer],

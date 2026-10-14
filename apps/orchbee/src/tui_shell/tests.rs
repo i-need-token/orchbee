@@ -32,6 +32,10 @@ mod divider;
 mod effects;
 #[cfg(windows)]
 mod graphics;
+#[cfg(windows)]
+mod machine_picker_capture;
+#[cfg(windows)]
+mod notification_too_small;
 mod rename;
 pub(crate) use rename::run_native_rename_resize;
 
@@ -47,6 +51,15 @@ pub(crate) fn run_native_close_resize_confirmation(
         prompts_after_draw: Vec<bool>,
     }
     impl TerminalInputPort for Surface<'_> {
+        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+            self.session.native_capture_claims()
+        }
+        fn native_capture_context(
+            &self,
+            owner: crate::tui_composition::NativeCaptureOwner,
+        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+            self.session.native_capture_context(owner)
+        }
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.session.forward(bytes)
         }
@@ -56,8 +69,12 @@ pub(crate) fn run_native_close_resize_confirmation(
         ) -> Option<SessionActionDisposition> {
             self.session.apply_client_action(action)
         }
-        fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
-            self.session.capture_confirmation_key(key)
+        fn capture_tab_confirmation_key_for(
+            &mut self,
+            token: crate::terminal_session::NativeCloseConfirmationToken,
+            key: crate::client_view::ClientKey,
+        ) -> bool {
+            self.session.capture_tab_confirmation_key_for(token, key)
         }
         fn invalidate_close_display(&mut self) {
             self.session.invalidate_close_display();
@@ -300,6 +317,24 @@ fn too_small_geometry_withholds_resize_instead_of_fabricating() -> io::Result<()
     Ok(())
 }
 
+#[cfg(windows)]
+#[test]
+fn too_small_native_popup_surface_is_empty_until_the_shell_can_paint_it() {
+    for tiny in [dimensions(100, 4), dimensions(19, 24)] {
+        let view = ClientView::new(tiny.columns);
+        assert_eq!(
+            super::popup_surface_area(tiny, &view, false),
+            ratatui::layout::Rect::default(),
+            "{tiny:?} must suspend a popup that the shell cannot paint"
+        );
+    }
+
+    let restored = dimensions(100, 24);
+    let view = ClientView::new(restored.columns);
+    let area = super::popup_surface_area(restored, &view, false);
+    assert!(area.width > 0 && area.height > 0);
+}
+
 #[test]
 fn connected_geometry_reports_unknown_when_any_cell_pixel_axis_is_missing() -> io::Result<()> {
     let original = dimensions(120, 32);
@@ -433,6 +468,72 @@ fn test_loop(
         Err(LoopFailure::Input(error) | LoopFailure::Viewport(error)) => Err(error),
         Err(LoopFailure::Terminal(never)) => match never {},
     }
+}
+
+#[test]
+fn settled_button_only_initialization_queries_once_before_the_first_draw() -> io::Result<()> {
+    let initial = dimensions(80, 24);
+    for (mouse, expected_queries) in [(false, 0), (true, 1)] {
+        let mut terminal = test_terminal(initial);
+        let mut inputs = QueueInputSource {
+            inputs: VecDeque::new(),
+        };
+        let viewport = QueueViewportSource {
+            dimensions: std::cell::RefCell::new(VecDeque::new()),
+        };
+        let mut input = RecordingTerminalInput::default();
+        let mut modes = Vec::new();
+        let result = super::run_event_loop_with_modes(
+            &mut terminal,
+            super::Chrome {
+                locale: Locale::EnUs,
+                theme: &crate::tui_theme::Theme::terminal_native(),
+            },
+            (&mut inputs, &mut |request| {
+                modes.push(request);
+                Ok(())
+            }),
+            &mut input,
+            &FixedTermination(true),
+            &viewport,
+            initial,
+            mouse,
+            ClientView::new(initial.columns),
+        );
+        assert_eq!(result.unwrap(), LoopExit::Signal);
+        assert_eq!(
+            modes
+                .iter()
+                .filter(|request| matches!(request, ModeRequest::PointerAdmissionQuery(_)))
+                .count(),
+            expected_queries
+        );
+        assert!(
+            modes
+                .iter()
+                .all(|request| matches!(request, ModeRequest::PointerAdmissionQuery(_)))
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn pointer_capture_requests_map_to_exact_lifecycle_levels() {
+    use crate::terminal_input::PointerCaptureRequest;
+    use crate::terminal_lifecycle::PointerTrackingLevel;
+
+    assert_eq!(
+        super::pointer_tracking_level(PointerCaptureRequest::Release),
+        None
+    );
+    assert_eq!(
+        super::pointer_tracking_level(PointerCaptureRequest::ButtonOnly),
+        Some(PointerTrackingLevel::ButtonOnly)
+    );
+    assert_eq!(
+        super::pointer_tracking_level(PointerCaptureRequest::AnyMotion),
+        Some(PointerTrackingLevel::AnyMotion)
+    );
 }
 
 #[test]
@@ -1009,6 +1110,11 @@ mod window_title;
 #[test]
 fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
     use crate::terminal_text::display_width;
+    use crate::tui_render::controls::{
+        ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState,
+        FocusState, InteractionState, NavigationState, OperationState, PointerPresentation,
+        action_rect,
+    };
     use crate::tui_theme::{ColorLevel, Role, Theme};
     use orchbee_local_site_runtime::WindowsThemeName;
     for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
@@ -1031,6 +1137,49 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                 (WindowsThemeName::TerminalNative, Theme::terminal_native()),
             ] {
                 view.configure_theme(name);
+                let menu_button = if areas.tier == crate::tui_layout::ViewportTier::TooSmall
+                    || !areas.tabs.is_empty()
+                {
+                    None
+                } else {
+                    let state = InteractionState::new(
+                        FocusState::Unfocused,
+                        PointerPresentation::Rest,
+                        NavigationState::None,
+                        CurrentState::NotCurrent,
+                        CheckedState::Unchecked,
+                        Availability::Enabled,
+                        OperationState::Idle,
+                    );
+                    let action = ActionSpec::new(
+                        locale.menu_title(),
+                        ActionKind::Secondary,
+                        ControlSurface::Chrome,
+                        state,
+                    );
+                    let measurement = ratatui::layout::Rect::new(0, 0, u16::MAX, 1);
+                    action_rect(measurement, measurement, action, &expected).and_then(|measured| {
+                        let button_width = measured.width;
+                        if areas.workbench.width >= button_width.saturating_add(2)
+                            && areas.workbench.height > 1
+                        {
+                            let offered = ratatui::layout::Rect::new(
+                                areas.workbench.right() - button_width - 1,
+                                areas.workbench.y,
+                                button_width,
+                                1,
+                            );
+                            action_rect(
+                                to_area(dimensions(width, height)),
+                                offered,
+                                action,
+                                &expected,
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                };
                 assert!(
                     super::draw_surface(
                         &mut terminal,
@@ -1051,9 +1200,9 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     geometry,
                     "{context} {name:?}: geometry"
                 );
-                // This sessionless fixture has canvas beneath the unavailable notice and
-                // panel frame, with chrome only in the projected bars and sidebar. In
-                // Minimal and TooSmall, (0, 0) is canvas because those tiers omit tabs.
+                // This sessionless fixture has canvas beneath the unavailable notice and panel
+                // frame. Chrome owns the projected bars, sidebar, and the global menu control;
+                // Minimal moves that control from the omitted tab bar into the workbench.
                 for y in 0..height {
                     let mut x = 0;
                     while x < width {
@@ -1065,6 +1214,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                             || areas
                                 .sidebar
                                 .is_some_and(|sidebar| sidebar.area.contains(position))
+                            || menu_button.is_some_and(|button| button.contains(position))
                         {
                             Role::SurfaceChrome
                         } else {

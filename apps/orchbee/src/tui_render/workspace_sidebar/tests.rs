@@ -4,6 +4,7 @@ use crate::{
     machine_discovery::Context as NavigationContext,
     machine_picker::Choice,
     terminal_session::{NativeContextLocation, NativeContextTarget},
+    tui_pointer::HitTarget,
 };
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};
@@ -156,6 +157,39 @@ fn paint(
         .collect();
     (rows, hits.finish())
 }
+
+fn hit_belongs_to_sidebar_target(hit: Option<&HitTarget>, target: &SidebarTarget) -> bool {
+    match hit {
+        Some(
+            HitTarget::MachineProjectRow { target: actual, .. }
+            | HitTarget::SidebarDisclosure(actual)
+            | HitTarget::SidebarMenu(actual)
+            | HitTarget::CreateMenu(Some(actual)),
+        ) => actual == target,
+        Some(
+            HitTarget::MachineWorkspaceRow {
+                selected: actual, ..
+            }
+            | HitTarget::MachineAgentRow {
+                selected: actual, ..
+            },
+        ) => target.selection().as_ref() == Some(actual),
+        _ => false,
+    }
+}
+
+fn sidebar_target_rows(
+    hits: &crate::tui_pointer::FrameHitMap,
+    width: u16,
+    height: u16,
+    target: &SidebarTarget,
+) -> Vec<u16> {
+    (0..height)
+        .filter(|y| {
+            (0..width).any(|x| hit_belongs_to_sidebar_target(hits.hit_target_at(x, *y), target))
+        })
+        .collect()
+}
 #[test]
 fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_aligned() {
     for (width, height) in [(120, 40), (80, 24), (60, 12)] {
@@ -221,23 +255,35 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     hits.hit_target_at(0, 1),
                     Some(&HitTarget::NewWorkspaceButton)
                 );
-                let project_y = (0..height)
-                    .find(|y| {
-                        matches!(
-                            hits.hit_target_at(2, *y),
-                            Some(HitTarget::SidebarDisclosure(target)) if target == &project
-                        )
-                    })
+                let project_y = (0..height).find(|y| {
+                    matches!(
+                        hits.hit_target_at(2, *y),
+                        Some(HitTarget::SidebarDisclosure(target)) if target == &project
+                    )
+                });
+                if let Some(project_y) = project_y {
+                    let project_tracks = layout::Tracks::resolve(
+                        Rect::new(0, project_y, width, 1),
+                        0,
+                        depth(&view, &project),
+                        auxiliary_actions(&view.machines.sidebar_source(), &project),
+                    )
                     .unwrap();
-                assert_eq!(
-                    buffer[(2, project_y)].symbol(),
-                    theme.glyphs.disclosure_open
-                );
-                assert_eq!(buffer[(4, project_y)].symbol(), "R");
-                assert!(matches!(
-                    hits.hit_target_at(0, project_y),
-                    Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
-                ));
+                    assert_eq!(
+                        buffer[(1, project_y)].symbol(),
+                        theme.glyphs.disclosure_open
+                    );
+                    assert_eq!(buffer[(project_tracks.primary.x, project_y)].symbol(), "R");
+                    assert!(matches!(
+                        hits.hit_target_at(0, project_y),
+                        Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
+                    ));
+                } else {
+                    assert!(
+                        height < 24,
+                        "only the compact focused window may clip its parent"
+                    );
+                }
                 let agent_y = (0..height)
                     .find(|y| {
                         matches!(
@@ -246,14 +292,24 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                         )
                     })
                     .unwrap();
-                assert_eq!(buffer[(0, agent_y)].symbol(), ">");
-                assert_eq!(buffer[(6, agent_y)].symbol(), "1");
                 assert_eq!(
-                    buffer[(8, agent_y)].symbol(),
+                    buffer[(0, agent_y)].symbol(),
+                    theme.glyphs.navigation_marker
+                );
+                let agent_tracks = layout::Tracks::resolve(
+                    Rect::new(0, agent_y, width, 2),
+                    0,
+                    depth(&view, &focused),
+                    auxiliary_actions(&view.machines.sidebar_source(), &focused),
+                )
+                .unwrap();
+                assert_eq!(buffer[(agent_tracks.ordinal.x, agent_y)].symbol(), "1");
+                assert_eq!(
+                    buffer[(agent_tracks.state.x, agent_y)].symbol(),
                     theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
                 );
-                assert_eq!(buffer[(10, agent_y)].symbol(), "I");
-                assert_eq!(buffer[(10, agent_y + 1)].symbol(), "c");
+                assert_eq!(buffer[(agent_tracks.primary.x, agent_y)].symbol(), "I");
+                assert_eq!(buffer[(agent_tracks.primary.x, agent_y + 1)].symbol(), "c");
                 for y in [agent_y, agent_y + 1] {
                     for x in 0..28 {
                         assert!(matches!(
@@ -291,28 +347,70 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                 ]),
                 0,
             );
+            for row in view.machines.space_rows() {
+                let (text_lines, _) = lines(&view, row, locale, &theme, 80, "").into_parts();
+                let projected = text_lines
+                    .into_iter()
+                    .map(|line| {
+                        line.spans
+                            .into_iter()
+                            .map(|span| span.content.into_owned())
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                assert!(projected.contains("feat/测试"), "{projected}");
+                assert!(projected.contains("custom branch"), "{projected}");
+            }
             let (rows, hits) = paint(&view, locale, &theme, 120, 40);
             let text = rows.join("\n");
-            assert_eq!(
-                rows.iter().filter(|r| r.contains("custom branch")).count(),
-                2,
-                "{text}"
-            );
-            assert!(text.contains("feat/测试"));
+            assert!(text.contains("custom branch"), "{text}");
             assert!(text.contains(&format!(
                 "{}2 {}3",
                 theme.glyphs.git_ahead, theme.glyphs.git_behind
             )));
-            let targets: Vec<_> = (0..40)
-                .filter_map(|y| match hits.hit_target_at(2, y) {
-                    Some(HitTarget::MachineWorkspaceRow { selected, .. }) => Some(selected),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(targets.len(), 6);
-            assert_ne!(targets[0], targets[3]);
-            assert!(targets[..3].iter().all(|t| t == &targets[0]));
-            assert!(targets[3..].iter().all(|t| t == &targets[3]));
+            let targets = view
+                .machines
+                .space_rows()
+                .iter()
+                .map(|row| row.sidebar_target().unwrap())
+                .collect::<Vec<_>>();
+            assert_ne!(targets[0], targets[1]);
+            for target in &targets {
+                let exact = sidebar_target_rows(&hits, 30, 40, target);
+                assert_eq!(exact.len(), 3, "{target:?}: {text}");
+                assert!(exact.windows(2).all(|pair| pair[1] == pair[0] + 1));
+                let painted_x = (0..30)
+                    .filter(|x| {
+                        hit_belongs_to_sidebar_target(hits.hit_target_at(*x, exact[0]), target)
+                    })
+                    .collect::<Vec<_>>();
+                let band = Rect::new(
+                    painted_x[0],
+                    exact[0],
+                    painted_x[painted_x.len() - 1] - painted_x[0] + 1,
+                    exact.len() as u16,
+                );
+                let tracks = layout::Tracks::resolve_for_width(
+                    band,
+                    0,
+                    1,
+                    30,
+                    auxiliary_actions(&view.machines.sidebar_source(), target),
+                )
+                .unwrap();
+                let expected = truncate_display(
+                    "custom branch",
+                    usize::from(tracks.primary.width),
+                    theme.glyphs.ellipsis,
+                );
+                assert!(
+                    exact
+                        .iter()
+                        .any(|y| rows[usize::from(*y)].contains(&expected)),
+                    "{target:?}: {text}"
+                );
+            }
             assert!((0..40).any(|y| matches!(
                 hits.hit_target_at(2, y),
                 Some(HitTarget::NewWorkspaceButton)
@@ -325,9 +423,9 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
 }
 
 #[test]
-fn fixed_actions_keep_complete_labels_and_full_width_hits_above_the_plain_heading() {
+fn fixed_actions_keep_complete_labels_and_exact_button_hits_above_the_plain_heading() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let view = view(60, 12);
+        let mut view = view(60, 12);
         let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 12);
         let header = &rows[3];
         assert!(header.contains(locale.shell().workspaces), "{header:?}");
@@ -349,11 +447,43 @@ fn fixed_actions_keep_complete_labels_and_full_width_hits_above_the_plain_headin
                 HitTarget::SearchButton,
             ),
         ] {
-            assert!(rows[y as usize].contains(locale.sidebar_navigation_action(command)));
-            for x in 0..28 {
-                assert_eq!(hits.hit_target_at(x, y), Some(&target));
-                assert_eq!(hits.hit_target_at(x, 3), Some(&HitTarget::OverlaySurface));
-            }
+            let row = &rows[y as usize];
+            assert!(row.contains("[ "), "{row:?}");
+            assert!(row.contains(locale.sidebar_navigation_action(command)));
+            assert!(row.contains(" ]"), "{row:?}");
+            let exact = (0..29)
+                .filter(|x| hits.hit_target_at(*x, y) == Some(&target))
+                .collect::<Vec<_>>();
+            assert!(!exact.is_empty());
+            assert_eq!(
+                exact,
+                (*exact.first().unwrap()..=*exact.last().unwrap()).collect::<Vec<_>>()
+            );
+            assert!(exact.len() < 29, "the non-button remainder stays a surface");
+            assert_eq!(
+                hits.hit_target_at(*exact.last().unwrap() + 1, y),
+                Some(&HitTarget::OverlaySurface)
+            );
+            assert_eq!(hits.hit_target_at(0, 3), Some(&HitTarget::OverlaySurface));
+            let local_hint = crate::machine_picker::sidebar_binding_label(
+                command,
+                crate::client_view::KeyLabelGlyphs::Unicode,
+            )
+            .unwrap();
+            assert!(!row.contains(&local_hint));
+        }
+        assert!(view.machines.enter_sidebar_navigation());
+        let (focused_rows, _) = paint(&view, locale, &Theme::terminal_native(), 60, 12);
+        for (y, command) in [
+            (1, crate::machine_picker::SidebarCommand::NewWorkspace),
+            (2, crate::machine_picker::SidebarCommand::Search),
+        ] {
+            let hint = crate::machine_picker::sidebar_binding_label(
+                command,
+                crate::client_view::KeyLabelGlyphs::Unicode,
+            )
+            .unwrap();
+            assert!(focused_rows[y].contains(&hint), "{}", focused_rows[y]);
         }
     }
 }
@@ -370,27 +500,25 @@ fn workspace_raw_value_rules_and_empty_layouts_collapse_without_borrowing_custom
     );
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 120, 40);
     assert!(!rows.join("\n").contains("feat/测试"));
-    assert_eq!(
-        (0..40)
-            .filter(|y| matches!(
-                hits.hit_target_at(2, *y),
-                Some(HitTarget::MachineWorkspaceRow { .. })
-            ))
-            .count(),
-        2
-    );
+    for target in view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|row| row.sidebar_target().unwrap())
+    {
+        assert_eq!(sidebar_target_rows(&hits, 30, 40, &target).len(), 1);
+    }
     configure(&mut view, serde_json::json!([]), 0);
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 120, 40);
     assert!(!rows.join("\n").contains("custom branch"));
-    assert_eq!(
-        (0..40)
-            .filter(|y| matches!(
-                hits.hit_target_at(2, *y),
-                Some(HitTarget::MachineWorkspaceRow { .. })
-            ))
-            .count(),
-        2
-    );
+    for target in view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|row| row.sidebar_target().unwrap())
+    {
+        assert_eq!(sidebar_target_rows(&hits, 30, 40, &target).len(), 1);
+    }
 }
 #[test]
 fn workspace_sidebar_degrades_across_tiers_and_preserves_action_entries() {
@@ -461,7 +589,7 @@ fn compact_sidebar_yields_heading_space_before_clipping_current_workspace_or_age
             .observe_focus(Choice::Local, Some(target.clone()), Some(member));
         expand_context_agents(&mut view, target);
         let (_, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 14);
-        assert_eq!((0..14).filter(|y| matches!(hits.hit_target_at(2, *y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 3);
+        assert_eq!((0..14).filter(|y| matches!(hits.hit_target_at(2, *y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 4);
         assert_eq!(
             (0..14)
                 .filter(|y| matches!(
@@ -474,7 +602,7 @@ fn compact_sidebar_yields_heading_space_before_clipping_current_workspace_or_age
     }
 }
 #[test]
-fn workspace_gap_surfaces_do_not_activate_rows_and_style_patches_preserve_count_roles() {
+fn workspace_leading_gaps_belong_to_whole_rows_and_style_patches_preserve_count_roles() {
     let mut view = view(120, 40);
     let mut git = token("git_status");
     git["style"] = serde_json::json!({"fg":[16,32,48],"bold":true,"dim":false});
@@ -518,8 +646,8 @@ fn workspace_gap_surfaces_do_not_activate_rows_and_style_patches_preserve_count_
                 )
             })
             .collect();
-        assert_eq!(entry_rows.len(), 3);
-        assert_eq!(entry_rows[2], entry_rows[0] + 2);
+        assert_eq!(entry_rows.len(), 5);
+        assert_eq!(entry_rows[4], entry_rows[0] + 4);
         for y in entry_rows {
             let mut x = 0;
             while x < 28 {
@@ -591,16 +719,22 @@ fn long_branch_and_custom_text_shrink_before_fixed_divergence_counts() {
     assert!(rows.iter().any(|r| r.contains('…')));
 }
 
-fn paint_navigation(
+fn paint_navigation_buffers(
     view: &ClientView,
     locale: Locale,
     theme: &Theme,
     width: u16,
     height: u16,
-) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+) -> (
+    ratatui::buffer::Buffer,
+    ratatui::buffer::Buffer,
+    crate::tui_pointer::FrameHitMap,
+) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
+    let mut candidate = None;
     let rows = view.machines.sidebar_navigation_rows();
+    let source = view.machines.sidebar_source();
     terminal
         .draw(|frame| {
             render(
@@ -611,17 +745,43 @@ fn paint_navigation(
                     locale,
                     theme,
                     layer: HitLayer::Chrome,
+                    sidebar_width: width,
+                    owns_keyboard: view.machines.sidebar_navigation_active(),
+                    source: &source,
                 },
                 &rows,
                 Some(&mut hits),
             );
+            candidate = Some(frame.buffer_mut().clone());
         })
         .unwrap();
-    (terminal.backend().buffer().clone(), hits.finish())
+    (
+        candidate.expect("Workspace Sidebar candidate frame"),
+        terminal.backend().buffer().clone(),
+        hits.finish(),
+    )
+}
+
+fn paint_navigation(
+    view: &ClientView,
+    locale: Locale,
+    theme: &Theme,
+    width: u16,
+    height: u16,
+) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+    let (_, sink, hits) = paint_navigation_buffers(view, locale, theme, width, height);
+    (sink, hits)
+}
+
+fn hidden_by_candidate_wide_glyph(candidate: &ratatui::buffer::Buffer, x: u16, y: u16) -> bool {
+    (0..x).rev().take(4).any(|start| {
+        let width = display_width(candidate[(start, y)].symbol());
+        width > 1 && usize::from(start) + width > usize::from(x)
+    })
 }
 
 #[test]
-fn sidebar_row_controls_only_occupy_the_keyboard_focused_row() {
+fn sidebar_auxiliary_actions_remain_visible_at_rest_while_focus_moves_independently() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for width in [26, 40] {
             let mut view = view(120, 40);
@@ -639,52 +799,74 @@ fn sidebar_row_controls_only_occupy_the_keyboard_focused_row() {
                 .observe_focus(Choice::Local, Some(target.clone()), None);
             let project = view.machines.sidebar_parent(&active).unwrap();
             let theme = Theme::one_dark();
-            let (_, ordinary) = paint_navigation(&view, locale, &theme, width, 10);
-            assert!((2..9).all(|y| (0..width).all(|x| !matches!(
-                ordinary.hit_target_at(x, y),
-                Some(HitTarget::SidebarMenu(_) | HitTarget::CreateMenu(Some(_)))
-            ))));
-            assert!(matches!(
-                ordinary.hit_target_at(width - 1, 2),
-                Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
-            ));
-            for (y, selection) in [(3, 0), (5, 1)] {
-                assert!(matches!(
-                    ordinary.hit_target_at(width - 1, y),
-                    Some(HitTarget::MachineWorkspaceRow { selected, .. })
-                        if selected == &view.machines.space_rows()[selection].selection()
-                ));
+            let (ordinary_buffer, ordinary) = paint_navigation(&view, locale, &theme, width, 10);
+            for expected in [&project, &active, &other] {
+                let rows = sidebar_target_rows(&ordinary, width, 10, expected);
+                assert!(!rows.is_empty(), "{expected:?}");
+                for y in rows {
+                    assert!((0..width).any(|x| matches!(
+                        ordinary.hit_target_at(x, y),
+                        Some(HitTarget::SidebarMenu(target)) if target == expected
+                    )));
+                }
             }
-            for focused in [&project, &other] {
-                assert!(view.machines.focus_sidebar_target(focused));
-                let (_, map) = paint_navigation(&view, locale, &theme, width, 10);
-                assert!(
-                    (2..9).all(|y| (0..width).all(|x| match map.hit_target_at(x, y) {
-                        Some(
-                            HitTarget::SidebarMenu(target) | HitTarget::CreateMenu(Some(target)),
-                        ) => target == focused,
-                        _ => true,
-                    }))
-                );
-                assert!((2..9).any(|y| (0..width).any(|x| matches!(
-                    map.hit_target_at(x, y),
-                    Some(HitTarget::SidebarMenu(target)) if target == focused
-                ))));
-                assert_eq!(view.machines.current_context.as_ref(), Some(target));
+            let project_rows = sidebar_target_rows(&ordinary, width, 10, &project);
+            let project_y = project_rows[0];
+            let project_tracks = layout::Tracks::resolve(
+                Rect::new(0, project_y, width, project_rows.len() as u16),
+                0,
+                0,
+                auxiliary_actions(&view.machines.sidebar_source(), &project),
+            )
+            .unwrap();
+            assert_eq!(
+                ordinary_buffer[(project_tracks.menu.x, project_y)].symbol(),
+                "["
+            );
+            if project_tracks.density().direct_create() {
+                let create = project_tracks.create.unwrap();
+                assert_eq!(ordinary_buffer[(create.x, project_y)].symbol(), "[");
+                assert!((create.x..create.right()).all(|x| {
+                    ordinary.hit_target_at(x, project_y)
+                        == Some(&HitTarget::CreateMenu(Some(project.clone())))
+                }));
+            } else {
+                assert!((0..width).all(|x| !matches!(
+                    ordinary.hit_target_at(x, project_y),
+                    Some(HitTarget::CreateMenu(Some(_)))
+                )));
             }
+
+            assert!(view.machines.focus_sidebar_target(&other));
+            let (focused_buffer, focused_hits) = paint_navigation(&view, locale, &theme, width, 10);
+            let other_rows = sidebar_target_rows(&focused_hits, width, 10, &other);
+            assert_eq!(
+                focused_buffer[(0, other_rows[0])].symbol(),
+                theme.glyphs.navigation_marker
+            );
+            let active_rows = sidebar_target_rows(&focused_hits, width, 10, &active);
+            assert!((0..width).any(|x| matches!(
+                focused_hits.hit_target_at(x, active_rows[0]),
+                Some(HitTarget::SidebarMenu(actual)) if actual == &active
+            )));
+            assert_eq!(view.machines.current_context.as_ref(), Some(target));
+
             view.machines.leave_sidebar_navigation();
-            let (_, restored) = paint_navigation(&view, locale, &theme, width, 10);
-            assert!((2..9).all(|y| (0..width).all(|x| !matches!(
-                restored.hit_target_at(x, y),
-                Some(HitTarget::SidebarMenu(_) | HitTarget::CreateMenu(Some(_)))
-            ))));
+            let (restored_buffer, restored_hits) =
+                paint_navigation(&view, locale, &theme, width, 10);
+            let restored_other_rows = sidebar_target_rows(&restored_hits, width, 10, &other);
+            assert_eq!(restored_buffer[(0, restored_other_rows[0])].symbol(), " ");
+            assert!((0..width).any(|x| matches!(
+                restored_hits.hit_target_at(x, restored_other_rows[0]),
+                Some(HitTarget::SidebarMenu(actual)) if actual == &other
+            )));
             assert!(view.machines.request.is_none());
         }
     }
 }
 
 #[test]
-fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_context() {
+fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overlap() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
@@ -708,118 +890,106 @@ fn project_disclosure_rows_and_menus_have_disjoint_hits_and_focus_is_not_active_
                     .observe_focus(Choice::Local, Some(target.clone()), None);
                 assert!(view.machines.focus_sidebar_target(&focused));
                 let project = view.machines.sidebar_parent(&active).unwrap();
-                let (buffer, hits) = paint_navigation(&view, locale, &theme, width, 10);
-                let menu_start = width - menu_width(&view, &focused, &theme);
-                for x in 2..4 {
-                    assert_eq!(
-                        hits.hit_target_at(x, 2),
-                        Some(&HitTarget::SidebarDisclosure(project.clone()))
-                    );
-                }
-                for x in (0..2).chain(4..width) {
-                    assert!(matches!(
-                        hits.hit_target_at(x, 2),
-                        Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
-                    ));
-                }
-                for x in menu_start..width {
-                    assert!(matches!(
-                        hits.hit_target_at(x, 3),
-                        Some(HitTarget::MachineWorkspaceRow { selected, .. })
-                            if selected == &view.machines.space_rows()[0].selection()
-                    ));
-                    assert_eq!(
-                        hits.hit_target_at(x, 5),
-                        Some(&HitTarget::SidebarMenu(focused.clone()))
-                    );
-                }
-                assert_eq!(buffer[(0, 3)].symbol(), " ");
-                assert_eq!(buffer[(0, 5)].symbol(), ">");
-                assert_eq!(
-                    buffer[(0, 5)].fg,
-                    theme.style(Role::AccentSelection).fg.unwrap_or_default()
-                );
-                assert_eq!(buffer[(4, 2)].symbol(), "R");
-                assert!(buffer[(4, 2)].modifier.contains(Modifier::BOLD));
-                assert_eq!(buffer[(6, 3)].symbol(), "s");
-                assert_eq!(buffer[(6, 4)].symbol(), "f");
-                assert_eq!(buffer[(0, 3)].bg, theme.color(Role::SurfaceCurrent));
-                assert_eq!(buffer[(0, 4)].bg, theme.color(Role::SurfaceCurrent));
-                assert_eq!(
-                    buffer[(6, 4)].fg,
-                    theme
-                        .current_context_style(theme.style(Role::TextSecondary))
-                        .fg
-                        .unwrap_or_default()
-                );
-                assert_eq!(buffer[(0, 5)].bg, theme.color(Role::SurfaceSelection));
-                assert_eq!(buffer[(0, 6)].bg, theme.color(Role::SurfaceSelection));
-                if theme.polarity.is_some() {
-                    assert_eq!(
-                        buffer[(6, 6)].fg,
-                        theme.color(Role::TextSecondary),
-                        "focused Workspace metadata keeps its weaker foreground"
-                    );
-                    assert_ne!(buffer[(6, 5)].fg, buffer[(6, 6)].fg);
-                }
-                for (ys, surface) in [
-                    ([3, 4], Role::SurfaceCurrent),
-                    ([5, 6], Role::SurfaceSelection),
-                ] {
-                    for y in ys {
-                        let mut x = 0;
-                        while x < width {
-                            let cell = &buffer[(x, y)];
-                            assert_eq!(cell.bg, theme.color(surface));
-                            x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                let (candidate, sink, hits) =
+                    paint_navigation_buffers(&view, locale, &theme, width, 10);
+                let project_rows = sidebar_target_rows(&hits, width, 10, &project);
+                let project_tracks = layout::Tracks::resolve(
+                    Rect::new(0, project_rows[0], width, project_rows.len() as u16),
+                    0,
+                    0,
+                    auxiliary_actions(&view.machines.sidebar_source(), &project),
+                )
+                .unwrap();
+                for y in &project_rows {
+                    for x in 0..width {
+                        let hit = hits.hit_target_at(x, *y);
+                        if x >= project_tracks.disclosure.x && x < project_tracks.disclosure.right()
+                        {
+                            assert_eq!(hit, Some(&HitTarget::SidebarDisclosure(project.clone())));
+                        } else if project_tracks
+                            .create
+                            .is_some_and(|rect| x >= rect.x && x < rect.right())
+                        {
+                            assert_eq!(hit, Some(&HitTarget::CreateMenu(Some(project.clone()))));
+                        } else if x >= project_tracks.menu.x && x < project_tracks.menu.right() {
+                            assert_eq!(hit, Some(&HitTarget::SidebarMenu(project.clone())));
+                        } else {
+                            assert!(matches!(
+                                hit,
+                                Some(HitTarget::MachineProjectRow { target, .. })
+                                    if target == &project
+                            ));
                         }
                     }
                 }
-                for y in [5, 6] {
-                    assert_ne!(buffer[(0, y)].bg, theme.color(Role::SurfaceCurrent));
-                    for x in 0..menu_start {
-                        assert!(matches!(
-                            hits.hit_target_at(x, y),
-                            Some(HitTarget::MachineWorkspaceRow { selected, .. })
-                                if selected == &view.machines.space_rows()[1].selection()
-                        ));
+
+                let focused_rows = sidebar_target_rows(&hits, width, 10, &focused);
+                assert_eq!(focused_rows.len(), if width < 28 { 3 } else { 2 });
+                let focused_tracks = layout::Tracks::resolve(
+                    Rect::new(0, focused_rows[0], width, focused_rows.len() as u16),
+                    0,
+                    1,
+                    auxiliary_actions(&view.machines.sidebar_source(), &focused),
+                )
+                .unwrap();
+                for y in &focused_rows {
+                    for x in 0..width {
+                        if x >= focused_tracks.menu.x && x < focused_tracks.menu.right() {
+                            assert_eq!(
+                                hits.hit_target_at(x, *y),
+                                Some(&HitTarget::SidebarMenu(focused.clone()))
+                            );
+                        } else {
+                            assert!(matches!(
+                                hits.hit_target_at(x, *y),
+                                Some(HitTarget::MachineWorkspaceRow { selected, .. })
+                                    if selected == &view.machines.space_rows()[1].selection()
+                            ));
+                        }
+                    }
+                    for x in 0..width {
+                        assert_eq!(candidate[(x, *y)].bg, theme.color(Role::SurfaceSelection));
                     }
                 }
-                assert_ne!(buffer[(0, 3)].bg, buffer[(0, 5)].bg);
-                view.machines.leave_sidebar_navigation();
-                let (ordinary, _) = paint_navigation(&view, locale, &theme, width, 10);
-                assert_eq!(ordinary[(0, 3)].bg, theme.color(Role::SurfaceCurrent));
-                assert_eq!(ordinary[(0, 4)].bg, theme.color(Role::SurfaceCurrent));
-                assert_eq!(ordinary[(0, 5)].bg, theme.color(Role::SurfaceChrome));
-                assert_eq!(ordinary[(0, 5)].symbol(), " ");
-                assert!(view.machines.focus_sidebar_target(&project));
-                let (_, project_hits) = paint_navigation(&view, locale, &theme, width, 10);
-                let menu_start = width - menu_width(&view, &project, &theme);
-                let create_start = menu_start - create_width(&view, &project, &theme);
-                for x in (0..2).chain(4..create_start) {
-                    assert!(matches!(
-                        project_hits.hit_target_at(x, 2),
-                        Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
-                    ));
+                assert_eq!(
+                    candidate[(0, focused_rows[0])].symbol(),
+                    theme.glyphs.navigation_marker
+                );
+
+                let active_rows = sidebar_target_rows(&hits, width, 10, &active);
+                for y in &active_rows {
+                    for x in 0..width {
+                        assert_eq!(candidate[(x, *y)].bg, theme.color(Role::SurfaceCurrent));
+                    }
                 }
-                for x in create_start..menu_start {
-                    assert_eq!(
-                        project_hits.hit_target_at(x, 2),
-                        Some(&HitTarget::CreateMenu(Some(project.clone())))
-                    );
+                let mut hidden_differences = Vec::new();
+                for y in 0..10 {
+                    for x in 0..width {
+                        let candidate_cell = &candidate[(x, y)];
+                        let sink_cell = &sink[(x, y)];
+                        if candidate_cell != sink_cell {
+                            assert!(
+                                hidden_by_candidate_wide_glyph(&candidate, x, y),
+                                "TestBackend changed visible Sidebar cell ({x}, {y}): candidate={candidate_cell:?} sink={sink_cell:?}"
+                            );
+                            assert_eq!(candidate_cell.symbol(), " ");
+                            hidden_differences.push((x, y));
+                        }
+                    }
                 }
-                for x in menu_start..width {
-                    assert_eq!(
-                        project_hits.hit_target_at(x, 2),
-                        Some(&HitTarget::SidebarMenu(project.clone()))
-                    );
-                }
+                assert!(
+                    !hidden_differences.is_empty(),
+                    "the locked TestBackend must expose its wide-glyph continuation limitation"
+                );
+                assert_eq!(view.machines.current_context.as_ref(), Some(target));
+
                 assert!(view.machines.toggle_sidebar_project(&project));
                 let (collapsed_buffer, collapsed) =
                     paint_navigation(&view, locale, &theme, width, 10);
+                let collapsed_project_rows = sidebar_target_rows(&collapsed, width, 10, &project);
                 assert_eq!(
-                    collapsed_buffer[(0, 2)].bg,
-                    theme.color(Role::SurfaceCurrent)
+                    collapsed_buffer[(0, collapsed_project_rows[0])].bg,
+                    theme.color(Role::SurfaceSelection)
                 );
                 assert!((0..10).all(|y| (0..width).all(|x| !matches!(
                     collapsed.hit_target_at(x, y),
@@ -958,33 +1128,45 @@ fn collapsed_rows_keep_localized_agent_counts_waiting_and_current_context() {
                     } else {
                         1
                     };
-                    assert!(text.contains(&locale.sidebar_agent_count(total)), "{text}");
-                    assert!(text.contains(&locale.sidebar_waiting_count(1)), "{text}");
-                    let y = (0..20).find(|y| (0..width).any(|x| matches!(hits.hit_target_at(x, *y), Some(HitTarget::SidebarDisclosure(actual)) if actual == target))).unwrap();
-                    assert_eq!(buffer[(0, y)].symbol(), ">");
-                    assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceCurrent));
-                    for x in 0..width {
-                        assert!(
-                            match (target, hits.hit_target_at(x, y + 1)) {
-                                (
-                                    SidebarTarget::Project { .. },
-                                    Some(HitTarget::MachineProjectRow { target: actual, .. }),
-                                ) => actual == target,
-                                (
-                                    SidebarTarget::Context { target, .. },
-                                    Some(HitTarget::MachineWorkspaceRow { selected, .. }),
-                                ) =>
-                                    selected.context.as_ref()
-                                        == Some(
-                                            &crate::terminal_session::NativeStartupTarget::Context(
-                                                target.clone()
-                                            )
-                                        ),
-                                _ => false,
-                            },
-                            "count continuation lost its row hit at {x}, {}",
-                            y + 1
+                    let target_rows = sidebar_target_rows(&hits, width, 20, target);
+                    assert!(!target_rows.is_empty(), "{text}");
+                    let depth = if matches!(target, SidebarTarget::Context { .. }) {
+                        1_u16
+                    } else {
+                        0_u16
+                    };
+                    let tracks = layout::Tracks::resolve(
+                        Rect::new(0, target_rows[0], width, target_rows.len() as u16),
+                        0,
+                        depth,
+                        auxiliary_actions(&view.machines.sidebar_source(), target),
+                    )
+                    .unwrap();
+                    for full in [
+                        locale.sidebar_agent_count(total),
+                        locale.sidebar_waiting_count(1),
+                    ] {
+                        let expected = truncate_display(
+                            &full,
+                            usize::from(tracks.primary.width),
+                            theme.glyphs.ellipsis,
                         );
+                        assert!(text.contains(&expected), "{text}");
+                    }
+                    let y = target_rows[0];
+                    assert_eq!(buffer[(0, y)].symbol(), theme.glyphs.navigation_marker);
+                    assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceSelection));
+                    assert!(target_rows.iter().any(|row| (0..width).any(|x| matches!(
+                        hits.hit_target_at(x, *row),
+                        Some(HitTarget::SidebarDisclosure(actual)) if actual == target
+                    ))));
+                    for row in target_rows {
+                        for x in 0..width {
+                            assert!(
+                                hit_belongs_to_sidebar_target(hits.hit_target_at(x, row), target),
+                                "collapsed row lost its target at {x}, {row}"
+                            );
+                        }
                     }
                     assert_eq!(view.machines.current_context.as_ref(), Some(&contexts[0]));
                     assert!(view.machines.request.is_none());
@@ -1048,19 +1230,30 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
             })
             .max()
             .unwrap();
-        let project_y = (0..20)
+        let project_start = (0..20)
             .find(|y| {
                 (0..40).any(|x| {
                     hits.hit_target_at(x, *y) == Some(&HitTarget::SidebarMenu(project.clone()))
                 })
             })
             .unwrap();
-        assert_eq!(project_y, last_workspace + 2);
+        assert_eq!(project_start, last_workspace + 1);
+        assert_eq!(
+            buffer[(0, project_start)].symbol(),
+            Theme::terminal_native().glyphs.navigation_marker
+        );
         for x in 0..40 {
-            assert_eq!(buffer[(x, project_y - 1)].symbol(), " ");
+            if x > 0 {
+                assert_eq!(buffer[(x, project_start)].symbol(), " ");
+            }
             assert!(matches!(
-                hits.hit_target_at(x, project_y - 1),
-                Some(HitTarget::MachineWorkspaceSurface(_))
+                hits.hit_target_at(x, project_start),
+                Some(
+                    HitTarget::MachineProjectRow { target, .. }
+                        | HitTarget::SidebarDisclosure(target)
+                        | HitTarget::SidebarMenu(target)
+                        | HitTarget::CreateMenu(Some(target))
+                ) if target == &project
             ));
         }
         assert!(
@@ -1075,7 +1268,7 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
 }
 
 #[test]
-fn shortest_sidebar_drops_context_and_separator_before_complete_current_rows() {
+fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
             let mut view = view(60, 12);
@@ -1106,7 +1299,7 @@ fn shortest_sidebar_drops_context_and_separator_before_complete_current_rows() {
                 .observe_focus(Choice::Local, Some(target.clone()), Some(member));
             expand_context_agents(&mut view, target);
             let (rows, hits) = paint(&view, locale, &theme, 60, 12);
-            assert_eq!((0..12).filter(|y| matches!(hits.hit_target_at(2,*y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 3);
+            assert_eq!((0..12).filter(|y| matches!(hits.hit_target_at(2,*y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 4);
             assert_eq!(
                 (0..12)
                     .filter(|y| matches!(
@@ -1174,22 +1367,21 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
                 format!(" [{}]", identity(&row.sidebar_target().unwrap()))
             );
         }
-        let (buffer, hits) = paint_navigation(&view, locale, &theme, 16, 30);
+        let (buffer, hits) = paint_navigation(&view, locale, &theme, 24, 30);
         for row in view.machines.space_rows() {
             let selection = row.selection();
-            let displayed: String = (0..30)
+            let mut displayed: String = (0..30)
                 .filter(|y| matches!(
                     hits.hit_target_at(0, *y),
                     Some(HitTarget::MachineWorkspaceRow { selected, .. }) if selected == &selection
                 ))
                 .map(|y| {
-                    (4..16)
+                    (0..24)
                         .map(|x| buffer[(x, y)].symbol())
                         .collect::<String>()
-                        .trim_end()
-                        .to_owned()
                 })
                 .collect();
+            displayed.retain(|character| !character.is_whitespace());
             assert!(
                 displayed.contains(identity(&row.sidebar_target().unwrap())),
                 "{displayed}"
@@ -1223,7 +1415,7 @@ fn duplicate_agent_titles_keep_member_identity_inline_and_on_narrow_continuation
     )]);
     expand_context_agents(&mut view, target);
 
-    for width in [30, 16] {
+    for width in [30, 24] {
         let (buffer, hits) =
             paint_navigation(&view, Locale::EnUs, &Theme::terminal_native(), width, 20);
         let text = (0..20)
@@ -1250,6 +1442,104 @@ fn duplicate_agent_titles_keep_member_identity_inline_and_on_narrow_continuation
 }
 
 #[test]
+fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_independent() {
+    for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+        let mut view = view(120, 40);
+        let mut workspace = token("workspace");
+        workspace["style"]["bold"] = serde_json::json!(false);
+        configure(&mut view, serde_json::json!([[workspace]]), 0);
+        view.machines.configure_agent_sidebar(
+            orchbee_local_site_runtime::WindowsAgentSidebarSettings::from_profile(
+                &serde_json::json!({
+                    "rows": [[{
+                        "name": "pane",
+                        "style": {"fg": null, "bold": false, "dim": null},
+                        "rules": []
+                    }]],
+                    "rows_by_agent": {},
+                    "row_gap": 0
+                })
+                .to_string(),
+            )
+            .unwrap(),
+        );
+        let context = view.machines.space_rows()[0].sidebar_target().unwrap();
+        let SidebarTarget::Context {
+            target: context_target,
+            ..
+        } = &context
+        else {
+            unreachable!()
+        };
+        let mut agent = agent_for(context_target.clone(), 23);
+        agent.seen = false;
+        agent.metadata.title = Some(MetadataTokenValue::parse("Input handling").unwrap());
+        let member = agent.target.clone();
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
+                vec![agent],
+            )),
+        )]);
+        expand_context_agents(&mut view, context_target.clone());
+        view.machines.observe_focus(
+            Choice::Local,
+            Some(context_target.clone()),
+            Some(crate::terminal_session::NativeMemberTarget {
+                tab: member.tab.clone(),
+                panel: member.panel.clone(),
+                presentation: member.member.clone(),
+            }),
+        );
+        assert!(!view.machines.sidebar_navigation_active());
+        let agent = view
+            .machines
+            .sidebar_navigation_rows()
+            .iter()
+            .find_map(|row| matches!(row, SidebarRow::Agent { .. }).then(|| row.target()))
+            .unwrap();
+
+        let (candidate, _, hits) = paint_navigation_buffers(&view, Locale::EnUs, &theme, 120, 40);
+        for target in [&context, &agent] {
+            let rows = sidebar_target_rows(&hits, 120, 40, target);
+            assert_eq!(rows.len(), 1);
+            let y = rows[0];
+            let tracks = layout::Tracks::resolve(
+                Rect::new(0, y, 120, 1),
+                0,
+                depth(&view, target),
+                auxiliary_actions(&view.machines.sidebar_source(), target),
+            )
+            .unwrap();
+            assert_eq!(candidate[(tracks.navigation.x, y)].symbol(), " ");
+            assert_eq!(
+                candidate[(tracks.current.x, y)].symbol(),
+                theme.glyphs.active_marker
+            );
+            assert_eq!(
+                candidate[(tracks.state.x, y)].symbol(),
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+            );
+            assert_eq!(
+                candidate[(tracks.unread.x, y)].symbol(),
+                theme.glyphs.status_bullet
+            );
+            let identity_x = (tracks.primary.x..tracks.primary.right())
+                .find(|x| candidate[(*x, y)].symbol() != " ")
+                .unwrap();
+            assert!(!candidate[(identity_x, y)].modifier.contains(Modifier::BOLD));
+            for x in 0..120 {
+                assert_eq!(candidate[(x, y)].bg, theme.color(Role::SurfaceCurrent));
+                assert!(hit_belongs_to_sidebar_target(
+                    hits.hit_target_at(x, y),
+                    target
+                ));
+            }
+        }
+    }
+}
+
+#[test]
 fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focus() {
     let mut view = view(120, 40);
     let mut workspace = token("workspace");
@@ -1259,12 +1549,135 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
     let SidebarTarget::Context { target, .. } = &active else {
         unreachable!()
     };
+    let mut agent = agent_for(target.clone(), 23);
+    agent.seen = false;
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(vec![
+            agent,
+        ])),
+    )]);
     view.machines
         .observe_focus(Choice::Local, Some(target.clone()), None);
     assert!(view.machines.focus_sidebar_target(&active));
     let theme = Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome);
-    let (buffer, _) = paint_navigation(&view, Locale::EnUs, &theme, 26, 10);
-    assert_eq!(buffer[(0, 3)].symbol(), ">");
-    assert_eq!(buffer[(1, 3)].symbol(), "*");
-    assert!(!buffer[(6, 3)].modifier.contains(Modifier::BOLD));
+    let (buffer, hits) = paint_navigation(&view, Locale::EnUs, &theme, 26, 10);
+    let rows = sidebar_target_rows(&hits, 26, 10, &active);
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1], rows[0] + 1);
+    let y = rows[0];
+    let tracks = layout::Tracks::resolve(
+        Rect::new(0, y, 26, rows.len() as u16),
+        0,
+        depth(&view, &active),
+        auxiliary_actions(&view.machines.sidebar_source(), &active),
+    )
+    .unwrap();
+    assert_eq!(
+        buffer[(tracks.navigation.x, y)].symbol(),
+        theme.glyphs.navigation_marker
+    );
+    assert_eq!(
+        buffer[(tracks.current.x, y)].symbol(),
+        theme.glyphs.active_marker
+    );
+    assert_eq!(
+        buffer[(tracks.state.x, y)].symbol(),
+        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+    );
+    assert_eq!(
+        buffer[(tracks.unread.x, y)].symbol(),
+        theme.glyphs.status_bullet
+    );
+    assert!(
+        !buffer[(tracks.primary.x, y)]
+            .modifier
+            .contains(Modifier::BOLD)
+    );
+}
+
+#[test]
+fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence() {
+    for (name, width, height, locale) in [
+        (
+            "alignment-sidebar-tree-en-us-120x40-default",
+            120,
+            40,
+            Locale::EnUs,
+        ),
+        (
+            "alignment-sidebar-tree-zh-cn-80x24-default",
+            80,
+            24,
+            Locale::ZhCn,
+        ),
+    ] {
+        let mut view = view(width, height);
+        view.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
+        view.configure_theme(orchbee_local_site_runtime::WindowsThemeName::default());
+        configure(
+            &mut view,
+            serde_json::json!([[token("state_icon"), token("workspace")], [token("branch")]]),
+            0,
+        );
+        let active = view.machines.space_rows()[0].sidebar_target().unwrap();
+        let focused = view.machines.space_rows()[1].sidebar_target().unwrap();
+        let active_selection = view.machines.space_rows()[0].selection();
+        let focused_selection = view.machines.space_rows()[1].selection();
+        let SidebarTarget::Context { target, .. } = &active else {
+            unreachable!()
+        };
+        view.machines
+            .observe_focus(Choice::Local, Some(target.clone()), None);
+        let mut agent = agent_for(target.clone(), 23);
+        agent.metadata.title = Some(MetadataTokenValue::parse("Input handling").unwrap());
+        let agent_selection = agent.target.clone();
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(
+                vec![agent],
+            )),
+        )]);
+        expand_context_agents(&mut view, target.clone());
+        assert!(view.machines.focus_sidebar_target(&active));
+        assert!(matches!(
+            view.machines
+                .sidebar_key(crate::client_view::KeyEvent::press(
+                    crate::client_view::KeyCode::End,
+                    crate::client_view::Modifiers::NONE,
+                )),
+            crate::machine_picker::SidebarIntent::None
+        ));
+        assert_eq!(view.machines.current_context.as_ref(), Some(target));
+
+        let theme = view.configured_theme().unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+            })
+            .unwrap();
+        let hits = hits.finish();
+        assert!((0..height).any(|y| (0..width).any(|x| matches!(
+            hits.hit_target_at(x, y),
+            Some(HitTarget::MachineWorkspaceRow { selected, .. })
+                if selected == &active_selection
+        ))));
+        assert!((0..height).any(|y| (0..width).any(|x| matches!(
+            hits.hit_target_at(x, y),
+            Some(HitTarget::MachineWorkspaceRow { selected, .. })
+                if selected == &focused_selection
+        ))));
+        assert!((0..height).any(|y| (0..width).any(|x| matches!(
+            hits.hit_target_at(x, y),
+            Some(HitTarget::MachineAgentRow { selected, .. })
+                if matches!(&selected.context, Some(crate::terminal_session::NativeStartupTarget::Agent(target)) if target.as_ref() == &agent_selection)
+        ))));
+        assert!((0..height).any(|y| (0..width).any(|x| matches!(
+            hits.hit_target_at(x, y),
+            Some(HitTarget::SidebarMenu(target)) if target == &focused
+        ))));
+        crate::tui_render::test_capture::capture_screen(&mut terminal, name, locale, &theme);
+    }
 }

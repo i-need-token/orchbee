@@ -3,21 +3,40 @@ use super::Locale;
 use crate::terminal_session::{WorktreeMode, WorktreeNotice, WorktreeStage};
 
 impl Locale {
-    pub(crate) fn worktree_cancel_button(self, stage: WorktreeStage) -> &'static str {
+    pub(crate) fn worktree_cancel_label(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
-            (Self::EnUs, WorktreeStage::Waiting) => "[Esc · hide]",
-            (Self::ZhCn, WorktreeStage::Waiting) => "[Esc · 隐藏]",
-            (Self::EnUs, WorktreeStage::Result) => "[Esc · close]",
-            (Self::ZhCn, WorktreeStage::Result) => "[Esc · 关闭]",
-            _ => self.setup_cancel_button(),
+            (Self::EnUs, WorktreeStage::Waiting) => "Hide",
+            (Self::ZhCn, WorktreeStage::Waiting) => "隐藏",
+            (Self::EnUs, WorktreeStage::Result) => "Close",
+            (Self::ZhCn, WorktreeStage::Result) => "关闭",
+            (Self::EnUs, _) => "Cancel",
+            (Self::ZhCn, _) => "取消",
         }
     }
-    pub(crate) fn worktree_submit_button(self, stage: WorktreeStage) -> &'static str {
+    pub(crate) fn worktree_cancel_hint(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
-            (Self::EnUs, WorktreeStage::Waiting | WorktreeStage::Result) => "[r · read status]",
-            (Self::ZhCn, WorktreeStage::Waiting | WorktreeStage::Result) => "[r · 查询状态]",
-            (Self::EnUs, _) => "[Enter · create]",
-            (Self::ZhCn, _) => "[Enter · 创建]",
+            (Self::EnUs, WorktreeStage::Waiting) => "hide",
+            (Self::ZhCn, WorktreeStage::Waiting) => "隐藏",
+            (Self::EnUs, WorktreeStage::Result) => "close",
+            (Self::ZhCn, WorktreeStage::Result) => "关闭",
+            (Self::EnUs, _) => "cancel",
+            (Self::ZhCn, _) => "取消",
+        }
+    }
+    pub(crate) fn worktree_submit_label(self, stage: WorktreeStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, WorktreeStage::Waiting | WorktreeStage::Result) => "Read status",
+            (Self::ZhCn, WorktreeStage::Waiting | WorktreeStage::Result) => "查询状态",
+            (Self::EnUs, _) => "Create",
+            (Self::ZhCn, _) => "创建",
+        }
+    }
+    pub(crate) fn worktree_submit_hint(self, stage: WorktreeStage) -> &'static str {
+        match (self, stage) {
+            (Self::EnUs, WorktreeStage::Waiting | WorktreeStage::Result) => "read status",
+            (Self::ZhCn, WorktreeStage::Waiting | WorktreeStage::Result) => "查询状态",
+            (Self::EnUs, _) => "create",
+            (Self::ZhCn, _) => "创建",
         }
     }
     pub(crate) fn worktree_default_workspace(self, ordinal: usize) -> String {
@@ -50,27 +69,13 @@ impl Locale {
             (Self::ZhCn, _) => "分支",
         }
     }
-    pub(crate) fn worktree_actions(self, stage: WorktreeStage) -> &'static str {
-        match (self, stage) {
-            (Self::EnUs, WorktreeStage::Checkout) => "↑/↓ choose · Enter confirm · Esc cancel",
-            (Self::ZhCn, WorktreeStage::Checkout) => "↑/↓ 选择 · Enter 确认 · Esc 取消",
-            (Self::EnUs, WorktreeStage::Branch | WorktreeStage::Base) => {
-                "Tab next field · Enter create · Esc cancel"
-            }
-            (Self::ZhCn, WorktreeStage::Branch | WorktreeStage::Base) => {
-                "Tab 切换字段 · Enter 创建 · Esc 取消"
-            }
-            (Self::EnUs, WorktreeStage::Preparing) => "Esc cancel",
-            (Self::ZhCn, WorktreeStage::Preparing) => "Esc 取消",
-            (Self::EnUs, WorktreeStage::Result) => "r read status · Esc close",
-            (Self::ZhCn, WorktreeStage::Result) => "r 查询状态 · Esc 关闭",
-            (Self::EnUs, _) => "r read status · Esc hide",
-            (Self::ZhCn, _) => "r 查询状态 · Esc 隐藏",
-        }
-    }
     pub(crate) fn worktree_notice(self, notice: WorktreeNotice) -> &'static str {
         use WorktreeNotice as N;
         match (self, notice) {
+            (Self::EnUs, N::PresentationUnavailable) => "Cannot open here: enlarge the terminal.",
+            (Self::ZhCn, N::PresentationUnavailable) => "终端尺寸不足，放大后重试。",
+            (Self::EnUs, N::EntryDeferred) => "Workspace ready; select it in the navigator.",
+            (Self::ZhCn, N::EntryDeferred) => "工作区已就绪，可在导航中选择。",
             (Self::EnUs, N::Preparing) => "Reading repository…",
             (Self::ZhCn, N::Preparing) => "正在读取仓库…",
             (Self::EnUs, N::InvalidInput) => "Use a valid branch/base without control characters.",
@@ -128,14 +133,10 @@ impl Locale {
         notice: WorktreeNotice,
         stage: Option<WorktreeStage>,
     ) -> String {
-        match stage {
-            Some(stage) => format!(
-                "{} · {}",
-                self.worktree_stage_notice(notice, stage),
-                self.worktree_actions(stage)
-            ),
-            None => self.worktree_notice(notice).to_owned(),
-        }
+        stage.map_or_else(
+            || self.worktree_notice(notice).to_owned(),
+            |stage| self.worktree_stage_notice(notice, stage).to_owned(),
+        )
     }
     pub(crate) fn worktree_stage_notice(
         self,

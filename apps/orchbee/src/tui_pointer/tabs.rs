@@ -39,7 +39,7 @@ pub(crate) struct TabDragPreview {
 }
 
 enum Phase {
-    Pressed,
+    Pressed { activation_cancelled: bool },
     Dragging(Option<Drop>),
 }
 
@@ -119,7 +119,9 @@ impl TabDrag {
             ids: WorkbenchTabIdSet::try_from(ids).ok()?,
             carries_group,
             pinned,
-            phase: Phase::Pressed,
+            phase: Phase::Pressed {
+                activation_cancelled: false,
+            },
         })
     }
 
@@ -127,6 +129,28 @@ impl TabDrag {
         !map.overlay_active
             && map.menu_source.as_ref() == Some(&self.source.drawn.source)
             && tab_regions(map) == self.regions
+    }
+
+    pub(super) fn projection_fingerprint(&self) -> Option<super::chrome::Fingerprint> {
+        if !matches!(
+            self.phase,
+            Phase::Pressed {
+                activation_cancelled: false,
+            }
+        ) {
+            return None;
+        }
+        let area = self
+            .regions
+            .iter()
+            .find_map(|(area, target)| (target == &self.target).then_some(*area))?;
+        super::chrome::Fingerprint::tab(&self.source.drawn, &self.target, area)
+    }
+
+    fn over_pressed_target(&self, column: u16, row: u16) -> bool {
+        self.regions
+            .iter()
+            .any(|(area, target)| target == &self.target && contains(*area, column, row))
     }
 
     fn destination(&self, column: u16, row: u16) -> Option<Drop> {
@@ -362,7 +386,9 @@ impl PointerState {
                 let probe = port.pointer_probe();
                 return self.fresh_event(view, port, &probe, now, event);
             }
-            if event.action == MouseAction::Release {
+            if event.action == MouseAction::Release
+                && matches!(event.button, MouseButton::Left | MouseButton::None)
+            {
                 self.gesture = Gesture::Idle;
                 return PointerOutcome::TabGestureEnded;
             }
@@ -372,9 +398,15 @@ impl PointerState {
             && self.map.as_ref().is_some_and(|map| drag.painted_in(map))
             && event.mods == Modifiers::NONE;
         if !alive {
-            if event.action == MouseAction::Release {
+            if event.action == MouseAction::Release
+                && matches!(event.button, MouseButton::Left | MouseButton::None)
+            {
                 self.gesture = Gesture::Idle;
+                return PointerOutcome::TabGestureEnded;
             }
+            // This report is the causal end of the active drag. Keep the
+            // cancelled tombstone for its late primary release, but tell the
+            // dispatcher to fence the rest of this physical packet now.
             return PointerOutcome::TabGestureEnded;
         }
         if event.action == MouseAction::Release
@@ -382,10 +414,10 @@ impl PointerState {
         {
             self.gesture = Gesture::Idle;
             match drag.phase {
-                Phase::Pressed => {
-                    if drag.regions.iter().any(|(area, target)| {
-                        target == &drag.target && contains(*area, event.column, event.row)
-                    }) {
+                Phase::Pressed {
+                    activation_cancelled,
+                } => {
+                    if !activation_cancelled && drag.over_pressed_target(event.column, event.row) {
                         let action = match drag.target {
                             HitTarget::Tab(id) => drag
                                 .source
@@ -423,11 +455,17 @@ impl PointerState {
             }
             return PointerOutcome::TabGestureEnded;
         } else if event.action == MouseAction::Motion && event.button == MouseButton::Left {
-            if matches!(drag.phase, Phase::Dragging(_))
-                || drag.origin.0.abs_diff(event.column) >= 2
-                || drag.origin.1 != event.row
-            {
+            let crossed_drag_threshold =
+                drag.origin.0.abs_diff(event.column) >= 2 || drag.origin.1 != event.row;
+            let over_pressed_target = drag.over_pressed_target(event.column, event.row);
+            if matches!(drag.phase, Phase::Dragging(_)) || crossed_drag_threshold {
                 drag.phase = Phase::Dragging(drag.destination(event.column, event.row));
+            } else if let Phase::Pressed {
+                activation_cancelled,
+            } = &mut drag.phase
+                && !over_pressed_target
+            {
+                *activation_cancelled = true;
             }
             self.gesture = Gesture::Tab(drag);
         } else if event.action == MouseAction::Press {

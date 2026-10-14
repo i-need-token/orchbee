@@ -120,3 +120,109 @@ fn popup_pending_and_closing_composition_hide_the_underlying_terminal_cursor() {
         }
     }
 }
+
+#[test]
+fn too_small_popup_root_frame_shows_plain_recovery_and_restores_the_surface_after_resize() {
+    use crate::{
+        client_view::ClientView,
+        localization::Locale,
+        terminal_session::TerminalSessionView,
+        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_theme::Theme,
+    };
+    use ratatui::{Terminal, backend::TestBackend};
+
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
+    super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
+    ui.popup =
+        crate::terminal_session::independent_popup::Driver::composition_fixture(Some(false), None);
+
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let theme = Theme::one_dark();
+        let client = ClientView::new(100);
+        let mut too_small = Terminal::new(TestBackend::new(100, 4)).unwrap();
+        let mut too_small_hits = HitMapBuilder::new();
+        too_small
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &client,
+                    locale,
+                    Some(TerminalSessionView::Native(ui.view())),
+                    &theme,
+                    &mut too_small_hits,
+                );
+            })
+            .unwrap();
+        let too_small_map = too_small_hits.finish();
+        for row in 0..4 {
+            for column in 0..100 {
+                if let Some(target) = too_small_map.hit_target_at(column, row) {
+                    assert_eq!(
+                        target,
+                        &HitTarget::OverlaySurface,
+                        "TooSmall popup published {target:?}"
+                    );
+                }
+            }
+        }
+        let too_small_text = too_small
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(
+            too_small_text
+                .replace(' ', "")
+                .contains(&locale.plugin_popup_resize_recovery().replace(' ', "")),
+            "{locale:?}: {too_small_text:?}"
+        );
+        assert!(!too_small_text.contains("Esc"), "{too_small_text:?}");
+        assert!(!too_small_text.contains("Ctrl"), "{too_small_text:?}");
+
+        let mut restored = Terminal::new(TestBackend::new(100, 24)).unwrap();
+        let mut restored_hits = HitMapBuilder::new();
+        restored
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &client,
+                    locale,
+                    Some(TerminalSessionView::Native(ui.view())),
+                    &theme,
+                    &mut restored_hits,
+                );
+            })
+            .unwrap();
+        let restored_map = restored_hits.finish();
+        assert!((0..24).any(|row| {
+            (0..100).any(|column| {
+                matches!(
+                    restored_map.hit_target_at(column, row),
+                    Some(HitTarget::Popup { .. } | HitTarget::PopupClose(_))
+                )
+            })
+        }));
+        let restored_text = restored
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(
+            restored_text
+                .replace(' ', "")
+                .contains(&locale.plugin_popup_pending(false).replace(' ', "")),
+            "{locale:?}: {restored_text:?}"
+        );
+        assert!(
+            !restored_text
+                .replace(' ', "")
+                .contains(&locale.plugin_popup_resize_recovery().replace(' ', "")),
+            "{locale:?}: {restored_text:?}"
+        );
+    }
+}

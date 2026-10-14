@@ -1,9 +1,49 @@
 //! Pure scalar and catalog draft edits; executable paths and arguments remain literal data.
-use super::{Confirmation, Draft, Edit, Page, Row};
+use super::{AdjustmentStep, Confirmation, Draft, Edit, Row, SettingControl, setting};
 use orchbee_workbench_protocol::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
-    TerminalDisplayAppearance, UserLaunchCommand, UserLaunchProfile,
+    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferenceKey,
+    PreferencesLocale, TerminalDisplayAppearance, UserLaunchCommand, UserLaunchProfile,
 };
+
+fn integer_bounds(key: PreferenceKey) -> (u64, u64) {
+    let SettingControl::BoundedInteger {
+        minimum, maximum, ..
+    } = setting(key).control
+    else {
+        unreachable!("integer preference metadata")
+    };
+    (minimum, maximum)
+}
+
+fn integer_step(key: PreferenceKey, step: AdjustmentStep) -> (u64, u64, u64) {
+    let SettingControl::BoundedInteger {
+        minimum,
+        maximum,
+        small_step,
+        large_step,
+        ..
+    } = setting(key).control
+    else {
+        unreachable!("integer preference metadata")
+    };
+    (
+        minimum,
+        maximum,
+        match step {
+            AdjustmentStep::Small => small_step,
+            AdjustmentStep::Large => large_step,
+        },
+    )
+}
+
+fn step_integer(current: u64, key: PreferenceKey, forward: bool, step: AdjustmentStep) -> u64 {
+    let (minimum, maximum, amount) = integer_step(key, step);
+    if forward {
+        current.saturating_add(amount).min(maximum)
+    } else {
+        current.saturating_sub(amount).max(minimum)
+    }
+}
 
 fn cycle<T: Copy + PartialEq>(current: &mut T, values: &[T], forward: bool) {
     let index = values
@@ -12,9 +52,28 @@ fn cycle<T: Copy + PartialEq>(current: &mut T, values: &[T], forward: bool) {
         .unwrap_or(0);
     *current = values[(index + if forward { 1 } else { values.len() - 1 }) % values.len()];
 }
-pub(super) fn adjust(draft: &mut Draft, forward: bool) {
+pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
     let values = &mut draft.values;
     match draft.row {
+        Row::CompletionThreshold => {
+            values.completion_reminder_minimum_seconds = u16::try_from(step_integer(
+                u64::from(values.completion_reminder_minimum_seconds),
+                PreferenceKey::CompletionReminderMinimumSeconds,
+                forward,
+                step,
+            ))
+            .expect("completion threshold metadata fits u16");
+        }
+        Row::Scrollback => {
+            values.scrollback_bytes = u32::try_from(step_integer(
+                u64::from(values.scrollback_bytes),
+                PreferenceKey::ScrollbackBytes,
+                forward,
+                step,
+            ))
+            .expect("scrollback metadata fits u32");
+        }
+        _ if step == AdjustmentStep::Large => {}
         Row::Language => cycle(
             &mut values.locale,
             &[
@@ -105,14 +164,8 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool) {
 }
 pub(super) fn activate(draft: &mut Draft) {
     match draft.row {
-        Row::LaunchProfiles => {
-            draft.page = Page::Profiles;
-            draft.row = Row::Profile;
-        }
-        Row::Back => {
-            draft.page = Page::General;
-            draft.row = Row::LaunchProfiles;
-        }
+        Row::LaunchProfiles => draft.enter_profiles(),
+        Row::Back => draft.return_from_profiles(),
         Row::ResetAll => draft.confirmation = Some(Confirmation::ResetAll),
         Row::ResetProfiles => draft.confirmation = Some(Confirmation::ResetProfiles),
         Row::Reload => draft.confirmation = Some(Confirmation::Reload),
@@ -156,7 +209,7 @@ pub(super) fn activate(draft: &mut Draft) {
                 }
             }
         }
-        _ => adjust(draft, true),
+        _ => adjust(draft, true, AdjustmentStep::Small),
     }
 }
 pub(super) fn delete_profile(draft: &mut Draft) {
@@ -264,7 +317,9 @@ fn accept_text(draft: &mut Draft, value: String) -> bool {
             let Ok(number) = value.parse::<u16>() else {
                 return false;
             };
-            if !(1..=3600).contains(&number) {
+            let (minimum, maximum) =
+                integer_bounds(PreferenceKey::CompletionReminderMinimumSeconds);
+            if !(minimum..=maximum).contains(&u64::from(number)) {
                 return false;
             }
             draft.values.completion_reminder_minimum_seconds = number;
@@ -273,7 +328,8 @@ fn accept_text(draft: &mut Draft, value: String) -> bool {
             let Ok(number) = value.parse::<u32>() else {
                 return false;
             };
-            if number > 1_000_000_000 {
+            let (minimum, maximum) = integer_bounds(PreferenceKey::ScrollbackBytes);
+            if !(minimum..=maximum).contains(&u64::from(number)) {
                 return false;
             }
             draft.values.scrollback_bytes = number;

@@ -5,6 +5,15 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { checkVerbose, runChecks } from './check-output.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
+const windowsConsoleHost = Object.freeze({
+	name: 'orchbee-windows-console-host',
+	manifest: 'crates/windows-console-host/Cargo.toml',
+	library: 'crates/windows-console-host/src/lib.rs',
+	system: 'crates/windows-console-host/src/sys.rs',
+	systemTests: 'crates/windows-console-host/src/sys/tests.rs',
+});
+const windowsConsoleUnsafeReason =
+	'reviewed Win32 calls and tagged INPUT_RECORD union reads are isolated here';
 const task = process.argv[2];
 const selectedPackages = [];
 const presentationArguments = [];
@@ -69,8 +78,11 @@ if (!Array.isArray(metadata.packages)) {
 }
 
 if (task === 'lint') {
-	const legacyModules = metadata.packages
-		.filter((entry) => metadata.workspace_members.includes(entry.id))
+	const workspacePackages = metadata.packages.filter((entry) =>
+		metadata.workspace_members.includes(entry.id),
+	);
+	enforceAuthoredUnsafePolicy(workspacePackages);
+	const legacyModules = workspacePackages
 		.flatMap((entry) => legacySourceModules(join(dirname(entry.manifest_path), 'src')))
 		.map((path) => relative(repositoryRoot, path).replaceAll('\\', '/'))
 		.toSorted();
@@ -140,4 +152,307 @@ function legacySourceModules(directory) {
 		if (entry.isDirectory()) return legacySourceModules(path);
 		return entry.name === 'mod.rs' ? [path] : [];
 	});
+}
+
+function enforceAuthoredUnsafePolicy(workspacePackages) {
+	assertTomlEntries(
+		readFileSync(resolve(repositoryRoot, 'Cargo.toml'), 'utf8'),
+		'workspace.lints.rust',
+		['unsafe_code = "forbid"'],
+		'root workspace Rust lint policy',
+	);
+	assertTomlEntries(
+		readFileSync(resolve(repositoryRoot, 'Cargo.toml'), 'utf8'),
+		'workspace.lints.clippy',
+		['all = { level = "deny", priority = -1 }', 'wildcard_imports = "deny"'],
+		'root workspace Clippy policy',
+	);
+
+	const canonicalManifest = resolve(repositoryRoot, windowsConsoleHost.manifest);
+	const canonicalExists = existsSync(canonicalManifest);
+	const namedExceptions = workspacePackages.filter(
+		(entry) => entry.name === windowsConsoleHost.name,
+	);
+	const pathExceptions = workspacePackages.filter((entry) =>
+		samePath(entry.manifest_path, canonicalManifest),
+	);
+	if (namedExceptions.length > 1 || pathExceptions.length > 1) {
+		throw new Error('The Windows console unsafe-code exception must identify one exact package');
+	}
+	if (
+		(namedExceptions.length === 1 &&
+			!samePath(namedExceptions[0].manifest_path, canonicalManifest)) ||
+		(pathExceptions.length === 1 && pathExceptions[0].name !== windowsConsoleHost.name) ||
+		(canonicalExists && (namedExceptions.length !== 1 || pathExceptions.length !== 1))
+	) {
+		throw new Error(
+			`The only unsafe-code exception is ${windowsConsoleHost.name} at ${windowsConsoleHost.manifest}`,
+		);
+	}
+
+	for (const entry of workspacePackages) {
+		if (
+			entry.name === windowsConsoleHost.name &&
+			samePath(entry.manifest_path, canonicalManifest)
+		) {
+			enforceWindowsConsoleHostPolicy(entry);
+			continue;
+		}
+		const manifest = readFileSync(entry.manifest_path, 'utf8');
+		assertTomlEntries(
+			manifest,
+			'lints',
+			['workspace = true'],
+			`${relativeManifest(entry.manifest_path)} workspace lint inheritance`,
+		);
+		for (const source of rustSourceFiles(dirname(entry.manifest_path))) {
+			const text = readFileSync(source, 'utf8');
+			const escapes = unsafeEscapeAttributes(text);
+			if (escapes.length > 0) {
+				throw new Error(
+					`${relativeSource(source)} cannot weaken the workspace forbid for unsafe_code`,
+				);
+			}
+			if (authoredUnsafePattern().test(rustPolicySource(text))) {
+				throw new Error(
+					`${relativeSource(source)} contains authored unsafe Rust outside the sole ${windowsConsoleHost.system} exception`,
+				);
+			}
+		}
+	}
+}
+
+function enforceWindowsConsoleHostPolicy(entry) {
+	const manifest = readFileSync(entry.manifest_path, 'utf8');
+	assertTomlEntries(
+		manifest,
+		'lints.rust',
+		['unsafe_code = "deny"'],
+		`${windowsConsoleHost.manifest} Rust lint policy`,
+	);
+	assertTomlEntries(
+		manifest,
+		'lints.clippy',
+		['all = { level = "deny", priority = -1 }', 'wildcard_imports = "deny"'],
+		`${windowsConsoleHost.manifest} mirrored Clippy policy`,
+	);
+	if (tomlEntries(manifest, 'lints').length > 0) {
+		throw new Error(`${windowsConsoleHost.manifest} must not inherit the workspace unsafe forbid`);
+	}
+
+	const libraryPath = resolve(repositoryRoot, windowsConsoleHost.library);
+	const systemPath = resolve(repositoryRoot, windowsConsoleHost.system);
+	const testsPath = resolve(repositoryRoot, windowsConsoleHost.systemTests);
+	for (const path of [libraryPath, systemPath, testsPath]) {
+		if (!existsSync(path))
+			throw new Error(`Missing canonical unsafe-boundary file: ${relativeSource(path)}`);
+	}
+	const library = readFileSync(libraryPath, 'utf8');
+	const libraryPolicy = rustPolicySource(library);
+	if (!/#!\[\s*deny\s*\(\s*unsafe_code\s*\)\s*\]/u.test(libraryPolicy)) {
+		throw new Error(`${windowsConsoleHost.library} must keep crate-wide deny(unsafe_code)`);
+	}
+	const canonicalDeclaration = `#[cfg(windows)]
+#[allow(
+    unsafe_code,
+    reason = "${windowsConsoleUnsafeReason}"
+)]
+mod sys;`;
+	const canonicalDeclarationShape =
+		/^[\t ]*#\[\s*cfg\s*\(\s*windows\s*\)\s*\][\t ]*\r?\n[\t ]*#\[\s*allow\s*\(\s*unsafe_code\s*,\s*reason\s*=\s*\)\s*\][\t ]*\r?\n[\t ]*mod[\t ]+sys[\t ]*;[\t ]*$/mu.exec(
+			libraryPolicy,
+		);
+	const activeDeclaration =
+		canonicalDeclarationShape === null
+			? undefined
+			: library.slice(
+					canonicalDeclarationShape.index,
+					canonicalDeclarationShape.index + canonicalDeclarationShape[0].length,
+				);
+	if (
+		activeDeclaration === undefined ||
+		normalizedWhitespace(activeDeclaration) !== normalizedWhitespace(canonicalDeclaration)
+	) {
+		throw new Error(
+			`${windowsConsoleHost.library} must keep the reasoned unsafe_code allow on private mod sys`,
+		);
+	}
+	const system = readFileSync(systemPath, 'utf8');
+	const systemPolicy = rustPolicySource(system);
+	const safeTestDeclaration = `#[cfg(test)]
+#[deny(unsafe_code)]
+mod tests;`;
+	const safeTestDeclarationShape =
+		/^[\t ]*#\[\s*cfg\s*\(\s*test\s*\)\s*\][\t ]*\r?\n[\t ]*#\[\s*deny\s*\(\s*unsafe_code\s*\)\s*\][\t ]*\r?\n[\t ]*mod[\t ]+tests[\t ]*;[\t ]*$/mu.exec(
+			systemPolicy,
+		);
+	const activeTestDeclaration =
+		safeTestDeclarationShape === null
+			? undefined
+			: system.slice(
+					safeTestDeclarationShape.index,
+					safeTestDeclarationShape.index + safeTestDeclarationShape[0].length,
+				);
+	if (
+		activeTestDeclaration === undefined ||
+		normalizedWhitespace(activeTestDeclaration) !== normalizedWhitespace(safeTestDeclaration)
+	) {
+		throw new Error(
+			`${windowsConsoleHost.system} must attach its adjacent tests with deny(unsafe_code)`,
+		);
+	}
+	const systemDirectory = dirname(testsPath);
+	const unexpectedSystemChildren = readdirSync(systemDirectory, { withFileTypes: true })
+		.filter((child) => !(child.isFile() && child.name === 'tests.rs'))
+		.map((child) => `${windowsConsoleHost.system.replace(/\.rs$/u, '')}/${child.name}`);
+	if (unexpectedSystemChildren.length > 0) {
+		throw new Error(
+			`Only the denied safe test child may live below src/sys:\n${unexpectedSystemChildren.join('\n')}`,
+		);
+	}
+
+	const sources = rustSourceFiles(dirname(entry.manifest_path));
+	const escapes = sources.flatMap((source) =>
+		unsafeEscapeAttributes(readFileSync(source, 'utf8')).map(() => source),
+	);
+	if (escapes.length !== 1 || !samePath(escapes[0], libraryPath)) {
+		throw new Error(
+			`Only ${windowsConsoleHost.library} may contain the canonical unsafe_code allow`,
+		);
+	}
+	for (const source of sources) {
+		if (samePath(source, systemPath)) continue;
+		const text = readFileSync(source, 'utf8');
+		if (authoredUnsafePattern().test(rustPolicySource(text))) {
+			throw new Error(
+				`${relativeSource(source)} contains unsafe Rust outside ${windowsConsoleHost.system}`,
+			);
+		}
+	}
+}
+
+function assertTomlEntries(manifest, section, expected, label) {
+	const actual = tomlEntries(manifest, section);
+	if (actual.length !== expected.length || actual.some((line, index) => line !== expected[index])) {
+		throw new Error(`${label} must be exactly:\n${expected.join('\n')}`);
+	}
+}
+
+function tomlEntries(manifest, section) {
+	const escaped = section.replaceAll('.', '\\.');
+	const match = new RegExp(`^\\[${escaped}\\]\\s*$`, 'mu').exec(manifest);
+	if (match === null) return [];
+	const rest = manifest.slice(match.index + match[0].length);
+	const nextSection = /^\s*\[/mu.exec(rest);
+	const body = nextSection === null ? rest : rest.slice(0, nextSection.index);
+	return body
+		.split(/\r?\n/u)
+		.map((line) => line.replace(/\s+#.*$/u, '').trim())
+		.filter((line) => line.length > 0);
+}
+
+function rustSourceFiles(directory) {
+	if (!existsSync(directory)) return [];
+	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+		if (entry.name === 'target' || entry.name === '.git') return [];
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) return rustSourceFiles(path);
+		return entry.isFile() && entry.name.endsWith('.rs') ? [path] : [];
+	});
+}
+
+function unsafeEscapeAttributes(source) {
+	const policy = rustPolicySource(source);
+	return [
+		...policy.matchAll(
+			/#\s*!?\s*\[(?=[^\]]*\b(?:allow|expect)\s*\()(?=[^\]]*\bunsafe_code\b)[^\]]*\]/gu,
+		),
+	];
+}
+
+function authoredUnsafePattern() {
+	return /#\s*!?\s*\[\s*unsafe\s*\(|\bunsafe\s+(?:(?:async|const)\s+)*(?:extern|fn|impl|trait)\b|\bunsafe\s*\{/u;
+}
+
+function normalizedWhitespace(source) {
+	return source.replace(/\s+/gu, ' ').trim();
+}
+
+function rustPolicySource(source) {
+	const policy = source.split('');
+	const mask = (start, end) => {
+		for (let offset = start; offset < end; offset += 1) {
+			if (policy[offset] !== '\n' && policy[offset] !== '\r') policy[offset] = ' ';
+		}
+	};
+	let index = 0;
+	while (index < source.length) {
+		if (source.startsWith('//', index)) {
+			const end = source.indexOf('\n', index + 2);
+			const next = end === -1 ? source.length : end;
+			mask(index, next);
+			index = next;
+			continue;
+		}
+		if (source.startsWith('/*', index)) {
+			let depth = 1;
+			let end = index + 2;
+			while (end < source.length && depth > 0) {
+				if (source.startsWith('/*', end)) {
+					depth += 1;
+					end += 2;
+				} else if (source.startsWith('*/', end)) {
+					depth -= 1;
+					end += 2;
+				} else end += 1;
+			}
+			mask(index, end);
+			index = end;
+			continue;
+		}
+		const rawString = /^(?:b|c)?r(#{0,255})"/u.exec(source.slice(index));
+		if (rawString !== null) {
+			const delimiter = `"${rawString[1]}`;
+			const contentStart = index + rawString[0].length;
+			const closing = source.indexOf(delimiter, contentStart);
+			const end = closing === -1 ? source.length : closing + delimiter.length;
+			mask(index, end);
+			index = end;
+			continue;
+		}
+		if (source[index] === '"') {
+			let end = index + 1;
+			while (end < source.length) {
+				if (source[end] === '\\') end += 2;
+				else if (source[end++] === '"') break;
+			}
+			mask(index, Math.min(end, source.length));
+			index = end;
+			continue;
+		}
+		const character = /^(?:b)?'(?:\\.|[^\\'\r\n])'/u.exec(source.slice(index));
+		if (character !== null) {
+			mask(index, index + character[0].length);
+			index += character[0].length;
+			continue;
+		}
+		index += 1;
+	}
+	return policy.join('');
+}
+
+function samePath(left, right) {
+	const normalizedLeft = resolve(left).replaceAll('\\', '/');
+	const normalizedRight = resolve(right).replaceAll('\\', '/');
+	return process.platform === 'win32'
+		? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+		: normalizedLeft === normalizedRight;
+}
+
+function relativeSource(path) {
+	return relative(repositoryRoot, path).replaceAll('\\', '/');
+}
+
+function relativeManifest(path) {
+	return relativeSource(path);
 }

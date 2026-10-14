@@ -1,10 +1,35 @@
-use super::{confirmation_text, render_content};
-use crate::{localization::Locale, tui_theme::Theme};
+use super::super::modal::ModalAction;
+use super::{PreparedContent, confirmation_text, render_content, render_prepared};
+use crate::{
+    localization::Locale,
+    terminal_session::{ModalPresentation, NativePanelCloseConfirmationToken},
+    tui_pointer::HitMapBuilder,
+    tui_theme::Theme,
+};
 use ratatui::{
     Terminal,
     backend::TestBackend,
+    layout::Rect,
     text::{Line, Text},
 };
+
+fn modal_hints(locale: Locale) -> [super::super::controls::KeyHint<'static>; 2] {
+    [
+        super::super::controls::KeyHint::new("Esc", locale.panel_close_cancel_hint()),
+        super::super::controls::KeyHint::new("Y", locale.panel_close_confirm_hint()),
+    ]
+}
+
+fn modal_actions<'a>(locale: Locale, confirm: &'a str) -> [ModalAction<'a>; 2] {
+    [
+        ModalAction::new(
+            locale.panel_close_cancel_label(),
+            super::super::controls::ActionKind::Secondary,
+            true,
+        ),
+        ModalAction::new(confirm, super::super::controls::ActionKind::Primary, true),
+    ]
+}
 
 fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool, String) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -12,11 +37,13 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
     let mut complete = false;
     terminal
         .draw(|frame| {
+            let hints = modal_hints(locale);
             complete = render_content(
                 frame,
                 frame.area(),
-                locale.panel_close_resize_hint(),
                 Text::from(lines.clone()),
+                &hints,
+                modal_actions(locale, locale.panel_close_confirm_label()),
                 &theme,
             )
             .1;
@@ -129,11 +156,13 @@ fn modal_stays_inside_content_area_at_finite_size_and_refuses_too_small() {
     let mut result = (ratatui::layout::Rect::default(), false);
     terminal
         .draw(|frame| {
+            let hints = modal_hints(Locale::EnUs);
             result = render_content(
                 frame,
                 content,
-                Locale::EnUs.panel_close_resize_hint(),
                 Text::from(lines.clone()),
+                &hints,
+                modal_actions(Locale::EnUs, Locale::EnUs.panel_close_confirm_label()),
                 &theme,
             );
         })
@@ -153,11 +182,13 @@ fn modal_stays_inside_content_area_at_finite_size_and_refuses_too_small() {
     let mut small_result = (ratatui::layout::Rect::default(), true);
     small
         .draw(|frame| {
+            let hints = modal_hints(Locale::EnUs);
             small_result = render_content(
                 frame,
                 tiny,
-                Locale::EnUs.panel_close_resize_hint(),
                 Text::from(lines.clone()),
+                &hints,
+                modal_actions(Locale::EnUs, Locale::EnUs.panel_close_confirm_label()),
                 &theme,
             );
         })
@@ -166,4 +197,78 @@ fn modal_stays_inside_content_area_at_finite_size_and_refuses_too_small() {
         !small_result.1,
         "a content area that cannot fit the text reports not complete"
     );
+    assert_eq!(small_result.0, Rect::default());
+}
+
+fn assert_atomic_refusal(content: Rect, text: Text<'_>, confirm: &str) {
+    let width = 40;
+    let height = 12;
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    let mut result = None;
+    terminal
+        .draw(|frame| {
+            for y in 0..height {
+                for x in 0..width {
+                    frame.buffer_mut()[(x, y)].set_symbol("q");
+                }
+            }
+            let hints = modal_hints(Locale::EnUs);
+            result = Some(render_prepared(
+                frame,
+                NativePanelCloseConfirmationToken::for_test(41),
+                content,
+                PreparedContent {
+                    text: text.clone(),
+                    hints: &hints,
+                    actions: modal_actions(Locale::EnUs, confirm),
+                },
+                &Theme::rgb_test_dark(),
+                &mut hits,
+            ));
+        })
+        .unwrap();
+    let result = result.unwrap();
+    assert_eq!(result.area, Rect::default());
+    assert!(matches!(result.prompt, ModalPresentation::NotPresented));
+    assert!(
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .all(|cell| cell.symbol() == "q"),
+        "a refused modal must not clear, paint, or partially copy any cell"
+    );
+    let hits = hits.finish();
+    assert!((0..height).all(|y| (0..width).all(|x| hits.hit_target_at(x, y).is_none())));
+}
+
+#[test]
+fn refused_modal_is_atomic_for_too_small_partial_oversize_and_clipped_actions() {
+    let ordinary = Text::from(vec![
+        Line::from("Close panel"),
+        Line::from(""),
+        Line::from("Warning"),
+        Line::from(""),
+        Line::from(""),
+    ]);
+    assert_atomic_refusal(Rect::new(0, 0, 10, 3), ordinary.clone(), "Close");
+    assert_atomic_refusal(Rect::new(35, 2, 20, 8), ordinary, "Close");
+
+    let oversized = Text::from(vec![
+        Line::from("Close panel"),
+        Line::from("界".repeat(2048)),
+        Line::from(""),
+        Line::from(""),
+    ]);
+    assert_atomic_refusal(Rect::new(0, 0, 40, 12), oversized, "Close");
+
+    let long_confirm = "Confirm permanently".repeat(8);
+    let clipped = Text::from(vec![
+        Line::from("Close panel"),
+        Line::from(""),
+        Line::from(""),
+    ]);
+    assert_atomic_refusal(Rect::new(0, 0, 40, 12), clipped, long_confirm.as_str());
 }

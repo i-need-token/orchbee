@@ -157,7 +157,7 @@ impl Picker {
     pub(crate) fn settle_sidebar_scroll(&mut self) -> bool {
         if self.open {
             self.cancel_sidebar_scroll();
-            return self.settle_picker_scroll();
+            return false;
         }
         self.spaces.settle(self.sidebar_navigation_rows().len())
     }

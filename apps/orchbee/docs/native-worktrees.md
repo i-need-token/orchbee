@@ -22,13 +22,25 @@ remain explicit failures.
 The Open list shows main and linked checkouts and resolves exact canonical paths, never duplicate
 branch or Workspace labels. Keyboard arrows, Enter and mouse selection operate the same choices;
 Esc cancels before submission. Bounded scrolling exposes long lists. Bare entries cannot be opened.
-A surface that cannot fit releases capture with a localized notice.
+If the first complete shell cannot fit, that opening attempt is refused with a localized notice and
+retains no hidden owner. A shell that has already completed one draw instead suspends in place,
+preserving its operation, token, stage, fields, caret and checkout selection. Hidden edit, selection,
+wheel and submit input is consumed without mutation; `Esc` remains the local recovery route. A
+later complete draw resumes the same surface incarnation. Mere absence from a covered frame only
+revokes its current draw proof. If the accepted operation completes while that proof is absent, its
+result is retained without automatic terminal entry; uncovering the surface does not replay entry.
 
 After submission, Esc hides observation without cancelling Server work. W or O reopens the retained
 operation; `r` only reads that operation. The operation ID and known checkout/Workspace facts survive
 failed reads and entry failure. Unknown Start is never replayed. Resume, deletion, trust override
 and rollback are never implicit. A terminal result can be dismissed before a new explicit operation.
 [Workspace Close](native-workspace-close.md) and checkout deletion are separate intents.
+
+Geometry suspension or a refused reopen revokes automatic terminal-entry focus but never cancels an
+accepted Start or observation. Its completion remains bound to the original operation ID and may
+update retained facts in the background; it cannot reopen the shell, submit another Start or force
+focus. Reopening after a refused attempt creates a new presentation attempt for that retained
+operation, and a successful draw restores its newest operation status.
 
 Header X and Cancel use the current stage's cancellation or hide behavior. Editable branch/base fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. Waiting/result surfaces expose Read status and Hide/Close; these never replay Start or cancel accepted Server work.
 
@@ -79,9 +91,13 @@ There is no preliminary Client-owned Default Project creation or empty Project l
 | Failed/unknown terminal or lost read | Preserve checkout/Workspace evidence; never recreate or compensate                              |
 
 Entry waits for an in-flight publication refresh and then rechecks the origin. Missing membership
-allows at most one extra read-only refresh within the original entry deadline. Hiding an
-unpresentable surface cancels entry and preserves the receipt. Directory comparison uses the
-Server association policy without inventing filesystem identity or dropping the Worker guard.
+allows at most one extra read-only refresh within the original entry deadline. For an accepted
+operation, an admitted surface that becomes unpresentable is suspended, while a first blocked
+reopen is refused; both withdraw automatic entry while retaining the operation and receipt.
+An Opened result without current presentation proof reports that the Workspace is ready and directs
+the user to select it in the existing navigator; uncovering never replays automatic entry. Directory
+comparison uses the Server association policy without inventing filesystem identity or dropping the
+Worker guard.
 
 The receipt snapshot fixes the target's first Tab, Panel, primary Presentation, terminal binding
 and directory ID. Every accepted source refresh must still prove them. The context-selection

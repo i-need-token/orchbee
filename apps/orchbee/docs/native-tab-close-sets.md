@@ -20,10 +20,15 @@ screens), with an explicit ellipsis for clipping; full frozen IDs and positions 
 The draw token covers the entire bounded preview, remainder count, warning and controls.
 Its localized warning covers execution in all attached Clients and incremental failure behavior.
 
-Only a complete successful draw arms the ordinary `y`/Esc confirmation. Unseen, cancelled,
-stale, resized or unpresentable confirmation cannot submit. The existing input owner captures the
-entire decision packet, including a menu-to-confirmation handoff tail. Opening and cancellation
-do not allocate a lifecycle request or remove canonical state.
+Only a complete successful draw authorizes ordinary lowercase `y`; local `Esc` cancels an armed
+confirmation even while it is not shown. An evaluated geometry block before the first successful
+draw refuses the new confirmation. After a successful draw, the same block suspends the existing
+confirmation while preserving its token, frozen set, local marks and focus; `y` and pointer release
+are inert until the same token is completely drawn again. A missing or covered draw receipt revokes
+shown authority without classifying geometry or discarding the presentation phase. Unseen,
+cancelled, stale, resized or unpresentable confirmation cannot submit. The existing input owner
+captures the entire decision packet, including a menu-to-confirmation handoff tail. Opening and
+cancellation do not allocate a lifecycle request or remove canonical state.
 
 ## Incremental lifecycle owner
 
@@ -84,7 +89,9 @@ shared selection/collapse state, persistence path or local synthetic removal is 
 
 ## Evidence and limits
 
-The owning implementation tests cover frozen ordered close sets, exact membership validation, receipt retention, cancellation, unknown outcomes, peer removal and survivor selection.
+The owning implementation tests cover frozen ordered close sets, exact membership validation,
+first-draw refusal, admitted suspension and restoration, receipt retention, cancellation, unknown
+outcomes, peer removal and survivor selection.
 
 Maintain the concrete witnesses in `src/terminal_session/state/tab_close.rs`, `src/terminal_session/mailbox/tests/tab_close.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

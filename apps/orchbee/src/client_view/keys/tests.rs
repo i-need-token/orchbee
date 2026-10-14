@@ -107,14 +107,14 @@ fn labels_render_modifiers_and_case_per_host_style() {
             &Binding::new(KeyCode::Char('b'), Modifiers::CTRL),
             LabelStyle::Other
         ),
-        "Ctrl+B"
+        "Ctrl+b"
     );
     assert_eq!(
         format_binding(
             &Binding::new(KeyCode::Char('b'), Modifiers::CTRL),
             LabelStyle::Apple
         ),
-        "⌃B"
+        "⌃b"
     );
     // Letter case alone must not hide a required modifier from discovery.
     assert_eq!(
@@ -158,5 +158,134 @@ fn labels_render_modifiers_and_case_per_host_style() {
             LabelStyle::Other
         ),
         "↑"
+    );
+}
+
+#[test]
+fn labels_keep_non_shift_letters_lowercase_and_shift_letters_uppercase() {
+    for (binding, expected) in [
+        (Binding::new(KeyCode::Char('q'), Modifiers::NONE), "q"),
+        (Binding::new(KeyCode::Char('q'), Modifiers::CTRL), "Ctrl+q"),
+        (
+            Binding::new(KeyCode::Char('q'), Modifiers::NONE.with_alt()),
+            "Alt+q",
+        ),
+        (
+            Binding::new(KeyCode::Char('q'), Modifiers::NONE.with_shift()),
+            "Shift+Q",
+        ),
+        (Binding::new(KeyCode::Char('Q'), Modifiers::NONE), "Shift+Q"),
+    ] {
+        assert_eq!(format_binding(&binding, LabelStyle::Other), expected);
+    }
+}
+
+#[test]
+fn configuration_report_keeps_its_stable_vocabulary_while_interactive_labels_show_gestures() {
+    let ctrl_a = Binding::new(KeyCode::Char('a'), Modifiers::CTRL);
+    assert_eq!(
+        format_binding(&ctrl_a, LabelStyle::Other),
+        "Ctrl+a",
+        "the interactive label describes the unshifted effective gesture"
+    );
+    assert_eq!(format_binding(&ctrl_a, LabelStyle::Apple), "⌃a");
+
+    for (binding, expected) in [
+        (ctrl_a, "Ctrl+A"),
+        (
+            Binding::new(KeyCode::Char('a'), Modifiers::NONE.with_alt()),
+            "Alt+A",
+        ),
+        (
+            Binding::new(KeyCode::Char('a'), Modifiers::NONE.with_shift()),
+            "Shift+A",
+        ),
+        (
+            Binding::new(KeyCode::Char('a'), Modifiers::NONE.with_super_()),
+            "Super+A",
+        ),
+        (
+            Binding::new(
+                KeyCode::Char('a'),
+                Modifiers::CTRL.with_alt().with_shift().with_super_(),
+            ),
+            "Ctrl+Alt+Shift+Super+A",
+        ),
+        (Binding::new(KeyCode::Char('a'), Modifiers::NONE), "a"),
+        (Binding::new(KeyCode::Char('1'), Modifiers::CTRL), "Ctrl+1"),
+        (Binding::new(KeyCode::Enter, Modifiers::NONE), "Enter"),
+        (Binding::new(KeyCode::Tab, Modifiers::NONE), "Tab"),
+        (Binding::new(KeyCode::Space, Modifiers::NONE), "Space"),
+        (Binding::new(KeyCode::Esc, Modifiers::NONE), "Esc"),
+        (
+            Binding::new(KeyCode::Backspace, Modifiers::NONE),
+            "Backspace",
+        ),
+        (Binding::new(KeyCode::Delete, Modifiers::NONE), "Delete"),
+        (Binding::new(KeyCode::Insert, Modifiers::NONE), "Insert"),
+        (Binding::new(KeyCode::Home, Modifiers::NONE), "Home"),
+        (Binding::new(KeyCode::End, Modifiers::NONE), "End"),
+        (Binding::new(KeyCode::PageUp, Modifiers::NONE), "PageUp"),
+        (Binding::new(KeyCode::PageDown, Modifiers::NONE), "PageDown"),
+        (Binding::new(KeyCode::Up, Modifiers::NONE), "↑"),
+        (Binding::new(KeyCode::Down, Modifiers::NONE), "↓"),
+        (Binding::new(KeyCode::Left, Modifiers::NONE), "←"),
+        (Binding::new(KeyCode::Right, Modifiers::NONE), "→"),
+        (Binding::new(KeyCode::F(24), Modifiers::NONE), "F24"),
+    ] {
+        assert_eq!(format_configuration_binding(&binding), expected);
+    }
+}
+
+#[test]
+fn alias_c0_and_non_ascii_codepoint_labels_share_the_canonical_formatter() {
+    assert_eq!(
+        format_binding(
+            &Binding::new(KeyCode::Char('m'), Modifiers::CTRL),
+            LabelStyle::Other
+        ),
+        "Enter"
+    );
+    assert_eq!(
+        format_binding(
+            &Binding::new(KeyCode::Char('i'), Modifiers::CTRL.with_shift()),
+            LabelStyle::Other
+        ),
+        "Shift+Tab"
+    );
+    assert_eq!(
+        format_binding(
+            &Binding::new(KeyCode::Char('λ'), Modifiers::CTRL),
+            LabelStyle::Other
+        ),
+        "Ctrl+λ"
+    );
+}
+
+#[test]
+fn explicit_ascii_fallback_removes_arrow_and_apple_modifier_glyphs() {
+    let all_modifiers = Modifiers::NONE
+        .with_ctrl()
+        .with_alt()
+        .with_shift()
+        .with_super_();
+    let right = Binding::new(KeyCode::Right, all_modifiers);
+
+    assert_eq!(
+        format_binding_with_glyphs(&right, LabelStyle::Apple, KeyLabelGlyphs::Unicode),
+        "⌃⌥⇧⌘→"
+    );
+    for style in [LabelStyle::Apple, LabelStyle::Other] {
+        let label = format_binding_with_glyphs(&right, style, KeyLabelGlyphs::Ascii);
+        assert_eq!(label, "Ctrl+Alt+Shift+Super+Right");
+        assert!(label.is_ascii());
+    }
+    assert_eq!(
+        format_binding_with_glyphs(
+            &Binding::new(KeyCode::Down, Modifiers::NONE),
+            LabelStyle::Other,
+            KeyLabelGlyphs::Ascii
+        ),
+        "Down"
     );
 }

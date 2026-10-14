@@ -12,6 +12,9 @@ impl RecordSource for EmptyConsole<'_> {
     fn read_ready(&mut self) -> io::Result<Option<InputRecord>> {
         Ok(None)
     }
+    fn window_origin(&self) -> io::Result<(i16, i16)> {
+        Ok((0, 0))
+    }
     fn now(&self) -> Instant {
         self.origin + self.elapsed
     }
@@ -103,13 +106,8 @@ fn bytes(pending: Option<Pending>) -> Vec<u8> {
     output
 }
 
-fn mouse_bytes(
-    codec: &mut Codec,
-    buttons: u32,
-    flags: EventFlags,
-    modifiers: KeyModifiers,
-) -> Vec<u8> {
-    bytes(codec.mouse(4, 9, ButtonState::from(buttons), flags, modifiers))
+fn mouse_bytes(codec: &mut Codec, buttons: u32, flags: u32, modifiers: KeyModifiers) -> Vec<u8> {
+    bytes(codec.mouse(4, 9, buttons, flags, modifiers))
 }
 
 #[test]
@@ -157,12 +155,12 @@ fn mouse_records_keep_right_button_and_1002_drag_mappings() {
     let mut codec = Codec::default();
     // Windows button bits are left=1, right=2, middle=4. A held button
     // keeps ordinary `1002` movement on the drag path for each identity.
-    let cases: &[(u32, EventFlags, &[u8], u8)] = &[
-        (2, EventFlags::PressOrRelease, b"\x1b[<2;5;10M", 4),
-        (0, EventFlags::PressOrRelease, b"\x1b[<2;5;10m", 0),
-        (1, EventFlags::MouseMoved, b"\x1b[<32;5;10M", 1),
-        (4, EventFlags::MouseMoved, b"\x1b[<33;5;10M", 2),
-        (2, EventFlags::MouseMoved, b"\x1b[<34;5;10M", 4),
+    let cases: &[(u32, u32, &[u8], u8)] = &[
+        (2, 0, b"\x1b[<2;5;10M", 4),
+        (0, 0, b"\x1b[<2;5;10m", 0),
+        (1, MOUSE_MOVED, b"\x1b[<32;5;10M", 1),
+        (4, MOUSE_MOVED, b"\x1b[<33;5;10M", 2),
+        (2, MOUSE_MOVED, b"\x1b[<34;5;10M", 4),
     ];
     for &(buttons, flags, expected, held) in cases {
         assert_eq!(
@@ -172,19 +170,35 @@ fn mouse_records_keep_right_button_and_1002_drag_mappings() {
         assert_eq!(codec.buttons, held);
     }
 }
+
 #[test]
-fn button_free_motion_records_encode_the_sgr_hover_report_the_menu_leases() {
-    // Model a host that delivers the menu's button-free any-motion input as
-    // a Win32 MOUSE_MOVED record. It must cross the codec instead of being
-    // swallowed.
+fn mouse_record_coordinates_are_relative_to_the_admitted_output_window() {
+    let mut codec = Codec::default();
+    let record = InputRecord::Mouse(orchbee_windows_console_host::MouseRecord {
+        x: 14,
+        y: 29,
+        button_state: 0,
+        control_key_state: 0,
+        event_flags: MOUSE_MOVED,
+    });
+    assert_eq!(
+        bytes(codec.record(record, Some((10, 20))).unwrap()),
+        b"\x1b[<35;5;10M"
+    );
+}
+
+#[test]
+fn button_free_motion_records_encode_the_sgr_hover_report_when_admitted() {
+    // Model a host that delivers globally admitted button-free any-motion as
+    // a Win32 MOUSE_MOVED record. The codec must preserve it for dispatch.
     let mut codec = Codec::default();
     assert_eq!(
-        mouse_bytes(&mut codec, 0, EventFlags::MouseMoved, KeyModifiers::NONE),
+        mouse_bytes(&mut codec, 0, MOUSE_MOVED, KeyModifiers::NONE),
         b"\x1b[<35;5;10M"
     );
     assert_eq!(codec.buttons, 0);
     assert_eq!(
-        mouse_bytes(&mut codec, 0, EventFlags::MouseMoved, KeyModifiers::SHIFT),
+        mouse_bytes(&mut codec, 0, MOUSE_MOVED, KeyModifiers::SHIFT),
         b"\x1b[<39;5;10M"
     );
 }

@@ -4,6 +4,7 @@ use crate::terminal_session::state::{
     field_window::{NativeFieldWindow, field_window},
     line_editor::{LengthLimit, LineEditor},
 };
+use crate::tui_presentation::PresentationPhase;
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchTerminalGeometry, WorkbenchWorktreeOutcome, WorktreeEntryText,
     WorktreeIntent, WorktreeReference, WorktreeSelector, WorktreeSource,
@@ -105,6 +106,9 @@ impl Draft {
     }
     pub fn is_create(&self) -> bool {
         self.mode == WorktreeMode::Create
+    }
+    pub(super) fn is_checkout(&self) -> bool {
+        self.stage == WorktreeStage::Checkout
     }
     fn field(&self) -> &LineEditor {
         if self.stage == WorktreeStage::Base {
@@ -286,6 +290,9 @@ impl<'a> WorktreeView<'a> {
 
     pub(crate) fn token(&self) -> WorktreeToken {
         WorktreeToken(self.launcher.last_token)
+    }
+    pub(crate) const fn presentation(&self) -> PresentationPhase {
+        self.launcher.presentation
     }
     pub(crate) fn stage(&self) -> WorktreeStage {
         match &self.launcher.phase {

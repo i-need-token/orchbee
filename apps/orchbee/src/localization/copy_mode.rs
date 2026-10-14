@@ -1,43 +1,47 @@
 use super::Locale;
-use crate::terminal_copy_mode::CopyModeStatus;
+use crate::{client_view::CopyHintLabel, terminal_copy_mode::CopyModeStatus};
 
 impl Locale {
-    pub(crate) const fn copy_button(self) -> &'static str {
+    pub(crate) const fn copy_action_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[Copy]",
-            Self::ZhCn => "[复制]",
+            Self::EnUs => "Copy",
+            Self::ZhCn => "复制",
         }
     }
-    pub(crate) const fn copy_select_button(self, selecting: bool) -> &'static str {
-        match (self, selecting) {
-            (Self::EnUs, false) => "[Select]",
-            (Self::EnUs, true) => "[Clear]",
-            (Self::ZhCn, false) => "[选择]",
-            (Self::ZhCn, true) => "[清除]",
+    pub(crate) const fn copy_select_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Select",
+            Self::ZhCn => "选择",
         }
     }
-    pub(crate) const fn copy_search_button(self) -> &'static str {
+    pub(crate) const fn copy_search_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[Search]",
-            Self::ZhCn => "[搜索]",
+            Self::EnUs => "Search",
+            Self::ZhCn => "搜索",
         }
     }
-    pub(crate) const fn copy_find_button(self) -> &'static str {
+    pub(crate) const fn copy_find_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[Find]",
-            Self::ZhCn => "[查找]",
+            Self::EnUs => "Find",
+            Self::ZhCn => "查找",
         }
     }
-    pub(crate) const fn copy_cancel_search_button(self) -> &'static str {
+    pub(crate) const fn copy_back_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[Back]",
-            Self::ZhCn => "[返回]",
+            Self::EnUs => "Back",
+            Self::ZhCn => "返回",
         }
     }
-    pub(crate) const fn copy_help_button(self) -> &'static str {
+    pub(crate) const fn copy_reverse_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[Help]",
-            Self::ZhCn => "[帮助]",
+            Self::EnUs => "Reverse",
+            Self::ZhCn => "反转",
+        }
+    }
+    pub(crate) const fn copy_help_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Help",
+            Self::ZhCn => "帮助",
         }
     }
     pub(crate) const fn copy_mode_label(
@@ -65,21 +69,27 @@ impl Locale {
             (Self::ZhCn, S::Ready, false) => "复制",
         }
     }
-    pub(crate) const fn copy_mode_hint(self, searching: bool, full: bool) -> &'static str {
-        match (self, searching, full) {
-            (Self::EnUs, true, _) => "Enter search · Ctrl+G back · Esc exit",
-            (Self::ZhCn, true, _) => "Enter 搜索 · Ctrl+G 返回 · Esc 退出",
-            (Self::EnUs, false, true) => "arrows · v select · y copy · / search · F1 · Esc exit",
-            (Self::ZhCn, false, true) => "方向键 · v 选择 · y 复制 · / 搜索 · F1 · Esc 退出",
-            (Self::EnUs, false, false) => "v · y · / · F1 · Esc exit",
-            (Self::ZhCn, false, false) => "v · y · / · F1 · Esc 退出",
-        }
-    }
-
-    pub(crate) const fn copy_mode_exit_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "Esc exit",
-            Self::ZhCn => "Esc 退出",
+    pub(crate) const fn copy_hint_label(self, label: CopyHintLabel) -> &'static str {
+        match label {
+            CopyHintLabel::Copy => self.copy_action_label(),
+            CopyHintLabel::Select => self.copy_select_label(),
+            CopyHintLabel::Search => self.copy_search_label(),
+            CopyHintLabel::Help => self.copy_help_label(),
+            CopyHintLabel::Find => self.copy_find_label(),
+            CopyHintLabel::Back => self.copy_back_label(),
+            CopyHintLabel::Reverse => self.copy_reverse_label(),
+            CopyHintLabel::Exit => match self {
+                Self::EnUs => "Exit",
+                Self::ZhCn => "退出",
+            },
+            CopyHintLabel::Repeat => match self {
+                Self::EnUs => "Repeat",
+                Self::ZhCn => "重复",
+            },
+            CopyHintLabel::Move => match self {
+                Self::EnUs => "Move",
+                Self::ZhCn => "移动",
+            },
         }
     }
 }

@@ -76,6 +76,7 @@ pub(super) use tab_close::{
     CloseConfirmationView, CloseFlightKey, CloseLeaseAcknowledgement, CloseOperation,
     CloseOperationKind, CloseReconciliationMarker, CloseResult, CloseState, CloseStateError,
     CloseStatusView, CloseWorkerReturn, DefinitiveClosedAttachment, PendingCloseResult,
+    TabCloseResumePermit,
 };
 #[cfg(test)]
 pub(super) use tab_close::{CloseIntent, CloseReadMode, CloseSelection, CloseTarget};

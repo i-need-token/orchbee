@@ -1,3 +1,4 @@
+use super::tui_observer::NativeHeader;
 use super::*;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
@@ -14,12 +15,12 @@ use std::os::{fd::AsFd, unix::net::UnixStream};
 use std::rc::Rc;
 
 const EMPTY: &str = "No terminal tabs";
-const CONFIGURED_EMPTY: &str = "Ctrl+B c · launch a terminal in this directory";
-const UNCONFIGURED_EMPTY: &str =
-    "No directory configured. Ctrl+B e · configure the first directory";
-const STANDALONE_HEADER: &str = "WORKBENCH · Standalone terminal";
-const CONFIGURED_HEADER: &str = "WORKBENCH · Context process / Configured";
-const UNCONFIGURED_HEADER: &str = "WORKBENCH · Context process / Unconfigured";
+const CONFIGURED_EMPTY_ACTION: &str = "Ctrl+b c Create a Tab (requires session)";
+const UNCONFIGURED_EMPTY_FACT: &str = "No directory configured.";
+const UNCONFIGURED_EMPTY_ACTION: &str = "Ctrl+b e Configure an empty Workspace's first directory";
+const STANDALONE_LOCATION: &str = "Standalone terminal";
+const CONFIGURED_LOCATION: &str = "Context process / Configured";
+const UNCONFIGURED_LOCATION: &str = "Context process / Unconfigured";
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(45);
 
 /// One absolute deadline re-armed on every underlying syscall: each read and
@@ -171,31 +172,56 @@ impl WorkbenchPeer {
     }
 }
 
-fn select_context(client: &mut Client, command: &[u8], header: &str, empty: bool) {
+#[derive(Clone, Copy)]
+enum ExpectedContext<'a> {
+    Ready,
+    ConfiguredEmpty(&'a str),
+    UnconfiguredEmpty,
+}
+
+fn select_context(
+    client: &mut Client,
+    command: &[u8],
+    location: &str,
+    expected: ExpectedContext<'_>,
+) {
     let checkpoint = client.checkpoint();
     client.send(command);
     // The sidebar always says "Standalone terminal". Only the active header distinguishes
     // a completed context switch from a fresh draw of the previous Ready Workspace.
-    let required = if empty {
-        // Directory guidance owns the active Empty panel; the generic phase is clipped
-        // in the sidebar and a mutation notice may legitimately occupy the footer.
-        let guidance = match header {
-            CONFIGURED_HEADER => CONFIGURED_EMPTY,
-            UNCONFIGURED_HEADER => UNCONFIGURED_EMPTY,
-            _ => panic!("unexpected Empty fixture context {header}"),
-        };
-        vec![header, EMPTY, guidance]
-    } else {
-        vec![header, "[*1 1]", "Tab 1 · Ready · controlling"]
+    let directory_fact = match expected {
+        ExpectedContext::ConfiguredEmpty(path) => Some(format!("Directory: {path}")),
+        _ => None,
     };
-    let forbidden = if empty {
-        vec!["Workbench navigator", "[*1"]
-    } else {
+    let (header, required) = match expected {
+        ExpectedContext::Ready => (
+            NativeHeader::active(location, 1, "1"),
+            vec!["Tab 1 · Ready · controlling"],
+        ),
+        ExpectedContext::ConfiguredEmpty(_) => (
+            NativeHeader::empty(location),
+            vec![
+                EMPTY,
+                directory_fact
+                    .as_deref()
+                    .expect("configured directory fact"),
+                CONFIGURED_EMPTY_ACTION,
+            ],
+        ),
+        ExpectedContext::UnconfiguredEmpty => (
+            NativeHeader::empty(location),
+            vec![EMPTY, UNCONFIGURED_EMPTY_FACT, UNCONFIGURED_EMPTY_ACTION],
+        ),
+    };
+    let forbidden = if matches!(expected, ExpectedContext::Ready) {
         vec!["Workbench navigator", EMPTY]
+    } else {
+        vec!["Workbench navigator"]
     };
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
+        header,
         &required,
         &forbidden,
         &[],
@@ -208,13 +234,14 @@ fn observe_independent_standalone(client: &mut Client, revision: u64, active: &m
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
     let refreshed = format!("Tabs refreshed · revision {revision}");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         deadline,
+        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
         &[
             "Workbench navigator",
             &refreshed,
-            "[*1] Standalone terminal",
+            "  * 1 Standalone terminal",
         ],
         &[],
         &[],
@@ -222,19 +249,15 @@ fn observe_independent_standalone(client: &mut Client, revision: u64, active: &m
     );
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        &[
-            STANDALONE_HEADER,
-            "[*1 1]",
-            "Tab 1 · Ready ·",
-            "STANDALONE_PEER_BINDING",
-        ],
+        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready ·", "STANDALONE_PEER_BINDING"],
         &[
             "Workbench navigator",
-            CONFIGURED_HEADER,
-            UNCONFIGURED_HEADER,
+            CONFIGURED_LOCATION,
+            UNCONFIGURED_LOCATION,
             EMPTY,
         ],
         &[],
@@ -406,7 +429,7 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
     client.wait_close_prompt_after(
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
-        STANDALONE_HEADER,
+        STANDALONE_LOCATION,
         &[
             "Close terminal Tab?",
             "",
@@ -414,20 +437,19 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
             "",
             "Closing this Tab ends its execution for all attached Clients.",
             "",
-            "y · confirm    Esc · cancel",
+            "Esc cancel · y close",
+            "[ Cancel ]   [ Close ]",
         ],
         &mut [],
     );
     let checkpoint = client.checkpoint();
     client.send(b"y");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + CLOSE_TIMEOUT,
-        &[
-            STANDALONE_HEADER,
-            "No terminal tabs · Ctrl+B c to create a Tab",
-        ],
-        &["Close terminal Tab?", "[*1", "Workbench navigator"],
+        NativeHeader::empty(STANDALONE_LOCATION),
+        &["No terminal tabs", "Ctrl+b c create Tab"],
+        &["Close terminal Tab?", "Workbench navigator"],
         &[],
         &mut [],
     );
@@ -599,10 +621,11 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
     // The TUI refreshes itself on the published Close without a manual poll: a single-leaf
     // Tab renders the terminal directly with no per-Panel title.
     let checkpoint = client.checkpoint();
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &["[*1 1]", "Tab 1 · Ready"],
+        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready"],
         &["Terminal 2 · Split peer", "Terminal disconnected"],
         &[],
         &mut [],
@@ -649,7 +672,7 @@ fn native_standalone_panel_close_collapses_the_split_and_releases_only_that_shel
     client.wait_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &["Terminal disconnected · Ctrl+B then q to exit"],
+        &["Terminal disconnected", "Ctrl+b q / Ctrl+b d exit"],
         &[],
         &[],
         &mut [],
@@ -1054,11 +1077,12 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     let directory = fixture.base.join("workspace with spaces");
     fs::create_dir(&directory)?;
     let directory = fs::canonicalize(directory)?;
+    let directory_text = directory.to_str().ok_or("directory UTF-8")?;
     assert!(matches!(
         peer.prepare(
             WorkbenchAction::WorkspacePrimaryDirectoryAccept {
                 workspace_id,
-                path: WorkbenchDirectoryPath::parse(directory.to_str().ok_or("directory UTF-8")?)?,
+                path: WorkbenchDirectoryPath::parse(directory_text)?,
             },
             deadline,
         )?,
@@ -1119,25 +1143,41 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         "1",
         ReadyMode::ViewOnly,
     );
-    select_context(&mut client, b"\x02]", CONFIGURED_HEADER, true);
+    select_context(
+        &mut client,
+        b"\x02]",
+        CONFIGURED_LOCATION,
+        ExpectedContext::ConfiguredEmpty(directory_text),
+    );
     observe_independent_standalone(&mut independent, baseline.revision.value(), &mut client);
     assert_eq!(
         peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?,
         baseline
     );
     // Leaving and returning to Empty must neither mutate navigation nor start a shell.
-    select_context(&mut client, b"\x02[", STANDALONE_HEADER, false);
-    select_context(&mut client, b"\x02]", CONFIGURED_HEADER, true);
+    select_context(
+        &mut client,
+        b"\x02[",
+        STANDALONE_LOCATION,
+        ExpectedContext::Ready,
+    );
+    select_context(
+        &mut client,
+        b"\x02]",
+        CONFIGURED_LOCATION,
+        ExpectedContext::ConfiguredEmpty(directory_text),
+    );
     assert_eq!(
         peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?,
         baseline
     );
     let checkpoint = client.checkpoint();
     client.send(b"\x02c");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        &[CONFIGURED_HEADER, "[*1 1]", "Tab 1 · Ready · controlling"],
+        NativeHeader::active(CONFIGURED_LOCATION, 1, "1"),
+        &["Tab 1 · Ready · controlling"],
         &[EMPTY],
         &[],
         &mut [],
@@ -1186,7 +1226,12 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     );
     observe_independent_standalone(&mut independent, created.revision.value(), &mut client);
 
-    select_context(&mut client, b"\x02[", STANDALONE_HEADER, false);
+    select_context(
+        &mut client,
+        b"\x02[",
+        STANDALONE_LOCATION,
+        ExpectedContext::Ready,
+    );
     client.send(shell_identity_command(&fixture, "", "standalone-after", false).as_bytes());
     assert_eq!(
         wait_file(
@@ -1196,7 +1241,12 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         ),
         standalone
     );
-    select_context(&mut client, b"\x02]", CONFIGURED_HEADER, false);
+    select_context(
+        &mut client,
+        b"\x02]",
+        CONFIGURED_LOCATION,
+        ExpectedContext::Ready,
+    );
     client.send(shell_identity_command(&fixture, "", "workspace-after", false).as_bytes());
     assert_eq!(
         wait_file(
@@ -1213,7 +1263,7 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     client.wait_close_prompt_after(
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
-        CONFIGURED_HEADER,
+        CONFIGURED_LOCATION,
         &[
             "Close terminal Tab?",
             "",
@@ -1221,18 +1271,21 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
             "",
             "Closing this Tab ends its execution for all attached Clients.",
             "",
-            "y · confirm    Esc · cancel",
+            "Esc cancel · y close",
+            "[ Cancel ]   [ Close ]",
         ],
         &mut [&mut independent],
     );
     let checkpoint = client.checkpoint();
     let deadline = Instant::now() + CLOSE_TIMEOUT;
     client.send(b"y");
-    client.wait_frame_text_after(
+    let directory_fact = format!("Directory: {directory_text}");
+    client.wait_native_frame_text_after(
         checkpoint,
         deadline,
-        &[CONFIGURED_HEADER, EMPTY, CONFIGURED_EMPTY],
-        &["Close terminal Tab?", "[*1", "Workbench navigator"],
+        NativeHeader::empty(CONFIGURED_LOCATION),
+        &[EMPTY, &directory_fact, CONFIGURED_EMPTY_ACTION],
+        &["Close terminal Tab?", "Workbench navigator"],
         &[],
         &mut [&mut independent],
     );
@@ -1270,21 +1323,27 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
     }
     observe_independent_standalone(&mut independent, closed.revision.value(), &mut client);
 
-    select_context(&mut client, b"\x02]", UNCONFIGURED_HEADER, true);
+    select_context(
+        &mut client,
+        b"\x02]",
+        UNCONFIGURED_LOCATION,
+        ExpectedContext::UnconfiguredEmpty,
+    );
     observe_independent_standalone(&mut independent, closed.revision.value(), &mut client);
     assert_eq!(peer.snapshot(Instant::now() + OBSERVATION_TIMEOUT)?, closed);
     let checkpoint = client.checkpoint();
     client.send(b"\x02c");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
+        NativeHeader::empty(UNCONFIGURED_LOCATION),
         &[
-            UNCONFIGURED_HEADER,
             EMPTY,
-            UNCONFIGURED_EMPTY,
+            UNCONFIGURED_EMPTY_FACT,
+            UNCONFIGURED_EMPTY_ACTION,
             "Tab not created",
         ],
-        &["[*1"],
+        &[],
         &[],
         &mut [],
     );
@@ -1293,7 +1352,12 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
         closed,
         "directory rejection must not create a fallback terminal"
     );
-    select_context(&mut client, b"\x02]", STANDALONE_HEADER, false);
+    select_context(
+        &mut client,
+        b"\x02]",
+        STANDALONE_LOCATION,
+        ExpectedContext::Ready,
+    );
     client.send(shell_identity_command(&fixture, "", "standalone-after-close", false).as_bytes());
     assert_eq!(
         wait_file(

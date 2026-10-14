@@ -5,7 +5,7 @@ use crate::{
     localization::Locale,
     terminal_input::{InputDispatcher, TerminalInputPort, TerminalInputUnavailable},
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
-    tui_theme::Theme,
+    tui_theme::{Role, Theme},
 };
 
 struct Port {
@@ -13,15 +13,28 @@ struct Port {
     forwarded: Vec<u8>,
 }
 impl TerminalInputPort for Port {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default()
+            .with_agent_board(self.board.owns_input())
+    }
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        match owner {
+            crate::tui_composition::NativeCaptureOwner::AgentBoard => self
+                .board
+                .input_context()
+                .map(crate::terminal_session::NativeCaptureContext::AgentBoard),
+            _ => None,
+        }
+    }
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn agent_board_input(&mut self) -> bool {
-        self.board.owns_input()
-    }
-    fn click_agent_board_control(&mut self, token: &AgentBoardToken, control: AgentBoardControl) {
-        self.board.control(token, control);
+    fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
+        self.board.control_drawn(target)
     }
     fn scroll_agent_board(
         &mut self,
@@ -31,19 +44,41 @@ impl TerminalInputPort for Port {
     ) -> Option<AgentBoardToken> {
         self.board.scroll_painted(token, up, lines)
     }
-    fn agent_board_select(&mut self, session: &AgentSessionId) -> bool {
-        self.board.select_session(session)
+    fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
+        self.board.select_drawn_row(target)
     }
     fn agent_board_dismiss(&mut self) {
         self.board.close();
     }
-    fn capture_agent_board_key(&mut self, event: crate::client_view::KeyEvent) -> bool {
+    fn capture_agent_board_key_for(
+        &mut self,
+        episode: AgentBoardEpisodeToken,
+        event: crate::client_view::KeyEvent,
+    ) -> bool {
+        let Some(context) = self.board.input_context() else {
+            return false;
+        };
+        if context.episode() != episode {
+            return false;
+        }
+        if event.kind == crate::client_view::KeyKind::Release {
+            return true;
+        }
+        if board_key_action(event) == Some(AgentBoardKeyAction::Close) {
+            self.board.close();
+            return true;
+        }
+        if !context.interactive() {
+            return true;
+        }
         match board_key_action(event) {
             Some(AgentBoardKeyAction::SelectDown) => self.board.move_selection(1),
             Some(AgentBoardKeyAction::SelectUp) => self.board.move_selection(-1),
-            Some(AgentBoardKeyAction::Jump) => self.board.request_jump(),
+            Some(AgentBoardKeyAction::Jump) if self.board.selected_is_shown() => {
+                self.board.request_jump();
+            }
             Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(),
-            Some(AgentBoardKeyAction::Close) => self.board.close(),
+            Some(AgentBoardKeyAction::Jump | AgentBoardKeyAction::Close) => {}
             None => {}
         }
         true
@@ -70,22 +105,41 @@ fn paint(
 ) -> FrameHitMap {
     let mut terminal =
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
-    let mut hits = HitMapBuilder::new();
+    let mut hits = HitMapBuilder::with_pointer(d.pointer_projection());
     let index = PresentationIndex::default();
     let mut receipt = None;
+    let theme = Theme::one_light();
     terminal
         .draw(|frame| {
             receipt = Some(crate::tui_render::render_agent_board_for_test(
                 frame,
                 locale,
                 &NativeAgentBoardView::new(&port.board, &index),
-                &Theme::one_light(),
+                &theme,
                 &mut hits,
             ));
         })
         .unwrap();
     port.board.settle_draw(receipt);
     let map = hits.finish();
+    assert_ne!(
+        theme.color(Role::SurfaceOverlay),
+        theme.color(Role::SurfaceChrome)
+    );
+    let close_cells = (0..height)
+        .flat_map(|y| (0..width).map(move |x| (x, y)))
+        .filter(|&(x, y)| {
+            matches!(
+                map.hit_target_at(x, y),
+                Some(HitTarget::AgentBoardControl(target))
+                    if target.control() == AgentBoardControl::Close
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(close_cells.len(), 3, "fixed [x] close extent");
+    assert!(close_cells.iter().all(|&(x, y)| {
+        terminal.backend().buffer()[(x, y)].bg == theme.color(Role::SurfaceOverlay)
+    }));
     d.publish_hit_map(map.clone());
     map
 }
@@ -171,10 +225,8 @@ fn mouse_scroll_persists_and_control_release_cannot_retarget_a_new_selection() {
             let open = cell(&map, width, height, |target| {
                 matches!(
                     target,
-                    HitTarget::AgentBoardControl {
-                        control: AgentBoardControl::Open,
-                        ..
-                    }
+                    HitTarget::AgentBoardControl(target)
+                        if target.control() == AgentBoardControl::Open
                 )
             });
             input(
@@ -200,10 +252,8 @@ fn mouse_scroll_persists_and_control_release_cannot_retarget_a_new_selection() {
             let open = cell(&map, width, height, |target| {
                 matches!(
                     target,
-                    HitTarget::AgentBoardControl {
-                        control: AgentBoardControl::Open,
-                        ..
-                    }
+                    HitTarget::AgentBoardControl(target)
+                        if target.control() == AgentBoardControl::Open
                 )
             });
             let selected = port.board.selected_row().unwrap().session_id.clone();
@@ -221,10 +271,8 @@ fn mouse_scroll_persists_and_control_release_cannot_retarget_a_new_selection() {
             let refresh = cell(&map, width, height, |target| {
                 matches!(
                     target,
-                    HitTarget::AgentBoardControl {
-                        control: AgentBoardControl::Refresh,
-                        ..
-                    }
+                    HitTarget::AgentBoardControl(target)
+                        if target.control() == AgentBoardControl::Refresh
                 )
             });
             input(
@@ -238,10 +286,8 @@ fn mouse_scroll_persists_and_control_release_cannot_retarget_a_new_selection() {
             let close = cell(&map, width, height, |target| {
                 matches!(
                     target,
-                    HitTarget::AgentBoardControl {
-                        control: AgentBoardControl::Close,
-                        ..
-                    }
+                    HitTarget::AgentBoardControl(target)
+                        if target.control() == AgentBoardControl::Close
                 )
             });
             input(

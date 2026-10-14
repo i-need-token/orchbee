@@ -3,7 +3,7 @@
 //! encoding pane-local `PaneMouseEvent`s into the tracking/format bytes a
 //! pane terminal requested, and the alternate-screen wheel → cursor-key
 //! fallback. Keeping all three in one module keeps the byte contract a
-//! single table instead of three drifiting implementations.
+//! single table instead of three drifting implementations.
 //!
 //! The encode side is a cell-coordinate port of the Host's pixel-space
 //! pipeline (pinned ghostty-vt `mouse_encode.zig` plus the `input_encoding`
@@ -30,8 +30,8 @@ pub(crate) struct MouseEvent {
 pub(crate) enum MouseAction {
     Press,
     Release,
-    /// Motion with a button held (drag), or button-free hover while a menu
-    /// temporarily requests any-motion tracking.
+    /// Motion with a button held (drag), or button-free hover while an
+    /// admitted owner requests any-motion tracking.
     Motion,
 }
 
@@ -59,8 +59,7 @@ pub(crate) enum MouseButton {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct PaneMouseEvent {
     pub(crate) action: MouseAction,
-    /// `None` only for hover motion; menu capture consumes its own reports
-    /// before the pane encoder is reached.
+    /// `None` only for button-free motion.
     pub(crate) button: Option<MouseButton>,
     pub(crate) mods: Modifiers,
     pub(crate) column: i32,
@@ -199,38 +198,65 @@ fn mods_from_cb(cb: u8) -> Modifiers {
     mods
 }
 
-/// Who owns a pointer event inside a pane viewport, derived from the
-/// pane's most recently validated interaction facts.
+/// Where a fresh pointer event inside a pane viewport routes.
+///
+/// A captured pane gesture does not use this resolver: its press-time
+/// owner keeps accepted motion and release for cleanup even when a later
+/// frame no longer reports that event class. The encoder then decides
+/// whether that captured event emits bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PointerOwner {
-    /// Encode pane-local and forward through the existing input channel.
-    Pane,
-    /// The Client consumes it (chrome gesture or M1 drop).
+pub(crate) enum PanePointerRoute {
+    /// The pane's tracking mode reports this fresh, self-contained event.
+    ProgramReport,
+    /// No tracking mode is active and DEC 1007 maps this vertical wheel
+    /// press to cursor keys on the alternate screen.
+    AlternateScroll,
+    /// The pane does not own this fresh event class. The Client may begin
+    /// an eligible local gesture, apply wheel/history behavior, or leave
+    /// an orphan motion/release inert.
     Client,
     /// Shift-modified: the host's native selection already claimed the
     /// gesture — never claimed, never forwarded, never a Client gesture.
     Host,
 }
 
-/// The §5.1 ownership rule: any tracking mode gives the pane the event;
-/// without tracking only the alternate-screen DEC 1007 wheel fallback does
-/// (cursor-key form); everything else is Client territory. Shift-modified
-/// reports are host-owned regardless.
-pub(crate) fn pane_owns_pointer(
+/// Resolves a pointer event that has no press-time owner yet.
+///
+/// Program routing and encoding share `tracking_reports`, so X10 cannot
+/// claim wheel/release/motion, Normal cannot claim motion, and Button
+/// cannot claim button-free motion. A fresh event may start a pane gesture
+/// only with a reportable real-button press. The sole stateless program
+/// event is button-free Any motion; held motion and release never retarget
+/// into a pane whose program did not own their press. Reportable wheel
+/// presses are one-shot and never mint a pane gesture.
+///
+/// Without tracking, DEC 1007 owns only a vertical wheel press on the
+/// alternate screen. Shift bypasses every Client and program route.
+pub(crate) fn route_pane_pointer(
     tracking: MouseTracking,
     event: &MouseEvent,
     alternate_scroll: bool,
-) -> PointerOwner {
+) -> PanePointerRoute {
     if event.mods.shift {
-        return PointerOwner::Host;
+        return PanePointerRoute::Host;
     }
-    if tracking != MouseTracking::None {
-        return PointerOwner::Pane;
+    let button = (event.button != MouseButton::None).then_some(event.button);
+    let fresh_program_event = match event.action {
+        MouseAction::Press => button.is_some(),
+        MouseAction::Motion => button.is_none(),
+        MouseAction::Release => false,
+    };
+    if fresh_program_event && tracking_reports(event.action, button, tracking) {
+        return PanePointerRoute::ProgramReport;
     }
-    if alternate_scroll && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown) {
-        return PointerOwner::Pane;
+    if tracking == MouseTracking::None
+        && alternate_scroll
+        && event.action == MouseAction::Press
+        && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
+    {
+        return PanePointerRoute::AlternateScroll;
     }
-    PointerOwner::Client
+    PanePointerRoute::Client
 }
 
 /// Encodes one pane-local event for the pane's requested tracking and
@@ -251,7 +277,7 @@ pub(crate) fn encode_pane_report(
     any_button_pressed: bool,
     last_cell: &mut Option<(u16, u16)>,
 ) -> PaneEncode {
-    if !should_report(event, tracking) {
+    if !tracking_reports(event.action, event.button, tracking) {
         return PaneEncode::Silent;
     }
     let (columns, rows) = viewport;
@@ -260,9 +286,10 @@ pub(crate) fn encode_pane_report(
         || event.column >= i32::from(columns)
         || event.row >= i32::from(rows);
     if outside && event.action != MouseAction::Release {
-        // Releases always report; other out-of-viewport events only
-        // report under motion tracking while a button is held, so a drag
-        // leaving the pane still reaches it. A press is itself held.
+        // A release admitted by the tracking gate always reports. Other
+        // out-of-viewport events report only under motion tracking while a
+        // button is held, so a drag leaving the pane still reaches it. A
+        // press is itself held.
         let held = any_button_pressed || event.action == MouseAction::Press;
         if !event_sends_motion(tracking) || !held {
             return PaneEncode::Silent;
@@ -325,21 +352,26 @@ pub(crate) fn encode_pane_report(
     PaneEncode::Bytes(bytes)
 }
 
-/// The tracking gate — one mode's worth of `shouldReport`: X10 sees only
-/// left/middle/right presses, Normal sees everything but motion, Button
-/// needs a held button, Any sees all.
-fn should_report(event: &PaneMouseEvent, tracking: MouseTracking) -> bool {
+/// The single tracking gate shared by fresh-event routing and encoding.
+/// X10 sees only left/middle/right presses, Normal sees everything but
+/// motion, Button requires a button identity (press, held motion, or a
+/// captured release), and Any sees all admitted event shapes.
+fn tracking_reports(
+    action: MouseAction,
+    button: Option<MouseButton>,
+    tracking: MouseTracking,
+) -> bool {
     match tracking {
         MouseTracking::None => false,
         MouseTracking::X10 => {
-            event.action == MouseAction::Press
+            action == MouseAction::Press
                 && matches!(
-                    event.button,
+                    button,
                     Some(MouseButton::Left | MouseButton::Middle | MouseButton::Right)
                 )
         }
-        MouseTracking::Normal => event.action != MouseAction::Motion,
-        MouseTracking::Button => event.button.is_some(),
+        MouseTracking::Normal => action != MouseAction::Motion,
+        MouseTracking::Button => button.is_some(),
         MouseTracking::Any => true,
     }
 }

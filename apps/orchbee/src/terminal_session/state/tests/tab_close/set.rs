@@ -786,7 +786,9 @@ fn close_set_unseen_cancelled_resized_and_stale_prompts_never_admit() {
         match change {
             0 => state.cancel_close_confirmation(),
             1 => state.invalidate_close_display(),
-            2 => state.settle_close_confirmation_not_presented(),
+            2 => {
+                let _ = state.settle_close_confirmation_not_presented();
+            }
             3 => {
                 let mut peer = state.cache().canonical_snapshot().clone();
                 peer.revision = WorkbenchRevision::new(2);

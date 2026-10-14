@@ -150,6 +150,65 @@ fn receipt(operation: &WorkspaceCloseOperation, closed: bool) -> WorkspaceCloseR
         accepted,
     }
 }
+
+#[test]
+fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt() {
+    let (mut refused, refused_mailbox, _, _) = ready();
+    assert_eq!(
+        refused.apply_client_action(ClientAction::RequestWorkspaceClose),
+        SessionActionDisposition::DismissNavigator
+    );
+    refused.after_workspace_close_draw(Some(ModalPresentation::NotPresented));
+    assert!(refused.view().workspace_close_confirmation().is_none());
+    assert_eq!(refused.view().notice(), None);
+    assert!(!refused.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(refused_mailbox.try_recv().unwrap().is_none());
+
+    let (mut suspended, mailbox, _, _) = ready();
+    assert_eq!(
+        suspended.apply_client_action(ClientAction::RequestWorkspaceClose),
+        SessionActionDisposition::DismissNavigator
+    );
+    let token = suspended
+        .view()
+        .workspace_close_confirmation()
+        .unwrap()
+        .token();
+    suspended.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
+    suspended.after_workspace_close_draw(Some(ModalPresentation::NotPresented));
+    let prompt = suspended.view().workspace_close_confirmation().unwrap();
+    assert_eq!(prompt.token(), token);
+    assert!(!prompt.interactive());
+    assert!(suspended.capture_confirmation_key(ClientKey::Plain('y')));
+    suspended.click_workspace_close(token, true);
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    suspended.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
+    assert!(
+        suspended
+            .view()
+            .workspace_close_confirmation()
+            .unwrap()
+            .interactive()
+    );
+    assert!(suspended.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(mailbox.try_recv().unwrap().is_some());
+}
+
+#[test]
+fn suspended_workspace_close_keeps_only_local_escape_cancellation_active() {
+    let (mut ui, mailbox, _, _) = ready();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceClose),
+        SessionActionDisposition::DismissNavigator
+    );
+    let token = ui.view().workspace_close_confirmation().unwrap().token();
+    ui.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
+    ui.after_workspace_close_draw(Some(ModalPresentation::NotPresented));
+    assert!(ui.capture_confirmation_key(ClientKey::Escape));
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
 fn draw(ui: &mut NativeUi, locale: Locale, theme: &Theme, width: u16, height: u16) -> String {
     draw_with_hits(ui, locale, theme, width, height).0
 }
@@ -332,6 +391,7 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                 let (mut ui, mailbox, _, _) = ready();
                 let before = mailbox.cursors();
                 ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+                let token = ui.view().workspace_close_confirmation().unwrap().token();
                 assert!(ui.modal_owns_input());
                 #[cfg(windows)]
                 {
@@ -339,15 +399,31 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                     assert!(ui.view().position_draw(std::iter::empty()).is_none());
                 }
                 let (text, hits) = draw_with_hits(&mut ui, locale, &theme, width, height);
-                let controls = (0..height)
+                let cancel_controls = (0..height)
                     .flat_map(|y| (0..width).map(move |x| (x, y)))
                     .filter(|(x, y)| {
                         matches!(
                             hits.hit_target_at(*x, *y),
-                            Some(HitTarget::WorkspaceClose { .. })
+                            Some(HitTarget::WorkspaceClose {
+                                token: painted,
+                                confirm: false,
+                            }) if *painted == token
                         )
                     })
                     .count();
+                let confirm_controls = (0..height)
+                    .flat_map(|y| (0..width).map(move |x| (x, y)))
+                    .filter(|(x, y)| {
+                        matches!(
+                            hits.hit_target_at(*x, *y),
+                            Some(HitTarget::WorkspaceClose {
+                                token: painted,
+                                confirm: true,
+                            }) if *painted == token
+                        )
+                    })
+                    .count();
+                let controls = cancel_controls + confirm_controls;
                 if complete {
                     assert!(
                         ui.view().workspace_close_confirmation().is_some(),
@@ -358,13 +434,31 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                         "{text}"
                     );
                     assert!(alnum(&text).contains("项目space界"));
+                    let compact = text.replace(' ', "");
+                    assert!(
+                        compact.contains(&format!("[{}]", locale.workspace_close_cancel_label()))
+                    );
+                    assert!(
+                        compact.contains(&format!("[{}]", locale.workspace_close_confirm_label()))
+                    );
+                    let focus_width =
+                        crate::terminal_text::display_width(theme.glyphs.active_marker).max(1);
                     assert_eq!(
-                        controls,
-                        crate::terminal_text::display_width(locale.workspace_close_cancel_button())
+                        cancel_controls,
+                        focus_width
+                            + 4
                             + crate::terminal_text::display_width(
-                                locale.workspace_close_confirm_button()
+                                locale.workspace_close_cancel_label()
                             )
                             + 3 // The independent header [x] is also a cancel control.
+                    );
+                    assert_eq!(
+                        confirm_controls,
+                        focus_width
+                            + 4
+                            + crate::terminal_text::display_width(
+                                locale.workspace_close_confirm_label()
+                            )
                     );
                     ui.capture_confirmation_key(ClientKey::Plain('y'));
                     assert!(
@@ -451,6 +545,15 @@ struct Port<'a> {
     forwarded: &'a mut Vec<u8>,
 }
 impl TerminalInputPort for Port<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        self.ui.capture_claims()
+    }
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        self.ui.capture_context(owner)
+    }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(input);
         Ok(())
@@ -458,8 +561,26 @@ impl TerminalInputPort for Port<'_> {
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         Some(self.ui.apply_client_action(action))
     }
-    fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
-        self.ui.capture_confirmation_key(key)
+    fn capture_tab_confirmation_key_for(
+        &mut self,
+        token: NativeCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_tab_confirmation_key(token, key)
+    }
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        token: NativePanelCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_panel_confirmation_key(token, key)
+    }
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_workspace_close_key(token, key)
     }
 }
 fn dispatch(

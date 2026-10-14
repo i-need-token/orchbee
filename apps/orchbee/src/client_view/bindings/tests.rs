@@ -154,3 +154,20 @@ fn group_labels_form_chords_from_the_same_registry() {
         "1..9"
     );
 }
+
+#[test]
+fn resolved_help_inventory_contains_only_projected_actions() {
+    let bindings = Bindings::default();
+    let descriptions = bindings.descriptions();
+    assert!(!descriptions.is_empty());
+    for desc in descriptions {
+        assert!(
+            bindings.entries.iter().any(|entry| {
+                entry.desc == desc
+                    && crate::action_projection::binding_metadata(&entry.member.action).is_some()
+            }),
+            "missing resolved projection for {desc:?}"
+        );
+        assert!(bindings.group_label(desc, "Unbound").is_some());
+    }
+}

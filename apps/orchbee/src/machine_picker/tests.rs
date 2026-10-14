@@ -1,5 +1,7 @@
 use super::*;
 use crate::machines::Draft;
+use crate::tui_pointer::FrameHitMap;
+use std::ops::Deref;
 fn profile(n: u8, label: &str, enabled: bool) -> Profile {
     Profile {
         id: ProfileId::parse(&format!("{n:032x}")).unwrap(),
@@ -7,75 +9,111 @@ fn profile(n: u8, label: &str, enabled: bool) -> Profile {
         enabled,
     }
 }
-fn paint(picker: &mut Picker, locale: Locale, width: u16, height: u16) -> String {
+struct Paint {
+    text: String,
+    rows: Vec<String>,
+    hits: FrameHitMap,
+    width: u16,
+    height: u16,
+}
+
+impl Deref for Paint {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.text
+    }
+}
+
+impl Paint {
+    fn target(&self, action: PickerAction) -> DrawnPickerTarget {
+        for row in 0..self.height {
+            for column in 0..self.width {
+                if let Some(HitTarget::MachinePicker(target)) = self.hits.hit_target_at(column, row)
+                    && target.action() == action
+                {
+                    return target.clone();
+                }
+            }
+        }
+        panic!("missing painted Machine picker target: {action:?}");
+    }
+
+    fn has_target(&self, action: PickerAction) -> bool {
+        for row in 0..self.height {
+            for column in 0..self.width {
+                if matches!(
+                    self.hits.hit_target_at(column, row),
+                    Some(HitTarget::MachinePicker(target)) if target.action() == action
+                ) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn has_any_target(&self) -> bool {
+        (0..self.height)
+            .any(|row| (0..self.width).any(|column| self.hits.hit_target_at(column, row).is_some()))
+    }
+}
+
+fn paint(picker: &Picker, locale: Locale, width: u16, height: u16) -> Paint {
     let backend = ratatui::backend::TestBackend::new(width, height);
     let mut terminal = ratatui::Terminal::new(backend).unwrap();
+    let mut hits = HitMapBuilder::new();
     terminal
         .draw(|frame| {
-            picker.render(frame, locale, &Theme::terminal_native());
+            picker.render(frame, locale, &Theme::terminal_native(), &mut hits);
         })
         .unwrap();
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(|c| c.symbol())
-        .collect()
-}
-fn click(rect: Rect) -> MouseEvent {
-    MouseEvent {
-        action: MouseAction::Press,
-        button: MouseButton::Left,
-        mods: Modifiers::NONE,
-        column: rect.x,
-        row: rect.y,
+    let buffer = terminal.backend().buffer();
+    let rows = (0..height)
+        .map(|row| {
+            (0..width)
+                .map(|column| buffer[(column, row)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>();
+    let text = rows.concat();
+    Paint {
+        text,
+        rows,
+        hits: hits.finish(),
+        width,
+        height,
     }
 }
 
 #[test]
 fn picker_wheel_is_regional_bounded_reversible_and_keyboard_can_resume() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let mut picker = Picker {
-            available: true,
-            ..Picker::default()
-        };
-        picker.replace(
-            &(1..=60)
-                .map(|n| profile(n, "same", true))
-                .collect::<Vec<_>>(),
-        );
-        picker.show();
-        paint(&mut picker, locale, 80, 24);
-        let (list, window) = picker.list_hit.unwrap();
-        let mut wheel = click(list);
-        wheel.button = MouseButton::WheelDown;
-        wheel.row = list.y - 1;
-        picker.pointer(wheel);
-        assert!(!picker.settle_sidebar_scroll());
-        assert_eq!(picker.top, 0);
-        wheel.row = list.y;
-        for _ in 0..5 {
-            picker.pointer(wheel);
-        }
-        assert_eq!(picker.top, 0, "reports wait for a flush");
-        assert!(picker.settle_sidebar_scroll());
-        assert_eq!(picker.top, 15.min(window.capacity));
-        while picker.scroll.is_some() {
-            picker.settle_sidebar_scroll();
-        }
-        assert_eq!(picker.top, 15, "the entire burst drains");
-        paint(&mut picker, locale, 80, 24);
-        picker.pointer(wheel);
-        wheel.button = MouseButton::WheelUp;
-        picker.pointer(wheel);
-        assert!(picker.settle_sidebar_scroll());
-        assert_eq!(picker.top, 12, "the first reverse report survives");
-        picker.key(KeyEvent::press(KeyCode::Home, Modifiers::NONE));
-        paint(&mut picker, locale, 80, 24);
-        assert_eq!(picker.top, 0);
-        assert!(picker.scroll.is_none());
-    }
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.replace(
+        &(1..=60)
+            .map(|n| profile(n, "same", true))
+            .collect::<Vec<_>>(),
+    );
+    picker.show();
+    let source = picker.picker_source().unwrap();
+    let initial = source.drawn_list(picker.picker_window(7)).unwrap();
+    let second = picker
+        .scroll_drawn_picker(&initial, false, 15)
+        .expect("one flush moves at most the painted viewport");
+    assert_eq!(second.window().top, 7);
+    assert!(
+        picker.scroll_drawn_picker(&initial, false, 3).is_none(),
+        "the previous viewport is stale after the first settled chunk"
+    );
+    let third = picker.scroll_drawn_picker(&second, false, 3).unwrap();
+    assert_eq!(third.window().top, 10);
+    let reversed = picker.scroll_drawn_picker(&third, true, 3).unwrap();
+    assert_eq!(reversed.window().top, 7);
+    picker.key(KeyEvent::press(KeyCode::Home, Modifiers::NONE));
+    assert_eq!(picker.picker_window(7).top, 0);
 }
 
 #[test]
@@ -87,49 +125,27 @@ fn picker_categories_query_controls_and_close_are_visible_mouse_paths() {
                 ..Picker::default()
             };
             picker.show();
-            paint(&mut picker, locale, width, height);
-            assert_eq!(picker.mode_hits.len(), 3);
-            let agents = picker
-                .mode_hits
-                .iter()
-                .find(|(_, mode)| *mode == Mode::Agents)
-                .unwrap()
-                .0;
-            picker.pointer(click(agents));
-            paint(&mut picker, locale, width, height);
-            let search = picker
-                .control_hits
-                .iter()
-                .find(|(_, control)| *control == Control::Search)
-                .unwrap()
-                .0;
-            picker.pointer(click(search));
+            let painted = paint(&picker, locale, width, height);
+            for mode in [Mode::Machines, Mode::Workspaces, Mode::Agents] {
+                assert!(painted.has_target(PickerAction::Mode(mode)));
+            }
+            let agents = painted.target(PickerAction::Mode(Mode::Agents));
+            assert!(picker.activate_drawn_picker(&agents));
+            let painted = paint(&picker, locale, width, height);
+            let search = painted.target(PickerAction::Control(Control::Search));
+            assert!(picker.activate_drawn_picker(&search));
             picker.key(KeyEvent::press(KeyCode::Char('z'), Modifiers::NONE));
-            paint(&mut picker, locale, width, height);
-            let clear = picker
-                .control_hits
-                .iter()
-                .find(|(_, control)| *control == Control::Clear)
-                .unwrap()
-                .0;
-            picker.pointer(click(clear));
+            let painted = paint(&picker, locale, width, height);
+            let clear = painted.target(PickerAction::Control(Control::Clear));
+            assert!(picker.activate_drawn_picker(&clear));
             assert!(picker.agent_view.query.is_empty());
-            paint(&mut picker, locale, width, height);
-            let done = picker
-                .control_hits
-                .iter()
-                .find(|(_, control)| *control == Control::Done)
-                .unwrap()
-                .0;
-            picker.pointer(click(done));
+            let painted = paint(&picker, locale, width, height);
+            let done = painted.target(PickerAction::Control(Control::Done));
+            assert!(picker.activate_drawn_picker(&done));
             assert!(!picker.editing_query);
-            paint(&mut picker, locale, width, height);
-            let close = picker.close_hit.unwrap();
-            let mut shifted = click(close);
-            shifted.mods = Modifiers::NONE.with_shift();
-            picker.pointer(shifted);
-            assert!(picker.open);
-            picker.pointer(click(close));
+            let painted = paint(&picker, locale, width, height);
+            let close = painted.target(PickerAction::Close);
+            assert!(picker.activate_drawn_picker(&close));
             assert!(!picker.open);
             assert!(picker.selection_scope().is_none());
         }
@@ -137,17 +153,69 @@ fn picker_categories_query_controls_and_close_are_visible_mouse_paths() {
 }
 
 #[test]
-fn picker_retains_a_mouse_exit_when_only_a_tiny_close_control_fits() {
-    for (width, height) in [(1, 1), (20, 5), (33, 8)] {
+fn minimal_picker_retains_a_mouse_exit_when_only_the_close_control_fits() {
+    for (width, height) in [(20, 5), (33, 8)] {
         let mut picker = Picker {
             available: true,
             ..Picker::default()
         };
         picker.show();
-        assert!(paint(&mut picker, Locale::EnUs, width, height).contains('x'));
-        picker.pointer(click(picker.close_hit.unwrap()));
+        let painted = paint(&picker, Locale::EnUs, width, height);
+        assert!(painted.contains('x'));
+        let close = painted.target(PickerAction::Close);
+        assert!(picker.activate_drawn_picker(&close));
         assert!(!picker.open);
     }
+}
+
+#[test]
+fn too_small_picker_paints_only_an_atomic_escape_hint_without_publishing_targets() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(100, 1), (100, 3), (100, 4), (19, 24)] {
+            let mut picker = Picker {
+                available: true,
+                ..Picker::default()
+            };
+            picker.show();
+            let source = picker.picker_source();
+            let painted = paint(&picker, locale, width, height);
+
+            assert!(painted.contains("Esc"), "{locale:?} {width}x{height}");
+            assert!(!painted.has_any_target(), "{locale:?} {width}x{height}");
+            assert!(
+                painted.rows[..usize::from(height.saturating_sub(1))]
+                    .iter()
+                    .all(|row| row.trim().is_empty()),
+                "{locale:?} {width}x{height} painted outside the capture status"
+            );
+            assert_eq!(picker.picker_source(), source);
+            assert!(picker.open);
+            assert!(picker.selection_scope().is_some());
+        }
+
+        let mut editing = Picker {
+            available: true,
+            ..Picker::default()
+        };
+        editing.show_agent_search();
+        let painted = paint(&editing, locale, 19, 24);
+        assert!(painted.contains("Esc"), "{locale:?}: {:?}", painted.text);
+        assert!(
+            !painted.contains("Enter") && !painted.contains("Ctrl"),
+            "{locale:?}: only the first complete hint fits: {:?}",
+            painted.text
+        );
+    }
+
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.show();
+    let _ = paint(&picker, Locale::EnUs, 19, 24);
+    picker.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(!picker.open);
+    assert!(picker.selection_scope().is_none());
 }
 #[test]
 fn rendered_rows_select_exact_ids_and_reordering_invalidates_old_hits() {
@@ -159,25 +227,21 @@ fn rendered_rows_select_exact_ids_and_reordering_invalidates_old_hits() {
     };
     picker.replace(&[a.clone(), b.clone()]);
     picker.show();
-    let text = paint(&mut picker, Locale::EnUs, 100, 30);
+    let text = paint(&picker, Locale::EnUs, 100, 30);
     assert!(text.contains("Machines"));
-    let rect = picker.painted[2].0;
-    picker.pointer(click(rect));
-    assert_eq!(
-        picker.request.take(),
-        Some(Choice::Remote(b.id.clone()).into())
-    );
+    let old = text.target(PickerAction::Row(2));
     picker.replace(&[b.clone(), a]);
-    picker.pointer(click(rect));
+    assert!(!picker.activate_drawn_picker(&old));
     assert!(picker.request.is_none());
+    let text = paint(&picker, Locale::ZhCn, 100, 30);
     assert!(
-        paint(&mut picker, Locale::ZhCn, 100, 30)
-            .chars()
+        text.chars()
             .filter(|c| !c.is_whitespace())
             .collect::<String>()
             .contains("机器")
     );
-    picker.pointer(click(picker.painted[1].0));
+    let current_b = text.target(PickerAction::Row(1));
+    assert!(picker.activate_drawn_picker(&current_b));
     assert_eq!(picker.request.take(), Some(Choice::Remote(b.id).into()));
 }
 #[test]
@@ -188,14 +252,15 @@ fn disabled_selection_and_small_resize_never_fall_through_to_a_terminal() {
     };
     picker.replace(&[profile(1, "offline", false)]);
     picker.show();
-    paint(&mut picker, Locale::EnUs, 80, 24);
-    assert!(picker.pointer(click(picker.painted[1].0)));
-    assert_eq!(picker.error, Some("disabled"));
+    let painted = paint(&picker, Locale::EnUs, 80, 24);
+    let disabled = painted.target(PickerAction::Row(1));
+    assert!(!disabled.available());
+    assert!(!picker.activate_drawn_picker(&disabled));
+    assert_eq!(picker.error, None);
     assert!(picker.request.is_none());
-    picker.invalidate();
-    paint(&mut picker, Locale::ZhCn, 1, 1);
-    assert!(picker.painted.is_empty());
-    assert!(picker.pointer(click(Rect::new(0, 0, 1, 1))));
+    let tiny = paint(&picker, Locale::ZhCn, 1, 1);
+    assert!(!tiny.has_target(PickerAction::Row(0)));
+    assert!(!tiny.has_target(PickerAction::Row(1)));
 }
 #[test]
 fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_online() {
@@ -217,25 +282,25 @@ fn machine_overview_keeps_status_visible_and_localizes_without_claiming_stale_on
         contexts: std::sync::Arc::from([]),
     };
     picker.observe(&[(p.id.clone(), Observation::Online(overview))]);
-    let text = paint(&mut picker, Locale::EnUs, 80, 24);
+    let text = paint(&picker, Locale::EnUs, 80, 24);
     assert!(text.contains("Online"));
     assert!(text.contains("3 workspaces"));
     assert!(text.contains("Project A"));
-    let text = paint(&mut picker, Locale::ZhCn, 80, 24);
+    let text = paint(&picker, Locale::ZhCn, 80, 24);
     assert!(
         text.chars()
             .filter(|c| !c.is_whitespace())
             .collect::<String>()
             .contains("在线")
     );
-    let rect = picker.painted[1].0;
+    let status_only = text.target(PickerAction::Row(1));
     picker.observe(&[(p.id, Observation::Stale)]);
-    assert!(picker.pointer(click(rect)));
     assert!(
-        picker.request.is_none(),
-        "old painted rows are invalid after a status update"
+        picker.activate_drawn_picker(&status_only),
+        "status-only refreshes retain the same semantic row authority"
     );
-    let text = paint(&mut picker, Locale::EnUs, 80, 24);
+    assert!(picker.request.take().is_some());
+    let text = paint(&picker, Locale::EnUs, 80, 24);
     assert!(text.contains("Stale"));
     assert!(text.contains("0 machines"));
     assert!(!text.contains("Workspace B"));
@@ -281,7 +346,7 @@ fn workspace_mode_routes_full_local_remote_identity_and_preserves_selection_on_r
     picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
     assert_eq!(picker.mode, Mode::Workspaces);
     assert_eq!(picker.visible_rows().len(), 5);
-    assert!(paint(&mut picker, Locale::EnUs, 90, 26).contains("same workspace"));
+    assert!(paint(&picker, Locale::EnUs, 90, 26).contains("same workspace"));
     picker.key(KeyEvent::press(KeyCode::End, Modifiers::NONE));
     picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
     let expected = Selection {
@@ -296,14 +361,15 @@ fn workspace_mode_routes_full_local_remote_identity_and_preserves_selection_on_r
         (b.id.clone(), Observation::Online(reordered)),
     ]);
     assert_eq!(picker.selection(), Some(expected));
-    paint(&mut picker, Locale::EnUs, 90, 26);
-    let old = picker.painted[picker.selected].0;
+    let painted = paint(&picker, Locale::EnUs, 90, 26);
+    let old = painted.target(PickerAction::Row(picker.selected));
     picker.observe(&[(a.id, Observation::Stale), (b.id, Observation::Stale)]);
-    picker.pointer(click(old));
+    assert!(!picker.activate_drawn_picker(&old));
     assert!(picker.request.is_none());
     assert_eq!(picker.visible_rows().len(), 1);
-    paint(&mut picker, Locale::ZhCn, 90, 26);
-    picker.pointer(click(picker.painted[0].0));
+    let painted = paint(&picker, Locale::ZhCn, 90, 26);
+    let local = painted.target(PickerAction::Row(0));
+    assert!(picker.activate_drawn_picker(&local));
     assert_eq!(
         picker.request.take(),
         Some(Selection {
@@ -311,9 +377,10 @@ fn workspace_mode_routes_full_local_remote_identity_and_preserves_selection_on_r
             context: Some(context(11).target.into())
         })
     );
-    picker.pointer(click(picker.mode_hits[0].0));
+    let painted = paint(&picker, Locale::EnUs, 90, 26);
+    let machines = painted.target(PickerAction::Mode(Mode::Machines));
+    assert!(picker.activate_drawn_picker(&machines));
     assert_eq!(picker.mode, Mode::Machines);
-    assert!(picker.painted.is_empty());
 }
 #[test]
 fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
@@ -323,22 +390,22 @@ fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
     };
     picker.observe_local((1..=30).map(context).collect());
     picker.show();
-    paint(&mut picker, Locale::EnUs, 80, 24);
-    picker.pointer(click(picker.mode_hits[1].0));
+    let painted = paint(&picker, Locale::EnUs, 80, 24);
+    let workspaces = painted.target(PickerAction::Mode(Mode::Workspaces));
+    assert!(picker.activate_drawn_picker(&workspaces));
     picker.key(KeyEvent::press(KeyCode::End, Modifiers::NONE));
-    let text = paint(&mut picker, Locale::EnUs, 80, 24);
+    let text = paint(&picker, Locale::EnUs, 80, 24);
     assert!(text.contains("30/30"));
-    let last = picker.painted.last().unwrap().0;
+    let last = text.target(PickerAction::Row(29));
     assert_eq!(
-        picker.painted.last().unwrap().1.context,
+        last.source().0.rows[29].selection.context,
         Some(context(30).target.into())
     );
-    paint(&mut picker, Locale::ZhCn, 20, 5);
-    assert!(picker.painted.is_empty());
-    picker.pointer(click(last));
+    let tiny = paint(&picker, Locale::ZhCn, 20, 5);
+    assert!(!tiny.has_target(PickerAction::Row(29)));
     assert!(picker.request.is_none());
     picker.observe_local(Vec::new());
-    assert!(paint(&mut picker, Locale::EnUs, 80, 24).contains("No available workspaces"));
+    assert!(paint(&picker, Locale::EnUs, 80, 24).contains("No available workspaces"));
 }
 fn agent_row() -> crate::machine_agents::Row {
     crate::machine_agents::Row {
@@ -376,9 +443,10 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
     picker.key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE));
     assert!(picker.wants_agents());
     assert_eq!(picker.visible_rows().len(), 3);
-    let text = paint(&mut picker, Locale::EnUs, 100, 30);
+    let text = paint(&picker, Locale::EnUs, 100, 30);
     assert!(text.contains("Working"));
-    picker.pointer(click(picker.painted[2].0));
+    let remote_b = text.target(PickerAction::Row(2));
+    assert!(picker.activate_drawn_picker(&remote_b));
     let expected = Selection {
         machine: Choice::Remote(b.id.clone()),
         context: Some(NativeStartupTarget::Agent(Box::new(agent_row().target))),
@@ -386,13 +454,13 @@ fn agent_mode_routes_duplicate_local_and_remote_identities_and_invalidates_stale
     assert_eq!(picker.request.take(), Some(expected.clone()));
     picker.replace(&[b.clone(), a.clone()]);
     assert_eq!(picker.selection(), Some(expected));
-    paint(&mut picker, Locale::ZhCn, 100, 30);
-    let old = picker.painted[picker.selected].0;
+    let painted = paint(&picker, Locale::ZhCn, 100, 30);
+    let old = painted.target(PickerAction::Row(picker.selected));
     picker.observe_agents(vec![(
         Choice::Local,
         Agents::Ready(crate::machine_agents::tests::checkpoint(vec![agent_row()])),
     )]);
-    picker.pointer(click(old));
+    assert!(!picker.activate_drawn_picker(&old));
     assert!(
         picker.request.is_none(),
         "old frame is no authority for activation"
@@ -412,8 +480,9 @@ fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selec
     };
     picker.replace(&[profile(1, "remote", true)]);
     picker.show();
-    paint(&mut picker, Locale::EnUs, 100, 30);
-    picker.pointer(click(picker.mode_hits[2].0));
+    let painted = paint(&picker, Locale::EnUs, 100, 30);
+    let agents = painted.target(PickerAction::Mode(Mode::Agents));
+    assert!(picker.activate_drawn_picker(&agents));
     for (observation, key) in [
         (Agents::Loading, "agents-loading"),
         (
@@ -428,7 +497,7 @@ fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selec
         assert!(picker.request.is_none());
         assert_eq!(picker.error, Some(key));
         for locale in [Locale::EnUs, Locale::ZhCn] {
-            let text = paint(&mut picker, locale, 100, 30);
+            let text = paint(&picker, locale, 100, 30);
             let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
             let expected: String = locale
                 .machine_picker_text(key)
@@ -438,10 +507,10 @@ fn agent_mode_distinguishes_empty_loading_and_unavailable_without_fallback_selec
             assert!(compact.contains(&expected));
         }
     }
-    let old = picker.painted[0].0;
-    paint(&mut picker, Locale::ZhCn, 20, 5);
-    assert!(picker.painted.is_empty());
-    picker.pointer(click(old));
+    let old = paint(&picker, Locale::EnUs, 100, 30).target(PickerAction::Row(0));
+    let tiny = paint(&picker, Locale::ZhCn, 20, 5);
+    assert!(!tiny.has_target(PickerAction::Row(0)));
+    assert!(!picker.activate_drawn_picker(&old));
     assert!(picker.request.is_none());
 }
 

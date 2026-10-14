@@ -273,6 +273,12 @@ pnpm verify
 
 `test` runs the current platform's native tests, the real-process Local IPC/PTY black-box trace,
 cross-language protocol conformance, and the pinned-Ghostty surface-fixture comparison.
+The default aggregate limits Zig to one build job (`-j1`) because Zig 0.16 on Windows has a
+confirmed static risk: child processes can inherit broad handles and share stdio pipe writers.
+This changes compilation/job scheduling only; all targets, tests, assertions, and deadlines remain
+the same, and the runtime protocol is unchanged. This bounds inherited-pipe risk; it does not
+establish the cause of every runner timeout. Review the limit when the pinned spawn implementation
+restricts child handle inheritance.
 The generated cross-language selection cases admit only `plain` and require HTML/raw VT requests to
 fail strict decoding; `terminal-parity/HS-07-selection-export` adds the real-PTY/Electron clipboard
 consequence from the owning application system suite.
@@ -321,6 +327,17 @@ the Host application-signal queue. A deterministic engine check pauses an attach
 the platform effect and proves a concurrent cursor query cannot produce a reply until the new
 Ghostty geometry commits. Existing history-generation and selection-reflow tests remain the
 authority for retained selection semantics.
+
+On native Windows x64, `zig build test-conpty-orchbee-pointer` runs a controlled pointer-admission
+witness against the same manifest-verified ConPTY bundle and the pinned Ghostty parser. A copied
+Orchbee Rust test binary enters through its inherited console, native reader, input decoder and
+terminal-mode guard. The Host injects semantic button-free motion: button-event tracking must emit
+nothing, an ordered reset report for mode 1003 before the DA1 sentinel admits any-motion tracking,
+and the same semantic motion must then arrive as a typed no-button mouse event. Full pointer release
+must suppress another motion, and child exit must restore the original native console modes,
+primary screen and cursor. This is evidence for the pinned Windows x64 harness. It does not prove
+the full UI input dispatcher, physical mouse records, another terminal emulator's query behavior,
+palette or font quality, or interactive latency.
 
 `format:check` also enforces the package boundary rule that every hand-written production Zig file
 under `src/` stays at or below 500 physical lines. Scenario catalogs under `__tests__/` and

@@ -9,9 +9,12 @@
 //! cache, and the panel against the live pane records. Nothing moves on
 //! cached positions, and no stage ever mints a panel.
 
+#[cfg(test)]
+use super::super::agent_board::AgentBoardInputContext;
 use super::super::agent_board::{
-    AgentBoardControl, AgentBoardDraw, AgentBoardKeyAction, AgentBoardToken, JumpStage, JumpStep,
-    NativeAgentBoardView, board_key_action, plan_jump_step,
+    AgentBoardControlTarget, AgentBoardDraw, AgentBoardEpisodeToken, AgentBoardKeyAction,
+    AgentBoardRowTarget, AgentBoardToken, JumpStage, JumpStep, NativeAgentBoardView,
+    board_key_action, plan_jump_step,
 };
 use super::{
     ActionBuildError, Arc, CarrierFailure, ClientAction, NativeUi, OperationDeadlines,
@@ -20,7 +23,7 @@ use super::{
 };
 use crate::client_view::KeyEvent;
 use crate::terminal_session::workbench_projection::NativeContextLocation;
-use orchbee_agent_observation_protocol::AgentSessionId;
+use crate::tui_composition::{NativeCaptureOwner, project_native_capture};
 use std::time::Instant;
 
 impl NativeUi {
@@ -95,11 +98,11 @@ impl NativeUi {
             .is_some_and(|state| state.view().close_confirmation().is_some())
     }
 
-    /// Input ownership: only an actually-presented board captures keys —
-    /// the draw receipt's verdict, so an unpainted overlay never eats
-    /// input for a surface the user cannot see.
-    pub(in crate::terminal_session) fn agent_board_input(&self) -> bool {
-        self.board.owns_input()
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn agent_board_input_context(
+        &self,
+    ) -> Option<AgentBoardInputContext> {
+        self.board.input_context()
     }
 
     /// Close the lane's thread before the mailbox retires — the wake
@@ -127,32 +130,45 @@ impl NativeUi {
     /// layer guarantees nothing typed here ever reaches the pane.
     pub(in crate::terminal_session) fn capture_agent_board_key(
         &mut self,
+        expected: AgentBoardEpisodeToken,
         event: &KeyEvent,
     ) -> bool {
-        if !self.agent_board_input() {
+        let Some(context) = self.board.input_context() else {
+            return false;
+        };
+        if context.episode() != expected {
             return false;
         }
         if event.kind == crate::client_view::KeyKind::Release {
+            return true;
+        }
+        if board_key_action(*event) == Some(AgentBoardKeyAction::Close) {
+            self.board.close();
+            return true;
+        }
+        if !context.interactive() {
             return true;
         }
         match board_key_action(*event) {
             Some(AgentBoardKeyAction::SelectUp) => self.board.move_selection(-1),
             Some(AgentBoardKeyAction::SelectDown) => self.board.move_selection(1),
             Some(AgentBoardKeyAction::Refresh) => self.board.request_refresh(),
-            Some(AgentBoardKeyAction::Jump) => self.board.request_jump(),
-            Some(AgentBoardKeyAction::Close) => self.board.close(),
+            Some(AgentBoardKeyAction::Jump) if self.board.selected_is_shown() => {
+                self.board.request_jump();
+            }
+            Some(AgentBoardKeyAction::Jump | AgentBoardKeyAction::Close) => {}
             None => {}
         }
         true
     }
 
-    /// Pointer row select — resolves by stable session identity, so a
-    /// stale click can only ever pick a row that still exists.
+    /// Pointer row selection commits on press against the exact successful
+    /// Board draw that published the target.
     pub(in crate::terminal_session) fn agent_board_select(
         &mut self,
-        session: &AgentSessionId,
+        target: &AgentBoardRowTarget,
     ) -> bool {
-        self.board.is_open() && self.board.select_session(session)
+        self.board.select_drawn_row(target)
     }
 
     pub(in crate::terminal_session) fn scroll_agent_board(
@@ -166,10 +182,9 @@ impl NativeUi {
 
     pub(in crate::terminal_session) fn click_agent_board_control(
         &mut self,
-        token: &AgentBoardToken,
-        control: AgentBoardControl,
-    ) {
-        self.board.control(token, control);
+        target: &AgentBoardControlTarget,
+    ) -> bool {
+        self.board.control_drawn(target)
     }
 
     /// Backdrop dismissal: a press outside the painted board surface.
@@ -187,9 +202,9 @@ impl NativeUi {
         })
     }
 
-    /// The draw receipt's verdict: a board the paint could not present
-    /// closes itself rather than owning input invisibly, and the painted
-    /// viewport height bounds selection scrolling.
+    /// Settles the renderer's exact episode verdict. A geometry-blocked first
+    /// draw refuses the new Board; an admitted Board suspends and retains its
+    /// state until a complete frame restores current draw proof.
     pub(in crate::terminal_session) fn after_agent_board_draw(
         &mut self,
         draw: Option<AgentBoardDraw>,
@@ -286,7 +301,10 @@ impl NativeUi {
     /// lane outcomes, issue the next queued intent, and advance the
     /// in-flight jump's stage. Runs inside the ordinary scheduler block,
     /// so an armed membership-recovery attempt still owns the mailbox.
-    pub(super) fn drive_agent_board(&mut self) -> bool {
+    /// `allow_jump` is the total compositor's current top-owner verdict;
+    /// covering Client surfaces block only focus-moving navigation while
+    /// Board-owned domain work continues to settle.
+    pub(super) fn drive_agent_board(&mut self, allow_jump: bool) -> bool {
         let now = self.clock.now();
         let mut changed = self.board.expire_jump(now);
         // The Get path's deterministic pick asks which attachments already
@@ -302,7 +320,9 @@ impl NativeUi {
                 })
         });
         changed |= self.board.drive_intent(now);
-        changed |= self.drive_agent_jump(now);
+        if allow_jump {
+            changed |= self.drive_agent_jump(now);
+        }
         changed
     }
 
@@ -326,6 +346,19 @@ impl NativeUi {
     /// panel-focus path) and the next tick re-plans — stages never cache
     /// positions and never block.
     fn drive_agent_jump(&mut self, _now: Instant) -> bool {
+        // The accepted lane may settle while a child covers the Board or
+        // geometry suspends it. Keep that result in this episode, but do not
+        // move context, tab, panel, or presentation unless the compositor
+        // still names the Board as the top native owner and its successful
+        // frame visibility lease remains live.
+        if project_native_capture(self.capture_claims()) != Some(NativeCaptureOwner::AgentBoard)
+            || self
+                .board
+                .input_context()
+                .is_none_or(|context| !context.interactive())
+        {
+            return false;
+        }
         let Some(stage) = self.board.jump().map(|jump| jump.stage.clone()) else {
             return false;
         };

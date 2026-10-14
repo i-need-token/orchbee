@@ -1,15 +1,53 @@
 //! Workspace token rows over complete canonical checkpoints and attention-projected Agent states.
+use super::controls::{
+    ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
+    InteractionState, NavigationState, OperationState, PointerPresentation, RowContentBand,
+    RowFocusCue, RowTracks, action_rect, paint_pointer_target, paint_row_interaction,
+    render_action,
+};
 use super::{
-    Alignment, Block, ClientView, Frame, HitLayer, HitMapBuilder, HitTarget, Line, Locale,
-    Modifier, Paragraph, Rect, Role, Span, Theme, display_width, sidebar_text, truncate_display,
+    Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Modifier, Paragraph, Rect,
+    Role, Span, Theme, display_width, sidebar_text, truncate_display,
 };
 use crate::{
     machine_discovery::display_label,
-    machine_picker::{Row, SidebarRow, SidebarTarget},
+    machine_picker::{
+        Row, SidebarFixedAction, SidebarPart, SidebarRow, SidebarSource, SidebarTarget,
+    },
+    tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
 };
 use orchbee_local_site_runtime::{WindowsSidebarTokenStyle, WindowsSpaceSidebarTokenKind as Kind};
 use ratatui::style::Style;
 use sidebar_text::{fit, machine_label, state_role};
+mod layout;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::tui_render) enum CurrentIdentityEmphasis {
+    Theme,
+    ExplicitPlain,
+}
+
+pub(in crate::tui_render) struct ProjectedSidebarLines {
+    lines: Vec<Line<'static>>,
+    current_identity: CurrentIdentityEmphasis,
+}
+
+impl ProjectedSidebarLines {
+    pub(in crate::tui_render) fn new(
+        lines: Vec<Line<'static>>,
+        current_identity: CurrentIdentityEmphasis,
+    ) -> Self {
+        Self {
+            lines,
+            current_identity,
+        }
+    }
+
+    pub(in crate::tui_render) fn into_parts(self) -> (Vec<Line<'static>>, CurrentIdentityEmphasis) {
+        (self.lines, self.current_identity)
+    }
+}
+
 struct Context<'a> {
     row: &'a Row,
     observed: Option<&'a crate::machine_spaces::Row>,
@@ -93,11 +131,9 @@ fn lines(
     theme: &Theme,
     width: usize,
     suffix: &str,
-    focused: bool,
-) -> Vec<Line<'static>> {
+) -> ProjectedSidebarLines {
     let context = Context::new(view, row, locale);
-    let current = view.machines.current_workspace(row);
-    let text_style = |role| theme.workspace_token_style(role, Default::default(), current, focused);
+    let text_style = |role| theme.workspace_token_style(role, Default::default(), false, false);
     let machine = if view.machines.rows.iter().filter(|m| m.enabled).count() > 1 {
         format!(
             "{} / ",
@@ -107,8 +143,8 @@ fn lines(
         String::new()
     };
     let mut lines = Vec::new();
+    let mut current_identity = CurrentIdentityEmphasis::Theme;
     let identity = machine.clone();
-    let continuation_indent = display_width(&machine) + 2;
     for tokens in view.machines.space_settings().rows() {
         let resolved: Vec<_> = tokens
             .iter()
@@ -147,9 +183,9 @@ fn lines(
             .sum();
         let mut remaining = width
             .saturating_sub(if lines.is_empty() {
-                display_width(&identity) + 2 + display_width(suffix)
+                display_width(&identity) + display_width(suffix)
             } else {
-                continuation_indent
+                0
             })
             .saturating_sub(fixed + separators);
         let mut budgets = vec![0; resolved.len()];
@@ -173,6 +209,11 @@ fn lines(
         let mut spans = Vec::new();
         let mut previous_icon = false;
         for (i, (kind, style, text)) in resolved.into_iter().enumerate() {
+            let identity_token =
+                kind == Kind::Workspace || lines.is_empty() && matches!(kind, Kind::Custom(_));
+            if identity_token && style.bold == Some(false) {
+                current_identity = CurrentIdentityEmphasis::ExplicitPlain;
+            }
             let fixed = matches!(kind, Kind::StateIcon | Kind::GitStatus);
             let text = if fixed {
                 text
@@ -202,7 +243,7 @@ fn lines(
                 if git.ahead > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_ahead, n = git.ahead),
-                        theme.workspace_token_style(Role::StatusSuccess, style, current, focused),
+                        theme.workspace_token_style(Role::StatusSuccess, style, false, false),
                     ));
                 }
                 if git.ahead > 0 && git.behind > 0 {
@@ -211,7 +252,7 @@ fn lines(
                 if git.behind > 0 {
                     spans.push(Span::styled(
                         format!("{}{n}", theme.glyphs.git_behind, n = git.behind),
-                        theme.workspace_token_style(Role::StatusError, style, current, focused),
+                        theme.workspace_token_style(Role::StatusError, style, false, false),
                     ));
                 }
             } else {
@@ -221,11 +262,10 @@ fn lines(
                     _ if !lines.is_empty() => Role::TextSecondary,
                     _ => Role::TextPrimary,
                 };
-                let mut projected = theme.workspace_token_style(role, style, current, focused);
-                if kind == Kind::Workspace && current && style.bold.is_none() {
-                    projected = projected.add_modifier(Modifier::BOLD);
-                }
-                spans.push(Span::styled(text, projected));
+                spans.push(Span::styled(
+                    text,
+                    theme.workspace_token_style(role, style, false, false),
+                ));
             }
         }
         // A visible configured row keeps its height even when a tiny viewport clips all text.
@@ -238,27 +278,12 @@ fn lines(
                     )
                 })
         {
-            if !lines.is_empty() {
-                spans.insert(0, Span::raw(" ".repeat(continuation_indent)));
-            }
             lines.push(Line::from(spans));
         }
     }
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    lines[0].spans.insert(
-        0,
-        Span::styled(
-            format!(
-                "{} ",
-                context
-                    .glyph_state
-                    .map_or(" ", |state| sidebar_text::state_glyph(state, theme))
-            ),
-            text_style(context.role),
-        ),
-    );
     lines[0]
         .spans
         .insert(0, Span::styled(identity, text_style(Role::TextSecondary)));
@@ -271,7 +296,7 @@ fn lines(
         suffix.to_owned(),
         text_style(Role::TextSecondary),
     ));
-    lines
+    ProjectedSidebarLines::new(lines, current_identity)
 }
 
 fn height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
@@ -369,59 +394,39 @@ fn annotations(view: &ClientView, rows: &[SidebarRow<'_>], locale: Locale) -> Ve
     annotations
 }
 
-fn menu_width(view: &ClientView, target: &SidebarTarget, theme: &Theme) -> u16 {
-    if matches!(
-        target,
-        SidebarTarget::Project { .. } | SidebarTarget::Context { .. }
-    ) && view.machines.sidebar_focused_target() == Some(target)
-        && target.machine() == &view.machines.current
-        && view
-            .machines
-            .current_context
-            .as_ref()
-            .is_some_and(|context| &context.site_id == target.site_id())
-    {
-        // The glyph is a menu control, not a localized label or an identity.
-        u16::try_from(display_width(theme.glyphs.ellipsis) + 2).unwrap_or(0)
-    } else {
-        0
+fn depth(view: &ClientView, target: &SidebarTarget) -> u16 {
+    let mut depth = 0;
+    let mut parent = view.machines.sidebar_parent(target);
+    while let Some(target) = parent {
+        depth += 1;
+        parent = view.machines.sidebar_parent(&target);
     }
+    depth
 }
 
-fn create_width(view: &ClientView, target: &SidebarTarget, theme: &Theme) -> u16 {
-    if matches!(target, SidebarTarget::Project { .. }) && menu_width(view, target, theme) > 0 {
-        3
-    } else {
-        0
-    }
+fn auxiliary_actions(source: &SidebarSource, target: &SidebarTarget) -> layout::AuxiliaryActions {
+    layout::AuxiliaryActions::new(
+        source.has_part(target, SidebarPart::Menu),
+        source.has_part(target, SidebarPart::Create),
+    )
 }
 
-fn entry_width(view: &ClientView, row: &SidebarRow<'_>, width: u16, theme: &Theme) -> usize {
-    let indent = match row {
-        SidebarRow::Project { .. } => 4,
-        SidebarRow::Context { row, has_agents } => {
-            2 + u16::from(
-                row.sidebar_target()
-                    .and_then(|target| view.machines.sidebar_parent(&target))
-                    .is_some(),
-            ) * 2
-                + u16::from(*has_agents) * 2
-        }
-        SidebarRow::Agent { row, .. } => {
-            4 + u16::from(
-                row.sidebar_agent_target()
-                    .and_then(|target| view.machines.sidebar_parent(&target))
-                    .and_then(|target| view.machines.sidebar_parent(&target))
-                    .is_some(),
-            ) * 2
-        }
-    };
-    usize::from(width.saturating_sub(
-        menu_width(view, &row.target(), theme)
-            + create_width(view, &row.target(), theme)
-            + indent
-            + u16::from(!matches!(row, SidebarRow::Project { .. })) * 2,
-    ))
+fn entry_width(
+    view: &ClientView,
+    source: &SidebarSource,
+    row: &SidebarRow<'_>,
+    width: u16,
+    sidebar_width: u16,
+) -> usize {
+    let target = row.target();
+    layout::Tracks::resolve_for_width(
+        Rect::new(0, 0, width, 1),
+        0,
+        depth(view, &target),
+        sidebar_width,
+        auxiliary_actions(source, &target),
+    )
+    .map_or(1, |tracks| usize::from(tracks.primary.width))
 }
 
 fn suffix_rows(suffix: &str, width: usize) -> usize {
@@ -432,32 +437,41 @@ fn suffix_rows(suffix: &str, width: usize) -> usize {
     }
 }
 
+#[derive(Clone, Copy)]
+struct EntryMeasureContext<'a> {
+    view: &'a ClientView,
+    source: &'a SidebarSource,
+    locale: Locale,
+    sidebar_width: u16,
+    theme: &'a Theme,
+}
+
 fn entry_height(
-    view: &ClientView,
+    context: EntryMeasureContext<'_>,
     row: &SidebarRow<'_>,
     suffix: &str,
-    locale: Locale,
     width: u16,
-    theme: &Theme,
 ) -> u16 {
+    let EntryMeasureContext {
+        view,
+        source,
+        locale,
+        sidebar_width,
+        theme,
+    } = context;
     let base = match row {
         SidebarRow::Project { .. } => 1,
         SidebarRow::Context { row, .. } => height(view, row, locale),
         SidebarRow::Agent { row, .. } => super::agent_sidebar::tokens::height(view, row, locale),
     };
-    let text_width = entry_width(view, row, width, theme);
+    let text_width = entry_width(view, source, row, width, sidebar_width);
     let base = base + summary_lines(view, row, locale, theme, text_width).len() as u16;
     base + u16::try_from(suffix_rows(suffix, text_width)).unwrap_or(u16::MAX - base)
 }
 
-fn continuation_style(view: &ClientView, row: &SidebarRow<'_>, theme: &Theme) -> Style {
-    if let SidebarRow::Context { row, .. } = row {
-        theme.workspace_token_style(
-            Role::TextSecondary,
-            Default::default(),
-            view.machines.current_workspace(row),
-            view.machines.sidebar_focused_target() == row.sidebar_target().as_ref(),
-        )
+fn continuation_style(_view: &ClientView, row: &SidebarRow<'_>, theme: &Theme) -> Style {
+    if let SidebarRow::Context { .. } = row {
+        theme.workspace_token_style(Role::TextSecondary, Default::default(), false, false)
     } else {
         theme.style(Role::TextSecondary)
     }
@@ -517,12 +531,21 @@ fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, s
 
 fn minimum_height(
     view: &ClientView,
+    source: &SidebarSource,
     rows: &[SidebarRow<'_>],
     locale: Locale,
     width: u16,
+    sidebar_width: u16,
     theme: &Theme,
 ) -> u16 {
     let annotations = annotations(view, rows, locale);
+    let measure = EntryMeasureContext {
+        view,
+        source,
+        locale,
+        sidebar_width,
+        theme,
+    };
     rows.iter()
         .position(|row| {
             view.machines
@@ -541,14 +564,7 @@ fn minimum_height(
         })
         .or_else(|| (!rows.is_empty()).then_some(0))
         .map_or(1, |index| {
-            entry_height(
-                view,
-                &rows[index],
-                &annotations[index],
-                locale,
-                width,
-                theme,
-            )
+            entry_height(measure, &rows[index], &annotations[index], width)
         })
         .saturating_add(2)
 }
@@ -558,6 +574,205 @@ pub(super) struct RenderContext<'a> {
     pub(super) locale: Locale,
     pub(super) theme: &'a Theme,
     pub(super) layer: HitLayer,
+    /// The complete painted Sidebar surface, before frame and padding are removed.
+    pub(super) sidebar_width: u16,
+    pub(super) owns_keyboard: bool,
+    pub(super) source: &'a SidebarSource,
+}
+
+fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
+    match pointer {
+        ProjectedPointer::Rest => PointerPresentation::Rest,
+        ProjectedPointer::Hovered => PointerPresentation::Hovered,
+        ProjectedPointer::Pressed => PointerPresentation::Pressed,
+    }
+}
+
+fn interaction_spec(contract: PrimaryContract, enabled: bool) -> InteractionSpec {
+    if enabled {
+        InteractionSpec::enabled(contract)
+    } else {
+        InteractionSpec::disabled(contract)
+    }
+}
+
+fn winning_surface(pointer: PointerPresentation, focused: bool, current: bool) -> Option<Role> {
+    match pointer {
+        PointerPresentation::Pressed => Some(Role::SurfacePressed),
+        PointerPresentation::Rest | PointerPresentation::Hovered if focused => {
+            Some(Role::SurfaceSelection)
+        }
+        PointerPresentation::Hovered => Some(Role::SurfaceHover),
+        PointerPresentation::Rest if current => Some(Role::SurfaceCurrent),
+        PointerPresentation::Rest => None,
+    }
+}
+
+fn semantic_role(style: Style, theme: &Theme) -> Option<Role> {
+    [
+        Role::TextPrimary,
+        Role::TextSecondary,
+        Role::TextDisabled,
+        Role::HintKey,
+        Role::HintLabel,
+        Role::StatusSuccess,
+        Role::StatusWarning,
+        Role::StatusError,
+        Role::StatusInfo,
+        Role::StatusPending,
+        Role::StatusWorking,
+        Role::StatusUnread,
+    ]
+    .into_iter()
+    .find(|role| style.fg == theme.style(*role).fg)
+}
+
+fn compose_lines(
+    lines: &mut [Line<'static>],
+    pointer: PointerPresentation,
+    focused: bool,
+    current: bool,
+    theme: &Theme,
+) {
+    let interaction = winning_surface(pointer, focused, current);
+    for (index, line) in lines.iter_mut().enumerate() {
+        let line_role = semantic_role(line.style, theme);
+        line.style =
+            theme.content_on_surface(Role::SurfaceChrome, interaction, line_role, line.style);
+        for span in &mut line.spans {
+            let explicitly_plain = span.style.sub_modifier.contains(Modifier::BOLD);
+            let role = semantic_role(span.style, theme);
+            span.style =
+                theme.content_on_surface(Role::SurfaceChrome, interaction, role, span.style);
+            if explicitly_plain {
+                span.style = span.style.remove_modifier(Modifier::BOLD);
+            } else if current && index == 0 {
+                span.style = span.style.add_modifier(Modifier::BOLD);
+            }
+        }
+    }
+}
+
+fn restore_interaction_background(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    interaction: Option<Role>,
+    theme: &Theme,
+) {
+    let Some(background) = interaction.and_then(|role| theme.style(role).bg) else {
+        return;
+    };
+    // Ratatui clears a wide glyph's hidden continuation cells while painting its Paragraph.
+    // Restore the row surface after content, then let an active child pointer surface win below.
+    for y in rect.y..rect.bottom() {
+        for x in rect.x..rect.right() {
+            frame.buffer_mut()[(x, y)].set_bg(background);
+        }
+    }
+}
+
+fn row_state(
+    sidebar_focused: bool,
+    focused: bool,
+    current: bool,
+    pointer: PointerPresentation,
+) -> InteractionState {
+    InteractionState::new(
+        if sidebar_focused {
+            FocusState::Focused
+        } else {
+            FocusState::Unfocused
+        },
+        pointer,
+        if focused {
+            NavigationState::Provisional
+        } else {
+            NavigationState::None
+        },
+        if current {
+            CurrentState::Current
+        } else {
+            CurrentState::NotCurrent
+        },
+        CheckedState::Unchecked,
+        Availability::Enabled,
+        OperationState::Idle,
+    )
+}
+
+struct ChildInteraction<'a> {
+    layer: HitLayer,
+    rect: Rect,
+    target: &'a InteractionTarget,
+    spec: InteractionSpec,
+    role: Role,
+}
+
+fn prepare_child(
+    frame: &mut Frame<'_>,
+    hits: &mut HitMapBuilder,
+    child: ChildInteraction<'_>,
+    theme: &Theme,
+) -> PointerPresentation {
+    let ChildInteraction {
+        layer,
+        rect,
+        target,
+        spec,
+        role,
+    } = child;
+    let pointer = pointer_presentation(hits.projected_pointer(layer, rect, rect, target, spec));
+    if paint_pointer_target(
+        frame,
+        rect,
+        ControlSurface::Chrome,
+        pointer,
+        role,
+        Availability::Enabled,
+        theme,
+    )
+    .is_some()
+    {
+        hits.record_interaction(layer, rect, rect, target.clone(), spec);
+    }
+    pointer
+}
+
+fn padded_action(label: &str, shortcut: Option<&str>, width: usize) -> String {
+    let action = format!("[ {label} ]");
+    let full = shortcut.map_or_else(|| action.clone(), |shortcut| format!("{action} {shortcut}"));
+    let mut result = if display_width(&full) <= width {
+        full
+    } else {
+        action
+    };
+    result.push_str(&" ".repeat(width.saturating_sub(display_width(&result))));
+    result
+}
+
+fn current_row(view: &ClientView, row: &SidebarRow<'_>, target: &SidebarTarget) -> bool {
+    match row {
+        SidebarRow::Context { row, .. } => view.machines.current_workspace(row),
+        SidebarRow::Agent { row, .. } => row
+            .sidebar_agent()
+            .is_some_and(|agent| view.machines.current_agent(&row.choice, agent)),
+        SidebarRow::Project { .. } => {
+            !view.machines.sidebar_project_expanded(target)
+                && view
+                    .machines
+                    .current_context
+                    .as_ref()
+                    .is_some_and(|context| {
+                        view.machines
+                            .sidebar_parent(&SidebarTarget::Context {
+                                machine: view.machines.current.clone(),
+                                target: context.clone(),
+                            })
+                            .as_ref()
+                            == Some(target)
+                    })
+        }
+    }
 }
 
 pub(super) fn render(
@@ -572,6 +787,9 @@ pub(super) fn render(
         locale,
         theme,
         layer,
+        sidebar_width,
+        owns_keyboard,
+        source,
     } = context;
     if area.is_empty() {
         return;
@@ -590,7 +808,8 @@ pub(super) fn render(
         return;
     }
     let header_rows = if area.height >= 10
-        && area.height > minimum_height(view, rows, locale, area.width, theme)
+        && area.height
+            > minimum_height(view, source, rows, locale, area.width, sidebar_width, theme)
     {
         2
     } else {
@@ -603,15 +822,20 @@ pub(super) fn render(
         area.height - header_rows - 1,
     );
     let annotations = annotations(view, rows, locale);
+    let measure = EntryMeasureContext {
+        view,
+        source,
+        locale,
+        sidebar_width,
+        theme,
+    };
     let heights: Vec<_> = rows
         .iter()
         .zip(&annotations)
-        .map(|(row, suffix)| entry_height(view, row, suffix, locale, area.width, theme))
+        .map(|(row, suffix)| entry_height(measure, row, suffix, area.width))
         .collect();
     let space_gap = view.machines.space_settings().row_gap();
     let agent_gap = view.machines.sidebar_settings().row_gap();
-    // A gap belongs to the row that follows it. This preserves Agent-configured
-    // spacing before/between nested Agent rows while the whole tree shares one window.
     let gaps: Vec<_> = rows
         .iter()
         .enumerate()
@@ -625,103 +849,151 @@ pub(super) fn render(
         .machines
         .space_window_for_row_gaps(rows, &heights, &gaps, body.height);
     let mut y = body.y;
+
     for (index, row) in rows
         .iter()
         .enumerate()
         .skip(window.top)
         .take(window.capacity)
     {
-        let rect = Rect::new(body.x, y, body.width, heights[index].min(body.height));
-        let target = row.target();
-        let focused = view.machines.sidebar_focused_target() == Some(&target);
-        let current = match row {
-            SidebarRow::Context { row, .. } => view.machines.current_workspace(row),
-            SidebarRow::Agent { row, .. } => row
-                .sidebar_agent()
-                .is_some_and(|agent| view.machines.current_agent(&row.choice, agent)),
-            SidebarRow::Project { .. } => {
-                !view.machines.sidebar_project_expanded(&target)
-                    && view
-                        .machines
-                        .current_context
-                        .as_ref()
-                        .is_some_and(|context| {
-                            view.machines
-                                .sidebar_parent(&SidebarTarget::Context {
-                                    machine: view.machines.current.clone(),
-                                    target: context.clone(),
-                                })
-                                .as_ref()
-                                == Some(&target)
-                        })
-            }
-        };
-        let style = if current {
-            theme.current_context_style(theme.style(Role::TextPrimary))
-        } else if focused {
-            theme.style(Role::AccentSelection)
+        let leading_gap = if index == window.top {
+            0
         } else {
-            theme.style(Role::TextPrimary)
+            gaps[index - 1].min(body.bottom().saturating_sub(y))
         };
-        frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), rect);
-        frame.render_widget(
-            Block::new().style(style),
-            if matches!(row, SidebarRow::Context { .. }) {
-                rect
+        let content_height =
+            heights[index].min(body.bottom().saturating_sub(y).saturating_sub(leading_gap));
+        if content_height == 0 {
+            break;
+        }
+        let band = Rect::new(
+            body.x,
+            y,
+            body.width,
+            leading_gap.saturating_add(content_height),
+        );
+        let target = row.target();
+        let actions = auxiliary_actions(source, &target);
+        let Some(tracks) = layout::Tracks::resolve_for_width(
+            band,
+            leading_gap,
+            depth(view, &target),
+            sidebar_width,
+            actions,
+        ) else {
+            break;
+        };
+        let focused = owns_keyboard && view.machines.sidebar_focused_target() == Some(&target);
+        let current = current_row(view, row, &target);
+        frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
+
+        let disclosure_drawn = source.drawn(target.clone(), SidebarPart::Disclosure, window);
+        let menu_drawn = source.drawn(target.clone(), SidebarPart::Menu, window);
+        let create_drawn = tracks
+            .density()
+            .direct_create()
+            .then(|| source.drawn(target.clone(), SidebarPart::Create, window))
+            .flatten();
+
+        let disclosure_target = disclosure_drawn.map(InteractionTarget::Sidebar);
+        let menu_target = menu_drawn.map(InteractionTarget::Sidebar);
+        let create_target = create_drawn.map(InteractionTarget::Sidebar);
+        let disclosure_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
+        let auxiliary_spec = interaction_spec(PrimaryContract::Specialized, true);
+
+        let disclosure_pointer =
+            if let (Some(hits), Some(target)) = (hits.as_deref_mut(), disclosure_target.as_ref()) {
+                prepare_child(
+                    frame,
+                    hits,
+                    ChildInteraction {
+                        layer,
+                        rect: tracks.disclosure,
+                        target,
+                        spec: disclosure_spec,
+                        role: Role::TextSecondary,
+                    },
+                    theme,
+                )
             } else {
-                Rect::new(rect.x, rect.y, rect.width, 1)
-            },
+                PointerPresentation::Rest
+            };
+        let create_pointer = if let (Some(hits), Some(target), Some(rect)) =
+            (hits.as_deref_mut(), create_target.as_ref(), tracks.create)
+        {
+            prepare_child(
+                frame,
+                hits,
+                ChildInteraction {
+                    layer,
+                    rect,
+                    target,
+                    spec: auxiliary_spec,
+                    role: Role::AccentAction,
+                },
+                theme,
+            )
+        } else {
+            PointerPresentation::Rest
+        };
+        let menu_pointer =
+            if let (Some(hits), Some(target)) = (hits.as_deref_mut(), menu_target.as_ref()) {
+                prepare_child(
+                    frame,
+                    hits,
+                    ChildInteraction {
+                        layer,
+                        rect: tracks.menu,
+                        target,
+                        spec: auxiliary_spec,
+                        role: Role::AccentAction,
+                    },
+                    theme,
+                )
+            } else {
+                PointerPresentation::Rest
+            };
+
+        let row_target = source
+            .drawn(target.clone(), SidebarPart::Primary, window)
+            .map(InteractionTarget::Sidebar);
+        let row_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
+        let row_pointer = if let (Some(hits), Some(target)) = (hits.as_deref(), row_target.as_ref())
+        {
+            pointer_presentation(hits.projected_pointer(layer, band, band, target, row_spec))
+        } else {
+            PointerPresentation::Rest
+        };
+        let mut bands = vec![
+            RowContentBand::explicit(tracks.disclosure),
+            RowContentBand::explicit(tracks.ordinal),
+            RowContentBand::explicit(tracks.current),
+            RowContentBand::explicit(tracks.state),
+            RowContentBand::explicit(tracks.unread),
+        ];
+        if !tracks.auxiliary.is_empty() {
+            bands.push(RowContentBand::explicit(tracks.auxiliary));
+        }
+        let painted = paint_row_interaction(
+            frame,
+            band,
+            RowTracks::new(RowFocusCue::EnclosingFrame, tracks.primary)
+                .with_provisional(tracks.navigation),
+            &bands,
+            ControlSurface::Chrome,
+            row_state(owns_keyboard, focused, current, row_pointer),
+            theme,
         );
-        let menu_width = menu_width(view, &target, theme).min(rect.width);
-        let create_width = create_width(view, &target, theme).min(rect.width - menu_width);
-        let content = Rect::new(
-            rect.x,
-            rect.y,
-            rect.width - menu_width - create_width,
-            rect.height,
-        );
-        let text_width = entry_width(view, row, rect.width, theme);
+        let interaction = winning_surface(row_pointer, focused, current);
         let suffix = &annotations[index];
+        let text_width = usize::from(tracks.primary.width);
         let inline = if suffix_rows(suffix, text_width) == 0 {
             suffix.as_str()
         } else {
             ""
         };
-        let (paint_area, mut row_lines) = match row {
+        let projected_lines = match row {
             SidebarRow::Project { label, .. } => {
-                let gutter = content.width.min(2);
-                let disclosure = Rect::new(
-                    content.x + gutter,
-                    content.y,
-                    content.width.saturating_sub(gutter).min(2),
-                    1,
-                );
-                frame.render_widget(
-                    Paragraph::new(if view.machines.sidebar_project_expanded(&target) {
-                        theme.glyphs.disclosure_open
-                    } else {
-                        theme.glyphs.disclosure_closed
-                    })
-                    .style(if current || focused {
-                        style
-                    } else {
-                        theme.style(Role::TextSecondary)
-                    }),
-                    disclosure,
-                );
-                if let Some(hits) = hits.as_deref_mut() {
-                    hits.record(
-                        layer,
-                        disclosure,
-                        HitTarget::SidebarDisclosure(target.clone()),
-                    );
-                }
-                let text_area = Rect::new(
-                    content.x + content.width.min(4),
-                    content.y,
-                    content.width.saturating_sub(4),
-                    content.height,
-                );
                 let machine = if view.machines.rows.iter().filter(|row| row.enabled).count() > 1 {
                     view.machines
                         .rows
@@ -740,190 +1012,27 @@ pub(super) fn render(
                         label
                     }
                 );
-                let line = format!(
-                    "{}{inline}",
-                    truncate_display(
-                        &display_label(&name),
-                        text_width.saturating_sub(display_width(inline)),
-                        theme.glyphs.ellipsis
-                    )
-                );
-                if let Some(hits) = hits.as_deref_mut() {
-                    hits.record(
-                        layer,
-                        Rect::new(content.x, content.y, gutter, content.height),
-                        HitTarget::MachineProjectRow {
-                            target: target.clone(),
-                            window,
-                        },
-                    );
-                    if content.height > 1 {
-                        hits.record(
-                            layer,
-                            Rect::new(
-                                disclosure.x,
-                                content.y + 1,
-                                disclosure.width,
-                                content.height - 1,
-                            ),
-                            HitTarget::MachineProjectRow {
-                                target: target.clone(),
-                                window,
-                            },
-                        );
-                    }
-                    hits.record(
-                        layer,
-                        Rect::new(
-                            disclosure.right(),
-                            content.y,
-                            content.width.saturating_sub(gutter + disclosure.width),
-                            content.height,
-                        ),
-                        HitTarget::MachineProjectRow {
-                            target: target.clone(),
-                            window,
-                        },
-                    );
-                }
-                (
-                    text_area,
+                ProjectedSidebarLines::new(
                     vec![Line::styled(
-                        line,
-                        if current || focused {
-                            style.add_modifier(Modifier::BOLD)
-                        } else {
-                            theme
-                                .style(Role::TextSecondary)
-                                .add_modifier(Modifier::BOLD)
-                        },
+                        format!(
+                            "{}{inline}",
+                            truncate_display(
+                                &display_label(&name),
+                                text_width.saturating_sub(display_width(inline)),
+                                theme.glyphs.ellipsis,
+                            )
+                        ),
+                        theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
                     )],
+                    CurrentIdentityEmphasis::Theme,
                 )
             }
-            SidebarRow::Context { row, has_agents } => {
-                let indent = 2 + u16::from(view.machines.sidebar_parent(&target).is_some()) * 2;
-                let disclosure_width = u16::from(*has_agents) * 2;
-                let disclosure = Rect::new(
-                    content.x + indent.min(content.width),
-                    content.y,
-                    content.width.saturating_sub(indent).min(disclosure_width),
-                    1,
-                );
-                if *has_agents {
-                    frame.render_widget(
-                        Paragraph::new(if view.machines.sidebar_context_agents_expanded(&target) {
-                            theme.glyphs.disclosure_open
-                        } else {
-                            theme.glyphs.disclosure_closed
-                        })
-                        .style(if current || focused {
-                            style
-                        } else {
-                            theme.style(Role::TextSecondary)
-                        }),
-                        disclosure,
-                    );
-                }
-                let text_area = Rect::new(
-                    disclosure.right(),
-                    content.y,
-                    content
-                        .width
-                        .saturating_sub(indent.saturating_add(disclosure_width)),
-                    content.height,
-                );
-                if let Some(hits) = hits.as_deref_mut() {
-                    let selected = row.selection();
-                    if *has_agents {
-                        hits.record(
-                            layer,
-                            Rect::new(
-                                content.x,
-                                content.y,
-                                disclosure.x.saturating_sub(content.x),
-                                content.height,
-                            ),
-                            HitTarget::MachineWorkspaceRow {
-                                selected: selected.clone(),
-                                window,
-                            },
-                        );
-                        hits.record(
-                            layer,
-                            disclosure,
-                            HitTarget::SidebarDisclosure(target.clone()),
-                        );
-                        if content.height > 1 {
-                            hits.record(
-                                layer,
-                                Rect::new(
-                                    disclosure.x,
-                                    disclosure.y.saturating_add(1),
-                                    disclosure.width,
-                                    content.height - 1,
-                                ),
-                                HitTarget::MachineWorkspaceRow {
-                                    selected: selected.clone(),
-                                    window,
-                                },
-                            );
-                        }
-                        hits.record(
-                            layer,
-                            Rect::new(
-                                disclosure.right(),
-                                content.y,
-                                content.right().saturating_sub(disclosure.right()),
-                                content.height,
-                            ),
-                            HitTarget::MachineWorkspaceRow { selected, window },
-                        );
-                    } else {
-                        hits.record(
-                            layer,
-                            content,
-                            HitTarget::MachineWorkspaceRow { selected, window },
-                        );
-                    }
-                }
-                (
-                    text_area,
-                    lines(view, row, locale, theme, text_width, inline, focused),
-                )
-            }
-            SidebarRow::Agent { row, ordinal } => {
-                let indent = 4 + u16::from(
-                    view.machines
-                        .sidebar_parent(&target)
-                        .and_then(|target| view.machines.sidebar_parent(&target))
-                        .is_some(),
-                ) * 2;
-                let text_area = Rect::new(
-                    content.x + indent.min(content.width),
-                    content.y,
-                    content.width.saturating_sub(indent),
-                    content.height,
-                );
-                if let Some(hits) = hits.as_deref_mut() {
-                    hits.record(
-                        layer,
-                        content,
-                        HitTarget::MachineAgentRow {
-                            selected: row.selection(),
-                            window,
-                        },
-                    );
-                }
-                (
-                    text_area,
-                    super::agent_sidebar::tokens::lines(
-                        view, row, *ordinal, locale, theme, text_width, focused,
-                    ),
-                )
+            SidebarRow::Context { row, .. } => lines(view, row, locale, theme, text_width, inline),
+            SidebarRow::Agent { row, .. } => {
+                super::agent_sidebar::tokens::projection(view, row, locale, theme, text_width)
             }
         };
-        let identity_style =
-            theme.sidebar_token_style(Role::TextSecondary, Default::default(), current, focused);
+        let (mut row_lines, current_identity) = projected_lines.into_parts();
         if matches!(row, SidebarRow::Agent { .. }) && !inline.is_empty() {
             if row_lines.is_empty() {
                 row_lines.push(Line::default());
@@ -933,9 +1042,10 @@ pub(super) fn render(
                 text_width.saturating_sub(display_width(inline)),
                 theme.glyphs.ellipsis,
             );
-            row_lines[0]
-                .spans
-                .push(Span::styled(inline.to_owned(), identity_style));
+            row_lines[0].spans.push(Span::styled(
+                inline.to_owned(),
+                theme.style(Role::TextSecondary),
+            ));
         }
         row_lines.extend(summary_lines(view, row, locale, theme, text_width));
         append_identity(
@@ -944,124 +1054,249 @@ pub(super) fn render(
             text_width,
             continuation_style(view, row, theme),
         );
+        for line in &mut row_lines {
+            *line = fit(std::mem::take(line), text_width, theme.glyphs.ellipsis);
+        }
+        compose_lines(&mut row_lines, row_pointer, focused, current, theme);
         frame.render_widget(
-            Paragraph::new(
-                row_lines
-                    .into_iter()
-                    .map(|line| fit(line, text_width, theme.glyphs.ellipsis))
-                    .collect::<Vec<_>>(),
-            )
-            .style(theme.style(Role::TextPrimary)),
-            paint_area,
+            Paragraph::new(row_lines),
+            Rect::new(
+                tracks.primary.x,
+                tracks.content_y,
+                tracks.primary.width,
+                content_height,
+            ),
         );
+
+        let disclosure = match row {
+            SidebarRow::Project { .. } => {
+                Some(if view.machines.sidebar_project_expanded(&target) {
+                    theme.glyphs.disclosure_open
+                } else {
+                    theme.glyphs.disclosure_closed
+                })
+            }
+            SidebarRow::Context {
+                has_agents: true, ..
+            } => Some(if view.machines.sidebar_context_agents_expanded(&target) {
+                theme.glyphs.disclosure_open
+            } else {
+                theme.glyphs.disclosure_closed
+            }),
+            SidebarRow::Context {
+                has_agents: false, ..
+            }
+            | SidebarRow::Agent { .. } => None,
+        };
+        if let Some(disclosure) = disclosure {
+            frame.render_widget(
+                Paragraph::new(disclosure).style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    interaction,
+                    Some(Role::TextSecondary),
+                    theme.style(Role::TextSecondary),
+                )),
+                tracks.first_line(tracks.disclosure),
+            );
+            let _ = paint_pointer_target(
+                frame,
+                tracks.disclosure,
+                ControlSurface::Chrome,
+                disclosure_pointer,
+                Role::TextSecondary,
+                Availability::Enabled,
+                theme,
+            );
+        }
+
+        if let SidebarRow::Agent { ordinal, .. } = row
+            && *ordinal < 9
+        {
+            frame.render_widget(
+                Paragraph::new(format!("{}", ordinal + 1)).style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    interaction,
+                    Some(Role::HintLabel),
+                    theme.style(Role::HintLabel),
+                )),
+                tracks.first_line(tracks.ordinal),
+            );
+        }
+        let state = match row {
+            SidebarRow::Context { row, .. } => view.machines.workspace_state(row).map(|state| {
+                let (_, role) = state_role(state);
+                (sidebar_text::state_glyph(state, theme), role)
+            }),
+            SidebarRow::Agent { row, .. } => row.sidebar_agent().map(|agent| {
+                let state = agent.display_state();
+                let (_, role) = state_role(state);
+                (sidebar_text::state_glyph(state, theme), role)
+            }),
+            SidebarRow::Project { .. } => None,
+        };
+        if let Some((glyph, role)) = state {
+            frame.render_widget(
+                Paragraph::new(glyph).style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    interaction,
+                    Some(role),
+                    theme.style(role),
+                )),
+                tracks.first_line(tracks.state),
+            );
+        }
         let unread = match row {
             SidebarRow::Agent { row, .. } => row.sidebar_agent().is_some_and(|agent| !agent.seen),
             SidebarRow::Context { row, .. } => view.machines.workspace_unread(row),
             SidebarRow::Project { .. } => false,
         };
-        if unread && content.width > 1 {
-            frame.render_widget(
-                Paragraph::new(theme.glyphs.status_bullet).style(theme.sidebar_token_style(
-                    Role::StatusUnread,
-                    Default::default(),
-                    current,
-                    focused,
-                )),
-                Rect::new(content.right() - 1, content.y, 1, 1),
-            );
-        }
-        if focused && !content.is_empty() {
-            frame.render_widget(
-                Paragraph::new(">").style(style.add_modifier(Modifier::BOLD)),
-                Rect::new(content.x, content.y, 1, 1),
-            );
-        }
-        if current && content.width > 1 {
-            frame.render_widget(
-                Paragraph::new(theme.current_context_marker()).style(style),
-                Rect::new(content.x + 1, content.y, 1, 1),
-            );
-        }
-        if rect.height > 1
-            && menu_width + create_width > 0
-            && let Some(hits) = hits.as_deref_mut()
+        let collapsed_fill_marker = theme.current_context_marker();
+        if current
+            && (current_identity == CurrentIdentityEmphasis::ExplicitPlain
+                || !collapsed_fill_marker.trim().is_empty())
         {
-            let row_target = match row {
-                SidebarRow::Project { .. } => HitTarget::MachineProjectRow {
-                    target: target.clone(),
-                    window,
-                },
-                SidebarRow::Context { row, .. } => HitTarget::MachineWorkspaceRow {
-                    selected: row.selection(),
-                    window,
-                },
-                SidebarRow::Agent { .. } => {
-                    unreachable!("Agent rows have no menu or creation control")
-                }
+            frame.render_widget(
+                Paragraph::new(theme.glyphs.active_marker).style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    interaction,
+                    Some(Role::TextPrimary),
+                    theme.style(Role::TextPrimary),
+                )),
+                tracks.first_line(tracks.current),
+            );
+        }
+        if unread {
+            frame.render_widget(
+                Paragraph::new(theme.glyphs.status_bullet).style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    interaction,
+                    Some(Role::StatusUnread),
+                    theme.style(Role::StatusUnread),
+                )),
+                tracks.first_line(tracks.unread),
+            );
+        }
+
+        let density = tracks.density();
+        if let (Some(target), Some(create)) = (create_target.as_ref(), tracks.create) {
+            let label = if density == layout::Density::Comfortable {
+                locale.machine_picker_text("sidebar-create")
+            } else {
+                "+"
             };
-            hits.record(
-                layer,
-                Rect::new(
-                    content.right(),
-                    rect.y + 1,
-                    menu_width + create_width,
-                    rect.height - 1,
-                ),
-                row_target,
-            );
-        }
-        if create_width > 0 {
-            let create = Rect::new(content.right(), rect.y, create_width, 1);
             frame.render_widget(
-                Paragraph::new(" + ").style(if current || focused {
-                    style
-                } else {
-                    theme.style(Role::HintLabel)
-                }),
+                Paragraph::new(padded_action(label, None, usize::from(create.width))).style(
+                    theme.content_on_surface(
+                        Role::SurfaceChrome,
+                        interaction,
+                        Some(Role::HintLabel),
+                        theme.style(Role::HintLabel),
+                    ),
+                ),
+                tracks.first_line(create),
+            );
+            let _ = paint_pointer_target(
+                frame,
                 create,
+                ControlSurface::Chrome,
+                create_pointer,
+                Role::AccentAction,
+                Availability::Enabled,
+                theme,
             );
-            if let Some(hits) = hits.as_deref_mut() {
-                hits.record(layer, create, HitTarget::CreateMenu(Some(target.clone())));
-            }
+            let _ = target;
         }
-        if menu_width > 0 {
-            let menu = Rect::new(content.right() + create_width, rect.y, menu_width, 1);
+        if let Some(target) = menu_target.as_ref() {
+            let label = if density == layout::Density::Comfortable {
+                locale.machine_picker_text("sidebar-menu")
+            } else {
+                theme.glyphs.ellipsis
+            };
+            let shortcut = (density == layout::Density::Comfortable && owns_keyboard)
+                .then(|| {
+                    crate::machine_picker::sidebar_binding_label(
+                        crate::machine_picker::SidebarCommand::OpenMenu,
+                        super::agent_sidebar::key_label_glyphs(theme),
+                    )
+                })
+                .flatten();
             frame.render_widget(
-                Paragraph::new(format!(" {} ", theme.glyphs.ellipsis)).style(
-                    if current || focused {
-                        style
-                    } else {
-                        theme.style(Role::HintLabel)
-                    },
-                ),
-                menu,
+                Paragraph::new(padded_action(
+                    label,
+                    shortcut.as_deref(),
+                    usize::from(tracks.menu.width),
+                ))
+                .style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    interaction,
+                    Some(Role::HintLabel),
+                    theme.style(Role::HintLabel),
+                )),
+                tracks.first_line(tracks.menu),
             );
-            if let Some(hits) = hits.as_deref_mut() {
-                hits.record(layer, menu, HitTarget::SidebarMenu(target));
-            }
-        }
-        y = rect.bottom();
-        if index + 1 < window.end() {
-            let blank = Rect::new(
-                body.x,
-                y,
-                body.width,
-                gaps[index].min(body.bottom().saturating_sub(y)),
+            let _ = paint_pointer_target(
+                frame,
+                tracks.menu,
+                ControlSurface::Chrome,
+                menu_pointer,
+                Role::AccentAction,
+                Availability::Enabled,
+                theme,
             );
-            if let Some(hits) = hits.as_deref_mut() {
-                hits.record(layer, blank, HitTarget::MachineWorkspaceSurface(window));
-            }
-            y = blank.bottom();
+            let _ = target;
         }
+
+        restore_interaction_background(frame, band, interaction, theme);
+        if disclosure_target.is_some() {
+            let _ = paint_pointer_target(
+                frame,
+                tracks.disclosure,
+                ControlSurface::Chrome,
+                disclosure_pointer,
+                Role::TextSecondary,
+                Availability::Enabled,
+                theme,
+            );
+        }
+        if create_target.is_some()
+            && let Some(create) = tracks.create
+        {
+            let _ = paint_pointer_target(
+                frame,
+                create,
+                ControlSurface::Chrome,
+                create_pointer,
+                Role::AccentAction,
+                Availability::Enabled,
+                theme,
+            );
+        }
+        if menu_target.is_some() {
+            let _ = paint_pointer_target(
+                frame,
+                tracks.menu,
+                ControlSurface::Chrome,
+                menu_pointer,
+                Role::AccentAction,
+                Availability::Enabled,
+                theme,
+            );
+        }
+        if painted.is_some()
+            && let (Some(hits), Some(target)) = (hits.as_deref_mut(), row_target)
+        {
+            hits.record_interaction(layer, band, band, target, row_spec);
+        }
+        y = band.bottom();
     }
+
     if let Some(hits) = hits.as_deref_mut() {
         hits.record(
             layer,
             Rect::new(body.x, y, body.width, body.bottom().saturating_sub(y)),
-            HitTarget::MachineWorkspaceSurface(window),
+            crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
         );
     }
-    let footer = Rect::new(area.x, area.bottom() - 1, area.width, 1);
     let range = if window.top > 0 || window.end() < window.total {
         format!(
             "{}-{}/{}",
@@ -1071,21 +1306,64 @@ pub(super) fn render(
                 0
             },
             window.end(),
-            window.total
+            window.total,
         )
     } else {
         String::new()
     };
-    let count_width = display_width(&range).min(usize::from(footer.width)) as u16;
-    let has_range = !range.is_empty();
-    frame.render_widget(
-        Paragraph::new(range)
-            .alignment(Alignment::Right)
-            .style(theme.style(Role::TextSecondary)),
-        Rect::new(footer.right() - count_width, footer.y, count_width, 1),
+    if range.is_empty() {
+        return;
+    }
+    let footer = Rect::new(area.x, area.bottom() - 1, area.width, 1);
+    let label = format!(
+        "{} {range}",
+        locale.machine_picker_text("workspace-sidebar-open")
     );
-    if has_range && let Some(hits) = hits {
-        hits.record(layer, footer, HitTarget::OpenMachineWorkspaces);
+    let target = InteractionTarget::SidebarFixed(
+        view.machines
+            .drawn_sidebar_fixed(source, SidebarFixedAction::Browse),
+    );
+    let spec = interaction_spec(PrimaryContract::ActivateOnRelease, view.machines.available);
+    let base_state = InteractionState::new(
+        FocusState::Unfocused,
+        PointerPresentation::Rest,
+        NavigationState::None,
+        CurrentState::NotCurrent,
+        CheckedState::Unchecked,
+        if view.machines.available {
+            Availability::Enabled
+        } else {
+            Availability::Disabled
+        },
+        OperationState::Idle,
+    );
+    let rest = ActionSpec::new(
+        &label,
+        ActionKind::Secondary,
+        ControlSurface::Chrome,
+        base_state,
+    );
+    let Some(rect) = action_rect(frame.area(), footer, rest, theme) else {
+        return;
+    };
+    let pointer = hits.as_deref().map_or(PointerPresentation::Rest, |hits| {
+        pointer_presentation(hits.projected_pointer(layer, rect, rect, &target, spec))
+    });
+    let painted = render_action(
+        frame,
+        footer,
+        ActionSpec::new(
+            &label,
+            ActionKind::Secondary,
+            ControlSurface::Chrome,
+            base_state.with_pointer(pointer),
+        ),
+        theme,
+    );
+    if painted == Some(rect)
+        && let Some(hits) = hits
+    {
+        hits.record_interaction(layer, rect, rect, target, spec);
     }
 }
 #[cfg(test)]

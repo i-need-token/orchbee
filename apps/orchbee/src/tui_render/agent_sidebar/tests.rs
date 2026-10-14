@@ -8,7 +8,7 @@ use crate::{
     },
     machine_picker::Choice,
 };
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 
 #[test]
 fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_targets() {
@@ -57,12 +57,37 @@ fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_
                 Theme::one_light(),
                 Theme::one_dark(),
             ] {
+                let navigation = view.machines.sidebar_navigation_rows();
+                let projected = navigation
+                    .iter()
+                    .find_map(|entry| match entry {
+                        crate::machine_picker::SidebarRow::Agent { row, .. } => {
+                            Some(tokens::lines(&view, row, locale, &theme, 80))
+                        }
+                        _ => None,
+                    })
+                    .unwrap()
+                    .into_iter()
+                    .map(|line| {
+                        line.spans
+                            .into_iter()
+                            .map(|span| span.content.into_owned())
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                assert!(projected.contains("custom title"), "{projected}");
+                if let Some(raw) = title {
+                    assert!(projected.contains(raw), "{projected}");
+                    assert_eq!(projected.matches("修复🙂标题").count(), 2);
+                } else {
+                    assert!(!projected.contains("修复🙂标题"));
+                }
                 let (rows, hits) = paint(&view, locale, &theme, 120, 40);
                 let text = rows.join("\n");
-                assert!(text.contains("custom title"));
-                if let Some(raw) = title {
-                    assert!(text.contains(raw));
-                    assert_eq!(rows.iter().filter(|s| s.contains("修复🙂标题")).count(), 2);
+                assert!(text.contains("custom"), "{rows:?}");
+                if title.is_some() {
+                    assert_eq!(rows.iter().filter(|s| s.contains("修复")).count(), 2);
                 } else {
                     assert!(!text.contains("修复🙂标题"));
                 }
@@ -204,12 +229,48 @@ fn configured_sidebar_values_share_metadata_labels_and_keep_provider_identity_fo
             Theme::one_light(),
             Theme::one_dark(),
         ] {
-            let (rows, hits) = paint(&view, locale, &theme, 120, 40);
-            let joined = rows.join("\n");
+            let navigation = view.machines.sidebar_navigation_rows();
+            let projected = navigation
+                .iter()
+                .find_map(|entry| match entry {
+                    crate::machine_picker::SidebarRow::Agent { row, .. } => {
+                        Some(tokens::lines(&view, row, locale, &theme, 80))
+                    }
+                    _ => None,
+                })
+                .unwrap()
+                .into_iter()
+                .map(|line| {
+                    line.spans
+                        .into_iter()
+                        .map(|span| span.content.into_owned())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
             assert!(
-                joined.contains("Writing code")
-                    && joined.contains("Task · Named pane")
-                    && joined.contains("codex · ORCH-42"),
+                projected.contains("Writing code")
+                    && projected.contains("Task · Named pane")
+                    && projected.contains("codex · ORCH-42"),
+                "{projected}"
+            );
+            let (rows, hits) = paint(&view, locale, &theme, 120, 40);
+            let rendered = (0..40)
+                .filter_map(|y| match hits.hit_target_at(2, y) {
+                    Some(HitTarget::MachineAgentRow { selected, .. })
+                        if matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
+                    {
+                        Some(rows[y as usize].as_str())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(
+                rendered.contains("Writing code")
+                    && rendered.contains("Task · Named pane")
+                    && rendered.contains("codex · ORCH-42")
+                    && !rendered.contains(theme.glyphs.ellipsis),
                 "{rows:?}"
             );
             assert_eq!(
@@ -301,13 +362,13 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     }
     assert_eq!(
         spans.values().map(Vec::len).collect::<Vec<_>>(),
-        vec![1, 3, 2]
+        vec![2, 4, 3]
     );
-    for ys in spans.values().take(2) {
-        let gap = ys.last().unwrap() + 1;
+    for ys in spans.values() {
+        let gap = ys[0];
         assert!(matches!(
             hits.hit_target_at(2, gap),
-            Some(HitTarget::MachineWorkspaceSurface(_))
+            Some(HitTarget::MachineAgentRow { .. })
         ));
         assert!(
             rows[usize::from(gap)]
@@ -340,6 +401,9 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     let mut painted = std::collections::BTreeMap::new();
     for y in 0..12 {
         if let Some(HitTarget::MachineAgentRow { selected, window }) = hits.hit_target_at(2, y) {
+            // The six-row body fits both remaining entries exactly: the first
+            // visible entry owns no leading gap (three Claude rows), then the
+            // custom entry owns its one-row gap plus two content rows.
             assert_eq!((window.top, window.end()), (2, 4));
             let Some(crate::terminal_session::NativeStartupTarget::Agent(target)) =
                 &selected.context
@@ -351,7 +415,7 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     }
     assert_eq!(
         painted,
-        std::collections::BTreeMap::from([("claude", 3), ("custom", 2)])
+        std::collections::BTreeMap::from([("claude", 3), ("custom", 3)])
     );
 }
 
@@ -589,6 +653,35 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
             ascii,
         ] {
             let (rows, hits) = paint(&view, locale, &theme, 120, 40);
+            let navigation = view.machines.sidebar_navigation_rows();
+            let projected = navigation
+                .iter()
+                .find_map(|entry| match entry {
+                    crate::machine_picker::SidebarRow::Agent { row, .. } => {
+                        Some(tokens::lines(&view, row, locale, &theme, 80))
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            let projected_title = projected[0]
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>();
+            let projected_detail = projected[1]
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>();
+            assert_eq!(projected_title, "Input handling");
+            assert_eq!(
+                projected_detail,
+                format!(
+                    "codex {} {}",
+                    theme.glyphs.middle_dot,
+                    locale.machine_picker_text("agent-working")
+                )
+            );
             let y = (0..40)
                 .find(|y| {
                     matches!(
@@ -597,22 +690,19 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                     )
                 })
                 .unwrap();
-            assert!(rows[y as usize].contains("Input handling"), "{rows:?}");
+            assert!(rows[y as usize].contains("Input"), "{rows:?}");
             assert!(
                 rows[y as usize].contains(
                     theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
                 )
             );
-            assert!(rows[y as usize + 1].contains("codex"));
+            let state = locale.machine_picker_text("agent-working");
+            let detail = format!("codex {} {state}", theme.glyphs.middle_dot);
+            assert!(rows[y as usize + 1].contains(&detail));
             assert_eq!(
-                display_width(rows[y as usize].split("Input handling").next().unwrap()),
+                display_width(rows[y as usize].split("Input").next().unwrap()),
                 display_width(rows[y as usize + 1].split("codex").next().unwrap())
             );
-            assert!(rows[y as usize + 1].contains(theme.glyphs.middle_dot));
-            if theme.glyphs.middle_dot != "·" {
-                assert!(!rows[y as usize + 1].contains('·'));
-            }
-            assert!(rows[y as usize + 1].contains(locale.machine_picker_text("agent-working")));
             assert!(!rows.join("\n").contains("Local /"));
             assert!(!rows.join("\n").contains("本地 /"));
             assert!(!rows.join("\n").contains("space /"));
@@ -674,8 +764,12 @@ fn default_agent_detail_keeps_status_readable_without_empty_provider_fragments()
                 let detail = (0..30)
                     .map(|x| buffer[(x, y + 1)].symbol())
                     .collect::<String>();
-                assert!(detail.contains("Investigating"), "{detail}");
-                assert!(!detail.contains(theme.glyphs.ellipsis), "{detail}");
+                assert!(detail.contains("Invest"), "{detail}");
+                assert_eq!(
+                    detail.contains("Investigating"),
+                    !detail.contains(theme.glyphs.ellipsis),
+                    "{detail}"
+                );
                 assert!(!detail.contains('·'), "{detail}");
             }
         }
@@ -709,7 +803,7 @@ fn default_agent_detail_keeps_only_complete_provider_labels_across_cell_budgets(
             Theme::one_dark(),
         ] {
             for width in 17..=30 {
-                let lines = tokens::lines(&view, row, 0, locale, &theme, width, false);
+                let lines = tokens::lines(&view, row, locale, &theme, width);
                 let detail = lines[1]
                     .spans
                     .iter()
@@ -717,10 +811,12 @@ fn default_agent_detail_keeps_only_complete_provider_labels_across_cell_budgets(
                     .collect::<String>();
                 assert!(detail.ends_with("Investigating"), "{width}: {detail}");
                 assert!(display_width(&detail) <= width, "{width}: {detail}");
-                assert_eq!(detail.contains("codex"), width >= 25, "{width}: {detail}");
+                let complete = format!("codex {} Investigating", theme.glyphs.middle_dot);
+                let provider_fits = width >= display_width(&complete);
+                assert_eq!(detail.contains("codex"), provider_fits, "{width}: {detail}");
                 assert_eq!(
                     detail.contains(theme.glyphs.middle_dot),
-                    width >= 25,
+                    provider_fits,
                     "{width}: {detail}"
                 );
                 assert!(!detail.contains(theme.glyphs.ellipsis), "{width}: {detail}");
@@ -756,30 +852,117 @@ fn default_agent_identity_uses_provider_for_blank_titles_without_repeating_it() 
 }
 
 #[test]
-fn settings_stays_at_the_sidebar_bottom_without_menu_machine_or_shortcut_copy() {
+fn settings_stays_at_the_sidebar_bottom_as_an_exact_discoverable_action() {
     for count in [0, 1, 30] {
         let view = view(120, 40, count);
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), 120, 40);
             let footer = &rows[39];
-            assert_eq!(footer.trim_end_matches([' ', '│']), locale.settings_title());
-            for x in [2, 27] {
-                assert!(matches!(
-                    hits.hit_target_at(x, 39),
-                    Some(HitTarget::SettingsButton)
-                ));
-            }
+            assert!(footer.contains("[ "), "{footer:?}");
+            assert!(footer.contains(locale.settings_title()), "{footer:?}");
+            assert!(footer.contains(" ]"), "{footer:?}");
+            let configured_hint = view
+                .bindings()
+                .action_labels_with_glyphs(
+                    PrefixAction::Client(ClientAction::OpenSettings),
+                    key_label_glyphs(&Theme::terminal_native()),
+                )
+                .into_iter()
+                .next()
+                .unwrap();
+            assert!(footer.contains(&configured_hint), "{footer:?}");
+            let exact = (0..29)
+                .filter(|x| matches!(hits.hit_target_at(*x, 39), Some(HitTarget::SettingsButton)))
+                .collect::<Vec<_>>();
+            assert!(!exact.is_empty());
+            assert_eq!(
+                exact,
+                (*exact.first().unwrap()..=*exact.last().unwrap()).collect::<Vec<_>>()
+            );
+            assert!(exact.len() < 29);
             assert!(!matches!(
-                hits.hit_target_at(28, 39),
+                hits.hit_target_at(*exact.last().unwrap() + 1, 39),
                 Some(HitTarget::SettingsButton)
             ));
-            assert!(
-                ["[Menu]", "[菜单]"]
-                    .iter()
-                    .all(|label| !rows.concat().contains(label))
-            );
         }
     }
+}
+
+#[test]
+fn sidebar_border_is_the_collection_focus_cue_without_changing_current_context() {
+    let mut view = view(60, 12, 1);
+    let current = view.machines.current_context.clone();
+    let theme = Theme::one_dark();
+    let border = |view: &ClientView| {
+        let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        terminal
+            .draw(|frame| {
+                render_terminal_shell(frame, view, Locale::EnUs, None, &theme, &mut hits);
+            })
+            .unwrap();
+        terminal.backend().buffer()[(29, 1)].fg
+    };
+    assert_eq!(border(&view), theme.color(Role::FrameDivider));
+    assert!(view.machines.enter_sidebar_navigation());
+    assert_eq!(border(&view), theme.color(Role::AccentFocus));
+    assert_eq!(view.machines.current_context, current);
+    assert!(view.machines.request.is_none());
+}
+
+#[test]
+fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forgetting_navigation() {
+    let mut view = view(60, 12, 1);
+    assert!(view.machines.enter_sidebar_navigation());
+    let theme = Theme::one_dark();
+    let local_hint = crate::machine_picker::sidebar_binding_label(
+        crate::machine_picker::SidebarCommand::NewWorkspace,
+        key_label_glyphs(&theme),
+    )
+    .unwrap();
+    let paint_with_owner = |owns_keyboard| {
+        let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
+        terminal
+            .draw(|frame| {
+                let sidebar = project_shell_areas(Rect::new(0, 0, 60, 12), view.sidebar_surface())
+                    .sidebar
+                    .unwrap();
+                render(
+                    frame,
+                    sidebar,
+                    RenderContext {
+                        view: &view,
+                        locale: Locale::EnUs,
+                        backend_status: SiteStatus {
+                            text: "Ready",
+                            role: Role::StatusSuccess,
+                        },
+                        theme: &theme,
+                        owns_keyboard,
+                    },
+                    None,
+                );
+            })
+            .unwrap();
+        terminal.backend().buffer().clone()
+    };
+
+    let owned = paint_with_owner(true);
+    let captured = paint_with_owner(false);
+    let text = |buffer: &ratatui::buffer::Buffer| {
+        buffer
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>()
+    };
+    assert_eq!(owned[(29, 1)].fg, theme.color(Role::AccentFocus));
+    assert!(text(&owned).contains(&local_hint));
+    assert!(text(&owned).contains(theme.glyphs.navigation_marker));
+    assert_eq!(captured[(29, 1)].fg, theme.color(Role::FrameDivider));
+    assert!(!text(&captured).contains(&local_hint));
+    assert!(!text(&captured).contains(theme.glyphs.navigation_marker));
+    assert!(view.machines.sidebar_navigation_active());
 }
 
 #[test]
@@ -806,13 +989,6 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                         "{width}x{height} {rows:?}"
                     );
                     assert!(joined.contains("/21"), "{rows:?}");
-                    assert!(
-                        joined.contains(&format!(
-                            "codex · {}",
-                            locale.machine_picker_text("agent-working")
-                        )),
-                        "{rows:?}"
-                    );
                     let mut inspected = Vec::new();
                     for y in 0..height {
                         if let Some(HitTarget::MachineAgentRow { window, selected }) =
@@ -823,8 +999,29 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                             }
                             inspected.push(selected.clone());
                             assert!(window.capacity > 0 && window.end() <= 21);
-                            assert!(y + 1 < height - 1, "row crossed status: {y}");
-                            assert!(!rows[y as usize + 1].trim().is_empty());
+                            let exact = (0..height)
+                                .filter(|candidate| {
+                                    matches!(hits.hit_target_at(2, *candidate), Some(HitTarget::MachineAgentRow { selected: actual, .. }) if actual == selected)
+                                })
+                                .collect::<Vec<_>>();
+                            assert!(exact.len() >= 2, "{rows:?}");
+                            assert!(exact.iter().all(|candidate| *candidate < height - 1));
+                            let projected = exact
+                                .iter()
+                                .map(|candidate| rows[usize::from(*candidate)].as_str())
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            assert!(
+                                projected.contains(locale.machine_picker_text("agent-working")),
+                                "{rows:?}"
+                            );
+                            if projected.contains("codex") {
+                                assert!(projected.contains(&format!(
+                                    "codex {} {}",
+                                    theme.glyphs.middle_dot,
+                                    locale.machine_picker_text("agent-working")
+                                )));
+                            }
                         }
                     }
                 } else {
@@ -846,24 +1043,22 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
 #[test]
 fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let view = view(60, 12, 1);
-    let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
-    assert_eq!(
-        &rows[..12],
-        &[
-            "                             │",
-            "+ New workspace              │",
-            "/ Search                     │",
-            "Workspaces 0                 │",
-            "  ▾ ◐ Standalone             │",
-            "    1 ◐ build                │",
-            "        codex · Working      │",
-            "                             │",
-            "                             │",
-            "                             │",
-            "                             │",
-            "Settings                     │"
-        ]
+    let theme = Theme::terminal_native();
+    let (rows, hits) = paint(&view, Locale::EnUs, &theme, 60, 12);
+    assert!(rows[1].contains("[ New workspace ]"), "{rows:?}");
+    assert!(rows[2].contains("[ Search ]"), "{rows:?}");
+    assert!(rows[3].contains("Workspaces"), "{rows:?}");
+    assert!(rows[4].contains("Standalone"), "{rows:?}");
+    assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
+    assert!(
+        rows[5].contains('1') && rows[5].contains("build"),
+        "{rows:?}"
     );
+    assert!(
+        rows[6].contains(&format!("codex {} Working", theme.glyphs.middle_dot)),
+        "{rows:?}"
+    );
+    assert!(rows[11].contains("[ Settings ]"), "{rows:?}");
     assert!((0..30).any(|x| matches!(hits.hit_target_at(x, 2), Some(HitTarget::SearchButton))));
     assert!(matches!(
         hits.hit_target_at(2, 5),
@@ -918,8 +1113,8 @@ fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
     let joined = rows.join("\n");
     let bullet =
         Theme::rgb_test_dark().agent_glyph(orchbee_workbench_protocol::MetadataState::Working);
-    assert!(joined.contains(&format!("1 {bullet}")) && joined.contains(&format!("2 {bullet}")));
-    assert!(!joined.contains(&format!("3 {bullet}")));
+    assert!(joined.contains(&format!("1  {bullet}")) && joined.contains(&format!("2  {bullet}")));
+    assert!(!joined.contains(&format!("3  {bullet}")));
     assert!(!joined.contains("3 remote"));
     let selected = (0..40)
         .find_map(|y| match hits.hit_target_at(2, y) {
@@ -936,21 +1131,37 @@ fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
 fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity() {
     let mut view = view(120, 40, 1);
     let mut wide = row(23);
-    wide.target.agent = "码🦀\u{1b}[2J\nprovider".into();
     wide.workspace = "宽项目👩‍💻".repeat(10);
     wide.label = format!("{} build\u{1b}]0;title\u{7}", wide.workspace);
     wide.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
     let target = wide.target.clone();
     let mut round = checkpoint(vec![wide]).as_ref().clone();
-    round.report_revision = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    round.report_revision = orchbee_workbench_protocol::WorkbenchRevision::new(3);
     view.machines.observe_agents(vec![(
         Choice::Local,
         Agents::Ready(std::sync::Arc::new(round)),
     )]);
-    let (rows, hits) = paint(&view, Locale::ZhCn, &Theme::terminal_native(), 120, 40);
-    let joined = rows.join("\n");
-    assert!(joined.contains('…') && !joined.contains('\u{1b}') && !joined.contains('\u{7}'));
-    assert!(joined.contains("宽项目👩‍💻"), "{rows:?}");
+    let theme = Theme::terminal_native();
+    let (rows, hits) = paint(&view, Locale::ZhCn, &theme, 120, 40);
+    let rendered = (0..40)
+        .filter_map(|y| match hits.hit_target_at(2, y) {
+            Some(HitTarget::MachineAgentRow { selected, .. })
+                if matches!(&selected.context,Some(crate::terminal_session::NativeStartupTarget::Agent(actual)) if actual.as_ref()==&target) =>
+            {
+                Some(rows[y as usize].as_str())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains(theme.glyphs.ellipsis)
+            && rendered.contains(theme.glyphs.status_bullet)
+            && !rendered.contains('\u{1b}')
+            && !rendered.contains('\u{7}'),
+        "{rendered:?}: {rows:?}"
+    );
+    assert!(rendered.contains('宽'), "{rows:?}");
     let selected = (0..40)
         .find_map(|y| match hits.hit_target_at(2, y) {
             Some(HitTarget::MachineAgentRow { selected, .. }) => Some(selected),
@@ -1031,10 +1242,8 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
         let marker = theme.current_context_marker();
         assert!(
-            rows[y as usize].contains(&format!(
-                "1 {}",
-                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
-            )),
+            rows[y as usize]
+                .contains(theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)),
             "{:?}",
             rows[y as usize]
         );
@@ -1046,7 +1255,10 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             );
         } else {
             assert_eq!(rows[y as usize].matches(marker).count(), 1);
-            assert_eq!(terminal.backend().buffer()[(1, y)].symbol(), marker);
+            let marker_x = (0..30)
+                .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == marker)
+                .unwrap();
+            assert_eq!(marker_x, ordinal_x + 2);
         }
         assert_eq!(
             view.machines

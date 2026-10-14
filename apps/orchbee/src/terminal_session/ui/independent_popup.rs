@@ -9,31 +9,45 @@ impl super::NativeSessionView<'_> {
     pub(crate) fn popup(&self) -> Option<crate::terminal_session::PopupView<'_>> {
         self.popup?.view()
     }
+    pub(crate) fn popup_capture_claim(&self) -> bool {
+        self.popup.is_some_and(|popup| popup.captured())
+    }
+    pub(crate) fn popup_input_context(
+        &self,
+    ) -> Option<super::super::independent_popup::PopupInputContext> {
+        self.popup?.input_context()
+    }
 }
 impl NativeUi {
-    pub(in crate::terminal_session) fn popup_identity(&self) -> Option<&WorkbenchRequestId> {
-        self.popup.identity()
+    pub(in crate::terminal_session) fn popup_capture_claim(&self) -> bool {
+        self.view().popup_capture_claim()
     }
     pub(in crate::terminal_session) fn popup_captured(&self) -> bool {
-        self.popup.captured()
+        self.popup_capture_claim()
     }
     pub(in crate::terminal_session) fn popup_surface(&mut self, area: Rect, pixels: (u16, u16)) {
         self.popup.observe_surface(area, pixels);
     }
     pub(in crate::terminal_session) fn popup_input(
         &mut self,
+        id: &WorkbenchRequestId,
         item: &crate::terminal_input::DecodedItem,
     ) {
-        self.popup.input(item);
+        self.popup.input(id, item);
     }
     pub(in crate::terminal_session) fn popup_mouse(
         &mut self,
         id: &WorkbenchRequestId,
         content: Rect,
         event: crate::terminal_input::MouseEvent,
-        close: bool,
     ) {
-        self.popup.mouse(id, content, event, close);
+        self.popup.mouse(id, content, event);
+    }
+    pub(in crate::terminal_session) fn activate_drawn_popup_close(
+        &mut self,
+        target: &super::super::independent_popup::DrawnPopupClose,
+    ) -> bool {
+        self.popup.activate_drawn_close(target)
     }
     pub(in crate::terminal_session) fn begin_popup_control(
         &mut self,

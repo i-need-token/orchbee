@@ -117,21 +117,24 @@ Hierarchy describes information priority, not interaction state.
 
 ## Interaction states
 
-| State                 | Presentation                                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                           |
-| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                          |
-| Pointer hover         | `surface-hover` across the effective hit rectangle; it never moves keyboard focus or the provisional cursor                 |
-| Pointer pressed       | `surface-pressed` plus `BOLD` on the primary action label while the primary button remains held on the armed target         |
-| Provisional selection | `surface-selection` across the complete row plus an `accent-selection` indicator when the component provides one            |
-| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn      |
-| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus   |
-| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent    |
-| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate |
-| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                 |
-| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                    |
+| State                 | Presentation                                                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                |
+| Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                               |
+| Pointer hover         | `surface-hover` across the effective hit rectangle; it never moves keyboard focus or the provisional cursor                      |
+| Pointer pressed       | `surface-pressed` plus `BOLD` on the primary action label while the primary button remains held on the armed target              |
+| Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one |
+| Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn           |
+| Current context       | Neutral `surface-current` across the complete row; current identity uses `BOLD` or a stable marker independently of focus        |
+| Checked value         | A stable glyph using `accent-selection` for the value at the control's declared boundary; navigation remains independent         |
+| Active tab            | Neutral `surface-current` plus `BOLD` or a stable current marker; keyboard focus and provisional navigation remain separate      |
+| Pending               | Fixed-width `status-pending` glyph plus a localized verb; the control footprint stays fixed                                      |
+| Disabled              | `text-disabled`; no hover or pressed treatment; the action stays in help with its reason                                         |
 
-Exactly one region shows focus at a time. Focus is visible in every layout tier.
+Exactly one region shows focus at a time. Focus is visible in every layout tier. Project it once at
+the keyboard-owner boundary: a framed collection uses its `frame-focused` border, while an unframed
+focused row uses a dedicated `accent-focus` track. A row inside the framed collection does not
+repeat the owner's focus marker; its reversible navigation anchor remains independently visible.
 
 Current context and keyboard focus are separate facts. The current context remains identifiable
 while input belongs elsewhere; moving keyboard focus must not erase that indication. A surface
@@ -168,6 +171,9 @@ combinations and control behavior.
   host-dependent and their presence is not guaranteed.
 - Every glyph set with alternating frames, such as a spinner, keeps a constant display width so
   neighbors do not shift.
+- Provisional row navigation uses the shared one-cell `›` marker with `>` as its ASCII fallback.
+  Feature renderers reserve its track but never choose a local substitute or reuse it for current,
+  checked, or changed state.
 - One glyph has one meaning across the Client. Document glyph meanings with the owning surface.
 
 ## Display width and text safety

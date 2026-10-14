@@ -198,7 +198,7 @@ pnpm --filter @orchbee/terminal-host test:cross
 pnpm verify
 ```
 
-`test` 会运行当前平台的原生测试、真实本地 IPC/PTY 黑盒跟踪、跨语言协议一致性测试，以及固定 Ghostty 版本的表面夹具比较。生成的跨语言选择案例只允许 `plain`，并要求 HTML/raw VT 请求严格解码失败；`terminal-parity/HS-07-selection-export` 从所属应用系统测试套件补充 real-PTY/Electron 剪贴板结果。`test:black-box` 先运行事件判定器的确定性检查，再运行外部跟踪：启动构建后的 Host，通过本地 IPC 创建并附加真实终端，断开、重连并重放创建标识，重新附加同一附件标识，通过 PTY 输入驱动子进程，观察 PTY 输出排空、最终修订及成功退出事件，处置保留终端，并要求 Host 进程彻底停止。跟踪还会校验可能穿插于生命周期记录之间的标识作用域元数据事件，但不会把它们当作退出证据；未知事件或畸形元数据仍会失败。`test:protocol` 单独运行协议一致性测试；`test:surface-fixtures` 在临时目录重新生成并逐字节比较三个由 Host 拥有的原生夹具。主/备用 OBTF 夹具对来自同一 Ghostty 终端和 Projection，并跨越真实的备用屏幕转换。另一个 Ghostty 终端会重放丰富的主语料，加入 DECSCA 受保护与未受保护哨兵，并且只通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 到达 render-detail OBRW 夹具。协议包负责已跟踪字节及其导出；`@orchbee/terminal` 负责严格视图、可信视图和打包存储的精确语义判定。该证据覆盖确定性的原生投影映射，不覆盖 PTY 交付、历史锚定，也不授权其他信任路径。有意修改语料库或编码器并完成审核后，运行 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`，并审核全部生产者与消费者断言。`test:cross` 为 Linux、FreeBSD、macOS 与 Windows 编译包括黑盒运行器在内的完整测试图；交叉编译不构成这些平台的运行时证据。仓库 CI 执行包的 `test` 命令，因此外部 Host 跟踪会在 Linux、macOS 和 Windows 上原生运行。FreeBSD 仍只有编译证据，不会报告为原生 PTY 或 IPC 一致性证据。
+`test` 会运行当前平台的原生测试、真实本地 IPC/PTY 黑盒跟踪、跨语言协议一致性测试，以及固定 Ghostty 版本的表面夹具比较。默认聚合命令将 Zig 构建任务数限制为一个（`-j1`），因为已确认 Zig 0.16 在 Windows 上存在静态风险：子进程可能继承广泛的句柄，并共享标准输入输出管道写入端。这只改变编译／任务调度；目标、测试、断言和期限均保持不变，运行时协议也不变。这约束了管道继承风险，但不证明每次运行器超时的原因。当固定版本的进程启动实现能够限制子进程句柄继承时，应重新评估这一限制。生成的跨语言选择案例只允许 `plain`，并要求 HTML/raw VT 请求严格解码失败；`terminal-parity/HS-07-selection-export` 从所属应用系统测试套件补充 real-PTY/Electron 剪贴板结果。`test:black-box` 先运行事件判定器的确定性检查，再运行外部跟踪：启动构建后的 Host，通过本地 IPC 创建并附加真实终端，断开、重连并重放创建标识，重新附加同一附件标识，通过 PTY 输入驱动子进程，观察 PTY 输出排空、最终修订及成功退出事件，处置保留终端，并要求 Host 进程彻底停止。跟踪还会校验可能穿插于生命周期记录之间的标识作用域元数据事件，但不会把它们当作退出证据；未知事件或畸形元数据仍会失败。`test:protocol` 单独运行协议一致性测试；`test:surface-fixtures` 在临时目录重新生成并逐字节比较三个由 Host 拥有的原生夹具。主/备用 OBTF 夹具对来自同一 Ghostty 终端和 Projection，并跨越真实的备用屏幕转换。另一个 Ghostty 终端会重放丰富的主语料，加入 DECSCA 受保护与未受保护哨兵，并且只通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 到达 render-detail OBRW 夹具。协议包负责已跟踪字节及其导出；`@orchbee/terminal` 负责严格视图、可信视图和打包存储的精确语义判定。该证据覆盖确定性的原生投影映射，不覆盖 PTY 交付、历史锚定，也不授权其他信任路径。有意修改语料库或编码器并完成审核后，运行 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`，并审核全部生产者与消费者断言。`test:cross` 为 Linux、FreeBSD、macOS 与 Windows 编译包括黑盒运行器在内的完整测试图；交叉编译不构成这些平台的运行时证据。仓库 CI 执行包的 `test` 命令，因此外部 Host 跟踪会在 Linux、macOS 和 Windows 上原生运行。FreeBSD 仍只有编译证据，不会报告为原生 PTY 或 IPC 一致性证据。
 
 跨平台运行器每次只构建一个目标，并使用 `-j2` 限制 Zig 并发构建任务，避免大型 Ghostty 测试入口的内存开销随平台并发叠加。运行器通过仓库共享检查工具报告各目标耗时和失败日志；发生失败后，不再启动下一个目标。
 
@@ -216,6 +216,16 @@ grow、shrink、regrow 后继续输出。Runner 会下载并验证声明的 ConP
 queue。确定性的 engine 检查会在 platform effect 返回后暂停 attachment resize，并证明并发游标
 查询只能在新的 Ghostty geometry 提交后产生回复。既有 history-generation 与 selection-reflow 测试
 继续负责 retained selection 语义。
+
+在原生 Windows x64 上，`zig build test-conpty-orchbee-pointer` 会针对同一份经 manifest 验证的
+ConPTY bundle 和固定 Ghostty parser 运行受控的 pointer-admission 见证。复制出的 Orchbee Rust
+测试二进制通过其继承 console、原生 reader、input decoder 和 terminal-mode guard 进入。Host 注入
+语义化的无按键 motion：button-event tracking 必须不发出任何内容；mode 1003 的 reset report 必须
+先于 DA1 sentinel，从而准入 any-motion tracking；之后同一个语义 motion 必须作为 typed no-button
+mouse event 到达。完整 pointer release 必须再次抑制 motion，子进程退出必须恢复原始原生 console
+mode、primary screen 和 cursor。该证据只适用于固定的 Windows x64 harness，不覆盖完整 UI input
+dispatcher，也不证明物理 mouse record、其他 terminal emulator 的 query 行为、palette 或 font
+质量，也不证明交互 latency。
 
 `format:check` 还强制执行包边界规则，即 `src/` 下的每个手写生产 Zig 文件保持在或低于 500 物理行。 `__tests__/` 和 `*_test.zig` 文件下的场景目录除外。
 

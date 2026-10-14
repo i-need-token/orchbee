@@ -21,6 +21,17 @@ use std::{
 struct NativePort<'a>(&'a mut NativeUi);
 
 impl TerminalInputPort for NativePort<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        self.0.capture_claims()
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        self.0.capture_context(owner)
+    }
+
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.0
             .forward(input)
@@ -32,18 +43,32 @@ impl TerminalInputPort for NativePort<'_> {
         Some(self.0.apply_client_action(action))
     }
 
-    fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
-        self.0.capture_confirmation_key(key)
+    fn capture_tab_confirmation_key_for(
+        &mut self,
+        token: NativeCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.0.capture_tab_confirmation_key(token, key)
+    }
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        token: NativePanelCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.0.capture_panel_confirmation_key(token, key)
+    }
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        key: ClientKey,
+    ) -> bool {
+        self.0.capture_workspace_close_key(token, key)
     }
     fn click_tab_close(&mut self, token: NativeCloseConfirmationToken, confirm: bool) {
         self.0.click_tab_close(token, confirm);
     }
     fn click_panel_close(&mut self, token: NativePanelCloseConfirmationToken, confirm: bool) {
         self.0.click_panel_close(token, confirm);
-    }
-
-    fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
-        self.0.rename_input_context()
     }
 
     fn edit_rename_draft(
@@ -63,10 +88,6 @@ impl TerminalInputPort for NativePort<'_> {
         token: NativeRenameDraftToken,
     ) -> Option<SessionActionDisposition> {
         Some(self.0.submit_rename_draft(token))
-    }
-
-    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
-        self.0.setup_input_context()
     }
 
     fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
@@ -174,9 +195,6 @@ fn painted_tab_panel_and_rename_buttons_require_an_uninterrupted_release_and_cap
                         let mut dispatcher = InputDispatcher::default();
                         dispatcher.set_pointer_capture(&mut view, &mut NativePort(&mut ui), true);
                         ui.apply_client_action(action.clone());
-                        if kind == 2 {
-                            dispatch(&mut dispatcher, &mut view, &mut ui, b"\x15mouse name");
-                        }
                         dispatcher
                             .synchronize(
                                 &mut view,
@@ -203,6 +221,9 @@ fn painted_tab_panel_and_rename_buttons_require_an_uninterrupted_release_and_cap
                             })
                             .unwrap();
                         ui.after_close_draw(receipt.unwrap());
+                        if kind == 2 {
+                            dispatch(&mut dispatcher, &mut view, &mut ui, b"\x15mouse name");
+                        }
                         let map = hits.finish();
                         let (x, y) = (0..height)
                             .flat_map(|y| (0..width).map(move |x| (x, y)))
@@ -285,6 +306,8 @@ fn open_rename_draft_owns_panel_prefix_bytes_as_draft_text() {
         ui.apply_client_action(ClientAction::RequestRenameTab),
         SessionActionDisposition::DismissNavigator
     );
+    let token = ui.rename_input_context().unwrap().token();
+    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
 
     dispatch(&mut dispatcher, &mut view, &mut ui, b"\x02X\x02|");
     assert!(!view.prefix_active());
@@ -301,8 +324,6 @@ fn open_rename_draft_owns_panel_prefix_bytes_as_draft_text() {
 
     // The draft retains its own submit path once drawn; the queued command is
     // a Rename.
-    let token = ui.rename_input_context().unwrap().token();
-    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
     dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     let lease = mailbox.try_recv().unwrap().expect("rename command queued");
     assert!(matches!(lease.record(), QueuedCommand::Rename(_)));
@@ -632,6 +653,11 @@ fn drifted_panel_close_target_settles_cancelled_before_the_next_key() {
         ui.apply_client_action(ClientAction::ClosePanel),
         SessionActionDisposition::DismissNavigator
     );
+    let token = ui
+        .view()
+        .panel_close_confirmation()
+        .expect("confirmation is armed")
+        .token();
     let state = ui.state.as_mut().unwrap();
     assert!(state.start_pending_refresh(2));
     let prepared = state.prepare_refresh(
@@ -641,7 +667,7 @@ fn drifted_panel_close_target_settles_cancelled_before_the_next_key() {
         },
     );
     state.apply_prepared_refresh(prepared, std::time::Instant::now());
-    assert!(ui.capture_panel_confirmation_key(ClientKey::Plain('y')));
+    assert!(ui.capture_panel_confirmation_key(token, ClientKey::Plain('y')));
     assert!(!panel_confirmation_drawn(&ui));
     assert_eq!(
         ui.view().notice(),
@@ -679,13 +705,11 @@ fn tick_settles_a_drifted_panel_close_confirmation() {
     );
 }
 
-/// A `NotPresented` draw outcome cancels the armed capture with a notice; the
-/// renderer itself never touches the confirmation state.
+/// A new prompt that cannot complete its first paint is refused; it never
+/// becomes an invisible input owner or an explicit-cancellation notice.
 #[test]
-fn unpresentable_panel_close_draw_cancels_with_notice() {
+fn first_unpresentable_panel_close_draw_is_refused() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
-    let mut view = ClientView::new(120);
-    let mut dispatcher = InputDispatcher::default();
     assert_eq!(
         ui.apply_client_action(ClientAction::ClosePanel),
         SessionActionDisposition::DismissNavigator
@@ -695,14 +719,40 @@ fn unpresentable_panel_close_draw_cancels_with_notice() {
     );
     assert!(
         !panel_confirmation_drawn(&ui),
-        "a draw that cannot present the prompt cancels the capture"
+        "a first draw that cannot present the prompt refuses the capture"
     );
+    assert_eq!(ui.view().notice(), None);
+    assert!(!ui.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn presented_panel_close_suspends_hidden_input_and_resumes_with_the_same_token() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
     assert_eq!(
-        ui.view().notice(),
-        Some(NativeSessionNotice::ConfirmationCancelled)
+        ui.apply_client_action(ClientAction::ClosePanel),
+        SessionActionDisposition::DismissNavigator
     );
+    let token = panel_token(&ui);
+    draw_panel_prompt(&mut ui);
+    ui.after_close_draw(
+        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::NotPresented)),
+    );
+    let suspended = ui.view().panel_close_confirmation().unwrap();
+    assert_eq!(suspended.token(), token);
+    assert!(!suspended.interactive());
+    ui.click_panel_close(token, true);
     dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
     assert!(mailbox.try_recv().unwrap().is_none());
+
+    ui.after_close_draw(
+        NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::Presented(token))),
+    );
+    assert!(ui.view().panel_close_confirmation().unwrap().interactive());
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    assert!(mailbox.try_recv().unwrap().is_some());
 }
 
 /// Arming and deciding inside one input packet can never execute: the `y`
@@ -749,12 +799,10 @@ fn drifted_close_target_settles_cancelled_before_the_next_key() {
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-/// A `NotPresented` outcome for the Tab-close prompt cancels it with a notice.
+/// A blocked first draw refuses a new Tab-close prompt.
 #[test]
-fn unpresentable_close_draw_cancels_with_notice() {
+fn first_unpresentable_close_draw_is_refused() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
-    let mut view = ClientView::new(120);
-    let mut dispatcher = InputDispatcher::default();
     assert_eq!(
         ui.apply_client_action(ClientAction::RequestCloseTab),
         SessionActionDisposition::DismissNavigator
@@ -764,18 +812,48 @@ fn unpresentable_close_draw_cancels_with_notice() {
         None,
     ));
     assert!(!confirmation_drawn(&ui));
-    assert_eq!(
-        ui.view().notice(),
-        Some(NativeSessionNotice::ConfirmationCancelled)
-    );
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    assert_eq!(ui.view().notice(), None);
+    assert!(!ui.capture_confirmation_key(ClientKey::Plain('y')));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-/// A `NotPresented` outcome for the rename draft cancels the draft with a
-/// `DraftCancelled` notice instead of holding keys while invisible.
 #[test]
-fn unpresentable_rename_draft_cancels_with_notice() {
+fn presented_tab_close_suspends_hidden_input_and_resumes_with_the_same_token() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestCloseTab),
+        SessionActionDisposition::DismissNavigator
+    );
+    let token = ui.view().close_confirmation().unwrap().token();
+    ui.after_close_draw(NativeDrawReceipt::new(
+        Some(ModalPresentation::Presented(token)),
+        None,
+    ));
+    ui.after_close_draw(NativeDrawReceipt::new(
+        Some(ModalPresentation::NotPresented),
+        None,
+    ));
+    let suspended = ui.view().close_confirmation().unwrap();
+    assert_eq!(suspended.token(), token);
+    assert!(!suspended.interactive());
+    ui.click_tab_close(token, true);
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    ui.after_close_draw(NativeDrawReceipt::new(
+        Some(ModalPresentation::Presented(token)),
+        None,
+    ));
+    assert!(ui.view().close_confirmation().unwrap().interactive());
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    assert!(mailbox.try_recv().unwrap().is_some());
+}
+
+/// A blocked first draw refuses a new rename draft.
+#[test]
+fn first_unpresentable_rename_draft_is_refused() {
     let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
     assert_eq!(
         ui.apply_client_action(ClientAction::RequestRenameTab),
@@ -784,24 +862,66 @@ fn unpresentable_rename_draft_cancels_with_notice() {
     assert!(ui.rename_input_context().is_some());
     ui.after_rename_draw(Some(ModalPresentation::NotPresented));
     assert!(ui.rename_input_context().is_none());
+    assert_eq!(ui.view().notice(), None);
+}
+
+#[test]
+fn presented_rename_draft_suspends_edits_and_resumes_with_the_same_text() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
     assert_eq!(
-        ui.view().notice(),
-        Some(NativeSessionNotice::DraftCancelled)
+        ui.apply_client_action(ClientAction::RequestRenameTab),
+        SessionActionDisposition::DismissNavigator
+    );
+    let token = ui.rename_input_context().unwrap().token();
+    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
+    assert!(ui.edit_rename_draft(token, NativeRenameEdit::Append(" preserved")));
+    let text = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .rename_draft()
+        .unwrap()
+        .text()
+        .to_owned();
+
+    ui.after_rename_draw(Some(ModalPresentation::NotPresented));
+    assert_eq!(ui.rename_input_context().unwrap().token(), token);
+    assert!(!ui.edit_rename_draft(token, NativeRenameEdit::Append(" hidden")));
+    assert_eq!(
+        ui.submit_rename_draft(token),
+        SessionActionDisposition::KeepNavigator
+    );
+    assert_eq!(
+        ui.state.as_ref().unwrap().rename_draft().unwrap().text(),
+        text
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
+    assert!(ui.edit_rename_draft(token, NativeRenameEdit::Append(" resumed")));
+    assert!(
+        ui.state
+            .as_ref()
+            .unwrap()
+            .rename_draft()
+            .unwrap()
+            .text()
+            .ends_with(" resumed")
     );
 }
 
-/// A `NotPresented` outcome for the setup draft cancels the draft with a
-/// `DraftCancelled` notice instead of holding keys while invisible.
+/// A blocked first setup draw refuses that opening attempt with an exact
+/// presentation notice instead of retaining a hidden input owner.
 #[test]
-fn unpresentable_setup_draft_cancels_with_notice() {
+fn first_unpresentable_setup_draft_is_refused_with_notice() {
     let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
     ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
     assert!(ui.view().setup_draft().is_some());
     ui.after_setup_draw(Some(ModalPresentation::NotPresented));
     assert!(ui.view().setup_draft().is_none());
     assert_eq!(
-        ui.view().notice(),
-        Some(NativeSessionNotice::DraftCancelled)
+        ui.view().setup_status(),
+        Some(NativeSetupStatus::PresentationUnavailable)
     );
 }
 
@@ -814,6 +934,8 @@ fn open_rename_draft_consumes_editor_keys_and_atomic_paste_without_corruption() 
         ui.apply_client_action(ClientAction::RequestRenameTab),
         SessionActionDisposition::DismissNavigator
     );
+    let token = ui.rename_input_context().unwrap().token();
+    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
 
     // Unmodified editing keys reach the real draft as consumed LineEditor
     // edits: the cursor moves for the arrows/Home/End, Delete is a no-op at

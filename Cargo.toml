@@ -15,6 +15,7 @@ members = [
 	"crates/local-site-protocol",
 	"crates/local-site-runtime",
 	"crates/terminal-protocol",
+	"crates/windows-console-host",
 	"crates/workbench-protocol",
 ]
 
@@ -40,7 +41,11 @@ process-wrap = { version = "=10.0.1", default-features = false, features = [
 	"job-object",
 	"creation-flags",
 ] }
-windows = { version = "=0.62.2", default-features = false, features = ["Win32_System_Threading"] }
+windows = { version = "=0.62.2", default-features = false, features = [
+	"Win32_Foundation",
+	"Win32_System_Console",
+	"Win32_System_Threading",
+] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

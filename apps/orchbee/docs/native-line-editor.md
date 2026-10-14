@@ -50,11 +50,16 @@ over the _visible_ text by whole grapheme clusters. The returned window is the
 drawable text plus the cursor column strictly inside the field width; a zero-width field yields
 `None` rather than a fake position, and a cluster wider than the remaining space is never split.
 
-The rename and workspace renderers draw that window inside the modal's padded inner area and place the terminal cursor
-at the field row plus the cursor column; the typed `ModalPresentation` receipt attests the complete
-text fit, and a field that cannot be presented cancels the draft instead of swallowing keys.
-Settings retains its Paragraph scroll policy but takes its text and cursor boundary from the same
-whole-text projection; painting never rewrites the raw draft.
+The rename and workspace renderers draw that window inside the modal's padded inner area and place
+the terminal cursor at the field row plus the cursor column. Their typed `ModalPresentation`
+receipt attests that the complete surface, field window and exact cursor projection were painted.
+An evaluated geometry block refuses a newly opened draft that has never painted. Once a draft has
+painted, the same block suspends that incarnation while preserving its token, raw text, grapheme
+cursor and target; ordinary edits and submission remain inert until a complete paint of the same
+token resumes it, while local `Esc` may still cancel. A missing or covered receipt revokes only the
+current draw proof and neither classifies geometry nor discards editor state. Settings retains its
+Paragraph scroll policy and owns its own presentation lifecycle, but takes its text and cursor
+boundary from the same whole-text projection; painting never rewrites the raw draft.
 
 ## Correctness evidence
 

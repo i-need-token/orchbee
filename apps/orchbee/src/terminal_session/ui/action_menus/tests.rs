@@ -3,8 +3,12 @@ use super::*;
 use crate::terminal_session::ui::{
     CarrierFailure, QueuedCommand, RefreshDecision, UiReply, WorkerEvent,
 };
-use crate::terminal_session::{NativeDisplayPhase, NativeDrawReceipt, SessionActionDisposition};
-use crate::{localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme};
+use crate::terminal_session::{
+    NativeDisplayPhase, NativeDrawReceipt, SessionActionDisposition, TerminalSessionView,
+};
+use crate::{
+    client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
+};
 use ratatui::{Terminal, backend::TestBackend};
 
 mod organization;
@@ -12,11 +16,16 @@ mod project;
 mod quick_create;
 
 fn arm(ui: &mut NativeUi) -> MenuToken {
-    let token = ui.view().action_menu().unwrap().token;
+    let (token, selected, visible_rows) = {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        (menu.token, menu.selected, menu.actions.len())
+    };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
-        selected: ui.view().action_menu().unwrap().selected,
+        selected,
         token,
-        rows: 64,
+        first: 0,
+        visible_rows,
     })));
     token
 }
@@ -29,6 +38,282 @@ fn action_row(ui: &NativeUi, action: MenuAction) -> usize {
         .iter()
         .position(|candidate| *candidate == action)
         .unwrap()
+}
+
+fn activate_row(ui: &mut NativeUi, token: MenuToken, row: usize) {
+    ui.drive_action_menu();
+    let Some(source) = ui.view().action_menu().map(|menu| menu.source.clone()) else {
+        return;
+    };
+    ui.activate_action_menu_row(&source, token, row);
+}
+
+#[test]
+fn guarded_menu_keys_consume_owned_phases_and_reject_stale_snapshots() {
+    use crate::{
+        action_menu::MenuInputReadiness,
+        client_view::{KeyCode, KeyEvent, Modifiers},
+        tui_presentation::PresentationPhase,
+    };
+
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let pending = ui.action_menu_input_context().unwrap();
+    assert_eq!(pending.phase(), PresentationPhase::Pending);
+    assert_eq!(pending.readiness(), MenuInputReadiness::Recovery);
+    assert!(
+        ui.capture_action_menu_key_for(pending, KeyEvent::press(KeyCode::Down, Modifiers::NONE))
+    );
+    assert_eq!(ui.view().action_menu().unwrap().selected, 0);
+    assert!(
+        ui.capture_action_menu_key_for(pending, KeyEvent::press(KeyCode::Esc, Modifiers::NONE))
+    );
+    assert!(!ui.action_menu_capture_claim());
+
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    arm(&mut ui);
+    ui.after_action_menu_draw(None);
+    let covered = ui.action_menu_input_context().unwrap();
+    assert_eq!(covered.phase(), PresentationPhase::Admitted);
+    assert_eq!(covered.readiness(), MenuInputReadiness::Recovery);
+    assert!(
+        ui.capture_action_menu_key_for(covered, KeyEvent::press(KeyCode::Down, Modifiers::NONE))
+    );
+    assert_eq!(ui.view().action_menu().unwrap().selected, 0);
+    assert!(
+        ui.capture_action_menu_key_for(covered, KeyEvent::press(KeyCode::Esc, Modifiers::NONE))
+    );
+    assert!(!ui.action_menu_capture_claim());
+
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    arm(&mut ui);
+    let first = ui.action_menu_input_context().unwrap();
+    assert_eq!(first.readiness(), MenuInputReadiness::ActivationReady);
+    assert!(ui.capture_action_menu_key_for(first, KeyEvent::press(KeyCode::Down, Modifiers::NONE)));
+    let continuation = ui.action_menu_input_context().unwrap();
+    assert_ne!(continuation.token(), first.token());
+    assert_eq!(continuation.readiness(), MenuInputReadiness::Continuation);
+    assert!(
+        !ui.capture_action_menu_key_for(first, KeyEvent::press(KeyCode::Enter, Modifiers::NONE)),
+        "a stale central snapshot is fail-closed"
+    );
+    assert_eq!(ui.menus.menu.confirmed(), None);
+    assert!(ui.capture_action_menu_key_for(
+        continuation,
+        KeyEvent::press(KeyCode::Down, Modifiers::NONE)
+    ));
+    assert_eq!(ui.view().action_menu().unwrap().selected, 2);
+    assert_eq!(ui.menus.menu.confirmed(), None);
+
+    arm(&mut ui);
+    let ready = ui.action_menu_input_context().unwrap();
+    assert!(ready.activation_ready());
+    assert!(
+        ui.capture_action_menu_key_for(ready, KeyEvent::press(KeyCode::Enter, Modifiers::NONE))
+    );
+    assert!(ui.menus.menu.confirmed().is_some());
+}
+
+#[test]
+fn first_geometry_block_refuses_but_an_admitted_child_resumes_with_parent_state() {
+    use crate::{
+        client_view::{KeyCode, KeyEvent, Modifiers},
+        tui_presentation::PresentationPhase,
+    };
+
+    let (mut refused, _, _, _) = tests::move_membership::ready_ui();
+    assert!(refused.open_action_menu(MenuTarget::Global, None, false));
+    refused.after_action_menu_draw(Some(ModalPresentation::NotPresented));
+    assert!(!refused.action_menu_capture_claim());
+
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4)), false));
+    let token = arm(&mut ui);
+    let child_row = action_row(&ui, MenuAction::TabCreation);
+    activate_row(&mut ui, token, child_row);
+    assert_eq!(ui.take_action_menu_action(false), None);
+    assert_eq!(ui.menus.parents.len(), 1);
+    arm(&mut ui);
+    ui.capture_action_menu_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+    arm(&mut ui);
+    let (source, selected, first, anchor) = {
+        let view = ui.view();
+        let retained = view.action_menu().unwrap();
+        (
+            retained.source.clone(),
+            retained.selected,
+            retained.first,
+            retained.anchor,
+        )
+    };
+
+    ui.after_action_menu_draw(Some(ModalPresentation::NotPresented));
+    let suspended = ui.action_menu_input_context().unwrap();
+    assert_eq!(suspended.phase(), PresentationPhase::Suspended);
+    assert_eq!(ui.menus.parents.len(), 1);
+    {
+        let view = ui.view();
+        let retained = view.action_menu().unwrap();
+        assert_eq!(retained.source, &source);
+        assert_eq!(
+            (retained.selected, retained.first, retained.anchor),
+            (selected, first, anchor)
+        );
+    }
+    assert!(
+        ui.capture_action_menu_key_for(suspended, KeyEvent::press(KeyCode::Down, Modifiers::NONE))
+    );
+    assert_eq!(ui.view().action_menu().unwrap().selected, selected);
+
+    arm(&mut ui);
+    assert_eq!(
+        ui.action_menu_input_context().unwrap().phase(),
+        PresentationPhase::Admitted
+    );
+    let child = ui.action_menu_input_context().unwrap();
+    assert!(ui.capture_action_menu_key_for(child, KeyEvent::press(KeyCode::Esc, Modifiers::NONE)));
+    {
+        let view = ui.view();
+        let parent = view.action_menu().unwrap();
+        assert_eq!(parent.source, &MenuTarget::Global);
+        assert_eq!(parent.anchor, Some((7, 4)));
+        assert_eq!(parent.actions[parent.selected], MenuAction::TabCreation);
+    }
+    assert_eq!(
+        ui.action_menu_input_context().unwrap().readiness(),
+        crate::action_menu::MenuInputReadiness::Recovery
+    );
+}
+
+#[test]
+fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let token = arm(&mut ui);
+    let row = action_row(&ui, MenuAction::Help);
+
+    ui.activate_action_menu_row(&MenuTarget::Create(None), token, row);
+    assert_eq!(ui.menus.menu.confirmed(), None);
+    ui.activate_action_menu_control(&MenuTarget::Create(None), token, MenuControl::Close);
+    assert!(ui.action_menu_capture_claim());
+
+    ui.activate_action_menu_row(&MenuTarget::Global, token, row);
+    assert_eq!(ui.menus.menu.confirmed(), Some(MenuAction::Help));
+    assert_eq!(
+        ui.take_action_menu_action(false),
+        Some(ClientAction::OpenShortcutHelp)
+    );
+    assert!(!ui.action_menu_capture_claim());
+}
+
+#[test]
+fn notifications_follow_the_real_pending_admitted_and_released_menu_capture() {
+    use crate::tui_presentation::PresentationPhase;
+
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let shell = ClientView::new(80);
+    let available = |ui: &NativeUi| {
+        crate::notifications::available(&shell, Some(TerminalSessionView::Native(ui.view())))
+    };
+
+    assert!(available(&ui));
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    assert_eq!(
+        ui.action_menu_input_context().unwrap().phase(),
+        PresentationPhase::Pending
+    );
+    assert!(ui.action_menu_capture_claim());
+    assert!(!available(&ui));
+
+    arm(&mut ui);
+    assert_eq!(
+        ui.action_menu_input_context().unwrap().phase(),
+        PresentationPhase::Admitted
+    );
+    assert!(ui.action_menu_capture_claim());
+    assert!(!available(&ui));
+
+    ui.cancel_action_menu();
+    assert!(!ui.action_menu_capture_claim());
+    assert!(available(&ui));
+}
+
+#[test]
+fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
+    use crate::{
+        client_view::{ClientView, KeyLabelGlyphs, PrefixAction},
+        tui_pointer::HitTarget,
+        tui_theme::GlyphSet,
+    };
+    use orchbee_local_site_runtime::{
+        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
+    };
+
+    let chord = |key: &str, ctrl| WindowsKeyChord {
+        key: key.into(),
+        ctrl,
+        alt: false,
+        shift: false,
+        super_key: false,
+    };
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    ui.observe_geometry(Geometry::new(120, 30, 8, 16).unwrap());
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let help_row = action_row(&ui, MenuAction::Help);
+    let mut view = ClientView::new(120);
+    view.configure_keys(&WindowsKeySettings {
+        prefix: chord("a", true),
+        overrides: vec![WindowsKeyOverride {
+            action: "help",
+            triggers: vec![WindowsKeyTrigger {
+                prefix: true,
+                chord: chord("left", false),
+            }],
+        }],
+        commands: Vec::new(),
+    });
+    let expected = view
+        .bindings()
+        .action_labels_with_glyphs(PrefixAction::ShowHelp, KeyLabelGlyphs::Ascii)
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(expected, "Ctrl+a Left");
+
+    let theme = Theme::terminal_native().with_glyphs(GlyphSet::ASCII);
+    let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    let mut receipt = NativeDrawReceipt::default();
+    terminal
+        .draw(|frame| {
+            receipt = crate::tui_render::render_terminal_shell(
+                frame,
+                &view,
+                Locale::EnUs,
+                Some(crate::terminal_session::TerminalSessionView::Native(
+                    ui.view(),
+                )),
+                &theme,
+                &mut hits,
+            );
+        })
+        .unwrap();
+    ui.after_close_draw(receipt);
+    let hits = hits.finish();
+    let y = (0..30)
+        .find(|y| {
+            (0..120).any(|x| {
+                matches!(
+                    hits.hit_target_at(x, *y),
+                    Some(HitTarget::ActionMenuRow { row, .. }) if *row == help_row
+                )
+            })
+        })
+        .unwrap();
+    let row = (0..120)
+        .map(|x| terminal.backend().buffer()[(x, y)].symbol())
+        .collect::<String>();
+    assert!(row.contains(&expected), "{row:?}");
 }
 
 #[test]
@@ -95,16 +380,14 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                         "sidebar restore chrome must stay below the menu frame"
                     );
                     let selection = theme.style(crate::tui_theme::Role::SurfaceSelection);
-                    let overlay = theme.style(crate::tui_theme::Role::SurfaceOverlay);
                     assert_eq!(
                         buffer[(left + 1, top + 1)].symbol(),
-                        if selection.bg == overlay.bg { ">" } else { " " }
+                        theme.glyphs.navigation_marker
                     );
                     let mut x = left + 1;
                     while x < right - 1 {
                         let cell = &buffer[(x, top + 1)];
                         assert_eq!(cell.bg, selection.bg.unwrap());
-                        assert!(cell.modifier.contains(ratatui::style::Modifier::BOLD));
                         // Wide-character continuation cells inherit the lead's visible style.
                         x += u16::try_from(
                             crate::terminal_text::display_width(cell.symbol()).max(1),
@@ -139,7 +422,7 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
 }
 
 #[test]
-fn ux_menu_released_pointer_keeps_its_disabled_row_without_handoff() {
+fn ux_menu_released_pointer_rejects_disabled_pointer_activation_without_handoff() {
     let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
     assert!(ui.open_action_menu(MenuTarget::Global, None, true));
     let row = ui
@@ -151,9 +434,9 @@ fn ux_menu_released_pointer_keeps_its_disabled_row_without_handoff() {
         .position(|a| *a == MenuAction::ReleasePointer)
         .expect("released pointer remains discoverable");
     let token = arm(&mut ui);
-    ui.click_action_menu(token, row);
+    activate_row(&mut ui, token, row);
     assert!(ui.action_menu_active());
-    assert_eq!(ui.view().action_menu().unwrap().selected, row);
+    assert_ne!(ui.view().action_menu().unwrap().selected, row);
     assert_eq!(ui.menus.menu.confirmed(), None);
     assert_eq!(ui.take_action_menu_action(true), None);
     assert!(mailbox.try_recv().unwrap().is_none());
@@ -162,7 +445,7 @@ fn ux_menu_released_pointer_keeps_its_disabled_row_without_handoff() {
 #[test]
 fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 7), (16, 7)] {
+        for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 7)] {
             for theme in [
                 Theme::terminal_native(),
                 Theme::one_light(),
@@ -247,13 +530,16 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                     })
                     .expect("selected disabled row");
                 let cell = &terminal.backend().buffer()[(x + 1, y)];
-                assert_eq!(cell.fg, theme.color(crate::tui_theme::Role::TextDisabled));
+                let disabled_selection = theme.content_on_surface(
+                    crate::tui_theme::Role::SurfaceOverlay,
+                    Some(crate::tui_theme::Role::SurfaceSelection),
+                    Some(crate::tui_theme::Role::TextDisabled),
+                    theme.style(crate::tui_theme::Role::TextDisabled),
+                );
                 assert_eq!(
-                    cell.modifier,
-                    theme
-                        .style(crate::tui_theme::Role::TextDisabled)
-                        .add_modifier,
-                    "disabled text must retain its semantic theme modifiers"
+                    cell.style(),
+                    disabled_selection,
+                    "disabled text must retain its semantic role on the selected surface"
                 );
                 assert!(
                     terminal
@@ -263,6 +549,17 @@ fn ux_menu_disabled_reason_and_exit_survive_short_geometry_in_both_locales() {
                         .iter()
                         .any(|c| c.fg == theme.color(crate::tui_theme::Role::TextDisabled))
                 );
+                if locale == Locale::EnUs
+                    && (width, height) == (120, 40)
+                    && theme.name == "terminal-native"
+                {
+                    crate::tui_render::test_capture::capture_screen(
+                        &mut terminal,
+                        "alignment-action-menu-disabled-en-us-120x40-terminal-native",
+                        locale,
+                        &theme,
+                    );
+                }
                 ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
                     crate::client_view::KeyCode::Enter,
                     crate::client_view::Modifiers::NONE,
@@ -346,7 +643,7 @@ fn ux_menu_projection_keeps_selection_and_hit_indices_in_the_first_resized_paint
         assert_eq!(*row, selected);
         assert_eq!(*token, ui.view().action_menu().unwrap().token);
         assert!(ui.view().action_menu().unwrap().first > 0);
-        ui.click_action_menu(*token, *row);
+        activate_row(&mut ui, *token, *row);
         assert!(ui.action_menu_active());
         assert_eq!(ui.take_action_menu_action(true), None);
         paint(&mut ui, &mut full, 120, locale);
@@ -387,7 +684,7 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::WorkspaceDirectory);
-    ui.click_action_menu(token, row);
+    activate_row(&mut ui, token, row);
     assert!(ui.action_menu_active());
     assert_eq!(ui.menus.menu.confirmed(), None);
     assert_eq!(ui.take_action_menu_action(false), None);
@@ -396,8 +693,35 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
 }
 
 #[test]
+fn hidden_action_injected_after_admission_is_refused_by_the_coordinator() {
+    let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+    let tab_id = ui.state.as_ref().unwrap().cache().tabs()[0]
+        .tab_id()
+        .clone();
+    assert!(ui.open_action_menu(MenuTarget::Tab(tab_id), None, false));
+
+    // Model a capability disappearing after target admission but before the final query. The
+    // coordinator must not turn a stale, unsupported row into a ClientAction.
+    ui.menus.menu.cancel();
+    assert!(ui.menus.menu.open(
+        "stale host capability".into(),
+        vec![MenuAction::MoveToNewWindow],
+        None,
+    ));
+    assert_eq!(ui.take_action_menu_action(false), None);
+    assert!(!ui.action_menu_active());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
-    use crate::client_view::{KeyCode, KeyEvent, Modifiers, PrefixInput, SessionActionDisposition};
+    use crate::{
+        client_view::{
+            Binding, KeyCode, KeyEvent, KeyLabelGlyphs, LabelStyle, Modifiers, PrefixInput,
+            SessionActionDisposition, format_binding_with_glyphs,
+        },
+        tui_theme::GlyphMode,
+    };
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 5), (19, 4)] {
             for theme in [
@@ -429,7 +753,7 @@ fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
                             &theme,
                             &mut hits,
                         );
-                        view.machines.render(frame, locale, &theme);
+                        view.machines.render(frame, locale, &theme, &mut hits);
                     })
                     .unwrap();
                 let row: String = (crate::tui_layout::project_shell_areas(
@@ -440,21 +764,41 @@ fn ux_status_prefix_remains_visible_with_the_machine_picker_available() {
                 .x..width)
                     .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
                     .collect();
+                let glyphs = match theme.glyphs.mode() {
+                    GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
+                    GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
+                };
+                let prefix = format!(
+                    "{} {}",
+                    locale.status().prefix,
+                    format_binding_with_glyphs(
+                        &view.bindings().prefix,
+                        LabelStyle::for_host(),
+                        glyphs,
+                    )
+                );
                 assert!(
-                    row.replace(' ', "")
-                        .contains(&locale.shell().prefix_active.replace(' ', "")),
+                    row.replace(' ', "").contains(&prefix.replace(' ', "")),
                     "{locale:?} {width}x{height}: {row:?}"
                 );
-                assert!(row.contains("Esc"), "{locale:?} {width}x{height}: {row:?}");
+                let cancel = format_binding_with_glyphs(
+                    &Binding::new(KeyCode::Esc, Modifiers::NONE),
+                    LabelStyle::for_host(),
+                    glyphs,
+                );
+                assert!(
+                    row.contains(&cancel),
+                    "{locale:?} {width}x{height}: {row:?}"
+                );
             }
         }
     }
 }
 
 #[test]
-fn ux_status_menu_replaces_the_entire_old_notice_row() {
+fn ux_presented_menu_clears_the_underlying_status_without_duplicate_keys() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 5)] {
+        for (width, height) in [(120, 40), (80, 24), (80, 20), (50, 10), (20, 6)] {
             let (mut ui, _, _, _) = tests::move_membership::ready_ui();
             ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
             assert!(ui.open_action_menu(MenuTarget::Global, None, false));
@@ -476,7 +820,7 @@ fn ux_status_menu_replaces_the_entire_old_notice_row() {
                         &theme,
                         &mut hits,
                     );
-                    view.machines.render(frame, locale, &theme);
+                    view.machines.render(frame, locale, &theme, &mut hits);
                 })
                 .unwrap();
             let row: String = (crate::tui_layout::project_shell_areas(
@@ -487,13 +831,10 @@ fn ux_status_menu_replaces_the_entire_old_notice_row() {
             .x..width)
                 .map(|x| terminal.backend().buffer()[(x, height - 1)].symbol())
                 .collect();
-            assert_eq!(
-                row.replace(' ', ""),
-                locale
-                    .menu_status_hint(false, usize::from(width))
-                    .replace(' ', "")
+            assert!(
+                row.trim().is_empty(),
+                "{locale:?} {width}x{height}: {row:?}"
             );
-            assert!(row.contains("Esc"));
         }
     }
 }
@@ -535,16 +876,16 @@ fn ux_status_short_menu_exposes_its_selection_position() {
                     "{locale:?}: {text:?}"
                 );
                 assert!(text.contains("Esc"));
-                if width > 20 || selected == 1 {
+                if width > 20 {
                     assert!(text.contains("Enter"));
                 } else {
                     assert!(!text.contains("Enter"));
                 }
+                ui.after_close_draw(receipt);
                 assert_eq!(ui.view().action_menu().unwrap().selected + 1, selected);
                 if selected == count {
                     assert!(ui.view().action_menu().unwrap().first > 0);
                 }
-                ui.after_close_draw(receipt);
                 ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
                     crate::client_view::KeyCode::End,
                     crate::client_view::Modifiers::NONE,
@@ -599,11 +940,13 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
         ui.state.as_ref().unwrap().focus_pane_ref(),
         Some(old.clone())
     );
-    let hover_token = arm(&mut ui);
-    for action in [MenuAction::Zoom, MenuAction::ClosePane] {
-        let row = action_row(&ui, action);
-        ui.hover_action_menu(hover_token, row);
-        assert_eq!(ui.view().action_menu().unwrap().selected, row);
+    arm(&mut ui);
+    for _action in [MenuAction::Zoom, MenuAction::ClosePane] {
+        assert_eq!(
+            ui.view().action_menu().unwrap().selected,
+            0,
+            "hover is transient presentation and never keyboard selection"
+        );
         assert_eq!(
             ui.state.as_ref().unwrap().focus_pane_ref(),
             Some(old.clone())
@@ -617,10 +960,9 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
     assert_eq!(ui.take_action_menu_action(false), None);
     assert!(ui.open_action_menu(MenuTarget::Pane(peer.clone()), None, false));
     let row = action_row(&ui, MenuAction::ClosePane);
-    ui.hover_action_menu(hover_token, row);
     assert_eq!(ui.view().action_menu().unwrap().selected, 0);
     let token = arm(&mut ui);
-    ui.click_action_menu(token, row);
+    activate_row(&mut ui, token, row);
     assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(peer));
     assert_eq!(
         ui.take_action_menu_action(false),
@@ -635,7 +977,7 @@ fn pane_open_and_cancel_preserve_focus_then_one_confirmed_action_focuses_exact_p
 }
 
 #[test]
-fn exact_incarnation_modal_priority_geometry_and_timeout_revoke_unhanded_intent() {
+fn exact_incarnation_modal_priority_resize_and_timeout_revoke_unhanded_authority() {
     let (mut ui, _, _, elapsed) = tests::move_membership::ready_ui();
     let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
     let stale = PaneRef::new(focus.pane().clone(), focus.incarnation() + 1);
@@ -648,8 +990,10 @@ fn exact_incarnation_modal_priority_geometry_and_timeout_revoke_unhanded_intent(
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     arm(&mut ui);
     ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
-    assert!(!ui.action_menu_active());
+    assert!(ui.action_menu_active(), "resize retains the admitted owner");
+    assert!(!ui.action_menu_input_context().unwrap().activation_ready());
     assert_eq!(ui.take_action_menu_action(false), None);
+    ui.cancel_action_menu();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     arm(&mut ui);
     ui.cancel_action_menu();
@@ -680,7 +1024,7 @@ fn exact_incarnation_modal_priority_geometry_and_timeout_revoke_unhanded_intent(
         .position(|action| *action == MenuAction::Help)
         .unwrap();
     let token = arm(&mut timed);
-    timed.click_action_menu(token, row);
+    activate_row(&mut timed, token, row);
     assert!(matches!(
         timed.menus.intent.as_ref().unwrap().stage,
         Stage::Offered(_, _)
@@ -709,7 +1053,7 @@ fn ux_menu_disabled_activation_does_not_start_an_execution_deadline() {
         .unwrap();
     let token = arm(&mut ui);
     time.store(31_000, std::sync::atomic::Ordering::SeqCst);
-    ui.click_action_menu(token, row);
+    activate_row(&mut ui, token, row);
     time.store(300_000, std::sync::atomic::Ordering::SeqCst);
     ui.drive_action_menu();
     assert!(ui.action_menu_active());
@@ -732,7 +1076,7 @@ fn empty_workspace_navigation_uses_owned_refresh_and_exact_cleanup_then_original
     assert_eq!(Origin::capture(ui.state.as_ref()), old);
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::RenameWorkspace);
-    ui.click_action_menu(token, row);
+    activate_row(&mut ui, token, row);
     let Stage::Context { generation, .. } = ui.menus.intent.as_ref().unwrap().stage else {
         panic!("owned refresh");
     };
@@ -799,7 +1143,7 @@ fn toggles_recheck_frozen_prerequisites_and_foreign_navigation_drops_the_intent(
         .iter()
         .position(|action| *action == MenuAction::ReleasePointer)
         .unwrap();
-    ui.click_action_menu(token, release);
+    activate_row(&mut ui, token, release);
     assert_eq!(ui.take_action_menu_action(true), None);
     assert!(!ui.action_menu_active());
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
@@ -928,7 +1272,7 @@ fn drawn_snapshot_source_and_owned_workspace_directory_replacement_are_fenced() 
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::NewWorktree);
-    ui.click_action_menu(token, row);
+    activate_row(&mut ui, token, row);
     let Stage::Context { generation, .. } = ui.menus.intent.as_ref().unwrap().stage else {
         panic!("owned generation");
     };
@@ -978,7 +1322,7 @@ fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometr
         let pane = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
         assert!(ui.open_action_menu(MenuTarget::Pane(pane.clone()), None, false));
         let token = arm(&mut ui);
-        ui.click_action_menu(token, row);
+        activate_row(&mut ui, token, row);
         ui.retire(CarrierFailure::Closed);
         assert!(!ui.action_menu_active());
         assert_eq!(ui.take_action_menu_action(false), None);
@@ -1003,7 +1347,8 @@ fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometr
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     arm(&mut ui);
     ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
-    assert!(!ui.action_menu_active());
+    assert!(ui.action_menu_active());
+    assert!(!ui.action_menu_input_context().unwrap().activation_ready());
     assert_eq!(ui.take_action_menu_action(false), None);
 }
 
@@ -1039,7 +1384,7 @@ fn equal_numeric_navigation_generations_cannot_cross_context_and_tab_domains() {
             .position(|candidate| *candidate == action)
             .unwrap();
         let token = arm(&mut ui);
-        ui.click_action_menu(token, row);
+        activate_row(&mut ui, token, row);
         let generation = match ui.menus.intent.as_ref().unwrap().stage {
             Stage::Context { generation, .. } | Stage::Tab { generation, .. } => generation,
             _ => panic!("navigation pending"),

@@ -8,7 +8,7 @@ use crate::{
     terminal_session::{
         mailbox::{CommandMailbox, UiWaitKey},
         state::{
-            CarrierFailure, NativeSessionState, OperationDeadlines, SessionNotice,
+            CarrierFailure, NativeSessionState, OperationDeadlines,
             workspace_close::WorkspaceCloseEvidence,
         },
     },
@@ -91,20 +91,35 @@ impl NativeUi {
             SessionActionDisposition::KeepNavigator
         }
     }
-    pub(super) fn capture_workspace_close_key(&mut self, key: ClientKey) -> bool {
-        let Some(token) = self
+    pub(in crate::terminal_session) fn capture_workspace_close_key(
+        &mut self,
+        expected: WorkspaceCloseToken,
+        key: ClientKey,
+    ) -> bool {
+        let Some((token, interactive)) = self
             .state
             .as_ref()
             .and_then(NativeSessionState::workspace_close_confirmation)
-            .map(|prompt| prompt.token())
+            .map(|prompt| (prompt.token(), prompt.interactive()))
         else {
             return false;
         };
+        if token != expected {
+            return false;
+        }
         if self
             .state
             .as_mut()
             .is_some_and(NativeSessionState::settle_stale_workspace_close)
         {
+            return true;
+        }
+        if !interactive {
+            if key == ClientKey::Escape
+                && let Some(state) = self.state.as_mut()
+            {
+                state.cancel_workspace_close();
+            }
             return true;
         }
         match key {
@@ -131,13 +146,16 @@ impl NativeUi {
             .state
             .as_ref()
             .and_then(NativeSessionState::workspace_close_confirmation)
-            .is_some_and(|prompt| prompt.token() == token)
+            .is_some_and(|prompt| prompt.token() == token && prompt.interactive())
         {
-            self.capture_workspace_close_key(if confirm {
-                ClientKey::Plain('y')
-            } else {
-                ClientKey::Escape
-            });
+            self.capture_workspace_close_key(
+                token,
+                if confirm {
+                    ClientKey::Plain('y')
+                } else {
+                    ClientKey::Escape
+                },
+            );
         }
     }
     pub(super) fn after_workspace_close_draw(
@@ -147,10 +165,15 @@ impl NativeUi {
         let Some(state) = self.state.as_mut() else {
             return;
         };
-        state.acknowledge_workspace_close_draw(prompt.and_then(ModalPresentation::into_presented));
-        if matches!(prompt, Some(ModalPresentation::NotPresented)) {
-            state.cancel_workspace_close();
-            state.set_notice(SessionNotice::ConfirmationCancelled);
+        match prompt {
+            Some(ModalPresentation::Presented(token)) => {
+                state.acknowledge_workspace_close_draw(Some(token));
+            }
+            Some(ModalPresentation::NotPresented) => {
+                state.acknowledge_workspace_close_draw(None);
+                let _ = state.settle_workspace_close_not_presented();
+            }
+            None => state.acknowledge_workspace_close_draw(None),
         }
     }
     pub(in crate::terminal_session) fn workspace_close_worker_loss(

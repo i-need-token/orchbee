@@ -46,6 +46,8 @@ mod native_worktree_list;
 mod pty_client;
 #[path = "local_startup_process/startup_wait.rs"]
 mod startup_wait;
+#[path = "support/tui_observer.rs"]
+mod tui_observer;
 // The shared support module also carries helpers only other suites use.
 #[allow(dead_code)]
 mod support;
@@ -203,9 +205,10 @@ fn two_tabs_keep_distinct_shells_across_previous_next_and_numbered_switches() {
         tab_2_before
     );
 
-    let tab_row = client.current_row_containing("[*2 2]");
-    assert_eq!(tab_row.matches("[ 1 1]").count(), 1, "{tab_row:?}");
-    assert_eq!(tab_row.matches("[*2 2]").count(), 1, "{tab_row:?}");
+    assert!(
+        client.current_has_ordered_tabs(&["1", "2"], 2),
+        "current frame must contain exactly one ordered compact strip with Tab 2 current"
+    );
     client.close_before(Instant::now() + EXIT_TIMEOUT);
 }
 

@@ -25,6 +25,26 @@ fn catalog(revision: u64) -> Catalog {
 }
 
 #[test]
+fn labels_project_the_canonical_binding_through_the_explicit_glyph_policy() {
+    assert_eq!(
+        label_with_glyphs(Command::Previous, KeyLabelGlyphs::Unicode),
+        "↑"
+    );
+    assert_eq!(
+        label_with_glyphs(Command::Previous, KeyLabelGlyphs::Ascii),
+        "Up"
+    );
+    assert_eq!(
+        label_with_glyphs(Command::Locations, KeyLabelGlyphs::Ascii),
+        "Left"
+    );
+    assert_eq!(
+        label_with_glyphs(Command::Column, KeyLabelGlyphs::Ascii),
+        "Tab"
+    );
+}
+
+#[test]
 fn browsing_preserves_exact_focus_across_reorder_and_cancels_its_loss() {
     let mut nav = Navigator::default();
     assert!(nav.open());
@@ -79,8 +99,11 @@ fn pages_and_column_changes_are_local_and_clamped() {
 fn an_initial_empty_catalog_may_arrive_but_a_lost_source_cannot_be_replaced() {
     let mut nav = Navigator::default();
     nav.open();
+    assert_eq!(nav.draw_source(), None);
     assert_eq!(nav.reconcile(None), Reconcile::Unchanged);
     assert_eq!(nav.reconcile(Some(catalog(1))), Reconcile::Changed);
+    let source = nav.draw_source().unwrap();
+    assert!(nav.accepts_source(&source));
     assert_eq!(nav.reconcile(None), Reconcile::Cancel);
 
     nav.close();
@@ -93,6 +116,24 @@ fn an_initial_empty_catalog_may_arrive_but_a_lost_source_cannot_be_replaced() {
         Some(Target::Location(standalone())),
         "initial entry cannot invent an active Tab"
     );
+}
+
+#[test]
+fn draw_sources_follow_the_catalog_revision_without_reopening_the_episode() {
+    let mut nav = Navigator::default();
+    assert!(nav.open());
+    assert_eq!(nav.reconcile(Some(catalog(1))), Reconcile::Changed);
+    let first = nav.draw_source().unwrap();
+
+    assert_eq!(nav.reconcile(Some(catalog(2))), Reconcile::Changed);
+    let second = nav.draw_source().unwrap();
+    assert_eq!(first.episode(), second.episode());
+    assert_ne!(first.source(), second.source());
+    assert!(!nav.accepts_source(&first));
+    assert!(nav.accepts_source(&second));
+
+    nav.close();
+    assert!(!nav.accepts_source(&second));
 }
 
 #[test]

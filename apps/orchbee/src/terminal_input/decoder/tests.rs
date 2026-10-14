@@ -809,3 +809,121 @@ fn focus_reports_survive_every_packet_split_and_paste_keeps_them_as_data() {
             .all(|item| !matches!(item.kind, DecodedKind::Focus(_)))
     );
 }
+
+#[test]
+fn pointer_admission_replies_decode_strictly_in_escape_and_c1_forms() {
+    use crate::terminal_input::HostReply;
+    use crate::terminal_pointer_admission::{HostReply as PointerReply, ModeReportState};
+
+    for (status, state) in [
+        (b'0', ModeReportState::Unsupported),
+        (b'1', ModeReportState::Set),
+        (b'2', ModeReportState::Reset),
+        (b'3', ModeReportState::PermanentlySet),
+        (b'4', ModeReportState::PermanentlyReset),
+    ] {
+        for prefix in [b"\x1b[".as_slice(), b"\x9b".as_slice()] {
+            let mut sequence = prefix.to_vec();
+            sequence.extend_from_slice(b"?1003;");
+            sequence.push(status);
+            sequence.extend_from_slice(b"$y");
+            let items = decode(&sequence);
+            assert_eq!(items.len(), 1);
+            assert_eq!(
+                items[0].kind,
+                DecodedKind::HostReply(HostReply::Pointer(PointerReply::Mode1003(state)))
+            );
+        }
+    }
+
+    for sequence in [b"\x1b[?1;2c".as_slice(), b"\x9b?64;1;2;6;9c"] {
+        assert_eq!(
+            decode(sequence)[0].kind,
+            DecodedKind::HostReply(HostReply::Pointer(PointerReply::PrimaryDeviceAttributes))
+        );
+    }
+}
+
+#[test]
+fn malformed_pointer_admission_metadata_is_consumed_without_neighbor_leaks() {
+    for sequence in [
+        b"\x1b[?1002;2$y".as_slice(),
+        b"\x1b[?1003;5$y",
+        b"\x1b[?1003;02$y",
+        b"\x1b[?1003;;2$y",
+        b"\x1b[?c",
+        b"\x1b[?1;;2c",
+        b"\x1b[?1;:c",
+    ] {
+        let items = decode(sequence);
+        assert_eq!(items.len(), 1, "{sequence:?}");
+        assert_eq!(items[0].kind, DecodedKind::Ignored, "{sequence:?}");
+    }
+
+    let items = decode(b"a\x1b[?1003;2$yb");
+    assert_eq!(items[0].kind, press(KeyCode::Char('a')));
+    assert!(matches!(items[1].kind, DecodedKind::HostReply(_)));
+    assert_eq!(items[2].kind, press(KeyCode::Char('b')));
+
+    let items = decode(b"\x1b[200~\x1b[?1003;2$y\x1b[?1;2c\x1b[201~");
+    assert_eq!(items.len(), 1);
+    let DecodedKind::Paste { text } = &items[0].kind else {
+        panic!("expected literal paste")
+    };
+    assert_eq!(text, "\x1b[?1003;2$y\x1b[?1;2c");
+}
+
+#[test]
+fn private_csi_without_a_reply_final_keeps_bounded_passthrough() {
+    let start = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    for byte in b"\x1b[?1003;" {
+        assert!(decoder.push(*byte, start, false).is_empty());
+    }
+    let mut items = decoder.tick(start + Duration::from_secs(1));
+    for byte in b"2$" {
+        items.extend(decoder.push(*byte, start + Duration::from_secs(1), false));
+    }
+    items.extend(decoder.push(b'y', start + Duration::from_secs(1), false));
+    assert!(
+        items
+            .iter()
+            .all(|item| item.kind == DecodedKind::Nondecision)
+    );
+    assert_eq!(
+        items
+            .iter()
+            .flat_map(|item| item.raw.iter().copied())
+            .collect::<Vec<_>>(),
+        b"\x1b[?1003;2$y"
+    );
+    assert_eq!(
+        decoder.push(b'z', start + Duration::from_secs(1), false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+
+    let mut decoder = LegacyDecoder::default();
+    let mut run = b"\x1b[?".to_vec();
+    run.extend(std::iter::repeat_n(b'9', 61));
+    let mut items = Vec::new();
+    for byte in run {
+        items.extend(decoder.push(byte, start, false));
+    }
+    items.extend(decoder.push(b'9', start, false));
+    items.extend(decoder.push(b'c', start, false));
+    assert!(
+        items
+            .iter()
+            .all(|item| item.kind == DecodedKind::Nondecision)
+    );
+    let mut expected = b"\x1b[?".to_vec();
+    expected.extend(std::iter::repeat_n(b'9', 62));
+    expected.push(b'c');
+    assert_eq!(
+        items
+            .iter()
+            .flat_map(|item| item.raw.iter().copied())
+            .collect::<Vec<_>>(),
+        expected
+    );
+}

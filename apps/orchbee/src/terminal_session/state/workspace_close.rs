@@ -6,6 +6,7 @@ use super::{
 use crate::{
     local_client::workbench::WorkbenchWorkspaceCloseAccepted,
     terminal_session::workbench_projection::NativeContextLocation,
+    tui_presentation::{GeometrySettlement, PresentationPhase},
 };
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchAction, WorkbenchCommand, WorkbenchProjectId, WorkbenchRequestId,
@@ -243,6 +244,7 @@ struct Confirmation {
     baseline: NativeContextTabs,
     desired: Option<PaneKey>,
     label: String,
+    presentation: PresentationPhase,
     shown: bool,
 }
 #[derive(Default)]
@@ -268,6 +270,12 @@ impl<'a> WorkspaceCloseConfirmationView<'a> {
     /// A Project confirmation names its captured member count, including zero.
     pub(crate) fn project_member_count(self) -> Option<usize> {
         self.inner.target.project_member_count()
+    }
+    pub(crate) const fn interactive(self) -> bool {
+        self.inner.shown && self.inner.presentation.interactive()
+    }
+    pub(crate) const fn presentation(self) -> PresentationPhase {
+        self.inner.presentation
     }
 }
 /// Lifecycle truth; an absent observation never implies successful removal.
@@ -425,6 +433,7 @@ impl NativeSessionState {
             baseline: self.cache.clone(),
             desired: self.desired.clone(),
             label,
+            presentation: PresentationPhase::Pending,
             shown: false,
         });
         self.notice = None;
@@ -447,7 +456,23 @@ impl NativeSessionState {
     ) {
         if let Some(prompt) = &mut self.workspace_close.confirmation {
             prompt.shown = token == Some(prompt.token);
+            if prompt.shown {
+                prompt.presentation.presented();
+            }
         }
+    }
+    /// Refuses a new prompt whose first draw is geometry-blocked, or suspends
+    /// an admitted prompt without discarding its frozen scope.
+    pub(in crate::terminal_session) fn settle_workspace_close_not_presented(
+        &mut self,
+    ) -> Option<GeometrySettlement> {
+        let prompt = self.workspace_close.confirmation.as_mut()?;
+        prompt.shown = false;
+        let settlement = prompt.presentation.geometry_blocked();
+        if settlement == GeometrySettlement::Refused {
+            self.cancel_workspace_close();
+        }
+        Some(settlement)
     }
     pub(in crate::terminal_session) fn settle_stale_workspace_close(&mut self) -> bool {
         if self

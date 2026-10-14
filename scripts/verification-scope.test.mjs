@@ -96,6 +96,20 @@ test('real workspace selection retains foreign fixture, resource, process and di
 		'apps/desktop/resources/agent-observation-adapters/capsule.json',
 	]);
 	assert.ok(resources.cargo.includes('orchbee'));
+	const windowsConsoleHost = selectVerificationScope(actual, [
+		'crates/windows-console-host/src/output.rs',
+	]);
+	assert.equal(windowsConsoleHost.all, false, windowsConsoleHost.reasons.join('\n'));
+	assert.ok(windowsConsoleHost.cargo.includes('orchbee-windows-console-host'));
+	assert.ok(windowsConsoleHost.cargo.includes('orchbee'));
+	const designTokens = selectVerificationScope(actual, ['packages/design-tokens/src/tokens.css']);
+	assert.equal(designTokens.all, false, designTokens.reasons.join('\n'));
+	assert.ok(designTokens.pnpm.includes('@orchbee/design-tokens'));
+	assert.deepEqual(designTokens.cargo, ['orchbee']);
+	assert.equal(
+		selectVerificationScope(actual, ['packages/design-tokens/src/tokens.css.bak']).cargo.length,
+		0,
+	);
 	const tabCloseCorpus = selectVerificationScope(actual, [
 		'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json',
 	]);

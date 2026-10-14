@@ -56,7 +56,7 @@ fn history_discovery_splits_the_actual_help_page_bindings_for_each_locale() {
             }
             let text = locale.shell();
             let rows = text.configured_shortcut_rows(&view);
-            let prefix = if remapped { "Ctrl+A" } else { "Ctrl+B" };
+            let prefix = if remapped { "Ctrl+a" } else { "Ctrl+b" };
             assert!(
                 rows.iter()
                     .any(|(label, desc)| label.trim() == format!("{prefix} PageUp")
@@ -136,27 +136,27 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
         assert!(
             copy.shortcut_rows()
                 .iter()
-                .any(|(chord, desc)| chord.trim() == "Ctrl+B { / }" && !desc.is_empty())
+                .any(|(chord, desc)| chord.trim() == "Ctrl+b { / }" && !desc.is_empty())
         );
     }
 
     for shortcut in [
-        "Ctrl+B a",
-        "Ctrl+B e",
-        "Ctrl+B r",
-        "Ctrl+B Shift+R",
-        "Ctrl+B c",
-        "Ctrl+B ,",
-        "Ctrl+B x",
-        "Ctrl+B < / >",
-        "Ctrl+B n / p",
-        "Ctrl+B [ / ]",
-        "Ctrl+B 1..9",
-        "Ctrl+B z",
-        "Ctrl+B g",
-        "Ctrl+B w",
-        "Ctrl+B m",
-        "Ctrl+B PageUp / PageDown",
+        "Ctrl+b a",
+        "Ctrl+b e",
+        "Ctrl+b r",
+        "Ctrl+b Shift+R",
+        "Ctrl+b c",
+        "Ctrl+b ,",
+        "Ctrl+b x",
+        "Ctrl+b < / >",
+        "Ctrl+b n / p",
+        "Ctrl+b [ / ]",
+        "Ctrl+b 1..9",
+        "Ctrl+b z",
+        "Ctrl+b g",
+        "Ctrl+b w",
+        "Ctrl+b m",
+        "Ctrl+b PageUp / PageDown",
     ] {
         assert!(
             joined_shortcut_rows(&english)
@@ -172,17 +172,44 @@ fn ships_complete_distinct_shell_copy_for_both_locales() {
     assert!(
         joined_shortcut_rows(&english)
             .iter()
-            .any(|row| row == "Ctrl+B w                 Toggle Workbench navigator")
+            .any(|row| row == "Ctrl+b w                 Toggle Workbench navigator")
     );
     assert!(
         joined_shortcut_rows(&chinese)
             .iter()
-            .any(|row| row == "Ctrl+B w                 切换 Workbench 导航器")
+            .any(|row| row == "Ctrl+b w                 切换 Workbench 导航器")
     );
     assert!(joined_shortcut_rows(&english).iter().any(|row| row
-        == "Ctrl+B [ / ]             Select previous / next Workbench location (wraps; requires session)"));
+        == "Ctrl+b [ / ]             Select previous / next Workbench location (wraps; requires session)"));
     assert!(joined_shortcut_rows(&chinese).iter().any(|row| row
-        == "Ctrl+B [ / ]             选择上一个 / 下一个 Workbench 位置（首尾循环；需要会话）"));
+        == "Ctrl+b [ / ]             选择上一个 / 下一个 Workbench 位置（首尾循环；需要会话）"));
+}
+
+#[test]
+fn help_control_copy_is_localized_without_embedding_key_labels() {
+    let english = Locale::EnUs.shell();
+    let chinese = Locale::ZhCn.shell();
+
+    assert_eq!(english.help_close_label, "Close help");
+    assert_eq!(english.help_previous_label, "Previous page");
+    assert_eq!(english.help_next_label, "Next page");
+    assert_eq!(english.help_pages_label, "Turn pages");
+    assert_eq!(english.help_typing_continues, "Typing continues");
+    assert_eq!(chinese.help_close_label, "关闭帮助");
+    assert_eq!(chinese.help_previous_label, "上一页");
+    assert_eq!(chinese.help_next_label, "下一页");
+    assert_eq!(chinese.help_pages_label, "翻页");
+    assert_eq!(chinese.help_typing_continues, "输入继续传递");
+    for label in [
+        english.help_close_label,
+        english.help_previous_label,
+        english.help_next_label,
+        chinese.help_close_label,
+        chinese.help_previous_label,
+        chinese.help_next_label,
+    ] {
+        assert!(!label.contains("Ctrl"));
+    }
 }
 
 /// The help-paging row is registry-derived like every other row: the same
@@ -205,12 +232,12 @@ fn help_page_row_matches_the_registry_bindings_in_both_locales() {
     assert!(
         joined_shortcut_rows(&english)
             .iter()
-            .any(|row| row == "Ctrl+B PageUp / PageDown Page this shortcut help while it is open")
+            .any(|row| row == "Ctrl+b PageUp / PageDown Page this shortcut help while it is open")
     );
     assert!(
         joined_shortcut_rows(&chinese)
             .iter()
-            .any(|row| row == "Ctrl+B PageUp / PageDown 在帮助打开时翻看此快捷键帮助的页面")
+            .any(|row| row == "Ctrl+b PageUp / PageDown 在帮助打开时翻看此快捷键帮助的页面")
     );
 
     // The displayed chords resolve through the registry to the help-page
@@ -253,8 +280,8 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
     let chinese = Locale::ZhCn.shell();
     for (en, zh, bindings) in [
         (
-            "Ctrl+B h/j/k/l           Move between Panels (requires session)",
-            "Ctrl+B h/j/k/l           在 Panel 之间移动（需要会话）",
+            "Ctrl+b h/j/k/l           Move between Panels (requires session)",
+            "Ctrl+b h/j/k/l           在 Panel 之间移动（需要会话）",
             &[
                 (
                     KeyCode::Char('h'),
@@ -275,8 +302,8 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             ][..],
         ),
         (
-            "Ctrl+B - _ \\ |           Split focused Panel below/above/left/right (requires session)",
-            "Ctrl+B - _ \\ |           将焦点 Panel 向下/上/左/右分屏（需要会话）",
+            "Ctrl+b - _ \\ |           Split focused Panel below/above/left/right (requires session)",
+            "Ctrl+b - _ \\ |           将焦点 Panel 向下/上/左/右分屏（需要会话）",
             &[
                 (
                     KeyCode::Char('-'),
@@ -297,13 +324,13 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
             ][..],
         ),
         (
-            "Ctrl+B Shift+X           Close focused Panel (requires session)",
-            "Ctrl+B Shift+X           关闭焦点 Panel（需要会话）",
+            "Ctrl+b Shift+X           Close focused Panel (requires session)",
+            "Ctrl+b Shift+X           关闭焦点 Panel（需要会话）",
             &[(KeyCode::Char('X'), ClientAction::ClosePanel)][..],
         ),
         (
-            "Ctrl+B Shift+H/J/K/L     Move focused Panel to that side (requires session)",
-            "Ctrl+B Shift+H/J/K/L     将焦点 Panel 移向该侧（需要会话）",
+            "Ctrl+b Shift+H/J/K/L     Move focused Panel to that side (requires session)",
+            "Ctrl+b Shift+H/J/K/L     将焦点 Panel 移向该侧（需要会话）",
             &[
                 (
                     KeyCode::Char('H'),
@@ -465,11 +492,7 @@ fn native_tab_copy_matches_the_accepted_english_table() {
     );
     assert_eq!(
         locale.native_ready_read_only(10),
-        if cfg!(windows) {
-            "Tab 10 · Ready · view only · Ctrl+B t to take control"
-        } else {
-            "Tab 10 · Ready · view only"
-        }
+        "Tab 10 · Ready · view only"
     );
     assert_eq!(
         locale.native_committed_refresh_required(),
@@ -529,11 +552,7 @@ fn native_tab_copy_matches_the_accepted_chinese_table() {
     );
     assert_eq!(
         locale.native_ready_read_only(10),
-        if cfg!(windows) {
-            "Tab 10 · 已就绪 · 仅查看 · Ctrl+B t 接管"
-        } else {
-            "Tab 10 · 已就绪 · 仅查看"
-        }
+        "Tab 10 · 已就绪 · 仅查看"
     );
     assert_eq!(
         locale.native_committed_refresh_required(),
@@ -621,11 +640,11 @@ fn native_notice_and_refresh_enums_select_the_exact_copy() {
 
 #[cfg(unix)]
 #[test]
-fn native_empty_without_attachment_retains_the_manual_create_instruction() {
+fn native_empty_status_is_a_raw_fact_without_embedded_binding() {
     use crate::terminal_session::{NativeDisplayPhase, NativeProjectionStatus};
     for (locale, expected) in [
-        (Locale::EnUs, "No terminal tabs · Ctrl+B c to create a Tab"),
-        (Locale::ZhCn, "没有终端标签 · 按 Ctrl+B 后按 c 创建 Tab"),
+        (Locale::EnUs, "No terminal tabs"),
+        (Locale::ZhCn, "没有终端标签"),
     ] {
         assert_eq!(
             locale.native_phase_status_values(
@@ -739,7 +758,14 @@ fn workspace_created_only_offers_directory_setup_for_an_eligible_current_context
         let setup = NativeSetupStatus::WorkspaceCreated;
         let eligible =
             locale.native_status_with_setup("phase".to_owned(), false, None, Some(setup), true);
-        assert!(eligible.contains("Ctrl+B e"));
+        assert_eq!(
+            eligible,
+            match locale {
+                Locale::EnUs => "Workspace created · its first directory is not configured",
+                Locale::ZhCn => "工作区已创建 · 尚未配置首个目录",
+            }
+        );
+        assert!(!eligible.contains("Ctrl+B"));
         let configured_or_nonempty =
             locale.native_status_with_setup("phase".to_owned(), false, None, Some(setup), false);
         assert_eq!(configured_or_nonempty, locale.setup_status(setup));
@@ -781,14 +807,10 @@ fn native_prebootstrap_retirement_overrides_the_synthetic_starting_phase() {
     for (locale, unavailable, outcome_unknown) in [
         (
             Locale::EnUs,
-            "Terminal disconnected · Ctrl+B then q to exit",
-            "Terminal operation result unknown · no replay · Ctrl+B then q to exit",
+            "Terminal disconnected",
+            "Terminal operation result unknown · no replay",
         ),
-        (
-            Locale::ZhCn,
-            "终端已断连 · 按 Ctrl+B 后按 q 退出",
-            "终端操作结果未知 · 不会重放 · 按 Ctrl+B 后按 q 退出",
-        ),
+        (Locale::ZhCn, "终端已断连", "终端操作结果未知 · 不会重放"),
     ] {
         let status = |retirement| {
             locale.native_phase_status_values(
@@ -1021,5 +1043,23 @@ fn popup_receipt_text_preserves_incomplete_reason_status_and_query_guidance_in_b
                 serde_json::json!(state);
             assert!(locale.cli_client_control(&document).contains(label));
         }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn popup_resize_recovery_is_localized_plain_guidance_without_a_keyboard_claim() {
+    assert_eq!(
+        Locale::EnUs.plugin_popup_resize_recovery(),
+        "Enlarge the terminal to restore the popup."
+    );
+    assert_eq!(
+        Locale::ZhCn.plugin_popup_resize_recovery(),
+        "请放大终端以恢复 popup。"
+    );
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let label = locale.plugin_popup_resize_recovery();
+        assert!(!label.contains("Esc"));
+        assert!(!label.contains("Ctrl"));
     }
 }

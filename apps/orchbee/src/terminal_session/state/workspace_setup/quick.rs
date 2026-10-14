@@ -380,6 +380,7 @@ impl NativeSessionState {
         }
         self.setup.last_token = token.0;
         self.setup.status = None;
+        self.setup.presentation = crate::tui_presentation::PresentationPhase::Pending;
         self.setup.preparation = Some(preparation.clone());
         self.setup.draft = Some(SetupDraft {
             organization: None,
@@ -396,6 +397,7 @@ impl NativeSessionState {
             faulted: false,
             quick: None,
             continuation: None,
+            parent: None,
         });
         Some(preparation)
     }
@@ -473,6 +475,7 @@ impl NativeSessionState {
             faulted: false,
             quick: Some(fields),
             continuation: Some(preparation.deadlines),
+            parent: None,
         });
     }
     pub(in crate::terminal_session) fn quick_continuation(

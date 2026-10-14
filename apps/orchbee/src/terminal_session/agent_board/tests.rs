@@ -118,6 +118,14 @@ fn board_with(sessions: &[&str]) -> AgentBoard {
     board
 }
 
+fn presented(board: &AgentBoard, visible_rows: usize) -> AgentBoardDraw {
+    AgentBoardDraw::Presented(
+        board
+            .actual_draw(visible_rows)
+            .expect("the open Board has a non-empty viewport"),
+    )
+}
+
 fn tab_id(seed: u64) -> WorkbenchTabId {
     WorkbenchTabId::parse(&hex(seed)).unwrap()
 }
@@ -229,53 +237,139 @@ fn selection_and_scroll_clamp_to_the_row_window() {
     assert_eq!(board.scroll, 0);
     board.scroll_by(100);
     assert_eq!(board.scroll, 3);
+    assert_eq!(board.selection, 0, "wheel reading does not move selection");
     board.scroll_by(-100);
     assert_eq!(board.scroll, 0);
+    assert_eq!(board.selection, 0);
 }
 
 #[test]
-fn pointer_select_resolves_by_stable_identity() {
+fn pointer_select_requires_the_exact_visible_draw() {
     let mut board = board_with(&["s-1", "s-2", "s-3"]);
     board.open();
-    assert!(board.select_session(&session_id("s-2")));
+    let draw = board.actual_draw(3).unwrap();
+    let target = draw.row_target(session_id("s-2"));
+    board.settle_draw(Some(AgentBoardDraw::Presented(draw)));
+    assert!(board.select_drawn_row(&target));
     assert_eq!(board.selection, 1);
-    // A stale-map click on a session that left resolves to nothing and
-    // leaves the selection untouched — never a positional guess.
-    assert!(!board.select_session(&session_id("s-9")));
+    // Selection changed the exact draw source, so the same painted target
+    // cannot act twice or migrate onto the new projection.
+    assert!(!board.select_drawn_row(&target));
     assert_eq!(board.selection, 1);
 }
 
 #[test]
-fn settle_draw_gates_input_on_the_painted_verdict() {
+fn local_navigation_keeps_the_surface_lease_but_revokes_activation_proof() {
+    let mut board = board_with(&["s-1", "s-2", "s-3"]);
+    board.open();
+    let draw = presented(&board, 3);
+    board.settle_draw(Some(draw));
+    assert!(board.input_context().unwrap().interactive());
+    assert!(board.selected_is_shown());
+
+    board.move_selection(1);
+    assert_eq!(board.selection, 1);
+    assert!(
+        board.input_context().unwrap().interactive(),
+        "the still-visible owner accepts the next navigation key"
+    );
+    assert!(board.current_draw().is_none());
+    assert!(
+        !board.selected_is_shown(),
+        "activation waits for a frame proving the new cursor"
+    );
+
+    board.move_selection(1);
+    assert_eq!(board.selection, 2);
+}
+
+#[test]
+fn draw_lifecycle_retains_an_admitted_board_across_cover_and_geometry_block() {
     let mut board = board_with(&["s-1"]);
     board.open();
-    // Ownership is synchronous from open — a key arriving before the
-    // first paint already belongs to the board.
+    let episode = board.episode();
     assert!(board.owns_input());
-    board.settle_draw(Some(AgentBoardDraw {
-        presented: true,
-        viewport_rows: 4,
-    }));
+    assert_eq!(board.presentation, PresentationPhase::Pending);
+    assert!(!board.interactive());
+
+    let first = presented(&board, 4);
+    board.settle_draw(Some(first));
+    assert_eq!(board.presentation, PresentationPhase::Admitted);
+    assert!(board.interactive());
     assert!(board.owns_input());
     assert_eq!(board.viewport_rows, 4);
-    // A paint that could not present the board at all closes it: the
-    // same frame shows the refusal notice and the invisible surface
-    // keeps nothing.
-    board.settle_draw(Some(AgentBoardDraw {
-        presented: false,
-        viewport_rows: 0,
-    }));
-    assert!(!board.is_open());
-    assert!(!board.owns_input());
+
+    assert_eq!(board.settle_draw(None), None);
+    assert!(board.is_open());
+    assert_eq!(board.episode(), episode);
+    assert_eq!(board.presentation, PresentationPhase::Admitted);
+    assert!(!board.interactive(), "covered draw proof is revoked");
+
+    let uncovered = presented(&board, 4);
+    board.settle_draw(Some(uncovered));
+    assert!(board.interactive());
+    assert_eq!(
+        board.settle_draw(Some(AgentBoardDraw::NotPresented(episode))),
+        Some(GeometrySettlement::Suspended)
+    );
+    assert!(board.is_open());
+    assert_eq!(board.episode(), episode);
+    assert_eq!(board.presentation, PresentationPhase::Suspended);
+    assert!(!board.interactive());
     assert_eq!(board.viewport_rows, 4);
-    // A stale presented verdict after the close can never reopen
-    // ownership.
-    board.settle_draw(Some(AgentBoardDraw {
-        presented: true,
-        viewport_rows: 4,
-    }));
+
+    let resumed = presented(&board, 2);
+    board.settle_draw(Some(resumed));
+    assert_eq!(board.presentation, PresentationPhase::Admitted);
+    assert!(board.interactive());
+    assert_eq!(board.viewport_rows, 2);
+}
+
+#[test]
+fn first_geometry_block_refuses_and_a_stale_episode_cannot_reopen() {
+    let mut board = board_with(&["s-1"]);
+    board.open();
+    let refused = board.episode();
+    let stale_presented = presented(&board, 1);
+    assert_eq!(
+        board.settle_draw(Some(AgentBoardDraw::NotPresented(refused))),
+        Some(GeometrySettlement::Refused)
+    );
     assert!(!board.is_open());
     assert!(!board.owns_input());
+
+    board.open();
+    let replacement = board.episode();
+    assert_ne!(replacement, refused);
+    assert_eq!(
+        board.settle_draw(Some(stale_presented)),
+        None,
+        "late paint from the refused episode is ignored"
+    );
+    assert_eq!(board.episode(), replacement);
+    assert_eq!(board.presentation, PresentationPhase::Pending);
+    assert!(!board.interactive());
+}
+
+#[test]
+fn covered_board_rejects_painted_row_and_control_activation() {
+    let mut board = AgentBoard::new(clock());
+    board.rows = vec![AgentBoardRow::from_summary(summary(
+        "s-1",
+        vec![attachment(&hex(9), true)],
+    ))];
+    board.open();
+    board.intent = None;
+    let draw = board.actual_draw(1).unwrap();
+    let row = draw.row_target(session_id("s-1"));
+    let open = draw.control_target(AgentBoardControl::Open);
+    board.settle_draw(Some(AgentBoardDraw::Presented(draw)));
+    board.settle_draw(None);
+
+    assert!(!board.select_drawn_row(&row));
+    assert!(!board.control_drawn(&open));
+    assert!(board.intent.is_none(), "hidden Open cannot queue a jump");
+    assert_eq!(board.selection, 0);
 }
 
 #[test]
@@ -301,9 +395,16 @@ fn request_jump_on_a_navigable_row_queues_the_intent() {
         vec![attachment(&hex(9), true)],
     ))];
     board.open();
+    let draw = presented(&board, 1);
+    board.settle_draw(Some(draw));
     board.request_jump();
     assert!(board.notice.is_none());
     assert!(matches!(board.intent, Some(BoardIntent::Jump { .. })));
+    assert!(board.input_context().unwrap().interactive());
+    assert!(
+        board.current_draw().is_none(),
+        "starting a jump consumes the exact activation proof without hiding the Board"
+    );
 }
 
 #[test]
@@ -895,6 +996,55 @@ mod lane_outcomes {
         );
         assert_eq!(board.selection, 0);
         assert_eq!(board.rows[board.selection].session_id(), &session_id("s-1"));
+    }
+
+    #[test]
+    fn a_refresh_preserves_the_manual_top_row_independently_of_selection() {
+        let mut board = AgentBoard::new(clock());
+        board.open();
+        board.viewport_rows = 2;
+        board.inflight = Some(BoardInflight::ListRound);
+        let epoch = board.epoch;
+        board.apply_list_outcome(
+            epoch,
+            Ok(lane::ListRound {
+                revision: Some(1),
+                items: vec![
+                    summary("s-1", vec![]),
+                    summary("s-2", vec![]),
+                    summary("s-3", vec![]),
+                    summary("s-4", vec![]),
+                ],
+                complete: true,
+            }),
+            Instant::now(),
+        );
+        board.selection = 0;
+        board.scroll = 2;
+
+        board.inflight = Some(BoardInflight::ListRound);
+        board.apply_list_outcome(
+            epoch,
+            Ok(lane::ListRound {
+                revision: Some(2),
+                items: vec![
+                    summary("s-new", vec![]),
+                    summary("s-1", vec![]),
+                    summary("s-2", vec![]),
+                    summary("s-3", vec![]),
+                    summary("s-4", vec![]),
+                ],
+                complete: true,
+            }),
+            Instant::now(),
+        );
+
+        assert_eq!(board.rows[board.selection].session_id(), &session_id("s-1"));
+        assert_eq!(
+            board.rows[board.scroll].session_id(),
+            &session_id("s-3"),
+            "the refresh follows the stable top-row id instead of snapping to selection"
+        );
     }
 
     fn detail(

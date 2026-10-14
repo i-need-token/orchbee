@@ -1,7 +1,7 @@
 //! Client-local navigator focus and exact painted-row identity. No I/O or selection effects.
 use orchbee_workbench_protocol::{SiteId, WorkbenchRevision, WorkbenchTabId};
 
-use super::{Binding, KeyCode, KeyEvent, KeyKind, Modifiers};
+use super::{Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, Modifiers};
 use crate::terminal_session::NativeContextLocation;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,8 +57,30 @@ pub(crate) struct Row {
     pub(crate) target: Target,
 }
 
+/// The exact catalog incarnation that one complete Navigator frame used.
+/// Rows retain their existing target identity; controls that act on the
+/// surface itself carry this smaller source.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DrawSource {
+    episode: u64,
+    source: Source,
+}
+
+impl DrawSource {
+    pub(crate) const fn episode(&self) -> u64 {
+        self.episode
+    }
+
+    pub(crate) const fn source(&self) -> &Source {
+        &self.source
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Paint {
+    /// `None` preserves the admitted opening surface while its first catalog
+    /// is pending, without inventing activation authority for its controls.
+    pub(crate) source: Option<DrawSource>,
     pub(crate) rows: Vec<Row>,
     pub(crate) focus: Option<Target>,
     pub(crate) page_rows: usize,
@@ -134,14 +156,15 @@ pub(crate) fn command(key: KeyEvent) -> Option<Command> {
         .flatten()
 }
 
-pub(crate) fn label(command: Command) -> String {
-    super::format_binding(
+pub(crate) fn label_with_glyphs(command: Command, glyphs: KeyLabelGlyphs) -> String {
+    super::format_binding_with_glyphs(
         &BINDINGS
             .iter()
             .find(|(_, value)| *value == command)
             .expect("navigator command has a binding")
             .0,
         super::LabelStyle::for_host(),
+        glyphs,
     )
 }
 
@@ -155,10 +178,6 @@ pub(crate) struct Navigator {
 }
 
 impl Navigator {
-    pub(crate) fn episode(&self) -> u64 {
-        self.episode
-    }
-
     pub(crate) fn scroll_row(&self, tabs: bool) -> Option<Row> {
         let focus = self
             .focus
@@ -166,6 +185,23 @@ impl Navigator {
             .filter(|target| matches!(target, Target::Tab(_)) == tabs)
             .cloned();
         self.row(focus.or_else(|| self.catalog.as_ref()?.initial(tabs))?)
+    }
+
+    pub(crate) fn draw_source(&self) -> Option<DrawSource> {
+        let catalog = self.catalog.as_ref()?;
+        self.active.then(|| DrawSource {
+            episode: self.episode,
+            source: catalog.source.clone(),
+        })
+    }
+
+    pub(crate) fn accepts_source(&self, source: &DrawSource) -> bool {
+        self.active
+            && self.episode == source.episode
+            && self
+                .catalog
+                .as_ref()
+                .is_some_and(|catalog| catalog.source == source.source)
     }
 
     pub(crate) fn scroll(&mut self, row: &Row, up: bool, lines: usize) -> Option<Row> {

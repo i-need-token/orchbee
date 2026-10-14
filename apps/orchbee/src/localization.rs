@@ -4,11 +4,16 @@ mod control_takeover;
 mod directory_startup;
 #[cfg(windows)]
 mod machines;
+#[cfg(windows)]
+mod navigator;
 mod notification;
+mod presentation;
+pub(crate) use presentation::RecoveryVerb;
 #[cfg(windows)]
 mod plugins;
 mod runtime_configuration;
 mod settings;
+mod status;
 mod terminal_feedback;
 #[cfg(windows)]
 mod update;
@@ -75,6 +80,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::CopySearch => "Search forward / backward; Enter confirms",
         #[cfg(windows)]
         PrefixDesc::CopyRepeatSearch => "Repeat search / reverse direction",
+        #[cfg(windows)]
+        PrefixDesc::CopyReverseSearch => "Reverse the search draft direction",
         #[cfg(windows)]
         PrefixDesc::CopySelection => "Start / cancel selection",
         #[cfg(windows)]
@@ -170,6 +177,8 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::CopySearch => "向前 / 向后搜索；Enter 确认",
         #[cfg(windows)]
         PrefixDesc::CopyRepeatSearch => "重复搜索 / 反向跳转",
+        #[cfg(windows)]
+        PrefixDesc::CopyReverseSearch => "反转搜索草稿方向",
         #[cfg(windows)]
         PrefixDesc::CopySelection => "开始 / 取消选择",
         #[cfg(windows)]
@@ -267,9 +276,9 @@ fn group_chord(group: &PrefixGroup) -> String {
     )
 }
 
-/// The Agent board's localized copy. Read-state lines, jump-refusal
-/// notices, and the input hint all live behind this struct so the
-/// renderer never hard-codes product copy.
+/// The Agent board's localized copy. Read-state lines, jump-refusal notices,
+/// action labels and shortcut verbs live here; the Board key map supplies the
+/// separately formatted effective key labels.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct AgentBoardText {
     pub(crate) title: &'static str,
@@ -287,7 +296,10 @@ pub(crate) struct AgentBoardText {
     /// A completed read found zero sessions.
     pub(crate) empty: &'static str,
     pub(crate) jumping: &'static str,
-    pub(crate) footer: &'static str,
+    pub(crate) close_hint: &'static str,
+    pub(crate) select_hint: &'static str,
+    pub(crate) jump_hint: &'static str,
+    pub(crate) refresh_hint: &'static str,
     pub(crate) stale: &'static str,
     pub(crate) disconnected: &'static str,
     pub(crate) standalone: &'static str,
@@ -316,9 +328,11 @@ pub(crate) struct ShellText<'a> {
     help_next: &'static str,
     #[cfg(not(windows))]
     pub(crate) overlay_input_hint: &'static str,
-    pub(crate) help_dismiss_hint: &'a str,
-    pub(crate) help_dismiss_hint_short: &'a str,
-    pub(crate) help_paging_hint: &'a str,
+    pub(crate) help_close_label: &'static str,
+    pub(crate) help_previous_label: &'static str,
+    pub(crate) help_next_label: &'static str,
+    pub(crate) help_pages_label: &'static str,
+    pub(crate) help_typing_continues: &'static str,
     pub(crate) overlay_refused: &'static str,
     #[cfg(not(windows))]
     pub(crate) navigator_detail: &'static str,
@@ -327,7 +341,6 @@ pub(crate) struct ShellText<'a> {
     pub(crate) panel_title: &'static str,
     pub(crate) pointer_released: &'a str,
     pub(crate) prefix_active: &'a str,
-    pub(crate) prefix_cancel_hint: &'static str,
     pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
     #[cfg(windows)]
     sidebar_action: fn(crate::machine_picker::SidebarCommand) -> &'static str,
@@ -383,18 +396,21 @@ impl ShellText<'_> {
 
 const EN_US_BOARD: AgentBoardText = AgentBoardText {
     title: "Agent board",
-    open_button: "[Open]",
-    refresh_button: "[Refresh]",
-    unread: "No completed Agent read yet · press r to read",
+    open_button: "Open",
+    refresh_button: "Refresh",
+    unread: "No completed Agent read yet",
     in_flight: "Reading Agent sessions…",
     incomplete: "listing incomplete",
     read_denied: "Agent read denied",
     read_unavailable: "Agent runtime unavailable",
-    read_transport: "Agent read failed · transport",
-    lane_unavailable: "Agent board unavailable · no read lane",
+    read_transport: "Agent read failed: transport",
+    lane_unavailable: "Agent board unavailable: no read lane",
     empty: "No Agent sessions",
     jumping: "Jumping…",
-    footer: "↑/k ↓/j select · Enter jump · r refresh · Esc close",
+    close_hint: "close",
+    select_hint: "select",
+    jump_hint: "jump",
+    refresh_hint: "refresh",
     stale: "stale",
     disconnected: "disconnected",
     standalone: "Standalone",
@@ -427,19 +443,20 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     help_next: "Page forward while this shortcut help is open",
     #[cfg(not(windows))]
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
-    help_dismiss_hint: "Ctrl+B ? closes help · typing still reaches the terminal",
-    help_dismiss_hint_short: "Ctrl+B ? closes · typing continues",
-    help_paging_hint: "Ctrl+B PgUp/PgDn turns pages",
+    help_close_label: "Close help",
+    help_previous_label: "Previous page",
+    help_next_label: "Next page",
+    help_pages_label: "Turn pages",
+    help_typing_continues: "Typing continues",
     panel_title: "Terminal",
     pointer_released: "mouse released · Ctrl+B m restores",
     prefix_active: "PREFIX Ctrl+B",
-    prefix_cancel_hint: "Esc cancel",
     prefix_desc: en_us_prefix_desc,
     #[cfg(windows)]
     sidebar_action: |command| Locale::EnUs.sidebar_navigation_action(command),
     prefix_idle: "Ctrl+B · shortcuts",
     projects: "Projects",
-    shell_only_detail: "This development slice renders only the Client-local shell.",
+    shell_only_detail: "Connect to a session to use terminals and agents.",
     shortcut_title: "Keyboard shortcuts",
     sidebar_hint: "Ctrl+B b · sidebar",
     site_section: "SITE",
@@ -455,19 +472,22 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
 };
 
 const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
-    open_button: "[打开]",
-    refresh_button: "[刷新]",
+    open_button: "打开",
+    refresh_button: "刷新",
     title: "智能体看板",
-    unread: "尚未完成智能体读取 · 按 r 读取",
+    unread: "尚未完成智能体读取",
     in_flight: "正在读取智能体会话…",
     incomplete: "列表不完整",
     read_denied: "智能体读取被拒绝",
     read_unavailable: "智能体运行时不可用",
-    read_transport: "智能体读取失败 · 传输错误",
-    lane_unavailable: "看板不可用 · 无读取通道",
+    read_transport: "智能体读取失败：传输错误",
+    lane_unavailable: "看板不可用：无读取通道",
     empty: "没有智能体会话",
     jumping: "正在跳转…",
-    footer: "↑/k ↓/j 选择 · Enter 跳转 · r 刷新 · Esc 关闭",
+    close_hint: "关闭",
+    select_hint: "选择",
+    jump_hint: "跳转",
+    refresh_hint: "刷新",
     stale: "已过期",
     disconnected: "已断连",
     standalone: "独立终端",
@@ -500,19 +520,20 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     help_next: "在此快捷键帮助打开时向后翻页",
     #[cfg(not(windows))]
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
-    help_dismiss_hint: "Ctrl+B ? 关闭此帮助 · 输入仍会传递到终端",
-    help_dismiss_hint_short: "Ctrl+B ? 关闭 · 输入仍传递到终端",
-    help_paging_hint: "Ctrl+B PgUp/PgDn 翻页",
+    help_close_label: "关闭帮助",
+    help_previous_label: "上一页",
+    help_next_label: "下一页",
+    help_pages_label: "翻页",
+    help_typing_continues: "输入继续传递",
     panel_title: "终端",
     pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
     prefix_active: "前缀 Ctrl+B",
-    prefix_cancel_hint: "Esc 取消",
     prefix_desc: zh_cn_prefix_desc,
     #[cfg(windows)]
     sidebar_action: |command| Locale::ZhCn.sidebar_navigation_action(command),
     prefix_idle: "Ctrl+B · 快捷键",
     projects: "项目",
-    shell_only_detail: "此开发切片只渲染 Client-local shell。",
+    shell_only_detail: "连接会话后即可使用终端和智能体。",
     shortcut_title: "键盘快捷键",
     sidebar_hint: "Ctrl+B b · 侧边栏",
     site_section: "站点",
@@ -534,73 +555,10 @@ pub(crate) enum Locale {
 }
 
 impl Locale {
-    #[cfg(windows)]
-    pub(crate) fn sidebar_navigation_hint(self, full: bool) -> String {
-        use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
-        let mut hints = vec![self.machine_picker_text("sidebar-navigation").to_owned()];
-        hints.extend(
-            SIDEBAR_BINDINGS
-                .iter()
-                .filter(|(_, command)| {
-                    matches!(command, SidebarCommand::Exit)
-                        || (full
-                            && matches!(
-                                command,
-                                SidebarCommand::Activate
-                                    | SidebarCommand::OpenMenu
-                                    | SidebarCommand::Help
-                            ))
-                })
-                .map(|(binding, command)| {
-                    format!(
-                        "{} {}",
-                        format_binding(binding, LabelStyle::for_host()),
-                        self.sidebar_navigation_action(*command)
-                    )
-                }),
-        );
-        hints.join(" · ")
-    }
-
     pub(crate) const fn shell(self) -> ShellText<'static> {
         match self {
             Self::EnUs => EN_US_SHELL,
             Self::ZhCn => ZH_CN_SHELL,
-        }
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn navigator_hint(self, full: bool) -> String {
-        use crate::client_view::navigator::{Command, label};
-        if full {
-            return format!(
-                "{} · {} / {} · {} / {}",
-                self.navigator_movement(),
-                label(Command::First),
-                label(Command::Last),
-                label(Command::PagePrevious),
-                label(Command::PageNext)
-            );
-        }
-        let (exit, open) = (label(Command::Exit), label(Command::Open));
-        match self {
-            Self::EnUs => format!("{exit} return · {open} open"),
-            Self::ZhCn => format!("{exit} 返回 · {open} 打开"),
-        }
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn navigator_movement(self) -> String {
-        use crate::client_view::navigator::{Command, label};
-        let (previous, next, column) = (
-            label(Command::Previous),
-            label(Command::Next),
-            label(Command::Column),
-        );
-        let (left, right) = (label(Command::Locations), label(Command::Tabs));
-        match self {
-            Self::EnUs => format!("{previous}/{next} select · {column}/{left}/{right} column"),
-            Self::ZhCn => format!("{previous}/{next} 选择 · {column}/{left}/{right} 切换列"),
         }
     }
 
@@ -613,42 +571,10 @@ impl Locale {
     }
 
     #[cfg(windows)]
-    pub(crate) const fn resize_done_button(self) -> &'static str {
+    pub(crate) const fn resize_done_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[Done]",
-            Self::ZhCn => "[完成]",
-        }
-    }
-
-    #[cfg(windows)]
-    pub(crate) const fn resize_hint(self, full: bool, pending: bool) -> &'static str {
-        match (self, full, pending) {
-            (Self::EnUs, true, false) => "RESIZE · arrows 5% · Shift 1% · ? · Esc exit",
-            (Self::EnUs, true, true) => "RESIZE pending · Esc exit",
-            (Self::EnUs, false, _) => "RESIZE · Esc exit",
-            (Self::ZhCn, true, false) => "调整 · 方向键 5% · Shift 1% · ? · Esc 退出",
-            (Self::ZhCn, true, true) => "调整待定 · Esc 退出",
-            (Self::ZhCn, false, _) => "调整 · Esc 退出",
-        }
-    }
-
-    /// A release-only divider gesture's persistent status hint.
-    #[cfg(windows)]
-    pub(crate) const fn divider_drag_hint(self, full: bool) -> &'static str {
-        match (self, full) {
-            (Self::EnUs, true) => "Divider · release to apply · Esc cancel",
-            (Self::EnUs, false) => "Divider · release / Esc",
-            (Self::ZhCn, true) => "分隔线 · 松手应用 · Esc 取消",
-            (Self::ZhCn, false) => "分隔线 · 松手 / Esc",
-        }
-    }
-
-    /// The local adjustment remains pending after the pointer preview ends.
-    #[cfg(windows)]
-    pub(crate) const fn resize_pending_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "Resizing…",
-            Self::ZhCn => "正在调整…",
+            Self::EnUs => "Done",
+            Self::ZhCn => "完成",
         }
     }
 
@@ -822,12 +748,8 @@ impl Locale {
             (Self::ZhCn, Some(Notice::NavigatorChanged)) => "导航器已关闭 · 位置或目标已改变",
             #[cfg(windows)]
             (_, Some(Notice::NavigatorTooSmall)) => self.shell().overlay_refused,
-            (Self::EnUs, Some(Notice::UnknownPrefix)) => {
-                "Unknown prefix key · press Ctrl+B then ? for shortcuts"
-            }
-            (Self::ZhCn, Some(Notice::UnknownPrefix)) => {
-                "未知前缀键 · 按 Ctrl+B 后再按 ? 查看快捷键"
-            }
+            (Self::EnUs, Some(Notice::UnknownPrefix)) => "Unknown prefix key",
+            (Self::ZhCn, Some(Notice::UnknownPrefix)) => "未知前缀键",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CreateTab))) => {
                 "Tab creation unavailable · no command was sent"
             }
@@ -983,16 +905,12 @@ impl Locale {
                 "Terminal display paused · waiting for a fresh frame"
             }
             (Self::ZhCn, TerminalStatus::Blocked) => "终端显示已暂停 · 正在等待新帧",
-            (Self::EnUs, TerminalStatus::Unavailable) => {
-                "Terminal disconnected · Ctrl+B then q to exit"
-            }
-            (Self::ZhCn, TerminalStatus::Unavailable) => "终端已断连 · 按 Ctrl+B 后按 q 退出",
+            (Self::EnUs, TerminalStatus::Unavailable) => "Terminal disconnected",
+            (Self::ZhCn, TerminalStatus::Unavailable) => "终端已断连",
             (Self::EnUs, TerminalStatus::OutcomeUnknown) => {
-                "Terminal operation result unknown · no replay · Ctrl+B then q to exit"
+                "Terminal operation result unknown · no replay"
             }
-            (Self::ZhCn, TerminalStatus::OutcomeUnknown) => {
-                "终端操作结果未知 · 不会重放 · 按 Ctrl+B 后按 q 退出"
-            }
+            (Self::ZhCn, TerminalStatus::OutcomeUnknown) => "终端操作结果未知 · 不会重放",
         }
     }
 
@@ -1125,8 +1043,8 @@ impl Locale {
 
         match phase {
             Phase::Empty => match self {
-                Self::EnUs => "No terminal tabs · Ctrl+B c to create a Tab".to_owned(),
-                Self::ZhCn => "没有终端标签 · 按 Ctrl+B 后按 c 创建 Tab".to_owned(),
+                Self::EnUs => "No terminal tabs".to_owned(),
+                Self::ZhCn => "没有终端标签".to_owned(),
             },
             Phase::Starting => self.native_starting_status(position, projection),
             Phase::Switching => self.native_switching_status(position, projection),
@@ -1145,16 +1063,16 @@ impl Locale {
             Phase::Creating | Phase::CreateCommittedNeedDetach => self.native_creating().to_owned(),
             Phase::ProjectionUnavailable => self.native_committed_refresh_required().to_owned(),
             Phase::MoveProjectionUnavailable => match self {
-                Self::EnUs => "Tab moved · Ctrl+B w to refresh tab order".to_owned(),
-                Self::ZhCn => "标签已移动 · Ctrl+B w 刷新标签顺序".to_owned(),
+                Self::EnUs => "Tab moved · refresh required".to_owned(),
+                Self::ZhCn => "标签已移动 · 需要刷新".to_owned(),
             },
             Phase::PanelProjectionUnavailable => match self {
-                Self::EnUs => "Panel operation committed · Ctrl+B w to refresh".to_owned(),
-                Self::ZhCn => "面板操作已提交 · Ctrl+B w 刷新".to_owned(),
+                Self::EnUs => "Panel operation committed · refresh required".to_owned(),
+                Self::ZhCn => "面板操作已提交 · 需要刷新".to_owned(),
             },
             Phase::RenameProjectionUnavailable => match self {
-                Self::EnUs => "Rename committed · Ctrl+B w to refresh".to_owned(),
-                Self::ZhCn => "重命名已提交 · Ctrl+B w 刷新".to_owned(),
+                Self::EnUs => "Rename committed · refresh required".to_owned(),
+                Self::ZhCn => "重命名已提交 · 需要刷新".to_owned(),
             },
             Phase::SelectedWithoutAttachment => {
                 let Some(position) = position else {
@@ -1680,22 +1598,8 @@ impl Locale {
 
     fn native_ready_read_only(self, position: usize) -> String {
         match self {
-            Self::EnUs => format!(
-                "Tab {position} · Ready · view only{}",
-                if cfg!(windows) {
-                    " · Ctrl+B t to take control"
-                } else {
-                    ""
-                }
-            ),
-            Self::ZhCn => format!(
-                "Tab {position} · 已就绪 · 仅查看{}",
-                if cfg!(windows) {
-                    " · Ctrl+B t 接管"
-                } else {
-                    ""
-                }
-            ),
+            Self::EnUs => format!("Tab {position} · Ready · view only"),
+            Self::ZhCn => format!("Tab {position} · 已就绪 · 仅查看"),
         }
     }
 
@@ -1833,37 +1737,31 @@ impl Locale {
 }
 
 /// Temporary render-owned strings; the borrowed shell text remains cheap to copy.
-pub(crate) struct BoundShellText {
-    base: ShellText<'static>,
-    hints: [String; 10],
+pub(crate) struct BoundShellText<'a> {
+    base: ShellText<'a>,
+    hints: [String; 7],
 }
 
-impl BoundShellText {
+impl BoundShellText<'_> {
     pub(crate) fn text(&self) -> ShellText<'_> {
         ShellText {
             exit_hint: &self.hints[0],
             hint_short: &self.hints[1],
-            help_dismiss_hint: &self.hints[2],
-            help_dismiss_hint_short: &self.hints[3],
-            help_paging_hint: &self.hints[4],
-            pointer_released: &self.hints[5],
-            prefix_active: &self.hints[6],
-            prefix_idle: &self.hints[7],
-            sidebar_hint: &self.hints[8],
-            zoom_badge: &self.hints[9],
+            pointer_released: &self.hints[2],
+            prefix_active: &self.hints[3],
+            prefix_idle: &self.hints[4],
+            sidebar_hint: &self.hints[5],
+            zoom_badge: &self.hints[6],
             ..self.base
         }
     }
 }
 
-impl ShellText<'static> {
-    pub(crate) fn bind(self, view: &crate::client_view::ClientView) -> BoundShellText {
+impl<'a> ShellText<'a> {
+    pub(crate) fn bind(self, view: &crate::client_view::ClientView) -> BoundShellText<'a> {
         let hints = [
             self.exit_hint,
             self.hint_short,
-            self.help_dismiss_hint,
-            self.help_dismiss_hint_short,
-            self.help_paging_hint,
             self.pointer_released,
             self.prefix_active,
             self.prefix_idle,
@@ -1871,50 +1769,6 @@ impl ShellText<'static> {
             self.zoom_badge,
         ]
         .map(|hint| self.bound_hint(view, hint));
-        #[cfg(windows)]
-        let hints = {
-            let mut hints = hints;
-            if view.machines.sidebar_navigation_active() {
-                use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
-                hints[2] = SIDEBAR_BINDINGS
-                    .iter()
-                    .filter(|(_, command)| {
-                        matches!(command, SidebarCommand::Help | SidebarCommand::Exit)
-                    })
-                    .map(|(binding, _)| format_binding(binding, LabelStyle::for_host()))
-                    .collect::<Vec<_>>()
-                    .join(" / ");
-                hints[3] = SIDEBAR_BINDINGS
-                    .iter()
-                    .filter(|(_, command)| *command == SidebarCommand::Exit)
-                    .map(|(binding, _)| format_binding(binding, LabelStyle::for_host()))
-                    .collect::<Vec<_>>()
-                    .join(" / ");
-                hints[4] = crate::client_view::ClientView::sidebar_help_page_label();
-            } else if view.copy_mode_active() {
-                hints[2] = format!(
-                    "F1 · {} · Esc · {}",
-                    (self.prefix_desc)(PrefixDesc::ShowHelp),
-                    (self.prefix_desc)(PrefixDesc::CopyExit)
-                );
-                hints[3] = format!("Esc · {}", (self.prefix_desc)(PrefixDesc::CopyExit));
-                hints[4] = "PageUp / PageDown".into();
-            } else if view.resize_mode() {
-                hints[2] = format!(
-                    "? · {} · Esc · {}",
-                    (self.prefix_desc)(PrefixDesc::ShowHelp),
-                    (self.prefix_desc)(PrefixDesc::ResizeExit)
-                );
-                hints[3] = format!("Esc · {}", (self.prefix_desc)(PrefixDesc::ResizeExit));
-                hints[4] = view
-                    .resize_help_rows()
-                    .into_iter()
-                    .find(|(_, desc)| *desc == PrefixDesc::HelpPage)
-                    .expect("resize registry includes help paging")
-                    .0;
-            }
-            hints
-        };
         BoundShellText { base: self, hints }
     }
 

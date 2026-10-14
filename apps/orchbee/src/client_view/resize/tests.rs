@@ -1,6 +1,7 @@
 use super::*;
 use crate::client_view::{
-    ClientAction, ClientView, Overlay, PrefixInput, SessionActionDisposition, ShellCommand,
+    ClientAction, ClientView, KeyLabelGlyphs, Overlay, PrefixDesc, PrefixInput,
+    SessionActionDisposition, ShellCommand,
 };
 
 fn apply(view: &mut ClientView, input: PrefixInput) -> super::super::ClientTransition {
@@ -134,8 +135,6 @@ fn exit_help_and_unknown_input_cannot_become_adjustments() {
     ] {
         assert_eq!(decide(KeyEvent::press(code, Modifiers::NONE)), None);
     }
-    assert_eq!(exit_label(), "Esc");
-    assert!(labels(true).contains("Shift"));
 }
 
 #[test]
@@ -172,10 +171,18 @@ fn help_pages_use_plain_keys_inside_mode_and_are_consumed_with_help_closed() {
         Some(ClientAction::PageShortcutHelp)
     );
     assert_eq!(view.help_page(), 0);
-    let bound = crate::localization::Locale::EnUs.shell().bind(&view);
-    assert!(bound.text().help_dismiss_hint_short.contains("Esc"));
-    assert_eq!(bound.text().help_paging_hint, "PageUp / PageDown");
-    assert!(!bound.text().help_dismiss_hint.contains("Ctrl+B"));
+    let rows = view.resize_help_rows_with_glyphs(KeyLabelGlyphs::Ascii);
+    for (key, desc) in [
+        ("?", PrefixDesc::ShowHelp),
+        ("PageUp / PageDown", PrefixDesc::HelpPage),
+        ("Esc", PrefixDesc::ResizeExit),
+    ] {
+        assert!(
+            rows.iter()
+                .any(|(candidate, candidate_desc)| candidate == key && *candidate_desc == desc),
+            "the typed resize registry must expose {key:?} as {desc:?}"
+        );
+    }
 }
 
 #[test]

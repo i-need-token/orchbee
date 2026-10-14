@@ -159,10 +159,11 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                             )
                         })
                         .unwrap();
-                    assert_eq!(
-                        buffer[(tab_x, areas.tabs.y)].bg,
-                        theme.style(Role::AccentSelection).bg.unwrap()
-                    );
+                    let current_tab = &buffer[(tab_x, areas.tabs.y)];
+                    let current_content =
+                        theme.current_context_style(theme.style(Role::TextPrimary));
+                    assert_eq!(current_tab.bg, theme.color(Role::SurfaceCurrent));
+                    assert_eq!(current_tab.style().fg, current_content.fg);
                     for y in area.y..area.bottom() {
                         assert!(!matches!(buffer[(area.x, y)].symbol(), "│" | "└" | "╰"));
                         assert!(!matches!(

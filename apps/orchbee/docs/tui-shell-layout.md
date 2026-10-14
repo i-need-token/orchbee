@@ -15,6 +15,34 @@ geometry from the same two functions (`project_shell_areas` then `native_termina
 content area and the wire geometry can never diverge. No render code mutates business state, clocks,
 or I/O, and no layout value is cached across frames.
 
+## Reusable controls and modal composition
+
+This application keeps reusable terminal controls and recurring composition private to the
+application until a real cross-package consumer exists. The repository-wide
+[TUI component standard](../../../docs/tui/components.md) defines the required contract; this
+section records the currently implemented reuse points and their evidence. A surface is conformant
+only where its adoption tests exercise the shared implementation.
+
+| Responsibility                     | Canonical source and semantic types                                                                                                                                                                                                                     | Behavior and adoption evidence                                                                                                                                                                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Actions and fixed icon actions     | [`controls.rs`](../src/tui_render/controls.rs), [`action.rs`](../src/tui_render/controls/action.rs), and [`icon.rs`](../src/tui_render/controls/icon.rs); `ActionSpec`, `IconActionSpec`, `InteractionState`, `Availability`, and `PointerPresentation` | [`controls/tests.rs`](../src/tui_render/controls/tests.rs), [`icon/tests.rs`](../src/tui_render/controls/icon/tests.rs), and adopted Settings and modal renderer tests                                                                                                              |
+| Structured key hints               | [`hint.rs`](../src/tui_render/controls/hint.rs); `KeyHint`, `measure_key_hints`, and `render_key_hints`                                                                                                                                                 | [`hint/tests.rs`](../src/tui_render/controls/hint/tests.rs) plus [`settings/tests.rs`](../src/tui_render/settings/tests.rs), [`workspace_setup/tests.rs`](../src/tui_render/workspace_setup/tests.rs), and [`worktree_launch/tests.rs`](../src/tui_render/worktree_launch/tests.rs) |
+| Full-row interaction composition   | [`row.rs`](../src/tui_render/controls/row.rs); `RowTracks`, `RowContentBand`, and `RowFocusCue`                                                                                                                                                         | [`controls/tests.rs`](../src/tui_render/controls/tests.rs) plus the Settings, Workspace setup, and Worktree renderer tests linked above                                                                                                                                             |
+| Recurring native modal composition | [`modal.rs`](../src/tui_render/modal.rs); `ModalLayout`, `SingleModalLayout`, and `ModalAction`                                                                                                                                                         | [`modal/tests.rs`](../src/tui_render/modal/tests.rs), feature renderer tests, and the real [modal pointer round trip](../src/terminal_session/ui/tests/modal_pointer_roundtrip.rs)                                                                                                  |
+
+The modal composition owns pure geometry, frame-local key labels and cursor placement, shared
+action and close painting, and exact pointer projection and publication. Each feature renderer owns
+its localized content, typed token and `HitTarget`, availability reason, presentation phase, effect,
+and draw receipt. The shared module never imports a feature-specific state or token.
+
+All modal geometry, including complete hints, actions, fields, and the fixed three-cell close action,
+must be admitted before `start_modal`, frame mutation, cursor placement, or hit publication. A refused
+surface returns an empty or `NotPresented` receipt with zero frame and hit-map mutation. An admitted
+control uses the same exact rectangle for pointer projection, paint, and publication. Existing
+feature-local preparation and test seams, including panel close's `render_prepared`, stay with their
+feature owners so tests can verify both domain preparation and the shared composition without moving
+business behavior into the renderer.
+
 ## Viewport tiers
 
 Width and height are classified independently and the lower tier wins.
@@ -43,10 +71,11 @@ resumes normal rendering when the host grows. The sidebar surface the view reque
 Full, overlay at Compact, hidden below), so the rendered chrome and the wire geometry agree without
 the caller knowing the tier.
 
-The Windows sidebar fixes two full-width action rows at the top: `+ New workspace`
-and `/ Search` (`+ 新建工作区` and `/ 搜索` in Chinese). Icons and labels align left,
-and each entire row is clickable. These rows and the bottom Settings row remain outside
-the scrolling navigation tree. An ungrouped Workspace is a root entry; optional Projects group
+The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
+`[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
+both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
+chrome. Hover and press change only the action surface. These rows and the bottom Settings action
+remain outside the scrolling navigation tree. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. Standalone owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
@@ -68,28 +97,33 @@ collapsed descendants, and excludes Standalone. A blank row separates the headin
 body when the section can fit it. Footer rows carry only overflow ranges; fully visible lists
 leave them blank.
 
-Every navigation row reserves a two-cell focus gutter. Root names start after a
-two-cell disclosure/status column; grouped Workspaces indent two more cells, and Agents
-indent two cells from their own Workspace or Standalone parent. Branch
+Every navigation row reserves fixed tracks in this order: a one-cell navigation marker,
+two-cell-per-level indentation, two-cell disclosure, two-cell Agent ordinal, one-cell current marker,
+one-cell operational state, one-cell unread state, the primary identity, and a right-aligned auxiliary area. Grouped Workspaces indent two cells,
+and Agents indent two cells from their own Workspace or Standalone parent. Branch
 and custom continuation rows align with the Workspace name, including when a configured
-first row omits the state icon. Project labels use bold secondary text;
+first row omits the state icon. Project labels use bold primary text;
 Workspace names use primary text and descriptive metadata uses secondary text. Eligible row menus and
-Project create controls appear only on the keyboard-focused row and stay right-aligned; ordinary rows
-reclaim their cells for names. Right-click menus and existing keyboard routes remain available. Hidden
-controls publish no hit regions. Agent ordinals use two cells, with current/focus markers in the shared
-gutter; default title and provider/state lines align. Default provider labels appear only when they
+Project create controls remain quietly recognizable at rest and stay right-aligned. Their labels degrade
+from localized Create/Menu controls at 52 columns, to compact glyph controls at 28 columns, to one menu
+control below 28 columns; these thresholds use the actual painted sidebar width. Right-click menus and
+existing keyboard routes remain available. Ineligible controls publish no hit regions. Agent ordinals use
+two cells, and default title and provider/state lines align on the fixed primary track. Default provider labels appear only when they
 fit completely alongside the state, rather than leaving truncated fragments. Project groups reserve at least one blank row
 after preceding items; configured gaps can widen it.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
 while typing. The same continuous rectangle includes the name, branch, configured metadata,
-collapsed-Agent summaries and identity continuations, including their gutters and trailing space.
-It stops at the entry boundary, excluding gaps, Project headings and neighboring entries.
-Keyboard focus uses `>` in the separate gutter and `surface-selection` across a noncurrent Workspace
+collapsed-Agent summaries, identity continuations and the leading configured gap, including their gutters
+and trailing space. It stops at the next entry boundary, excluding Project headings and neighboring entries.
+Keyboard focus uses the theme navigation marker in the separate track and `surface-selection` across a noncurrent Workspace
 entry. Named palettes retain secondary metadata colors; host-relative text uses the surface's
 paired foreground. Explicit token colors and emphasis retain their authority. Default current names
-are bold, with no asterisk when the fill is distinct. Agent identity lines and a collapsed current
-Project retain their identity-only surface, with continuations on `surface-chrome`. When focus and
-current context coincide, the neutral current surface takes precedence.
+are bold, with no asterisk when the fill is distinct. When an identity token explicitly disables bold,
+the dedicated current marker preserves current identity without changing that token style; operational
+and unread markers remain in their own slots. Agent continuations and a collapsed current
+Project retain the same whole-row surface as their identity. When focus and
+current context coincide, the navigation surface takes precedence while bold identity or the current marker retains
+current-state evidence.
 Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) in their own
 two-cell hit region; gutter, content and menu hits remain disjoint from disclosure.
 The top strip keeps
@@ -126,10 +160,11 @@ These controls reserve no additional terminal geometry; painted control cells ta
 precedence over the content beneath them. Their behavior belongs to the owning action, copy
 and resize references.
 
-When help cannot fit a complete page, the existing status row shows the localized resize notice
-with a reserved X button. The button remains visible in Minimal and TooSmall, dismisses help
-without changing the underlying mode, and does not alter PTY geometry. A wider frame can still
-restore the retained help page.
+When help cannot fit a complete page in a presentable tier, the existing status row shows the
+localized resize notice with a complete three-cell `[x]` button. This button can remain visible
+in Minimal and dismisses help without changing the underlying mode or PTY geometry. TooSmall
+paints only the root size notice and status; it retains the help episode without publishing
+hidden controls. A restored presentable frame can resume the retained help page.
 
 ## Quick creation controls
 
@@ -137,14 +172,15 @@ On Windows the top strip reserves three cells for `+` after the last visible Tab
 including an empty context. A long breadcrumb uses at most half the strip so the current
 Tab and create control retain space. Controls disappear with the strip below Compact.
 The fixed New workspace row invokes the existing immediate quick-Workspace action;
-a keyboard-focused current-Machine Project row has a `+` beside its row menu. Disclosure, content, create and menu cells
-are disjoint. The glyph is locale-neutral; action labels and unavailable reasons use
+an eligible current-site Project row has a create action beside its row menu whenever the painted
+width admits a separate control. Disclosure, content, create and menu cells are disjoint. Compact
+glyphs are locale-neutral; full action labels and unavailable reasons use
 the existing English and Chinese catalogs.
 
 | Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                       |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tab-strip `+`     | `DrawnTabCreate` freezes the Session, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
-| New workspace row | An unmodified left press delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It creates an independent Workspace and first shell without opening the creation menu. The decision packet is captured before the terminal target can change.                                                                              |
+| New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It creates an independent Workspace and first shell without opening the creation menu. No effect occurs on press.                                        |
 | Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                              |
 
 Right-clicking the Tab-strip `+` opens the separate new-Tab menu (plain Tab, recent group,
@@ -181,15 +217,21 @@ Context or its collapsed Project, without changing the active terminal.
 
 The fixed Search row opens the existing Agents picker directly in query editing. It retains
 that picker's Agent scope and filter controls; it does not claim Web's broader All-search catalog.
-Within explicit sidebar keyboard ownership (`Ctrl+B Shift+B`), `Shift+N` invokes the same
-New workspace action and `/` enters the same search editor; F1 lists these bindings.
+Within explicit sidebar keyboard ownership, `Shift+N` invokes the same
+New workspace action and `/` enters the same search editor; F1 lists these bindings. The fixed
+actions show those local key labels only while that owner is active, and derive them from
+`SIDEBAR_BINDINGS` rather than embedded copy. If the complete key label does not fit, it is omitted.
+An exclusive input capture may preserve the Picker's remembered row focus for recovery, but it
+suppresses the sidebar focus border, row navigation cue and owner-local labels so the capturing
+surface remains the only visible keyboard owner.
 The existing global `Ctrl+B Shift+N` creation route remains available. Query editing and
 cancellation retain the picker's capture rules, and opening either action consumes the
 input packet tail. A visible range footer opens the Workspace picker; a blank footer
 is not an action. Workspace browsing and Agent filters remain reachable through the existing
 Machine picker modes; this layout does not assign new browse/filter controls to the heading. The fixed bottom Settings entry opens the existing settings editor directly,
-matching the GUI sidebar entry. It stays outside the scrolling tree and has no shortcut, Menu,
-or machine label. Keyboard users open Settings with `Ctrl+B F4`; the existing comma binding
+matching the GUI sidebar entry. It stays outside the scrolling tree and has no Menu or machine
+label. Its complete configured key path appears when it fits, using the binding registry rather
+than a hard-coded default. Keyboard users open Settings with the configured action (default `Ctrl+b F4`); the existing comma binding
 continues to rename a Tab. Global actions remain on `Ctrl+B F2` and machine selection on
 `Ctrl+B Shift+M`. Hidden sidebars publish no sidebar hits. All entry points retain existing
 admission and capture ownership.
@@ -228,10 +270,22 @@ joining never uses labels or row positions. Equal sibling labels retain ID annot
 Canonical Project order, Workspace order within each group or root list, and global
 eligible Agent ordinals remain intact.
 
+Each successful frame builds one immutable `SidebarSource` from those existing identities,
+parentage and action eligibility, then shares it across the frame's `DrawnSidebarTarget` and
+`DrawnSidebarFixedTarget` values.
+Labels, status text, theme, keyboard focus, pointer presentation and scroll position are absent from
+that source. Ordinary row and disclosure presses arm an exact source, semantic part, target and
+painted window; release rebuilds the live source once and invokes an existing Picker transition only
+when they still match. Fixed actions arm that same source plus the action-specific effect scope;
+New workspace and Browse include the current Machine and Context, while Search and Settings require
+no selection scope. Their release likewise rebuilds once and requires the exact source and scope.
+A stale release is fenced without an effect. Hover and press never change the current Context, row
+focus or selection. Menu, Create, right-click and wheel retain their specialized gesture owners.
+
 | State / event                      | Decision and observable result                                                                                                                                                                                                                                                                                                           |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Initial disclosure / Agent arrival | Each Context's Agent list starts expanded, including newly observed Agents. Multiple lists remain open together. Explicit collapse persists through filtering, Agent absence and arrival, and Project collapse while the Context still exists.                                                                                           |
-| Context disclosure press           | Toggle only that exact visible Context without activating a terminal or taking keyboard focus. Other lists retain their state. Preserve a manually scrolled viewport, cancel pending wheel geometry and retire the painted hit map and packet tail.                                                                                      |
+| Context disclosure release         | A matching release toggles only that exact visible Context without activating a terminal or taking keyboard focus. Other lists retain their state. Preserve a manually scrolled viewport, cancel pending wheel geometry and retire the painted hit map and packet tail.                                                                  |
 | Enter navigation                   | An available Picker enters explicit keyboard ownership, including an empty tree. Retain a valid prior row focus, otherwise reveal the active Context, its visible Project parent or the first row. Entry may precede the first paint.                                                                                                    |
 | Arrow / Home / End                 | Move and reveal only the stable keyboard focus among visible rows; do not activate a Context or Agent.                                                                                                                                                                                                                                   |
 | Right / Left                       | Right opens a collapsed Project or eligible Context; on an expanded row it enters the first child immediately. Left moves from an Agent to its Context, collapses an expanded Context before moving to its optional Project, or collapses a Project. Enter on a Project toggles it.                                                      |
@@ -245,12 +299,13 @@ eligible Agent ordinals remain intact.
 Agent ordinals occupy a fixed two-cell gutter inside their nested row. Configured
 continuation rows align with the first name after its optional state icon. Secondary
 rows use metadata text and retain explicit token overrides. Current Contexts and
-Agents use the same neutral surface and bold identity, with the theme's text marker
-when a collapsed palette needs it. Keyboard focus uses a separate `>` gutter.
+Agents use the same neutral surface and bold identity. A dedicated marker preserves current identity
+when a collapsed palette needs it or an identity token explicitly disables bold; operational state,
+unread state and keyboard navigation remain in separate tracks.
 
 Project/Context disclosure, row content and row menus have disjoint painted
-rectangles. Continuation rows, including Agent counts, keep the parent's row target
-across their full width. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
+rectangles. The primary row target covers every continuation, the leading configured gap and
+all cells beneath frontmost disclosure/Create/Menu targets. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
 dispatcher owns capture precedence, stale-paint rejection and packet-tail fencing;
 the menu owner retains capability checks and execution. Project menus never choose
 a child Workspace. Mouse and keyboard disclosure share Picker transitions; navigation
@@ -320,11 +375,25 @@ TooSmall retains its exit hint.
 Segments follow `docs/tui/overlays-and-status.md`; context yields to the mode and exit hint.
 The prefix badge shortens its cancellation hint to `Esc`, then to the badge alone. Menus
 and Settings replace the overlay's complete background before painting their own hints.
+Runtime producers provide localized facts without embedded shortcut text. The footer appends
+an ordered set of complete `KeyHint` controls from the enabled effective dispatcher bindings
+or the active local input owner's canonical bindings, using the resolved theme's glyph policy.
+It does not rewrite embedded defaults or substitute fallback chords; a hint that does not fit
+is omitted as a whole. A recoverable Close status publishes its draw receipt only after the
+entire primary fact has been painted.
+At TooSmall, a captured independent popup offers only localized resize recovery. Its program
+input semantics remain unchanged, but the suspended surface consumes Esc, prefix, paste and
+pointer input without forwarding them. Once a usable surface returns, input resumes for the
+same popup program and identity.
 Covered cells do not forward pointer input or attest unobscured terminal graphics.
 The status text area is reported only when completely drawn, preserving the recovery
 confirmation gate. The sidebar's fixed settings footer remains outside this rectangle.
 
 ## Content area and overlays
+
+An unconnected workbench paints its localized connection guidance and header in the area still
+visible beside an overlay sidebar. This authored guidance uses a separate paint rectangle;
+canonical shell areas and terminal geometry remain unchanged.
 
 The Windows [Workbench navigator](native-context-selection.md#windows-capturing-navigator)
 uses the existing centered surface with two labeled columns and a window around local focus.
@@ -412,6 +481,20 @@ both named RGB themes, empty and populated sidebars, navigation, hidden sidebar 
 `terminal_session/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
 occlusion, stable geometry and exact restoration in both locales and native/RGB themes.
 These outcomes remain acceptance constraints for later feature changes.
+
+The package-private [completed-frame observer](../tests/support/tui_observer.rs) is shared by the
+Linux PTY process tests and the [portable observer target](../tests/tui_observer.rs). Run
+`cargo test -p orchbee --test tui_observer --locked` when changing its frame grammar. It checks
+completed versus partial or stale draws at the backend's synchronized-update flush boundary,
+exact top-row locations and a single current Tab token, ordered
+Tab and Navigator tracks, complete modal borders and close controls, and bracketed editor windows.
+This completed-frame claim is limited to healthy renderer output in the controlled Linux fixtures:
+terminal restoration can emit the same synchronized-update end, so the observer does not establish
+output-failure atomicity or restoration success. Compact-token predicates use fixture labels that
+cannot themselves be parsed as another compact token; ambiguous labels fail closed, and this grammar
+does not claim support for every valid `WorkbenchLabel`. Keep the observer and both consumers aligned
+with the owning renderers; portable predicate tests do not establish Linux PTY execution or physical
+terminal appearance.
 
 ## Tab metadata annotations
 

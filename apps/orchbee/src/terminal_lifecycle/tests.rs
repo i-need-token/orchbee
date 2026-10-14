@@ -9,7 +9,7 @@ use std::{
     thread,
 };
 
-use super::{RestorationStep, TerminalModeGuard, TerminalModes};
+use super::{PointerTrackingLevel, RestorationStep, TerminalModeGuard, TerminalModes};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Operation {
@@ -17,12 +17,12 @@ enum Operation {
     #[cfg(windows)]
     CleanupGraphics,
     QueryGraphics,
+    QueryPointerAdmission,
     DisablePaste,
     EnablePaste,
     DisablePointer,
     EnablePointer,
-    #[cfg(windows)]
-    PointerHover(bool),
+    PointerTracking(bool),
     DisableFocus,
     EnableFocus,
     DisableRaw,
@@ -104,6 +104,12 @@ impl TerminalModes for FakeTerminalModes {
     fn query_graphics(&self, _: crate::terminal_graphics::Query) -> io::Result<()> {
         self.perform(Operation::QueryGraphics)
     }
+    fn query_pointer_admission(
+        &self,
+        _: crate::terminal_pointer_admission::Query,
+    ) -> io::Result<()> {
+        self.perform(Operation::QueryPointerAdmission)
+    }
     #[cfg(windows)]
     fn notify_terminal(&self, _: &orchbee_workbench_protocol::Notification) -> io::Result<()> {
         self.perform(Operation::Notification)
@@ -135,13 +141,19 @@ impl TerminalModes for FakeTerminalModes {
         self.perform(Operation::DisablePointer)
     }
 
-    fn enable_pointer_capture(&self) -> io::Result<()> {
+    fn enable_pointer_capture(&self, _level: PointerTrackingLevel) -> io::Result<()> {
         self.perform(Operation::EnablePointer)
     }
 
-    #[cfg(windows)]
-    fn set_pointer_hover(&self, enabled: bool) -> io::Result<()> {
-        self.perform(Operation::PointerHover(enabled))
+    fn set_pointer_tracking(
+        &self,
+        _from: PointerTrackingLevel,
+        to: PointerTrackingLevel,
+    ) -> io::Result<()> {
+        self.perform(Operation::PointerTracking(matches!(
+            to,
+            PointerTrackingLevel::AnyMotion
+        )))
     }
 
     fn disable_raw_mode(&self) -> io::Result<()> {
@@ -175,31 +187,65 @@ impl TerminalModes for FakeTerminalModes {
 
 #[cfg(windows)]
 #[test]
-fn menu_hover_switches_only_inside_capture_and_release_clears_all_owned_modes() {
+fn tracking_switches_only_inside_capture_and_release_clears_all_owned_modes() {
     use crossterm::Command;
     let mut wire = String::new();
-    super::PointerCapture(true).write_ansi(&mut wire).unwrap();
-    super::PointerHover(true).write_ansi(&mut wire).unwrap();
-    super::PointerHover(false).write_ansi(&mut wire).unwrap();
-    super::PointerCapture(false).write_ansi(&mut wire).unwrap();
+    super::PointerCapture {
+        enabled: true,
+        level: PointerTrackingLevel::ButtonOnly,
+    }
+    .write_ansi(&mut wire)
+    .unwrap();
+    super::PointerTrackingTransition {
+        from: PointerTrackingLevel::ButtonOnly,
+        to: PointerTrackingLevel::AnyMotion,
+    }
+    .write_ansi(&mut wire)
+    .unwrap();
+    super::PointerTrackingTransition {
+        from: PointerTrackingLevel::AnyMotion,
+        to: PointerTrackingLevel::ButtonOnly,
+    }
+    .write_ansi(&mut wire)
+    .unwrap();
+    super::PointerCapture {
+        enabled: false,
+        level: PointerTrackingLevel::ButtonOnly,
+    }
+    .write_ansi(&mut wire)
+    .unwrap();
     assert_eq!(
         wire,
-        "\x1b[?1002h\x1b[?1006h\x1b[?1002l\x1b[?1003h\x1b[?1003l\x1b[?1002h\x1b[?1003l\x1b[?1006l\x1b[?1002l"
+        "\x1b[?1003l\x1b[?1002h\x1b[?1006h\x1b[?1002l\x1b[?1003h\x1b[?1003l\x1b[?1002h\x1b[?1003l\x1b[?1006l\x1b[?1002l"
     );
 
     let control = FakeTerminalModes::default();
     let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
-    assert!(guard.set_pointer_hover(true).is_err());
-    guard.set_pointer_hover(false).unwrap();
+    assert!(
+        guard
+            .set_pointer_tracking(PointerTrackingLevel::AnyMotion)
+            .is_err()
+    );
     guard.set_pointer_capture(true).unwrap();
-    for enabled in [true, true, false, false, true] {
-        guard.set_pointer_hover(enabled).unwrap();
+    for level in [
+        PointerTrackingLevel::AnyMotion,
+        PointerTrackingLevel::AnyMotion,
+        PointerTrackingLevel::ButtonOnly,
+        PointerTrackingLevel::ButtonOnly,
+        PointerTrackingLevel::AnyMotion,
+    ] {
+        guard.set_pointer_tracking(level).unwrap();
     }
     guard.set_pointer_capture(false).unwrap();
-    guard.set_pointer_hover(false).unwrap();
-    assert!(guard.set_pointer_hover(true).is_err());
+    assert!(
+        guard
+            .set_pointer_tracking(PointerTrackingLevel::ButtonOnly)
+            .is_err()
+    );
     guard.set_pointer_capture(true).unwrap();
-    guard.set_pointer_hover(true).unwrap();
+    guard
+        .set_pointer_tracking(PointerTrackingLevel::AnyMotion)
+        .unwrap();
     guard.restore().unwrap();
     let pointer: Vec<_> = control
         .operations()
@@ -207,7 +253,9 @@ fn menu_hover_switches_only_inside_capture_and_release_clears_all_owned_modes() 
         .filter(|op| {
             matches!(
                 op,
-                Operation::EnablePointer | Operation::DisablePointer | Operation::PointerHover(_)
+                Operation::EnablePointer
+                    | Operation::DisablePointer
+                    | Operation::PointerTracking(_)
             )
         })
         .collect();
@@ -215,12 +263,12 @@ fn menu_hover_switches_only_inside_capture_and_release_clears_all_owned_modes() 
         pointer,
         [
             Operation::EnablePointer,
-            Operation::PointerHover(true),
-            Operation::PointerHover(false),
-            Operation::PointerHover(true),
+            Operation::PointerTracking(true),
+            Operation::PointerTracking(false),
+            Operation::PointerTracking(true),
             Operation::DisablePointer,
             Operation::EnablePointer,
-            Operation::PointerHover(true),
+            Operation::PointerTracking(true),
             Operation::DisablePointer
         ]
     );
@@ -228,28 +276,116 @@ fn menu_hover_switches_only_inside_capture_and_release_clears_all_owned_modes() 
 
 #[cfg(windows)]
 #[test]
-fn failed_menu_hover_switch_is_not_retried_and_keeps_capture_cleanup_obligations() {
+fn failed_tracking_switch_is_not_retried_and_keeps_capture_cleanup_obligations() {
     for enabled in [true, false] {
-        let control = FakeTerminalModes::with_failures([(Operation::PointerHover(enabled), 1)]);
+        let control = FakeTerminalModes::with_failures([(Operation::PointerTracking(enabled), 1)]);
         let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
         guard.set_pointer_capture(true).unwrap();
         if !enabled {
-            guard.set_pointer_hover(true).unwrap();
+            guard
+                .set_pointer_tracking(PointerTrackingLevel::AnyMotion)
+                .unwrap();
         }
-        assert!(guard.set_pointer_hover(enabled).is_err());
-        assert!(guard.set_pointer_hover(enabled).is_err());
+        let level = if enabled {
+            PointerTrackingLevel::AnyMotion
+        } else {
+            PointerTrackingLevel::ButtonOnly
+        };
+        assert!(guard.set_pointer_tracking(level).is_err());
+        assert!(guard.set_pointer_tracking(level).is_err());
         guard.restore().unwrap();
         let operations = control.operations();
         assert_eq!(
             operations
                 .iter()
-                .filter(|op| **op == Operation::PointerHover(enabled))
+                .filter(|op| **op == Operation::PointerTracking(enabled))
                 .count(),
             1
         );
         assert!(operations.contains(&Operation::DisablePointer));
         assert!(operations.contains(&Operation::DisableRaw));
     }
+}
+
+#[test]
+fn failed_typed_pointer_enable_is_not_retried_before_full_cleanup() -> io::Result<()> {
+    let control = FakeTerminalModes::with_failures([(Operation::EnablePointer, 1)]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+
+    assert!(
+        guard
+            .set_pointer_capture_level(Some(PointerTrackingLevel::AnyMotion))
+            .is_err()
+    );
+    assert!(
+        guard
+            .set_pointer_capture_level(Some(PointerTrackingLevel::AnyMotion))
+            .is_err()
+    );
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|operation| **operation == Operation::EnablePointer)
+            .count(),
+        1
+    );
+
+    guard.restore().map_err(io::Error::other)?;
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|operation| **operation == Operation::DisablePointer)
+            .count(),
+        1
+    );
+    Ok(())
+}
+
+#[test]
+fn failed_typed_tracking_switch_is_fenced_until_release_settles() -> io::Result<()> {
+    let control = FakeTerminalModes::with_failures([(Operation::PointerTracking(true), 1)]);
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
+    guard.set_pointer_capture_level(Some(PointerTrackingLevel::ButtonOnly))?;
+
+    assert!(
+        guard
+            .set_pointer_tracking(PointerTrackingLevel::AnyMotion)
+            .is_err()
+    );
+    assert!(
+        guard
+            .set_pointer_tracking(PointerTrackingLevel::ButtonOnly)
+            .is_err()
+    );
+    guard.set_pointer_capture_level(None)?;
+    guard.set_pointer_capture_level(Some(PointerTrackingLevel::AnyMotion))?;
+    guard.restore().map_err(io::Error::other)?;
+
+    let pointer: Vec<_> = control
+        .operations()
+        .into_iter()
+        .filter(|operation| {
+            matches!(
+                operation,
+                Operation::EnablePointer
+                    | Operation::DisablePointer
+                    | Operation::PointerTracking(_)
+            )
+        })
+        .collect();
+    assert_eq!(
+        pointer,
+        [
+            Operation::EnablePointer,
+            Operation::PointerTracking(true),
+            Operation::DisablePointer,
+            Operation::EnablePointer,
+            Operation::DisablePointer,
+        ]
+    );
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -279,8 +415,8 @@ impl TerminalModes for SetupBarrierTerminalModes {
         self.control.disable_pointer_capture()
     }
 
-    fn enable_pointer_capture(&self) -> io::Result<()> {
-        self.control.enable_pointer_capture()
+    fn enable_pointer_capture(&self, level: PointerTrackingLevel) -> io::Result<()> {
+        self.control.enable_pointer_capture(level)
     }
 
     fn disable_raw_mode(&self) -> io::Result<()> {
@@ -827,7 +963,7 @@ impl TerminalModes for OrderedWireModes {
         self.wire.record("disable-pointer-capture");
         Ok(())
     }
-    fn enable_pointer_capture(&self) -> io::Result<()> {
+    fn enable_pointer_capture(&self, _level: PointerTrackingLevel) -> io::Result<()> {
         self.wire.record("enable-pointer-capture");
         Ok(())
     }
@@ -1400,6 +1536,43 @@ fn graphics_queries_use_the_lifecycle_writer_and_cannot_write_after_restoration_
     assert_eq!(
         restored.query_graphics(query).unwrap_err().kind(),
         io::ErrorKind::BrokenPipe
+    );
+}
+
+#[test]
+fn pointer_admission_query_uses_the_lifecycle_writer_and_obeys_output_fences() {
+    let query = crate::terminal_pointer_admission::Query;
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+
+    guard.query_pointer_admission(query).unwrap();
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|operation| **operation == Operation::QueryPointerAdmission)
+            .count(),
+        1
+    );
+
+    guard.discard_frame_output();
+    assert_eq!(
+        guard.query_pointer_admission(query).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    guard.restore().unwrap();
+    assert_eq!(
+        guard.query_pointer_admission(query).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(
+        control
+            .operations()
+            .iter()
+            .filter(|operation| **operation == Operation::QueryPointerAdmission)
+            .count(),
+        1,
+        "a fenced query never reaches the terminal control writer"
     );
 }
 

@@ -35,16 +35,16 @@ impl Locale {
             (Self::EnUs, Target::Workspace, Status::Renamed) => "Workspace renamed",
             (Self::ZhCn, Target::Workspace, Status::Renamed) => "工作区已重命名",
             (Self::EnUs, Target::Project, Status::CommittedNeedRefresh) => {
-                "Project rename result retained · Ctrl+B w to recover the snapshot; do not resubmit"
+                "Project rename result retained · recover the snapshot; do not resubmit"
             }
             (Self::ZhCn, Target::Project, Status::CommittedNeedRefresh) => {
-                "项目重命名结果已保留 · 按 Ctrl+B w 恢复快照；请勿重复提交"
+                "项目重命名结果已保留 · 恢复快照；请勿重复提交"
             }
             (Self::EnUs, Target::Workspace, Status::CommittedNeedRefresh) => {
-                "Workspace rename result retained · Ctrl+B w to recover the snapshot; do not resubmit"
+                "Workspace rename result retained · recover the snapshot; do not resubmit"
             }
             (Self::ZhCn, Target::Workspace, Status::CommittedNeedRefresh) => {
-                "工作区重命名结果已保留 · 按 Ctrl+B w 恢复快照；请勿重复提交"
+                "工作区重命名结果已保留 · 恢复快照；请勿重复提交"
             }
             (Self::EnUs, Target::Project, Status::OutcomeUnknown) => {
                 "Project rename outcome unknown · connection retired; do not repeat the mutation"
@@ -90,23 +90,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn location_rename_actions(self, project: bool) -> &'static str {
-        match (self, project) {
-            (Self::EnUs, true) => {
-                "Enter · rename Project    Esc · cancel    Backspace · delete    Ctrl+U · clear"
-            }
-            (Self::ZhCn, true) => {
-                "Enter · 重命名项目    Esc · 取消    Backspace · 删除    Ctrl+U · 清空"
-            }
-            (Self::EnUs, false) => {
-                "Enter · rename Workspace    Esc · cancel    Backspace · delete    Ctrl+U · clear"
-            }
-            (Self::ZhCn, false) => {
-                "Enter · 重命名工作区    Esc · 取消    Backspace · 删除    Ctrl+U · 清空"
-            }
-        }
-    }
-
     pub(crate) const fn location_rename_hint(self, project: bool) -> &'static str {
         match (self, project) {
             (Self::EnUs, true) => {
@@ -117,19 +100,6 @@ impl Locale {
                 "Use 1–512 characters. The shared Workspace label changes for all Clients."
             }
             (Self::ZhCn, false) => "请输入 1–512 个字符。共享工作区的名称会对所有 Client 更改。",
-        }
-    }
-
-    pub(crate) const fn location_rename_resize_hint(self, project: bool) -> &'static str {
-        match (self, project) {
-            (Self::EnUs, true) => {
-                "Enlarge the window to see the complete Project rename, or press Esc to cancel."
-            }
-            (Self::ZhCn, true) => "请扩大窗口以查看完整项目重命名，或按 Esc 取消。",
-            (Self::EnUs, false) => {
-                "Enlarge the window to see the complete Workspace rename, or press Esc to cancel."
-            }
-            (Self::ZhCn, false) => "请扩大窗口以查看完整工作区重命名，或按 Esc 取消。",
         }
     }
 }

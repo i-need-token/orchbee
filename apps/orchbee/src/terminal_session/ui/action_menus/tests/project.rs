@@ -80,7 +80,7 @@ fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
     );
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::QuickWorkspace);
-    ui.click_action_menu(token, row);
+    activate_row(&mut ui, token, row);
     let action = ui.take_action_menu_action(false).unwrap();
     assert!(matches!(
         action,
@@ -231,6 +231,7 @@ fn confirm_project_action(
         .unwrap();
     assert_eq!(ui.view().action_menu().unwrap().unavailable[row], None);
     if keyboard {
+        arm(ui);
         for _ in 0..row {
             ui.capture_action_menu_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
         }
@@ -238,7 +239,7 @@ fn confirm_project_action(
         ui.capture_action_menu_key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
     } else {
         let token = arm(ui);
-        ui.click_action_menu(token, row);
+        activate_row(ui, token, row);
     }
     let action = ui.take_action_menu_action(false).unwrap();
     assert_eq!(ui.take_action_menu_action(false), None);
@@ -380,7 +381,7 @@ fn project_quick_menu_rejects_noncurrent_target_replacement_even_after_taking_th
                 .unwrap();
             let token = arm(&mut ui);
             if stage > 0 {
-                ui.click_action_menu(token, row);
+                activate_row(&mut ui, token, row);
             }
             let action = (stage == 2).then(|| ui.take_action_menu_action(false).unwrap());
             if removed {
@@ -400,7 +401,7 @@ fn project_quick_menu_rejects_noncurrent_target_replacement_even_after_taking_th
                 ui.apply_client_action(action);
             } else {
                 if stage == 0 {
-                    ui.click_action_menu(token, row);
+                    activate_row(&mut ui, token, row);
                 }
                 assert_eq!(ui.take_action_menu_action(false), None);
             }
@@ -439,7 +440,7 @@ fn project_menu_uses_current_workspace_and_hands_original_actions_once() {
                 .position(|action| *action == menu_action)
                 .unwrap();
             let token = arm(&mut ui);
-            ui.click_action_menu(token, row);
+            activate_row(&mut ui, token, row);
             assert_eq!(ui.take_action_menu_action(false), Some(expected.clone()));
             assert_eq!(ui.take_action_menu_action(false), None);
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
@@ -487,7 +488,13 @@ fn project_menu_never_guesses_context_for_empty_other_or_standalone_targets() {
                     Some(MenuUnavailable::ProjectWorkspaceRequired)
                 );
                 let token = arm(&mut ui);
-                ui.click_action_menu(token, row);
+                activate_row(&mut ui, token, row);
+                let selected = ui.view().action_menu().unwrap().selected;
+                assert!(selected <= row);
+                for _ in selected..row {
+                    ui.capture_action_menu_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+                }
+                assert_eq!(ui.view().action_menu().unwrap().selected, row);
                 arm(&mut ui);
                 ui.capture_action_menu_key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
                 assert!(ui.action_menu_active());
@@ -545,7 +552,7 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
                 .unwrap();
             let token = arm(&mut ui);
             if confirmed {
-                ui.click_action_menu(token, row);
+                activate_row(&mut ui, token, row);
                 assert!(matches!(
                     ui.menus.intent.as_ref().unwrap().stage,
                     Stage::Offered(_, _)
@@ -584,7 +591,7 @@ fn project_menu_rejects_stale_drawn_and_replaced_sources_before_confirmation_or_
             install(&mut ui, &replacement, &location);
             let origin = Origin::capture(ui.state.as_ref());
             if !confirmed {
-                ui.click_action_menu(token, row);
+                activate_row(&mut ui, token, row);
             }
             assert_eq!(ui.take_action_menu_action(false), None);
             assert!(
@@ -607,7 +614,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 (80, 24),
                 (80, 20),
                 (50, 10),
-                (16, 7),
+                (20, 7),
                 (12, 3),
             ] {
                 let (mut ui, _, _, _) = tests::context_selection::ready(true);
@@ -620,8 +627,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 assert!(open(&mut ui, &snapshot.navigation.projects[0]));
                 let selected_row = action_row(&ui, MenuAction::NewWorktree);
                 let action_count = ui.view().action_menu().unwrap().actions.len();
-                let token = arm(&mut ui);
-                ui.hover_action_menu(token, selected_row);
+                ui.menus.menu.select_action(MenuAction::NewWorktree);
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut receipt = NativeDrawReceipt::default();
                 let mut hits = HitMapBuilder::new();
@@ -672,7 +678,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 if width >= 80 {
                     assert!(text.contains(locale.menu_action(MenuAction::NewWorktree)));
                 }
-                if width == 16 {
+                if width == 20 {
                     let hits = hits.finish();
                     let row = (0..height)
                         .find(|y| {
@@ -740,8 +746,6 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                 assert_eq!(draft.project_label(), Some(project.label.as_str()));
                 assert_eq!(Origin::capture(ui.state.as_ref()), origin);
                 assert_eq!(mailbox.cursors(), cursors);
-                ui.edit_setup_draft(token, NativeSetupEdit::Clear);
-                ui.edit_setup_draft(token, NativeSetupEdit::Append("Exact 雪"));
                 if cancel {
                     ui.cancel_setup_draft(token);
                     assert!(ui.view().setup_draft().is_none());
@@ -751,6 +755,8 @@ fn project_rename_menu_opens_exact_target_without_navigation_and_submits_once_af
                     ui.submit_setup_draft(token);
                     assert!(mailbox.try_recv().unwrap().is_none());
                     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+                    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
+                    ui.edit_setup_draft(token, NativeSetupEdit::Append("Exact 雪"));
                     ui.submit_setup_draft(token);
                     let lease = mailbox.try_recv().unwrap().unwrap();
                     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
@@ -838,6 +844,15 @@ struct RenameInput<'a> {
 }
 
 impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        self.ui.capture_claims()
+    }
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        self.ui.capture_context(owner)
+    }
     fn forward(
         &mut self,
         bytes: &[u8],
@@ -845,11 +860,12 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn action_menu_active(&self) -> bool {
-        self.ui.action_menu_active()
-    }
-    fn capture_action_menu_key(&mut self, event: KeyEvent) {
-        self.ui.capture_action_menu_key(event);
+    fn capture_action_menu_key_for(
+        &mut self,
+        expected: crate::action_menu::MenuInputContext,
+        event: KeyEvent,
+    ) -> bool {
+        self.ui.capture_action_menu_key_for(expected, event)
     }
     fn take_action_menu_action(&mut self, released: bool) -> Option<ClientAction> {
         self.ui.take_action_menu_action(released)
@@ -863,9 +879,6 @@ impl crate::terminal_input::TerminalInputPort for RenameInput<'_> {
             elapsed.store(30_000, std::sync::atomic::Ordering::Relaxed);
         }
         Some(self.ui.apply_client_action(action))
-    }
-    fn setup_input_context(&mut self) -> Option<crate::terminal_session::NativeSetupInputContext> {
-        self.ui.setup_input_context()
     }
     fn edit_setup_draft(
         &mut self,
@@ -902,6 +915,7 @@ fn project_rename_dispatcher_captures_fragmented_handoff_and_paste_tail_even_whe
             .iter()
             .position(|a| *a == MenuAction::RenameProject)
             .unwrap();
+        arm(&mut ui);
         for _ in 0..row {
             ui.capture_action_menu_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
         }

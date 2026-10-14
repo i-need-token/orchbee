@@ -247,6 +247,12 @@ Esc 退出。待定期间额外调整键被消费，不排队。使用这些新�
 Agent/Workspace 按键及其他未支持动作仍未完成。定向证据覆盖边界、冲突与默认
 优先级、输入归属、分发及发现；不宣称全量回归或视觉验收通过。
 
+注册表的显示投影独立于接纳的配置拼写，对规范化绑定进行格式化。帮助行和实时提示中的
+ASCII 字母只有在绑定包含 Shift 时才使用大写，其余保持小写。Unicode 字形模式使用方向键
+字形，并在 Apple 宿主上使用 Apple 修饰键符号。简化字形模式使用 `Up`、`Down`、`Left`、
+`Right` 以及 `Ctrl`、`Alt`、`Shift`、`Super`，Apple 宿主也一样。前缀与其成员之间使用一个
+空格。这些显示规则不改变 TOML 拼写、规范化、匹配或分发。
+
 支持的动作字段为 `help`、`menu`、`new_worktree`、`open_worktree`、`new_workspace`、`rename_workspace`、`workspace_picker`、
 `detach`、`previous_workspace`、`next_workspace`、`previous_agent`、`next_agent`、`focus_agent`、`new_tab`、`rename_tab`、`previous_tab`、
 `next_tab`、`move_tab_previous`、`move_tab_next`、`switch_tab`、`close_tab`、
@@ -268,9 +274,11 @@ zoom = ""
 ```
 
 Windows `config check` v13 保留 `keyPrefix`、`keyOverrides` 并增加有界警告记录；历史
-按键配置 failure v3 对旧 cohort 保持封闭。示例让新建 Tab 取代默认的下一 Tab
-快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主 TUI 使用。CLI 终端流 attach 保留
-独立的 Ctrl+B/q 转义；固定 Herdr `e0507237` 在 `src/client/attach.rs` 同样使用固定转义，
+按键配置 failure v3 对旧 cohort 保持封闭。机器字段 `keyPrefix` 保持稳定且不随平台变化
+的报告拼写（本例为 `Ctrl+A`），TUI 快捷键发现则显示实际未按 Shift 的手势（`Ctrl+a`）。
+示例让新建 Tab 取代默认的下一 Tab 快捷键；空 `zoom` 禁用放大快捷键。当前绑定只在主
+TUI 使用。CLI 终端流 attach 保留独立的 Ctrl+B/q 转义；固定 Herdr `e0507237` 在
+`src/client/attach.rs` 同样使用固定转义，
 因此可配置 attach 不是对齐要求。全量键位导入仍是独立切片。
 
 功能键使用 xterm 的实际 F1–F12 序列编号（跳过 16 和 22），带修饰符的 F1–F4

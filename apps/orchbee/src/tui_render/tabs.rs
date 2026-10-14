@@ -28,7 +28,8 @@ pub(crate) fn render_tab_drag_preview(
         && frame.area().contains((x, y).into())
     {
         frame.render_widget(
-            Paragraph::new("│").style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+            Paragraph::new(theme.glyphs.scrollbar_track)
+                .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
             Rect::new(x, y, 1, 1),
         );
     }
@@ -52,7 +53,14 @@ pub(crate) fn render_tab_drag_preview(
 
 use crate::{
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    tui_pointer::ProjectedPointer,
     tui_theme::{Role, Theme},
+};
+
+use super::controls::{
+    Availability, CheckedState, ControlSurface, CurrentState, FocusState, InteractionState,
+    NavigationState, OperationState, PointerPresentation, RowContentBand, RowFocusCue, RowTracks,
+    paint_row_interaction,
 };
 
 #[derive(Clone)]
@@ -78,37 +86,62 @@ pub(super) fn label_with_metadata<'a>(
     }
 }
 
-/// Paints the compact tab strip and reports each painted token's
-/// `(tab index, x offset, width)` to `on_token` in the same pass, so a
-/// recorded hit region can never disagree with what was drawn.
+/// Paints the compact tab strip and reports each complete token's exact
+/// rectangle to `on_token` in the same pass, so pointer projection and the
+/// recorded hit region cannot disagree with what was drawn.
 #[cfg(any(not(windows), test))]
-pub(super) fn render_compact<'a>(
+pub(super) fn render_compact<'a, C, P, R>(
     frame: &mut Frame<'_>,
     area: Rect,
     tab_count: usize,
     active_position: Option<usize>,
     tab_at: impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
-    on_token: &mut impl FnMut(usize, usize, usize),
-) {
-    let line = compact_line(
+    mut interactions: CompactInteractions<'_, C, P, R>,
+) where
+    P: FnMut(&C, usize, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, Rect),
+{
+    let projection = compact_line(
         usize::from(area.width),
         tab_count,
         active_position,
         &tab_at,
         theme,
-        on_token,
     );
-    frame.render_widget(Paragraph::new(line), area);
+    let tokens = projection
+        .tokens
+        .into_iter()
+        .filter_map(|token| {
+            let rect = Rect::new(
+                area.x
+                    .saturating_add(u16::try_from(token.x).unwrap_or(u16::MAX)),
+                area.y,
+                u16::try_from(token.width).unwrap_or(u16::MAX),
+                1,
+            );
+            (frame.area().intersection(rect) == rect).then(|| CompactPaint {
+                index: token.index,
+                rect,
+                pointer: interactions.project(token.index, rect),
+            })
+        })
+        .collect::<Vec<_>>();
+    frame.render_widget(Paragraph::new(projection.line), area);
+    for token in tokens {
+        if paint_token_pointer(frame, token.rect, token.pointer, theme).is_some() {
+            interactions.record(token.index, token.rect);
+        }
+    }
 }
 
-/// Paints the navigator's tab column and reports each painted row's
-/// `(tab index, row offset)` to `on_row` in the same pass.
+/// Paints the navigator's tab column and reports each complete row's exact
+/// rectangle to `on_row` in the same pass.
 #[expect(
     clippy::too_many_arguments,
     reason = "paint data, active selection and keyboard focus have distinct owners"
 )]
-pub(super) fn render_navigator<'a>(
+pub(super) fn render_navigator<'a, C>(
     frame: &mut Frame<'_>,
     area: Rect,
     tab_count: usize,
@@ -116,9 +149,11 @@ pub(super) fn render_navigator<'a>(
     focused_position: Option<usize>,
     tab_at: impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
-    on_row: &mut impl FnMut(usize, u16),
+    interaction_context: &mut C,
+    project_pointer: &mut impl FnMut(&C, usize, Rect) -> ProjectedPointer,
+    on_row: &mut impl FnMut(&mut C, usize, Rect),
 ) {
-    let lines = navigator_lines(
+    let projection = navigator_projection(
         usize::from(area.width),
         usize::from(area.height),
         tab_count,
@@ -126,9 +161,63 @@ pub(super) fn render_navigator<'a>(
         focused_position,
         &tab_at,
         theme,
-        on_row,
     );
-    frame.render_widget(Paragraph::new(lines), area);
+    let Some(layout) = NavigatorRowLayout::new(area, tab_count) else {
+        if let Some((offset, position)) = projection.position {
+            frame.render_widget(
+                Paragraph::new(position).style(theme.style(Role::TextSecondary)),
+                Rect::new(area.x, area.y.saturating_add(offset), area.width, 1),
+            );
+        }
+        return;
+    };
+    for row in projection.rows {
+        let rect = Rect::new(area.x, area.y.saturating_add(row.offset), area.width, 1);
+        let pointer = project_pointer(&*interaction_context, row.index, rect);
+        frame.render_widget(Paragraph::new(row.line), rect);
+        let state = InteractionState::new(
+            FocusState::Focused,
+            pointer_presentation(pointer),
+            if row.focused {
+                NavigationState::Provisional
+            } else {
+                NavigationState::None
+            },
+            if row.active {
+                CurrentState::Current
+            } else {
+                CurrentState::NotCurrent
+            },
+            CheckedState::Unchecked,
+            Availability::Enabled,
+            OperationState::Idle,
+        );
+        let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, layout.primary(rect))
+            .with_provisional(layout.navigation(rect));
+        let bands = [
+            RowContentBand::semantic(layout.current(rect), Role::TextPrimary),
+            RowContentBand::semantic(layout.ordinal(rect), Role::TextSecondary),
+        ];
+        if paint_row_interaction(
+            frame,
+            rect,
+            tracks,
+            &bands,
+            ControlSurface::Overlay,
+            state,
+            theme,
+        )
+        .is_some()
+        {
+            on_row(interaction_context, row.index, rect);
+        }
+    }
+    if let Some((offset, position)) = projection.position {
+        frame.render_widget(
+            Paragraph::new(position).style(theme.style(Role::TextSecondary)),
+            Rect::new(area.x, area.y.saturating_add(offset), area.width, 1),
+        );
+    }
 }
 
 #[cfg(any(not(windows), test))]
@@ -138,14 +227,14 @@ fn compact_line<'a>(
     active_position: Option<usize>,
     tab_at: &impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
-    on_token: &mut impl FnMut(usize, usize, usize),
-) -> Line<'static> {
+) -> CompactProjection {
     if width == 0 || tab_count == 0 {
-        return Line::default();
+        return CompactProjection::default();
     }
 
     let start = compact_window_start(width, tab_count, active_position, tab_at);
     let mut spans = Vec::new();
+    let mut tokens = Vec::new();
     let mut used = 0_usize;
     for index in start..tab_count {
         let Some(tab) = tab_at(index) else {
@@ -164,13 +253,124 @@ fn compact_line<'a>(
         };
         let token_x = used;
         spans.push(Span::styled(token, compact_style(tab.active, theme)));
-        on_token(index, token_x, token_width);
+        tokens.push(CompactToken {
+            index,
+            x: token_x,
+            width: token_width,
+        });
         used = used.saturating_add(token_width);
         if used >= width {
             break;
         }
     }
-    Line::from(spans)
+    CompactProjection {
+        line: Line::from(spans),
+        tokens,
+    }
+}
+
+pub(super) const fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
+    match pointer {
+        ProjectedPointer::Rest => PointerPresentation::Rest,
+        ProjectedPointer::Hovered => PointerPresentation::Hovered,
+        ProjectedPointer::Pressed => PointerPresentation::Pressed,
+    }
+}
+
+/// Applies only the transient pointer surface to an already painted compact
+/// token. Its current, checked, group-color, and content styles remain the
+/// token owner's independent axes.
+pub(super) fn paint_token_pointer(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    pointer: ProjectedPointer,
+    theme: &Theme,
+) -> Option<Rect> {
+    if rect.is_empty() || frame.area().intersection(rect) != rect {
+        return None;
+    }
+    let interaction = match pointer {
+        ProjectedPointer::Rest => return Some(rect),
+        ProjectedPointer::Hovered => Role::SurfaceHover,
+        ProjectedPointer::Pressed => Role::SurfacePressed,
+    };
+    for y in rect.y..rect.bottom() {
+        for x in rect.x..rect.right() {
+            let cell = &mut frame.buffer_mut()[(x, y)];
+            let content = cell.style();
+            cell.set_style(theme.content_on_surface(
+                Role::SurfaceChrome,
+                Some(interaction),
+                None,
+                content,
+            ));
+        }
+    }
+    Some(rect)
+}
+
+#[cfg(any(not(windows), test))]
+pub(super) struct CompactInteractions<'a, C, P, R> {
+    context: &'a mut C,
+    project_pointer: &'a mut P,
+    record_token: &'a mut R,
+}
+
+#[cfg(any(not(windows), test))]
+impl<'a, C, P, R> CompactInteractions<'a, C, P, R>
+where
+    P: for<'context> FnMut(&'context C, usize, Rect) -> ProjectedPointer,
+    R: for<'context> FnMut(&'context mut C, usize, Rect),
+{
+    pub(super) const fn new(
+        context: &'a mut C,
+        project_pointer: &'a mut P,
+        record_token: &'a mut R,
+    ) -> Self {
+        Self {
+            context,
+            project_pointer,
+            record_token,
+        }
+    }
+}
+
+#[cfg(any(not(windows), test))]
+impl<C, P, R> CompactInteractions<'_, C, P, R>
+where
+    P: FnMut(&C, usize, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, Rect),
+{
+    fn project(&mut self, index: usize, rect: Rect) -> ProjectedPointer {
+        (self.project_pointer)(&*self.context, index, rect)
+    }
+
+    fn record(&mut self, index: usize, rect: Rect) {
+        (self.record_token)(self.context, index, rect);
+    }
+}
+
+#[cfg(any(not(windows), test))]
+#[derive(Debug, Default)]
+struct CompactProjection {
+    line: Line<'static>,
+    tokens: Vec<CompactToken>,
+}
+
+#[cfg(any(not(windows), test))]
+#[derive(Clone, Copy, Debug)]
+struct CompactToken {
+    index: usize,
+    x: usize,
+    width: usize,
+}
+
+#[cfg(any(not(windows), test))]
+#[derive(Clone, Copy, Debug)]
+struct CompactPaint {
+    index: usize,
+    rect: Rect,
+    pointer: ProjectedPointer,
 }
 
 #[cfg(any(not(windows), test))]
@@ -210,11 +410,7 @@ fn compact_window_start<'a>(
     start
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "visible rows and their exact hit offsets are produced together"
-)]
-fn navigator_lines<'a>(
+fn navigator_projection<'a>(
     width: usize,
     height: usize,
     tab_count: usize,
@@ -222,10 +418,9 @@ fn navigator_lines<'a>(
     focused_position: Option<usize>,
     tab_at: &impl Fn(usize) -> Option<TabDisplay<'a>>,
     theme: &Theme,
-    on_row: &mut impl FnMut(usize, u16),
-) -> Vec<Line<'static>> {
+) -> NavigatorProjection {
     if height == 0 || width == 0 || tab_count == 0 {
-        return Vec::new();
+        return NavigatorProjection::default();
     }
     // A clipped window always keeps its last row for the current/total
     // position so hidden entries are presented as clipped, not as absent.
@@ -244,36 +439,52 @@ fn navigator_lines<'a>(
         .min(tab_count.saturating_sub(item_rows));
     let end = start.saturating_add(item_rows).min(tab_count);
 
-    let mut lines = Vec::new();
+    let Some(layout) = NavigatorRowLayout::from_width(width, tab_count) else {
+        return NavigatorProjection {
+            rows: Vec::new(),
+            position: (tab_count > height).then(|| {
+                let current = active_index.map_or(end, |index| index.saturating_add(1));
+                (
+                    u16::try_from(item_rows).unwrap_or(u16::MAX),
+                    format!("{current}/{tab_count}"),
+                )
+            }),
+        };
+    };
+    let mut rows = Vec::with_capacity(end.saturating_sub(start));
     for (offset, index) in (start..end).enumerate() {
         let Some(tab) = tab_at(index) else {
-            break;
+            return NavigatorProjection::default();
         };
         let focused = focused_position == Some(tab.position);
-        let mut row = navigator_row(&tab, width, theme);
-        let mut style = navigator_style(tab.active, theme);
-        if focused {
-            row.push_str(&" ".repeat(width.saturating_sub(display_width(&row))));
-            style = theme.style(Role::SurfaceSelection).patch(style);
-        }
-        lines.push(Line::from(Span::styled(row, style)));
-        if width > tab.position.to_string().len().saturating_add(4) {
-            on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
-        }
+        rows.push(ProjectedNavigatorRow {
+            index,
+            offset: u16::try_from(offset).unwrap_or(u16::MAX),
+            line: navigator_row(&tab, layout, theme),
+            active: tab.active,
+            focused,
+        });
     }
-    if tab_count > height {
+    let position = if tab_count > height {
         let current = active_index.map_or(end, |index| index.saturating_add(1));
-        lines.push(Line::styled(
+        Some((
+            u16::try_from(item_rows).unwrap_or(u16::MAX),
             format!("{current}/{tab_count}"),
-            theme.style(Role::TextSecondary),
-        ));
-    }
-    lines
+        ))
+    } else {
+        None
+    };
+    NavigatorProjection { rows, position }
 }
 
 fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {
     let safe_label = sanitize_terminal_text(&tab.label);
-    let prefix = format!(" {} ", tab.position);
+    let marker = if tab.active {
+        theme.glyphs.active_marker
+    } else {
+        " "
+    };
+    let prefix = format!(" {marker}{} ", tab.position);
     let prefix_width = display_width(&prefix);
     let token = format!("{prefix}{safe_label} ");
     let width = display_width(&token);
@@ -298,50 +509,99 @@ fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Optio
 
 fn compact_token_width(tab: &TabDisplay<'_>) -> usize {
     let safe_label = sanitize_terminal_text(&tab.label);
-    let prefix_width = tab.position.to_string().len().saturating_add(2);
+    let prefix_width = tab.position.to_string().len().saturating_add(3);
     prefix_width
         .saturating_add(display_width(safe_label.as_ref()))
         .saturating_add(1)
 }
 
-fn navigator_row(tab: &TabDisplay<'_>, width: usize, theme: &Theme) -> String {
+fn navigator_row(tab: &TabDisplay<'_>, layout: NavigatorRowLayout, theme: &Theme) -> Line<'static> {
     let safe_label = sanitize_terminal_text(&tab.label);
     let marker = if tab.active {
         theme.glyphs.active_marker
     } else {
         " "
     };
-    let prefix = format!("[{marker}{}] ", tab.position);
-    let prefix_width = display_width(&prefix);
-    let row = format!("{prefix}{safe_label}");
-    if display_width(&row) <= width {
-        return row;
-    }
-    let Some(label_budget) = width.checked_sub(prefix_width) else {
-        return truncate_display(&row, width, "");
-    };
-    format!(
-        "{prefix}{}",
-        truncate_display(&safe_label, label_budget, theme.glyphs.ellipsis)
-    )
+    let prefix = format!(
+        "  {marker} {:>width$} ",
+        tab.position,
+        width = layout.ordinal_width,
+    );
+    let label = truncate_display(&safe_label, layout.primary_width, theme.glyphs.ellipsis);
+    Line::from(vec![
+        Span::styled(prefix, theme.style(Role::TextSecondary)),
+        Span::styled(label, theme.style(Role::TextPrimary)),
+    ])
 }
 
 fn compact_style(active: bool, theme: &Theme) -> Style {
     if active {
         theme
-            .style(Role::AccentSelection)
+            .current_context_style(theme.style(Role::TextPrimary))
             .add_modifier(Modifier::BOLD)
     } else {
         theme.style(Role::TextSecondary)
     }
 }
 
-fn navigator_style(active: bool, theme: &Theme) -> Style {
-    if active {
-        theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
-    } else {
-        theme.style(Role::TextPrimary)
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct NavigatorRowLayout {
+    ordinal_width: usize,
+    primary_width: usize,
+}
+
+impl NavigatorRowLayout {
+    fn new(area: Rect, count: usize) -> Option<Self> {
+        Self::from_width(usize::from(area.width), count)
     }
+
+    fn from_width(width: usize, count: usize) -> Option<Self> {
+        let ordinal_width = count.max(1).to_string().len();
+        let primary_width = width.checked_sub(ordinal_width.checked_add(5)?)?;
+        (primary_width > 0).then_some(Self {
+            ordinal_width,
+            primary_width,
+        })
+    }
+
+    const fn navigation(self, row: Rect) -> Rect {
+        Rect::new(row.x, row.y, 1, 1)
+    }
+
+    const fn current(self, row: Rect) -> Rect {
+        Rect::new(row.x.saturating_add(2), row.y, 1, 1)
+    }
+
+    fn ordinal(self, row: Rect) -> Rect {
+        Rect::new(
+            row.x.saturating_add(4),
+            row.y,
+            u16::try_from(self.ordinal_width).unwrap_or(u16::MAX),
+            1,
+        )
+    }
+
+    fn primary(self, row: Rect) -> Rect {
+        let x = row
+            .x
+            .saturating_add(u16::try_from(self.ordinal_width + 5).unwrap_or(u16::MAX));
+        Rect::new(x, row.y, row.right().saturating_sub(x), 1)
+    }
+}
+
+#[derive(Debug, Default)]
+struct NavigatorProjection {
+    rows: Vec<ProjectedNavigatorRow>,
+    position: Option<(u16, String)>,
+}
+
+#[derive(Debug)]
+struct ProjectedNavigatorRow {
+    index: usize,
+    offset: u16,
+    line: Line<'static>,
+    active: bool,
+    focused: bool,
 }
 
 #[cfg(test)]

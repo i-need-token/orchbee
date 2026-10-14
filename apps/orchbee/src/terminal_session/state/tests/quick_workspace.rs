@@ -47,6 +47,32 @@ fn quick_workspace_defaults_ungrouped_and_selects_only_an_explicit_project() {
 }
 
 #[test]
+fn refused_quick_preparation_cannot_auto_open_when_its_read_finishes() {
+    let mut state = ready_with_cache(projected(1, 1));
+    let preparation = state
+        .begin_quick_preparation(
+            11,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        state.setup_draft().unwrap().presentation(),
+        crate::tui_presentation::PresentationPhase::Pending
+    );
+    assert_eq!(
+        state.settle_setup_draft_not_presented(),
+        Some(crate::tui_presentation::GeometrySettlement::Refused)
+    );
+    assert!(state.setup_draft().is_none());
+    assert_eq!(
+        state.setup_status(),
+        Some(NativeSetupStatus::PresentationUnavailable)
+    );
+    assert_eq!(state.take_quick_preparation(&preparation), Some(false));
+}
+
+#[test]
 fn quick_workspace_fields_normalize_relative_and_home_paths_without_mutating_raw_text() {
     let mut fields = QuickWorkspaceFields::new(
         &projected(1, 1),

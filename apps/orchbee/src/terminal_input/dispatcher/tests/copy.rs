@@ -1,5 +1,9 @@
 use super::*;
 use crate::client_view::{CopyModeKey, KeyEvent, copy_mode_key};
+use crate::terminal_copy_mode::{CopyModeCursor, CopySurfaceToken, EpisodeId, Surface};
+use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+use ratatui::layout::Rect;
+use std::num::NonZeroU64;
 
 #[derive(Default)]
 struct CopyPort {
@@ -9,6 +13,7 @@ struct CopyPort {
     keys: Vec<KeyEvent>,
     pastes: Vec<Option<String>>,
     actions: Vec<ClientAction>,
+    pointer_cells: Vec<(CopyModeCursor, bool)>,
 }
 
 #[test]
@@ -94,6 +99,150 @@ impl TerminalInputPort for CopyPort {
     }
     fn cancel_copy_mode(&mut self) -> bool {
         std::mem::take(&mut self.active)
+    }
+    fn copy_pointer_cell(
+        &mut self,
+        _token: CopySurfaceToken,
+        cell: CopyModeCursor,
+        start: bool,
+    ) -> bool {
+        self.pointer_cells.push((cell, start));
+        true
+    }
+}
+
+#[test]
+fn copy_exit_packet_cannot_fall_through_to_retained_resize_mode() {
+    let mut port = CopyPort {
+        active: true,
+        ..CopyPort::default()
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    let transition = view.decide_action(ClientAction::EnterResizeMode);
+    let action = transition.action().unwrap();
+    let disposition = port.apply_client_action(action).unwrap();
+    view.commit(transition, disposition);
+    assert!(port.active);
+    assert!(view.resize_mode());
+
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"qtail\x1b[200~paste\x1b[201~",
+    );
+    assert!(!port.active);
+    assert!(view.resize_mode());
+    assert_eq!(port.keys.len(), 1);
+    assert_eq!(copy_mode_key(port.keys[0]), Some(CopyModeKey::Exit));
+    assert!(port.pastes.is_empty());
+    assert!(port.forwarded.is_empty());
+    assert_eq!(port.actions, [ClientAction::EnterResizeMode]);
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[C");
+    assert_eq!(
+        port.actions,
+        [
+            ClientAction::EnterResizeMode,
+            ClientAction::ResizePane {
+                direction: crate::client_view::PanelDirection::Right,
+                fine: false,
+            },
+        ]
+    );
+}
+
+fn copy_surface_map() -> (crate::tui_pointer::FrameHitMap, Rect) {
+    let area = Rect::new(10, 5, 8, 3);
+    let surface = Surface::checked(
+        crate::terminal_content::TerminalScreen::Primary,
+        NonZeroU64::new(7).unwrap(),
+        11,
+        area.width,
+        40,
+        20,
+        area.height,
+    )
+    .unwrap();
+    let token = CopySurfaceToken {
+        episode: EpisodeId::new(NonZeroU64::new(3).unwrap()),
+        surface,
+    };
+    let mut hits = HitMapBuilder::new();
+    // Copy content is native chrome, matching the production renderer's
+    // admission layer rather than an overlay-only surface.
+    hits.record(
+        HitLayer::ChromeSurface,
+        area,
+        HitTarget::CopySurface { token, area },
+    );
+    (hits.finish(), area)
+}
+
+#[test]
+fn copy_drag_release_runs_before_packet_cleanup_and_cancelled_drag_cleans_once() {
+    for cancelled in [false, true] {
+        let mut port = CopyPort::default();
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(80);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02U");
+        assert!(port.active && view.copy_mode_active());
+        let (map, area) = copy_surface_map();
+        dispatcher.publish_hit_map(map);
+        let x = area.x + 2;
+        let y = area.y + 1;
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            format!("\x1b[<0;{};{}M", x + 1, y + 1).as_bytes(),
+        );
+        assert_eq!(
+            port.pointer_cells,
+            [(CopyModeCursor { column: 2, row: 1 }, true)]
+        );
+
+        if cancelled {
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
+        }
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            format!("\x1b[<0;{};{}mtail\x1b[200~paste", x + 1, y + 1).as_bytes(),
+        );
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[201~");
+        assert!(port.forwarded.is_empty());
+        assert!(port.pastes.is_empty());
+        if cancelled {
+            assert_eq!(
+                port.pointer_cells,
+                [(CopyModeCursor { column: 2, row: 1 }, true)],
+                "cleanup cannot replay a cancelled copy effect"
+            );
+        } else {
+            assert_eq!(
+                port.pointer_cells,
+                [
+                    (CopyModeCursor { column: 2, row: 1 }, true),
+                    (CopyModeCursor { column: 2, row: 1 }, false)
+                ],
+                "the active Copy owner must see release before packet cleanup"
+            );
+        }
+
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"q");
+        assert!(!port.active);
+        dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            format!("\x1b[<0;{};{}morphan", x + 1, y + 1).as_bytes(),
+        );
+        assert_eq!(port.forwarded, b"orphan", "cancelled={cancelled}");
     }
 }
 

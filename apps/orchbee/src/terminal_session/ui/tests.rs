@@ -1,10 +1,12 @@
 pub(in crate::terminal_session::ui) mod agent_board;
+pub(in crate::terminal_session::ui) mod composition;
 pub(in crate::terminal_session::ui) mod context_selection;
 pub(in crate::terminal_session::ui) mod control_takeover;
 pub(in crate::terminal_session::ui) mod create_membership;
 pub(in crate::terminal_session::ui) mod input_provenance;
 pub(in crate::terminal_session::ui) mod location_labels;
 pub(in crate::terminal_session) mod membership;
+pub(in crate::terminal_session::ui) mod modal_pointer_roundtrip;
 pub(in crate::terminal_session) mod move_membership;
 pub(in crate::terminal_session::ui) mod panel_input;
 #[cfg(windows)]

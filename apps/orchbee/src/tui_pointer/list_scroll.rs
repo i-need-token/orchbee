@@ -4,6 +4,7 @@ use super::{
     FrameHitMap, HitTarget, MouseAction, MouseButton, MouseEvent, PointerState, TerminalInputPort,
     contains,
 };
+use crate::client_view::help::HelpDrawSource;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
@@ -13,15 +14,14 @@ pub(crate) enum Target {
     #[cfg(windows)]
     Copy(crate::terminal_copy_mode::CopyModeToken),
     AgentBoard(crate::terminal_session::AgentBoardToken),
-    Help {
-        page: usize,
-        last: usize,
-    },
+    Help(crate::client_view::help::HelpDrawSource),
     Settings(crate::native_settings::Token),
     #[cfg(windows)]
     Menu(crate::action_menu::MenuToken),
     #[cfg(windows)]
     Navigator(crate::client_view::navigator::Row),
+    #[cfg(windows)]
+    MachinePicker(crate::machine_picker::DrawnPickerList),
 }
 
 pub(super) struct Pending {
@@ -64,6 +64,9 @@ impl PointerState {
         let HitTarget::ListScroll(target) = &region.target else {
             return false;
         };
+        if matches!(target, Target::Help(HelpDrawSource::Refused { .. })) {
+            return false;
+        }
         #[cfg(windows)]
         if matches!(target, Target::Copy(_))
             && !self.map.as_ref().is_some_and(|map| {
@@ -84,7 +87,7 @@ impl PointerState {
             })
             .map_or(0, |pending| pending.lines);
         // Help is a paginated document: one notch requests one page. Lists use lines.
-        let amount = if matches!(target, Target::Help { .. }) {
+        let amount = if matches!(target, Target::Help(_)) {
             1
         } else {
             3
@@ -117,7 +120,7 @@ impl PointerState {
         if !pending.exposed_in(map) {
             return false;
         }
-        let capacity = if matches!(pending.target, Target::Help { .. }) {
+        let capacity = if matches!(pending.target, Target::Help(_)) {
             1
         } else {
             usize::from(pending.area.height)
@@ -146,21 +149,15 @@ impl PointerState {
             Target::AgentBoard(token) => port
                 .scroll_agent_board(token, pending.up, lines)
                 .map(Target::AgentBoard),
-            Target::Help { page, last }
-                if view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp)
-                    && view.help_page() == *page =>
-            {
-                view.settle_help_page(if pending.up {
-                    page.saturating_sub(1)
-                } else {
-                    page.saturating_add(1).min(*last)
-                });
-                Some(Target::Help {
-                    page: view.help_page(),
-                    last: *last,
+            Target::Help(source @ HelpDrawSource::Presented { last, .. }) => view
+                .scroll_drawn_help(source, pending.up)
+                .then(|| {
+                    let candidate = view.help_draw_candidate()?;
+                    candidate.presented(candidate.page(), *last)
                 })
-            }
-            Target::Help { .. } => None,
+                .flatten()
+                .map(Target::Help),
+            Target::Help(HelpDrawSource::Refused { .. }) => None,
             Target::Settings(token) => port
                 .scroll_settings(*token, pending.up, lines)
                 .map(Target::Settings),
@@ -173,6 +170,11 @@ impl PointerState {
                 .navigator
                 .scroll(row, pending.up, lines)
                 .map(Target::Navigator),
+            #[cfg(windows)]
+            Target::MachinePicker(target) => view
+                .machines
+                .scroll_drawn_picker(target, pending.up, lines)
+                .map(Target::MachinePicker),
         };
         let Some(next) = next else {
             return false;

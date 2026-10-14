@@ -22,6 +22,7 @@ pub(crate) enum Role {
     TextSecondary,
     TextDisabled,
     TextInverse,
+    AccentAction,
     AccentFocus,
     AccentSelection,
     #[cfg(test)]
@@ -39,6 +40,8 @@ pub(crate) enum Role {
     SurfaceCanvas,
     SurfaceChrome,
     SurfaceOverlay,
+    SurfaceHover,
+    SurfacePressed,
     SurfaceSelection,
     SurfaceCurrent,
     SurfaceInactive,
@@ -50,11 +53,12 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 25] = [
+    pub(crate) const ALL: [Self; 28] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
         Self::TextInverse,
+        Self::AccentAction,
         Self::AccentFocus,
         Self::AccentSelection,
         Self::AccentLink,
@@ -71,6 +75,8 @@ impl Role {
         Self::SurfaceCanvas,
         Self::SurfaceChrome,
         Self::SurfaceOverlay,
+        Self::SurfaceHover,
+        Self::SurfacePressed,
         Self::SurfaceSelection,
         Self::SurfaceCurrent,
         Self::SurfaceInactive,
@@ -96,10 +102,19 @@ pub(crate) enum Polarity {
     Light,
 }
 
+/// The host-safe vocabulary selected for authored chrome glyphs and key labels.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum GlyphMode {
+    Unicode,
+    #[cfg(test)]
+    Simplified,
+}
+
 /// Non-ASCII chrome glyphs with a declared ASCII fallback, resolved once for a
 /// UTF-8 or simplified-glyph host.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct GlyphSet {
+    mode: GlyphMode,
     /// Truncation marker. `…` is East Asian ambiguous width; `..` is the
     /// ASCII form.
     pub ellipsis: &'static str,
@@ -111,6 +126,8 @@ pub(crate) struct GlyphSet {
     pub git_behind: &'static str,
     /// Active marker in navigator and context lists.
     pub active_marker: &'static str,
+    /// Reversible keyboard-navigation anchor within a collection.
+    pub navigation_marker: &'static str,
     /// One-cell scrollbar chrome, including host-safe ASCII alternatives.
     pub scrollbar_track: &'static str,
     pub scrollbar_thumb: &'static str,
@@ -121,12 +138,14 @@ pub(crate) struct GlyphSet {
 
 impl GlyphSet {
     pub(crate) const UTF8: Self = Self {
+        mode: GlyphMode::Unicode,
         ellipsis: "…",
         middle_dot: "·",
         status_bullet: "●",
         git_ahead: "↑",
         git_behind: "↓",
         active_marker: "*",
+        navigation_marker: "›",
         scrollbar_track: "│",
         scrollbar_thumb: "┃",
         disclosure_open: "▾",
@@ -135,17 +154,23 @@ impl GlyphSet {
 
     #[cfg(test)]
     pub(crate) const ASCII: Self = Self {
+        mode: GlyphMode::Simplified,
         ellipsis: "..",
         middle_dot: "-",
         status_bullet: "*",
         git_ahead: "+",
         git_behind: "-",
         active_marker: "*",
+        navigation_marker: ">",
         scrollbar_track: "|",
         scrollbar_thumb: "#",
         disclosure_open: "-",
         disclosure_closed: "+",
     };
+
+    pub(crate) const fn mode(self) -> GlyphMode {
+        self.mode
+    }
 
     #[cfg(test)]
     #[must_use]
@@ -162,6 +187,7 @@ pub(crate) struct RoleStyles {
     pub text_secondary: Style,
     pub text_disabled: Style,
     pub text_inverse: Style,
+    pub accent_action: Style,
     pub accent_focus: Style,
     pub accent_selection: Style,
     #[cfg(test)]
@@ -179,6 +205,8 @@ pub(crate) struct RoleStyles {
     pub surface_canvas: Style,
     pub surface_chrome: Style,
     pub surface_overlay: Style,
+    pub surface_hover: Style,
+    pub surface_pressed: Style,
     pub surface_selection: Style,
     pub surface_current: Style,
     pub surface_inactive: Style,
@@ -193,6 +221,7 @@ impl RoleStyles {
             Role::TextSecondary => self.text_secondary,
             Role::TextDisabled => self.text_disabled,
             Role::TextInverse => self.text_inverse,
+            Role::AccentAction => self.accent_action,
             Role::AccentFocus => self.accent_focus,
             Role::AccentSelection => self.accent_selection,
             #[cfg(test)]
@@ -210,6 +239,8 @@ impl RoleStyles {
             Role::SurfaceCanvas => self.surface_canvas,
             Role::SurfaceChrome => self.surface_chrome,
             Role::SurfaceOverlay => self.surface_overlay,
+            Role::SurfaceHover => self.surface_hover,
+            Role::SurfacePressed => self.surface_pressed,
             Role::SurfaceSelection => self.surface_selection,
             Role::SurfaceCurrent => self.surface_current,
             Role::SurfaceInactive => self.surface_inactive,
@@ -223,6 +254,7 @@ impl RoleStyles {
             text_secondary: apply(self.text_secondary),
             text_disabled: apply(self.text_disabled),
             text_inverse: apply(self.text_inverse),
+            accent_action: apply(self.accent_action),
             accent_focus: apply(self.accent_focus),
             accent_selection: apply(self.accent_selection),
             #[cfg(test)]
@@ -240,6 +272,8 @@ impl RoleStyles {
             surface_canvas: apply(self.surface_canvas),
             surface_chrome: apply(self.surface_chrome),
             surface_overlay: apply(self.surface_overlay),
+            surface_hover: apply(self.surface_hover),
+            surface_pressed: apply(self.surface_pressed),
             surface_selection: apply(self.surface_selection),
             surface_current: apply(self.surface_current),
             surface_inactive: apply(self.surface_inactive),
@@ -359,6 +393,7 @@ impl Theme {
                 text_secondary: dim,
                 text_disabled: dim,
                 text_inverse: reset,
+                accent_action: Style::new().fg(Color::Cyan),
                 accent_focus: Style::new().fg(Color::Cyan),
                 accent_selection: Style::new().fg(Color::White).bg(Color::Blue),
                 #[cfg(test)]
@@ -378,6 +413,8 @@ impl Theme {
                 surface_canvas: Style::new().bg(Color::Reset),
                 surface_chrome: Style::new().bg(Color::Reset),
                 surface_overlay: Style::new().bg(Color::Reset),
+                surface_hover: interaction_surface_fallback(),
+                surface_pressed: interaction_surface_fallback(),
                 surface_selection: Style::new().bg(Color::Blue),
                 surface_current: Style::new().fg(Color::Black).bg(Color::Gray),
                 surface_inactive: Style::new().bg(Color::Reset),
@@ -406,6 +443,7 @@ impl Theme {
                 text_secondary: Style::new().fg(Color::Rgb(133, 146, 171)),
                 text_disabled: Style::new().fg(Color::Rgb(91, 101, 119)),
                 text_inverse: Style::new().fg(Color::Rgb(11, 14, 20)),
+                accent_action: Style::new().fg(Color::Rgb(245, 245, 245)),
                 accent_focus: Style::new().fg(Color::Rgb(122, 162, 247)),
                 accent_selection: Style::new()
                     .fg(Color::Rgb(211, 218, 232))
@@ -428,6 +466,8 @@ impl Theme {
                 surface_canvas: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_chrome: Style::new().bg(Color::Rgb(11, 14, 20)),
                 surface_overlay: Style::new().bg(Color::Rgb(18, 23, 32)),
+                surface_hover: Style::new().bg(Color::Rgb(38, 38, 38)),
+                surface_pressed: Style::new().bg(Color::Rgb(64, 64, 64)),
                 surface_selection: Style::new().bg(Color::Rgb(45, 63, 99)),
                 surface_current: Style::new().bg(Color::Rgb(33, 39, 49)),
                 surface_inactive: Style::new().bg(Color::Rgb(11, 14, 20)),
@@ -442,6 +482,87 @@ impl Theme {
     #[must_use]
     pub(crate) fn style(&self, role: Role) -> Style {
         self.styles.style(role)
+    }
+
+    /// Composes semantic content onto one base and its winning interaction surface.
+    ///
+    /// Surface fills and every surface modifier replace or augment the incoming background while
+    /// semantic foregrounds and content modifiers remain intact. Host-relative current and
+    /// provisional surfaces apply their paired foreground only to ordinary semantic text that has
+    /// not received an explicit foreground override. Passing `None` preserves explicit or unknown
+    /// content without guessing its meaning. A checked accent keeps its contrast pair beneath a
+    /// modifier-only interaction surface.
+    pub(crate) fn content_on_surface(
+        &self,
+        base: Role,
+        interaction: Option<Role>,
+        content_role: Option<Role>,
+        mut content: Style,
+    ) -> Style {
+        debug_assert!(matches!(
+            base,
+            Role::SurfaceCanvas
+                | Role::SurfaceChrome
+                | Role::SurfaceOverlay
+                | Role::SurfaceInactive
+        ));
+        debug_assert!(interaction.is_none_or(|role| matches!(
+            role,
+            Role::SurfaceHover
+                | Role::SurfacePressed
+                | Role::SurfaceSelection
+                | Role::SurfaceCurrent
+        )));
+        let base_style = self.style(base);
+        let interaction_style = interaction.map(|role| self.style(role));
+        let content_foreground = content.fg;
+        let preserve_checked_pair = content_role == Some(Role::AccentSelection)
+            && interaction_style.and_then(|style| style.bg).is_none()
+            && content.bg.is_some();
+        let mut base_layer = base_style;
+        // A surface foreground is a contrast pair, not a replacement for every semantic content
+        // role. Pairing ordinary host-relative text is handled explicitly below.
+        base_layer.fg = None;
+        if preserve_checked_pair {
+            // A checked glyph keeps its safe contrast pair until an interaction contributes a
+            // concrete replacement fill. Modifier-only interaction still layers above the pair.
+            base_layer.bg = None;
+        }
+        content = content.patch(base_layer);
+        if let Some(mut layer) = interaction_style {
+            layer.fg = None;
+            content = content.patch(layer);
+        }
+
+        let paired = match interaction {
+            Some(Role::SurfaceCurrent) => interaction_style.and_then(|style| style.fg),
+            Some(Role::SurfaceSelection) => self.style(Role::AccentSelection).fg,
+            _ => None,
+        };
+        let ordinary = matches!(
+            content_role,
+            Some(
+                Role::TextPrimary
+                    | Role::TextSecondary
+                    | Role::TextDisabled
+                    | Role::HintKey
+                    | Role::HintLabel
+            )
+        );
+        if self.color_level != ColorLevel::Monochrome
+            && self.polarity.is_none()
+            && ordinary
+            && let Some(role) = content_role
+            && content_foreground == self.style(role).fg
+            && let Some(foreground) = paired
+            && foreground != Color::Reset
+        {
+            content = content.fg(foreground);
+            if matches!(role, Role::TextSecondary | Role::HintLabel) {
+                content = content.remove_modifier(Modifier::DIM);
+            }
+        }
+        content
     }
 
     /// Persistent context uses a neutral fill. Host-relative text needs an explicit
@@ -541,7 +662,9 @@ impl Theme {
     }
 
     /// The role's color: the background for `surface-*` roles, the foreground
-    /// for every other family.
+    /// for every other family. Interactive-surface renderers compose the full
+    /// [`Style`] so reduced-color fallback modifiers are not discarded; this
+    /// accessor only exposes a concrete fill when one exists.
     #[must_use]
     pub(crate) fn color(&self, role: Role) -> Color {
         let style = self.style(role);
@@ -549,9 +672,11 @@ impl Theme {
             Role::SurfaceCanvas
             | Role::SurfaceChrome
             | Role::SurfaceOverlay
+            | Role::SurfaceHover
+            | Role::SurfacePressed
             | Role::SurfaceSelection
+            | Role::SurfaceCurrent
             | Role::SurfaceInactive => style.bg,
-            Role::SurfaceCurrent => style.bg,
             _ => style.fg,
         }
         .unwrap_or(Color::Reset)
@@ -628,6 +753,7 @@ impl Theme {
                 (&mut styles.text_secondary, self.styles.text_secondary),
                 (&mut styles.text_disabled, self.styles.text_disabled),
                 (&mut styles.text_inverse, self.styles.text_inverse),
+                (&mut styles.accent_action, self.styles.accent_action),
                 (&mut styles.accent_focus, self.styles.accent_focus),
                 (&mut styles.accent_selection, self.styles.accent_selection),
                 #[cfg(test)]
@@ -642,6 +768,8 @@ impl Theme {
                 (&mut styles.surface_canvas, self.styles.surface_canvas),
                 (&mut styles.surface_chrome, self.styles.surface_chrome),
                 (&mut styles.surface_overlay, self.styles.surface_overlay),
+                (&mut styles.surface_hover, self.styles.surface_hover),
+                (&mut styles.surface_pressed, self.styles.surface_pressed),
                 (&mut styles.surface_selection, self.styles.surface_selection),
                 (&mut styles.surface_current, self.styles.surface_current),
                 (&mut styles.surface_inactive, self.styles.surface_inactive),
@@ -667,6 +795,13 @@ impl Theme {
                     *target = target.fg(nearest_visible_ansi16(r, g, b, styles.surface_canvas.bg));
                 }
             }
+        }
+        if level == ColorLevel::Monochrome
+            || (matches!(level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
+                && interaction_surfaces_collapse(&styles))
+        {
+            styles.surface_hover = interaction_surface_fallback();
+            styles.surface_pressed = interaction_surface_fallback();
         }
         if matches!(level, ColorLevel::Ansi16 | ColorLevel::Monochrome) {
             let primary = styles.text_primary.fg;
@@ -700,6 +835,32 @@ impl Theme {
         }
     }
 }
+
+/// Terminal-native and collapsed reduced-color interaction bands use the
+/// resolver-owned reverse-video fallback. Components add pressed-label
+/// emphasis separately; keeping it out of the surface style prevents an
+/// entire row from becoming bold.
+fn interaction_surface_fallback() -> Style {
+    Style::new().add_modifier(Modifier::REVERSED)
+}
+
+fn interaction_surfaces_collapse(styles: &RoleStyles) -> bool {
+    let hover = styles.surface_hover.bg;
+    let pressed = styles.surface_pressed.bg;
+    let non_interaction = [
+        styles.surface_canvas.bg,
+        styles.surface_chrome.bg,
+        styles.surface_overlay.bg,
+        styles.surface_selection.bg,
+        styles.surface_current.bg,
+        styles.surface_inactive.bg,
+    ];
+    hover == pressed
+        || [hover, pressed]
+            .into_iter()
+            .any(|surface| surface.is_none() || non_interaction.contains(&surface))
+}
+
 fn nearest_visible_ansi16(r: u8, g: u8, b: u8, background: Option<Color>) -> Color {
     let target = srgb_to_lab(r, g, b);
     ANSI16_SRGB

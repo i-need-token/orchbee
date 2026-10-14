@@ -2,9 +2,10 @@ use crate::client_view::{ClientAction, ClientKey, ClientView, SessionActionDispo
 #[cfg(any(not(windows), test))]
 use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::{
-    NativeRenameDraftToken, NativeRenameEdit, NativeRenameInputContext, NativeSetupEdit,
-    NativeSetupInputContext, NativeSetupStage, NativeSetupToken,
+    NativeCaptureContext, NativeRenameDraftToken, NativeRenameEdit, NativeSetupEdit,
+    NativeSetupToken,
 };
+use crate::tui_composition::{NativeCaptureClaims, NativeCaptureOwner};
 use orchbee_client_server_protocol::Geometry;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
 #[cfg(test)]
@@ -12,7 +13,7 @@ use orchbee_workbench_protocol::WorkbenchPanelId;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
 #[cfg(windows)]
-use crate::terminal_session::{WorktreeEdit, WorktreeInputContext, WorktreeToken};
+use crate::terminal_session::{WorktreeEdit, WorktreeToken};
 
 mod decoder;
 #[cfg(windows)]
@@ -25,12 +26,31 @@ mod mouse;
 mod utf8;
 pub(crate) use dispatcher::InputDispatcher;
 pub(crate) use mouse::{
-    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PointerOwner,
-    encode_cursor_arrows, encode_pane_report, pane_owns_pointer,
+    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute,
+    encode_cursor_arrows, encode_pane_report, route_pane_pointer,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct TerminalInputUnavailable;
+
+/// Metadata replies produced by the outer terminal. These are consumed before
+/// any keyboard, modal-editor or pane-input owner can observe their bytes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum HostReply {
+    Graphics(crate::terminal_graphics::Reply),
+    Pointer(crate::terminal_pointer_admission::HostReply),
+}
+
+/// The complete outer-terminal pointer reporting state requested by input.
+/// The shell publishes the matching dispatcher state only after the lifecycle
+/// write succeeds.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum PointerCaptureRequest {
+    #[default]
+    Release,
+    ButtonOnly,
+    AnyMotion,
+}
 
 /// One terminal-control write the dispatcher or surface asks the shell to
 /// perform. The lifecycle layer owns the actual bytes.
@@ -40,17 +60,16 @@ pub(crate) enum ModeRequest {
     Bell,
     /// Bounded metadata queries on the already-admitted host terminal.
     GraphicsQuery(crate::terminal_graphics::Query),
+    /// The endpoint's sole any-motion capability query, after ButtonOnly is active.
+    PointerAdmissionQuery(crate::terminal_pointer_admission::Query),
     #[cfg(windows)]
     WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),
     #[cfg(windows)]
     Notification(crate::notifications::Effect),
     /// Bracketed-paste lease for modal capture.
     BracketedPaste(bool),
-    /// Pointer reporting (`?1002` + `?1006`) armed or released.
-    PointerCapture(bool),
-    /// Menu-scoped any-motion reporting; never acquires pointer capture itself.
-    #[cfg(windows)]
-    PointerHover(bool),
+    /// One complete outer pointer level, or release of every owned pointer mode.
+    PointerCapture(PointerCaptureRequest),
 }
 
 /// The interaction facts of the currently attached pane's latest frame —
@@ -240,6 +259,16 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 }
 
 pub(crate) trait TerminalInputPort {
+    /// Pure exclusive-capture intents from the native surface owners.
+    fn native_capture_claims(&self) -> NativeCaptureClaims {
+        NativeCaptureClaims::default()
+    }
+
+    /// Exact per-item context for the compositor-selected native owner.
+    fn native_capture_context(&self, _owner: NativeCaptureOwner) -> Option<NativeCaptureContext> {
+        None
+    }
+
     #[cfg(windows)]
     fn click_resize_control(
         &mut self,
@@ -256,13 +285,19 @@ pub(crate) trait TerminalInputPort {
     ) -> Option<ClientAction> {
         None
     }
-    fn settings_active(&self) -> bool {
+    fn capture_settings_key_for(
+        &mut self,
+        _expected: crate::native_settings::SettingsInputContext,
+        _event: crate::client_view::KeyEvent,
+    ) -> bool {
         false
     }
-    fn capture_settings_key(&mut self, _event: crate::client_view::KeyEvent) {}
-    fn capture_settings_paste(&mut self, _text: Option<&str>) {}
-    fn settings_text_remaining(&self) -> usize {
-        0
+    fn capture_settings_paste_for(
+        &mut self,
+        _expected: crate::native_settings::SettingsInputContext,
+        _text: Option<&str>,
+    ) -> bool {
+        false
     }
     fn click_settings_control(
         &mut self,
@@ -286,10 +321,6 @@ pub(crate) trait TerminalInputPort {
     ) {
     }
     #[cfg(windows)]
-    fn action_menu_active(&self) -> bool {
-        false
-    }
-    #[cfg(windows)]
     fn open_action_menu(
         &mut self,
         _target: crate::action_menu::MenuTarget,
@@ -299,11 +330,29 @@ pub(crate) trait TerminalInputPort {
         false
     }
     #[cfg(windows)]
-    fn capture_action_menu_key(&mut self, _event: crate::client_view::KeyEvent) {}
+    fn capture_action_menu_key_for(
+        &mut self,
+        _expected: crate::action_menu::MenuInputContext,
+        _event: crate::client_view::KeyEvent,
+    ) -> bool {
+        false
+    }
     #[cfg(windows)]
-    fn click_action_menu(&mut self, _token: crate::action_menu::MenuToken, _row: usize) {}
+    fn activate_action_menu_row(
+        &mut self,
+        _source: &crate::action_menu::MenuTarget,
+        _token: crate::action_menu::MenuToken,
+        _row: usize,
+    ) {
+    }
     #[cfg(windows)]
-    fn click_action_menu_control(&mut self, _token: crate::action_menu::MenuToken, _back: bool) {}
+    fn activate_action_menu_control(
+        &mut self,
+        _source: &crate::action_menu::MenuTarget,
+        _token: crate::action_menu::MenuToken,
+        _control: crate::action_menu::MenuControl,
+    ) {
+    }
     #[cfg(windows)]
     fn scroll_action_menu(
         &mut self,
@@ -314,8 +363,6 @@ pub(crate) trait TerminalInputPort {
         None
     }
     #[cfg(windows)]
-    fn hover_action_menu(&mut self, _token: crate::action_menu::MenuToken, _row: usize) {}
-    #[cfg(windows)]
     fn cancel_action_menu(&mut self) {}
     #[cfg(windows)]
     fn take_action_menu_action(&mut self, _pointer_released: bool) -> Option<ClientAction> {
@@ -323,23 +370,26 @@ pub(crate) trait TerminalInputPort {
     }
     fn observe_host_graphics(&mut self, _facts: crate::terminal_graphics::Facts) {}
     #[cfg(windows)]
-    fn popup_captured(&self) -> bool {
-        false
+    fn popup_input(
+        &mut self,
+        _id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        _item: &DecodedItem,
+    ) {
     }
-    #[cfg(windows)]
-    fn popup_identity(&self) -> Option<&orchbee_workbench_protocol::WorkbenchRequestId> {
-        None
-    }
-    #[cfg(windows)]
-    fn popup_input(&mut self, _item: &DecodedItem) {}
     #[cfg(windows)]
     fn popup_mouse(
         &mut self,
         _id: &orchbee_workbench_protocol::WorkbenchRequestId,
         _content: ratatui::layout::Rect,
         _event: MouseEvent,
-        _close: bool,
     ) {
+    }
+    #[cfg(windows)]
+    fn activate_drawn_popup_close(
+        &mut self,
+        _target: &crate::terminal_session::DrawnPopupClose,
+    ) -> bool {
+        false
     }
 
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable>;
@@ -355,6 +405,13 @@ pub(crate) trait TerminalInputPort {
         _row: &crate::client_view::navigator::Row,
     ) -> crate::client_view::navigator::Admission {
         crate::client_view::navigator::Admission::Refused
+    }
+
+    fn activate_drawn_presentation(
+        &mut self,
+        _target: &crate::terminal_session::DrawnPresentationTarget,
+    ) -> SessionActionDisposition {
+        SessionActionDisposition::KeepNavigator
     }
 
     /// Decoded human intent, before routing; host metadata and captured tails are excluded.
@@ -500,7 +557,27 @@ pub(crate) trait TerminalInputPort {
     /// Host focus is metadata; ports without a native Client consume it.
     fn observe_focus(&mut self, _focused: bool) {}
 
-    fn capture_confirmation_key(&mut self, _key: ClientKey) -> bool {
+    fn capture_tab_confirmation_key_for(
+        &mut self,
+        _token: crate::terminal_session::NativeCloseConfirmationToken,
+        _key: ClientKey,
+    ) -> bool {
+        false
+    }
+
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        _token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        _key: ClientKey,
+    ) -> bool {
+        false
+    }
+
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        _token: crate::terminal_session::WorkspaceCloseToken,
+        _key: ClientKey,
+    ) -> bool {
         false
     }
 
@@ -526,16 +603,11 @@ pub(crate) trait TerminalInputPort {
     ) {
     }
 
-    /// Whether the session's Agent board currently owns input — the
-    /// painted-verdict flag the dispatcher consults between the armed
-    /// prefix and the pane-forward layer.
-    fn agent_board_input(&mut self) -> bool {
-        false
-    }
-
-    /// One decoded key while the board owns input. Consumed regardless of
-    /// outcome — capture guarantees nothing typed reaches the pane.
-    fn capture_agent_board_key(&mut self, _key: crate::client_view::KeyEvent) -> bool {
+    fn capture_agent_board_key_for(
+        &mut self,
+        _episode: crate::terminal_session::AgentBoardEpisodeToken,
+        _key: crate::client_view::KeyEvent,
+    ) -> bool {
         false
     }
 
@@ -543,7 +615,7 @@ pub(crate) trait TerminalInputPort {
     /// identity, never by position.
     fn agent_board_select(
         &mut self,
-        _session: &orchbee_agent_observation_protocol::AgentSessionId,
+        _target: &crate::terminal_session::AgentBoardRowTarget,
     ) -> bool {
         false
     }
@@ -558,19 +630,15 @@ pub(crate) trait TerminalInputPort {
     }
     fn click_agent_board_control(
         &mut self,
-        _token: &crate::terminal_session::AgentBoardToken,
-        _control: crate::terminal_session::AgentBoardControl,
-    ) {
+        _target: &crate::terminal_session::AgentBoardControlTarget,
+    ) -> bool {
+        false
     }
 
     /// An outside press dismissed the board's capturing overlay.
     fn agent_board_dismiss(&mut self) {}
 
     fn invalidate_close_display(&mut self) {}
-
-    fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
-        None
-    }
 
     fn edit_rename_draft(
         &mut self,
@@ -591,10 +659,6 @@ pub(crate) trait TerminalInputPort {
 
     fn invalidate_rename_display(&mut self) {}
 
-    #[cfg(windows)]
-    fn worktree_input_context(&mut self) -> Option<WorktreeInputContext> {
-        None
-    }
     #[cfg(windows)]
     fn edit_worktree(&mut self, _token: WorktreeToken, _edit: WorktreeEdit<'_>) -> bool {
         false
@@ -618,10 +682,6 @@ pub(crate) trait TerminalInputPort {
     }
     #[cfg(windows)]
     fn invalidate_worktree_display(&mut self) {}
-
-    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
-        None
-    }
 
     fn edit_setup_draft(&mut self, _token: NativeSetupToken, _edit: NativeSetupEdit<'_>) -> bool {
         false

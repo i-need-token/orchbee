@@ -64,6 +64,14 @@ Pointer interaction preserves these separate facts:
   change to an unrelated target does not cancel it merely because the frame sequence advanced. The
   Client retains a last pointer position only while capture is active and terminal focus is held;
   after either is lost, hover stays absent until a new movement report arrives.
+- After an accepted Orchbee UI press is cancelled, its owner may retain only typed cleanup
+  ownership for that press's primary release. Cleanup is resolved before ordinary capture, focus,
+  or hit-map admission: the matching late release ends the gesture once and keeps its complete
+  physical packet, including paste and unfinished decoder fragments, Client-owned without
+  re-hit, activation, or another effect. Intervening pointer reports cannot re-hit through that
+  debt. A new non-wheel press retires it. An orphan release creates neither debt nor a packet fence.
+  Pane-program gestures, links, and text selection retain their own owner-specific cleanup
+  contracts.
 
 ## Hit testing and redraw
 

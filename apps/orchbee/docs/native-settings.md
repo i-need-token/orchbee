@@ -8,18 +8,51 @@ local draft while pane output continues. It covers every common preference in
 [the shared inventory](../../../crates/workbench-protocol/docs/user-preferences.md#inventory-and-effect),
 including launch profiles and new-terminal scrollback defaults. Host-owned fonts,
 pixel metrics and management workflows follow the inventory's explicit boundaries.
+The native Settings feature maps the thirteen shared keys once to their row,
+category, control kind, availability, integer unit, bounds, steps and effect
+horizon. The editor, localization and renderer currently consume the row,
+category, control, availability and bounded-integer facts. Effect metadata
+documents and tests the feature contract; the existing domain owners still apply
+those effects. Source comparison, atomic commit and reset behavior stay with their
+existing state and protocol owners. Workbench Protocol remains the value, default
+and validation owner.
 
 Tab/Up/Down moves between controls; Left/Right or Space changes a choice. Text
 fields use the [shared bounded line editor](native-line-editor.md), including Ctrl+W word deletion,
 and literal paste. Rendering projects the complete raw value once and maps its cursor to a visible
 grapheme boundary, so removing controls cannot leave the caret inside a painted cluster. Launch profiles
 have their own page, one literal argument per editor, explicit default selection,
-and confirmation before deleting a profile. Custom colors are disabled unless
+and confirmation before deleting a profile. Entering that child records the parent
+row, viewport and focus; Back restores them while retaining accepted draft edits. Custom colors are disabled unless
 Custom is selected; login shells are unavailable on Windows. The selected row
-stays visible when the surface scrolls or resizes. Category captions and setting
+is revealed by keyboard navigation and remains a stable navigation anchor while the
+pointer scrolls or the surface resizes. Category captions and setting
 names match the GUI's English/Simplified Chinese vocabulary.
 
-Rows, profile/argument arrows, Back/Close, text confirmation and confirmation-dialog buttons are painted mouse controls. Plain left release must match the press's exact current token and rectangle; keyboard edits, focus loss or layout changes revoke that press. Wheel is admitted only inside the active list: three rows per notch, bounded per pass by its visible height, without wrapping or changing values. Child editors and confirmations retain input and expose their own Confirm/Cancel. Header X follows Esc, including hiding an accepted save without cancelling it.
+The completion threshold stepper uses 1-second small and 10-second large steps.
+Scrollback uses 1,000,000-byte small and 10,000,000-byte large steps. Steps preserve
+the exact current value, saturate at the owned domain bounds and never round to a
+multiple. Left/Right and painted minus/plus controls use the small step;
+Shift+Left/Right uses the large step outside a text child. Enter retains the exact
+bounded editor for direct values.
+
+The renderer projects typed shared actions, rows and value controls. Header Close,
+footer actions, rows and minus/plus controls publish the same generic
+activate-on-release interaction, including visible typed disabled targets that
+cannot arm, activate or click through. Plain left release must match the press's
+exact current token and rectangle; keyboard edits, focus loss or layout changes
+revoke that press. Pointer capture currently admits button events only, so these
+controls do not claim ordinary hover feedback until the host admits any-motion
+delivery. Wheel is admitted only inside the active list: three rows per notch,
+bounded per pass by its visible height, without wrapping or changing the selected
+row, semantic focus, draft or effective value. It changes the requested viewport
+and stops automatic selection following. The exact `SettingsDraw` receipt carries
+the surface token and actual painted row slice: an anchor that remains painted
+retains row activation, while a nonpainted anchor cannot activate. Keyboard
+navigation reveals that anchor again; a painted pointer target may establish a new
+one. Child editors and confirmations retain input and expose their own
+Confirm/Cancel. Header Close follows Esc, including hiding an accepted save
+without cancelling it.
 
 Save is the only write action. Opening, editing, cancelling and resizing do not
 apply a draft. Enter or a click on the successfully drawn Save row consumes its
@@ -27,29 +60,43 @@ authority exactly once. Reset-all requires confirmation and remains a draft unti
 Save; resetting claims all common keys even if their values are already defaults.
 The launch-profile page also offers a confirmed catalog-only reset, preserving
 other draft settings. Clean open views follow confirmed external changes; active
-edits, text entry and confirmations retain their original source and show a conflict.
-Reload confirms discarding edits and reads current values. A save failure or unknown outcome requires a fresh rendered
-submission context; no request is replayed automatically.
+edits, text entry, the launch-profile child and confirmations retain their original
+saved basis while separately exposing the newest confirmed effective snapshot and a
+conflict. A known conflict cannot submit its stale source. Reload confirms discarding
+edits and performs a new read. A definite save failure can retry only from a fresh
+rendered context. A stale-source refusal or unknown outcome disables Save until a
+matched explicit Reload read succeeds; passive observations, redraws, cached snapshots
+and old read completions do not clear that requirement. No request is replayed automatically.
 
 Esc discards an unsubmitted draft; after submission it hides the surface while
 the accepted save can continue. Captured packet/paste tails remain owned through
 cancellation and the next redraw. The pane cursor stays hidden under Settings.
-The surface requires at least 36 columns by 10 rows; smaller areas close it with
-an actionable notice. Pending feedback begins after 200 ms. The ordered settings
+The surface requires at least 36 columns by 10 rows. If the first evaluated frame
+cannot meet that geometry, the opening surface is refused and hidden with a localized
+enlarge-and-reopen notice; an already accepted read or save still settles under its
+original token and cannot reopen the surface. After at least one successful frame,
+smaller geometry suspends drawn interaction authority while retaining Settings as
+the selected recovery capture: non-Escape input is consumed and Escape closes
+locally, so input cannot fall through to a pane or retained workflow underneath.
+The draft, frozen basis, effective snapshot, child state, viewport and focus anchor
+remain for the next successful frame. A missing receipt caused by another owner
+covering the surface revokes exact draw authority but is not a geometry refusal;
+that covering owner alone holds top capture while Settings remains retained.
+Pending feedback begins after 200 ms. The ordered settings
 lane has a two-second exchange deadline, serializes foreground requests with its
 one-second observation poll, and interrupts/joins its owned connection on close.
 A replacement Session/editor episode cannot inherit an old completion.
 
 ## Domain and ownership
 
-| Record field | Contract                                                                                                                                                                |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                          |
-| Inputs       | Frozen configuration identity, complete confirmed snapshot, exact source token, typed dirty patch, drawn editor token, explicit save/reset intent.                      |
-| Authority    | Workbench Protocol owns values/bounds; Local Session Runtime owns the private record/lock/commit; the native Session and matched Desktop helper use that same store.    |
-| State        | Last confirmed runtime values, independently frozen draft basis, local changes, one admitted exchange, and explicit refusal/unknown status.                             |
-| Effects      | Only confirmed snapshots update locale, chrome, terminal presentation, copy policy and future feedback; launch/default changes affect new terminal creation.            |
-| Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior. |
+| Record field | Contract                                                                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | GUI and TUI users edit the same device preferences without lost updates or divergent defaults.                                                                                                                |
+| Inputs       | Frozen configuration identity, complete confirmed snapshot, exact source token, typed dirty patch, painted-row receipt, explicit save/reset intent.                                                           |
+| Authority    | Workbench Protocol owns values/bounds; Local Session Runtime owns the private record/lock/commit; the native Session and matched Desktop helper use that same store.                                          |
+| State        | Newest effective runtime values, independently frozen draft basis, local changes, viewport/focus anchor and painted activation authority, one admitted exchange, and explicit refusal/unknown reconciliation. |
+| Effects      | Only confirmed snapshots update locale, chrome, terminal presentation, copy policy and future feedback; launch/default changes affect new terminal creation.                                                  |
+| Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior.                                       |
 
 The Session freezes its native configuration identity at startup. Clients send no
 paths, raw TOML, alternate device selector or arbitrary file write. Shared values
@@ -58,16 +105,17 @@ explicit one-time import source. Desktop Main and renderer import only their
 allowed unclaimed keys. Reset claims prevent later imports from restoring old
 values. See [scope and persistence](../../../crates/workbench-protocol/docs/user-preferences.md#scope-persistence-and-migration).
 
-| Transition          | Required behavior                                                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Hidden → open       | Read a complete snapshot and freeze its source.                                                                          |
-| Draft → edit / draw | Keep edits local and revoke old drawing authority.                                                                       |
-| Draft → save        | Require a current successful draw, freeze a nonempty patch and consume submission before dispatch.                       |
-| Submit → commit     | Lock the shared record, compare source, validate the complete candidate and atomically publish; preserve omitted keys.   |
-| Commit → effective  | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                 |
-| External update     | Publish runtime values and refresh clean views; preserve active drafts and their original source with a conflict notice. |
-| Refused / unknown   | Preserve the draft and last confirmed values; show the distinct outcome and offer a fresh read.                          |
-| Cancel / close      | Discard only unsubmitted edits; hiding after submission cannot roll back a commit.                                       |
+| Transition           | Required behavior                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Hidden → open        | Read a complete snapshot and freeze its source.                                                                                       |
+| Draft → edit / draw  | Keep edits local and revoke old drawing authority.                                                                                    |
+| Draft → save         | Require a current successful draw, freeze a nonempty patch and consume submission before dispatch.                                    |
+| Submit → commit      | Lock the shared record, compare source, validate the complete candidate and atomically publish; preserve omitted keys.                |
+| Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                              |
+| External update      | Publish newest effective values and refresh clean views; preserve active edits or child tasks and their frozen basis with a conflict. |
+| Refused / unknown    | Preserve the visible draft and effective values; require a matched explicit read before another stale-source or unknown Save.         |
+| Geometry unavailable | Refuse an unpainted incarnation; suspend and retain an admitted one until a successful frame resumes it.                              |
+| Cancel / close       | Discard only unsubmitted edits; hiding after submission cannot roll back a commit.                                                    |
 
 Application themes change chrome independently of terminal colors. Host terminal
 colors use the frame/window's captured defaults; Light/Dark/Custom change only

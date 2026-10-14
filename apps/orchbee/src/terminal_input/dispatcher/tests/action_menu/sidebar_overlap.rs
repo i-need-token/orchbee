@@ -53,6 +53,7 @@ fn paint_menu_over_sidebar(
                 frame,
                 Rect::new(0, 0, 87, 29),
                 port.menu.view().unwrap(),
+                view.bindings(),
                 locale,
                 &theme,
                 &mut hits,
@@ -86,7 +87,7 @@ fn paint_menu_over_sidebar(
         row.contains(locale.menu_action(MenuAction::QuickWorkspace)),
         "{row}"
     );
-    port.menu.draw(Some(draw));
+    assert!(port.menu.presented(draw));
     dispatcher.publish_hit_map(map);
 }
 

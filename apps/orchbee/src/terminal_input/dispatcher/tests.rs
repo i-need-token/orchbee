@@ -1,6 +1,5 @@
 use super::*;
 use crate::terminal_input::TerminalInputUnavailable;
-#[cfg(windows)]
 use std::time::Duration;
 use std::{cell::RefCell, io, rc::Rc};
 
@@ -116,6 +115,245 @@ impl TerminalInputPort for UnavailablePort {
         self.0.borrow_mut().push(Call::Action(action));
         None
     }
+}
+
+struct BoardOwnershipPort {
+    active: bool,
+}
+
+impl TerminalInputPort for BoardOwnershipPort {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default().with_agent_board(self.active)
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        (self.active && owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(
+            || {
+                crate::terminal_session::NativeCaptureContext::AgentBoard(
+                    crate::terminal_session::AgentBoardInputContext::for_test(
+                        crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+                        crate::tui_presentation::PresentationPhase::Admitted,
+                        true,
+                    ),
+                )
+            },
+        )
+    }
+
+    fn forward(&mut self, _bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+        Ok(())
+    }
+}
+
+#[test]
+fn board_ownership_edges_remain_observable_to_the_redraw_decision() {
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    let mut port = BoardOwnershipPort { active: false };
+    let now = Instant::now();
+
+    assert!(!dispatcher.reconcile(&mut view, &mut port, now));
+    port.active = true;
+    assert!(dispatcher.reconcile(&mut view, &mut port, now));
+    assert!(!dispatcher.reconcile(&mut view, &mut port, now));
+}
+
+#[test]
+fn button_free_motion_redraws_only_for_changed_projection_and_never_starves_escape() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher.set_pointer_motion_observability(crate::tui_pointer::MotionObservability::AnyMotion);
+    let target =
+        crate::tui_pointer::InteractionTarget::Fixture(crate::tui_pointer::HitTarget::Help {
+            page: 1,
+            action: crate::tui_pointer::HelpControl::Close,
+        });
+    let area = ratatui::layout::Rect::new(10, 5, 8, 2);
+    let spec = crate::tui_pointer::InteractionSpec::enabled(
+        crate::tui_pointer::PrimaryContract::ActivateOnRelease,
+    );
+    let mut hits = crate::tui_pointer::HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+    hits.record_interaction(
+        crate::tui_pointer::HitLayer::Foreground,
+        area,
+        area,
+        target,
+        spec,
+    );
+    dispatcher.publish_hit_map(hits.finish());
+
+    let start = Instant::now();
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x1b",
+            &mut port,
+            start,
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(calls.borrow().is_empty());
+
+    let hover = b"\x1b[<35;13;6M";
+    dispatcher
+        .dispatch(
+            &mut view,
+            hover,
+            &mut port,
+            start + std::time::Duration::from_millis(60),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(*calls.borrow(), [Call::Forward(b"\x1b".to_vec())]);
+    assert!(
+        dispatcher.dispatch_requested_redraw(),
+        "the expired key and first hover are both observable"
+    );
+
+    dispatcher
+        .dispatch(
+            &mut view,
+            hover,
+            &mut port,
+            start + std::time::Duration::from_millis(61),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(!dispatcher.dispatch_requested_redraw());
+
+    let outside = b"\x1b[<35;19;7M";
+    dispatcher
+        .dispatch(
+            &mut view,
+            outside,
+            &mut port,
+            start + std::time::Duration::from_millis(62),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(dispatcher.dispatch_requested_redraw());
+    dispatcher
+        .dispatch(
+            &mut view,
+            outside,
+            &mut port,
+            start + std::time::Duration::from_millis(63),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(!dispatcher.dispatch_requested_redraw());
+
+    let mut mixed = outside.to_vec();
+    mixed.push(b'x');
+    dispatcher
+        .dispatch(
+            &mut view,
+            &mixed,
+            &mut port,
+            start + std::time::Duration::from_millis(64),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(dispatcher.dispatch_requested_redraw());
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Forward(b"\x1b".to_vec()),
+            Call::Forward(b"x".to_vec())
+        ]
+    );
+}
+
+#[test]
+fn cancelled_generic_press_fences_only_its_exact_late_release_packet() {
+    use crate::tui_pointer::{
+        HelpControl, HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget,
+        PrimaryContract,
+    };
+    use ratatui::layout::Rect;
+
+    let publish = |dispatcher: &mut InputDispatcher| {
+        let area = Rect::new(10, 5, 8, 2);
+        let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+        hits.record_interaction(
+            HitLayer::Foreground,
+            area,
+            area,
+            InteractionTarget::Fixture(HitTarget::Help {
+                page: 1,
+                action: HelpControl::Close,
+            }),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+        );
+        dispatcher.publish_hit_map(hits.finish());
+    };
+
+    for cancellation in 0..4 {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(80);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        publish(&mut dispatcher);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;13;6M");
+        match cancellation {
+            0 => dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O"),
+            1 => dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I"),
+            2 => dispatcher.set_pointer_capture(&mut view, &mut port, false),
+            _ => dispatcher.invalidate_hit_map(&mut port),
+        }
+        calls.borrow_mut().clear();
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            b"\x1b[<0;13;6mtail\x1b[200~paste\x1b[201~\x1b[",
+        );
+        assert!(
+            forwarded_bytes(&calls).is_empty(),
+            "cancellation {cancellation} leaked the release packet"
+        );
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"A");
+        assert!(
+            forwarded_bytes(&calls).is_empty(),
+            "cancellation {cancellation} leaked an owned fragment"
+        );
+        if cancellation == 0 {
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[I");
+        }
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
+        assert_eq!(forwarded_bytes(&calls), b"fresh");
+    }
+
+    // A new physical press retires the cleanup debt. The later orphaned
+    // release does not manufacture ownership for its packet tail.
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    publish(&mut dispatcher);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;13;6M\x1b[O\x1b[I\x1b[<0;1;1M",
+    );
+    calls.borrow_mut().clear();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;1;1morphan");
+    assert_eq!(forwarded_bytes(&calls), b"orphan");
 }
 
 #[test]
@@ -717,6 +955,11 @@ fn prefixed_m_toggles_pointer_capture_through_the_mode_lease() {
     // the binding releases and re-arms through the same lease.
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     for expected in [false, true] {
+        let expected_request = if expected {
+            PointerCaptureRequest::ButtonOnly
+        } else {
+            PointerCaptureRequest::Release
+        };
         dispatcher
             .dispatch(
                 &mut view,
@@ -743,11 +986,246 @@ fn prefixed_m_toggles_pointer_capture_through_the_mode_lease() {
         assert!(
             calls
                 .borrow()
-                .contains(&Call::Mode(ModeRequest::PointerCapture(expected)))
+                .contains(&Call::Mode(ModeRequest::PointerCapture(expected_request)))
         );
         assert_eq!(dispatcher.pointer_capture_enabled(), expected);
         calls.borrow_mut().clear();
     }
+}
+
+#[test]
+fn exact_reset_reply_upgrades_global_tracking_once_after_the_query() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let now = Instant::now();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let mut modes = Vec::new();
+    dispatcher
+        .begin_pointer_admission(now, &mut |request| {
+            modes.push(request);
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    assert_eq!(
+        modes
+            .iter()
+            .filter(|request| matches!(request, ModeRequest::PointerAdmissionQuery(_)))
+            .count(),
+        1
+    );
+
+    for reply in [
+        b"\x1b[?1003;2$y".as_slice(),
+        b"\x9b?1003;2$y",
+        b"\x1b[?1;2c",
+    ] {
+        dispatcher
+            .dispatch(
+                &mut view,
+                reply,
+                &mut port,
+                now,
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |request| {
+                    modes.push(request);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    }
+    assert_eq!(dispatcher.pointer_capture, PointerCaptureRequest::AnyMotion);
+    assert_eq!(
+        modes
+            .iter()
+            .filter(|request| {
+                matches!(
+                    request,
+                    ModeRequest::PointerCapture(PointerCaptureRequest::AnyMotion)
+                )
+            })
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn unsupported_contradictory_and_sentinel_replies_leave_button_only_active() {
+    for reply in [
+        b"\x1b[?1003;0$y".as_slice(),
+        b"\x1b[?1003;1$y",
+        b"\x1b[?1003;3$y",
+        b"\x1b[?1003;4$y",
+        b"\x1b[?1;2c",
+    ] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let mut port = UnavailablePort(Rc::clone(&calls));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        let now = Instant::now();
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatcher
+            .begin_pointer_admission(now, &mut |_| Ok::<(), io::Error>(()))
+            .unwrap();
+        let mut any_motion = 0;
+        dispatcher
+            .dispatch(
+                &mut view,
+                reply,
+                &mut port,
+                now,
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |request| {
+                    if request == ModeRequest::PointerCapture(PointerCaptureRequest::AnyMotion) {
+                        any_motion += 1;
+                    }
+                    Ok(())
+                },
+            )
+            .unwrap();
+        assert_eq!(any_motion, 0, "{reply:?}");
+        assert_eq!(
+            dispatcher.pointer_capture,
+            PointerCaptureRequest::ButtonOnly
+        );
+    }
+
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let now = Instant::now();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .begin_pointer_admission(now, &mut |_| Ok::<(), io::Error>(()))
+        .unwrap();
+    dispatcher
+        .synchronize(
+            &mut view,
+            &mut port,
+            now + Duration::from_millis(301),
+            &mut |_| Ok::<(), io::Error>(()),
+        )
+        .unwrap();
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::ButtonOnly
+    );
+}
+
+#[test]
+fn admission_settled_while_released_is_reused_without_a_second_query() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let now = Instant::now();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .begin_pointer_admission(now, &mut |_| Ok::<(), io::Error>(()))
+        .unwrap();
+    dispatcher.set_pointer_capture(&mut view, &mut port, false);
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x1b[?1003;2$y",
+            &mut port,
+            now,
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(dispatcher.pointer_capture, PointerCaptureRequest::Release);
+
+    let mut modes = Vec::new();
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x02m",
+            &mut port,
+            now,
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |request| {
+                modes.push(request);
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert!(modes.contains(&ModeRequest::PointerCapture(
+        PointerCaptureRequest::AnyMotion
+    )));
+    assert!(
+        !modes
+            .iter()
+            .any(|request| matches!(request, ModeRequest::PointerAdmissionQuery(_)))
+    );
+    assert_eq!(dispatcher.pointer_capture, PointerCaptureRequest::AnyMotion);
+}
+
+#[test]
+fn failed_query_or_tracking_transition_is_never_retried_or_published() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    let now = Instant::now();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let mut queries = 0;
+    assert!(
+        dispatcher
+            .begin_pointer_admission(now, &mut |_| {
+                queries += 1;
+                Err::<(), _>(io::Error::other("query failed"))
+            })
+            .is_err()
+    );
+    dispatcher
+        .begin_pointer_admission(now, &mut |_| {
+            queries += 1;
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    assert_eq!(queries, 1);
+
+    let mut dispatcher = InputDispatcher::default();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .begin_pointer_admission(now, &mut |_| Ok::<(), io::Error>(()))
+        .unwrap();
+    let mut transitions = 0;
+    assert!(
+        dispatcher
+            .dispatch(
+                &mut view,
+                b"\x1b[?1003;2$y",
+                &mut port,
+                now,
+                |_, _| Ok::<bool, io::Error>(false),
+                &mut |request| {
+                    if request == ModeRequest::PointerCapture(PointerCaptureRequest::AnyMotion) {
+                        transitions += 1;
+                        return Err(io::Error::other("tracking failed"));
+                    }
+                    Ok(())
+                },
+            )
+            .is_err()
+    );
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::ButtonOnly
+    );
+    assert!(dispatcher.pointer_transition_failed);
+    dispatcher
+        .synchronize(&mut view, &mut port, now, &mut |request| {
+            if request == ModeRequest::PointerCapture(PointerCaptureRequest::AnyMotion) {
+                transitions += 1;
+            }
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    assert_eq!(transitions, 1);
 }
 
 #[test]
@@ -963,36 +1441,83 @@ fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
     assert_eq!(*layout_passes.borrow(), 1);
 }
 
-/// A port whose board-ownership flag the test flips directly — the same
-/// value the session's painted-verdict flag drives in production — plus
-/// a record of the board select calls the pointer path produces.
+/// A port whose Board capture intent the test flips directly, plus a record
+/// of the exact-episode row selections the pointer path produces.
 struct BoardPort {
     calls: Rc<RefCell<Vec<Call>>>,
     owned: Rc<std::cell::Cell<bool>>,
 }
 
 impl TerminalInputPort for BoardPort {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default().with_agent_board(self.owned.get())
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        (self.owned.get() && owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(
+            || {
+                crate::terminal_session::NativeCaptureContext::AgentBoard(
+                    crate::terminal_session::AgentBoardInputContext::for_test(
+                        crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+                        crate::tui_presentation::PresentationPhase::Admitted,
+                        true,
+                    ),
+                )
+            },
+        )
+    }
+
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
     }
 
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        if action == ClientAction::ToggleAgentBoard {
+            self.owned.set(!self.owned.get());
+        }
         self.calls.borrow_mut().push(Call::Action(action));
         None
     }
 
-    fn agent_board_input(&mut self) -> bool {
-        self.owned.get()
+    fn capture_agent_board_key_for(
+        &mut self,
+        episode: crate::terminal_session::AgentBoardEpisodeToken,
+        key: crate::client_view::KeyEvent,
+    ) -> bool {
+        if !self.owned.get()
+            || episode != crate::terminal_session::AgentBoardEpisodeToken::for_test(1)
+        {
+            return false;
+        }
+        if crate::client_view::Binding::new(
+            crate::client_view::KeyCode::Esc,
+            crate::client_view::Modifiers::NONE,
+        )
+        .matches(key)
+        {
+            self.owned.set(false);
+        }
+        true
     }
 
     fn agent_board_select(
         &mut self,
-        session: &orchbee_agent_observation_protocol::AgentSessionId,
+        target: &crate::terminal_session::AgentBoardRowTarget,
     ) -> bool {
+        let expected = crate::terminal_session::AgentBoardRowTarget::for_test(
+            crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+            target.session().clone(),
+        );
+        if !self.owned.get() || target != &expected {
+            return false;
+        }
         self.calls
             .borrow_mut()
-            .push(Call::BoardSelect(session.clone()));
+            .push(Call::BoardSelect(target.session().clone()));
         true
     }
 }
@@ -1018,10 +1543,19 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
         .unwrap();
     let mut hits = crate::tui_pointer::HitMapBuilder::new();
     hits.mark_overlay_active();
-    hits.record(
+    hits.record_interaction(
         crate::tui_pointer::HitLayer::Overlay,
         ratatui::layout::Rect::new(0, 0, 10, 1),
-        crate::tui_pointer::HitTarget::AgentBoardRow(session.clone()),
+        ratatui::layout::Rect::new(0, 0, 10, 1),
+        crate::tui_pointer::InteractionTarget::AgentBoardRow(
+            crate::terminal_session::AgentBoardRowTarget::for_test(
+                crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+                session.clone(),
+            ),
+        ),
+        crate::tui_pointer::InteractionSpec::enabled(
+            crate::tui_pointer::PrimaryContract::SelectOnPress,
+        ),
     );
     dispatcher.publish_hit_map(hits.finish());
     // Baseline: the press resolves the painted row.
@@ -1062,6 +1596,7 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
     );
 }
 
+#[cfg(windows)]
 #[test]
 fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -1072,29 +1607,38 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
     };
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
-    let session = orchbee_agent_observation_protocol::AgentSessionId::parse("s-1").unwrap();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     // A foreground region the last frame recorded under where the board
     // is about to paint — resolving by identity, it still answers while
     // the map is current.
+    view.machines.available = true;
+    view.machines.observe_agent_sidebar(true);
     let mut hits = crate::tui_pointer::HitMapBuilder::new();
-    hits.record(
+    let sidebar_source = view.machines.sidebar_source();
+    hits.record_interaction(
         crate::tui_pointer::HitLayer::Foreground,
         ratatui::layout::Rect::new(0, 0, 10, 1),
-        crate::tui_pointer::HitTarget::AgentBoardRow(session.clone()),
+        ratatui::layout::Rect::new(0, 0, 10, 1),
+        crate::tui_pointer::InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(
+            &sidebar_source,
+            crate::machine_picker::SidebarFixedAction::Settings,
+        )),
+        crate::tui_pointer::InteractionSpec::enabled(
+            crate::tui_pointer::PrimaryContract::ActivateOnRelease,
+        ),
     );
     dispatcher.publish_hit_map(hits.finish());
     dispatcher
         .dispatch(
             &mut view,
-            b"[<0;1;1M",
+            b"[<0;1;1M[<0;1;1m",
             &mut port,
             Instant::now(),
             |_, _| Ok::<bool, io::Error>(false),
             &mut |_| Ok(()),
         )
         .unwrap();
-    assert_eq!(*calls.borrow(), [Call::BoardSelect(session.clone())]);
+    assert_eq!(*calls.borrow(), [Call::Action(ClientAction::OpenSettings)]);
     // Opening the board stales that map: the region it describes now
     // sits under a capturing overlay, so the same press must drop
     // instead of reaching through.
@@ -1108,7 +1652,7 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
     dispatcher
         .dispatch(
             &mut view,
-            b"[<0;1;1M",
+            b"[<0;1;1M[<0;1;1m",
             &mut port,
             Instant::now(),
             |_, _| Ok::<bool, io::Error>(false),
@@ -1122,7 +1666,7 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
 }
 
 #[test]
-fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
+fn an_open_board_consumes_prefix_and_paste_before_the_binding_layer() {
     for packet in [
         b"\x02\x1b[200~payload\x1b[201~".as_slice(),
         b"\x02\x1b[200~\xffpayload\x1b[201~".as_slice(),
@@ -1135,10 +1679,8 @@ fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
         };
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(100);
-        // A real input stream: the chord arms the prefix, then a bracketed
-        // paste completes in the same read. The painted board owns the run
-        // whole — no bytes forward, no binding decides it, and the prefix
-        // stays armed for the next key.
+        // A real input stream: the board owns the chord before it can arm the
+        // binding layer, then owns the bracketed paste in the same read.
         dispatcher
             .dispatch(
                 &mut view,
@@ -1153,10 +1695,10 @@ fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
             calls.borrow().is_empty(),
             "the board swallows the paste whole: nothing may reach the pane"
         );
-        assert!(view.prefix_active());
+        assert!(!view.prefix_active());
         assert!(view.notice().is_none());
-        // The arm was never spent: the next key still resolves its binding —
-        // `g` is the board's own toggle.
+        // A later `g` remains Board input; it cannot become the tail of a
+        // prefix chord and close the surface through the global binding.
         dispatcher
             .dispatch(
                 &mut view,
@@ -1167,12 +1709,119 @@ fn an_open_board_swallows_a_paste_inside_the_armed_prefix() {
                 &mut |_| Ok(()),
             )
             .unwrap();
-        assert_eq!(
-            *calls.borrow(),
-            [Call::Action(ClientAction::ToggleAgentBoard)]
-        );
+        assert!(calls.borrow().is_empty());
         assert!(!view.prefix_active());
     }
+}
+
+#[test]
+fn opening_board_acquires_paste_before_installing_capture_and_fences_the_packet_tail() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(false));
+    let mut port = BoardPort {
+        calls: Rc::clone(&calls),
+        owned: Rc::clone(&owned),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    dispatcher
+        .dispatch(
+            &mut ClientView::new(100),
+            b"\x02gtail",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |request| {
+                if request == ModeRequest::BracketedPaste(true) {
+                    calls.borrow_mut().push(Call::Mode(request));
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert!(owned.get());
+    assert_eq!(
+        *calls.borrow(),
+        [
+            Call::Mode(ModeRequest::BracketedPaste(true)),
+            Call::Action(ClientAction::ToggleAgentBoard),
+        ]
+    );
+}
+
+#[test]
+fn board_continuation_accepts_two_moves_but_not_stale_activation_in_one_packet() {
+    struct Port {
+        selected: usize,
+        exact_activation: bool,
+        activations: usize,
+    }
+
+    impl TerminalInputPort for Port {
+        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+            crate::tui_composition::NativeCaptureClaims::default().with_agent_board(true)
+        }
+
+        fn native_capture_context(
+            &self,
+            owner: crate::tui_composition::NativeCaptureOwner,
+        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+            (owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(|| {
+                crate::terminal_session::NativeCaptureContext::AgentBoard(
+                    crate::terminal_session::AgentBoardInputContext::for_test(
+                        crate::terminal_session::AgentBoardEpisodeToken::for_test(7),
+                        crate::tui_presentation::PresentationPhase::Admitted,
+                        true,
+                    ),
+                )
+            })
+        }
+
+        fn capture_agent_board_key_for(
+            &mut self,
+            episode: crate::terminal_session::AgentBoardEpisodeToken,
+            key: crate::client_view::KeyEvent,
+        ) -> bool {
+            if episode != crate::terminal_session::AgentBoardEpisodeToken::for_test(7) {
+                return false;
+            }
+            match key.normalized() {
+                (crate::client_view::KeyCode::Down, crate::client_view::Modifiers::NONE) => {
+                    self.selected += 1;
+                    self.exact_activation = false;
+                }
+                (crate::client_view::KeyCode::Enter, crate::client_view::Modifiers::NONE)
+                    if self.exact_activation =>
+                {
+                    self.activations += 1;
+                }
+                _ => {}
+            }
+            true
+        }
+
+        fn forward(&mut self, _bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+            Ok(())
+        }
+    }
+
+    let mut port = Port {
+        selected: 0,
+        exact_activation: true,
+        activations: 0,
+    };
+    let mut dispatcher = InputDispatcher::default();
+    dispatcher
+        .dispatch(
+            &mut ClientView::new(100),
+            b"\x1b[B\x1b[B\r",
+            &mut port,
+            Instant::now(),
+            |_, _| Ok::<bool, io::Error>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(port.selected, 2);
+    assert_eq!(port.activations, 0);
 }
 
 #[test]
@@ -1423,6 +2072,11 @@ fn machine_picker_retires_a_cancelled_link_release_before_the_next_pane_press() 
 
     view.machines.open = false;
     dispatcher.machine_surface_changed();
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
     publish(&mut dispatcher);
     dispatch(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;2;2M");
     assert!(matches!(

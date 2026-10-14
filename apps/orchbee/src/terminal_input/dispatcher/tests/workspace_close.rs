@@ -9,12 +9,38 @@ struct ClosePort {
     forwarded: Vec<u8>,
 }
 impl TerminalInputPort for ClosePort {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default().with_workspace_close(self.active)
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        if owner != crate::tui_composition::NativeCaptureOwner::WorkspaceClose || !self.active {
+            return None;
+        }
+        Some(
+            crate::terminal_session::NativeCaptureContext::WorkspaceClose(
+                crate::terminal_session::ConfirmationCaptureContext {
+                    token: WorkspaceCloseToken::for_test(1),
+                    phase: crate::tui_presentation::PresentationPhase::Admitted,
+                    readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                },
+            ),
+        )
+    }
+
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
     }
-    fn capture_confirmation_key(&mut self, _: ClientKey) -> bool {
-        self.active
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        _: ClientKey,
+    ) -> bool {
+        token == WorkspaceCloseToken::for_test(1) && self.active
     }
     fn click_workspace_close(&mut self, token: WorkspaceCloseToken, confirm: bool) {
         assert_eq!(token, WorkspaceCloseToken::for_test(1));
@@ -22,6 +48,30 @@ impl TerminalInputPort for ClosePort {
         self.active = false;
         self.decisions.push(confirm);
     }
+}
+
+fn publish_close_control(
+    dispatcher: &mut InputDispatcher,
+    view: &mut ClientView,
+    port: &mut ClosePort,
+    confirm: bool,
+) {
+    dispatcher.pointer.set_capture(true);
+    dispatcher
+        .synchronize(view, port, Instant::now(), &mut |_| Ok::<(), io::Error>(()))
+        .unwrap();
+    let mut hits = HitMapBuilder::new();
+    hits.start_modal();
+    hits.record_modal_control(
+        HitLayer::Overlay,
+        Rect::new(10, 5, 8, 1),
+        HitTarget::WorkspaceClose {
+            token: WorkspaceCloseToken::for_test(1),
+            confirm,
+        },
+        crate::tui_pointer::InteractionAvailability::Enabled,
+    );
+    dispatcher.publish_hit_map(hits.finish());
 }
 
 #[test]
@@ -34,18 +84,7 @@ fn close_mouse_decision_captures_its_whole_packet_and_split_tail_frame() {
         };
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(100);
-        let mut hits = HitMapBuilder::new();
-        hits.start_modal();
-        hits.record(
-            HitLayer::Overlay,
-            Rect::new(10, 5, 8, 1),
-            HitTarget::WorkspaceClose {
-                token: WorkspaceCloseToken::for_test(1),
-                confirm,
-            },
-        );
-        dispatcher.pointer.set_capture(true);
-        dispatcher.publish_hit_map(hits.finish());
+        publish_close_control(&mut dispatcher, &mut view, &mut port, confirm);
         dispatch_all(
             &mut dispatcher,
             &mut view,
@@ -70,21 +109,65 @@ fn split_close_mouse_press_and_release_use_the_same_painted_control() {
         };
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(100);
-        let mut hits = HitMapBuilder::new();
-        hits.start_modal();
-        hits.record(
-            HitLayer::Overlay,
-            Rect::new(10, 5, 8, 1),
-            HitTarget::WorkspaceClose {
-                token: WorkspaceCloseToken::for_test(1),
-                confirm: true,
-            },
-        );
-        dispatcher.pointer.set_capture(true);
-        dispatcher.publish_hit_map(hits.finish());
+        publish_close_control(&mut dispatcher, &mut view, &mut port, true);
         dispatch_all(&mut dispatcher, &mut view, &mut port, &bytes[..split]);
         dispatch_all(&mut dispatcher, &mut view, &mut port, &bytes[split..]);
         assert_eq!(port.decisions, [true], "split {split}");
         assert!(port.forwarded.is_empty());
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn newer_machine_owner_cannot_hide_or_reuse_cancelled_confirmation_cleanup() {
+    for retire_with_new_press in [false, true] {
+        let mut port = ClosePort {
+            active: true,
+            decisions: vec![],
+            forwarded: vec![],
+        };
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        view.machines.available = true;
+        publish_close_control(&mut dispatcher, &mut view, &mut port, true);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;6M");
+        assert!(port.decisions.is_empty());
+
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
+        port.active = false;
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02M");
+        assert!(view.machines.open);
+
+        if retire_with_new_press {
+            // A new non-wheel press retires the old cleanup record, then
+            // belongs to the newer Machine surface.
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<1;2;2Mtail");
+        } else {
+            // The exact old release settles before Machine routing and owns
+            // its complete packet once.
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                b"\x1b[<0;12;6mtail\x1b[200~paste\x1b[201~",
+            );
+        }
+        assert!(port.forwarded.is_empty());
+        assert!(port.decisions.is_empty());
+
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+        assert!(!view.machines.open);
+        dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            b"\x1b[<0;12;6morphan",
+        );
+        assert_eq!(
+            port.forwarded, b"orphan",
+            "new press={retire_with_new_press}"
+        );
+        assert!(port.decisions.is_empty());
     }
 }

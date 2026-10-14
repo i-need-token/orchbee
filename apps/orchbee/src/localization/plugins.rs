@@ -115,6 +115,12 @@ impl Locale {
             (Self::ZhCn, true) => "正在关闭…",
         }
     }
+    pub(crate) const fn plugin_popup_resize_recovery(self) -> &'static str {
+        match self {
+            Self::EnUs => "Enlarge the terminal to restore the popup.",
+            Self::ZhCn => "请放大终端以恢复 popup。",
+        }
+    }
     pub(crate) fn plugin_help(
         self,
         path: crate::invocation::CommandPath,

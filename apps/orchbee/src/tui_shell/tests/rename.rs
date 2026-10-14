@@ -35,21 +35,25 @@ pub(crate) fn run_native_rename_resize(
         now: origin,
         origin,
         inputs: VecDeque::from([
-            (0, Some(b"\x02,\x15renamed".to_vec())),
-            (1, Some(b"\r".to_vec())),
-            (2, Some(b"\x1b".to_vec())),
+            (0, Some(b"\x02,".to_vec())),
+            (1, Some(b"\x15renamed".to_vec())),
+            (2, Some(b"\r".to_vec())),
             (52, None),
-            (102, Some(b"\x02q".to_vec())),
+            (53, Some(b"\r".to_vec())),
+            (103, None),
+            (153, Some(b"\x02q".to_vec())),
         ]),
     };
     let viewport = QueueViewportSource {
         dimensions: std::cell::RefCell::new(VecDeque::from([
             Ok(Some(initial)),
             Ok(Some(initial)),
+            Ok(Some(initial)),
             Ok(Some(resized)),
-            Ok(Some(resized)),
-            Ok(Some(resized)),
-            Ok(Some(resized)),
+            Ok(Some(initial)),
+            Ok(Some(initial)),
+            Ok(Some(initial)),
+            Ok(Some(initial)),
         ])),
     };
     let mut leases = Vec::new();

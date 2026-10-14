@@ -2,10 +2,34 @@ use super::Locale;
 use crate::action_menu::{MenuAction, MenuUnavailable};
 
 impl Locale {
-    pub(crate) fn menu_back_button(self) -> &'static str {
+    pub(crate) const fn menu_back_button(self) -> &'static str {
         match self {
-            Self::EnUs => "[Back]",
-            Self::ZhCn => "[返回]",
+            Self::EnUs => "Back",
+            Self::ZhCn => "返回",
+        }
+    }
+    pub(crate) const fn menu_close_button(self) -> &'static str {
+        match self {
+            Self::EnUs => "Close",
+            Self::ZhCn => "关闭",
+        }
+    }
+    pub(crate) const fn menu_cancel_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Cancel",
+            Self::ZhCn => "取消",
+        }
+    }
+    pub(crate) const fn menu_run_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Run",
+            Self::ZhCn => "执行",
+        }
+    }
+    pub(crate) const fn menu_select_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Select",
+            Self::ZhCn => "选择",
         }
     }
     pub(crate) fn tab_drag_hint(self, count: usize, valid: bool) -> String {
@@ -25,10 +49,6 @@ impl Locale {
         compact: bool,
     ) -> &'static str {
         match (self, reason, compact) {
-            (Self::EnUs, MenuUnavailable::UnsupportedHost, _) => {
-                "Unavailable in this terminal host"
-            }
-            (Self::ZhCn, MenuUnavailable::UnsupportedHost, _) => "当前终端宿主不支持",
             (Self::EnUs, MenuUnavailable::NoRecentGroup, _) => "No recent group",
             (Self::ZhCn, MenuUnavailable::NoRecentGroup, _) => "暂无最近使用的分组",
             (Self::EnUs, MenuUnavailable::NoMatchingTabs, false) => {
@@ -79,56 +99,10 @@ impl Locale {
             (Self::ZhCn, MenuUnavailable::PointerReleased, true) => "已释放",
         }
     }
-    pub(crate) fn menu_disabled_hint(self, reason: MenuUnavailable, width: usize) -> String {
-        let owner = match self {
-            Self::EnUs => "Menu",
-            Self::ZhCn => "菜单",
-        };
-        [
-            format!("{owner} · {} · Esc", self.menu_unavailable(reason, false)),
-            format!("{owner} · {} · Esc", self.menu_unavailable(reason, true)),
-            format!("{owner} · Esc"),
-            "Esc".to_owned(),
-        ]
-        .into_iter()
-        .find(|hint| crate::terminal_text::display_width(hint) <= width)
-        .unwrap_or_default()
-    }
     pub(crate) const fn menu_title(self) -> &'static str {
         match self {
             Self::EnUs => "Actions",
             Self::ZhCn => "动作菜单",
-        }
-    }
-    pub(crate) const fn menu_hint(self, pending: bool) -> &'static str {
-        match (self, pending) {
-            (Self::EnUs, false) => "Menu · ↑/↓ select · Enter run · Esc cancel",
-            (Self::ZhCn, false) => "菜单 · ↑/↓ 选择 · Enter 执行 · Esc 取消",
-            (Self::EnUs, true) => "Menu · selecting target · Esc cancel",
-            (Self::ZhCn, true) => "菜单 · 正在定位目标 · Esc 取消",
-        }
-    }
-    pub(crate) fn menu_status_hint(self, pending: bool, width: usize) -> &'static str {
-        let full = self.menu_hint(pending);
-        let compact = match (self, pending) {
-            (Self::EnUs, false) => "Menu · ↑/↓ · Enter · Esc",
-            (Self::ZhCn, false) => "菜单 · ↑/↓ · Enter · Esc",
-            (Self::EnUs, true) => "Menu · selecting · Esc",
-            (Self::ZhCn, true) => "菜单 · 定位中 · Esc",
-        };
-        let minimal = match self {
-            Self::EnUs => "Menu · Esc",
-            Self::ZhCn => "菜单 · Esc",
-        };
-        [full, compact, minimal, "Esc"]
-            .into_iter()
-            .find(|hint| crate::terminal_text::display_width(hint) <= width)
-            .unwrap_or("")
-    }
-    pub(crate) const fn menu_footer(self, compact: bool) -> &'static str {
-        match (self, compact) {
-            (Self::EnUs | Self::ZhCn, false) => "Esc · Enter",
-            (Self::EnUs | Self::ZhCn, true) => "Esc",
         }
     }
     pub(crate) const fn menu_action(self, action: MenuAction) -> &'static str {

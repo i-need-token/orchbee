@@ -1,8 +1,9 @@
 use super::*;
 use crate::client_view::navigator::{Admission, Catalog, Row, Source, Target};
-use crate::terminal_input::MouseButton;
 use crate::terminal_session::NativeContextLocation;
-use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_pointer::{
+    HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
+};
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchRevision, WorkbenchTabId, WorkbenchTerminalContextId,
 };
@@ -70,14 +71,20 @@ impl TerminalInputPort for Port {
     }
 }
 fn paint(dispatcher: &mut InputDispatcher, view: &ClientView) {
-    let mut hits = HitMapBuilder::new();
+    let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     hits.mark_overlay_active();
-    hits.start_navigator(view.navigator.focus.clone(), 5);
-    hits.record(
-        HitLayer::Overlay,
-        Rect::new(38, 2, 3, 1),
-        HitTarget::NavigatorClose(view.navigator.episode()),
-    );
+    let source = view.navigator.draw_source();
+    hits.start_navigator(source.clone(), view.navigator.focus.clone(), 5);
+    if let Some(source) = source {
+        let rect = Rect::new(38, 2, 3, 1);
+        hits.record_interaction(
+            HitLayer::Overlay,
+            rect,
+            rect,
+            InteractionTarget::NavigatorClose(source),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+        );
+    }
     for (rect, tabs) in [
         (Rect::new(2, 3, 20, 5), true),
         (Rect::new(22, 3, 20, 5), false),
@@ -144,11 +151,11 @@ fn navigator_wheel_stays_in_its_column_and_never_activates_then_close_restores_i
     paint(&mut d, &v);
     dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<65;1;1M");
     assert!(v.navigator_active(), "outside wheel cannot dismiss");
-    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;39;3Mtail");
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;39;3M\x1b[<0;39;3mtail");
     assert!(!v.navigator_active());
     assert!(p.attempts.is_empty());
     d.publish_hit_map(HitMapBuilder::new().finish());
-    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;39;3mfresh");
+    dispatch_all(&mut d, &mut v, &mut p, b"fresh");
     assert_eq!(forwarded_bytes(&p.calls), b"fresh");
 }
 fn escape(dispatcher: &mut InputDispatcher, view: &mut ClientView, port: &mut Port) {
@@ -195,13 +202,35 @@ fn enter_requires_focused_fresh_paint_and_acceptance_is_one_shot() {
 fn pointer_uses_exact_other_row_and_owns_late_release_beyond_repaint() {
     let (mut d, mut v, mut p) = opened();
     dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;3;5M");
+    assert!(p.attempts.is_empty(), "press only arms the painted row");
+    assert!(v.navigator_active());
+    paint(&mut d, &v);
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;3;5mtail");
     assert_eq!(p.attempts[0].target, Target::Tab(p.catalog.tabs[1].clone()));
-    assert_eq!(d.navigator.release, Some(MouseButton::Left));
-    d.publish_hit_map(HitMapBuilder::new().finish());
-    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;3;5mfresh");
     assert_eq!(d.navigator.release, None);
+    d.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut d, &mut v, &mut p, b"fresh");
     assert_eq!(p.attempts.len(), 1);
     assert_eq!(forwarded_bytes(&p.calls), b"fresh");
+}
+
+#[test]
+fn navigator_source_replacement_cancels_an_armed_row_without_rehitting() {
+    let (mut d, mut v, mut p) = opened();
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;3;5M");
+    assert!(p.attempts.is_empty());
+
+    p.catalog.source.revision = WorkbenchRevision::new(2);
+    d.synchronize(&mut v, &mut p, Instant::now(), &mut |_| {
+        Ok::<_, io::Error>(())
+    })
+    .unwrap();
+    paint(&mut d, &v);
+    dispatch_all(&mut d, &mut v, &mut p, b"\x1b[<0;3;5mtail");
+
+    assert!(v.navigator_active());
+    assert!(p.attempts.is_empty());
+    assert!(forwarded_bytes(&p.calls).is_empty());
 }
 
 #[test]

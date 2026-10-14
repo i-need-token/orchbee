@@ -34,19 +34,25 @@ impl<'a> NativeRenameDraftView<'a> {
     pub(crate) fn label_valid(&self) -> bool {
         self.0.label_valid()
     }
+    pub(crate) const fn interactive(&self) -> bool {
+        self.0.interactive()
+    }
+    pub(crate) const fn presentation(&self) -> crate::tui_presentation::PresentationPhase {
+        self.0.presentation()
+    }
+    pub(crate) fn remaining_scalar_capacity(&self) -> usize {
+        MAXIMUM_LABEL_LENGTH - self.0.text().chars().count()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NativeRenameInputContext {
     token: NativeRenameDraftToken,
-    remaining_scalar_capacity: usize,
 }
 impl NativeRenameInputContext {
+    #[cfg(test)]
     pub(crate) const fn token(self) -> NativeRenameDraftToken {
         self.token
-    }
-    pub(crate) const fn remaining_scalar_capacity(self) -> usize {
-        self.remaining_scalar_capacity
     }
 }
 
@@ -130,7 +136,6 @@ impl NativeUi {
         let draft = state.rename_draft()?;
         Some(NativeRenameInputContext {
             token: NativeRenameDraftToken(draft.token()),
-            remaining_scalar_capacity: MAXIMUM_LABEL_LENGTH - draft.text().chars().count(),
         })
     }
     pub(in crate::terminal_session) fn edit_rename_draft(
@@ -138,25 +143,29 @@ impl NativeUi {
         token: NativeRenameDraftToken,
         edit: NativeRenameEdit<'_>,
     ) -> bool {
-        self.state.as_mut().is_some_and(|state| {
-            state.edit_rename_draft(
-                token.0,
-                match edit {
-                    NativeRenameEdit::Append(text) => RenameDraftEdit::Append(text),
-                    NativeRenameEdit::Paste(text) => RenameDraftEdit::Paste(text),
-                    NativeRenameEdit::Backspace => RenameDraftEdit::Backspace,
-                    NativeRenameEdit::Clear => RenameDraftEdit::Clear,
-                    NativeRenameEdit::Left => RenameDraftEdit::Left,
-                    NativeRenameEdit::Right => RenameDraftEdit::Right,
-                    NativeRenameEdit::Home => RenameDraftEdit::Home,
-                    NativeRenameEdit::End => RenameDraftEdit::End,
-                    NativeRenameEdit::Delete => RenameDraftEdit::Delete,
-                    NativeRenameEdit::WordBackspace => RenameDraftEdit::WordBackspace,
-                    NativeRenameEdit::Fault => RenameDraftEdit::Fault,
-                    NativeRenameEdit::Completeness(value) => RenameDraftEdit::Completeness(value),
-                },
-            )
-        })
+        let Some(state) = self.state.as_mut() else {
+            return false;
+        };
+        if !state.rename_draft_input_ready(token.0) {
+            return false;
+        }
+        state.edit_rename_draft(
+            token.0,
+            match edit {
+                NativeRenameEdit::Append(text) => RenameDraftEdit::Append(text),
+                NativeRenameEdit::Paste(text) => RenameDraftEdit::Paste(text),
+                NativeRenameEdit::Backspace => RenameDraftEdit::Backspace,
+                NativeRenameEdit::Clear => RenameDraftEdit::Clear,
+                NativeRenameEdit::Left => RenameDraftEdit::Left,
+                NativeRenameEdit::Right => RenameDraftEdit::Right,
+                NativeRenameEdit::Home => RenameDraftEdit::Home,
+                NativeRenameEdit::End => RenameDraftEdit::End,
+                NativeRenameEdit::Delete => RenameDraftEdit::Delete,
+                NativeRenameEdit::WordBackspace => RenameDraftEdit::WordBackspace,
+                NativeRenameEdit::Fault => RenameDraftEdit::Fault,
+                NativeRenameEdit::Completeness(value) => RenameDraftEdit::Completeness(value),
+            },
+        )
     }
     pub(in crate::terminal_session) fn cancel_rename_draft(
         &mut self,
@@ -183,7 +192,7 @@ impl NativeUi {
             }
             Some(ModalPresentation::NotPresented) => {
                 state.acknowledge_rename_draw(None);
-                state.settle_rename_draft_not_presented();
+                let _ = state.settle_rename_draft_not_presented();
             }
             None => state.acknowledge_rename_draw(None),
         }
@@ -195,6 +204,13 @@ impl NativeUi {
         &mut self,
         token: NativeRenameDraftToken,
     ) -> SessionActionDisposition {
+        if self
+            .state
+            .as_ref()
+            .is_none_or(|state| !state.rename_draft_input_ready(token.0))
+        {
+            return SessionActionDisposition::KeepNavigator;
+        }
         let Some(deadline) = self
             .clock
             .now()

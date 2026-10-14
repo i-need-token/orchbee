@@ -1,3 +1,4 @@
+use super::tui_observer::{ModalRow, NativeHeader};
 use super::*;
 use orchbee_workbench_protocol::{
     ProtocolVersion, Snapshot, SnapshotReadIntent, WorkbenchRequest, WorkbenchRequestId,
@@ -8,20 +9,27 @@ use std::os::{fd::AsFd, unix::net::UnixStream};
 // Shared empty Workspace scene for directory and location-label process witnesses.
 // CLI seeds the explicit empty object; native UI steps retain their frame gates.
 // The public-protocol observer remains read-only.
-pub(super) const STANDALONE_HEADER: &str = "WORKBENCH · Standalone terminal";
-pub(super) const WORKSPACE_HEADER: &str = "WORKBENCH · Setup process / Chosen workspace";
+pub(super) const STANDALONE_LOCATION: &str = "Standalone terminal";
+pub(super) const WORKSPACE_LOCATION: &str = "Setup process / Chosen workspace";
 pub(super) const EMPTY: &str = "No terminal tabs";
-pub(super) const DIRECTORY_NEEDED: &str =
-    "No directory configured. Ctrl+B e · configure the first directory";
-pub(super) const DIRECTORY_READY: &str = "Ctrl+B c · launch a terminal in this directory";
+pub(super) const DIRECTORY_NEEDED: &str = "No directory configured.";
+pub(super) const DIRECTORY_NEEDED_ACTION: &str =
+    "Ctrl+b e Configure an empty Workspace's first directory";
+pub(super) const DIRECTORY_READY_ACTION: &str = "Ctrl+b c Create a Tab (requires session)";
 pub(super) const DIRECTORY_PATH: &str = "Configure Workspace directory";
-pub(super) const TEXT_ACTIONS: &str =
-    "Enter · submit    Esc · cancel    Backspace · delete    Ctrl+U · clear";
+pub(super) const DIRECTORY_INPUT_HINT: &str = "Enter the full path to an existing folder.";
+pub(super) const TEXT_HINTS: &str = "Esc cancel · Enter submit · Backspace delete · Ctrl+u clear";
+pub(super) const TEXT_ACTIONS: &str = "[ Cancel ]   [ Submit ]";
 pub(super) const DIRECTORY_REFUSED: &str =
     "Workspace setup not applied · check the target and input before trying again";
-pub(super) const DIRECTORY_ACCEPTED: &str = "Directory configured · Ctrl+B c to launch a terminal";
+pub(super) const DIRECTORY_ACCEPTED: &str = "Directory configured · ready to launch a terminal";
 
-pub(super) fn modal(client: &mut Client, checkpoint: usize, header: &str, rows: &[&str]) {
+pub(super) fn modal(
+    client: &mut Client,
+    checkpoint: usize,
+    header: NativeHeader<'_>,
+    rows: &[ModalRow<'_>],
+) {
     client.wait_modal_prompt_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
@@ -87,17 +95,18 @@ pub(super) fn seed_empty_workspace(fixture: &Fixture, client: &mut Client) -> Te
     );
     let checkpoint = client.checkpoint();
     client.send(b"\x02w");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[STANDALONE_HEADER],
+        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        &[],
         &["Workbench navigator"],
         &[],
         &mut [],
     );
     let checkpoint = client.checkpoint();
     client.send(b"\x02]");
-    wait_empty(client, checkpoint, None);
+    wait_empty(client, checkpoint, None, None);
     Ok(())
 }
 
@@ -109,31 +118,26 @@ pub(super) fn submit_directory(client: &mut Client, path: &str) -> usize {
 }
 
 pub(super) fn edit_directory(client: &mut Client, path: &str) {
-    finish_modal_handoff(client, &[WORKSPACE_HEADER, EMPTY]);
+    finish_modal_handoff(client, NativeHeader::empty(WORKSPACE_LOCATION), &[EMPTY]);
     let checkpoint = client.checkpoint();
     client.send(b"\x02e");
-    // The modal wraps the long hint onto two interior rows inside its inner width.
-    let hint = [
-        "Literal absolute path, at most 4,096 UTF-8 bytes, without NUL. No expansion or",
-        "directory creation.",
-    ];
     modal(
         client,
         checkpoint,
-        WORKSPACE_HEADER,
+        NativeHeader::empty(WORKSPACE_LOCATION),
         &[
-            DIRECTORY_PATH,
-            "",
-            "Project: Setup process",
-            "",
-            "Workspaces: Chosen workspace",
-            "",
-            "",
-            "",
-            hint[0],
-            hint[1],
-            "",
-            TEXT_ACTIONS,
+            ModalRow::exact(DIRECTORY_PATH),
+            ModalRow::exact(""),
+            ModalRow::exact("Project: Setup process"),
+            ModalRow::exact(""),
+            ModalRow::exact("Workspaces: Chosen workspace"),
+            ModalRow::exact(""),
+            ModalRow::field_at_end(""),
+            ModalRow::exact(""),
+            ModalRow::exact(DIRECTORY_INPUT_HINT),
+            ModalRow::exact(""),
+            ModalRow::exact(TEXT_HINTS),
+            ModalRow::exact(TEXT_ACTIONS),
         ],
     );
     let checkpoint = client.checkpoint();
@@ -141,33 +145,36 @@ pub(super) fn edit_directory(client: &mut Client, path: &str) {
     modal(
         client,
         checkpoint,
-        WORKSPACE_HEADER,
+        NativeHeader::empty(WORKSPACE_LOCATION),
         &[
-            DIRECTORY_PATH,
-            "",
-            "Project: Setup process",
-            "",
-            "Workspaces: Chosen workspace",
-            "",
-            path,
-            "",
-            hint[0],
-            hint[1],
-            "",
-            TEXT_ACTIONS,
+            ModalRow::exact(DIRECTORY_PATH),
+            ModalRow::exact(""),
+            ModalRow::exact("Project: Setup process"),
+            ModalRow::exact(""),
+            ModalRow::exact("Workspaces: Chosen workspace"),
+            ModalRow::exact(""),
+            ModalRow::field_at_end(path),
+            ModalRow::exact(""),
+            ModalRow::exact(DIRECTORY_INPUT_HINT),
+            ModalRow::exact(""),
+            ModalRow::exact(TEXT_HINTS),
+            ModalRow::exact(TEXT_ACTIONS),
         ],
     );
 }
 
-pub(super) fn finish_modal_handoff(client: &mut Client, required: &[&str]) {
+pub(super) fn finish_modal_handoff(
+    client: &mut Client,
+    header: NativeHeader<'_>,
+    required: &[&str],
+) {
     // ModalDecoder deliberately consumes unframed input for 50 ms after submit/cancel.
     // Observe the completed context frame throughout that existing window, with a small
     // scheduling margin; never send retry input that could mask a dropped stage transition.
     let until = Instant::now() + Duration::from_millis(75);
     while Instant::now() < until {
-        client.collect();
         assert!(
-            required.iter().all(|text| client.contains(text)),
+            client.current_frame_matches(header, required),
             "completed context or setup stage changed during modal handoff: {required:?}",
         );
         thread::yield_now();
@@ -224,21 +231,32 @@ impl SnapshotObserver {
     }
 }
 
-pub(super) fn wait_empty(client: &mut Client, checkpoint: usize, notice: Option<&str>) {
+pub(super) fn wait_empty(
+    client: &mut Client,
+    checkpoint: usize,
+    directory: Option<&str>,
+    notice: Option<&str>,
+) {
     // The sidebar clips the generic phase text. Observe the active context's complete
     // Empty-only panel guidance, alongside the absence of Tabs and canonical snapshots.
-    let guidance = if notice == Some(DIRECTORY_ACCEPTED) {
-        DIRECTORY_READY
+    let fact = if let Some(directory) = directory {
+        format!("Directory: {directory}")
     } else {
-        DIRECTORY_NEEDED
+        DIRECTORY_NEEDED.to_owned()
     };
-    let mut required = vec![WORKSPACE_HEADER, EMPTY, guidance];
+    let action = if directory.is_some() {
+        DIRECTORY_READY_ACTION
+    } else {
+        DIRECTORY_NEEDED_ACTION
+    };
+    let mut required = vec![EMPTY, fact.as_str(), action];
     required.extend(notice);
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
+        NativeHeader::empty(WORKSPACE_LOCATION),
         &required,
-        &["[*1", "Workbench navigator"],
+        &["Workbench navigator"],
         &[],
         &mut [],
     );

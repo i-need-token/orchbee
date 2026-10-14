@@ -32,15 +32,18 @@ CLI Resume；Pending 和 Unknown 仅允许观察。
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Session、Workspace 身份和可选 Project 元数据 | 已验证的 Workbench snapshot 投影为 `NativeContextTabs`；分组变化不改变 Context 身份                                                                                 |
 | 确认                                         | `WorkspaceCloseState`：带类型的 Workspace/Context 或 Project 目标、包含来源 Context 和 desired pane 的冻结完整 snapshot、名称、Project 成员数量和递增 display token |
-| 完整绘制与几何                               | 纯 renderer 返回带类型回执；UI 仅在完整绘制后认可当前提供的 token                                                                                                   |
+| 完整绘制与几何                               | 纯 renderer 返回 `ModalPresentation`；`tui_presentation` 与 `WorkspaceCloseState` 区分首次绘制阻塞和准入后的挂起，确切 shown-token 证明仍单独保留                   |
 | 请求身份、队列、lease 和期限                 | Command mailbox；单个有界 Refresh flight 将关闭与结构工作串行化                                                                                                     |
 | 捕获成员与终端生命周期                       | Server 保留范围、成员及 child 身份；Worker/Host 拥有处置                                                                                                            |
 | 提交与观察证据                               | Carrier 在下次 read 或 UI wait 前保留带类型的准入及观察；mailbox 和已 join worker 的交接保留这些事实                                                                |
 | 选择与 Viewer 清理                           | 既有 context-removal 与 membership 所有者消费规范 snapshot 和确切 attachment 身份                                                                                   |
 
 既有确认 packet 所有者解码按键。带修饰键、大写 `Y`、Enter、粘贴和尾随字节均不能确认，
-也不能到达终端。缺失或不完整的绘制证据不能提交。来源 revision、成员或选择变化会使
-确认失效。指定 Workspace 必须仍指向已捕获的确切终端 Context；即使当前 Context 和
+也不能到达终端。缺失或不完整的绘制证据不能提交。首次完整呈现之前，经过评估的几何阻塞会
+拒绝新提示，并保留本地化放大提示。成功呈现之后，相同阻塞会挂起既有提示并保留其 token、
+冻结来源与焦点：`y` 和过期鼠标释放不生效，本地 `Esc` 仍可取消，同一 token 随后完整绘制
+时恢复。缺失回执只撤销 shown 权限，不判定几何，也不丢弃提示。来源 revision、成员或选择
+变化会使确认失效。指定 Workspace 必须仍指向已捕获的确切终端 Context；即使当前 Context 和
 revision 未变化，目标消失或身份替换仍会使确认失效。交付前，新 snapshot 必须等于
 冻结投影，包括后台成员；变化或不可用的输入拒绝提交。
 该读取与 Server 准入仍是独立边界：Project 成员在 Start 时原子捕获，不声称存在跨越
@@ -59,7 +62,10 @@ revision 未变化，目标消失或身份替换仍会使确认失效。交付�
 | -------------------------------- | ------------------------------------------------------------------------------------------- |
 | 打开                             | 结构所有者空闲；冻结当前或指定 Workspace，或显式指定的 Project，不移动焦点                  |
 | 绘制                             | 准入几何下内容完整；仅认可其 token                                                          |
-| Esc、来源过期或几何拒绝          | 取消，不分配或提交 Close 请求                                                               |
+| 首次绘制前几何阻塞               | 拒绝并移除新提示，不分配 Close 请求，也不报告为用户取消                                     |
+| 成功绘制后几何阻塞               | 挂起同一 token、冻结来源与焦点；撤销提交和鼠标权限，直到同一 token 再次完整呈现             |
+| 缺失或被覆盖的绘制回执           | 只撤销确切 shown 权限；保留 presentation phase 与冻结提示                                   |
+| Esc 或来源过期                   | 取消，不分配或提交 Close 请求                                                               |
 | 确切 `y` 或有效关闭按钮点击      | 同一个已完整绘制的来源；原子分配并排队一个带类型操作                                        |
 | 执行                             | 活 lease 和原始 forward cutoff；新来源证明先于一次普通命令或 Project Start                  |
 | 确定未提交或准入拒绝             | 保留证据，不声称已准入，也不自动重试                                                        |

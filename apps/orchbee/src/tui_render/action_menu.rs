@@ -1,39 +1,80 @@
-//! Pure menu projection; the successful draw receipt alone arms input.
+//! Retained action-menu projection; only a complete successful frame arms input.
+
 use crate::{
-    action_menu::{MenuDraw, MenuView},
+    action_menu::{MenuAction, MenuControl, MenuDraw, MenuView},
+    action_projection::menu_binding_action,
+    client_view::{
+        Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
+        format_binding_with_glyphs, join_key_labels,
+    },
     localization::Locale,
     terminal_session::ModalPresentation,
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::{Role, Theme},
+    tui_pointer::{
+        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
+        ProjectedPointer,
+    },
+    tui_theme::{GlyphMode, Role, Theme},
 };
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Modifier,
     text::Line,
     widgets::{Clear, Padding, Paragraph},
 };
+
+use super::controls::{
+    ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
+    IconActionGlyph, IconActionSpec, InteractionState, KeyHint, NavigationState, OperationState,
+    PointerPresentation, RowContentBand, RowFocusCue, RowTracks, measure_key_hints,
+    paint_row_interaction, render_key_hints,
+};
+
+/// Keeps the right-aligned effective chord visually independent from the action label.
+const ROW_BINDING_GAP: u16 = 2;
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
     content: Rect,
     menu: MenuView<'_>,
+    bindings: &Bindings,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<MenuDraw> {
-    hits.start_action_menu();
     if content.width < 16 || content.height < 5 {
+        return ModalPresentation::NotPresented;
+    }
+
+    let key_glyphs = key_label_glyphs(theme);
+    let binding_labels = menu
+        .actions
+        .iter()
+        .map(|action| effective_binding(bindings, &menu, *action, key_glyphs))
+        .collect::<Vec<_>>();
+    let marker_width = display_width(theme.glyphs.navigation_marker);
+    if marker_width == 0 {
         return ModalPresentation::NotPresented;
     }
     let desired = menu
         .actions
         .iter()
-        // One padding cell on each side, plus the frame.
         .enumerate()
-        .map(|(index, a)| {
-            Line::raw(action_label(locale, *a, menu.labels[index].as_deref())).width() + 4
+        .map(|(index, action)| {
+            let label = action_label(
+                locale,
+                *action,
+                menu.labels[index].as_deref(),
+                theme.glyphs.middle_dot,
+                theme.glyphs.disclosure_closed,
+            );
+            marker_width
+                .saturating_add(display_width(&label))
+                .saturating_add(binding_labels[index].as_ref().map_or(0, |binding| {
+                    display_width(binding).saturating_add(usize::from(ROW_BINDING_GAP))
+                }))
+                // The row owns one padding cell beside each frame edge.
+                .saturating_add(2)
         })
         .max()
         .unwrap_or(16);
@@ -76,8 +117,90 @@ pub(super) fn render(
         return ModalPresentation::NotPresented;
     }
     let first = menu.first_visible_row(rows);
-    // A surviving wide lead outside the menu would make the terminal diff skip
-    // its border. Remove only crossing glyph remnants, retaining their style.
+    let visible_rows = visible_action_rows(&menu, first, rows);
+    if visible_rows == 0 {
+        return ModalPresentation::NotPresented;
+    }
+    let selected_visible = (first..first.saturating_add(visible_rows)).contains(&menu.selected);
+
+    let position = format!("{}/{}", menu.selected + 1, menu.actions.len());
+    let position_width = u16::try_from(display_width(&position)).unwrap_or(u16::MAX);
+    let Some(hints_width) = inner.width.checked_sub(position_width.saturating_add(1)) else {
+        return ModalPresentation::NotPresented;
+    };
+    let footer_area = Rect::new(inner.x, inner.bottom() - 1, hints_width, 1);
+    let exit_label = if menu.transferring {
+        locale.menu_cancel_hint()
+    } else if menu.has_parent {
+        locale.menu_back_button()
+    } else {
+        locale.menu_close_button()
+    };
+    let key_style = LabelStyle::for_host();
+    let exit_key = format_binding_with_glyphs(
+        &Binding::new(KeyCode::Esc, Modifiers::NONE),
+        key_style,
+        key_glyphs,
+    );
+    let enter_key = format_binding_with_glyphs(
+        &Binding::new(KeyCode::Enter, Modifiers::NONE),
+        key_style,
+        key_glyphs,
+    );
+    let navigation_key = join_key_labels(
+        &[
+            format_binding_with_glyphs(
+                &Binding::new(KeyCode::Up, Modifiers::NONE),
+                key_style,
+                key_glyphs,
+            ),
+            format_binding_with_glyphs(
+                &Binding::new(KeyCode::Down, Modifiers::NONE),
+                key_style,
+                key_glyphs,
+            ),
+        ],
+        key_style,
+        "/",
+    );
+    let mut hints = vec![KeyHint::new(exit_key.as_str(), exit_label)];
+    if !menu.transferring && selected_visible && menu.unavailable[menu.selected].is_none() {
+        hints.push(KeyHint::new(enter_key.as_str(), locale.menu_run_hint()));
+    }
+    if !menu.transferring {
+        hints.push(KeyHint::new(
+            navigation_key.as_str(),
+            locale.menu_select_hint(),
+        ));
+    }
+    if measure_key_hints(&hints, theme).is_none() {
+        return ModalPresentation::NotPresented;
+    }
+    let Some(required_hint_width) = measure_key_hints(&hints[..1], theme) else {
+        return ModalPresentation::NotPresented;
+    };
+    if required_hint_width > usize::from(footer_area.width) {
+        return ModalPresentation::NotPresented;
+    }
+    let close_rect = match super::controls::close_rect(frame.area(), area) {
+        Some(rect) => rect,
+        None => return ModalPresentation::NotPresented,
+    };
+    let footer_action = footer_action_layout(
+        frame.area(),
+        footer_area,
+        exit_label,
+        required_hint_width,
+        theme,
+    );
+    let hint_area = footer_action.map_or(footer_area, |(_, hint_area)| hint_area);
+
+    // Admission is complete. Only a menu that will paint may replace lower overlay hits and claim
+    // the unresolved pointer backdrop for this frame.
+    hits.start_action_menu();
+
+    // A surviving wide lead outside the menu would make the terminal diff skip its border. Remove
+    // only crossing glyph remnants, retaining their style.
     let buffer = frame.buffer_mut();
     for y in area.y..area.bottom() {
         let mut x = buffer.area.x;
@@ -86,8 +209,6 @@ pub(super) fn render(
             let width = u16::try_from(display_width(cell.symbol()).max(1)).unwrap_or(u16::MAX);
             let next = x.saturating_add(width).min(buffer.area.right());
             if (x < area.x && next > area.x) || next > area.right() {
-                // Continuations can carry Reset/Skip even when the lead has an
-                // explicit background. Keep the visible lead style, not diff flags.
                 let style = cell.style();
                 for column in x..next {
                     if column < area.x || column >= area.right() {
@@ -102,22 +223,9 @@ pub(super) fn render(
     }
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
-    if let Some(rect) = super::controls::close(frame, area, theme) {
-        hits.record(
-            HitLayer::Overlay,
-            rect,
-            HitTarget::ActionMenuControl {
-                token: menu.token,
-                back: false,
-            },
-        );
-    }
-    hits.record(
-        HitLayer::OverlaySurface,
-        Rect::new(inner.x - 1, inner.y, inner.width + 2, rows as u16),
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Menu(menu.token)),
-    );
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+
+    render_close(frame, close_rect, &menu, theme, hits);
+
     let mut painted_rows = 0;
     let mut used_rows = 0;
     for (offset, action) in menu.actions.iter().enumerate().skip(first) {
@@ -125,8 +233,13 @@ pub(super) fn render(
             if used_rows + 1 >= rows {
                 break;
             }
+            let separator = match theme.glyphs.mode() {
+                GlyphMode::Unicode => "─",
+                #[cfg(test)]
+                GlyphMode::Simplified => "-",
+            };
             frame.render_widget(
-                Paragraph::new("─".repeat(usize::from(inner.width)))
+                Paragraph::new(separator.repeat(usize::from(inner.width)))
                     .style(theme.style(Role::TextSecondary)),
                 Rect::new(
                     inner.x,
@@ -146,53 +259,22 @@ pub(super) fn render(
             inner.width + 2,
             1,
         );
+        render_row(
+            frame,
+            row_area,
+            &menu,
+            offset,
+            *action,
+            binding_labels[offset].as_deref(),
+            locale,
+            theme,
+            hits,
+        );
         used_rows += 1;
         painted_rows += 1;
-        let selected = offset == menu.selected;
-        let disabled = menu.unavailable[offset].is_some();
-        let text = theme.style(if disabled {
-            Role::TextDisabled
-        } else {
-            Role::TextPrimary
-        });
-        let mut style = if selected {
-            theme.style(Role::SurfaceSelection).patch(text)
-        } else {
-            text
-        };
-        if selected && !disabled {
-            style = style.add_modifier(Modifier::BOLD);
-        }
-        let marker = if selected
-            && theme.style(Role::SurfaceSelection).bg == theme.style(Role::SurfaceOverlay).bg
-        {
-            ">"
-        } else {
-            " "
-        };
-        let label = format!(
-            "{marker}{} ",
-            truncate_display(
-                &action_label(locale, *action, menu.labels[offset].as_deref()),
-                usize::from(inner.width),
-                theme.glyphs.ellipsis,
-            ),
-        );
-        frame.render_widget(Paragraph::new(label).style(style), row_area);
-        if !menu.transferring {
-            hits.record(
-                HitLayer::Overlay,
-                row_area,
-                HitTarget::ActionMenuRow {
-                    token: menu.token,
-                    row: offset,
-                },
-            );
-        }
     }
-    let position = format!("{}/{}", menu.selected + 1, menu.actions.len());
-    let position_width = u16::try_from(position.len()).unwrap_or(u16::MAX);
-    let hints_width = inner.width.saturating_sub(position_width + 1);
+    debug_assert_eq!(painted_rows, visible_rows);
+
     let unavailable = menu.unavailable[menu.selected];
     if let Some(reason) = unavailable {
         let full = locale.menu_unavailable(reason, false);
@@ -206,19 +288,26 @@ pub(super) fn render(
             Rect::new(inner.x, inner.bottom() - 2, inner.width, 1),
         );
     }
-    let footer = locale.menu_footer(
-        unavailable.is_some()
-            || usize::from(hints_width) < Line::raw(locale.menu_footer(false)).width(),
-    );
-    frame.render_widget(
-        Paragraph::new(if menu.has_parent && !menu.transferring {
-            ""
-        } else {
-            footer
-        })
-        .style(theme.style(Role::HintKey)),
-        Rect::new(inner.x, inner.bottom() - 1, hints_width, 1),
-    );
+
+    if let Some((action_rect, _)) = footer_action {
+        render_footer_action(
+            frame,
+            action_rect,
+            footer_area,
+            exit_label,
+            if menu.has_parent && !menu.transferring {
+                MenuControl::Back
+            } else {
+                MenuControl::Close
+            },
+            &menu,
+            theme,
+            hits,
+        );
+    }
+    let painted_hints = render_key_hints(frame, hint_area, &hints, theme)
+        .expect("the required exit hint was measured in the same area");
+    debug_assert!(hint_area.intersection(painted_hints) == painted_hints);
     frame.render_widget(
         Paragraph::new(position).style(theme.style(Role::TextSecondary)),
         Rect::new(
@@ -228,42 +317,311 @@ pub(super) fn render(
             1,
         ),
     );
-    if menu.has_parent
-        && !menu.transferring
-        && let Some(rect) = super::controls::button(
-            frame,
-            Rect::new(inner.x, inner.bottom() - 1, hints_width, 1),
-            locale.menu_back_button(),
-            theme,
-            false,
-        )
-    {
-        hits.record(
-            HitLayer::Overlay,
-            rect,
-            HitTarget::ActionMenuControl {
-                token: menu.token,
-                back: true,
-            },
-        );
-    }
+
+    let rows_height = u16::try_from(rows).unwrap_or(u16::MAX);
+    hits.record(
+        HitLayer::OverlaySurface,
+        Rect::new(inner.x - 1, inner.y, inner.width + 2, rows_height),
+        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Menu(menu.token)),
+    );
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     ModalPresentation::Presented(MenuDraw {
         token: menu.token,
+        first,
+        visible_rows: painted_rows,
         selected: menu.selected,
-        rows: painted_rows,
     })
+}
+
+fn visible_action_rows(menu: &MenuView<'_>, first: usize, rows: usize) -> usize {
+    let mut painted_rows = 0;
+    let mut used_rows = 0;
+    for index in first..menu.actions.len() {
+        if index > first && menu.separator_before(index) {
+            if used_rows + 1 >= rows {
+                break;
+            }
+            used_rows += 1;
+        }
+        if used_rows >= rows {
+            break;
+        }
+        used_rows += 1;
+        painted_rows += 1;
+    }
+    painted_rows
+}
+
+fn effective_binding(
+    bindings: &Bindings,
+    menu: &MenuView<'_>,
+    action: MenuAction,
+    glyphs: KeyLabelGlyphs,
+) -> Option<String> {
+    let action = menu_binding_action(menu.source, action)?;
+    bindings
+        .action_labels_with_glyphs(action, glyphs)
+        .into_iter()
+        .next()
+        .map(|label| sanitize_terminal_text(&label).into_owned())
+        .filter(|label| display_width(label) > 0)
+}
+
+const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
+    match theme.glyphs.mode() {
+        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
+        #[cfg(test)]
+        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
+    }
+}
+
+fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
+    match pointer {
+        ProjectedPointer::Rest => PointerPresentation::Rest,
+        ProjectedPointer::Hovered => PointerPresentation::Hovered,
+        ProjectedPointer::Pressed => PointerPresentation::Pressed,
+    }
+}
+
+fn interaction_spec(enabled: bool) -> InteractionSpec {
+    if enabled {
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+    } else {
+        InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
+    }
+}
+
+fn interaction_state(
+    focused: bool,
+    enabled: bool,
+    pointer: PointerPresentation,
+) -> InteractionState {
+    InteractionState::new(
+        if focused {
+            FocusState::Focused
+        } else {
+            FocusState::Unfocused
+        },
+        pointer,
+        if focused {
+            NavigationState::Provisional
+        } else {
+            NavigationState::None
+        },
+        CurrentState::NotCurrent,
+        CheckedState::Unchecked,
+        if enabled {
+            Availability::Enabled
+        } else {
+            Availability::Disabled
+        },
+        OperationState::Idle,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_row(
+    frame: &mut Frame<'_>,
+    row: Rect,
+    menu: &MenuView<'_>,
+    index: usize,
+    action: MenuAction,
+    binding: Option<&str>,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let marker_width = u16::try_from(display_width(theme.glyphs.navigation_marker).max(1))
+        .unwrap_or(u16::MAX)
+        .min(row.width.saturating_sub(1));
+    let navigation = Rect::new(row.x, row.y, marker_width, 1);
+    let binding_width = binding
+        .map(display_width)
+        .and_then(|width| u16::try_from(width).ok())
+        .filter(|width| {
+            row.width
+                .saturating_sub(marker_width)
+                .saturating_sub(*width)
+                > ROW_BINDING_GAP
+        });
+    let binding_rect = binding_width.map(|width| Rect::new(row.right() - width, row.y, width, 1));
+    let primary_right =
+        binding_rect.map_or(row.right(), |rect| rect.x.saturating_sub(ROW_BINDING_GAP));
+    let primary = Rect::new(
+        navigation.right(),
+        row.y,
+        primary_right.saturating_sub(navigation.right()),
+        1,
+    );
+    let label = truncate_display(
+        &action_label(
+            locale,
+            action,
+            menu.labels[index].as_deref(),
+            theme.glyphs.middle_dot,
+            theme.glyphs.disclosure_closed,
+        ),
+        usize::from(primary.width),
+        theme.glyphs.ellipsis,
+    );
+    frame.render_widget(
+        Paragraph::new(label).style(theme.style(Role::TextPrimary)),
+        primary,
+    );
+    let mut bands = Vec::new();
+    if let (Some(binding), Some(rect)) = (binding, binding_rect) {
+        frame.render_widget(
+            Paragraph::new(binding).style(theme.style(Role::HintKey)),
+            rect,
+        );
+        bands.push(RowContentBand::semantic(rect, Role::HintKey));
+    }
+
+    let enabled = menu.unavailable[index].is_none() && !menu.transferring;
+    let focused = index == menu.selected;
+    let target = InteractionTarget::ActionMenuRow {
+        source: menu.source.clone(),
+        token: menu.token,
+        row: index,
+    };
+    let spec = interaction_spec(enabled);
+    let pointer = if menu.transferring {
+        PointerPresentation::Rest
+    } else {
+        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, row, row, &target, spec))
+    };
+    let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary)
+        .with_provisional(navigation)
+        .with_primary_role(Role::TextPrimary);
+    let painted = paint_row_interaction(
+        frame,
+        row,
+        tracks,
+        &bands,
+        ControlSurface::Overlay,
+        interaction_state(focused, enabled, pointer),
+        theme,
+    )
+    .expect("action-menu row geometry was resolved before painting");
+    debug_assert_eq!(painted, row);
+    if !menu.transferring {
+        hits.record_interaction(HitLayer::Overlay, row, painted, target, spec);
+    }
+}
+
+fn action_state(pointer: PointerPresentation) -> InteractionState {
+    InteractionState::new(
+        FocusState::Unfocused,
+        pointer,
+        NavigationState::None,
+        CurrentState::NotCurrent,
+        CheckedState::Unchecked,
+        Availability::Enabled,
+        OperationState::Idle,
+    )
+}
+
+fn action_spec(label: &str, pointer: PointerPresentation) -> ActionSpec<'_> {
+    ActionSpec::new(
+        label,
+        ActionKind::Secondary,
+        ControlSurface::Overlay,
+        action_state(pointer),
+    )
+}
+
+fn footer_action_layout(
+    bounds: Rect,
+    footer: Rect,
+    label: &str,
+    required_hint_width: usize,
+    theme: &Theme,
+) -> Option<(Rect, Rect)> {
+    let action = super::controls::action_rect(
+        bounds,
+        footer,
+        action_spec(label, PointerPresentation::Rest),
+        theme,
+    )?;
+    let hints_x = action.right().checked_add(2)?;
+    let hint_width = footer.right().checked_sub(hints_x)?;
+    if usize::from(hint_width) < required_hint_width {
+        return None;
+    }
+    Some((
+        action,
+        Rect::new(hints_x, footer.y, hint_width, footer.height),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_footer_action(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    area: Rect,
+    label: &str,
+    control: MenuControl,
+    menu: &MenuView<'_>,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let target = InteractionTarget::ActionMenuControl {
+        source: menu.source.clone(),
+        token: menu.token,
+        control,
+    };
+    let spec = interaction_spec(true);
+    let pointer =
+        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
+    let painted = super::controls::render_action(frame, area, action_spec(label, pointer), theme)
+        .expect("preflighted menu action remains paintable");
+    debug_assert_eq!(painted, rect);
+    hits.record_interaction(HitLayer::Overlay, rect, painted, target, spec);
+}
+
+fn render_close(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    menu: &MenuView<'_>,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let target = InteractionTarget::ActionMenuControl {
+        source: menu.source.clone(),
+        token: menu.token,
+        control: MenuControl::Close,
+    };
+    let spec = interaction_spec(true);
+    let pointer =
+        pointer_presentation(hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec));
+    let painted = super::controls::render_icon_action(
+        frame,
+        rect,
+        IconActionSpec::new(
+            IconActionGlyph::Close,
+            ControlSurface::Overlay,
+            Availability::Enabled,
+            pointer,
+        ),
+        theme,
+    )
+    .expect("the preflighted action-menu close target remains paintable");
+    debug_assert_eq!(painted, rect);
+    hits.record_interaction(HitLayer::Overlay, rect, painted, target, spec);
 }
 
 fn action_label(
     locale: Locale,
-    action: crate::action_menu::MenuAction,
+    action: MenuAction,
     label: Option<&str>,
+    separator: &str,
+    disclosure: &str,
 ) -> String {
     let text = label.map_or_else(
         || locale.menu_action(action).to_owned(),
         |label| {
             format!(
-                "{} · {}",
+                "{} {separator} {}",
                 locale.menu_action(action),
                 sanitize_terminal_text(if label.is_empty() {
                     locale.shell().unnamed_tab_group
@@ -274,8 +632,11 @@ fn action_label(
         },
     );
     if action.submenu() {
-        format!("{text} ›")
+        format!("{text} {disclosure}")
     } else {
         text
     }
 }
+
+#[cfg(test)]
+mod tests;

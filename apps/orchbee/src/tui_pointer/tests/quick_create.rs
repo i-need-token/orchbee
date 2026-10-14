@@ -16,8 +16,24 @@ fn target() -> DrawnTabCreate {
 }
 fn map(target: DrawnTabCreate, area: Rect) -> FrameHitMap {
     let mut hits = HitMapBuilder::new();
-    hits.record(HitLayer::Foreground, area, HitTarget::TabCreate(target));
+    hits.record_interaction(
+        HitLayer::Foreground,
+        area,
+        area,
+        InteractionTarget::TabCreate(target),
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+    );
     hits.finish()
+}
+
+fn requested(outcome: &PointerOutcome, expected: &DrawnTabCreate) -> bool {
+    matches!(
+        outcome,
+        PointerOutcome::Interaction {
+            target: InteractionTarget::TabCreate(actual),
+            contract: PrimaryContract::ActivateOnRelease,
+        } if actual == expected
+    )
 }
 
 #[test]
@@ -36,19 +52,23 @@ fn tab_create_requires_a_complete_plain_click_inside_the_same_drawn_control() {
             pointer.publish(map(target(), area));
             let mut press = event(MouseAction::Press, MouseButton::Left, x, 0);
             press.mods = mods;
-            assert!(!matches!(
+            assert_eq!(
                 pointer.event(&mut view, &mut port, Instant::now(), press),
-                PointerOutcome::TabCreateRequested(_)
-            ));
+                if (10..13).contains(&x) && mods == Modifiers::NONE {
+                    PointerOutcome::Handled
+                } else {
+                    PointerOutcome::Ignored
+                },
+            );
             let release = event(MouseAction::Release, MouseButton::Left, x, 0);
             let outcome = pointer.event(&mut view, &mut port, Instant::now(), release);
             assert_eq!(
-                outcome == PointerOutcome::TabCreateRequested(target()),
+                requested(&outcome, &target()),
                 (10..13).contains(&x) && mods == Modifiers::NONE
             );
-            assert!(!matches!(
-                pointer.event(&mut view, &mut port, Instant::now(), release),
-                PointerOutcome::TabCreateRequested(_)
+            assert!(!requested(
+                &pointer.event(&mut view, &mut port, Instant::now(), release),
+                &target(),
             ));
             assert!(port.actions.is_empty() && port.forwarded.is_empty());
         }
@@ -97,13 +117,57 @@ fn tab_create_cancels_on_changed_identity_geometry_capture_or_outside_release() 
             }
             _ => unreachable!(),
         }
-        assert!(
-            !matches!(
-                pointer.event(&mut view, &mut port, Instant::now(), release),
-                PointerOutcome::TabCreateRequested(_)
-            ),
-            "change {change}"
+        assert_eq!(
+            pointer.event(&mut view, &mut port, Instant::now(), release),
+            PointerOutcome::InteractionEnded,
+            "change {change}",
         );
+        assert!(
+            matches!(
+                pointer.event(&mut view, &mut port, Instant::now(), release),
+                PointerOutcome::Ignored | PointerOutcome::Handled
+            ),
+            "change {change} must settle cleanup once without another end or semantic effect",
+        );
+        assert!(port.actions.is_empty() && port.forwarded.is_empty());
+    }
+}
+
+#[test]
+fn compositor_cover_cancels_generic_tab_create_and_owns_one_late_release() {
+    for button in [MouseButton::Left, MouseButton::None] {
+        let area = Rect::new(10, 0, 3, 1);
+        let mut pointer = PointerState::default();
+        let mut view = ClientView::new(120);
+        let mut port = RecordingPort::default();
+        pointer.set_capture(true);
+        pointer.publish(map(target(), area));
+        assert_eq!(
+            pointer.event(
+                &mut view,
+                &mut port,
+                Instant::now(),
+                event(MouseAction::Press, MouseButton::Left, 11, 0),
+            ),
+            PointerOutcome::Handled,
+        );
+        assert!(matches!(pointer.gesture, Gesture::Idle));
+        let mut covered = HitMapBuilder::new();
+        covered.mark_overlay_active();
+        covered.record(
+            HitLayer::OverlaySurface,
+            Rect::new(0, 0, 120, 30),
+            HitTarget::OverlaySurface,
+        );
+        pointer.publish(covered.finish());
+        assert!(!pointer.retire_covered_chrome_gesture());
+        assert!(matches!(pointer.gesture, Gesture::Idle));
+        let release = event(MouseAction::Release, button, 11, 0);
+        assert_eq!(
+            pointer.cancelled_ui_event(release),
+            PointerOutcome::InteractionEnded,
+        );
+        assert_eq!(pointer.cancelled_ui_event(release), PointerOutcome::Ignored,);
         assert!(port.actions.is_empty() && port.forwarded.is_empty());
     }
 }
@@ -131,6 +195,7 @@ fn project_create_entry_uses_the_existing_exact_machine_and_site_menu_admission(
         layer: HitLayer::Chrome,
         rect: Rect::new(20, 1, 3, 1),
         target: HitTarget::CreateMenu(Some(project.clone())),
+        interaction: None,
     });
     for stale in [false, true] {
         let mut pointer = PointerState::default();

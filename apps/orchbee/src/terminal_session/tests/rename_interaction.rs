@@ -424,13 +424,7 @@ fn actual_localized_draw_and_exact_token_enter_submit_one_unicode_rename() -> Te
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(120);
         let now = Instant::now();
-        input(
-            &mut dispatcher,
-            &mut session,
-            &mut view,
-            "\x02,\x15雪😀e\u{301}\r".as_bytes(),
-            now,
-        );
+        input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
         let token = session.rename_input_context().unwrap().token();
         assert!(server.commands.lock().unwrap().is_empty());
         let rendered = draw(&mut session, &view, locale, 120, 32)?;
@@ -447,6 +441,13 @@ fn actual_localized_draw_and_exact_token_enter_submit_one_unicode_rename() -> Te
                 .contains(&locale.rename_warning().replace(' ', ""))
         );
         assert_eq!(session.rename_input_context().unwrap().token(), token);
+        input(
+            &mut dispatcher,
+            &mut session,
+            &mut view,
+            "\x15雪😀e\u{301}".as_bytes(),
+            now,
+        );
         input(&mut dispatcher, &mut session, &mut view, b"\r\n\x02q", now);
         spin(&mut session, |_| {
             !server.commands.lock().unwrap().is_empty()
@@ -475,17 +476,18 @@ fn input_fault_survives_valid_edits_until_explicit_complete_backspace() -> TestR
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     let now = Instant::now();
+    input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
+    draw(&mut session, &view, Locale::EnUs, 120, 32)?;
     input(
         &mut dispatcher,
         &mut session,
         &mut view,
-        b"\x02,\x15\xe2\x08a\x1b[200~B\x1b[201~",
+        b"\x15\xe2\x08a\x1b[200~B\x1b[201~",
         now,
     );
     assert!(
         matches!(session.view(), TerminalSessionView::Native(view) if view.rename_draft().unwrap().input_fault())
     );
-    draw(&mut session, &view, Locale::EnUs, 120, 32)?;
     input(&mut dispatcher, &mut session, &mut view, b"\r", now);
     assert!(server.commands.lock().unwrap().is_empty());
     input(&mut dispatcher, &mut session, &mut view, b"\x08", now);
@@ -507,7 +509,7 @@ fn input_fault_survives_valid_edits_until_explicit_complete_backspace() -> TestR
 }
 
 #[test]
-fn clipped_draw_revokes_token_and_cancelled_paste_keeps_its_frame_until_the_boundary() -> TestResult
+fn clipped_draw_suspends_draft_and_cancelled_paste_keeps_its_frame_until_the_boundary() -> TestResult
 {
     let geometry = fixture_geometry()?;
     let server = RenameServer::start(geometry)?;
@@ -517,47 +519,88 @@ fn clipped_draw_revokes_token_and_cancelled_paste_keeps_its_frame_until_the_boun
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     let now = Instant::now();
-    input(
-        &mut dispatcher,
-        &mut session,
-        &mut view,
-        b"\x02,\x15changed",
-        now,
-    );
-    session.rename_input_context().unwrap();
+    input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
+    let token = session.rename_input_context().unwrap().token();
     draw(&mut session, &view, Locale::EnUs, 120, 32)?;
-    // A draw that cannot present the complete draft cancels it outright with a
-    // bounded notice — no hidden capture survives to keep swallowing keys.
-    draw(&mut session, &view, Locale::EnUs, 12, 6)?;
-    assert!(server.commands.lock().unwrap().is_empty());
-    assert!(session.rename_input_context().is_none());
     assert!(matches!(
         session.view(),
         TerminalSessionView::Native(view)
-            if view.notice()
-                == Some(crate::terminal_session::NativeSessionNotice::DraftCancelled)
+            if view.rename_draft().is_some_and(|draft| {
+                draft.token() == token
+                    && draft.interactive()
+                    && draft.presentation()
+                        == crate::tui_presentation::PresentationPhase::Admitted
+            })
     ));
-    // The released decoder still owns the frame until input goes quiet — a
-    // re-arm attempt inside the kept frame is swallowed wholesale.
     input(
         &mut dispatcher,
         &mut session,
         &mut view,
-        b"\x02,\x15changed",
+        b"\x15changed\x1b[D",
         now,
     );
-    assert!(session.rename_input_context().is_none());
+    // Geometry loss suspends an admitted draft without losing its identity or
+    // editor. While hidden, the owner swallows edits and submission.
+    draw(&mut session, &view, Locale::EnUs, 12, 6)?;
+    assert!(server.commands.lock().unwrap().is_empty());
+    assert!(matches!(
+        session.view(),
+        TerminalSessionView::Native(view)
+            if view.rename_draft().is_some_and(|draft| {
+                draft.token() == token
+                    && draft.presentation()
+                        == crate::tui_presentation::PresentationPhase::Suspended
+                    && draft.field_window(80).is_some_and(|field| {
+                        field.display() == "changed" && field.cursor_column() == 6
+                    })
+            })
+    ));
+    input(&mut dispatcher, &mut session, &mut view, b"blocked\r", now);
+    assert_eq!(session.rename_input_context().unwrap().token(), token);
+    assert!(matches!(
+        session.view(),
+        TerminalSessionView::Native(view)
+            if view.rename_draft().is_some_and(|draft| {
+                draft.field_window(80).is_some_and(|field| {
+                    field.display() == "changed" && field.cursor_column() == 6
+                })
+            })
+    ));
+    assert!(server.commands.lock().unwrap().is_empty());
     assert!(server.inputs.lock().unwrap().is_empty());
-    // Past the quiet window the same packet re-arms a fresh draft.
-    let later = now + Duration::from_secs(3600);
+    draw(&mut session, &view, Locale::EnUs, 120, 32)?;
+    assert!(matches!(
+        session.view(),
+        TerminalSessionView::Native(view)
+            if view.rename_draft().is_some_and(|draft| {
+                draft.token() == token
+                    && draft.interactive()
+                    && draft.presentation()
+                        == crate::tui_presentation::PresentationPhase::Admitted
+                    && draft.field_window(80).is_some_and(|field| {
+                        field.display() == "changed" && field.cursor_column() == 6
+                    })
+            })
+    ));
+    input(&mut dispatcher, &mut session, &mut view, b"\x1b", now);
+    let cancel_boundary = now + Duration::from_millis(100);
+    dispatcher.synchronize(&mut view, &mut session, cancel_boundary, &mut |_| {
+        Ok::<_, io::Error>(())
+    })?;
+    assert!(session.rename_input_context().is_none());
+
+    // A later packet can arm a fresh draft after explicit local cancellation.
+    let later = cancel_boundary + Duration::from_secs(3600);
+    input(&mut dispatcher, &mut session, &mut view, b"\x02,", later);
+    let token = session.rename_input_context().unwrap().token();
+    draw(&mut session, &view, Locale::EnUs, 120, 32)?;
     input(
         &mut dispatcher,
         &mut session,
         &mut view,
-        b"\x02,\x15changed",
+        b"\x15changed",
         later,
     );
-    let token = session.rename_input_context().unwrap().token();
     input(
         &mut dispatcher,
         &mut session,
@@ -590,7 +633,7 @@ fn clipped_draw_revokes_token_and_cancelled_paste_keeps_its_frame_until_the_boun
 }
 
 #[test]
-fn actual_loop_same_terminal_columns_outer_resize_revokes_before_enter_dispatch() -> TestResult {
+fn actual_loop_outer_resize_blocks_hidden_enter_then_restores_the_draft() -> TestResult {
     let geometry = fixture_geometry()?;
     let server = RenameServer::start(geometry)?;
     let (mut session, _) = native_session_with_identity(native_client(&server.server)?, geometry)?;
@@ -599,7 +642,14 @@ fn actual_loop_same_terminal_columns_outer_resize_revokes_before_enter_dispatch(
     let leases = crate::tui_shell::tests::run_native_rename_resize(&mut session)?;
     assert_eq!(leases.iter().filter(|enabled| **enabled).count(), 1);
     assert_eq!(leases.last(), Some(&false));
-    assert!(server.commands.lock().unwrap().is_empty());
+    spin(&mut session, |_| {
+        !server.commands.lock().unwrap().is_empty()
+    });
+    let commands = server.commands.lock().unwrap();
+    assert!(
+        matches!(&commands[..], [command] if matches!(&command.action, WorkbenchAction::TabRename { label, .. } if label.as_str() == "renamed"))
+    );
+    drop(commands);
     assert!(server.inputs.lock().unwrap().is_empty());
     assert!(session.rename_input_context().is_none());
     server.finish(session)?;
@@ -617,11 +667,13 @@ fn maximum_atomic_paste_draws_sanitized_cells_but_submits_exact_original_scalars
     let mut view = ClientView::new(120);
     let now = Instant::now();
     let label = format!("{}\x1b\n", "界".repeat(510));
+    input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
+    draw(&mut session, &view, Locale::EnUs, 120, 40)?;
     input(
         &mut dispatcher,
         &mut session,
         &mut view,
-        b"\x02,\x15\x1b[200~",
+        b"\x15\x1b[200~",
         now,
     );
     for byte in label.as_bytes() {
@@ -694,6 +746,7 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
         let mut view = ClientView::new(120);
         let now = Instant::now();
         input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
+        draw(&mut session, &view, Locale::EnUs, 120, 32)?;
         if !matches!(response, RenameResponse::Unchanged) {
             input(
                 &mut dispatcher,
@@ -703,7 +756,6 @@ fn actual_rename_outcomes_install_recover_or_retire_without_replay() -> TestResu
                 now,
             );
         }
-        draw(&mut session, &view, Locale::EnUs, 120, 32)?;
         input(&mut dispatcher, &mut session, &mut view, b"\r", now);
         assert!(spin_with_draw(&mut session, |session| {
             let SessionBackend::Native(native) = &session.backend else {
@@ -804,14 +856,15 @@ fn renamed_removed_target_successor_finishes_setup_feedback_and_accepts_input() 
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     let now = Instant::now();
+    input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
+    draw(&mut session, &view, Locale::EnUs, 120, 32)?;
     input(
         &mut dispatcher,
         &mut session,
         &mut view,
-        b"\x02,\x15renamed",
+        b"\x15renamed",
         now,
     );
-    draw(&mut session, &view, Locale::EnUs, 120, 32)?;
     input(&mut dispatcher, &mut session, &mut view, b"\r", now);
     assert!(
         spin_with_draw(&mut session, |session| {

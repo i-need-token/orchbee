@@ -2,6 +2,7 @@ use super::{AttachmentKey, PaneKey, SessionNotice};
 use crate::{
     local_client::workbench::WorkbenchTabCloseAccepted,
     terminal_session::workbench_projection::NativeTerminalBinding,
+    tui_presentation::{GeometrySettlement, PresentationPhase},
 };
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchLabel, WorkbenchRequestId, WorkbenchRevision,
@@ -32,6 +33,13 @@ const DISPOSED_AUTO_ADMISSIONS: u8 = 32;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CloseConfirmationToken(u64);
+
+impl CloseConfirmationToken {
+    #[cfg(test)]
+    pub(crate) const fn for_test(value: u64) -> Self {
+        Self(value)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CloseStatusToken(u64);
@@ -83,6 +91,19 @@ impl CloseTarget {
     pub(in crate::terminal_session) const fn tab_id(&self) -> &WorkbenchTabId {
         &self.tab_id
     }
+}
+
+/// Exact authority to continue one previously presented, resumable Close.
+///
+/// Only the close owner can mint this value, and only while the matching
+/// status is genuinely displayed. A covering child may retain it, but every
+/// use revalidates the live target, operation, attempt and status identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::terminal_session) struct TabCloseResumePermit {
+    target: CloseTarget,
+    operation: WorkbenchRequestId,
+    generation: WorkbenchTabCloseAttemptGeneration,
+    status_token: CloseStatusToken,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -178,6 +199,7 @@ struct CloseConfirmation {
     token: CloseConfirmationToken,
     intent: CloseIntent,
     local_focus: Option<set::LocalFocus>,
+    presentation: PresentationPhase,
     shown: bool,
 }
 
@@ -311,6 +333,12 @@ impl<'a> CloseConfirmationView<'a> {
     pub(in crate::terminal_session) const fn kind(&self) -> CloseConfirmationKind {
         self.confirmation.intent.kind()
     }
+    pub(in crate::terminal_session) const fn interactive(&self) -> bool {
+        self.confirmation.shown && self.confirmation.presentation.interactive()
+    }
+    pub(in crate::terminal_session) const fn presentation(&self) -> PresentationPhase {
+        self.confirmation.presentation
+    }
     pub(in crate::terminal_session) const fn resume_status(&self) -> Option<CloseStatusView<'a>> {
         self.status
     }
@@ -376,6 +404,41 @@ impl CloseState {
             .position(|record| record.selection.target == *target)
     }
 
+    fn capture_resume_permit(&self, target: &CloseTarget) -> Option<TabCloseResumePermit> {
+        let record = &self.records[self.record_index(target)?];
+        if !record.displayed || !record.resumable() {
+            return None;
+        }
+        Some(TabCloseResumePermit {
+            target: target.clone(),
+            operation: record.operation.clone()?,
+            generation: record.generation?,
+            status_token: record.status_token?,
+        })
+    }
+
+    fn accepts_resume_permit(&self, permit: &TabCloseResumePermit) -> bool {
+        self.record_index(&permit.target).is_some_and(|index| {
+            let record = &self.records[index];
+            record.resumable()
+                && record.operation.as_ref() == Some(&permit.operation)
+                && record.generation == Some(permit.generation)
+                && record.status_token == Some(permit.status_token)
+        })
+    }
+
+    fn install_confirmation(&mut self, intent: CloseIntent) -> Result<(), CloseStateError> {
+        let token = CloseConfirmationToken(self.token().ok_or(CloseStateError::Busy)?);
+        self.confirmation = Some(CloseConfirmation {
+            token,
+            intent,
+            local_focus: None,
+            presentation: PresentationPhase::Pending,
+            shown: false,
+        });
+        Ok(())
+    }
+
     pub(in crate::terminal_session) fn open_confirmation(
         &mut self,
         selection: CloseSelection,
@@ -406,14 +469,26 @@ impl CloseState {
             }
             CloseIntent::Close(selection)
         };
-        let token = CloseConfirmationToken(self.token().ok_or(CloseStateError::Busy)?);
-        self.confirmation = Some(CloseConfirmation {
-            token,
-            intent,
-            local_focus: None,
-            shown: false,
-        });
-        Ok(())
+        self.install_confirmation(intent)
+    }
+
+    fn open_resume_confirmation(
+        &mut self,
+        selection: CloseSelection,
+        permit: &TabCloseResumePermit,
+    ) -> Result<(), CloseStateError> {
+        if self.confirmation.is_some() || self.pending.is_some() || self.set_active() {
+            return Err(CloseStateError::Busy);
+        }
+        if selection.target != permit.target || !self.accepts_resume_permit(permit) {
+            return Err(CloseStateError::NotResumable);
+        }
+        self.install_confirmation(CloseIntent::Resume {
+            selection,
+            operation: permit.operation.clone(),
+            generation: permit.generation,
+            status_token: permit.status_token,
+        })
     }
 
     pub(in crate::terminal_session) fn cancel_confirmation(&mut self) {
@@ -507,6 +582,9 @@ impl CloseState {
                 });
         if let Some(confirmation) = &mut self.confirmation {
             confirmation.shown = prompt == Some(confirmation.token) && resume_displayed;
+            if confirmation.shown {
+                confirmation.presentation.presented();
+            }
         }
     }
 
@@ -699,43 +777,79 @@ impl CloseState {
 }
 
 impl super::NativeSessionState {
-    /// Recovery belongs to the exact Tab and an already presented status.
-    /// The confirmation owner still validates the operation and attempt at admission.
-    pub(in crate::terminal_session) fn tab_close_resume_available(
-        &self,
-        tab_id: &WorkbenchTabId,
-    ) -> bool {
+    fn tab_close_resume_target(&self, tab_id: &WorkbenchTabId) -> Option<CloseTarget> {
         if !self.close_confirmation_scope_available()
             || self.close.set_active()
             || self.close.pending.is_some()
             || self.close.confirmation.is_some()
             || self.cache.tab_index(tab_id).is_none()
         {
-            return false;
+            return None;
         }
-        let target = CloseTarget::new(
+        Some(CloseTarget::new(
             self.cache.site_id().clone(),
             self.cache.terminal_context_id().clone(),
             tab_id.clone(),
-        );
-        self.close.record_index(&target).is_some_and(|index| {
-            let record = &self.close.records[index];
-            record.displayed && record.resumable()
-        })
+        ))
+    }
+
+    /// Mint a continuation only from an exact status that was actually visible.
+    pub(in crate::terminal_session) fn capture_tab_close_resume_permit(
+        &self,
+        tab_id: &WorkbenchTabId,
+    ) -> Option<TabCloseResumePermit> {
+        let target = self.tab_close_resume_target(tab_id)?;
+        self.close.capture_resume_permit(&target)
+    }
+
+    /// Revalidate a continuation retained by a covering child surface.
+    ///
+    /// Current display proof is intentionally not required here: opening the
+    /// child revokes that proof. The exact record, resumable status and attempt
+    /// still have to be current, and the resulting confirmation must earn a
+    /// fresh complete draw before it can execute.
+    pub(in crate::terminal_session) fn validate_tab_close_resume_permit(
+        &self,
+        tab_id: &WorkbenchTabId,
+        permit: &TabCloseResumePermit,
+    ) -> bool {
+        self.tab_close_resume_target(tab_id)
+            .is_some_and(|target| target == permit.target)
+            && self.close.accepts_resume_permit(permit)
+    }
+
+    /// Recovery belongs to the exact Tab and an already presented status.
+    /// The confirmation owner still validates the operation and attempt at admission.
+    pub(in crate::terminal_session) fn tab_close_resume_available(
+        &self,
+        tab_id: &WorkbenchTabId,
+    ) -> bool {
+        self.capture_tab_close_resume_permit(tab_id).is_some()
     }
 
     pub(in crate::terminal_session) fn open_tab_close_resume(
         &mut self,
         tab_id: &WorkbenchTabId,
     ) -> Result<(), CloseStateError> {
-        // Check the exact record before calling the shared owner: its absent-record path is
-        // ordinary Close, which must never be a fallback for a targeted recovery action.
-        if !self.tab_close_resume_available(tab_id) {
+        let permit = self
+            .capture_tab_close_resume_permit(tab_id)
+            .ok_or(CloseStateError::NotResumable)?;
+        self.open_tab_close_resume_with_permit(tab_id, &permit)
+    }
+
+    pub(in crate::terminal_session) fn open_tab_close_resume_with_permit(
+        &mut self,
+        tab_id: &WorkbenchTabId,
+        permit: &TabCloseResumePermit,
+    ) -> Result<(), CloseStateError> {
+        // This path has no ordinary-Close fallback: the covered continuation
+        // must still identify the exact live resumable record.
+        if !self.validate_tab_close_resume_permit(tab_id, permit) {
             return Err(CloseStateError::NotResumable);
         }
         let selection = self.close_set_selection(tab_id)?;
         let focus = self.close_set_focus();
-        self.close.open_confirmation(selection)?;
+        self.close.open_resume_confirmation(selection, permit)?;
         if let Some(confirmation) = &mut self.close.confirmation {
             confirmation.local_focus = Some(focus);
         }
@@ -909,13 +1023,19 @@ impl super::NativeSessionState {
         settled
     }
 
-    /// A draw receipt reporting that the confirmation could not be presented
-    /// cancels the capture with a notice instead of leaving it armed.
-    pub(in crate::terminal_session) fn settle_close_confirmation_not_presented(&mut self) {
-        if self.close.confirmation.is_some() {
+    /// Settles a geometry-blocked draw without conflating temporary suspension
+    /// with cancellation. A new prompt is refused; an admitted prompt keeps its
+    /// frozen target and can be presented again with the same token.
+    pub(in crate::terminal_session) fn settle_close_confirmation_not_presented(
+        &mut self,
+    ) -> Option<GeometrySettlement> {
+        let confirmation = self.close.confirmation.as_mut()?;
+        confirmation.shown = false;
+        let settlement = confirmation.presentation.geometry_blocked();
+        if settlement == GeometrySettlement::Refused {
             self.close.cancel_confirmation();
-            self.set_notice(SessionNotice::ConfirmationCancelled);
         }
+        Some(settlement)
     }
 
     pub(in crate::terminal_session) fn acknowledge_close_draw(

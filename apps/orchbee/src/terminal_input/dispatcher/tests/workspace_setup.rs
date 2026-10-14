@@ -1,5 +1,4 @@
 use super::*;
-use crate::terminal_session::NativeSetupInputContext;
 use std::time::Duration;
 
 struct SetupPort {
@@ -52,6 +51,29 @@ impl SetupPort {
 }
 
 impl TerminalInputPort for SetupPort {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default().with_setup(self.active)
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        if owner != crate::tui_composition::NativeCaptureOwner::Setup || !self.active {
+            return None;
+        }
+        Some(crate::terminal_session::NativeCaptureContext::Setup(
+            crate::terminal_session::SetupCaptureContext {
+                token: self.token(),
+                phase: crate::tui_presentation::PresentationPhase::Admitted,
+                readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                stage: self.stage,
+                remaining_scalars: 512_usize.saturating_sub(self.text.chars().count()),
+                remaining_bytes: 4096_usize.saturating_sub(self.text.len()),
+            },
+        ))
+    }
+
     fn choose_setup_project(&mut self, token: NativeSetupToken, index: usize) {
         if token != self.token() || !self.shown || !self.complete || index >= self.choice_count {
             return;
@@ -111,18 +133,6 @@ impl TerminalInputPort for SetupPort {
     ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
-    }
-
-    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
-        if !self.active {
-            return None;
-        }
-        Some(NativeSetupInputContext::for_test(
-            self.token(),
-            self.stage,
-            512_usize.saturating_sub(self.text.chars().count()),
-            4096_usize.saturating_sub(self.text.len()),
-        ))
     }
 
     fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
@@ -201,10 +211,17 @@ impl TerminalInputPort for SetupPort {
 
 fn painted_setup_control(
     dispatcher: &mut InputDispatcher,
-    token: NativeSetupToken,
+    port: &mut SetupPort,
     control: crate::tui_pointer::ModalControl,
 ) {
-    use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+    use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability};
+    dispatcher.pointer.set_capture(true);
+    dispatcher
+        .synchronize(&mut ClientView::new(120), port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    let token = port.token();
     let mut hits = HitMapBuilder::new();
     hits.start_modal();
     hits.record(
@@ -212,12 +229,12 @@ fn painted_setup_control(
         ratatui::layout::Rect::new(2, 2, 30, 8),
         HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Setup(token)),
     );
-    hits.record(
+    hits.record_modal_control(
         HitLayer::Overlay,
         ratatui::layout::Rect::new(5, 5, 15, 1),
         HitTarget::Setup { token, control },
+        InteractionAvailability::Enabled,
     );
-    dispatcher.pointer.set_capture(true);
     dispatcher.publish_hit_map(hits.finish());
 }
 
@@ -230,7 +247,7 @@ fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name
         port.choice_count = 4;
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
-        painted_setup_control(&mut dispatcher, port.token(), ModalControl::Choice(index));
+        painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(index));
         dispatch(
             &mut dispatcher,
             &mut port,
@@ -250,7 +267,7 @@ fn organization_click_submits_existing_or_no_project_and_new_only_opens_one_name
                 "项目".as_bytes(),
                 now + Duration::from_millis(1),
             );
-            painted_setup_control(&mut dispatcher, port.token(), ModalControl::Submit);
+            painted_setup_control(&mut dispatcher, &mut port, ModalControl::Submit);
             dispatch(
                 &mut dispatcher,
                 &mut port,
@@ -286,7 +303,7 @@ fn organization_press_waits_for_release_and_intervening_input_or_resize_cancels_
         port.choice_count = 4;
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
-        painted_setup_control(&mut dispatcher, port.token(), ModalControl::Choice(2));
+        painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(2));
         let now = Instant::now();
         dispatch(&mut dispatcher, &mut port, b"\x1b[<0;6;6M", now);
         assert!(port.submissions.is_empty());
@@ -294,7 +311,7 @@ fn organization_press_waits_for_release_and_intervening_input_or_resize_cancels_
         match change {
             0 => {
                 dispatcher.invalidate_hit_map(&mut port);
-                painted_setup_control(&mut dispatcher, port.token(), ModalControl::Choice(2));
+                painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(2));
             }
             1 => dispatch(&mut dispatcher, &mut port, b"\x1b[O\x1b[I", now),
             2 => dispatch(&mut dispatcher, &mut port, b"x", now),
@@ -318,7 +335,7 @@ fn project_arrows_and_wheel_replace_selection_without_arming_an_unpainted_submit
     let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
     port.shown = true;
     let mut dispatcher = InputDispatcher::default();
-    painted_setup_control(&mut dispatcher, port.token(), ModalControl::Choice(0));
+    painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(0));
     dispatch(&mut dispatcher, &mut port, b"\x1b[B\x1b[B\x1b[A\r", now);
     assert_eq!(port.selections, 1);
     assert!(port.submissions.is_empty());
@@ -332,7 +349,7 @@ fn project_arrows_and_wheel_replace_selection_without_arming_an_unpainted_submit
     );
     assert!(port.submissions.is_empty());
     port.shown = true;
-    painted_setup_control(&mut dispatcher, port.token(), ModalControl::Choice(0));
+    painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(0));
     dispatch(
         &mut dispatcher,
         &mut port,
@@ -365,7 +382,7 @@ fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_g
         let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
-        painted_setup_control(&mut dispatcher, port.token(), ModalControl::Choice(0));
+        painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(0));
         dispatch(&mut dispatcher, &mut port, rejected, Instant::now());
         assert!(port.submissions.is_empty());
         assert!(port.forwarded.is_empty());
@@ -375,7 +392,7 @@ fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_g
         let mut port = SetupPort::new(NativeSetupStage::ChooseWorkspaceProject);
         port.shown = true;
         let mut dispatcher = InputDispatcher::default();
-        painted_setup_control(&mut dispatcher, port.token(), ModalControl::Choice(0));
+        painted_setup_control(&mut dispatcher, &mut port, ModalControl::Choice(0));
         let now = Instant::now();
         dispatch(&mut dispatcher, &mut port, &report[..split], now);
         dispatch(
@@ -392,7 +409,7 @@ fn project_mouse_reports_respect_split_frames_modifiers_bounds_and_invalidated_g
         let mut dispatcher = InputDispatcher::default();
         painted_setup_control(
             &mut dispatcher,
-            port.token(),
+            &mut port,
             ModalControl::Choice(if reason == 2 { 99 } else { 0 }),
         );
         match reason {
@@ -413,7 +430,7 @@ fn visible_setup_cancel_owns_its_packet_and_a_split_release() {
     let mut dispatcher = InputDispatcher::default();
     painted_setup_control(
         &mut dispatcher,
-        port.token(),
+        &mut port,
         crate::tui_pointer::ModalControl::Cancel,
     );
     dispatch(&mut dispatcher, &mut port, b"\x1b[<0;6;6M\x1b[<0;", now);

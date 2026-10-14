@@ -84,12 +84,29 @@ Resize, stale draw tokens and late outcomes cannot retarget an action.
 
 Header X and Cancel use the existing cancellation path; form fields are clickable and Submit uses the same owner as Enter. Project rows submit the exact painted choice on matching left release. Wheel only inside the Project list moves by three choices per notch, capped by visible rows per pass and clamped at either end. Any resulting selection requires a new complete draw before confirmation; a wheel followed by Enter in one packet cannot confirm an undrawn choice.
 
+An opening attempt that cannot present the required shell is refused with a localized status notice
+and retains no hidden input owner. Once the shell has completed one draw, insufficient geometry
+suspends that same surface incarnation: its token, stage, selected Project, draft text and editor
+cursor remain intact. While suspended, ordinary edits, selection, scrolling and submission are
+consumed without mutation; only the current local `Esc` return is available. A later complete draw
+resumes the same surface. Absence from a frame because another owner covers it only revokes the
+current draw proof; it is neither refusal nor cancellation.
+
+The New Project name editor is a child of the Project chooser. `Esc`, header Back or the matching
+pointer action returns one level, restores the chooser's selection and draft, and discards only the
+unsubmitted name edit. The chooser's own return closes the root draft. Quick Workspace work that
+already crossed its submission boundary continues under its original operation identity when the
+surface is hidden; presentation never replays it.
+
 ## Explicit directory and label editing
 
-`Ctrl+B e` accepts the first directory only for an Empty, unconfigured Workspace. The path is an
-existing absolute directory; no shell expansion, filesystem creation or home fallback occurs.
-Directory acceptance alone does not launch a shell. The menu and draft share the same pure
-admission query for configured, nonempty, absent and busy targets.
+The Workspace Directory action (`Ctrl+B e` by default) accepts the first directory only for an
+Empty, unconfigured Workspace. The path is an existing absolute directory; no shell expansion,
+filesystem creation or home fallback occurs. Directory acceptance alone does not launch a shell.
+The Empty-workbench guidance keeps the directory as a localized fact and renders the configured
+effective Workspace Directory or Create Tab chord through the shared key-hint component only while
+no capture owner is active. The menu and draft share the same pure admission query for configured,
+nonempty, absent and busy targets.
 
 [Location label editing](native-location-labels.md) owns Workspace and Project rename. Labels are
 editable presentation, never selection or execution identity. Bare Windows

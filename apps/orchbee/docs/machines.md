@@ -146,10 +146,13 @@ picker. Short widths drop the full hint before the short exit hint, then retain
 the Escape key; all choices use display width and keep each segment whole.
 If the mode label and key cannot fit together, the key remains alone. Closing
 restores the covered terminal cells. A closed picker paints no footer or pointer region.
-At short heights, optional mode controls and Agent filter summaries yield before
+At short heights that still admit a picker surface, optional mode controls and Agent filter summaries yield before
 the current list row, or the existing search field while editing. The two footer
 rows remain visible; hidden controls publish no pointer regions. Tab still
 switches modes and search completion retains its existing input semantics.
+TooSmall paints only the root size notice and picker status. It retains the picker model and
+input capture, publishes no hidden pointer targets, and preserves the existing Escape route.
+A restored presentable frame resumes the same picker state.
 
 Evidence must include binary full-duplex/backpressure/EOF/cancellation, same-user
 pipe admission through a real helper process, picker identity and stale-result
@@ -186,16 +189,30 @@ history. An admitted observer retains its transport through failure delivery; th
 clears its cached origin before acknowledging retirement. The observer clears its
 mailbox and releases its last transport guard on its own thread. Profile limits bound observers; shutdown cancels every worker before joins.
 
-The machine picker shows localized connection states and an aggregate overview;
-remote labels are data and cannot supply terminal control bytes. Explicit selection
-waits at most 60 seconds for a fresh observer, reuses its admitted origin on a
-separate native lane, and commits only a drawable candidate. Selection failure,
-expiry or Escape preserves the current surface. Escape cancels the selection,
-while discovery of enabled profiles continues. Retry applies only to observations,
-never submitted terminal input or Client mutations. The workspace mode below
-provides combined navigation, and Agents mode adds physical Agent navigation.
-Source-owned merged Agent views are described below. Remote bootstrap/authentication
-and real-network longevity acceptance remain separate obligations.
+The centered machine picker is a capturing overlay. Its mode controls are
+single-choice rows with a checked track; Agent commands use the shared action
+grammar. List rows retain separate current, provisional-navigation, availability,
+operation and localized-status tracks, so hover or press feedback does not replace
+any persistent state. The footer formats its close, movement, acceptance and mode
+keys from typed bindings under the active glyph policy. Remote labels are data and
+cannot supply terminal control bytes.
+
+Every close, mode, Agent-control and row target is recorded only in the candidate
+frame's central hit map. The target carries the picker episode, mode, effective
+Agent evaluation basis and ordered stable selections; the list scroll target also
+carries the exact painted window. Only a successful terminal draw publishes that
+map. Release and each bounded wheel step revalidate the source against live state;
+a changed episode, query, filter, order or catalog fails closed, while copy, status,
+theme and pointer-only refreshes do not change semantic authority. Explicit
+selection waits at most 60 seconds for a fresh observer, reuses its admitted origin
+on a separate native lane, and commits only a drawable candidate. Selection
+failure, expiry or Escape preserves the current surface. Escape cancels the
+selection, while discovery of enabled profiles continues. Retry applies only to
+observations, never submitted terminal input or Client mutations. The workspace
+mode below provides combined navigation, and Agents mode adds physical Agent
+navigation. Source-owned merged Agent views are described below. Remote
+bootstrap/authentication and real-network longevity acceptance remain separate
+obligations.
 
 Evidence must exercise retry timing/stability, permanent refusals, concurrency,
 profile replacement and corrupt catalogs, coalescing and cancellation, actual

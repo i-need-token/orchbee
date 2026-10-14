@@ -65,9 +65,27 @@ impl<'a> NativeSessionView<'a> {
     pub(crate) fn worktree(&self) -> Option<WorktreeView<'a>> {
         self.worktree?.view()
     }
+    pub(crate) fn worktree_capture_claim(&self) -> bool {
+        self.worktree.is_some_and(Launcher::visible)
+    }
+    pub(crate) fn worktree_input_context(&self) -> Option<WorktreeInputContext> {
+        let launcher = self.worktree?;
+        let view = launcher.view()?;
+        let token = view.token();
+        launcher
+            .accepts_input(token)
+            .then_some(WorktreeInputContext {
+                token,
+                stage: view.stage(),
+                remaining_bytes: view.remaining_bytes(),
+            })
+    }
     pub(crate) fn worktree_notice(&self) -> Option<WorktreeNotice> {
         let launcher = self.worktree?;
-        (launcher.visible() || launcher.operation().is_some()).then_some(launcher.notice())
+        (launcher.visible()
+            || launcher.operation().is_some()
+            || launcher.notice() == WorktreeNotice::PresentationUnavailable)
+            .then_some(launcher.notice())
     }
 }
 impl NativeUi {
@@ -189,12 +207,11 @@ impl NativeUi {
     pub(in crate::terminal_session) fn worktree_input_context(
         &self,
     ) -> Option<WorktreeInputContext> {
-        let view = self.worktrees.launcher.view()?;
-        Some(WorktreeInputContext {
-            token: view.token(),
-            stage: view.stage(),
-            remaining_bytes: view.remaining_bytes(),
-        })
+        self.view().worktree_input_context()
+    }
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn worktree_capture_claim(&self) -> bool {
+        self.view().worktree_capture_claim()
     }
     pub(in crate::terminal_session) fn edit_worktree(
         &mut self,
@@ -203,6 +220,9 @@ impl NativeUi {
     ) -> bool {
         if self.worktrees.launcher.token() != Some(token) {
             return false;
+        }
+        if !self.worktrees.launcher.accepts_input(token) {
+            return true;
         }
         let stage = self.worktrees.launcher.view().map(|v| v.stage());
         if matches!(stage, Some(WorktreeStage::Waiting | WorktreeStage::Result)) {
@@ -229,14 +249,14 @@ impl NativeUi {
         draw: Option<ModalPresentation<WorktreeToken>>,
     ) {
         match draw {
-            Some(ModalPresentation::Presented(token)) => self.worktrees.launcher.draw(Some(token)),
+            Some(ModalPresentation::Presented(token)) => {
+                self.worktrees.launcher.draw(Some(token));
+                self.submit_default_worktree_if_ready();
+            }
             Some(ModalPresentation::NotPresented) => {
-                self.worktrees.launcher.draw(None);
-                self.worktrees.dismiss_focus();
-                self.worktrees.launcher.suppress_focus();
-                self.worktrees
-                    .launcher
-                    .entry_notice(WorktreeNotice::SourceUnavailable);
+                if self.worktrees.launcher.geometry_blocked().is_some() {
+                    self.worktrees.entry = None;
+                }
             }
             None => self.worktrees.launcher.draw(None),
         }
@@ -285,6 +305,31 @@ impl NativeUi {
                 .start_settled(&operation, Err(false));
         }
     }
+    fn submit_default_worktree_if_ready(&mut self) -> bool {
+        if self.worktrees.origin.is_none() || !self.worktrees.launcher.default_create_ready() {
+            return false;
+        }
+        let Some(origin) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.worktree_origin())
+        else {
+            return false;
+        };
+        let Some(operation_id) = self.worktree_request() else {
+            return false;
+        };
+        let Some(plan) = self.worktrees.launcher.create_with_defaults(
+            operation_id,
+            &origin,
+            crate::localization::select_locale(|name| std::env::var_os(name)),
+        ) else {
+            return false;
+        };
+        self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
+        self.submit_worktree_start(plan);
+        true
+    }
     pub(super) fn drive_worktree(&mut self) -> bool {
         let mut changed = false;
         if let Some(reply) = self.worktrees.lane.as_ref().and_then(Lane::take) {
@@ -304,20 +349,7 @@ impl NativeUi {
                             self.worktrees.launcher.fail(WorktreeNotice::SourceChanged);
                         } else {
                             self.worktrees.launcher.discovered(token, result);
-                            if let (Some(origin), Some(operation_id)) = (
-                                self.state
-                                    .as_ref()
-                                    .and_then(|state| state.worktree_origin()),
-                                self.worktree_request(),
-                            ) && let Some(plan) = self.worktrees.launcher.create_with_defaults(
-                                operation_id,
-                                &origin,
-                                crate::localization::select_locale(|name| std::env::var_os(name)),
-                            ) {
-                                self.worktrees.observation_until =
-                                    Some(self.clock.now() + Duration::from_secs(120));
-                                self.submit_worktree_start(plan);
-                            }
+                            self.submit_default_worktree_if_ready();
                         }
                     }
                 }

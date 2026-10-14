@@ -2,7 +2,9 @@ use super::*;
 use crate::action_menu::{ActionMenu, MenuAction, MenuDraw, MenuTarget};
 use crate::client_view::{KeyEvent, Overlay};
 use crate::terminal_input::{PointerPane, PointerProbe};
-use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+use crate::tui_pointer::{
+    HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
+};
 use ratatui::layout::Rect;
 
 mod mouse_controls;
@@ -94,10 +96,11 @@ fn rendered_sidebar_map(view: &ClientView) -> crate::tui_pointer::FrameHitMap {
 }
 
 fn disclosure_packet(rect: Rect, twice: bool) -> Vec<u8> {
-    let click = format!("\x1b[<0;{};{}M", rect.x + 1, rect.y + 1);
+    let press = format!("\x1b[<0;{};{}M", rect.x + 1, rect.y + 1);
+    let release = format!("\x1b[<0;{};{}m", rect.x + 1, rect.y + 1);
     format!(
-        "{click}{}{tail}",
-        if twice { click.as_str() } else { "" },
+        "{press}{}{release}{tail}",
+        if twice { press.as_str() } else { "" },
         tail = "tail"
     )
     .into_bytes()
@@ -155,44 +158,35 @@ fn sidebar_target_map(
 }
 
 #[test]
-fn sidebar_project_pointer_acquires_the_input_lease_before_focus_or_disclosure() {
-    for fail in [true, false] {
-        let mut view = sidebar_view();
-        let target = sidebar_project_target();
-        let expanded = view.machines.sidebar_project_expanded(&target);
-        let mut port = Port::new(MenuAction::Help);
-        let mut dispatcher = InputDispatcher::default();
-        dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        let mut hits = HitMapBuilder::new();
-        hits.record(
-            HitLayer::Foreground,
-            Rect::new(2, 3, 1, 1),
-            HitTarget::SidebarDisclosure(target.clone()),
-        );
-        dispatcher.publish_hit_map(hits.finish());
-        let result = dispatcher.dispatch(
+fn sidebar_project_pointer_toggles_without_taking_keyboard_input() {
+    let mut view = sidebar_view();
+    let target = sidebar_project_target();
+    let expanded = view.machines.sidebar_project_expanded(&target);
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let map = rendered_sidebar_map(&view);
+    let disclosure = disclosure_cell(&map, &target);
+    dispatcher.publish_hit_map(map);
+    let mut modes = Vec::new();
+    dispatcher
+        .dispatch(
             &mut view,
-            b"\x1b[<0;3;4Mtail",
+            &disclosure_packet(disclosure, false),
             &mut port,
             Instant::now(),
             |_, _| Ok::<bool, io::Error>(false),
             &mut |mode| {
-                if fail && mode == ModeRequest::BracketedPaste(true) {
-                    Err(io::Error::other("input lease unavailable"))
-                } else {
-                    Ok(())
-                }
+                modes.push(mode);
+                Ok(())
             },
-        );
-        assert_eq!(result.is_err(), fail);
-        assert_eq!(view.machines.sidebar_navigation_active(), !fail);
-        assert_eq!(
-            view.machines.sidebar_project_expanded(&target),
-            if fail { expanded } else { !expanded }
-        );
-        assert!(view.machines.request.is_none());
-        assert!(forwarded_bytes(&port.calls).is_empty());
-    }
+        )
+        .unwrap();
+    assert!(!view.machines.sidebar_navigation_active());
+    assert_eq!(view.machines.sidebar_project_expanded(&target), !expanded);
+    assert!(view.machines.request.is_none());
+    assert!(!modes.contains(&ModeRequest::BracketedPaste(true)));
+    assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
 #[test]
@@ -391,7 +385,16 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
             assert!(view.machines.sidebar_navigation_active());
             assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
             assert!(forwarded_bytes(&port.calls).is_empty());
-            assert!(modes.contains(&ModeRequest::BracketedPaste(true)));
+            assert!(
+                modes
+                    .iter()
+                    .all(|mode| !matches!(mode, ModeRequest::BracketedPaste(_))),
+                "the child menu returns to the same Sidebar paste lease without reacquiring or releasing it"
+            );
+            assert!(
+                modes.is_empty(),
+                "returning to the same Sidebar owner does not churn global terminal modes"
+            );
         }
     }
 }
@@ -432,14 +435,27 @@ fn sidebar_help_covers_navigation_without_activating_or_losing_its_owner() {
         assert!(view.machines.sidebar_navigation_active());
         assert!(forwarded_bytes(&port.calls).is_empty());
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOP");
-        let mut hits = HitMapBuilder::new();
-        hits.mark_overlay_active();
-        hits.record(
-            HitLayer::OverlaySurface,
-            Rect::new(25, 5, 20, 10),
-            HitTarget::OverlaySurface,
-        );
-        dispatcher.publish_hit_map(hits.finish());
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 30)).unwrap();
+        let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+        terminal
+            .draw(|frame| {
+                crate::tui_render::render_terminal_shell(
+                    frame,
+                    &view,
+                    crate::localization::Locale::EnUs,
+                    None,
+                    &crate::tui_theme::Theme::terminal_native(),
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        let source = dispatcher.publish_hit_map_with_help(hits.finish());
+        assert!(matches!(
+            source,
+            Some(crate::client_view::help::HelpDrawSource::Presented { .. })
+        ));
+        view.settle_help_draw(source);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;2;2Mtail");
         assert_eq!(
             view.overlay(),
@@ -487,15 +503,32 @@ impl Port {
         }
     }
     fn arm(&mut self) {
-        let token = self.menu.view().unwrap().token;
-        self.menu.draw(Some(MenuDraw {
+        let (token, visible_rows, selected) = {
+            let view = self.menu.view().unwrap();
+            (view.token, view.actions.len(), view.selected)
+        };
+        assert!(self.menu.presented(MenuDraw {
             token,
-            rows: 8,
-            selected: self.menu.view().unwrap().selected,
+            first: 0,
+            visible_rows,
+            selected,
         }));
     }
 }
 impl TerminalInputPort for Port {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default()
+            .with_action_menu(self.menu.input_context().is_some())
+    }
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        (owner == crate::tui_composition::NativeCaptureOwner::ActionMenu)
+            .then(|| self.menu.input_context())
+            .flatten()
+            .map(crate::terminal_session::NativeCaptureContext::ActionMenu)
+    }
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.drag.clone()
     }
@@ -519,9 +552,6 @@ impl TerminalInputPort for Port {
         self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
         Ok(())
     }
-    fn action_menu_active(&self) -> bool {
-        self.menu.active()
-    }
     fn open_action_menu(
         &mut self,
         target: MenuTarget,
@@ -531,14 +561,31 @@ impl TerminalInputPort for Port {
         self.target = Some(target);
         self.menu.open(String::new(), self.actions.clone(), anchor)
     }
-    fn capture_action_menu_key(&mut self, event: KeyEvent) {
+    fn capture_action_menu_key_for(
+        &mut self,
+        expected: crate::action_menu::MenuInputContext,
+        event: KeyEvent,
+    ) -> bool {
+        if self.menu.input_context() != Some(expected) {
+            return false;
+        }
+        if expected.readiness() == crate::action_menu::MenuInputReadiness::Recovery {
+            if event.kind != crate::client_view::KeyKind::Release
+                && crate::client_view::Binding::new(
+                    crate::client_view::KeyCode::Esc,
+                    crate::client_view::Modifiers::NONE,
+                )
+                .matches(event)
+            {
+                self.menu.cancel();
+            }
+            return true;
+        }
         self.menu.key(event);
+        true
     }
     fn cancel_action_menu(&mut self) {
         self.menu.cancel();
-    }
-    fn click_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
-        self.menu.click(token, row);
     }
     fn scroll_action_menu(
         &mut self,
@@ -548,13 +595,34 @@ impl TerminalInputPort for Port {
     ) -> Option<crate::action_menu::MenuToken> {
         self.menu.scroll(token, up, lines)
     }
-    fn click_action_menu_control(&mut self, token: crate::action_menu::MenuToken, back: bool) {
-        if !back && self.menu.view().is_some_and(|view| view.token == token) {
-            self.menu.cancel();
+    fn activate_action_menu_row(
+        &mut self,
+        source: &MenuTarget,
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    ) {
+        if self
+            .menu
+            .view()
+            .is_some_and(|view| view.source == source && view.token == token)
+        {
+            self.menu.click(token, row);
         }
     }
-    fn hover_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
-        self.menu.hover(token, row);
+    fn activate_action_menu_control(
+        &mut self,
+        source: &MenuTarget,
+        token: crate::action_menu::MenuToken,
+        control: crate::action_menu::MenuControl,
+    ) {
+        if self
+            .menu
+            .view()
+            .is_some_and(|view| view.source == source && view.token == token)
+            && control == crate::action_menu::MenuControl::Close
+        {
+            self.menu.cancel();
+        }
     }
     fn take_action_menu_action(&mut self, _: bool) -> Option<ClientAction> {
         self.menu.take().map(MenuAction::client_action)
@@ -589,7 +657,9 @@ impl TerminalInputPort for Port {
 fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
     let menu = port.menu.view().unwrap();
     let token = menu.token;
+    let source = (*menu.source).clone();
     let rows = menu.actions.len();
+    let selected = menu.selected;
     let mut hits = HitMapBuilder::new();
     hits.start_action_menu();
     hits.record(
@@ -598,22 +668,34 @@ fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
         HitTarget::OverlaySurface,
     );
     for row in 0..rows {
-        hits.record(
+        let rect = Rect::new(11, 5 + u16::try_from(row).unwrap(), 28, 1);
+        hits.record_interaction(
             HitLayer::Overlay,
-            Rect::new(11, 5 + u16::try_from(row).unwrap(), 28, 1),
-            HitTarget::ActionMenuRow { token, row },
+            rect,
+            rect,
+            InteractionTarget::ActionMenuRow {
+                source: source.clone(),
+                token,
+                row,
+            },
+            if menu.unavailable[row].is_none() {
+                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+            } else {
+                InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
+            },
         );
     }
-    port.menu.draw(Some(MenuDraw {
+    assert!(port.menu.presented(MenuDraw {
         token,
-        rows,
-        selected: menu.selected,
+        first: 0,
+        visible_rows: rows,
+        selected,
     }));
     dispatcher.publish_hit_map(hits.finish());
 }
 
 #[test]
-fn menu_hover_tracks_motion_bursts_but_never_activates_or_forwards_them() {
+fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding() {
     let mut port = Port::new(MenuAction::Help);
     port.actions = vec![
         MenuAction::SplitVertical,
@@ -622,7 +704,7 @@ fn menu_hover_tracks_motion_bursts_but_never_activates_or_forwards_them() {
     ];
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
-    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher.settle_pointer_capture(&mut view, &mut port, PointerCaptureRequest::AnyMotion);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
     port.menu.refresh_availability(|action| {
         (action == MenuAction::Detach).then_some(crate::action_menu::MenuUnavailable::OperationBusy)
@@ -631,11 +713,7 @@ fn menu_hover_tracks_motion_bursts_but_never_activates_or_forwards_them() {
     for bytes in [b"\x1b[<35;12;".as_slice(), b"7M\x1b[<35;12;8M"] {
         dispatch_all(&mut dispatcher, &mut view, &mut port, bytes);
     }
-    assert_eq!(
-        port.menu.view().unwrap().selected,
-        2,
-        "latest hover in one paint wins"
-    );
+    assert_eq!(port.menu.view().unwrap().selected, 0);
     assert_eq!(port.menu.confirmed(), None);
     for bytes in [
         b"\x1b[<39;12;6M".as_slice(), // Shift bypass
@@ -643,28 +721,24 @@ fn menu_hover_tracks_motion_bursts_but_never_activates_or_forwards_them() {
         b"\x1b[<32;12;6M",            // held-button drag
         b"\x1b[<35;11;5M",            // frame
         b"\x1b[<35;1;1M",             // outside
-        b"\x1b[<0;12;7M",             // stale activation map
     ] {
         dispatch_all(&mut dispatcher, &mut view, &mut port, bytes);
-        assert_eq!(port.menu.view().unwrap().selected, 2);
+        assert_eq!(port.menu.view().unwrap().selected, 0);
         assert_eq!(port.menu.confirmed(), None);
     }
     paint_menu(&mut dispatcher, &mut port);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\rtail");
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;12;8M\x1b[<0;12;8mtail",
+    );
     assert!(
         port.menu.active(),
-        "a painted disabled hover still cannot execute"
+        "a painted disabled row still cannot execute"
     );
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<35;12;7M\r");
-    assert_eq!(port.menu.view().unwrap().selected, 1);
-    assert!(port.menu.active(), "hover needs a fresh paint before Enter");
     assert!(port.calls.borrow().is_empty());
     paint_menu(&mut dispatcher, &mut port);
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;7Mtail");
-    assert!(port.menu.active(), "a press alone cannot invoke an action");
-    // Keyboard input cancels that press; use a fresh complete gesture.
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;7m");
-    assert!(port.menu.active());
     dispatch_all(
         &mut dispatcher,
         &mut view,
@@ -683,7 +757,7 @@ fn menu_hover_tracks_motion_bursts_but_never_activates_or_forwards_them() {
 }
 
 #[test]
-fn menu_hover_lease_returns_on_every_close_and_never_acquires_released_capture() {
+fn menu_open_and_close_never_churns_the_global_pointer_tracking_level() {
     for capture in [false, true] {
         for closing in ["escape", "outside", "invalidate", "handoff", "release"] {
             let mut port = Port::new(MenuAction::Help);
@@ -704,7 +778,10 @@ fn menu_hover_lease_returns_on_every_close_and_never_acquires_released_capture()
                     },
                 )
                 .unwrap();
-            assert_eq!(modes.contains(&ModeRequest::PointerHover(true)), capture);
+            assert!(modes.iter().all(|mode| !matches!(
+                mode,
+                ModeRequest::PointerCapture(_) | ModeRequest::PointerAdmissionQuery(_)
+            )));
             paint_menu(&mut dispatcher, &mut port);
             let bytes: &[u8] = match closing {
                 "outside" if capture => b"\x1b[<0;1;1Mtail",
@@ -734,11 +811,10 @@ fn menu_hover_lease_returns_on_every_close_and_never_acquires_released_capture()
                 )
                 .unwrap();
             assert!(!port.menu.active(), "{capture} {closing}");
-            assert!(!dispatcher.menu_hover);
-            assert_eq!(
-                modes.contains(&ModeRequest::PointerHover(false)),
-                capture && closing != "release"
-            );
+            assert!(modes.iter().all(|mode| !matches!(
+                mode,
+                ModeRequest::PointerCapture(_) | ModeRequest::PointerAdmissionQuery(_)
+            )));
             assert!(forwarded_bytes(&port.calls).is_empty());
         }
     }
@@ -754,16 +830,18 @@ fn tab_create_click_uses_the_keyboard_action_and_fences_release_packet_tails_eve
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         let context = sidebar_context();
         let mut hits = HitMapBuilder::new();
-        hits.record(
+        hits.record_interaction(
             HitLayer::Foreground,
             Rect::new(10, 0, 3, 1),
-            HitTarget::TabCreate(crate::action_menu::DrawnTabCreate {
+            Rect::new(10, 0, 3, 1),
+            InteractionTarget::TabCreate(crate::action_menu::DrawnTabCreate {
                 source: crate::action_menu::DrawnMenuSource {
                     site: context.site_id,
                     revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
                 },
                 location: context.location,
             }),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
         );
         dispatcher.publish_hit_map(hits.finish());
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;1M");
@@ -793,6 +871,53 @@ fn tab_create_click_uses_the_keyboard_action_and_fences_release_packet_tails_eve
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"next packet");
         assert_eq!(forwarded_bytes(&port.calls), b"next packet");
     }
+}
+
+#[test]
+fn tab_create_focus_loss_cancels_action_and_fences_its_late_release_packet() {
+    let mut port = Port::new(MenuAction::NewTab);
+    port.tab_create_available = true;
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let context = sidebar_context();
+    let mut hits = HitMapBuilder::new();
+    hits.record_interaction(
+        HitLayer::Foreground,
+        Rect::new(10, 0, 3, 1),
+        Rect::new(10, 0, 3, 1),
+        InteractionTarget::TabCreate(crate::action_menu::DrawnTabCreate {
+            source: crate::action_menu::DrawnMenuSource {
+                site: context.site_id,
+                revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+            },
+            location: context.location,
+        }),
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+    );
+    dispatcher.publish_hit_map(hits.finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;12;1M");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
+    port.calls.borrow_mut().clear();
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;12;1mtail\x1b[200~paste\x1b[201~\x1b[",
+    );
+    assert!(
+        !port
+            .calls
+            .borrow()
+            .iter()
+            .any(|call| matches!(call, Call::Action(ClientAction::CreateTab)))
+    );
+    assert!(forwarded_bytes(&port.calls).is_empty());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"A");
+    assert!(forwarded_bytes(&port.calls).is_empty());
+    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
+    assert_eq!(forwarded_bytes(&port.calls), b"fresh");
 }
 
 #[test]
@@ -890,7 +1015,9 @@ fn menu_shared_dispatch_applies_resize_layout_pointer_modes_and_shell_exit() {
             MenuAction::Sidebar => assert_eq!(layouts, 1),
             MenuAction::ReleasePointer => {
                 assert!(view.pointer_released());
-                assert!(modes.contains(&ModeRequest::PointerCapture(false)));
+                assert!(
+                    modes.contains(&ModeRequest::PointerCapture(PointerCaptureRequest::Release))
+                );
             }
             MenuAction::Detach => assert_eq!(outcome, DispatchOutcome::Exit),
             _ => unreachable!(),
@@ -1057,18 +1184,24 @@ fn invalidated_painted_menu_captures_input_until_a_fresh_frame_and_host_lease_pr
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let source = view.machines.sidebar_source();
+    let target = view
+        .machines
+        .drawn_sidebar_fixed(&source, crate::machine_picker::SidebarFixedAction::Settings);
     let mut hits = HitMapBuilder::new();
-    hits.record(
+    hits.record_interaction(
         HitLayer::Foreground,
         Rect::new(0, 0, 8, 1),
-        HitTarget::SettingsButton,
+        Rect::new(0, 0, 8, 1),
+        InteractionTarget::SidebarFixed(target),
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
     );
     dispatcher.publish_hit_map(hits.finish());
     assert!(
         dispatcher
             .dispatch(
                 &mut view,
-                b"\x1b[<0;2;1M",
+                b"\x1b[<0;2;1M\x1b[<0;2;1m",
                 &mut port,
                 Instant::now(),
                 |_, _| Ok::<bool, io::Error>(false),
@@ -1335,7 +1468,8 @@ fn lost_menu_release_cannot_swallow_a_later_program_owned_right_release() {
         publish(&mut dispatcher);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<2;2;2M");
         assert!(port.menu.active());
-        port.capture_action_menu_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+        port.menu
+            .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
         dispatcher
             .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
                 Ok::<(), io::Error>(())

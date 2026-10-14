@@ -1,10 +1,6 @@
-use super::{directory_guidance, render_content};
-use crate::{localization::Locale, terminal_session::NativeSetupStage};
-use ratatui::{
-    Terminal,
-    backend::TestBackend,
-    text::{Line, Text},
-};
+use super::directory_guidance;
+use crate::localization::Locale;
+use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
 fn project_picker_windows_large_lists_and_records_only_painted_choices() {
@@ -18,7 +14,6 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let token = NativeSetupToken::for_test(17);
                     let mut hits = HitMapBuilder::new();
-                    hits.start_modal();
                     let long = format!("Project 界{}\x1b[31m", "猫".repeat(500));
                     let visited = Cell::new(0);
                     let mut result = None;
@@ -46,7 +41,6 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                                     visited.set(visited.get() + 1);
                                     Some(ProjectChoice {
                                         position: index + 1,
-                                        selected: index == selected,
                                         label: match index {
                                             200 => locale.setup_ungrouped(),
                                             201 => locale.setup_new_project(),
@@ -61,6 +55,7 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                     assert!(area.bottom() < height);
                     let map = hits.finish();
                     let mut choices = std::collections::BTreeSet::new();
+                    let mut selected_row = None;
                     for y in 0..height {
                         for x in 0..width {
                             if let Some(HitTarget::Setup {
@@ -76,11 +71,15 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                                         .contains('\x1b')
                                 );
                                 choices.insert(*index);
+                                if *index == selected {
+                                    selected_row = Some(y);
+                                }
                             }
                         }
                     }
                     if width == 20 {
                         assert!(matches!(presented, ModalPresentation::NotPresented));
+                        assert!(area.is_empty());
                         assert!(choices.is_empty());
                     } else {
                         assert!(
@@ -89,6 +88,11 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                         assert!(
                             choices.contains(&selected),
                             "{width}x{height} selected {selected}: {choices:?}"
+                        );
+                        let inner = overlay_block(&theme).inner(area);
+                        assert_eq!(
+                            terminal.backend().buffer()[(inner.x, selected_row.unwrap())].symbol(),
+                            theme.glyphs.navigation_marker,
                         );
                         assert!(choices.len() <= usize::from(height - 7));
                         let text = terminal
@@ -101,7 +105,7 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                         assert!(text.contains(&format!("{}/202", selected + 1)));
                         assert!(
                             text.replace(' ', "")
-                                .contains(&locale.setup_cancel_button().replace(' ', ""))
+                                .contains(&format!("[{}]", locale.setup_cancel_label()))
                         );
                     }
                     assert!(
@@ -120,7 +124,6 @@ fn missing_project_rows_never_acquire_a_click_target() {
     use super::*;
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     let mut hits = HitMapBuilder::new();
-    hits.start_modal();
     let mut area = Rect::default();
     terminal
         .draw(|frame| {
@@ -140,7 +143,6 @@ fn missing_project_rows_never_acquire_a_click_target() {
                 |index| {
                     (index != 1).then_some(ProjectChoice {
                         position: index + 1,
-                        selected: index == 0,
                         label: "Project",
                     })
                 },
@@ -165,67 +167,79 @@ fn missing_project_rows_never_acquire_a_click_target() {
     ));
 }
 
-fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool, String) {
+#[test]
+fn refused_project_picker_preserves_the_underlay_and_prior_hit_map() {
+    use super::*;
+    let width = 20;
+    let height = 5;
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let mut complete = false;
+    let mut hits = HitMapBuilder::new();
+    hits.start_modal();
+    hits.record(
+        HitLayer::Overlay,
+        Rect::new(0, 0, 1, 1),
+        HitTarget::OverlaySurface,
+    );
+    let mut result = None;
     terminal
         .draw(|frame| {
-            complete = render_content(
+            let frame_area = frame.area();
+            let underlay = Text::from(
+                (0..height)
+                    .map(|_| Line::from("x".repeat(usize::from(width))))
+                    .collect::<Vec<_>>(),
+            );
+            frame.render_widget(Paragraph::new(underlay), frame_area);
+            result = Some(render_projects(
                 frame,
-                frame.area(),
-                locale.setup_resize_hint(),
-                Text::from(lines.clone()),
-                None,
-                &crate::tui_theme::Theme::rgb_test_dark(),
-            )
-            .1;
+                Locale::EnUs,
+                ProjectPicker {
+                    token: NativeSetupToken::for_test(1),
+                    stage: NativeSetupStage::ChooseWorkspaceProject,
+                    workspace: "Workspace",
+                    count: 2,
+                    selected: 0,
+                },
+                frame_area,
+                &Theme::terminal_native(),
+                &mut hits,
+                |index| {
+                    Some(ProjectChoice {
+                        position: index + 1,
+                        label: "Project",
+                    })
+                },
+            ));
         })
         .unwrap();
-    let text = terminal
-        .backend()
-        .buffer()
-        .content()
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect::<String>();
-    (complete, text)
-}
-
-#[test]
-fn setup_requires_complete_visible_text_and_rejects_a_narrow_draw() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        let lines = vec![
-            Line::from(locale.setup_title(NativeSetupStage::WorkspaceProjectName)),
-            Line::from("Project: Project 雪"),
-            Line::from("Workspace 雪"),
-            Line::from(locale.setup_actions(false)),
-        ];
-        let (complete, wide) = draw(120, 24, locale, lines.clone());
-        assert!(complete);
-        assert!(wide.replace(' ', "").contains("Workspace雪"));
-        let (complete, narrow) = draw(22, 8, locale, lines);
-        assert!(!complete);
-        assert!(!narrow.contains("Workspace 雪"));
-        assert!(!narrow.contains("Enter · submit"));
+    let (area, presentation) = result.unwrap();
+    assert!(area.is_empty());
+    assert!(matches!(presentation, ModalPresentation::NotPresented));
+    assert!(
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .all(|cell| cell.symbol() == "x")
+    );
+    let map = hits.finish();
+    assert!(matches!(
+        map.hit_target_at(0, 0),
+        Some(HitTarget::OverlaySurface)
+    ));
+    for y in 0..height {
+        for x in 0..width {
+            if (x, y) != (0, 0) {
+                assert!(map.hit_target_at(x, y).is_none());
+            }
+        }
     }
 }
 
 #[test]
-fn long_multibyte_directory_must_fit_in_full_before_submit_is_authorized() {
-    let path = format!("/{}abc", "雪".repeat(1364));
-    assert_eq!(path.len(), 4096);
-    let lines = vec![
-        Line::from(Locale::EnUs.setup_title(NativeSetupStage::DirectoryPath)),
-        Line::from(path),
-        Line::from(Locale::EnUs.setup_input_hint(true)),
-        Line::from(Locale::EnUs.setup_actions(false)),
-    ];
-    assert!(!draw(120, 24, Locale::EnUs, lines.clone()).0);
-    assert!(draw(160, 48, Locale::EnUs, lines).0);
-}
-
-#[test]
 fn directory_actions_only_replace_a_live_empty_panel() {
+    use crate::client_view::{ClientAction, PrefixAction, PrefixDesc};
     use crate::terminal_session::NativeDisplayPhase as Phase;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for phase in [
@@ -248,60 +262,86 @@ fn directory_actions_only_replace_a_live_empty_panel() {
             directory_guidance(locale, Phase::Empty, true, Some("/workspace"), false).is_none()
         );
         assert!(directory_guidance(locale, Phase::Empty, true, None, true).is_none());
+        let needed = directory_guidance(locale, Phase::Empty, false, None, true).unwrap();
+        assert_eq!(needed.fact, locale.setup_directory_needed());
         assert_eq!(
-            directory_guidance(locale, Phase::Empty, false, None, true).as_deref(),
-            Some(locale.setup_directory_needed())
+            needed.action,
+            PrefixAction::Client(ClientAction::RequestWorkspaceDirectory)
         );
-        assert_eq!(
-            directory_guidance(locale, Phase::Empty, false, Some("/workspace"), false),
-            Some(locale.setup_directory_ready("/workspace"))
-        );
+        assert_eq!(needed.description, PrefixDesc::WorkspaceDirectory);
+        let ready =
+            directory_guidance(locale, Phase::Empty, false, Some("/workspace"), false).unwrap();
+        assert_eq!(ready.fact, locale.setup_directory_ready("/workspace"));
+        assert_eq!(ready.action, PrefixAction::Client(ClientAction::CreateTab));
+        assert_eq!(ready.description, PrefixDesc::CreateTab);
     }
 }
 
+#[cfg(windows)]
 #[test]
-fn location_rename_complete_draw_and_resize_fallback_keep_the_exact_target() {
-    for project in [true, false] {
-        for locale in [Locale::EnUs, Locale::ZhCn] {
-            let lines = vec![
-                Line::from(locale.location_rename_title(project)),
-                Line::from("界".repeat(512)),
-                Line::from(locale.location_rename_hint(project)),
-                Line::from(locale.location_rename_actions(project)),
-            ];
-            let mut narrow = Terminal::new(TestBackend::new(100, 8)).unwrap();
-            let mut complete = true;
-            narrow
-                .draw(|frame| {
-                    complete = render_content(
-                        frame,
-                        frame.area(),
-                        locale.location_rename_resize_hint(project),
-                        Text::from(lines.clone()),
-                        None,
-                        &crate::tui_theme::Theme::rgb_test_dark(),
-                    )
-                    .1;
-                })
-                .unwrap();
-            assert!(!complete);
-            let text = narrow
-                .backend()
-                .buffer()
-                .content()
-                .iter()
-                .map(|cell| cell.symbol())
-                .collect::<String>();
-            // Wide glyph continuation cells are blank in the test buffer.
-            let visible = text.split_whitespace().collect::<String>();
-            assert!(visible.contains(match (locale, project) {
-                (Locale::EnUs, true) => "Project",
-                (Locale::EnUs, false) => "Workspace",
-                (Locale::ZhCn, true) => "项目",
-                (Locale::ZhCn, false) => "工作区",
-            }));
-            assert!(!text.contains("Ctrl+U"));
-            assert!(draw(120, 24, locale, lines).0);
-        }
-    }
+fn directory_guidance_uses_the_effective_action_binding_only_without_a_capture_owner() {
+    use super::*;
+    use crate::{client_view::ClientView, terminal_session::NativeDisplayPhase, tui_theme::Theme};
+    use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
+
+    let mut client = ClientView::new(100);
+    client.configure_keys(&WindowsKeySettings {
+        commands: Vec::new(),
+        prefix: WindowsKeyChord {
+            key: "a".into(),
+            ctrl: true,
+            alt: false,
+            shift: false,
+            super_key: false,
+        },
+        overrides: Vec::new(),
+    });
+    let theme = Theme::terminal_native();
+    let draw = |guidance: &DirectoryGuidance, admitted| {
+        let mut terminal = Terminal::new(TestBackend::new(100, 3)).unwrap();
+        terminal
+            .draw(|frame| {
+                render_directory_guidance(
+                    frame,
+                    frame.area(),
+                    guidance,
+                    client.bindings(),
+                    Locale::EnUs,
+                    admitted,
+                    &theme,
+                );
+            })
+            .unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>()
+    };
+
+    let ready = directory_guidance(
+        Locale::EnUs,
+        NativeDisplayPhase::Empty,
+        false,
+        Some("C:/workspace"),
+        false,
+    )
+    .unwrap();
+    let visible = draw(&ready, true);
+    assert!(visible.contains("Directory: C:/workspace"));
+    assert!(visible.contains("Ctrl+a c Create a Tab (requires session)"));
+    assert!(!visible.contains("Ctrl+B c"));
+
+    let needed =
+        directory_guidance(Locale::EnUs, NativeDisplayPhase::Empty, false, None, true).unwrap();
+    let visible = draw(&needed, true);
+    assert!(visible.contains("No directory configured."));
+    assert!(visible.contains("Ctrl+a e Configure an empty Workspace's first directory"));
+    assert!(!visible.contains("Ctrl+B e"));
+
+    let covered = draw(&ready, false);
+    assert!(covered.contains("Directory: C:/workspace"));
+    assert!(!covered.contains("Ctrl+a c"));
 }

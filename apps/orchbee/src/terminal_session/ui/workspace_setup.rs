@@ -33,20 +33,6 @@ impl NativeSetupInputContext {
     pub(crate) const fn remaining_bytes(self) -> usize {
         self.remaining_bytes
     }
-    #[cfg(test)]
-    pub(crate) const fn for_test(
-        token: NativeSetupToken,
-        stage: NativeSetupStage,
-        remaining_scalars: usize,
-        remaining_bytes: usize,
-    ) -> Self {
-        Self {
-            token,
-            stage,
-            remaining_scalars,
-            remaining_bytes,
-        }
-    }
 }
 impl<'a> NativeSessionView<'a> {
     pub(crate) fn quick_workspace_recovery(
@@ -56,6 +42,18 @@ impl<'a> NativeSessionView<'a> {
     }
     pub(crate) fn setup_draft(&self) -> Option<NativeSetupDraftView<'a>> {
         self.state.as_ref()?.setup_draft()
+    }
+    pub(crate) fn setup_capture_claim(&self) -> bool {
+        self.setup_draft().is_some()
+    }
+    pub(crate) fn setup_input_context(&self) -> Option<NativeSetupInputContext> {
+        let draft = self.setup_draft()?;
+        draft.interactive().then_some(NativeSetupInputContext {
+            token: draft.token(),
+            stage: draft.stage(),
+            remaining_scalars: MAXIMUM_LABEL_LENGTH.saturating_sub(draft.text().chars().count()),
+            remaining_bytes: MAXIMUM_DIRECTORY_PATH_BYTES.saturating_sub(draft.text().len()),
+        })
     }
     pub(crate) fn setup_status(&self) -> Option<NativeSetupStatus> {
         self.state.as_ref()?.setup_status()
@@ -238,22 +236,29 @@ impl NativeUi {
             .as_ref()?
             .open_setup_draft_for(self.state.as_mut()?, intent)
     }
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn setup_capture_claim(&self) -> bool {
+        self.view().setup_capture_claim()
+    }
     pub(in crate::terminal_session) fn setup_input_context(
-        &mut self,
+        &self,
     ) -> Option<NativeSetupInputContext> {
-        let draft = self.state.as_ref()?.setup_draft()?;
-        Some(NativeSetupInputContext {
-            token: draft.token(),
-            stage: draft.stage(),
-            remaining_scalars: MAXIMUM_LABEL_LENGTH.saturating_sub(draft.text().chars().count()),
-            remaining_bytes: MAXIMUM_DIRECTORY_PATH_BYTES.saturating_sub(draft.text().len()),
-        })
+        self.view().setup_input_context()
     }
     pub(in crate::terminal_session) fn edit_setup_draft(
         &mut self,
         token: NativeSetupToken,
         edit: NativeSetupEdit<'_>,
     ) -> bool {
+        let Some(draft) = self.state.as_ref().and_then(|state| state.setup_draft()) else {
+            return false;
+        };
+        if draft.token() != token {
+            return false;
+        }
+        if !draft.interactive() {
+            return true;
+        }
         self.state
             .as_mut()
             .is_some_and(|state| state.edit_setup_draft(token, edit))
@@ -276,7 +281,7 @@ impl NativeUi {
             }
             Some(ModalPresentation::NotPresented) => {
                 state.acknowledge_setup_draw(None);
-                state.settle_setup_draft_not_presented();
+                let _ = state.settle_setup_draft_not_presented();
             }
             None => state.acknowledge_setup_draw(None),
         }
@@ -288,6 +293,15 @@ impl NativeUi {
         &mut self,
         token: NativeSetupToken,
     ) -> SessionActionDisposition {
+        let hidden_unaccepted = self.state.as_ref().is_some_and(|state| {
+            state
+                .setup_draft()
+                .is_some_and(|draft| draft.token() == token && !draft.interactive())
+                && state.quick_continuation().is_none()
+        });
+        if hidden_unaccepted {
+            return SessionActionDisposition::KeepNavigator;
+        }
         if self.state.as_mut().is_some_and(|state| {
             state.settle_stale_quick_workspace() | state.settle_stale_project_rename()
         }) {

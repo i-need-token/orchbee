@@ -60,7 +60,7 @@ pub(super) enum ModalInputEvent {
     Fault,
     Completeness(bool),
     Focus(bool),
-    HostReply(crate::terminal_graphics::Reply),
+    HostReply(super::HostReply),
     Mouse(super::MouseEvent),
     Submit,
     Cancel,
@@ -138,7 +138,7 @@ impl Sequence {
         }
     }
 
-    fn cell_report(&self) -> bool {
+    fn host_metadata(&self) -> bool {
         let raw = &self.bytes[..self.length];
         let body = if raw.starts_with(b"\x1b[") {
             &raw[2..]
@@ -147,7 +147,7 @@ impl Sequence {
         } else {
             return false;
         };
-        body.starts_with(b"6;")
+        super::decoder::csi_host_metadata_shaped(body)
     }
 
     fn is_paste_opener(&self) -> bool {
@@ -282,7 +282,7 @@ impl ModalDecoder {
                 {
                     sequence.drain = true;
                     sequence.deadline = None;
-                    if self.editing && !sequence.cell_report() {
+                    if self.editing && !sequence.host_metadata() {
                         events.push(ModalInputEvent::Fault);
                     }
                 }
@@ -386,7 +386,9 @@ impl ModalDecoder {
                     if let Some(completed) = reply.push(byte, now) {
                         self.finish_frame(now, &mut events);
                         if let Some(reply) = completed {
-                            events.push(ModalInputEvent::HostReply(reply));
+                            events.push(ModalInputEvent::HostReply(super::HostReply::Graphics(
+                                reply,
+                            )));
                         }
                     } else {
                         self.phase = Phase::Graphics(reply);
@@ -553,7 +555,7 @@ impl ModalDecoder {
             if sequence.length == MAX_SEQUENCE || !valid {
                 sequence.drain = true;
                 sequence.deadline = None;
-                if self.editing && !sequence.cell_report() {
+                if self.editing && !sequence.host_metadata() {
                     events.push(ModalInputEvent::Fault);
                 }
             } else {
@@ -588,9 +590,12 @@ impl ModalDecoder {
                     bytes.strip_prefix(b"\x1b[")
                 };
                 if !sequence.drain
-                    && let Some(reply) = body.and_then(crate::terminal_graphics::cell_reply)
+                    && let Some(reply) = body.and_then(super::decoder::csi_host_reply)
                 {
                     events.push(ModalInputEvent::HostReply(reply));
+                    return;
+                }
+                if body.is_some_and(super::decoder::csi_host_metadata_shaped) {
                     return;
                 }
                 if !sequence.drain

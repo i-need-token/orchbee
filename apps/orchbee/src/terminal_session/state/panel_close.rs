@@ -1,8 +1,9 @@
 use super::{
     AttachmentKey, NativeSessionState, PaneKey, PanelIntent, PanelOperation, PanelRequestKind,
-    SessionNotice, SessionPhase,
+    SessionPhase,
 };
 use crate::terminal_session::workbench_projection::NativeTerminalBinding;
+use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{
     SiteId, WorkbenchLabel, WorkbenchPanelId, WorkbenchRequestId, WorkbenchRevision,
     WorkbenchTabId, WorkbenchTerminalContextId,
@@ -11,6 +12,13 @@ use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct PanelCloseConfirmationToken(u64);
+
+impl PanelCloseConfirmationToken {
+    #[cfg(test)]
+    pub(crate) const fn for_test(value: u64) -> Self {
+        Self(value)
+    }
+}
 
 /// The exact leaf a panel-close confirmation was armed against; the confirm path
 /// refuses to execute against anything else.
@@ -54,6 +62,7 @@ pub(in crate::terminal_session) struct PanelCloseSelection {
 struct PanelCloseConfirmation {
     token: PanelCloseConfirmationToken,
     selection: PanelCloseSelection,
+    presentation: PresentationPhase,
     shown: bool,
 }
 
@@ -81,6 +90,12 @@ impl<'a> PanelCloseConfirmationView<'a> {
     /// Whether closing this leaf removes its entire Tab for every attached Client.
     pub(in crate::terminal_session) const fn dissolves_tab(&self) -> bool {
         self.confirmation.selection.dissolves_tab
+    }
+    pub(in crate::terminal_session) const fn interactive(&self) -> bool {
+        self.confirmation.shown && self.confirmation.presentation.interactive()
+    }
+    pub(in crate::terminal_session) const fn presentation(&self) -> PresentationPhase {
+        self.confirmation.presentation
     }
 }
 
@@ -114,6 +129,7 @@ impl PanelCloseState {
         self.confirmation = Some(PanelCloseConfirmation {
             token,
             selection,
+            presentation: PresentationPhase::Pending,
             shown: false,
         });
         Ok(())
@@ -132,6 +148,9 @@ impl PanelCloseState {
     fn acknowledge_draw(&mut self, prompt: Option<PanelCloseConfirmationToken>) {
         if let Some(confirmation) = &mut self.confirmation {
             confirmation.shown = prompt == Some(confirmation.token);
+            if confirmation.shown {
+                confirmation.presentation.presented();
+            }
         }
     }
 
@@ -255,13 +274,18 @@ impl NativeSessionState {
             })
     }
 
-    /// A draw receipt reporting that the confirmation could not be presented
-    /// cancels the capture with a notice instead of leaving it armed.
-    pub(in crate::terminal_session) fn settle_panel_close_not_presented(&mut self) {
-        if self.panel_close.confirmation.is_some() {
+    /// Refuses a new prompt whose first draw is geometry-blocked, or suspends
+    /// an admitted prompt while preserving its frozen target and token.
+    pub(in crate::terminal_session) fn settle_panel_close_not_presented(
+        &mut self,
+    ) -> Option<GeometrySettlement> {
+        let confirmation = self.panel_close.confirmation.as_mut()?;
+        confirmation.shown = false;
+        let settlement = confirmation.presentation.geometry_blocked();
+        if settlement == GeometrySettlement::Refused {
             self.panel_close.cancel_confirmation();
-            self.set_notice(SessionNotice::ConfirmationCancelled);
         }
+        Some(settlement)
     }
 
     /// The admitted close always names the frozen leaf: the live Session must

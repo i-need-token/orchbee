@@ -16,7 +16,6 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
             MenuAction::RenameTab,
             MenuAction::ManageGroups,
             MenuAction::RemoveFromGroup,
-            MenuAction::MoveToNewWindow,
             MenuAction::DuplicateTab,
             MenuAction::PinTab,
             MenuAction::CloseSelectedTabs,
@@ -25,25 +24,28 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
             MenuAction::TabTools,
         ]
     );
-    assert_eq!(
-        menu.unavailable[4],
-        Some(crate::action_menu::MenuUnavailable::UnsupportedHost)
-    );
-    assert!(menu.separator_before(5));
-    assert!(menu.separator_before(7));
+    assert!(!menu.actions.contains(&MenuAction::MoveToNewWindow));
+    assert_eq!(menu.unavailable.len(), menu.actions.len());
+    assert!(menu.separator_before(4));
+    assert!(menu.separator_before(6));
+    assert!(menu.separator_before(9));
     choose(&mut ui, MenuAction::ManageGroups);
     assert_eq!(
         ui.view().action_menu().unwrap().actions,
         &[MenuAction::CreateGroup]
     );
-    let child_token = ui.view().action_menu().unwrap().token;
+    present_action_menu(&mut ui);
+    let view = ui.view();
+    let child = view.action_menu().unwrap();
+    let child_source = child.source.clone();
+    let child_token = child.token;
     ui.capture_action_menu_key(KeyEvent::press(KeyCode::Left, Modifiers::NONE));
     assert_eq!(
         ui.view().action_menu().unwrap().actions[2],
         MenuAction::ManageGroups
     );
     assert_eq!(ui.view().action_menu().unwrap().selected, 2);
-    ui.click_action_menu(child_token, 0);
+    ui.activate_action_menu_row(&child_source, child_token, 0);
     assert!(ui.take_action_menu_action(false).is_none());
     assert!(ui.view().setup_draft().is_none());
     assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());

@@ -9,6 +9,7 @@ use crate::{
         },
         workbench_projection::{NativeContextLocation, project_native_context_tabs},
     },
+    tui_presentation::GeometrySettlement,
 };
 use orchbee_workbench_protocol::{
     Project, WorkbenchAction, WorkbenchProjectId, WorkbenchTabCloseAttemptGeneration,
@@ -115,6 +116,44 @@ fn accepted(operation: &WorkspaceCloseOperation) -> WorkbenchWorkspaceCloseAccep
         terminal_context_id: terminal_context_id.clone(),
         accepted_revision: operation.baseline.revision(),
     }
+}
+
+#[test]
+fn workspace_close_refuses_a_blocked_first_draw_but_suspends_an_admitted_prompt() {
+    let mut refused = close_state(0);
+    refused.open_workspace_close().unwrap();
+    assert_eq!(
+        refused.settle_workspace_close_not_presented(),
+        Some(GeometrySettlement::Refused)
+    );
+    assert!(refused.workspace_close_confirmation().is_none());
+    assert_eq!(refused.notice, None);
+
+    let mut suspended = close_state(0);
+    let token = suspended.open_workspace_close().unwrap();
+    suspended.acknowledge_workspace_close_draw(Some(token));
+    assert!(
+        suspended
+            .workspace_close_confirmation()
+            .unwrap()
+            .interactive()
+    );
+    assert_eq!(
+        suspended.settle_workspace_close_not_presented(),
+        Some(GeometrySettlement::Suspended)
+    );
+    let prompt = suspended.workspace_close_confirmation().unwrap();
+    assert_eq!(prompt.token(), token);
+    assert!(!prompt.interactive());
+    assert!(plan(&suspended, token).is_none());
+    suspended.acknowledge_workspace_close_draw(Some(token));
+    assert!(
+        suspended
+            .workspace_close_confirmation()
+            .unwrap()
+            .interactive()
+    );
+    assert!(plan(&suspended, token).is_some());
 }
 fn observed(operation: &WorkspaceCloseOperation, closed: bool) -> WorkspaceCloseResult {
     let accepted = accepted(operation);

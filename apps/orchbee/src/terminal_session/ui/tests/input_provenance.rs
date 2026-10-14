@@ -19,6 +19,17 @@ struct RecordingPort<'a> {
 }
 
 impl TerminalInputPort for RecordingPort<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        self.ui.capture_claims()
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        self.ui.capture_context(owner)
+    }
+
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(input);
         self.ui
@@ -31,12 +42,28 @@ impl TerminalInputPort for RecordingPort<'_> {
         Some(self.ui.apply_client_action(action))
     }
 
-    fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
-        self.ui.capture_confirmation_key(key)
+    fn capture_tab_confirmation_key_for(
+        &mut self,
+        token: NativeCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_tab_confirmation_key(token, key)
     }
 
-    fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
-        self.ui.rename_input_context()
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        token: NativePanelCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_panel_confirmation_key(token, key)
+    }
+
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_workspace_close_key(token, key)
     }
 
     fn edit_rename_draft(
@@ -56,10 +83,6 @@ impl TerminalInputPort for RecordingPort<'_> {
         token: NativeRenameDraftToken,
     ) -> Option<SessionActionDisposition> {
         Some(self.ui.submit_rename_draft(token))
-    }
-
-    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
-        self.ui.setup_input_context()
     }
 
     fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {

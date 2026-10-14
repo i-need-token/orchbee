@@ -738,6 +738,17 @@ fn typed_byte_lands_once_behind_one_recover() {
 struct NativePort<'a>(&'a mut NativeUi);
 
 impl TerminalInputPort for NativePort<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        self.0.capture_claims()
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        self.0.capture_context(owner)
+    }
+
     fn pointer_probe(&mut self) -> crate::terminal_input::PointerProbe {
         self.0.pointer_probe()
     }
@@ -769,12 +780,28 @@ impl TerminalInputPort for NativePort<'_> {
         self.0.history_wheel(key, up)
     }
 
-    fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
-        self.0.capture_confirmation_key(key)
+    fn capture_tab_confirmation_key_for(
+        &mut self,
+        token: NativeCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.0.capture_tab_confirmation_key(token, key)
     }
 
-    fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
-        self.0.rename_input_context()
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        token: NativePanelCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.0.capture_panel_confirmation_key(token, key)
+    }
+
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        key: ClientKey,
+    ) -> bool {
+        self.0.capture_workspace_close_key(token, key)
     }
 
     fn edit_rename_draft(
@@ -794,10 +821,6 @@ impl TerminalInputPort for NativePort<'_> {
         token: NativeRenameDraftToken,
     ) -> Option<SessionActionDisposition> {
         Some(self.0.submit_rename_draft(token))
-    }
-
-    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
-        self.0.setup_input_context()
     }
 
     fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {

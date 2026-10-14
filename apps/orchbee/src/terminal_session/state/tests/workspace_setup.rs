@@ -150,8 +150,6 @@ fn ux_menu_directory_refusal_query_preserves_original_draft_admission() {
 }
 fn label_operation(state: &mut NativeSessionState, label: &str, generation: u64) -> SetupOperation {
     let token = state.setup_draft().unwrap().token();
-    assert!(state.edit_setup_draft(token, Edit::Clear));
-    assert!(state.edit_setup_draft(token, Edit::Append(label)));
     assert!(
         state
             .plan_setup(
@@ -163,6 +161,8 @@ fn label_operation(state: &mut NativeSessionState, label: &str, generation: u64)
             .is_none()
     );
     state.acknowledge_setup_draw(Some(token));
+    assert!(state.edit_setup_draft(token, Edit::Clear));
+    assert!(state.edit_setup_draft(token, Edit::Append(label)));
     let operation = state
         .plan_setup(
             token,
@@ -219,7 +219,7 @@ fn organization_picker_keeps_empty_projects_and_rejects_old_target_draw() {
     let original = state.open_setup_draft(organization_intent(&state)).unwrap();
     let draft = state.setup_draft().unwrap();
     assert_eq!(draft.project_count(), 3);
-    assert!(draft.project_at(1).unwrap().selected());
+    assert_eq!(draft.selected_project(), 1);
     assert!(draft.project_at(1).unwrap().ungrouped());
     assert_eq!(draft.project_at(0).unwrap().label(), Some("Project"));
     state.acknowledge_setup_draw(Some(original));
@@ -323,6 +323,7 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
             crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
         )
         .unwrap();
+    state.acknowledge_setup_draw(Some(token));
     assert!(state.edit_setup_draft(token, Edit::Append(&format!("/{}", "中".repeat(1365)))));
     assert_eq!(state.setup_draft().unwrap().text().len(), 4096);
     assert!(state.edit_setup_draft(token, Edit::Append("x")));
@@ -330,7 +331,6 @@ fn directory_literal_byte_limit_completeness_and_exact_owner_receipt() {
     state.edit_setup_draft(token, Edit::Clear);
     let path = "/tmp/literal ~ $HOME space";
     state.edit_setup_draft(token, Edit::Append(path));
-    state.acknowledge_setup_draw(Some(token));
     state.edit_setup_draft(token, Edit::Completeness(false));
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let request_id = WorkbenchRequestId::parse(&id(98)).unwrap();
@@ -442,8 +442,8 @@ fn directory_commit_cannot_claim_an_existing_directory_identity_at_a_later_revis
             crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
         )
         .unwrap();
-    state.edit_setup_draft(token, Edit::Append("/literal"));
     state.acknowledge_setup_draw(Some(token));
+    state.edit_setup_draft(token, Edit::Append("/literal"));
     let operation = state
         .plan_setup(
             token,
@@ -481,6 +481,7 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
     // The picker stage owns no text field: text/paste/nav edits are inert and
     // project selection only moves through the selection edits.
     let picker = state.open_setup_draft(organization_intent(&state)).unwrap();
+    state.acknowledge_setup_draw(Some(picker));
     assert!(!state.edit_setup_draft(picker, Edit::Append("x")));
     assert!(!state.edit_setup_draft(picker, Edit::Paste("[]")));
     assert!(!state.edit_setup_draft(picker, Edit::Home));
@@ -496,6 +497,7 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
     let token = state
         .open_setup_draft(NativeSetupIntent::ConfigureDirectory)
         .unwrap();
+    state.acknowledge_setup_draw(Some(token));
     assert!(state.edit_setup_draft(token, Edit::Append("/var/tmp")));
     assert!(state.edit_setup_draft(token, Edit::Left));
     assert!(state.edit_setup_draft(token, Edit::Delete));
@@ -524,8 +526,122 @@ fn setup_draft_edits_graphemes_and_the_picker_stays_inert_to_text() {
             crate::terminal_session::state::workspace_setup::NativeLocationLabelTarget::Workspace,
         ))
         .unwrap();
+    state.acknowledge_setup_draw(Some(rename));
     assert_eq!(state.setup_draft().unwrap().stage(), Stage::WorkspaceRename);
     assert_eq!(state.setup_draft().unwrap().text(), "Workspace");
     assert!(state.edit_setup_draft(rename, Edit::Append("2")));
     assert_eq!(state.setup_draft().unwrap().text(), "Workspace2");
+}
+
+#[test]
+fn setup_first_geometry_block_refuses_the_open_attempt_without_a_hidden_owner() {
+    let mut state = workspace_state();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+        )
+        .unwrap();
+    assert_eq!(
+        state.setup_draft().unwrap().presentation(),
+        crate::tui_presentation::PresentationPhase::Pending
+    );
+    state.acknowledge_setup_draw(None);
+    assert_eq!(
+        state.setup_draft().unwrap().presentation(),
+        crate::tui_presentation::PresentationPhase::Pending
+    );
+
+    assert_eq!(
+        state.settle_setup_draft_not_presented(),
+        Some(crate::tui_presentation::GeometrySettlement::Refused)
+    );
+    assert!(state.setup_draft().is_none());
+    assert_eq!(state.setup_status(), Some(Status::PresentationUnavailable));
+    assert!(!state.edit_setup_draft(token, Edit::Append("C:/hidden")));
+}
+
+#[test]
+fn setup_geometry_suspension_preserves_the_exact_draft_and_requires_a_fresh_draw() {
+    let mut state = workspace_state();
+    let token = state
+        .open_setup_draft(
+            crate::terminal_session::state::workspace_setup::NativeSetupIntent::ConfigureDirectory,
+        )
+        .unwrap();
+    state.acknowledge_setup_draw(Some(token));
+    assert_eq!(
+        state.setup_draft().unwrap().presentation(),
+        crate::tui_presentation::PresentationPhase::Admitted
+    );
+    assert!(state.edit_setup_draft(token, Edit::Append("C:/draft")));
+    assert!(state.edit_setup_draft(token, Edit::Left));
+    let cursor = state
+        .setup_draft()
+        .unwrap()
+        .field_window(40)
+        .unwrap()
+        .cursor_column();
+
+    assert_eq!(
+        state.settle_setup_draft_not_presented(),
+        Some(crate::tui_presentation::GeometrySettlement::Suspended)
+    );
+    let suspended = state.setup_draft().unwrap();
+    assert_eq!(
+        suspended.presentation(),
+        crate::tui_presentation::PresentationPhase::Suspended
+    );
+    assert_eq!(suspended.token(), token);
+    assert_eq!(suspended.text(), "C:/draft");
+    assert_eq!(suspended.field_window(40).unwrap().cursor_column(), cursor);
+    assert!(!state.edit_setup_draft(token, Edit::Append("-hidden")));
+    assert!(
+        state
+            .plan_setup(
+                token,
+                workbench_request_id(98),
+                1,
+                OperationDeadlines::from_sample(Instant::now()).unwrap()
+            )
+            .is_none()
+    );
+
+    state.acknowledge_setup_draw(None);
+    assert!(!state.edit_setup_draft(token, Edit::Append("-covered")));
+    state.acknowledge_setup_draw(Some(token));
+    assert!(state.edit_setup_draft(token, Edit::Append("-resumed")));
+    assert_eq!(state.setup_draft().unwrap().text(), "C:/draf-resumedt");
+}
+
+#[test]
+fn setup_child_escape_restores_the_project_picker_and_discards_only_child_edits() {
+    let mut state = workspace_state();
+    let parent = state.open_setup_draft(organization_intent(&state)).unwrap();
+    state.acknowledge_setup_draw(Some(parent));
+    let new_project = state.setup_draft().unwrap().project_count() - 1;
+    assert!(state.choose_setup_project(parent, new_project));
+    assert!(state.advance_setup_picker(parent));
+
+    let child = state.setup_draft().unwrap().token();
+    assert_eq!(
+        state.setup_draft().unwrap().presentation(),
+        crate::tui_presentation::PresentationPhase::Admitted
+    );
+    state.acknowledge_setup_draw(Some(child));
+    assert!(state.edit_setup_draft(child, Edit::Append("Temporary Project")));
+    state.cancel_setup_draft(child);
+
+    let restored = state.setup_draft().unwrap();
+    assert_eq!(restored.stage(), Stage::ChooseWorkspaceProject);
+    assert_eq!(restored.selected_project(), new_project);
+    assert_eq!(restored.text(), "");
+    assert_ne!(restored.token(), child);
+    let restored_token = restored.token();
+    state.acknowledge_setup_draw(Some(restored_token));
+    assert!(state.advance_setup_picker(restored_token));
+    assert_eq!(
+        state.setup_draft().unwrap().stage(),
+        Stage::WorkspaceProjectName
+    );
+    assert_eq!(state.setup_draft().unwrap().text(), "");
 }

@@ -1,18 +1,20 @@
+use super::modal::{
+    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+};
 use crate::{
+    client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_session::{
         ModalPresentation, NativeCloseConfirmationToken, NativeCloseConfirmationView,
         NativeCloseStatusToken,
     },
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_layout::centered_overlay,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::{Role, Theme},
+    tui_theme::Theme,
 };
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
     text::{Line, Text},
     widgets::{Clear, Padding, Paragraph, Wrap},
 };
@@ -23,27 +25,6 @@ pub(super) struct ModalDraw {
     pub(super) status: Option<NativeCloseStatusToken>,
 }
 
-/// A modal surface asks for exactly the finite size its complete content needs
-/// — borders plus horizontal padding around the natural text bounds — inside
-/// the unified content area, which `centered_overlay` insets by a fixed margin.
-/// When the offered area is narrower than the natural bounds the preferred
-/// height grows to the wrapped line count at the resulting inner width; a
-/// content area that still cannot present the complete text yields a
-/// `NotPresented` outcome rather than a clipped confirmation.
-pub(super) fn modal_area(content_area: Rect, text: &Text<'_>) -> Rect {
-    let natural_width = u16::try_from(text.width().saturating_add(6)).unwrap_or(u16::MAX);
-    let width = natural_width.min(content_area.width.saturating_sub(4));
-    let inner_width = width.saturating_sub(6).max(1);
-    let wrapped_height = Paragraph::new(text.clone())
-        .wrap(Wrap { trim: false })
-        .line_count(inner_width)
-        .saturating_add(2);
-    let height = u16::try_from(wrapped_height)
-        .unwrap_or(u16::MAX)
-        .min(content_area.height.saturating_sub(2));
-    centered_overlay(content_area, width, height)
-}
-
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
@@ -52,7 +33,6 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalDraw {
-    hits.start_modal();
     let status = confirmation.resume_status();
     let mut lines = if let Some(count) = confirmation.set_count() {
         // Names are previews, not target identities. Bound them to one line, reserving the
@@ -105,119 +85,80 @@ pub(super) fn render(
             lines.push(Line::from(""));
         }
     }
-    let labels = [
-        locale.workspace_close_cancel_button(),
-        locale.workspace_close_confirm_button(),
+    let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
+    let confirm = modal_key_label(theme, &Binding::new(KeyCode::Char('y'), Modifiers::NONE));
+    let hints = [
+        super::controls::KeyHint::new(&escape, locale.tab_close_cancel_hint()),
+        super::controls::KeyHint::new(&confirm, locale.tab_close_confirm_hint()),
     ];
-    let actions = format!("{}  {}", labels[0], labels[1]);
-    lines.push(Line::from(actions.as_str()));
+    let actions = [
+        ModalAction::new(
+            locale.tab_close_cancel_label(),
+            super::controls::ActionKind::Secondary,
+            true,
+        ),
+        ModalAction::new(
+            locale.tab_close_confirm_label(),
+            super::controls::ActionKind::Primary,
+            true,
+        ),
+    ];
+    lines.extend([Line::from(""), Line::from("")]);
     let text = Text::from(lines);
-    let area = modal_area(content_area, &text);
-    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
-    let inner = block.inner(area);
-    let complete =
-        wrapped_text_fits(&text, inner) && display_width(&actions) <= usize::from(inner.width);
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    frame.render_widget(Clear, area);
-    frame.render_widget(block, area);
-    if let Some(close) = super::controls::close(frame, area, theme) {
-        hits.record(
-            HitLayer::Overlay,
-            close,
-            HitTarget::TabClose {
-                token: confirmation.token(),
-                confirm: false,
-            },
-        );
-    }
-    if complete {
-        frame.render_widget(
-            Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
-            inner,
-        );
-        if let Some(buttons) = super::controls::pair(
-            frame,
-            super::controls::text_row(&text, inner, text.lines.len() - 1),
-            labels,
-            theme,
-        ) {
-            for (rect, confirm) in buttons.into_iter().zip([false, true]) {
-                hits.record(
-                    HitLayer::Overlay,
-                    rect,
-                    HitTarget::TabClose {
-                        token: confirmation.token(),
-                        confirm,
-                    },
-                );
-            }
-        }
-        ModalDraw {
-            area,
-            prompt: ModalPresentation::Presented(confirmation.token()),
-            status: status.map(|status| status.token()),
-        }
-    } else {
-        frame.render_widget(
-            Paragraph::new(locale.close_resize_hint())
-                .style(theme.style(Role::StatusWarning))
-                .wrap(Wrap { trim: false }),
-            inner,
-        );
-        ModalDraw {
-            area,
+    let Some(layout) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
+    else {
+        return ModalDraw {
+            area: Rect::default(),
             prompt: ModalPresentation::NotPresented,
             status: None,
-        }
+        };
+    };
+
+    hits.start_modal();
+    hits.record(
+        HitLayer::OverlaySurface,
+        layout.area,
+        HitTarget::OverlaySurface,
+    );
+    frame.render_widget(Clear, layout.area);
+    frame.render_widget(
+        super::overlay_surface(theme, true, Padding::horizontal(2)),
+        layout.area,
+    );
+    frame.render_widget(
+        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        layout.inner,
+    );
+    paint_modal_close(
+        frame,
+        layout.close,
+        HitTarget::TabClose {
+            token: confirmation.token(),
+            confirm: false,
+        },
+        theme,
+        hits,
+    );
+    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
+        .expect("admitted modal hints must paint");
+    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
+    for ((rect, action), confirm) in layout.actions.into_iter().zip(actions).zip([false, true]) {
+        paint_modal_action(
+            frame,
+            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
+            rect,
+            action,
+            HitTarget::TabClose {
+                token: confirmation.token(),
+                confirm,
+            },
+            theme,
+            hits,
+        );
+    }
+    ModalDraw {
+        area: layout.area,
+        prompt: ModalPresentation::Presented(confirmation.token()),
+        status: status.map(|status| status.token()),
     }
 }
-
-pub(super) fn wrapped_text_fits(text: &Text<'_>, area: Rect) -> bool {
-    if area.is_empty() {
-        return false;
-    }
-    // The wrapper drops any grapheme wider than the line; line_count alone cannot detect that.
-    let graphemes_fit = text.iter().all(|line| {
-        line.spans.iter().all(|span| {
-            span.styled_graphemes(Style::default())
-                .all(|grapheme| Line::raw(grapheme.symbol).width() <= usize::from(area.width))
-        })
-    });
-    graphemes_fit
-        && Paragraph::new(text.clone())
-            .wrap(Wrap { trim: false })
-            .line_count(area.width)
-            <= usize::from(area.height)
-}
-
-/// Places the terminal cursor inside a presented modal: `column` cells into
-/// the wrapped row that `line_index` begins on. The caller attests the column
-/// is already inside the inner width — a field window's cursor column is
-/// always strictly below the field width it was projected for.
-pub(super) fn set_modal_cursor(
-    frame: &mut Frame<'_>,
-    text: &Text<'_>,
-    inner: Rect,
-    line_index: usize,
-    column: usize,
-) {
-    let row = Paragraph::new(Text::from(text.lines[..line_index].to_vec()))
-        .wrap(Wrap { trim: false })
-        .line_count(inner.width);
-    frame.set_cursor_position((
-        inner.x + column as u16,
-        inner.y + u16::try_from(row).unwrap_or(u16::MAX),
-    ));
-}
-
-pub(super) fn unwrapped_text_fits(text: &str, area: Rect) -> bool {
-    let text = Text::from(text);
-    !area.is_empty()
-        && text.height() <= usize::from(area.height)
-        && text
-            .iter()
-            .all(|line| line.width() <= usize::from(area.width))
-}
-
-#[cfg(test)]
-mod tests;

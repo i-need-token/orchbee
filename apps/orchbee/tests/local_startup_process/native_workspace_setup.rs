@@ -1,4 +1,5 @@
 use super::native_workspace_fixture::*;
+use super::tui_observer::NativeHeader;
 use super::*;
 
 #[test]
@@ -63,7 +64,7 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     // a buggy implementation tries to expand "$HOME" or otherwise choose a fallback.
     let invalid = fixture.base.join("missing directory/$HOME");
     let checkpoint = submit_directory(&mut client, invalid.to_str().ok_or("path UTF-8")?);
-    wait_empty(&mut client, checkpoint, Some(DIRECTORY_REFUSED));
+    wait_empty(&mut client, checkpoint, None, Some(DIRECTORY_REFUSED));
     assert!(!invalid.exists());
     assert_eq!(
         observer.snapshot()?,
@@ -75,7 +76,12 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
     fs::create_dir(&directory)?;
     let directory = fs::canonicalize(directory)?;
     let checkpoint = submit_directory(&mut client, directory.to_str().ok_or("path UTF-8")?);
-    wait_empty(&mut client, checkpoint, Some(DIRECTORY_ACCEPTED));
+    wait_empty(
+        &mut client,
+        checkpoint,
+        Some(directory.to_str().ok_or("path UTF-8")?),
+        Some(DIRECTORY_ACCEPTED),
+    );
     let configured = observer.snapshot()?;
     assert!(configured.revision > created.revision);
     assert_eq!(configured.site_id, created.site_id);
@@ -113,13 +119,18 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
         "acceptance changes only this Workspace's directory association"
     );
 
-    finish_modal_handoff(&mut client, &[WORKSPACE_HEADER, EMPTY]);
+    finish_modal_handoff(
+        &mut client,
+        NativeHeader::empty(WORKSPACE_LOCATION),
+        &[EMPTY],
+    );
     let checkpoint = client.checkpoint();
     client.send(b"\x02c");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        &[WORKSPACE_HEADER, "[*1 1]", "Tab 1 · Ready · controlling"],
+        NativeHeader::active(WORKSPACE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready · controlling"],
         &[EMPTY],
         &[],
         &mut [],
@@ -167,11 +178,12 @@ fn native_empty_workspace_uses_literal_directory_and_only_explicitly_launches() 
 
     let checkpoint = client.checkpoint();
     client.send(b"\x02[");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[STANDALONE_HEADER, "[*1 1]", "Tab 1 · Ready · controlling"],
-        &[WORKSPACE_HEADER, EMPTY],
+        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready · controlling"],
+        &[WORKSPACE_LOCATION, EMPTY],
         &[],
         &mut [],
     );
@@ -216,21 +228,26 @@ fn native_directory_setup_cancel_preserves_the_empty_workspace_and_original_shel
         edit_directory(&mut client, path);
         let checkpoint = client.checkpoint();
         client.send(b"\x1b");
-        wait_empty(&mut client, checkpoint, None);
+        wait_empty(&mut client, checkpoint, None, None);
         assert_eq!(
             observer.snapshot()?,
             committed,
             "cancel submits no directory mutation"
         );
     }
-    finish_modal_handoff(&mut client, &[WORKSPACE_HEADER, EMPTY]);
+    finish_modal_handoff(
+        &mut client,
+        NativeHeader::empty(WORKSPACE_LOCATION),
+        &[EMPTY],
+    );
     let checkpoint = client.checkpoint();
     client.send(b"\x02[");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[STANDALONE_HEADER, "[*1 1]", "Tab 1 · Ready · controlling"],
-        &[WORKSPACE_HEADER, EMPTY],
+        NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready · controlling"],
+        &[WORKSPACE_LOCATION, EMPTY],
         &[],
         &mut [],
     );

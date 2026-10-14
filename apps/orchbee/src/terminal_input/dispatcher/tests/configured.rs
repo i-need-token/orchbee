@@ -96,9 +96,34 @@ fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
         *calls.borrow(),
         [
             Call::Forward(b"before".to_vec()),
-            Call::Action(ClientAction::ConfiguredCommand(id)),
+            Call::Action(ClientAction::ConfiguredCommand(id.clone())),
             Call::Forward(b"tail".to_vec()),
         ]
+    );
+    let projected_id = view
+        .bindings()
+        .entries
+        .iter()
+        .find_map(|entry| {
+            let crate::client_view::PrefixAction::Client(ClientAction::ConfiguredCommand(
+                candidate,
+            )) = &entry.member.action
+            else {
+                return None;
+            };
+            if candidate != &id {
+                return None;
+            }
+            Some(
+                crate::action_projection::binding_metadata(&entry.member.action)
+                    .expect("configured action metadata")
+                    .identity,
+            )
+        })
+        .expect("configured action projection");
+    assert_eq!(
+        projected_id,
+        crate::action_projection::ActionIdentity::ConfiguredCommand(id.as_str())
     );
     let rows = crate::localization::Locale::EnUs
         .shell()
@@ -154,8 +179,10 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
         Observation as Agents,
         tests::{checkpoint, row},
     };
-    use crate::machine_picker::Choice;
-    use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};
+    use crate::machine_picker::{Choice, SidebarPart};
+    use crate::tui_pointer::{
+        HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, PrimaryContract,
+    };
     for current in [false, true] {
         let agent = row(23);
         let selected = crate::machine_picker::Selection {
@@ -201,8 +228,15 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
         if !view.machines.sidebar_context_agents_expanded(&owner) {
             assert!(view.machines.toggle_sidebar_context_agents(&owner));
         }
+        let rows = view.machines.sidebar_navigation_rows();
+        let agent_target = rows
+            .iter()
+            .find_map(|row| match row {
+                crate::machine_picker::SidebarRow::Agent { .. } => Some(row.target()),
+                _ => None,
+            })
+            .unwrap();
         let window = {
-            let rows = view.machines.sidebar_navigation_rows();
             view.machines.space_window_for_row_gaps(
                 &rows,
                 &vec![1; rows.len()],
@@ -210,14 +244,18 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
                 4,
             )
         };
+        let source = view.machines.sidebar_source();
+        let drawn = source
+            .drawn(agent_target, SidebarPart::Primary, window)
+            .unwrap();
         let mut hits = HitMapBuilder::new();
-        hits.record(
+        let rect = ratatui::layout::Rect::new(2, 2, 26, 2);
+        hits.record_interaction(
             HitLayer::Chrome,
-            ratatui::layout::Rect::new(2, 2, 26, 2),
-            HitTarget::MachineAgentRow {
-                selected: selected.clone(),
-                window,
-            },
+            rect,
+            rect,
+            InteractionTarget::Sidebar(drawn),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
         );
         let calls = Rc::new(RefCell::new(Vec::new()));
         let mut port = UnavailablePort(Rc::clone(&calls));
@@ -228,7 +266,7 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
             &mut view,
             &mut dispatcher,
             &mut port,
-            b"before\x1b[<0;3;3Mtail\x03",
+            b"before\x1b[<0;3;3M\x1b[<0;3;3mtail\x03",
         );
         assert_eq!(*calls.borrow(), [Call::Forward(b"before".to_vec())]);
         assert_eq!(
@@ -352,6 +390,42 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
         forwarded: Vec<u8>,
     }
     impl TerminalInputPort for Port {
+        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+            crate::tui_composition::NativeCaptureClaims::default()
+                .with_workspace_close(self.owner == 1)
+                .with_agent_board(self.owner == 2)
+        }
+        fn native_capture_context(
+            &self,
+            owner: crate::tui_composition::NativeCaptureOwner,
+        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+            use crate::{
+                terminal_session::{
+                    AgentBoardEpisodeToken, AgentBoardInputContext, CaptureReadiness,
+                    ConfirmationCaptureContext, NativeCaptureContext, WorkspaceCloseToken,
+                },
+                tui_composition::NativeCaptureOwner,
+                tui_presentation::PresentationPhase,
+            };
+
+            match (self.owner, owner) {
+                (1, NativeCaptureOwner::WorkspaceClose) => Some(
+                    NativeCaptureContext::WorkspaceClose(ConfirmationCaptureContext {
+                        token: WorkspaceCloseToken::for_test(1),
+                        phase: PresentationPhase::Admitted,
+                        readiness: CaptureReadiness::Interactive,
+                    }),
+                ),
+                (2, NativeCaptureOwner::AgentBoard) => Some(NativeCaptureContext::AgentBoard(
+                    AgentBoardInputContext::for_test(
+                        AgentBoardEpisodeToken::for_test(1),
+                        PresentationPhase::Admitted,
+                        true,
+                    ),
+                )),
+                _ => None,
+            }
+        }
         fn apply_client_action(
             &mut self,
             action: ClientAction,
@@ -363,14 +437,19 @@ fn custom_direct_keys_respect_confirmation_board_history_paste_and_releases() {
             self.forwarded.extend_from_slice(bytes);
             Ok(())
         }
-        fn capture_confirmation_key(&mut self, _: ClientKey) -> bool {
+        fn capture_workspace_confirmation_key_for(
+            &mut self,
+            _: crate::terminal_session::WorkspaceCloseToken,
+            _: ClientKey,
+        ) -> bool {
             self.owner == 1
         }
-        fn agent_board_input(&mut self) -> bool {
+        fn capture_agent_board_key_for(
+            &mut self,
+            _: crate::terminal_session::AgentBoardEpisodeToken,
+            _: crate::client_view::KeyEvent,
+        ) -> bool {
             self.owner == 2
-        }
-        fn capture_agent_board_key(&mut self, _: crate::client_view::KeyEvent) -> bool {
-            true
         }
         fn history_key(&mut self, _: &crate::client_view::KeyEvent) -> bool {
             self.owner == 3
@@ -436,8 +515,8 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
         let bound = locale.shell().bind(&view);
         let text = bound.text();
         assert!(text.hint_short.contains("F1"));
-        assert!(!text.hint_short.contains("Ctrl+B"));
-        assert!(text.prefix_active.ends_with("Ctrl+A"));
+        assert!(!text.hint_short.contains("Ctrl+b"));
+        assert!(text.prefix_active.ends_with("Ctrl+a"));
         let rows = text.configured_shortcut_rows(&view);
         assert!(rows.iter().any(|(key, _)| key.trim() == "F1"));
         assert!(
@@ -447,7 +526,7 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
         assert!(
             !rows
                 .iter()
-                .any(|(key, _)| key.contains("Ctrl+B") || key.contains("F9"))
+                .any(|(key, _)| key.contains("Ctrl+b") || key.contains("F9"))
         );
     }
 }
@@ -531,7 +610,7 @@ fn configured_indexed_direct_keys_keep_modifiers_and_compact_discovery() {
         .bindings()
         .group_label(crate::client_view::PrefixDesc::SelectTabWrap, "Unbound")
         .unwrap();
-    assert_eq!(row, "Ctrl+B Unbound / p");
+    assert_eq!(row, "Ctrl+b Unbound / p");
 }
 
 #[test]

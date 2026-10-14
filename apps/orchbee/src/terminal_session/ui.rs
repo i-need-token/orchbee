@@ -61,6 +61,7 @@ mod navigator;
 mod panel;
 mod panel_close;
 mod presentations;
+pub(crate) use presentations::DrawnPresentationTarget;
 mod retained_frames;
 #[cfg(any(windows, test))]
 pub(crate) use retained_frames::RetainedFrames as RetainedFrameBank;
@@ -79,35 +80,43 @@ pub(crate) use workspace_close::{
 };
 pub(crate) use workspace_setup::{
     NativeLocationLabelStatus, NativeLocationLabelTarget, NativeSetupDraftView, NativeSetupEdit,
-    NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken,
+    NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
 #[cfg(windows)]
 pub(crate) use worktree_launch::{
-    WorktreeEdit, WorktreeInputContext, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken,
-    WorktreeView,
+    WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 #[cfg(windows)]
 mod copy_mode;
 mod tab_rename;
 mod terminal_effects;
 mod terminal_selection;
+#[cfg(all(windows, test))]
+pub(crate) use input_capture::WorktreeCaptureContext;
+pub(crate) use input_capture::{CaptureReadiness, NativeCaptureContext};
+#[cfg(test)]
+pub(crate) use input_capture::{ConfirmationCaptureContext, SetupCaptureContext};
 pub(crate) use panel_close::{NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView};
 pub(crate) use tab_close::{
     ModalPresentation, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
     NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
     NativeCloseStatusView, NativeDrawReceipt,
 };
-pub(crate) use tab_rename::{
-    NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeRenameInputContext,
-};
+#[cfg(test)]
+pub(crate) use tab_rename::NativeRenameInputContext;
+pub(crate) use tab_rename::{NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit};
 mod create_membership;
 #[cfg(windows)]
 mod startup_preference;
 mod switch_membership;
 
+#[cfg(test)]
+pub(crate) use super::agent_board::AgentBoardInputContext;
 pub(crate) use super::agent_board::{
-    AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
-    AgentBoardSummary, AgentBoardToken, JumpFailure, NativeAgentBoardView, PresentationPlacement,
+    AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
+    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
+    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, JumpFailure, NativeAgentBoardView,
+    PresentationPlacement,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -844,7 +853,7 @@ impl<'a> NativeSessionView<'a> {
 impl<'a> NativeSessionView<'a> {
     /// Empty, unobstructed Native surface for consumers whose test owns no session state.
     #[cfg(windows)]
-    pub(super) fn notification_test_view() -> Self {
+    pub(crate) fn notification_test_view() -> Self {
         Self {
             worktree: None,
             #[cfg(windows)]
@@ -1045,6 +1054,7 @@ mod client_viewport;
 mod completion_reminders;
 #[cfg(windows)]
 mod independent_popup;
+mod input_capture;
 #[cfg(windows)]
 mod link_activation;
 mod terminal_tail;
@@ -1390,7 +1400,17 @@ impl NativeUi {
         accepted
     }
 
+    #[cfg(test)]
     pub(super) fn tick(&mut self) -> bool {
+        self.tick_with_client_capture(crate::tui_composition::ClientCaptureClaims::default())
+    }
+
+    /// Advances native domain work while honoring the same client-over-native
+    /// capture projection used by paint and input dispatch.
+    pub(super) fn tick_with_client_capture(
+        &mut self,
+        client_capture: crate::tui_composition::ClientCaptureClaims,
+    ) -> bool {
         #[cfg(windows)]
         let duplicate_changed = self
             .state
@@ -1475,9 +1495,15 @@ impl NativeUi {
             self.schedule_pane_reconcile(&mailbox);
             self.schedule_poll(&mailbox);
             changed |= self.schedule_unbound_refresh(&mailbox);
-            // The board lane and the jump stage machine live on the same
-            // fair tick as every other scheduled admission.
-            changed |= self.drive_agent_board();
+            // Board lane settlement and intent scheduling remain fair while a
+            // client surface covers native content. Only a focus-moving jump
+            // must wait until the total compositor names Board as the top.
+            let allow_agent_board_jump =
+                crate::tui_composition::project_capture(client_capture, self.capture_claims())
+                    == Some(crate::tui_composition::CaptureOwner::Native(
+                        crate::tui_composition::NativeCaptureOwner::AgentBoard,
+                    ));
+            changed |= self.drive_agent_board(allow_agent_board_jump);
             #[cfg(windows)]
             {
                 if let Some(state) = self.state.as_mut()
@@ -1589,7 +1615,6 @@ impl NativeUi {
             #[cfg(windows)]
             {
                 self.after_worktree_draw(None);
-                self.fail_action_menu();
             }
         }
         if self.retirement_failure.is_some() {
@@ -2366,6 +2391,8 @@ impl NativeUi {
 
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> SessionActionDisposition {
         #[cfg(windows)]
+        let resume_handoff = self.take_action_menu_resume_handoff(&action);
+        #[cfg(windows)]
         if let Some(state) = self.state.as_mut() {
             // New intent wins even when its admission is refused.
             state.cancel_project_quick_entry();
@@ -2485,9 +2512,21 @@ impl NativeUi {
                 SessionActionDisposition::KeepNavigator
             }
             #[cfg(windows)]
-            ClientAction::TabMenu { action, tab_id } => {
-                self.apply_tab_menu(action, tab_id.as_ref())
-            }
+            ClientAction::TabMenu { action, tab_id } => match (action, resume_handoff) {
+                (
+                    crate::action_menu::MenuAction::ResumeTabClose,
+                    action_menus::TabCloseResumeHandoff::Menu(permit),
+                ) => tab_id
+                    .as_ref()
+                    .map_or(SessionActionDisposition::KeepNavigator, |tab_id| {
+                        self.request_tab_close_resume_with_permit(tab_id, &permit)
+                    }),
+                (
+                    crate::action_menu::MenuAction::ResumeTabClose,
+                    action_menus::TabCloseResumeHandoff::Refused,
+                ) => SessionActionDisposition::KeepNavigator,
+                (action, _) => self.apply_tab_menu(action, tab_id.as_ref()),
+            },
             #[cfg(windows)]
             ClientAction::ToggleTabGroup(group) => self.toggle_tab_group(&group),
             ClientAction::RequestRenameTab => {
@@ -2532,10 +2571,6 @@ impl NativeUi {
             ClientAction::EnterCopyMode => self.enter_copy_mode(),
             ClientAction::PreviousPresentation => self.cycle_presentation(false),
             ClientAction::NextPresentation => self.cycle_presentation(true),
-            ClientAction::SelectPresentation {
-                panel,
-                presentation,
-            } => self.select_presentation_in_active_tab(&panel, &presentation),
             ClientAction::MovePanelFocus(direction) => self.move_panel_focus(direction),
             ClientAction::FocusPanel(panel) => self.move_panel_focus_to(&panel),
             ClientAction::ToggleZoom => self.toggle_zoom(),

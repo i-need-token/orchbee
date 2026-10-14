@@ -27,47 +27,94 @@ Selection or selected-member changes revoke the menu proof; background metadata 
 the current terminal attached. Menu movement uses GUI group boundaries, including collapsed neighbors.
 Metadata actions preserve the current terminal; the submenu retains its exact addressed Tab.
 
+Recurring menu and prefix actions share one native metadata projection: a stable action identity,
+category and reviewed semantic search aliases. Dynamic group color, group index and parameterized
+resize input remain typed `ClientAction` or `MenuAction` data rather than becoming row-derived
+identities; direction-specific IDs reuse an owning GUI catalog only where that catalog already
+defines the same operation. Configured command IDs remain opaque and unchanged. Prefix help obtains
+effective chords from the resolved per-Client binding registry, including overrides and shadowing.
+A menu row shows the first effective chord only when an explicit `MenuTarget` plus `MenuAction`
+mapping has the same dispatch meaning; a current-Tab or current-Workspace binding is never advertised
+for a background object merely because both actions share metadata. Menu execution still uses its
+typed target, exact coordinator proof and owner-derived availability; metadata and displayed chords
+grant no execution authority. Native command search is not present in this surface, so the alias
+metadata does not claim a search entry.
+
+Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
+label, with at least one blank cell between the label and chord. The chord remains complete;
+constrained rows truncate the label first and omit the whole chord only when the remaining row cannot
+preserve the marker, a usable label and the gap.
+
 Selected/other/trailing Close and group Close show their frozen affected count, then open one
 [complete-set confirmation](native-tab-close-sets.md). Relative Close protects pinned Tabs;
 direct selected/group Close includes them where applicable. Hidden collapsed members remain targets.
 
+A resumable Tab-close row appears only after the close owner has presented the exact recovery status.
+Opening the menu freezes an opaque permit for that target, operation, attempt and status incarnation.
+While the menu replaces the status row, availability and the one-shot handoff revalidate that permit
+and the exact menu source. They neither keep the covered status marked as displayed nor fall back to
+ordinary Close. The resulting Resume confirmation must present its own exact prompt and status before
+it accepts confirmation.
+
 Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the
-selected action. Unmodified, button-free motion selects a painted row without
-executing it; leaving the menu retains selection. A left click on a drawn row
-executes it only after a matching release on that same drawn row. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a pending click. The header X closes the menu; a submenu's Back button returns to its parent. Right opens a selected submenu; Left or Esc returns to its parent and restores the
-selected action. Returning requires a fresh successful paint; old child tokens cannot execute.
-Esc at the root or a click outside cancels. Wheel outside the list is inert; inside it, each notch contributes three rows to a bounded, viewport-capped stream without wrapping or executing. Reversal drops the previous direction's backlog and retains the first new notch. Separators are noninteractive and consume layout rows,
-while the footer counts actions only. Rows scroll within the menu, leaving the status line visible. A
-fixed footer shows the selected row and total (`current/total`), retaining Esc when
-the Enter hint cannot fit. The menu replaces the entire status row; its full,
-compact and minimal hints retain Esc without underlying notice or Machines text.
+selected action. Keyboard selection reveals its row with the smallest viewport movement. Once the
+host and native adapter have admitted any-motion observability, unmodified, button-free motion
+paints transient hover feedback over a drawn row without changing the keyboard selection, viewport
+or action token; leaving removes that feedback. Button-only capture presents no idle-hover state. A left click on a
+drawn row executes it only after a matching release on the same typed source, token, row and painted
+rectangle. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a
+pending click. The header X closes the menu; a submenu's Back action returns to its parent. Right
+opens a selected submenu; Left or Esc returns to its parent and restores the stable selected action,
+anchor and freshly queried availability. Returning requires a fresh successful paint; old child
+tokens cannot execute.
+
+Esc at the root or a click outside cancels. Wheel outside the list is inert. Inside it, each notch
+contributes three rows to a bounded, viewport-capped stream without wrapping or executing; wheel
+movement changes only the viewport and may leave keyboard selection offscreen. Reversal drops the
+previous direction's backlog and retains the first new notch. Separators are noninteractive and
+consume layout rows, while the footer counts actions only. Rows scroll within the menu, leaving the
+status line visible. The fixed footer shows the selected row and total (`current/total`) plus ordered,
+atomic key hints styled as key and localized verb. Exit is first; Enter and navigation disappear as
+whole items when space runs out. Shared Back or Close actions are shown when they fit. The menu
+footer owns routine key discovery, so a normally presented global menu leaves the session status row
+empty. During geometry recovery, that row instead shows one localized, key-free refusal or suspension
+notice plus one shared Esc Back or Close hint; it never mixes underlying notice or Machines text.
 Menu width includes one cell of padding on each side and borders; labels that exceed the
 available width truncate on grapheme boundaries with the theme's ellipsis.
-Selection fills the complete inner row. A text marker remains when the theme's
-selection fill is indistinguishable from its overlay fill. A reason row is reserved
-only when the menu has unavailable actions, so hover never changes row geometry.
-Each frame derives its visible window from the current row budget, keeping the
-selected action visible in the first paint after resizing. The successful draw
-commits that same window for pointer admission; a larger frame fills available
-rows without changing selection.
-A cancellation or unavailability notice appears once on the status line; current
-key hints are not replaced by a second copy of the session's notice.
-A surface that cannot present its title, a row and its exit instruction closes with a
-localized notice. Ordinary terminal output continues while the menu captures input.
+Selection fills the complete inner row and uses the shared navigation-marker track; hover uses the
+independent shared pointer state. A reason row is reserved only when the menu has unavailable
+actions, so hover never changes row geometry. Each frame derives its visible window from the current
+row budget. Keyboard navigation keeps the selected action visible, while a manually scrolled
+viewport remains where the user placed it. The successful draw commits the exact first action,
+visible action count and selected action for pointer and activation admission; a larger frame fills
+available rows without changing selection.
+A cancellation or owner unavailability outcome appears once after the menu closes; it does not
+duplicate the open menu's footer or geometry-recovery status.
+A newly requested surface that cannot present its title, a row and its exit instruction is refused
+with a localized notice. If an admitted menu later becomes too small, it enters `Suspended`, retains
+its source, selection, viewport, parent and anchor, and accepts only its current local exit or return.
+Restoring sufficient geometry resumes the same menu incarnation after a fresh successful paint.
+Ordinary terminal output continues while the menu captures input.
 The underlying pane cursor is hidden during capture;
 cancelling restores the ordinary pane projection without changing focus.
 Known unavailable actions use the full disabled text style, retaining its modifiers
 at every color level. They can be selected to read a localized reason; Enter or clicking keeps the menu open and
 cannot confirm or navigate. A fixed reason row leaves the exit instruction and
-selection count visible even at the smallest presentable geometry. The status
-hint omits execution instructions for the disabled selection.
+selection count visible even at the smallest presentable geometry. The footer omits the Enter action
+for a disabled or offscreen selection.
+Actions unsupported by the current host are hidden rather than presented as disabled learning
+rows. Consequently, Move Tab to New Window is absent on the native Windows host until that host
+has an implementation; no placeholder or unsupported-host reason row is emitted. Context-relevant
+actions whose ordinary prerequisites are unmet remain visible with their owner-derived disabled
+reason.
 
 Browsing has no time limit: reading, selection, repainting and disabled activation
 do not start an execution timer. Confirming an available action creates one
 absolute 30-second deadline. The same deadline bounds target navigation and
 handoff; draw and navigation callbacks never renew it. Expiry cancels the
 unhanded action without rolling back accepted navigation. Target, origin,
-geometry, configuration and capture invalidation still cancel browsing.
+configuration and capture invalidation still cancel browsing. Geometry follows the refusal and
+suspension lifecycle above.
 
 Availability projects existing action-owner prerequisites, without a universal
 Ready guard. Workspace directory configuration is disabled for a Workspace that
@@ -118,17 +165,17 @@ geometry is required even before the first session state arrives.
 
 The user wants to discover and execute existing actions without memorizing chords.
 
-| Record field    | Contract                                                                                                                                                                                                                                                               |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs          | Drawn stable target, exact context/member/incarnation, current action prerequisites, complete decoded input packet, configuration, monotonic deadline and successful menu draw receipt                                                                                 |
-| Data            | One local episode, bounded rows and selection with owner-derived unavailability reasons, presentation token, frozen confirmed action, owned navigation generation and optional exact target member                                                                     |
-| Outputs         | Local capture and drawing; bounded navigation through existing membership owners; at most one action handed to the full ClientView/dispatcher path; localized cancellation or refusal                                                                                  |
-| Decisions       | Existing captures, including the Windows navigator, take priority. Help and sidebar remain unchanged underlays. Choosing an action admits navigation; opening does not. Each action retains its original availability policy rather than a universal Ready requirement |
-| Invariants      | No undrawn or stale activation, no focus on open/cancel, no action on a replacement target, no implicit retry, no input or decision-packet tail reaching a pane; close still needs its original confirmation                                                           |
-| Model           | Finite safety machine for capture, drawing, target invalidation, owned and foreign navigation, cancellation, prerequisites and one action transfer                                                                                                                     |
-| Dependencies    | Existing native membership, terminal state, input decoder, hit map, layout, localization and action owners; no new dependency, wire or persistent data                                                                                                                 |
-| Ownership       | NativeUi owns menu admission and target navigation; the deterministic menu owns selection and draw authority; ClientView owns local view decisions; InputDispatcher alone applies shell, mode and layout effects; original operation owners alone execute mutations    |
-| Reference scope | Discoverability for current OrchBee actions, not complete Herdr menu parity                                                                                                                                                                                            |
+| Record field    | Contract                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs          | Drawn stable target, exact context/member/incarnation, projected stable action identity and typed input, current action prerequisites, complete decoded input packet, configuration, monotonic deadline and successful menu draw receipt                                                                                                                                            |
+| Data            | One local episode, `Pending`/`Admitted`/`Suspended` presentation phase, independent whole-surface lease and exact row-window proof, `Recovery`/`Continuation`/`ActivationReady` input readiness, retained viewport and selection, owner-derived enabled/disabled/hidden availability, presentation token, frozen confirmed action, parent snapshot and optional exact target member |
+| Outputs         | Local capture and drawing; bounded navigation through existing membership owners; at most one action handed to the full ClientView/dispatcher path; localized cancellation or refusal                                                                                                                                                                                               |
+| Decisions       | Existing captures, including the Windows navigator, take priority. Help and sidebar remain unchanged underlays. Choosing an action admits navigation; opening does not. Each action retains its original availability policy rather than a universal Ready requirement                                                                                                              |
+| Invariants      | No undrawn or stale activation, no focus on open/cancel, no action on a replacement target, no implicit retry, no input or decision-packet tail reaching a pane; close still needs its original confirmation                                                                                                                                                                        |
+| Model           | Finite safety machine for capture, drawing, target invalidation, owned and foreign navigation, cancellation, prerequisites and one action transfer                                                                                                                                                                                                                                  |
+| Dependencies    | Existing native membership, terminal state, input decoder, hit map, layout, localization and action owners; no new dependency, wire or persistent data                                                                                                                                                                                                                              |
+| Ownership       | NativeUi owns menu admission and target navigation; the deterministic menu owns selection and draw authority; ClientView owns local view decisions; InputDispatcher alone applies shell, mode and layout effects; original operation owners alone execute mutations                                                                                                                 |
+| Reference scope | Discoverability for current OrchBee actions, not complete Herdr menu parity                                                                                                                                                                                                                                                                                                         |
 
 `MenuTarget::Project` carries a `WorkbenchProjectId`, never a label or row index.
 Admission freezes the complete canonical Project and, only when its ID matches the
@@ -160,41 +207,59 @@ opening a menu; a menu may still open the navigator through its ordinary action.
 
 ## Transitions and cancellation
 
-| State / event                                                | Guard and result                                                                                                                                                |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hidden → open                                                | Stable drawn source, no genuine capture or pending gesture; freeze target and current origin, capture opening packet                                            |
-| Open → draw                                                  | Paint the same episode and bounded rows; only a successful draw acknowledges its token                                                                          |
-| Open → select                                                | Move the bounded selection and revoke the previous token until redrawn                                                                                          |
-| Open → availability change                                   | Refresh owner-derived reasons and revoke the previous token until redrawn; a known unavailable row cannot authorize confirmation                                |
-| Open → disabled activation                                   | Keep selection and capture, reveal the reason, and transfer no action or navigation                                                                             |
-| Open → time passage                                          | Retain browsing and capture without creating an execution deadline                                                                                              |
-| Open → confirm                                               | Complete input, current drawn token and an available row; freeze exactly one action and prerequisite state, mint one absolute 30-second execution deadline      |
-| Confirmed → navigation                                       | Distinguish AlreadyExact, owned Context generation, owned Tab generation and admitted local focus; never infer admission from a no-op                           |
-| Navigation → handoff                                         | Only the owned prepare/apply result authorizes advancement; exact target still exists, source and prerequisites match; the original action decides availability |
-| Handoff                                                      | Remove the one-shot intent before applying the full ClientView transition and dispatcher effects; no retries                                                    |
-| Cancel / execution timeout / unavailable                     | Revoke the unhanded intent; accepted navigation is not rolled back, and no action executes                                                                      |
-| Source / geometry / configuration / covering capture changes | Revoke the unhanded episode; a foreign navigation retains its own semantics and cannot complete the menu intent                                                 |
+| State / event                                    | Guard and result                                                                                                                                                        |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hidden → Pending                                 | Stable drawn source, no genuine capture or pending gesture; freeze target and current origin, capture opening packet                                                    |
+| Pending → Admitted                               | A complete draw reports the exact token, first action, visible action count and selected action                                                                         |
+| Pending → geometry blocked                       | Refuse the new surface, show one localized notice and transfer no action                                                                                                |
+| Admitted → Suspended                             | A later evaluated geometry block revokes draw authority but retains source, selection, viewport, parent and anchor                                                      |
+| Suspended → Admitted                             | The same incarnation completes a fresh exact draw                                                                                                                       |
+| Admitted → keyboard select                       | Move selection, enable cursor-follow, mint a token and require redraw                                                                                                   |
+| Admitted → wheel viewport                        | Move only the retained viewport, disable cursor-follow, mint a token and require redraw; selection is unchanged                                                         |
+| Admitted → same-surface revision                 | Preserve the whole-surface lease, revoke only exact row authority and publish `Continuation` while selection, viewport, labels or availability await a matching redraw  |
+| Admitted → covered or not painted                | Mint a new token, revoke both the exact row proof and whole-surface lease, and retain ownership as `Recovery` until a fresh complete draw                               |
+| Open → availability change                       | Refresh owner-derived reasons and revoke the previous token until redrawn; a known unavailable row cannot authorize confirmation                                        |
+| Open → disabled activation                       | Keep selection and capture, reveal the reason, and transfer no action or navigation                                                                                     |
+| Open → time passage                              | Retain browsing and capture without creating an execution deadline                                                                                                      |
+| Admitted → confirm                               | Complete input, exact current draw and an available selected row; freeze one action and prerequisite state, mint one absolute 30-second execution deadline              |
+| Confirmed → navigation                           | Distinguish AlreadyExact, owned Context generation, owned Tab generation and admitted local focus; never infer admission from a no-op                                   |
+| Navigation → handoff                             | Only the owned prepare/apply result authorizes advancement; exact target still exists, source and prerequisites match; the original action decides availability         |
+| Handoff                                          | Remove the one-shot intent before applying the full ClientView transition and dispatcher effects; no retries                                                            |
+| Cancel / execution timeout / unavailable         | Revoke the unhanded intent; accepted navigation is not rolled back, and no action executes                                                                              |
+| Source / configuration / covering capture change | Revoke the unhanded episode; a foreign navigation retains its own semantics and cannot complete the menu intent. Resize follows the retained presentation states above. |
 
-Presentation tokens bind the episode, rows, geometry and exact semantic target. They
-do not bind ordinary pane output sequences. Output may repaint the underlay without
-cancelling a menu. A new incarnation, removed target, changed structural source,
-unpresentable menu, resize or conflicting capture revokes activation authority.
+Presentation tokens bind the episode, exact semantic target, selection and viewport revision. The
+whole-surface lease separately proves that this owner occupied the latest frame; the successful
+receipt additionally records the exact painted window. `Recovery` accepts only local Esc, including
+Esc returning from a retained child. `Continuation` admits repeated navigation while a normal
+same-surface revision awaits exact redraw. `ActivationReady` additionally requires the current
+selected action inside that exact window. None of these proofs binds ordinary pane output
+sequences. Output may repaint the underlay without cancelling a menu. A new incarnation, removed
+target, changed structural source or conflicting capture revokes the episode. Resize immediately
+revokes both presentation proofs; an evaluated size failure then refuses `Pending` or suspends an
+already admitted incarnation.
+The renderer completes geometry, row and required-exit-hint admission before mutating the candidate
+buffer or hit map. `NotPresented` paints nothing and publishes neither menu targets nor a modal
+pointer backdrop.
 
-Hover refines `Select`: it never confirms, navigates or starts an execution deadline.
-Only rows in the last successfully drawn window accept it. Hover changes the highlight
-without changing the painted row identity or token, so an immediate complete click
-still activates that exact row across highlight redraws. Keyboard confirmation also
-requires the selected row to match the successful draw receipt's selected row.
-Repeated hover on the same row changes nothing. Keyboard selection and availability
-changes revoke the old token and require a new draw. Source and geometry
-invalidation retain their existing cancellation rules. No hover queue or timer is owned.
+Hover is transient renderer projection. It never changes selection, viewport, token, availability,
+navigation or an execution deadline. Only an exact typed row from the last published frame may
+project hover or an armed press; matching release emits that typed intent, and the coordinator
+revalidates source plus token before activation. Keyboard selection and availability changes mint a
+new token and require a new draw. No hover queue or timer is owned.
 
-With pointer capture enabled, the dispatcher requests DEC `1003` only while a menu
-is active. The lifecycle owner restores `1002` on dismissal or handoff and disables
-`1003`, `1006` and `1002` on capture release or shutdown, including partial writes.
-Released capture stays released even when the keyboard opens a menu. Menu capture
-swallows motion and decision tails instead of sending them to an embedded program;
-pane tracking and any pre-existing gesture retain their original ownership outside it.
+Pointer capture is a session capability, not a menu lease. After the lifecycle completely establishes
+global `ButtonOnly` (`1003l`, then `1002h` and `1006h`), the endpoint performs one ordered
+`DECRQM ?1003$p` probe with a DA1 sentinel. Only an exact Reset reply (`DECRPM ?1003;2$y`) before
+the deadline admits `AnyMotion`; Set, unavailable, DA1-first, a 300 ms timeout, late and duplicate
+outcomes never publish idle hover and never trigger a second probe. `Unknown` and `Unavailable` remain
+globally `ButtonOnly`, where click, drag and wheel continue and idle hover is absent. An admitted
+upgrade writes `1002l` before `1003h` and publishes `AnyMotion` only after the complete mode write
+succeeds. Release and restoration clear `1003`, `1006` and `1002`; re-arm reuses the settled
+capability. Action menus consume the global settled mode and never request a menu-scoped `1003`
+lease. Released capture stays released even when the keyboard opens a menu. Menu capture swallows
+motion and decision tails instead of sending them to an embedded program; pane tracking and any
+pre-existing gesture retain their original ownership outside it.
 
 Object-entry admission checks the Session and Workbench revision of the successfully painted
 hit map before freezing live records. Workspace and current-context proofs retain the
@@ -225,8 +290,11 @@ closes the episode under the existing rules.
 
 ## Correctness and verification
 
-The owning implementation tests cover draw authority, packet tails, generated event replay, cancellation, source/target/focus drift, exact draft capture, at-most-once handoff, known-commit retention and execution deadlines independent of browsing time.
+The owning implementation tests cover shared menu/help identity, opaque configured-command IDs,
+effective binding discovery, hidden unsupported actions, draw authority, packet tails, generated
+event replay, cancellation, source/target/focus drift, exact draft capture, at-most-once handoff,
+known-commit retention and execution deadlines independent of browsing time.
 
-Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_shell/tests/action_menu.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_session/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

@@ -2,7 +2,7 @@ use super::super::tests::move_membership::ready_ui;
 use super::super::*;
 use crate::{
     client_view::ClientView, localization::Locale, terminal_session::TerminalSessionView,
-    tui_pointer::HitMapBuilder, tui_theme::Theme,
+    tui_pointer::HitMapBuilder, tui_render::test_capture::capture_screen, tui_theme::Theme,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::sync::atomic::Ordering;
@@ -49,9 +49,9 @@ fn read_only_input_notice_preserves_the_takeover_hint_in_the_status_line() {
                 "{locale:?}: {status}"
             );
             #[cfg(windows)]
-            assert!(readable.contains("CtrlBt"), "{locale:?}: {status}");
+            assert!(readable.contains("Ctrlbt"), "{locale:?}: {status}");
             #[cfg(not(windows))]
-            assert!(!readable.contains("CtrlBt"), "{locale:?}: {status}");
+            assert!(!readable.contains("Ctrlbt"), "{locale:?}: {status}");
         }
     }
 }
@@ -98,6 +98,18 @@ fn control_takeover_status_renders_both_locales_themes_and_size_tiers() {
                         );
                     })
                     .unwrap();
+                if width == 120
+                    && height == 40
+                    && locale == Locale::EnUs
+                    && theme.name == Theme::terminal_native().name
+                {
+                    capture_screen(
+                        &mut terminal,
+                        "alignment-status-takeover-pending-120x40-en-terminal-native",
+                        locale,
+                        &theme,
+                    );
+                }
                 let text: String = terminal
                     .backend()
                     .buffer()

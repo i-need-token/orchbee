@@ -1,8 +1,9 @@
 //! Group headers and collapsed-member projection for the compact strip, with paint-derived hits.
-use super::{TabDisplay, compact_style, compact_token, compact_token_width};
+use super::{TabDisplay, compact_style, compact_token, compact_token_width, paint_token_pointer};
 use crate::{
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_theme::Theme,
+    tui_pointer::ProjectedPointer,
+    tui_theme::{Role, Theme},
 };
 use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
 use ratatui::{
@@ -25,19 +26,23 @@ pub(in crate::tui_render) struct GroupTabDisplay<'a> {
 struct Token {
     index: usize,
     active: bool,
+    checked: bool,
     label: String,
     color: Option<TabGroupColor>,
     header: Option<usize>,
 }
 
-pub(in crate::tui_render) fn render(
+pub(in crate::tui_render) fn render<C, P, R>(
     frame: &mut Frame<'_>,
     area: Rect,
     tabs: &[GroupTabDisplay<'_>],
     theme: &Theme,
     unnamed_group: &str,
-    on_token: &mut impl FnMut(usize, bool, usize, usize),
-) {
+    mut interactions: GroupInteractions<'_, C, P, R>,
+) where
+    P: FnMut(&C, usize, bool, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, bool, Rect),
+{
     if area.is_empty() {
         return;
     }
@@ -65,12 +70,13 @@ pub(in crate::tui_render) fn render(
                 tokens.push(Token {
                     index: representative,
                     active: item.collapsed && active,
+                    checked: false,
                     label: format!(
                         " {}{} {} ({count}){} ",
                         if item.collapsed && active {
                             theme.glyphs.active_marker
                         } else {
-                            ""
+                            " "
                         },
                         if item.collapsed {
                             theme.glyphs.disclosure_closed
@@ -95,11 +101,16 @@ pub(in crate::tui_render) fn render(
             current_header = None;
         }
         if let Some((label, _)) = compact_token(&item.tab, compact_token_width(&item.tab), theme) {
-            let mut label = if item.selected {
-                format!("*{label}")
-            } else {
-                label
-            };
+            // Group-member selection owns a fixed marker track. Changing the
+            // checked value never moves its current marker, ordinal, or label.
+            let mut label = format!(
+                "{}{label}",
+                if item.selected {
+                    theme.glyphs.active_marker
+                } else {
+                    " "
+                }
+            );
             if let Some(group) = item.group
                 && tabs
                     .get(index + 1)
@@ -112,6 +123,7 @@ pub(in crate::tui_render) fn render(
             tokens.push(Token {
                 index,
                 active: item.tab.active,
+                checked: item.selected,
                 label,
                 color: None,
                 header: current_header,
@@ -144,6 +156,7 @@ pub(in crate::tui_render) fn render(
         None
     };
     let mut spans = Vec::new();
+    let mut painted = Vec::new();
     let mut used = 0;
     let indices = prefix.into_iter().chain(start..tokens.len());
     for token_index in indices {
@@ -172,16 +185,97 @@ pub(in crate::tui_render) fn render(
         if cells == 0 {
             break;
         }
-        let style = token.color.map_or_else(
+        let mut style = token.color.map_or_else(
             || compact_style(token.active, theme),
             |color| theme.tab_group_style(color).add_modifier(Modifier::BOLD),
         );
-        spans.push(Span::styled(label, style));
-        on_token(token.index, token.color.is_some(), used, cells);
+        if token.active && token.color.is_some() {
+            style = theme.current_context_style(style);
+        }
+        if token.checked
+            && let Some(rest) = label.strip_prefix(theme.glyphs.active_marker)
+        {
+            let checked = theme.content_on_surface(
+                Role::SurfaceChrome,
+                token.active.then_some(Role::SurfaceCurrent),
+                Some(Role::AccentSelection),
+                theme.style(Role::AccentSelection),
+            );
+            spans.push(Span::styled(theme.glyphs.active_marker, checked));
+            spans.push(Span::styled(rest.to_owned(), style));
+        } else {
+            spans.push(Span::styled(label, style));
+        }
+        let rect = Rect::new(
+            area.x
+                .saturating_add(u16::try_from(used).unwrap_or(u16::MAX)),
+            area.y,
+            u16::try_from(cells).unwrap_or(u16::MAX),
+            1,
+        );
+        if frame.area().intersection(rect) == rect {
+            painted.push(PaintedToken {
+                index: token.index,
+                group_header: token.color.is_some(),
+                rect,
+                pointer: interactions.project(token.index, token.color.is_some(), rect),
+            });
+        }
         used += cells;
         if used >= width {
             break;
         }
     }
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
+    for token in painted {
+        if paint_token_pointer(frame, token.rect, token.pointer, theme).is_some() {
+            interactions.record(token.index, token.group_header, token.rect);
+        }
+    }
+}
+
+pub(in crate::tui_render) struct GroupInteractions<'a, C, P, R> {
+    context: &'a mut C,
+    project_pointer: &'a mut P,
+    record_token: &'a mut R,
+}
+
+impl<'a, C, P, R> GroupInteractions<'a, C, P, R>
+where
+    P: for<'context> FnMut(&'context C, usize, bool, Rect) -> ProjectedPointer,
+    R: for<'context> FnMut(&'context mut C, usize, bool, Rect),
+{
+    pub(in crate::tui_render) const fn new(
+        context: &'a mut C,
+        project_pointer: &'a mut P,
+        record_token: &'a mut R,
+    ) -> Self {
+        Self {
+            context,
+            project_pointer,
+            record_token,
+        }
+    }
+}
+
+impl<C, P, R> GroupInteractions<'_, C, P, R>
+where
+    P: FnMut(&C, usize, bool, Rect) -> ProjectedPointer,
+    R: FnMut(&mut C, usize, bool, Rect),
+{
+    fn project(&mut self, index: usize, group_header: bool, rect: Rect) -> ProjectedPointer {
+        (self.project_pointer)(&*self.context, index, group_header, rect)
+    }
+
+    fn record(&mut self, index: usize, group_header: bool, rect: Rect) {
+        (self.record_token)(self.context, index, group_header, rect);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PaintedToken {
+    index: usize,
+    group_header: bool,
+    rect: Rect,
+    pointer: ProjectedPointer,
 }

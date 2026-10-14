@@ -49,6 +49,8 @@ fn fixture_with_discovery(
     assert!(launcher.prepared(&p, Some(source)));
     let token = launcher.token().unwrap();
     assert!(launcher.discovered(token, Ok(discovery)));
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
     (launcher, origin)
 }
 pub(in crate::terminal_session) fn canonical(projects: usize, revision: u64) -> Snapshot {
@@ -124,6 +126,7 @@ fn worktree_confirmation_requires_fresh_draw_complete_packet_and_immutable_origi
     l.draw(Some(stale));
     edit(&mut l, WorktreeEdit::NextField);
     assert!(l.confirm(stale, request(90), &origin,).is_none());
+    l.draw(l.token());
     edit(&mut l, WorktreeEdit::Completeness(false));
     assert!(confirm(&mut l, &origin).is_none());
     edit(&mut l, WorktreeEdit::Completeness(true));
@@ -154,6 +157,7 @@ fn worktree_reference_utf8_limit_is_atomic_and_base_empty_preserves_head_default
     assert_eq!(l.notice(), WorktreeNotice::InputLimit);
     assert_eq!(l.view().unwrap().branch(), branch);
     edit(&mut l, WorktreeEdit::NextField);
+    l.draw(l.token());
     edit(&mut l, WorktreeEdit::Clear);
     let plan = confirm(&mut l, &origin).unwrap();
     assert!(matches!(
@@ -452,4 +456,266 @@ fn worktree_open_rejects_a_different_canonical_checkout_in_the_same_repository()
     assert!(l.start_settled(&plan.operation_id, Ok(opened)));
     assert_eq!(l.notice(), WorktreeNotice::SourceChanged);
     assert!(!l.operation().unwrap().focus_allowed);
+}
+
+#[test]
+fn worktree_stage_transition_keeps_admission_but_requires_the_new_token_to_be_drawn() {
+    let snapshot = canonical(1, 1);
+    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let preparation = state
+        .worktree_preparation(
+            WorktreeMode::Create,
+            1,
+            WorktreeToken(0),
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    let mut launcher = Launcher::default();
+    assert!(launcher.open(preparation));
+    let preparing = launcher.preparation().unwrap().clone();
+    launcher.draw(Some(preparing.token));
+    assert!(launcher.prepared(
+        &preparing,
+        Some(WorktreeSource::Directory {
+            path: path("C:/repo")
+        })
+    ));
+    assert!(launcher.discovered(preparing.token, Ok(discovery())));
+
+    let draft = launcher.token().unwrap();
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Admitted
+    );
+    assert!(!launcher.edit(draft, WorktreeEdit::Append("before-draw")));
+    launcher.draw(Some(draft));
+    assert!(launcher.edit(draft, WorktreeEdit::Append("after-draw")));
+    assert_eq!(launcher.view().unwrap().branch(), "after-draw");
+}
+
+#[test]
+fn first_worktree_geometry_block_refuses_only_the_unadmitted_open_attempt() {
+    let snapshot = canonical(1, 1);
+    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let preparation = state
+        .worktree_preparation(
+            WorktreeMode::Open,
+            1,
+            WorktreeToken(0),
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    let mut launcher = Launcher::default();
+    assert!(launcher.open(preparation.clone()));
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Pending
+    );
+    launcher.draw(None);
+    assert!(launcher.visible());
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Pending
+    );
+
+    assert_eq!(
+        launcher.geometry_blocked(),
+        Some(GeometrySettlement::Refused)
+    );
+    assert!(!launcher.visible());
+    assert!(launcher.operation().is_none());
+    assert_eq!(launcher.notice(), WorktreeNotice::PresentationUnavailable);
+    assert!(!launcher.prepared(
+        &preparation,
+        Some(WorktreeSource::Directory {
+            path: path("C:/repo")
+        })
+    ));
+}
+
+#[test]
+fn worktree_geometry_suspension_retains_the_same_draft_until_a_fresh_draw() {
+    let (mut launcher, origin) = fixture(1, WorktreeMode::Create);
+    edit(&mut launcher, WorktreeEdit::Append("feature/preserved"));
+    let token = launcher.token().unwrap();
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Admitted
+    );
+    launcher.draw(Some(token));
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Admitted
+    );
+    let branch = launcher.view().unwrap().branch().to_owned();
+    assert!(launcher.edit(token, WorktreeEdit::Left));
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    let cursor = launcher
+        .view()
+        .unwrap()
+        .field_window(40)
+        .unwrap()
+        .cursor_column();
+    assert!(launcher.edit(token, WorktreeEdit::Completeness(false)));
+
+    assert_eq!(
+        launcher.geometry_blocked(),
+        Some(GeometrySettlement::Suspended)
+    );
+    assert!(launcher.visible());
+    assert_eq!(launcher.token(), Some(token));
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Suspended
+    );
+    assert_eq!(launcher.view().unwrap().branch(), branch);
+    assert_eq!(
+        launcher
+            .view()
+            .unwrap()
+            .field_window(40)
+            .unwrap()
+            .cursor_column(),
+        cursor
+    );
+    assert!(!launcher.edit(token, WorktreeEdit::Append("-hidden")));
+    assert!(launcher.confirm(token, request(90), &origin).is_none());
+
+    launcher.draw(None);
+    assert!(!launcher.edit(token, WorktreeEdit::Append("-covered")));
+    launcher.draw(Some(token));
+    assert!(launcher.edit(token, WorktreeEdit::Completeness(true)));
+    assert!(launcher.edit(token, WorktreeEdit::Append("-resumed")));
+    assert_eq!(
+        launcher.view().unwrap().branch(),
+        "feature/preserve-resumedd"
+    );
+}
+
+#[test]
+fn admitted_geometry_suspension_keeps_the_accepted_start_and_revokes_only_entry_focus() {
+    let (mut launcher, origin) = fixture(1, WorktreeMode::Open);
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    let token = launcher.token().unwrap();
+
+    assert_eq!(
+        launcher.geometry_blocked(),
+        Some(GeometrySettlement::Suspended)
+    );
+    let suspended = launcher.view().unwrap();
+    assert_eq!(suspended.token(), token);
+    assert_eq!(suspended.stage(), WorktreeStage::Waiting);
+    assert_eq!(suspended.presentation(), PresentationPhase::Suspended);
+    assert!(launcher.start_settled(&plan.operation_id, Ok(pending(plan.project.clone()))));
+    assert_eq!(
+        launcher.operation().unwrap().plan.operation_id,
+        plan.operation_id
+    );
+    assert!(!launcher.operation().unwrap().focus_allowed);
+
+    launcher.draw(Some(token));
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Admitted
+    );
+    assert_eq!(
+        launcher.operation().unwrap().plan.operation_id,
+        plan.operation_id
+    );
+    assert!(!launcher.operation().unwrap().focus_allowed);
+}
+
+#[test]
+fn refused_reopen_keeps_one_accepted_worktree_operation_without_restoring_focus() {
+    let (mut launcher, origin) = fixture(1, WorktreeMode::Open);
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    launcher.dismiss();
+    assert!(launcher.reopen());
+    assert_eq!(
+        launcher.view().unwrap().presentation(),
+        PresentationPhase::Pending
+    );
+    assert_eq!(
+        launcher.geometry_blocked(),
+        Some(GeometrySettlement::Refused)
+    );
+    assert!(!launcher.visible());
+    assert_eq!(launcher.notice(), WorktreeNotice::PresentationUnavailable);
+
+    assert!(launcher.start_settled(&plan.operation_id, Ok(pending(plan.project.clone()))));
+    assert_eq!(
+        launcher.operation().unwrap().plan.operation_id,
+        plan.operation_id
+    );
+    assert!(!launcher.operation().unwrap().focus_allowed);
+    assert!(launcher.reopen());
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    assert_eq!(launcher.notice(), WorktreeNotice::Pending);
+    assert_eq!(
+        launcher.begin_read().unwrap().operation_id,
+        plan.operation_id
+    );
+    let opened = WorkbenchWorktreeOutcome::Available {
+        project_id: plan.project.clone(),
+        attempt: 2,
+        status: Box::new(WorktreeOperationStatus::Opened {
+            checkout: WorktreeCheckoutFacts {
+                repository_root: path("C:/repo"),
+                common_directory: path("C:/repo/.git"),
+                path: path("C:/repo"),
+                branch: None,
+                dirty: false,
+            },
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
+                "{:032x}",
+                80
+            ))
+            .unwrap(),
+            reused: true,
+            terminal_outcome: None,
+        }),
+    };
+    assert!(launcher.observed(&plan.operation_id, Ok(opened)));
+    assert_eq!(launcher.notice(), WorktreeNotice::EntryDeferred);
+    assert!(!launcher.operation().unwrap().focus_allowed);
+}
+
+#[test]
+fn covered_completion_retains_the_operation_without_replaying_automatic_entry_on_uncover() {
+    let (mut launcher, origin) = fixture(1, WorktreeMode::Open);
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    launcher.draw(None);
+    let opened = WorkbenchWorktreeOutcome::Available {
+        project_id: plan.project.clone(),
+        attempt: 1,
+        status: Box::new(WorktreeOperationStatus::Opened {
+            checkout: WorktreeCheckoutFacts {
+                repository_root: path("C:/repo"),
+                common_directory: path("C:/repo/.git"),
+                path: path("C:/repo"),
+                branch: None,
+                dirty: false,
+            },
+            workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!(
+                "{:032x}",
+                80
+            ))
+            .unwrap(),
+            reused: true,
+            terminal_outcome: None,
+        }),
+    };
+
+    assert!(launcher.start_settled(&plan.operation_id, Ok(opened)));
+    assert_eq!(launcher.notice(), WorktreeNotice::EntryDeferred);
+    assert!(!launcher.operation().unwrap().focus_allowed);
+    let token = launcher.token().unwrap();
+    launcher.draw(Some(token));
+    assert!(!launcher.operation().unwrap().focus_allowed);
+    assert_eq!(
+        launcher.begin_read().unwrap().operation_id,
+        plan.operation_id
+    );
 }

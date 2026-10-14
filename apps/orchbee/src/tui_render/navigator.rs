@@ -2,9 +2,16 @@
 use super::{
     Clear, ClientView, Constraint, Frame, HitLayer, HitMapBuilder, HitTarget, Layout, Line, Locale,
     NativeRefreshStatus, NativeSessionView, Paragraph, Rect, Role, ShellText, Theme, contexts,
-    display_width, native_tab, overlay_block, place_overlay, tabs,
+    native_tab, overlay_block, place_overlay, tabs,
 };
-use crate::client_view::{PrefixDesc, navigator::Target};
+use crate::{
+    client_view::{
+        KeyLabelGlyphs, PrefixAction,
+        navigator::{Command, Target, label_with_glyphs},
+    },
+    tui_pointer::{InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer},
+    tui_theme::GlyphMode,
+};
 
 #[expect(
     clippy::too_many_arguments,
@@ -45,10 +52,30 @@ pub(super) fn render(
     let content = block.inner(area);
     // Two row columns, their headings, refresh feedback and two instruction rows.
     // Refusal publishes no receipt and the dispatcher retires capture after paint.
-    let essential = locale.navigator_hint(false);
+    let copy = locale.navigator();
+    let label_glyphs = key_label_glyphs(theme);
+    let toggle = view
+        .bindings()
+        .action_labels_with_glyphs(PrefixAction::NavigatorToggle, label_glyphs)
+        .join(" / ");
+    let exit_key = if toggle.is_empty() {
+        label_with_glyphs(Command::Exit, label_glyphs)
+    } else {
+        format!(
+            "{} / {toggle}",
+            label_with_glyphs(Command::Exit, label_glyphs)
+        )
+    };
+    let open_key = label_with_glyphs(Command::Open, label_glyphs);
+    let action_hints = [
+        super::controls::KeyHint::new(&exit_key, copy.return_action),
+        super::controls::KeyHint::new(&open_key, copy.open_action),
+    ];
+    let exit_hint = [action_hints[0]];
     if content.height < 7
         || content.width < 40
-        || display_width(&essential) > usize::from(content.width)
+        || super::controls::measure_key_hints(&exit_hint, theme)
+            .is_none_or(|width| width > usize::from(content.width))
     {
         return None;
     }
@@ -72,43 +99,75 @@ pub(super) fn render(
             area,
         );
     }
-    let full = locale.navigator_hint(true);
-    let movement = locale.navigator_movement();
-    let toggle = view
-        .bindings()
-        .labels(PrefixDesc::NavigatorToggle)
-        .join(" / ");
-    let mut return_hint = essential;
-    if !toggle.is_empty() {
-        let candidate = format!("{return_hint} · {toggle}");
-        if display_width(&candidate) <= usize::from(content.width) {
-            return_hint = candidate;
-        }
-    }
-    let movement = if display_width(&full) <= usize::from(content.width) {
-        full
-    } else {
-        movement
-    };
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::styled(return_hint, theme.style(Role::HintKey)),
-            Line::styled(movement, theme.style(Role::HintLabel)),
-        ]),
-        footer,
+    let previous_next = format!(
+        "{} / {}",
+        label_with_glyphs(Command::Previous, label_glyphs),
+        label_with_glyphs(Command::Next, label_glyphs)
     );
+    let columns = format!(
+        "{} / {} / {}",
+        label_with_glyphs(Command::Column, label_glyphs),
+        label_with_glyphs(Command::Locations, label_glyphs),
+        label_with_glyphs(Command::Tabs, label_glyphs)
+    );
+    let ends = format!(
+        "{} / {}",
+        label_with_glyphs(Command::First, label_glyphs),
+        label_with_glyphs(Command::Last, label_glyphs)
+    );
+    let pages = format!(
+        "{} / {}",
+        label_with_glyphs(Command::PagePrevious, label_glyphs),
+        label_with_glyphs(Command::PageNext, label_glyphs)
+    );
+    let movement_hints = [
+        super::controls::KeyHint::new(&previous_next, copy.select_action),
+        super::controls::KeyHint::new(&columns, copy.column_action),
+        super::controls::KeyHint::new(&ends, copy.ends_action),
+        super::controls::KeyHint::new(&pages, copy.page_action),
+    ];
+    let action_row = Rect::new(footer.x, footer.y, footer.width, 1);
+    let movement_row = Rect::new(footer.x, footer.y.saturating_add(1), footer.width, 1);
+    let _ = super::controls::render_key_hints(frame, action_row, &action_hints, theme);
+    let _ = super::controls::render_key_hints(frame, movement_row, &movement_hints, theme);
     let page_rows = if matches!(view.navigator.focus, Some(Target::Location(_))) {
         usize::from(rows.height).min(contexts::MAX_VISIBLE_CONTEXTS)
     } else {
         usize::from(rows.height)
     };
-    hits.start_navigator(view.navigator.focus.clone(), page_rows);
-    if let Some(rect) = super::controls::close(frame, area, theme) {
-        hits.record(
-            HitLayer::Overlay,
-            rect,
-            HitTarget::NavigatorClose(view.navigator.episode()),
+    let source = view.navigator.draw_source();
+    hits.start_navigator(source.clone(), view.navigator.focus.clone(), page_rows);
+    if let Some(rect) = super::controls::close_rect(frame.area(), area) {
+        let (availability, pointer, target) = source.map_or(
+            (
+                super::controls::Availability::Disabled,
+                ProjectedPointer::Rest,
+                None,
+            ),
+            |source| {
+                let target = InteractionTarget::NavigatorClose(source);
+                let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+                (
+                    super::controls::Availability::Enabled,
+                    hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec),
+                    Some((target, spec)),
+                )
+            },
         );
+        let painted = super::controls::render_icon_action(
+            frame,
+            rect,
+            super::controls::IconActionSpec::new(
+                super::controls::IconActionGlyph::Close,
+                super::controls::ControlSurface::Overlay,
+                availability,
+                tabs::pointer_presentation(pointer),
+            ),
+            theme,
+        );
+        if let (Some(painted), Some((target, spec))) = (painted, target) {
+            hits.record_interaction(HitLayer::Overlay, rect, painted, target, spec);
+        }
     }
     for (rect, tabs) in [(contexts_area, false), (tabs_area, true)] {
         if let Some(row) = view.navigator.scroll_row(tabs) {
@@ -154,20 +213,29 @@ pub(super) fn render(
                 })
         },
         theme,
-        &mut |index, offset| {
+        hits,
+        &mut |hits, index, rect| {
+            let Some(row) = native.context_at(index).and_then(|context| {
+                view.navigator
+                    .row(Target::Location(context.location().clone()))
+            }) else {
+                return ProjectedPointer::Rest;
+            };
+            let target = InteractionTarget::NavigatorRow(row);
+            hits.projected_pointer(
+                HitLayer::Overlay,
+                rect,
+                rect,
+                &target,
+                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+            )
+        },
+        &mut |hits, index, rect| {
             if let Some(row) = native.context_at(index).and_then(|context| {
                 view.navigator
                     .row(Target::Location(context.location().clone()))
             }) {
-                hits.record_navigator_row(
-                    Rect::new(
-                        contexts_area.x,
-                        contexts_area.y + offset,
-                        contexts_area.width,
-                        1,
-                    ),
-                    row,
-                );
+                hits.record_navigator_row(rect, row);
             }
         },
     );
@@ -179,28 +247,56 @@ pub(super) fn render(
         tabs_focus,
         |index| native_tab(native, index, text.pinned_tab),
         theme,
-        &mut |index, offset| {
+        hits,
+        &mut |hits, index, rect| {
+            let Some(row) = native
+                .tab(index)
+                .and_then(|tab| view.navigator.row(Target::Tab(tab.tab_id().clone())))
+            else {
+                return ProjectedPointer::Rest;
+            };
+            let target = InteractionTarget::NavigatorRow(row);
+            hits.projected_pointer(
+                HitLayer::Overlay,
+                rect,
+                rect,
+                &target,
+                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+            )
+        },
+        &mut |hits, index, rect| {
             if let Some(row) = native
                 .tab(index)
                 .and_then(|tab| view.navigator.row(Target::Tab(tab.tab_id().clone())))
             {
-                hits.record_navigator_row(
-                    Rect::new(tabs_area.x, tabs_area.y + offset, tabs_area.width, 1),
-                    row,
-                );
+                hits.record_navigator_row(rect, row);
             }
         },
     );
     if let Some(refresh) = native.refresh_status() {
-        let style = match refresh {
-            NativeRefreshStatus::Refreshing => theme.style(Role::TextSecondary),
-            NativeRefreshStatus::Success(_) => theme.style(Role::StatusSuccess),
-            NativeRefreshStatus::Failure(_) => theme.style(Role::StatusError),
+        let role = match refresh {
+            NativeRefreshStatus::Refreshing => Role::StatusWorking,
+            NativeRefreshStatus::Success(_) => Role::StatusSuccess,
+            NativeRefreshStatus::Failure(_) => Role::StatusError,
         };
         frame.render_widget(
-            Paragraph::new(locale.native_refresh_status(refresh)).style(style),
+            Paragraph::new(Line::from(vec![
+                ratatui::text::Span::styled(theme.glyphs.status_bullet, theme.style(role)),
+                ratatui::text::Span::styled(
+                    format!(" {}", locale.native_refresh_status(refresh)),
+                    theme.style(Role::TextPrimary),
+                ),
+            ])),
             refresh_area,
         );
     }
     Some(area)
+}
+
+const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
+    match theme.glyphs.mode() {
+        GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
+        #[cfg(test)]
+        GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
+    }
 }

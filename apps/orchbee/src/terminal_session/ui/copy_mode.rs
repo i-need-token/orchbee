@@ -3,7 +3,10 @@
 
 use super::{NativeProjectionStatus, NativeUi};
 use crate::{
-    client_view::{CopyModeKey, KeyCode, KeyEvent, KeyKind, Modifiers, copy_mode_key},
+    client_view::{
+        CopyModeKey, CopySearchCommand, KeyCode, KeyEvent, KeyKind, Modifiers, copy_mode_key,
+        copy_search_command,
+    },
     terminal_content::{ContentSource, TerminalScreen},
     terminal_copy::TerminalTextPoint,
     terminal_copy_mode::{
@@ -483,9 +486,10 @@ impl NativeUi {
                 .and_then(|mode| mode.view().search)
                 .is_some()
             {
-                if event.kind != KeyKind::Release
-                    && event.normalized() == (KeyCode::Char('m'), Modifiers::CTRL)
-                {
+                if matches!(
+                    copy_search_command(*event),
+                    Some(CopySearchCommand::Submit | CopySearchCommand::Reverse)
+                ) {
                     self.copy_notice(SessionNotice::CopyModeBusy);
                 } else {
                     self.capture_copy_search_key(event);
@@ -878,23 +882,32 @@ impl NativeUi {
         if event.kind == KeyKind::Release {
             return;
         }
-        let (code, modifiers) = event.normalized();
-        if (code, modifiers) == (KeyCode::Char('g'), Modifiers::CTRL) {
-            if let Some(mode) = self.copy_mode.mode_mut() {
-                mode.cancel_search();
+        match copy_search_command(*event) {
+            Some(CopySearchCommand::Back) => {
+                if let Some(mode) = self.copy_mode.mode_mut() {
+                    mode.cancel_search();
+                }
+                return;
             }
-            return;
+            Some(CopySearchCommand::Submit) => {
+                let result = self
+                    .copy_mode
+                    .mode_mut()
+                    .ok_or(Refusal::Invalid)
+                    .and_then(Mode::submit_search);
+                self.settle_copy_refusal(result.err());
+                self.drive_copy_effects();
+                return;
+            }
+            Some(CopySearchCommand::Reverse) => {
+                if let Some(mode) = self.copy_mode.mode_mut() {
+                    mode.reverse_search();
+                }
+                return;
+            }
+            None => {}
         }
-        if (code, modifiers) == (KeyCode::Char('m'), Modifiers::CTRL) {
-            let result = self
-                .copy_mode
-                .mode_mut()
-                .ok_or(Refusal::Invalid)
-                .and_then(Mode::submit_search);
-            self.settle_copy_refusal(result.err());
-            self.drive_copy_effects();
-            return;
-        }
+        let (code, modifiers) = event.normalized();
         let edit = match (code, modifiers) {
             (KeyCode::Backspace, Modifiers::NONE) | (KeyCode::Char('h'), Modifiers::CTRL) => {
                 Some(SearchEdit::Backspace)

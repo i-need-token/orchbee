@@ -120,6 +120,52 @@ pub(crate) struct PopupView<'a> {
     pub(crate) height: Option<PluginPopupSize>,
     pub(crate) closing: bool,
 }
+
+/// Exact independent-popup incarnation that painted one native close action.
+///
+/// Popup request IDs are unique opening identities. The close owner still
+/// revalidates this witness against the current captured lane on release, so
+/// a late click can never migrate to a replacement popup.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DrawnPopupClose(WorkbenchRequestId);
+
+impl DrawnPopupClose {
+    pub(crate) const fn id(&self) -> &WorkbenchRequestId {
+        &self.0
+    }
+}
+
+impl PopupView<'_> {
+    pub(crate) fn close_target(&self) -> DrawnPopupClose {
+        DrawnPopupClose(self.id.clone())
+    }
+}
+
+/// Current exclusive-input identity for the independent popup.
+///
+/// Opening and closing popups still capture input, but only an exact active
+/// projection may forward semantic input to the popup terminal.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PopupInputContext {
+    id: WorkbenchRequestId,
+    interactive: bool,
+}
+
+impl PopupInputContext {
+    #[cfg(test)]
+    pub(crate) fn for_test(id: WorkbenchRequestId, interactive: bool) -> Self {
+        Self { id, interactive }
+    }
+
+    pub(crate) fn id(&self) -> &WorkbenchRequestId {
+        &self.id
+    }
+
+    pub(crate) const fn interactive(&self) -> bool {
+        self.interactive
+    }
+}
+
 pub(crate) fn resolve_geometry(
     width: Option<PluginPopupSize>,
     height: Option<PluginPopupSize>,
@@ -212,6 +258,15 @@ impl Driver {
                 latest.phase,
                 Phase::Opening | Phase::Active | Phase::Closing
             )
+        })
+    }
+    pub(super) fn input_context(&self) -> Option<PopupInputContext> {
+        if !self.captured() {
+            return None;
+        }
+        Some(PopupInputContext {
+            id: self.id.clone()?,
+            interactive: self.input_ready(),
         })
     }
     pub(super) fn observe_surface(&mut self, area: Rect, pixels: (u16, u16)) {
@@ -342,6 +397,17 @@ impl Driver {
         }
         false
     }
+    pub(super) fn activate_drawn_close(&mut self, target: &DrawnPopupClose) -> bool {
+        if self.identity() != Some(target.id())
+            || !self
+                .latest
+                .as_ref()
+                .is_some_and(|latest| matches!(latest.phase, Phase::Opening | Phase::Active))
+        {
+            return false;
+        }
+        self.begin_close()
+    }
     pub(super) fn tick(&mut self) -> bool {
         let Some(lane) = &self.lane else {
             return false;
@@ -417,8 +483,8 @@ impl Driver {
             closing: latest.phase == Phase::Closing,
         })
     }
-    pub(super) fn input(&mut self, item: &DecodedItem) {
-        if !self.input_ready() {
+    pub(super) fn input(&mut self, id: &WorkbenchRequestId, item: &DecodedItem) {
+        if self.identity() != Some(id) || !self.input_ready() {
             return;
         }
         let input = match &item.kind {
@@ -472,23 +538,8 @@ impl Driver {
             self.begin_close();
         }
     }
-    pub(super) fn mouse(
-        &mut self,
-        id: &WorkbenchRequestId,
-        content: Rect,
-        event: MouseEvent,
-        close: bool,
-    ) {
+    pub(super) fn mouse(&mut self, id: &WorkbenchRequestId, content: Rect, event: MouseEvent) {
         if self.id.as_ref() != Some(id) {
-            return;
-        }
-        if close {
-            if event.action == MouseAction::Press
-                && event.button == MouseButton::Left
-                && event.mods == crate::client_view::Modifiers::NONE
-            {
-                self.begin_close();
-            }
             return;
         }
         if !self.input_ready() {

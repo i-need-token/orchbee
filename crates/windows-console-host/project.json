@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "windows-console-host",
+	"runtime": ["native"],
+	"stability": "experimental",
+	"responsibility": "Safe retained-handle access to Windows console input records, modes, window geometry, and count-aware Unicode output.",
+	"nonGoals": [
+		"Reopening process-global standard handles or resolving CONIN$ and CONOUT$ names.",
+		"Owning product input decoding, terminal rendering, mode restoration, or lifecycle policy.",
+		"Hosting pseudoconsoles, launching processes, or adapting non-console byte streams."
+	]
+}

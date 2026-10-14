@@ -1,5 +1,5 @@
 use super::*;
-use crate::terminal_session::{WorktreeEdit, WorktreeInputContext, WorktreeStage, WorktreeToken};
+use crate::terminal_session::{WorktreeEdit, WorktreeStage, WorktreeToken};
 
 struct Port {
     active: bool,
@@ -36,6 +36,27 @@ impl Port {
     }
 }
 impl TerminalInputPort for Port {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default().with_worktree(self.active)
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        if owner != crate::tui_composition::NativeCaptureOwner::Worktree || !self.active {
+            return None;
+        }
+        Some(crate::terminal_session::NativeCaptureContext::Worktree(
+            crate::terminal_session::WorktreeCaptureContext {
+                token: self.token(),
+                readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                stage: self.stage,
+                remaining_bytes: 1024usize.saturating_sub(self.text.len()),
+            },
+        ))
+    }
+
     fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(bytes);
         Ok(())
@@ -48,13 +69,6 @@ impl TerminalInputPort for Port {
         }
         self.active = true;
         Some(SessionActionDisposition::DismissNavigator)
-    }
-    fn worktree_input_context(&mut self) -> Option<WorktreeInputContext> {
-        self.active.then_some(WorktreeInputContext {
-            token: self.token(),
-            stage: self.stage,
-            remaining_bytes: 1024usize.saturating_sub(self.text.len()),
-        })
     }
     fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
         assert_eq!(token, self.token());
@@ -196,7 +210,15 @@ fn unicode_paste_uses_byte_budget_and_confirm_tail_stays_captured() {
 }
 
 fn painted_choice(dispatcher: &mut InputDispatcher, port: &mut Port, index: usize) {
-    use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget, ModalControl};
+    use crate::tui_pointer::{
+        HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,
+    };
+    dispatcher.pointer.set_capture(true);
+    dispatcher
+        .synchronize(&mut ClientView::new(100), port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
     let mut hits = HitMapBuilder::new();
     hits.start_modal();
     hits.record(
@@ -204,15 +226,15 @@ fn painted_choice(dispatcher: &mut InputDispatcher, port: &mut Port, index: usiz
         ratatui::layout::Rect::new(2, 2, 30, 9),
         HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Worktree(port.token())),
     );
-    hits.record(
+    hits.record_modal_control(
         HitLayer::Overlay,
         ratatui::layout::Rect::new(5, 5, 15, 2),
         HitTarget::Worktree {
             token: port.token(),
             control: ModalControl::Choice(index),
         },
+        InteractionAvailability::Enabled,
     );
-    dispatcher.pointer.set_capture(true);
     dispatcher.publish_hit_map(hits.finish());
     port.paint();
 }

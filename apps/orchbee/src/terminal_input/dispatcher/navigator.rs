@@ -1,13 +1,11 @@
 //! Navigator capture uses the shared decoder and successful frame map.
-use super::{
-    ClientView, DecodedItem, DecodedKind, InputDispatcher, KeyKind, Modifiers, TerminalInputPort,
-};
+use super::{ClientView, DecodedItem, DecodedKind, InputDispatcher, KeyKind, TerminalInputPort};
 use crate::client_view::{
     Notice, PrefixAction,
     navigator::{Admission, Command, Reconcile, Row},
 };
 use crate::terminal_input::{MouseAction, MouseButton};
-use crate::tui_pointer::NavigatorHit;
+use crate::tui_pointer::{InteractionTarget, PointerOutcome, PrimaryContract};
 
 #[derive(Default)]
 pub(super) struct Capture {
@@ -48,16 +46,11 @@ impl InputDispatcher {
         &mut self,
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
-        modal: bool,
+        exclusive_capture: bool,
     ) -> bool {
         let mut changed = false;
         if view.navigator_active() {
-            if modal
-                || port.popup_captured()
-                || view.machines.open
-                || port.agent_board_input()
-                || port.settings_active()
-                || port.action_menu_active()
+            if exclusive_capture
                 || port.copy_mode_active()
                 || view.resize_mode()
                 || port.pointer_probe().input_captured
@@ -168,39 +161,52 @@ impl InputDispatcher {
                     }
                 }
             }
-            DecodedKind::Mouse(event) if self.pointer.queue_list_scroll(event) => {}
-            DecodedKind::Mouse(event)
-                if self.pointer.capture_enabled()
-                    && event.action == MouseAction::Press
-                    && !event.mods.shift
-                    && !matches!(
-                        event.button,
-                        MouseButton::WheelUp | MouseButton::WheelDown | MouseButton::None
-                    ) =>
-            {
-                match self.pointer.navigator_hit(event.column, event.row) {
-                    Some(NavigatorHit::Close(episode))
-                        if episode == view.navigator.episode()
-                            && event.button == MouseButton::Left
-                            && event.mods == Modifiers::NONE =>
-                    {
-                        self.navigator.release = Some(event.button);
-                        view.close_navigator(None);
-                    }
-                    Some(NavigatorHit::Row(row))
-                        if event.button == MouseButton::Left && event.mods == Modifiers::NONE =>
-                    {
-                        let row = row.clone();
-                        self.navigator.release = Some(event.button);
-                        self.activate_navigator_row(view, port, row, false);
-                    }
-                    Some(NavigatorHit::Backdrop) => {
-                        self.navigator.release = Some(event.button);
-                        view.close_navigator(None);
-                    }
-                    _ => {}
+            DecodedKind::Mouse(event) => match self.pointer.navigator_event(event) {
+                PointerOutcome::Interaction {
+                    target: InteractionTarget::NavigatorRow(row),
+                    contract: PrimaryContract::ActivateOnRelease,
+                } => self.activate_navigator_row(view, port, row, false),
+                PointerOutcome::Interaction {
+                    target: InteractionTarget::NavigatorClose(source),
+                    contract: PrimaryContract::ActivateOnRelease,
+                } => {
+                    let _closed = view.close_navigator_for_source(&source);
+                    self.navigator.packet = true;
+                    self.keys.capture_pending();
                 }
-            }
+                PointerOutcome::Interaction { .. } | PointerOutcome::InteractionEnded => {
+                    // The exact painted target owns its physical release even
+                    // if its source has become stale. Never re-hit a replacement.
+                    self.navigator.packet = true;
+                    self.keys.capture_pending();
+                }
+                PointerOutcome::Ignored
+                    if self.pointer.capture_enabled()
+                        && event.action == MouseAction::Press
+                        && !event.mods.shift
+                        && !matches!(
+                            event.button,
+                            MouseButton::WheelUp | MouseButton::WheelDown | MouseButton::None
+                        )
+                        && self.pointer.navigator_backdrop_at(event.column, event.row) =>
+                {
+                    // Backdrop dismissal intentionally remains press-time and
+                    // keeps its legacy release debt after the Navigator closes.
+                    self.navigator.release = Some(event.button);
+                    view.close_navigator(None);
+                }
+                PointerOutcome::Ignored
+                | PointerOutcome::Handled
+                | PointerOutcome::IdleMotion { .. }
+                | PointerOutcome::RegionsChanged => {}
+                #[cfg(windows)]
+                PointerOutcome::TabGestureEnded
+                | PointerOutcome::SidebarWidthEnded
+                | PointerOutcome::MenuRequested { .. }
+                | PointerOutcome::ChromeGestureEnded => {
+                    unreachable!("Navigator routing cannot produce a chrome outcome")
+                }
+            },
             _ => {}
         }
     }

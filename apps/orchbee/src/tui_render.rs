@@ -14,32 +14,56 @@ pub(crate) fn render_action_menu_for_test(
     frame: &mut Frame<'_>,
     content: Rect,
     menu: crate::action_menu::MenuView<'_>,
+    bindings: &crate::client_view::Bindings,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<crate::action_menu::MenuDraw> {
-    action_menu::render(frame, content, menu, locale, theme, hits)
+    action_menu::render(frame, content, menu, bindings, locale, theme, hits)
 }
 #[cfg(windows)]
 mod resize_mode;
 mod settings;
 
+#[cfg(test)]
+pub(crate) fn render_settings_for_test(
+    frame: &mut Frame<'_>,
+    content: Rect,
+    view: crate::native_settings::View<'_>,
+    pending: bool,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> ModalPresentation<crate::native_settings::SettingsDraw> {
+    settings::render(frame, content, view, pending, locale, theme, hits)
+}
+
 use crate::{
-    client_view::{ClientView, Notice, Overlay},
-    localization::{Locale, ShellText},
+    client_view::{ClientView, Overlay},
+    localization::{Locale, RecoveryVerb, ShellText},
     terminal_session::{
         AgentBoardDraw, ModalPresentation, NativeCloseStatusToken, NativeDisplayController,
         NativeDisplayPhase, NativeDrawReceipt, NativeProjectionStatus, NativeRefreshStatus,
         NativeSessionView, NativeTabView, TerminalSessionView,
     },
     terminal_text::{display_width, truncate_display},
+    tui_composition::{
+        CaptureOwner, ClientCaptureClaims, NativeCaptureClaims, NativeCaptureOwner,
+        client_chrome_overlay_allowed, project_capture,
+    },
     tui_layout::{
         ShellAreas, SidebarArea, SidebarLayer, ViewportTier, native_terminal_area, overlay_area,
         place_overlay, project_shell_areas, terminal_area,
     },
-    tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
+    tui_pointer::{
+        HitLayer, HitMapBuilder, HitTarget, InteractionSpec, InteractionTarget, PrimaryContract,
+        ProjectedPointer,
+    },
     tui_theme::{Role, Theme},
 };
+
+#[cfg(windows)]
+use crate::tui_pointer::GlobalChromeAction;
 
 use crate::terminal_session::TerminalStatus;
 
@@ -70,6 +94,8 @@ pub(crate) mod controls;
 mod copy_mode;
 #[cfg(windows)]
 mod divider_resize;
+mod help;
+mod modal;
 #[cfg(windows)]
 mod navigator;
 #[cfg(windows)]
@@ -78,6 +104,7 @@ mod panel_close;
 #[cfg(windows)]
 mod panel_reports;
 mod presentation_selector;
+mod recovery;
 mod selection;
 #[cfg(windows)]
 pub(crate) use agent_sidebar::render_width_preview;
@@ -88,10 +115,13 @@ pub(crate) use tabs::render_tab_drag_preview;
 mod scrollbar;
 #[cfg(windows)]
 mod sidebar_text;
+mod status_line;
 mod tab_close;
 mod tab_rename;
 mod tabs;
 mod terminal_cells;
+#[cfg(test)]
+pub(crate) mod test_capture;
 mod viewport;
 mod workspace_close;
 mod workspace_setup;
@@ -146,11 +176,17 @@ pub(crate) fn render_terminal_shell(
     hits: &mut HitMapBuilder,
 ) -> NativeDrawReceipt {
     let area = frame.area();
+    let client_claims = ClientCaptureClaims::default();
     #[cfg(windows)]
-    hits.record_action_menu_source(match session.as_ref() {
-        Some(TerminalSessionView::Native(native)) => native.action_menu_source(),
-        _ => None,
-    });
+    let client_claims = client_claims
+        .with_machine(view.machines.open)
+        .with_resize(view.resize_mode());
+    let native_claims = match session.as_ref() {
+        Some(TerminalSessionView::Native(native)) => native.capture_claims(),
+        _ => NativeCaptureClaims::default(),
+    };
+    let capture_owner = project_capture(client_claims, native_claims);
+    let native_top = |owner| capture_owner == Some(CaptureOwner::Native(owner));
     let bound_text = locale.shell().bind(view);
     let text = bound_text.text();
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceCanvas)), area);
@@ -162,49 +198,81 @@ pub(crate) fn render_terminal_shell(
     #[cfg(windows)]
     let mut areas = areas;
     #[cfg(windows)]
+    let chrome_action_state = controls::InteractionState::new(
+        controls::FocusState::Unfocused,
+        controls::PointerPresentation::Rest,
+        controls::NavigationState::None,
+        controls::CurrentState::NotCurrent,
+        controls::CheckedState::Unchecked,
+        controls::Availability::Enabled,
+        controls::OperationState::Idle,
+    );
+    #[cfg(windows)]
+    let restore_label = locale.sidebar_restore_label();
+    #[cfg(windows)]
     let restore_button =
         if view.machines.available && areas.sidebar.is_none() && !areas.tabs.is_empty() {
-            let width = u16::try_from(display_width(locale.sidebar_restore_button()))
-                .unwrap_or(u16::MAX)
-                .min(areas.tabs.width);
-            let button = Rect::new(areas.tabs.x, areas.tabs.y, width, areas.tabs.height);
-            areas.tabs.x = areas.tabs.x.saturating_add(width);
-            areas.tabs.width = areas.tabs.width.saturating_sub(width);
-            Some(button)
+            let action = controls::ActionSpec::new(
+                restore_label,
+                controls::ActionKind::Secondary,
+                controls::ControlSurface::Chrome,
+                chrome_action_state,
+            );
+            controls::action_rect(area, areas.tabs, action, theme).inspect(|button| {
+                areas.tabs.x = button.right();
+                areas.tabs.width = areas.tabs.width.saturating_sub(button.width);
+            })
         } else {
             None
         };
     #[cfg(windows)]
-    let menu_label = format!("[{}]", locale.menu_title());
+    let menu_label = locale.menu_title();
     #[cfg(windows)]
-    let menu_button = {
-        let width = u16::try_from(display_width(&menu_label)).unwrap_or(u16::MAX);
-        if areas.tabs.width >= width + 2 && areas.tabs.height > 0 {
-            let rect = Rect::new(areas.tabs.right() - width, areas.tabs.y, width, 1);
-            areas.tabs.width -= width + 1;
-            Some(rect)
-        } else if areas.tabs.is_empty()
-            && areas.workbench.width >= width + 2
-            && areas.workbench.height > 1
-        {
-            Some(Rect::new(
-                areas.workbench.right() - width - 1,
-                areas.workbench.y,
-                width,
-                1,
-            ))
-        } else {
-            None
-        }
+    let menu_button = if areas.tier == ViewportTier::TooSmall {
+        None
+    } else {
+        let action = controls::ActionSpec::new(
+            menu_label,
+            controls::ActionKind::Secondary,
+            controls::ControlSurface::Chrome,
+            chrome_action_state,
+        );
+        let measurement = Rect::new(0, 0, u16::MAX, 1);
+        controls::action_rect(measurement, measurement, action, theme).and_then(|measured| {
+            let width = measured.width;
+            if areas.tabs.width >= width.saturating_add(2) && areas.tabs.height > 0 {
+                let offered = Rect::new(areas.tabs.right() - width, areas.tabs.y, width, 1);
+                let button = controls::action_rect(area, offered, action, theme)?;
+                areas.tabs.width = areas.tabs.width.saturating_sub(width.saturating_add(1));
+                Some(button)
+            } else if areas.tabs.is_empty()
+                && areas.workbench.width >= width.saturating_add(2)
+                && areas.workbench.height > 1
+            {
+                let offered = Rect::new(
+                    areas.workbench.right() - width - 1,
+                    areas.workbench.y,
+                    width,
+                    1,
+                );
+                controls::action_rect(area, offered, action, theme)
+            } else {
+                None
+            }
+        })
     };
     let tier = areas.tier;
     #[cfg(windows)]
-    let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(native))
-        if !status_overlay_visible(view, session.as_ref()) && native.popup().is_none() && view.overlay().is_none()
-            && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
-            && native.workspace_close_confirmation().is_none()
-            && native.rename_draft().is_none() && native.setup_draft().is_none() && native.worktree().is_none()
-            && native.agent_board().is_none() && native.action_menu().is_none() && native.settings().is_none()
+    if tier != ViewportTier::TooSmall {
+        hits.record_action_menu_source(match session.as_ref() {
+            Some(TerminalSessionView::Native(native)) => native.action_menu_source(),
+            _ => None,
+        });
+    }
+    #[cfg(windows)]
+    let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(_))
+        if tier != ViewportTier::TooSmall
+            && capture_owner.is_none() && !status_overlay_visible(view, session.as_ref(), capture_owner) && view.overlay().is_none()
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
     #[cfg(windows)]
     if !graphics_uncovered && let Some(TerminalSessionView::Native(native)) = session.as_ref() {
@@ -220,7 +288,7 @@ pub(crate) fn render_terminal_shell(
     #[cfg(windows)]
     let mut worktree = None;
     let mut overlay_refused = false;
-    let mut help_page = None;
+    let mut help_presented = false;
     let mut board_draw = None;
     #[cfg(windows)]
     let mut graphics_draws = Vec::new();
@@ -310,6 +378,7 @@ pub(crate) fn render_terminal_shell(
                     locale,
                     native,
                     &phase_status,
+                    capture_owner.is_none(),
                     theme,
                     hits,
                     #[cfg(windows)]
@@ -323,38 +392,76 @@ pub(crate) fn render_terminal_shell(
 
     #[cfg(windows)]
     if let Some(button) = restore_button {
-        frame.render_widget(
-            Paragraph::new(locale.sidebar_restore_button()).style(theme.style(Role::HintKey)),
+        let target = InteractionTarget::GlobalChrome(GlobalChromeAction::RestoreSidebar);
+        let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+        let pointer =
+            match hits.projected_pointer(HitLayer::Foreground, button, button, &target, spec) {
+                ProjectedPointer::Rest => controls::PointerPresentation::Rest,
+                ProjectedPointer::Hovered => controls::PointerPresentation::Hovered,
+                ProjectedPointer::Pressed => controls::PointerPresentation::Pressed,
+            };
+        let painted = controls::render_action(
+            frame,
             button,
+            controls::ActionSpec::new(
+                restore_label,
+                controls::ActionKind::Secondary,
+                controls::ControlSurface::Chrome,
+                chrome_action_state.with_pointer(pointer),
+            ),
+            theme,
         );
-        hits.record(
-            HitLayer::Foreground,
-            button,
-            HitTarget::SidebarRestoreButton,
-        );
+        debug_assert_eq!(painted, Some(button));
+        if painted == Some(button) {
+            hits.record_interaction(HitLayer::Foreground, button, button, target, spec);
+        }
     }
 
     #[cfg(windows)]
-    if let Some(rect) =
-        menu_button.and_then(|rect| controls::button(frame, rect, &menu_label, theme, false))
-    {
-        hits.record(HitLayer::Chrome, rect, HitTarget::MenuButton);
+    if let Some(button) = menu_button {
+        let target = InteractionTarget::GlobalChrome(GlobalChromeAction::OpenMenu);
+        let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+        let pointer = match hits.projected_pointer(HitLayer::Chrome, button, button, &target, spec)
+        {
+            ProjectedPointer::Rest => controls::PointerPresentation::Rest,
+            ProjectedPointer::Hovered => controls::PointerPresentation::Hovered,
+            ProjectedPointer::Pressed => controls::PointerPresentation::Pressed,
+        };
+        let painted = controls::render_action(
+            frame,
+            button,
+            controls::ActionSpec::new(
+                menu_label,
+                controls::ActionKind::Secondary,
+                controls::ControlSurface::Chrome,
+                chrome_action_state.with_pointer(pointer),
+            ),
+            theme,
+        );
+        debug_assert_eq!(painted, Some(button));
+        if painted == Some(button) {
+            hits.record_interaction(HitLayer::Chrome, button, button, target, spec);
+        }
     }
 
     #[cfg(windows)]
-    resize_mode::render(
-        frame,
-        view,
-        match session.as_ref() {
-            Some(TerminalSessionView::Native(native)) => Some(native),
-            _ => None,
-        },
-        locale,
-        theme,
-        hits,
-    );
+    if tier != ViewportTier::TooSmall && capture_owner == Some(CaptureOwner::Resize) {
+        resize_mode::render(
+            frame,
+            view,
+            match session.as_ref() {
+                Some(TerminalSessionView::Native(native)) => Some(native),
+                _ => None,
+            },
+            locale,
+            theme,
+            hits,
+        );
+    }
     #[cfg(windows)]
-    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+    if tier != ViewportTier::TooSmall
+        && capture_owner == Some(CaptureOwner::Copy)
+        && let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(copy) = native.copy_mode()
     {
         copy_mode::render_controls(frame, view, copy, locale, theme, hits);
@@ -378,27 +485,18 @@ pub(crate) fn render_terminal_shell(
             };
             #[cfg(windows)]
             if view.machines.available {
-                let captured = session.as_ref().is_some_and(|session| match session {
-                    TerminalSessionView::Native(native) => {
-                        native.agent_board().is_some()
-                            || native.close_confirmation().is_some()
-                            || native.panel_close_confirmation().is_some()
-                            || native.workspace_close_confirmation().is_some()
-                            || native.rename_draft().is_some()
-                            || native.setup_draft().is_some()
-                            || native.worktree().is_some()
-                            || native.settings().is_some()
-                    }
-                    #[cfg(test)]
-                    TerminalSessionView::Legacy { .. } => false,
-                });
+                let captured = capture_owner.is_some();
                 agent_sidebar::render(
                     frame,
                     sidebar,
-                    view,
-                    locale,
-                    site_status,
-                    theme,
+                    agent_sidebar::RenderContext {
+                        view,
+                        locale,
+                        backend_status: site_status,
+                        theme,
+                        owns_keyboard: capture_owner.is_none()
+                            && view.machines.sidebar_navigation_active(),
+                    },
                     (!captured).then_some(&mut *hits),
                 );
             } else {
@@ -408,22 +506,22 @@ pub(crate) fn render_terminal_shell(
             render_sidebar(frame, sidebar, text, site_status, agent_line, theme);
         }
 
-        let overlay = match view.overlay() {
+        let overlay = match view
+            .overlay()
+            .filter(|_| client_chrome_overlay_allowed(capture_owner))
+        {
             Some(Overlay::ShortcutHelp) => {
-                // The help page is ClientView-owned; the renderer reports the
-                // clamped effective page back through the draw receipt so the
-                // dispatcher's counter settles on what was actually painted.
-                let presented = render_shortcut_help_with_controls(
-                    frame,
-                    overlay_area(&areas),
-                    text,
-                    view,
-                    view.help_page(),
-                    theme,
-                    hits,
-                );
-                help_page = presented.map(|(_, page)| page);
-                Some(presented.map(|(area, _page)| area))
+                let presented = view.help_draw_candidate().and_then(|candidate| {
+                    help::render(
+                        frame,
+                        overlay_area(&areas),
+                        help::RenderContext::new(text, locale, view, candidate),
+                        theme,
+                        hits,
+                    )
+                });
+                help_presented = presented.is_some();
+                Some(presented)
             }
             #[cfg(windows)]
             Some(Overlay::WorkbenchNavigator) => Some(navigator::render(
@@ -476,7 +574,8 @@ pub(crate) fn render_terminal_shell(
         // overlay: it paints above the workbench (and any chrome overlay)
         // but below armed modals, and its painted truth settles input
         // capture through the draw receipt.
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        if native_top(NativeCaptureOwner::AgentBoard)
+            && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(board) = native.agent_board()
         {
             let draw = agent_board::render(
@@ -488,11 +587,11 @@ pub(crate) fn render_terminal_shell(
                 theme,
                 hits,
             );
-            overlay_refused |= !draw.presented;
             board_draw = Some(draw);
         }
 
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        if native_top(NativeCaptureOwner::WorkspaceClose)
+            && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.workspace_close_confirmation()
         {
             let (area, token) = workspace_close::render(
@@ -506,7 +605,8 @@ pub(crate) fn render_terminal_shell(
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
             workspace_prompt = Some(token);
         }
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        if native_top(NativeCaptureOwner::TabClose)
+            && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.close_confirmation()
         {
             let modal = tab_close::render(
@@ -523,7 +623,8 @@ pub(crate) fn render_terminal_shell(
                 status_draw = Some((token, modal.area));
             }
         }
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        if native_top(NativeCaptureOwner::PanelClose)
+            && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(confirmation) = native.panel_close_confirmation()
         {
             let modal = panel_close::render(
@@ -538,7 +639,8 @@ pub(crate) fn render_terminal_shell(
             prompt = None;
             panel_prompt = Some(modal.prompt);
         }
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        if native_top(NativeCaptureOwner::Rename)
+            && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.rename_draft()
         {
             let (area, token) =
@@ -548,7 +650,8 @@ pub(crate) fn render_terminal_shell(
             panel_prompt = None;
             rename = Some(token);
         }
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        if native_top(NativeCaptureOwner::Setup)
+            && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.setup_draft()
         {
             let (area, token) = workspace_setup::render(
@@ -567,7 +670,8 @@ pub(crate) fn render_terminal_shell(
             setup = Some(token);
         }
         #[cfg(windows)]
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+        if native_top(NativeCaptureOwner::Worktree)
+            && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.worktree()
         {
             let (area, token) =
@@ -580,37 +684,27 @@ pub(crate) fn render_terminal_shell(
             worktree = Some(token);
         }
     } else {
-        if view.overlay().is_some() {
-            overlay_refused = true;
-        }
-        // A too-small viewport cannot present any armed modal, but the draw
-        // still owes the state machine an outcome: the topmost armed capture
-        // reports NotPresented so it settles cancelled with a notice instead
-        // of surviving as an invisible key capture.
-        if let Some(TerminalSessionView::Native(native)) = session.as_ref() {
-            if native.workspace_close_confirmation().is_some() {
+        // Geometry is a draw fact, not consent or cancellation. The owner
+        // refuses an incarnation that has never painted, or suspends a
+        // previously presented task while revoking its current draw proof.
+        if matches!(session.as_ref(), Some(TerminalSessionView::Native(_))) {
+            if native_top(NativeCaptureOwner::WorkspaceClose) {
                 workspace_prompt = Some(ModalPresentation::NotPresented);
             }
-            if native.close_confirmation().is_some() {
+            if native_top(NativeCaptureOwner::TabClose) {
                 prompt = Some(ModalPresentation::NotPresented);
             }
-            if native.panel_close_confirmation().is_some() {
-                prompt = None;
+            if native_top(NativeCaptureOwner::PanelClose) {
                 panel_prompt = Some(ModalPresentation::NotPresented);
             }
-            if native.rename_draft().is_some() {
-                prompt = None;
-                panel_prompt = None;
+            if native_top(NativeCaptureOwner::Rename) {
                 rename = Some(ModalPresentation::NotPresented);
             }
-            if native.setup_draft().is_some() {
-                prompt = None;
-                panel_prompt = None;
-                rename = None;
+            if native_top(NativeCaptureOwner::Setup) {
                 setup = Some(ModalPresentation::NotPresented);
             }
             #[cfg(windows)]
-            if native.worktree().is_some() {
+            if native_top(NativeCaptureOwner::Worktree) {
                 worktree = Some(ModalPresentation::NotPresented);
             }
         }
@@ -619,16 +713,111 @@ pub(crate) fn render_terminal_shell(
     // An open board that could not paint at all (too-small viewport)
     // still reports its verdict — input capture never settles on an
     // unpainted surface.
-    if board_draw.is_none()
+    if native_top(NativeCaptureOwner::AgentBoard)
+        && board_draw.is_none()
         && let Some(TerminalSessionView::Native(native)) = session.as_ref()
-        && native.agent_board().is_some()
+        && let Some(board) = native.agent_board()
     {
-        board_draw = Some(AgentBoardDraw {
-            presented: false,
-            viewport_rows: 0,
-        });
-        overlay_refused = true;
+        board_draw = Some(AgentBoardDraw::NotPresented(board.episode()));
     }
+
+    // Only the actual top owner's evaluated geometry can explain this frame.
+    // Covered lower owners receive no receipt and publish no recovery chrome.
+    enum NativeRecoveryStatus {
+        LocalReturn {
+            phase: crate::tui_presentation::PresentationPhase,
+            verb: RecoveryVerb,
+        },
+        #[cfg(windows)]
+        Plain(&'static str),
+    }
+    let native_recovery =
+        if let (Some(CaptureOwner::Native(owner)), Some(TerminalSessionView::Native(native))) =
+            (capture_owner, session.as_ref())
+        {
+            match owner {
+                NativeCaptureOwner::WorkspaceClose
+                    if matches!(
+                        workspace_prompt.as_ref(),
+                        Some(ModalPresentation::NotPresented)
+                    ) =>
+                {
+                    native
+                        .workspace_close_confirmation()
+                        .map(|view| (view.presentation(), RecoveryVerb::Cancel))
+                }
+                NativeCaptureOwner::TabClose
+                    if matches!(prompt.as_ref(), Some(ModalPresentation::NotPresented)) =>
+                {
+                    native
+                        .close_confirmation()
+                        .map(|view| (view.presentation(), RecoveryVerb::Cancel))
+                }
+                NativeCaptureOwner::PanelClose
+                    if matches!(panel_prompt.as_ref(), Some(ModalPresentation::NotPresented)) =>
+                {
+                    native
+                        .panel_close_confirmation()
+                        .map(|view| (view.presentation(), RecoveryVerb::Cancel))
+                }
+                NativeCaptureOwner::Rename
+                    if matches!(rename.as_ref(), Some(ModalPresentation::NotPresented)) =>
+                {
+                    native
+                        .rename_draft()
+                        .map(|view| (view.presentation(), RecoveryVerb::Cancel))
+                }
+                NativeCaptureOwner::Setup
+                    if matches!(setup.as_ref(), Some(ModalPresentation::NotPresented)) =>
+                {
+                    native
+                        .setup_draft()
+                        .map(|view| (view.presentation(), RecoveryVerb::Cancel))
+                }
+                #[cfg(windows)]
+                NativeCaptureOwner::Worktree
+                    if matches!(worktree.as_ref(), Some(ModalPresentation::NotPresented)) =>
+                {
+                    native.worktree().map(|view| {
+                        (
+                            view.presentation(),
+                            match view.stage() {
+                                crate::terminal_session::WorktreeStage::Waiting => {
+                                    RecoveryVerb::Hide
+                                }
+                                crate::terminal_session::WorktreeStage::Result => {
+                                    RecoveryVerb::Close
+                                }
+                                _ => RecoveryVerb::Cancel,
+                            },
+                        )
+                    })
+                }
+                NativeCaptureOwner::AgentBoard
+                    if board_draw.as_ref().is_some_and(|draw| !draw.is_presented()) =>
+                {
+                    native
+                        .agent_board()
+                        .map(|view| (view.presentation(), RecoveryVerb::Close))
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+    let native_recovery =
+        native_recovery.map(|(phase, verb)| NativeRecoveryStatus::LocalReturn { phase, verb });
+    #[cfg(windows)]
+    let native_recovery = if tier == ViewportTier::TooSmall
+        && capture_owner == Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
+        && matches!(session.as_ref(), Some(TerminalSessionView::Native(native)) if native.popup().is_some())
+    {
+        Some(NativeRecoveryStatus::Plain(
+            locale.plugin_popup_resize_recovery(),
+        ))
+    } else {
+        native_recovery
+    };
 
     let notice = if overlay_refused {
         Some(text.overlay_refused)
@@ -644,7 +833,7 @@ pub(crate) fn render_terminal_shell(
         Some(TerminalSessionView::Native(native))
             if native.controller() == Some(NativeDisplayController::ReadOnly)
     );
-    let status_visible = status_overlay_visible(view, session.as_ref())
+    let status_visible = status_overlay_visible(view, session.as_ref(), capture_owner)
         || notice.is_some()
         || tier == ViewportTier::TooSmall;
     if status_visible {
@@ -664,8 +853,8 @@ pub(crate) fn render_terminal_shell(
         frame,
         status_area,
         view,
+        capture_owner,
         locale,
-        text,
         &status_text,
         notice,
         zoomed,
@@ -675,50 +864,51 @@ pub(crate) fn render_terminal_shell(
                 && native.close_status().is_some_and(|status| status.resumable())),
         tier,
         theme,
+        session.as_ref(),
     );
+    if let Some(recovery) = native_recovery {
+        match recovery {
+            NativeRecoveryStatus::LocalReturn { phase, verb } => {
+                let retained = phase != crate::tui_presentation::PresentationPhase::Pending;
+                recovery::render(
+                    frame,
+                    areas.status,
+                    locale.presentation_notice(retained),
+                    retained.then_some(locale.recovery_verb(verb)),
+                    theme,
+                );
+            }
+            #[cfg(windows)]
+            NativeRecoveryStatus::Plain(notice) => {
+                recovery::render(frame, areas.status, notice, None, theme);
+            }
+        }
+    }
     #[cfg(windows)]
-    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+    if capture_owner == Some(CaptureOwner::Copy)
+        && let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(copy) = native.copy_mode()
     {
         copy_mode::render_status(frame, areas.status, copy, locale, notice, theme);
     }
-    if view.overlay() == Some(Overlay::ShortcutHelp) && help_page.is_none() {
-        // Refused help keeps its page for a later resize, but must never leave
-        // an invisible pointer owner without a visible way to dismiss it.
-        frame.render_widget(Clear, areas.status);
-        frame
-            .buffer_mut()
-            .set_style(areas.status, theme.style(Role::SurfaceChrome));
-        if let Some(close) = controls::close(frame, areas.status, theme) {
-            let notice_area = Rect::new(
-                areas.status.x,
-                areas.status.y,
-                close.x.saturating_sub(areas.status.x + 1),
-                areas.status.height,
-            );
-            frame.render_widget(
-                Paragraph::new(text.overlay_refused).style(theme.style(Role::TextSecondary)),
-                notice_area,
-            );
-            hits.mark_overlay_active();
-            hits.record(
-                HitLayer::Overlay,
-                close,
-                HitTarget::Help {
-                    page: view.help_page(),
-                    action: crate::tui_pointer::HelpControl::Close,
-                },
-            );
-        }
+    if tier != ViewportTier::TooSmall
+        && client_chrome_overlay_allowed(capture_owner)
+        && view.overlay() == Some(Overlay::ShortcutHelp)
+        && !help_presented
+        && let Some(candidate) = view.help_draw_candidate()
+    {
+        // The requested page remains owner state for a later resize. Only a
+        // complete fixed-width close publishes refused-surface authority.
+        let _ = help::render_refused(frame, areas.status, text, candidate, theme, hits);
     }
-    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+    if capture_owner.is_none()
+        && let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(close) = native.close_status()
     {
         status_draw = status_draw.or(visible.map(|area| (close.token(), area)));
     }
 
     let receipt = NativeDrawReceipt::new(prompt, status_draw.map(|(token, _)| token))
-        .with_help_page(help_page)
         .with_panel_close(panel_prompt)
         .with_workspace_close(workspace_prompt)
         .with_rename(rename)
@@ -728,13 +918,12 @@ pub(crate) fn render_terminal_shell(
     let receipt = receipt.with_worktree(worktree);
     let receipt = receipt.with_attention(match session.as_ref() {
         Some(TerminalSessionView::Native(native))
-            if view.overlay().is_none() && {
+            if capture_owner.is_none() && view.overlay().is_none() && {
                 #[cfg(windows)]
                 {
-                    native.popup().is_none()
-                        && areas
-                            .sidebar
-                            .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay)
+                    areas
+                        .sidebar
+                        .is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay)
                 }
                 #[cfg(not(windows))]
                 {
@@ -747,7 +936,9 @@ pub(crate) fn render_terminal_shell(
         _ => None,
     });
     #[cfg(windows)]
-    if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+    if tier != ViewportTier::TooSmall
+        && native_top(NativeCaptureOwner::Popup)
+        && let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(popup) = native.popup()
     {
         render_popup(
@@ -768,11 +959,18 @@ pub(crate) fn render_terminal_shell(
         );
     }
     #[cfg(windows)]
-    let receipt = if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+    let receipt = if native_top(NativeCaptureOwner::ActionMenu)
+        && let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(menu) = native.action_menu()
     {
-        let transferring = menu.transferring;
-        let unavailable = menu.unavailable[menu.selected];
+        let recovery = native.action_menu_input_context().is_some_and(|context| {
+            context.phase() != crate::tui_presentation::PresentationPhase::Pending
+        });
+        let local_return = if menu.has_parent {
+            locale.menu_back_button()
+        } else {
+            locale.menu_close_button()
+        };
         let menu_area = if menu.anchor.is_some() {
             Rect::new(
                 area.x,
@@ -783,51 +981,105 @@ pub(crate) fn render_terminal_shell(
         } else {
             overlay_area(&areas)
         };
-        let draw = action_menu::render(frame, menu_area, menu, locale, theme, hits);
+        let draw = if tier == ViewportTier::TooSmall {
+            ModalPresentation::NotPresented
+        } else {
+            action_menu::render(frame, menu_area, menu, view.bindings(), locale, theme, hits)
+        };
         frame.render_widget(Clear, areas.status);
         frame
             .buffer_mut()
             .set_style(areas.status, theme.style(Role::SurfaceChrome));
-        frame.render_widget(
-            Paragraph::new(unavailable.map_or_else(
-                || {
-                    locale
-                        .menu_status_hint(transferring, usize::from(areas.status.width))
-                        .to_owned()
-                },
-                |reason| locale.menu_disabled_hint(reason, usize::from(areas.status.width)),
-            ))
-            .style(theme.style(Role::StatusPending)),
-            areas.status,
-        );
+        if matches!(draw, ModalPresentation::NotPresented) {
+            recovery::render(
+                frame,
+                areas.status,
+                locale.presentation_notice(recovery),
+                recovery.then_some(local_return),
+                theme,
+            );
+        }
         receipt.with_menu(Some(draw))
     } else {
         receipt
     };
-    let receipt = if let Some(TerminalSessionView::Native(native)) = session.as_ref()
+    let receipt = if native_top(NativeCaptureOwner::Settings)
+        && let Some(TerminalSessionView::Native(native)) = session.as_ref()
         && let Some(settings) = native.settings()
     {
-        let draw = settings::render(
-            frame,
-            overlay_area(&areas),
-            settings,
-            native.settings_pending(),
-            locale,
-            theme,
-            hits,
-        );
+        let local_return = crate::native_settings::footer_bindings(settings)
+            .first()
+            .map(|hint| locale.settings_hint_label(hint.label()));
+        let retained = native.settings_presentation()
+            != Some(crate::tui_presentation::PresentationPhase::Pending);
+        let draw = if tier == ViewportTier::TooSmall {
+            ModalPresentation::NotPresented
+        } else {
+            settings::render(
+                frame,
+                overlay_area(&areas),
+                settings,
+                native.settings_pending(),
+                locale,
+                theme,
+                hits,
+            )
+        };
         frame.render_widget(Clear, areas.status);
         frame
             .buffer_mut()
             .set_style(areas.status, theme.style(Role::SurfaceChrome));
-        frame.render_widget(
-            Paragraph::new(native.settings_notice().map_or_else(
-                || locale.settings_hint(settings, native.settings_pending()),
-                |notice| locale.settings_notice(notice).to_owned(),
-            ))
-            .style(theme.style(Role::StatusInfo)),
-            areas.status,
-        );
+        let notice = if matches!(draw, ModalPresentation::NotPresented) {
+            // Classify this frame from the owner's pre-settlement incarnation.
+            // A new attempt is refused; an admitted task can resume later.
+            Some(
+                if native.settings_presentation()
+                    == Some(crate::tui_presentation::PresentationPhase::Pending)
+                {
+                    crate::terminal_session::SettingsNotice::PresentationUnavailable
+                } else {
+                    crate::terminal_session::SettingsNotice::TooSmall
+                },
+            )
+        } else {
+            native.settings_notice()
+        };
+        // Settings owns its complete local return and shortcut hint inside the
+        // surface. This global row carries only a distinct notice or recovery.
+        let line = notice.map_or_else(Line::default, |notice| {
+            let role = match notice {
+                crate::terminal_session::SettingsNotice::Saved => Role::StatusSuccess,
+                crate::terminal_session::SettingsNotice::Failed => Role::StatusError,
+                crate::terminal_session::SettingsNotice::SourceChanged
+                | crate::terminal_session::SettingsNotice::Unknown
+                | crate::terminal_session::SettingsNotice::PresentationUnavailable
+                | crate::terminal_session::SettingsNotice::TooSmall => Role::StatusWarning,
+                crate::terminal_session::SettingsNotice::Busy
+                | crate::terminal_session::SettingsNotice::Background => Role::StatusPending,
+                crate::terminal_session::SettingsNotice::NoChange => Role::StatusInfo,
+            };
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", theme.glyphs.status_bullet),
+                    theme.style(role),
+                ),
+                Span::styled(
+                    locale.settings_notice(notice),
+                    theme.style(Role::TextPrimary),
+                ),
+            ])
+        });
+        if matches!(draw, ModalPresentation::NotPresented) {
+            recovery::render(
+                frame,
+                areas.status,
+                locale.presentation_notice(retained),
+                local_return.filter(|_| retained),
+                theme,
+            );
+        } else {
+            frame.render_widget(Paragraph::new(line), areas.status);
+        }
         receipt.with_settings(Some(draw))
     } else {
         receipt
@@ -864,6 +1116,25 @@ fn render_popup(
     else {
         return;
     };
+    if frame.area().intersection(outer) != outer || frame.area().intersection(inner) != inner {
+        return;
+    }
+    let Some(close) = controls::close_rect(frame.area(), outer) else {
+        return;
+    };
+    hits.mark_overlay_active();
+    let target = InteractionTarget::PopupClose(popup.close_target());
+    let interaction = if popup.closing {
+        InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
+    } else {
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+    };
+    let pointer =
+        match hits.projected_pointer(HitLayer::Overlay, close, close, &target, interaction) {
+            ProjectedPointer::Rest => controls::PointerPresentation::Rest,
+            ProjectedPointer::Hovered => controls::PointerPresentation::Hovered,
+            ProjectedPointer::Pressed => controls::PointerPresentation::Pressed,
+        };
     frame.render_widget(Clear, outer);
     frame.render_widget(
         Block::default()
@@ -876,11 +1147,23 @@ fn render_popup(
             .border_style(theme.style(Role::TextSecondary)),
         outer,
     );
-    let close = Rect::new(outer.right().saturating_sub(4), outer.y, 3, 1);
-    frame.render_widget(
-        Paragraph::new("[×]").style(theme.style(Role::TextPrimary)),
+    let painted_close = controls::render_icon_action(
+        frame,
         close,
-    );
+        controls::IconActionSpec::new(
+            controls::IconActionGlyph::Close,
+            controls::ControlSurface::Overlay,
+            if popup.closing {
+                controls::Availability::Disabled
+            } else {
+                controls::Availability::Enabled
+            },
+            pointer,
+        ),
+        theme,
+    )
+    .expect("preflighted popup close remains paintable");
+    debug_assert_eq!(painted_close, close);
     if let Some(terminal) = popup
         .projection
         .and_then(crate::terminal_projection::TerminalProjection::frame)
@@ -893,7 +1176,13 @@ fn render_popup(
             inner,
         );
     }
-    hits.mark_overlay_active();
+    hits.record_interaction(
+        HitLayer::Overlay,
+        painted_close,
+        painted_close,
+        target,
+        interaction,
+    );
     hits.record(
         HitLayer::Overlay,
         inner,
@@ -901,11 +1190,6 @@ fn render_popup(
             id: popup.id.clone(),
             content: inner,
         },
-    );
-    hits.record(
-        HitLayer::Overlay,
-        close,
-        HitTarget::PopupClose(popup.id.clone()),
     );
     hits.record(HitLayer::OverlaySurface, outer, HitTarget::OverlaySurface);
 }
@@ -917,16 +1201,32 @@ fn render_too_small_notice(frame: &mut Frame<'_>, body: Rect, text: ShellText, t
         body.width,
         1,
     );
-    frame.render_widget(
-        Paragraph::new(truncate_display(
-            text.too_small_notice,
-            usize::from(body.width),
-            theme.glyphs.ellipsis,
-        ))
-        .alignment(Alignment::Center)
-        .style(theme.style(Role::StatusWarning)),
-        row,
-    );
+    let marker = theme.glyphs.status_bullet;
+    let marker_width = display_width(marker).saturating_add(1);
+    let line = if marker_width < usize::from(body.width) {
+        Line::from(vec![
+            Span::styled(marker, theme.style(Role::StatusWarning)),
+            Span::styled(" ", theme.style(Role::TextPrimary)),
+            Span::styled(
+                truncate_display(
+                    text.too_small_notice,
+                    usize::from(body.width) - marker_width,
+                    theme.glyphs.ellipsis,
+                ),
+                theme.style(Role::TextPrimary),
+            ),
+        ])
+    } else {
+        Line::styled(
+            truncate_display(
+                text.too_small_notice,
+                usize::from(body.width),
+                theme.glyphs.ellipsis,
+            ),
+            theme.style(Role::TextPrimary),
+        )
+    };
+    frame.render_widget(Paragraph::new(line).alignment(Alignment::Center), row);
 }
 
 fn render_unavailable_workbench(
@@ -937,7 +1237,18 @@ fn render_unavailable_workbench(
     tier: ViewportTier,
     theme: &Theme,
 ) {
-    if !areas.tabs.is_empty() {
+    // Authored guidance stays readable beside an overlay sidebar. This changes only
+    // its paint area; terminal geometry continues to use the canonical shell areas.
+    let visible_area = |area: Rect| match areas.sidebar {
+        Some(sidebar) if sidebar.layer == SidebarLayer::Overlay => {
+            let x = area.x.max(sidebar.area.right().min(area.right()));
+            Rect::new(x, area.y, area.right().saturating_sub(x), area.height)
+        }
+        _ => area,
+    };
+    let tabs = visible_area(areas.tabs);
+    let panel = visible_area(areas.panel);
+    if !tabs.is_empty() {
         let tab_line = Line::from(vec![
             Span::styled(
                 format!(" {} ", text.workbench_title),
@@ -946,7 +1257,7 @@ fn render_unavailable_workbench(
             Span::styled(format!(" {tab_status} "), theme.style(Role::TextSecondary)),
             Span::styled("  !  ", theme.style(Role::StatusWarning)),
         ]);
-        frame.render_widget(Paragraph::new(tab_line), areas.tabs);
+        frame.render_widget(Paragraph::new(tab_line), tabs);
     }
 
     let content = vec![
@@ -956,7 +1267,7 @@ fn render_unavailable_workbench(
         Line::styled(text.shell_only_detail, theme.style(Role::TextPrimary)),
         Line::styled(text.no_client_session, theme.style(Role::TextSecondary)),
     ];
-    let content_area = terminal_area(areas.panel, tier.shows_panel_frame());
+    let content_area = terminal_area(panel, tier.shows_panel_frame());
     if tier.shows_panel_frame() {
         frame.render_widget(
             Paragraph::new(content)
@@ -973,7 +1284,7 @@ fn render_unavailable_workbench(
                             theme.style(Role::TextSecondary),
                         )),
                 ),
-            areas.panel,
+            panel,
         );
     } else {
         frame.render_widget(
@@ -1032,6 +1343,7 @@ fn render_native_workbench(
     locale: Locale,
     native: &NativeSessionView<'_>,
     phase_status: &str,
+    directory_guidance_admitted: bool,
     theme: &Theme,
     hits: &mut HitMapBuilder,
     #[cfg(windows)] graphics_uncovered: bool,
@@ -1039,21 +1351,12 @@ fn render_native_workbench(
 ) {
     let bound_text = locale.shell().bind(client_view);
     let text = bound_text.text();
-    let pane_focused = native.close_confirmation().is_none()
-        && native.panel_close_confirmation().is_none()
-        && native.agent_board().is_none()
-        && native.workspace_close_confirmation().is_none()
-        && native.rename_draft().is_none()
-        && native.setup_draft().is_none();
+    let pane_focused = !native.capture_claims().exclusive_any();
     #[cfg(windows)]
     let pane_focused = pane_focused
         && !client_view.navigator_active()
         && !client_view.machines.sidebar_navigation_active()
-        && !client_view.machines.open
-        && native.worktree().is_none()
-        && native.popup().is_none()
-        && native.action_menu().is_none()
-        && native.settings().is_none();
+        && !client_view.machines.open;
     let input_enabled =
         pane_focused && client_view.overlay().is_none() && !client_view.prefix_active();
     let panel_area = areas.panel;
@@ -1231,7 +1534,20 @@ fn render_native_workbench(
                 }
             }
         }
-        render_dividers(frame, &projection.dividers, panel_area, theme);
+        #[cfg(windows)]
+        let drawn_dividers = if input_enabled {
+            native.divider_source().map_or_else(Vec::new, |source| {
+                projection
+                    .splits
+                    .iter()
+                    .filter_map(|split| {
+                        crate::tui_layout::DrawnDivider::new(source.clone(), frame.area(), split)
+                    })
+                    .collect()
+            })
+        } else {
+            Vec::new()
+        };
         if pane_focused
             && let Some(leaf) = projection
                 .leaves
@@ -1241,19 +1557,16 @@ fn render_native_workbench(
             emphasize_pane_boundary(frame, leaf.leaf, panel_area, theme);
         }
         #[cfg(windows)]
-        if input_enabled && let Some(source) = native.divider_source() {
-            for split in &projection.splits {
-                if let Some(target) =
-                    crate::tui_layout::DrawnDivider::new(source.clone(), frame.area(), split)
-                {
-                    hits.record(
-                        HitLayer::Foreground,
-                        target.divider,
-                        HitTarget::Divider(target),
-                    );
-                }
-            }
-        }
+        render_dividers(
+            frame,
+            &projection.dividers,
+            panel_area,
+            theme,
+            &drawn_dividers,
+            hits,
+        );
+        #[cfg(not(windows))]
+        render_dividers(frame, &projection.dividers, panel_area, theme);
     } else {
         let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
             native
@@ -1382,24 +1695,38 @@ fn render_native_workbench(
             } else {
                 phase_status
             };
-            let panel_status = workspace_setup::directory_guidance(
+            let directory_guidance = workspace_setup::directory_guidance(
                 locale,
                 native.phase(),
                 native.retirement().is_some(),
                 native.workspace_directory_path(),
                 native.workspace_directory_unconfigured(),
-            )
-            .unwrap_or_else(|| panel_status.to_owned());
-            let panel_status = native
-                .workspace_close_status()
-                .filter(|_| native.retirement().is_some())
-                .map_or(panel_status, |status| locale.workspace_close_status(status));
-            frame.render_widget(
-                Paragraph::new(panel_status)
-                    .style(theme.style(Role::TextSecondary))
-                    .wrap(Wrap { trim: true }),
-                content_area,
             );
+            if let Some(guidance) = directory_guidance {
+                workspace_setup::render_directory_guidance(
+                    frame,
+                    content_area,
+                    &guidance,
+                    client_view.bindings(),
+                    locale,
+                    directory_guidance_admitted,
+                    theme,
+                );
+            } else {
+                let panel_status = native
+                    .workspace_close_status()
+                    .filter(|_| native.retirement().is_some())
+                    .map_or_else(
+                        || panel_status.to_owned(),
+                        |status| locale.workspace_close_status(status),
+                    );
+                frame.render_widget(
+                    Paragraph::new(panel_status)
+                        .style(theme.style(Role::TextSecondary))
+                        .wrap(Wrap { trim: true }),
+                    content_area,
+                );
+            }
         }
         #[cfg(windows)]
         if let Some(panel) =
@@ -1496,7 +1823,9 @@ fn render_tab_strip(
         (tabs_area, None)
     };
     #[cfg(windows)]
-    let create_target = native.tab_create_target().filter(|_| strip.width >= 7);
+    let tab_source = native.tab_create_target();
+    #[cfg(windows)]
+    let create_target = tab_source.clone().filter(|_| strip.width >= 7);
     #[cfg(windows)]
     let create_width = if create_target.is_some() { 4 } else { 0 };
     #[cfg(not(windows))]
@@ -1512,20 +1841,33 @@ fn render_tab_strip(
         native.active_position(),
         |index| native_tab(native, index, text.pinned_tab),
         theme,
-        &mut |index, x, width| {
-            if let Some(tab) = native.tab(index) {
-                hits.record(
+        tabs::CompactInteractions::new(
+            hits,
+            &mut |hits, index, rect| {
+                let Some(tab) = native.tab(index) else {
+                    return ProjectedPointer::Rest;
+                };
+                let target = InteractionTarget::Tab(tab.tab_id().clone());
+                hits.projected_pointer(
                     HitLayer::Foreground,
-                    Rect::new(
-                        strip.x.saturating_add(u16::try_from(x).unwrap_or(u16::MAX)),
-                        strip.y,
-                        u16::try_from(width).unwrap_or(u16::MAX),
-                        strip.height,
-                    ),
-                    HitTarget::Tab(tab.tab_id().clone()),
-                );
-            }
-        },
+                    rect,
+                    rect,
+                    &target,
+                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+                )
+            },
+            &mut |hits, index, rect| {
+                if let Some(tab) = native.tab(index) {
+                    hits.record_interaction(
+                        HitLayer::Foreground,
+                        rect,
+                        rect,
+                        InteractionTarget::Tab(tab.tab_id().clone()),
+                        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+                    );
+                }
+            },
+        ),
     );
     #[cfg(windows)]
     {
@@ -1551,38 +1893,44 @@ fn render_tab_strip(
                 })
             })
             .collect::<Vec<_>>();
+        let tab_target = |index: usize, group_header: bool| {
+            let tab = native.tab(index)?;
+            Some(if group_header {
+                let group = tab.group()?;
+                HitTarget::TabGroup {
+                    tab: tab.tab_id().clone(),
+                    group: group.group_id.clone(),
+                }
+            } else {
+                HitTarget::Tab(tab.tab_id().clone())
+            })
+        };
         tabs::groups::render(
             frame,
             tab_area,
             &displayed,
             theme,
             text.unnamed_tab_group,
-            &mut |index, group_header, x, width| {
-                used = x.saturating_add(width);
-                if let Some(tab) = native.tab(index) {
-                    let target = if group_header {
-                        let Some(group) = tab.group() else {
-                            return;
-                        };
-                        HitTarget::TabGroup {
-                            tab: tab.tab_id().clone(),
-                            group: group.group_id.clone(),
-                        }
-                    } else {
-                        HitTarget::Tab(tab.tab_id().clone())
+            tabs::groups::GroupInteractions::new(
+                hits,
+                &mut |hits, index, group_header, rect| {
+                    let Some(source) = tab_source.as_ref() else {
+                        return ProjectedPointer::Rest;
                     };
-                    hits.record(
-                        HitLayer::Foreground,
-                        Rect::new(
-                            strip.x.saturating_add(u16::try_from(x).unwrap_or(u16::MAX)),
-                            strip.y,
-                            u16::try_from(width).unwrap_or(u16::MAX),
-                            strip.height,
-                        ),
-                        target,
-                    );
-                }
-            },
+                    let Some(target) = tab_target(index, group_header) else {
+                        return ProjectedPointer::Rest;
+                    };
+                    hits.projected_tab_pointer(source, &target, rect)
+                },
+                &mut |hits, index, group_header, rect| {
+                    used = usize::from(rect.right().saturating_sub(strip.x));
+                    if let (Some(source), Some(target)) =
+                        (tab_source.as_ref(), tab_target(index, group_header))
+                    {
+                        hits.record_tab_target(source, rect, target);
+                    }
+                },
+            ),
         );
     }
     #[cfg(windows)]
@@ -1591,12 +1939,31 @@ fn render_tab_strip(
             .unwrap_or(tab_area.width)
             .saturating_add(u16::from(used > 0))
             .min(strip.width - 3);
-        let create = Rect::new(strip.x + offset, strip.y, 3, 1);
-        frame.render_widget(
-            Paragraph::new(" + ").style(theme.style(Role::HintLabel)),
-            create,
-        );
-        hits.record(HitLayer::Foreground, create, HitTarget::TabCreate(target));
+        let offered = Rect::new(strip.x + offset, strip.y, 3, 1);
+        if let Some(rect) = controls::icon_action_rect(frame.area(), offered) {
+            let interaction = InteractionTarget::TabCreate(target);
+            let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+            let pointer = tabs::pointer_presentation(hits.projected_pointer(
+                HitLayer::Foreground,
+                rect,
+                rect,
+                &interaction,
+                spec,
+            ));
+            if let Some(painted) = controls::render_icon_action(
+                frame,
+                offered,
+                controls::IconActionSpec::new(
+                    controls::IconActionGlyph::Add,
+                    controls::ControlSurface::Chrome,
+                    controls::Availability::Enabled,
+                    pointer,
+                ),
+                theme,
+            ) {
+                hits.record_interaction(HitLayer::Foreground, rect, painted, interaction, spec);
+            }
+        }
     }
     if let Some(title_area) = title_area {
         frame.render_widget(
@@ -1810,7 +2177,14 @@ fn render_leaf(
     selector.map(|s| s.area)
 }
 
-fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], panel: Rect, theme: &Theme) {
+fn render_dividers(
+    frame: &mut Frame<'_>,
+    dividers: &[Rect],
+    panel: Rect,
+    theme: &Theme,
+    #[cfg(windows)] targets: &[crate::tui_layout::DrawnDivider],
+    #[cfg(windows)] hits: &mut HitMapBuilder,
+) {
     let mut cells = std::collections::BTreeSet::new();
     for divider in dividers {
         for y in divider.y..divider.y.saturating_add(divider.height) {
@@ -1846,17 +2220,65 @@ fn render_dividers(frame: &mut Frame<'_>, dividers: &[Rect], panel: Rect, theme:
     ) {
         let [up, down, left, right] = neighbors(x, y)
             .map(|point| point != (x, y) && (cells.contains(&point) || boundary.contains(&point)));
-        let glyph = crate::tui_layout::divider_glyph(up, down, left, right);
-        frame.buffer_mut().set_string(
-            x,
-            y,
-            glyph.to_string(),
-            theme.style(if boundary.contains(&(x, y)) {
+        let glyph = match theme.glyphs.mode() {
+            crate::tui_theme::GlyphMode::Unicode => {
+                crate::tui_layout::divider_glyph(up, down, left, right)
+            }
+            #[cfg(test)]
+            crate::tui_theme::GlyphMode::Simplified => {
+                if (up || down) && (left || right) {
+                    '+'
+                } else if up || down {
+                    '|'
+                } else {
+                    '-'
+                }
+            }
+        };
+        let boundary_cell = boundary.contains(&(x, y));
+        #[cfg(windows)]
+        let pointer = targets
+            .iter()
+            .filter(|target| target.divider.contains((x, y).into()))
+            .map(|target| hits.projected_divider_pointer(target))
+            .max_by_key(|state| match state {
+                ProjectedPointer::Rest => 0,
+                ProjectedPointer::Hovered => 1,
+                ProjectedPointer::Pressed => 2,
+            })
+            .unwrap_or(ProjectedPointer::Rest);
+        #[cfg(windows)]
+        let style = if pointer == ProjectedPointer::Rest {
+            theme.style(if boundary_cell {
                 Role::FrameUnfocused
             } else {
                 Role::FrameDivider
-            }),
-        );
+            })
+        } else {
+            theme.content_on_surface(
+                Role::SurfaceCanvas,
+                Some(match pointer {
+                    ProjectedPointer::Hovered => Role::SurfaceHover,
+                    ProjectedPointer::Pressed => Role::SurfacePressed,
+                    ProjectedPointer::Rest => unreachable!("rest handled before composition"),
+                }),
+                Some(Role::FrameDivider),
+                theme.style(Role::FrameDivider),
+            )
+        };
+        #[cfg(not(windows))]
+        let style = theme.style(if boundary_cell {
+            Role::FrameUnfocused
+        } else {
+            Role::FrameDivider
+        });
+        frame
+            .buffer_mut()
+            .set_string(x, y, glyph.to_string(), style);
+    }
+    #[cfg(windows)]
+    for target in targets {
+        hits.record_divider(target.clone());
     }
 }
 
@@ -1896,39 +2318,34 @@ fn native_location_label(
         })
 }
 
-fn status_overlay_visible(view: &ClientView, session: Option<&TerminalSessionView<'_>>) -> bool {
+fn status_overlay_visible(
+    view: &ClientView,
+    session: Option<&TerminalSessionView<'_>>,
+    capture_owner: Option<CaptureOwner>,
+) -> bool {
     let visible = view.prefix_active()
         || view.overlay().is_some()
         || view.notice().is_some()
-        || view.pointer_released();
+        || view.pointer_released()
+        || capture_owner.is_some();
     #[cfg(windows)]
     let visible = visible
         || view.navigator_active()
         || view.machines.sidebar_navigation_active()
-        || view.machines.open
-        || view.resize_mode()
         || view.resize_pending;
     visible
         || session.is_some_and(|session| match session {
             TerminalSessionView::Native(native) => {
                 let visible = native.phase() != NativeDisplayPhase::Ready
+                    || native.controller() == Some(NativeDisplayController::ReadOnly)
                     || native.notice().is_some()
                     || native.takeover_status().is_some()
+                    || native.setup_status().is_some()
                     || native.close_status().is_some()
                     || native.workspace_close_status().is_some()
-                    || native.close_set_status().is_some()
-                    || native.close_confirmation().is_some()
-                    || native.panel_close_confirmation().is_some()
-                    || native.workspace_close_confirmation().is_some()
-                    || native.rename_draft().is_some()
-                    || native.setup_draft().is_some()
-                    || native.agent_board().is_some();
+                    || native.close_set_status().is_some();
                 #[cfg(windows)]
-                let visible = visible
-                    || native.copy_mode().is_some()
-                    || native.settings().is_some()
-                    || native.action_menu().is_some()
-                    || native.worktree().is_some();
+                let visible = visible || native.duplicate_progress().is_some();
                 visible
             }
             #[cfg(test)]
@@ -1941,8 +2358,8 @@ fn render_status(
     frame: &mut Frame<'_>,
     area: Rect,
     view: &ClientView,
+    capture_owner: Option<CaptureOwner>,
     locale: Locale,
-    text: ShellText,
     status: &str,
     secondary_notice: Option<&str>,
     zoomed: bool,
@@ -1950,166 +2367,23 @@ fn render_status(
     recovery_status: bool,
     tier: ViewportTier,
     theme: &Theme,
+    session: Option<&TerminalSessionView<'_>>,
 ) -> Option<Rect> {
-    if area.is_empty() {
-        return None;
-    }
-    // When the status surface is requested, include control loss and its takeover key.
-    let notice = view
-        .notice()
-        .filter(|notice| !(read_only && *notice == Notice::TerminalInputUnavailable));
-    let primary = notice.map_or(status, |notice| locale.shell_notice(Some(notice)));
-    // Native status can already carry this notice and a delimited recovery fact.
-    // Compare the primary actually painted, including any Client notice override.
-    let secondary_notice = secondary_notice.filter(|notice| {
-        !view.prefix_active()
-            && !primary
-                .strip_prefix(*notice)
-                .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with(" · "))
-    });
-    let (label, style) = if let Some(notice) = secondary_notice {
-        (
-            locale.shell().bound_hint(view, notice),
-            theme.style(Role::StatusWarning),
-        )
-    } else if view.prefix_active() {
-        let full = format!("{} · {}", text.prefix_active, text.prefix_cancel_hint);
-        let compact = format!("{} · Esc", text.prefix_active);
-        let label = [full, compact]
-            .into_iter()
-            .find(|hint| display_width(hint) <= usize::from(area.width))
-            .unwrap_or_else(|| text.prefix_active.to_owned());
-        (
-            label,
-            theme
-                .style(Role::TextInverse)
-                .bg(theme.color(Role::AccentFocus))
-                .add_modifier(Modifier::BOLD),
-        )
-    } else {
-        let hint = match tier {
-            ViewportTier::Full => text.prefix_idle,
-            ViewportTier::Compact => text.hint_short,
-            ViewportTier::Minimal | ViewportTier::TooSmall => text.exit_hint,
-        };
-        (hint.to_owned(), theme.style(Role::HintLabel))
-    };
-    #[cfg(windows)]
-    let (label, style) = if view.navigator_active() {
-        (
-            locale.navigator_hint(false),
-            theme.style(Role::StatusPending),
-        )
-    } else if view.machines.sidebar_navigation_active() {
-        let full = locale.sidebar_navigation_hint(true);
-        (
-            if tier == ViewportTier::Full && display_width(&full) <= usize::from(area.width) {
-                full
-            } else {
-                locale.sidebar_navigation_hint(false)
-            },
-            theme
-                .style(Role::TextInverse)
-                .bg(theme.color(Role::AccentFocus))
-                .add_modifier(Modifier::BOLD),
-        )
-    } else if view.resize_mode() {
-        (
-            locale
-                .resize_hint(tier == ViewportTier::Full, view.resize_pending)
-                .to_owned(),
-            theme
-                .style(Role::TextInverse)
-                .bg(theme.color(Role::AccentFocus))
-                .add_modifier(Modifier::BOLD),
-        )
-    } else if view.resize_pending {
-        (
-            locale.resize_pending_hint().to_owned(),
-            theme.style(Role::StatusPending),
-        )
-    } else {
-        (label, style)
-    };
-    let mut right_width = u16::try_from(Line::raw(label.as_str()).width())
-        .unwrap_or(u16::MAX)
-        .max(24)
-        .min(area.width);
-    // A recoverable Close must be fully presented before its confirmation may open.
-    // Drop only ordinary hints when they would hide that status; input owners and newer
-    // notices retain priority. The exact draw receipt below still rejects clipped facts.
-    let ordinary_hints = !view.prefix_active() && secondary_notice.is_none();
-    #[cfg(windows)]
-    let ordinary_hints = ordinary_hints
-        && !view.navigator_active()
-        && !view.machines.sidebar_navigation_active()
-        && !view.resize_mode()
-        && !view.resize_pending;
-    if recovery_status
-        && ordinary_hints
-        && display_width(&locale.shell().bound_hint(view, primary))
-            > usize::from(area.width.saturating_sub(right_width))
-    {
-        right_width = 0;
-    }
-    let [status_area, right] =
-        Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
-    #[cfg(windows)]
-    let status_text_area = if view.machines.sidebar_navigation_active() {
-        Rect {
-            width: status_area.width.saturating_sub(1),
-            ..status_area
-        }
-    } else {
-        status_area
-    };
-    #[cfg(not(windows))]
-    let status_text_area = status_area;
-    let status_label = locale.shell().bound_hint(view, primary);
-    // A released pointer is a persistent mode, not a transient notice: it
-    // rides the status label on every draw until capture re-arms.
-    let status_label = if view.pointer_released() {
-        format!("{status_label} · {}", text.pointer_released)
-    } else {
-        status_label
-    };
-    // An active zoom also describes the focused-only pane set when context is shown.
-    let status_label = if zoomed {
-        format!("{status_label} · {}", text.zoom_badge)
-    } else {
-        status_label
-    };
-    let fits =
-        view.notice().is_none() && tab_close::unwrapped_text_fits(&status_label, status_text_area);
-    let status_label = if status_text_area.width < status_area.width {
-        truncate_display(
-            &status_label,
-            usize::from(status_text_area.width),
-            theme.glyphs.ellipsis,
-        )
-    } else {
-        status_label
-    };
-    frame.render_widget(
-        Paragraph::new(status_label).style(theme.style(Role::TextSecondary)),
-        status_area,
-    );
-    if status_text_area.width < status_area.width {
-        // Keep the separator inside the existing status and receipt rectangle.
-        frame.buffer_mut().set_string(
-            status_text_area.right(),
-            status_area.y,
-            " ",
-            theme.style(Role::TextSecondary),
-        );
-    }
-    frame.render_widget(
-        Paragraph::new(label)
-            .alignment(Alignment::Right)
-            .style(style),
-        right,
-    );
-    fits.then_some(status_area)
+    status_line::render(
+        frame,
+        area,
+        view,
+        capture_owner,
+        locale,
+        status,
+        secondary_notice,
+        zoomed,
+        read_only,
+        recovery_status,
+        tier,
+        theme,
+        session,
+    )
 }
 
 fn render_sidebar(
@@ -2189,251 +2463,6 @@ fn render_sidebar(
     );
 }
 
-/// Rows the help footer always occupies: the dismiss/typing line plus the
-/// paging/position line. Help refuses placement when fewer than
-/// `MINIMUM_HELP_ROWS_PER_PAGE` shortcut rows would remain above it.
-const HELP_FOOTER_ROWS: u16 = 2;
-const MINIMUM_HELP_ROWS_PER_PAGE: u16 = 2;
-
-/// Groups whole shortcut rows into pages that each fit `rows_per_page`
-/// rendered lines: `row_lines[i]` is the line count row `i` occupies after
-/// width-aware wrapping. A row is never split across a page boundary, so no
-/// wrapped tail can be drawn as a half-visible line. Returns the page ranges
-/// as row indices, or `None` when a single row exceeds the page budget —
-/// the caller then refuses placement instead of clipping content.
-fn paginate_help_rows(row_lines: &[usize], rows_per_page: usize) -> Option<Vec<(usize, usize)>> {
-    let mut pages = Vec::new();
-    let mut start = 0;
-    let mut used = 0;
-    for (index, &lines) in row_lines.iter().enumerate() {
-        if lines > rows_per_page {
-            return None;
-        }
-        if used + lines > rows_per_page {
-            pages.push((start, index));
-            start = index;
-            used = 0;
-        }
-        used += lines;
-    }
-    pages.push((start, row_lines.len()));
-    Some(pages)
-}
-
-/// Wraps `text` to `width` display cells on grapheme boundaries, preferring
-/// to break at ASCII spaces; a word wider than `width` breaks mid-word so no
-/// cell is ever clipped. Returns `None` when the text cannot be presented
-/// honestly — a zero budget, or a grapheme wider than `width` that no line
-/// could hold without clipping. Never fabricates a width the caller lacks.
-fn wrap_display(text: &str, width: usize) -> Option<Vec<String>> {
-    if width == 0 {
-        return text.is_empty().then(|| vec![String::new()]);
-    }
-    let mut lines = Vec::new();
-    let mut line = String::new();
-    let mut line_width = 0_usize;
-    for word in text.split(' ') {
-        let gap = usize::from(!line.is_empty());
-        if !line.is_empty() && line_width + gap + display_width(word) > width {
-            lines.push(std::mem::take(&mut line));
-            line_width = 0;
-        } else if gap == 1 {
-            line.push(' ');
-            line_width += 1;
-        }
-        // Hard-wrap an over-wide word across lines on grapheme boundaries.
-        for grapheme in
-            ratatui::text::Span::raw(word).styled_graphemes(ratatui::style::Style::default())
-        {
-            let cell = display_width(grapheme.symbol);
-            if cell > width {
-                return None;
-            }
-            if line_width + cell > width {
-                lines.push(std::mem::take(&mut line));
-                line_width = 0;
-            }
-            line.push_str(grapheme.symbol);
-            line_width += cell;
-        }
-    }
-    lines.push(line);
-    Some(lines)
-}
-
-/// Render the shortcut-help overlay paged to fit the placed area: each
-/// shortcut description wraps to the inner width on grapheme boundaries, a
-/// shortcut's wrapped lines always stay on one page, and the footer
-/// (dismiss key, paging hint, typing purpose, and `page/total`) is always
-/// drawn — content is never silently clipped. Returns the placed rect and
-/// the effective page after clamping to the page count, or `None` when rows
-/// plus footer cannot fit whole shortcuts.
-#[cfg(test)]
-fn render_shortcut_help(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    text: ShellText,
-    view: &ClientView,
-    page: usize,
-    theme: &Theme,
-) -> Option<(Rect, usize)> {
-    render_shortcut_help_with_controls(
-        frame,
-        area,
-        text,
-        view,
-        page,
-        theme,
-        &mut HitMapBuilder::new(),
-    )
-}
-
-fn render_shortcut_help_with_controls(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    text: ShellText,
-    view: &ClientView,
-    page: usize,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) -> Option<(Rect, usize)> {
-    let rows = text.configured_shortcut_rows(view);
-    let height = u16::try_from(rows.len())
-        .unwrap_or(u16::MAX)
-        .saturating_add(HELP_FOOTER_ROWS)
-        .saturating_add(2);
-    let area = place_overlay(area, 76, height)?;
-    let inner = overlay_block(text.shortcut_title, theme, false).inner(area);
-    let rows_per_page = inner.height.saturating_sub(HELP_FOOTER_ROWS);
-    if rows_per_page < MINIMUM_HELP_ROWS_PER_PAGE || inner.width == 0 {
-        return None;
-    }
-    let rows_per_page = usize::from(rows_per_page);
-    let width = usize::from(inner.width);
-
-    // Each registry row is a (padded chord, description) pair: the chord
-    // column is already a uniform width, so continuation lines align under
-    // the description column by the chord's display width. A chord wider
-    // than the inner width cannot be drawn without clipping — refuse.
-    let row_lines = rows
-        .iter()
-        .map(|(chord, label)| {
-            let indent = display_width(chord);
-            if indent > width {
-                return None;
-            }
-            let wrapped = wrap_display(label, width - indent)?;
-            let mut lines = Vec::with_capacity(wrapped.len());
-            let mut parts = wrapped.into_iter();
-            lines.push(Line::from(vec![
-                Span::styled(chord.clone(), theme.style(Role::HintKey)),
-                Span::styled(
-                    parts.next().unwrap_or_default(),
-                    theme.style(Role::TextPrimary),
-                ),
-            ]));
-            lines.extend(parts.map(|part| {
-                Line::styled(
-                    format!("{:indent$}{part}", ""),
-                    theme.style(Role::TextPrimary),
-                )
-            }));
-            Some(lines)
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let pages = paginate_help_rows(
-        &row_lines.iter().map(Vec::len).collect::<Vec<_>>(),
-        rows_per_page,
-    )?;
-    let total_pages = pages.len();
-    let page = page.min(total_pages - 1);
-    let (start, end) = pages[page];
-
-    frame.render_widget(Clear, area);
-    let block = overlay_block(text.shortcut_title, theme, false);
-    let [rows_area, footer_area] =
-        Layout::vertical([Constraint::Min(0), Constraint::Length(HELP_FOOTER_ROWS)]).areas(inner);
-    frame.render_widget(block, area);
-
-    let items = row_lines[start..end]
-        .iter()
-        .flatten()
-        .map(|line| ListItem::new(line.clone()))
-        .collect::<Vec<_>>();
-    frame.render_widget(List::new(items), rows_area);
-
-    // The footer is mandatory and is never truncated: the dismiss line
-    // uses the widest localized form that fits whole — long first, then
-    // the explicit short form. The paging line leads with `page/total`
-    // and keeps the full paging hint, so the position is always visible.
-    // When the dismiss line cannot fit even in short form — or the paging
-    // line does not fit — placement refuses instead of drawing a keyless
-    // or numberless footer.
-    let dismiss = [text.help_dismiss_hint, text.help_dismiss_hint_short]
-        .into_iter()
-        .find(|hint| display_width(hint) <= width)?;
-    let paging = format!(
-        "{}/{} {} {}",
-        page + 1,
-        total_pages,
-        theme.glyphs.middle_dot,
-        text.help_paging_hint
-    );
-    if display_width(&paging) > width {
-        return None;
-    }
-    let footer = vec![
-        Line::styled(dismiss, theme.style(Role::HintLabel)),
-        Line::styled(paging, theme.style(Role::HintLabel)),
-    ];
-    frame.render_widget(Paragraph::new(footer), footer_area);
-    if let Some(rect) = controls::close(frame, area, theme) {
-        hits.record(
-            HitLayer::Overlay,
-            rect,
-            HitTarget::Help {
-                page,
-                action: crate::tui_pointer::HelpControl::Close,
-            },
-        );
-    }
-    // Page controls live on the title frame; keyboard instructions retain their rows.
-    let controls_area = Rect::new(area.right().saturating_sub(14), area.y, 9, 1);
-    if area.width >= 40
-        && let Some(rects) = controls::pair(frame, controls_area, ["[<]", "[>]"], theme)
-    {
-        for (rect, action, enabled) in [
-            (
-                rects[0],
-                crate::tui_pointer::HelpControl::Previous,
-                page > 0,
-            ),
-            (
-                rects[1],
-                crate::tui_pointer::HelpControl::Next,
-                page + 1 < total_pages,
-            ),
-        ] {
-            if enabled {
-                hits.record(HitLayer::Overlay, rect, HitTarget::Help { page, action });
-            } else {
-                frame
-                    .buffer_mut()
-                    .set_style(rect, theme.style(Role::TextDisabled));
-            }
-        }
-    }
-    hits.record(
-        HitLayer::OverlaySurface,
-        rows_area,
-        HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Help {
-            page,
-            last: total_pages - 1,
-        }),
-    );
-    Some((area, page))
-}
-
 #[cfg(not(windows))]
 fn render_unavailable_workbench_navigator(
     frame: &mut Frame<'_>,
@@ -2505,17 +2534,28 @@ fn render_native_workbench_navigator(
         None,
         context_at,
         theme,
-        &mut |index, offset| {
+        hits,
+        &mut |hits, index, rect| {
+            let Some(context) = native.context_at(index) else {
+                return ProjectedPointer::Rest;
+            };
+            let target = InteractionTarget::Context(context.location().clone());
+            hits.projected_pointer(
+                HitLayer::Overlay,
+                rect,
+                rect,
+                &target,
+                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+            )
+        },
+        &mut |hits, index, rect| {
             if let Some(context) = native.context_at(index) {
-                hits.record(
+                hits.record_interaction(
                     HitLayer::Overlay,
-                    Rect::new(
-                        contexts_area.x,
-                        contexts_area.y.saturating_add(offset),
-                        contexts_area.width,
-                        1,
-                    ),
-                    HitTarget::Context(context.location().clone()),
+                    rect,
+                    rect,
+                    InteractionTarget::Context(context.location().clone()),
+                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
                 );
             }
         },
@@ -2528,17 +2568,28 @@ fn render_native_workbench_navigator(
         None,
         |index| native_tab(native, index, text.pinned_tab),
         theme,
-        &mut |index, offset| {
+        hits,
+        &mut |hits, index, rect| {
+            let Some(tab) = native.tab(index) else {
+                return ProjectedPointer::Rest;
+            };
+            let target = InteractionTarget::Tab(tab.tab_id().clone());
+            hits.projected_pointer(
+                HitLayer::Overlay,
+                rect,
+                rect,
+                &target,
+                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+            )
+        },
+        &mut |hits, index, rect| {
             if let Some(tab) = native.tab(index) {
-                hits.record(
+                hits.record_interaction(
                     HitLayer::Overlay,
-                    Rect::new(
-                        tabs_area.x,
-                        tabs_area.y.saturating_add(offset),
-                        tabs_area.width,
-                        1,
-                    ),
-                    HitTarget::Tab(tab.tab_id().clone()),
+                    rect,
+                    rect,
+                    InteractionTarget::Tab(tab.tab_id().clone()),
+                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
                 );
             }
         },

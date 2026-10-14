@@ -5,6 +5,7 @@ pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 = 96;
 mod bindings;
 #[cfg(windows)]
 mod copy;
+pub(crate) mod help;
 mod keys;
 #[cfg(windows)]
 pub(crate) mod navigator;
@@ -13,9 +14,15 @@ mod resize;
 
 pub(crate) use bindings::{Bindings, PrefixAction, PrefixDesc};
 #[cfg(windows)]
-pub(crate) use copy::{CopyModeKey, decide as copy_mode_key};
+pub(crate) use copy::{
+    CopyHintLabel, CopyModeKey, CopySearchCommand, decide as copy_mode_key,
+    footer_bindings as copy_footer_bindings, search_command as copy_search_command,
+};
+#[cfg(windows)]
+pub(crate) use keys::format_configuration_binding;
 pub(crate) use keys::{
-    Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, format_binding, join_key_labels,
+    Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, LabelStyle, Modifiers, format_binding,
+    format_binding_with_glyphs, join_key_labels,
 };
 
 #[cfg(windows)]
@@ -164,11 +171,6 @@ pub(crate) enum ClientAction {
     SelectContextAt(usize),
     PreviousPresentation,
     NextPresentation,
-    /// Pointer destination resolved from the drawn member selector, never a cached ordinal.
-    SelectPresentation {
-        panel: orchbee_workbench_protocol::WorkbenchPanelId,
-        presentation: orchbee_workbench_protocol::TerminalPresentationId,
-    },
     MovePanelFocus(PanelDirection),
     /// Pointer gesture: focus the panel with this stable identity in the
     /// active tab.
@@ -340,7 +342,6 @@ impl ClientAction {
             Self::SelectNextContext => Some(BackendAction::SelectNextContext),
             Self::PreviousPresentation
             | Self::NextPresentation
-            | Self::SelectPresentation { .. }
             | Self::MovePanelFocus(_)
             | Self::FocusPanel(_)
             | Self::ToggleZoom => None,
@@ -410,12 +411,9 @@ pub(crate) struct ClientView {
     pub(crate) resize_pending: bool,
     viewport: ViewportClass,
     wide_sidebar_visible: bool,
-    /// The shortcut-help page the renderer was asked for. Client-local
-    /// presentation state only — it is never put on the wire or into
-    /// NativeSession business. The renderer clamps it against the real
-    /// page count on every draw and the UI loop writes the effective page
-    /// back through `settle_help_page`; render never mutates it.
-    help_page: usize,
+    /// Client-local Help incarnation, requested page, and successful-frame
+    /// proof. It never enters NativeSession business state.
+    help: help::State,
     /// The pointer-capture release flag: `Ctrl+B m` and `--mouse off`
     /// release host mouse reporting; while released the status line carries
     /// the persistent indicator and every Client pointer gesture is inert.
@@ -474,7 +472,7 @@ impl ClientView {
             resize_pending: false,
             viewport: ViewportClass::from_width(width),
             wide_sidebar_visible: true,
-            help_page: 0,
+            help: help::State::default(),
             pointer_released: false,
         }
     }
@@ -553,6 +551,25 @@ impl ClientView {
         self.overlay
     }
 
+    fn replace_overlay(&mut self, overlay: Option<Overlay>) {
+        if self.overlay == Some(Overlay::ShortcutHelp) && overlay != Some(Overlay::ShortcutHelp) {
+            self.help.close();
+        }
+        self.overlay = overlay;
+    }
+
+    fn open_help(&mut self) -> bool {
+        if !self.help.open() {
+            return false;
+        }
+        self.replace_overlay(Some(Overlay::ShortcutHelp));
+        true
+    }
+
+    fn request_help_page(&mut self, page: usize) {
+        self.help.request_page(page, self.help_page_bound());
+    }
+
     #[cfg(windows)]
     pub(crate) fn navigator_active(&self) -> bool {
         self.overlay == Some(Overlay::WorkbenchNavigator)
@@ -561,11 +578,20 @@ impl ClientView {
     #[cfg(windows)]
     pub(crate) fn close_navigator(&mut self, notice: Option<Notice>) {
         if self.navigator_active() {
-            self.overlay = None;
+            self.replace_overlay(None);
             self.prefix_active = false;
             self.navigator.close();
             self.notice = notice;
         }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn close_navigator_for_source(&mut self, source: &navigator::DrawSource) -> bool {
+        if !self.navigator_active() || !self.navigator.accepts_source(source) {
+            return false;
+        }
+        self.close_navigator(None);
+        true
     }
 
     pub(crate) const fn prefix_active(&self) -> bool {
@@ -593,7 +619,7 @@ impl ClientView {
     #[cfg(windows)]
     pub(crate) fn settle_copy_mode(&mut self, active: bool) {
         if self.copy_mode_active && !active && self.overlay == Some(Overlay::ShortcutHelp) {
-            self.overlay = None;
+            self.replace_overlay(None);
         }
         self.copy_mode_active = active;
     }
@@ -610,19 +636,18 @@ impl ClientView {
         }
         match copy::decide(key) {
             Some(CopyModeKey::Help) => {
-                self.help_page = 0;
-                self.overlay = if self.overlay == Some(Overlay::ShortcutHelp) {
-                    None
+                if self.overlay == Some(Overlay::ShortcutHelp) {
+                    self.dismiss_overlay();
                 } else {
-                    Some(Overlay::ShortcutHelp)
-                };
+                    let _ = self.open_help();
+                }
                 true
             }
             Some(CopyModeKey::Page { older }) if self.overlay == Some(Overlay::ShortcutHelp) => {
-                self.settle_help_page(if older {
-                    self.help_page.saturating_sub(1)
+                self.request_help_page(if older {
+                    self.help.page().saturating_sub(1)
                 } else {
-                    self.help_page + 1
+                    self.help.page() + 1
                 });
                 true
             }
@@ -652,32 +677,77 @@ impl ClientView {
         if self.resize_mode {
             self.resize_mode = false;
             if self.overlay == Some(Overlay::ShortcutHelp) {
-                self.overlay = None;
+                self.replace_overlay(None);
             }
         }
     }
 
     #[cfg(windows)]
     pub(crate) fn resize_help_rows(&self) -> Vec<(String, PrefixDesc)> {
+        self.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn resize_help_rows_with_glyphs(
+        &self,
+        glyphs: KeyLabelGlyphs,
+    ) -> Vec<(String, PrefixDesc)> {
         vec![
-            (resize::labels(false), PrefixDesc::ResizeCoarse),
-            (resize::labels(true), PrefixDesc::ResizeFine),
-            (resize::help_label(), PrefixDesc::ShowHelp),
-            (resize::page_label(), PrefixDesc::HelpPage),
-            (resize::exit_label(), PrefixDesc::ResizeExit),
+            (
+                resize::labels_with_glyphs(false, glyphs),
+                PrefixDesc::ResizeCoarse,
+            ),
+            (
+                resize::labels_with_glyphs(true, glyphs),
+                PrefixDesc::ResizeFine,
+            ),
+            (resize::help_label_with_glyphs(glyphs), PrefixDesc::ShowHelp),
+            (resize::page_label_with_glyphs(glyphs), PrefixDesc::HelpPage),
+            (
+                resize::exit_label_with_glyphs(glyphs),
+                PrefixDesc::ResizeExit,
+            ),
         ]
     }
 
     pub(crate) const fn help_page(&self) -> usize {
-        self.help_page
+        self.help.page()
     }
 
-    /// Settles the renderer-clamped effective page after a draw. The UI
-    /// loop is the only writer: the renderer reports which page it
-    /// actually painted (or clamped to after a resize shrank the page
-    /// count) and this state follows that receipt.
-    pub(crate) fn settle_help_page(&mut self, effective_page: usize) {
-        self.help_page = effective_page.min(self.help_page_bound());
+    /// Projects the exact current Help candidate without granting input authority.
+    pub(crate) fn help_draw_candidate(&self) -> Option<help::HelpDrawCandidate> {
+        (self.overlay == Some(Overlay::ShortcutHelp)).then(|| self.help.candidate())
+    }
+
+    /// Settles only the source carried by a successfully published frame map.
+    /// `None` revokes a covered, reset, or incomplete candidate without
+    /// changing the requested page or closing the noncapturing overlay.
+    pub(crate) fn settle_help_draw(&mut self, source: Option<help::HelpDrawSource>) {
+        self.help
+            .settle(source, self.overlay == Some(Overlay::ShortcutHelp));
+    }
+
+    pub(crate) fn activate_drawn_help(&mut self, target: &help::DrawnHelpControl) -> bool {
+        if self.overlay != Some(Overlay::ShortcutHelp) {
+            return false;
+        }
+        match self.help.activate(target) {
+            Some(help::Activation::Close) => self.dismiss_overlay(),
+            Some(help::Activation::Page(page)) => self.request_help_page(page),
+            None => return false,
+        }
+        true
+    }
+
+    pub(crate) fn scroll_drawn_help(&mut self, source: &help::HelpDrawSource, up: bool) -> bool {
+        if self.overlay != Some(Overlay::ShortcutHelp) {
+            return false;
+        }
+        let Some(page) = self.help.scroll(source, up) else {
+            return false;
+        };
+        self.request_help_page(page);
+        true
     }
 
     pub(crate) fn sidebar_surface(&self) -> SidebarSurface {
@@ -715,7 +785,7 @@ impl ClientView {
         {
             return false;
         }
-        self.overlay = None;
+        self.replace_overlay(None);
         self.machines.leave_sidebar_navigation();
         true
     }
@@ -737,7 +807,7 @@ impl ClientView {
     pub(crate) fn resize(&mut self, width: u16) {
         let next = ViewportClass::from_width(width);
         if next == ViewportClass::Wide && self.overlay == Some(Overlay::BusinessSidebar) {
-            self.overlay = None;
+            self.replace_overlay(None);
         }
         self.viewport = next;
     }
@@ -784,10 +854,10 @@ impl ClientView {
             && self.viewport == ViewportClass::Narrow
             && self.machines.sidebar_navigation_active()
         {
-            self.overlay = Some(Overlay::BusinessSidebar);
+            self.replace_overlay(Some(Overlay::BusinessSidebar));
             return;
         }
-        self.overlay = None;
+        self.replace_overlay(None);
         #[cfg(windows)]
         if self.sidebar_surface() == SidebarSurface::Hidden {
             self.machines.leave_sidebar_navigation();
@@ -825,7 +895,7 @@ impl ClientView {
             .iter()
             .position(|binding| binding.matches(event))
         {
-            self.settle_help_page(if index == 0 {
+            self.request_help_page(if index == 0 {
                 self.help_page().saturating_sub(1)
             } else {
                 self.help_page() + 1
@@ -857,7 +927,7 @@ impl ClientView {
         if disposition == SessionActionDisposition::DismissNavigator
             && self.overlay == Some(Overlay::WorkbenchNavigator)
         {
-            self.overlay = None;
+            self.replace_overlay(None);
         }
     }
 
@@ -925,18 +995,16 @@ impl ClientView {
                     Some(ClientAction::ExitResizeMode)
                 }
                 Some(resize::ResizeKey::Help) => {
-                    next.settle_help_page(0);
                     if next.overlay == Some(Overlay::ShortcutHelp) {
-                        next.overlay = None;
+                        next.dismiss_overlay();
                         Some(ClientAction::CloseShortcutHelp)
                     } else {
-                        next.overlay = Some(Overlay::ShortcutHelp);
-                        Some(ClientAction::OpenShortcutHelp)
+                        next.open_help().then_some(ClientAction::OpenShortcutHelp)
                     }
                 }
                 Some(resize::ResizeKey::Page { previous }) => {
                     if next.overlay == Some(Overlay::ShortcutHelp) {
-                        next.settle_help_page(if previous {
+                        next.request_help_page(if previous {
                             next.help_page().saturating_sub(1)
                         } else {
                             next.help_page() + 1
@@ -1035,7 +1103,7 @@ impl ClientView {
             #[cfg(windows)]
             ClientAction::EnterCopyMode => {
                 self.dismiss_focus_modes();
-                self.settle_help_page(0);
+                self.request_help_page(0);
                 (action, ShellCommand::None)
             }
             #[cfg(windows)]
@@ -1043,8 +1111,8 @@ impl ClientView {
                 self.machines.leave_sidebar_navigation();
                 self.resize_mode = true;
                 self.prefix_active = false;
-                self.overlay = None;
-                self.settle_help_page(0);
+                self.replace_overlay(None);
+                self.request_help_page(0);
                 (action, ShellCommand::None)
             }
             ClientAction::ToggleBusinessSidebar => {
@@ -1063,7 +1131,9 @@ impl ClientView {
                 if self.machines.available {
                     match self.viewport {
                         ViewportClass::Wide => self.wide_sidebar_visible = true,
-                        ViewportClass::Narrow => self.overlay = Some(Overlay::BusinessSidebar),
+                        ViewportClass::Narrow => {
+                            self.replace_overlay(Some(Overlay::BusinessSidebar));
+                        }
                     }
                     self.machines.enter_sidebar_navigation();
                 }
@@ -1071,7 +1141,7 @@ impl ClientView {
             }
             ClientAction::OpenWorkbenchNavigator => {
                 if self.overlay == Some(Overlay::WorkbenchNavigator) {
-                    self.overlay = None;
+                    self.replace_overlay(None);
                     #[cfg(windows)]
                     self.navigator.close();
                     (ClientAction::CloseWorkbenchNavigator, ShellCommand::None)
@@ -1085,22 +1155,22 @@ impl ClientView {
                             return (ClientAction::CloseWorkbenchNavigator, ShellCommand::None);
                         }
                     }
-                    self.overlay = Some(Overlay::WorkbenchNavigator);
+                    self.replace_overlay(Some(Overlay::WorkbenchNavigator));
                     (action, ShellCommand::None)
                 }
             }
             ClientAction::ToggleAgentBoard => {
-                self.overlay = None;
+                self.replace_overlay(None);
                 (action, ShellCommand::None)
             }
             ClientAction::OpenShortcutHelp => {
-                self.settle_help_page(0);
                 if self.overlay == Some(Overlay::ShortcutHelp) {
                     self.dismiss_overlay();
                     (ClientAction::CloseShortcutHelp, ShellCommand::None)
-                } else {
-                    self.overlay = Some(Overlay::ShortcutHelp);
+                } else if self.open_help() {
                     (action, ShellCommand::None)
+                } else {
+                    (ClientAction::CloseShortcutHelp, ShellCommand::None)
                 }
             }
             ClientAction::Exit => (action, ShellCommand::Exit),
@@ -1117,7 +1187,7 @@ impl ClientView {
         if disposition == SessionActionDisposition::DismissNavigator
             && next.overlay == Some(Overlay::WorkbenchNavigator)
         {
-            next.overlay = None;
+            next.replace_overlay(None);
             #[cfg(windows)]
             next.navigator.close();
         }
@@ -1185,7 +1255,7 @@ impl ClientView {
                     // Only an open help pages: the page key is consumed
                     // while the overlay is up, and the renderer's clamped
                     // page settles the upper bound on the next draw.
-                    self.settle_help_page(match member.action {
+                    self.request_help_page(match member.action {
                         PrefixAction::HelpPagePrevious => self.help_page().saturating_sub(1),
                         _ => self.help_page() + 1,
                     });
@@ -1208,14 +1278,15 @@ impl ClientView {
         match self.viewport {
             ViewportClass::Wide => {
                 self.wide_sidebar_visible = !self.wide_sidebar_visible;
-                self.overlay = None;
+                self.replace_overlay(None);
             }
             ViewportClass::Narrow => {
-                self.overlay = if self.overlay == Some(Overlay::BusinessSidebar) {
+                let overlay = if self.overlay == Some(Overlay::BusinessSidebar) {
                     None
                 } else {
                     Some(Overlay::BusinessSidebar)
                 };
+                self.replace_overlay(overlay);
             }
         }
     }

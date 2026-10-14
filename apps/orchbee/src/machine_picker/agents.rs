@@ -1,11 +1,20 @@
 //! Ephemeral Agent view controls and a bounded global-navigation intent.
 use super::{
     Choice, Frame, KeyCode, Locale, Mode, Modifiers, NativeContextTarget, NativeMemberTarget,
-    Paragraph, Picker, Rect, Role, Row, Theme, display_width,
+    Paragraph, Picker, PickerAction, PickerSource, Rect, Role, Row, Theme, component_state,
+    picker_interaction, pointer_presentation,
 };
 use crate::machine_agents::{
     Observation as Agents,
     view::{Entry, Scope},
+};
+use crate::{
+    tui_pointer::{HitLayer, HitMapBuilder},
+    tui_render::controls::{
+        ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState,
+        NavigationState, OperationState, PointerPresentation, RowFocusCue, RowTracks, action_rect,
+        paint_row_interaction, render_action,
+    },
 };
 use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,6 +26,14 @@ pub(crate) enum Control {
     Done,
     Clear,
 }
+
+struct AgentAction<'a> {
+    area: Rect,
+    control: Control,
+    label: &'a str,
+    kind: ActionKind,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Navigation {
     target: NavigationTarget,
@@ -360,12 +377,68 @@ impl Picker {
         self.agent_control(control);
         true
     }
+    fn render_agent_action(
+        &self,
+        frame: &mut Frame<'_>,
+        action: AgentAction<'_>,
+        theme: &Theme,
+        source: &PickerSource,
+        hits: &mut HitMapBuilder,
+    ) -> Option<Rect> {
+        let AgentAction {
+            area,
+            control,
+            label,
+            kind,
+        } = action;
+        let (target, interaction) = picker_interaction(source, PickerAction::Control(control))?;
+        let state = component_state(
+            PointerPresentation::Rest,
+            NavigationState::None,
+            CurrentState::NotCurrent,
+            CheckedState::Unchecked,
+            Availability::Enabled,
+            OperationState::Idle,
+        );
+        let base = ActionSpec::new(label, kind, ControlSurface::Overlay, state);
+        let rect = action_rect(frame.area(), area, base, theme)?;
+        let pointer = pointer_presentation(hits.projected_pointer(
+            HitLayer::Overlay,
+            rect,
+            rect,
+            &target,
+            interaction,
+        ));
+        let painted = render_action(
+            frame,
+            rect,
+            ActionSpec::new(
+                label,
+                kind,
+                ControlSurface::Overlay,
+                component_state(
+                    pointer,
+                    NavigationState::None,
+                    CurrentState::NotCurrent,
+                    CheckedState::Unchecked,
+                    Availability::Enabled,
+                    OperationState::Idle,
+                ),
+            ),
+            theme,
+        )?;
+        hits.record_interaction(HitLayer::Overlay, painted, painted, target, interaction);
+        Some(painted)
+    }
+
     pub(super) fn render_agent_controls(
-        &mut self,
+        &self,
         frame: &mut Frame<'_>,
         inner: &mut Rect,
         locale: Locale,
         theme: &Theme,
+        source: &PickerSource,
+        hits: &mut HitMapBuilder,
     ) {
         if self.mode != Mode::Agents {
             return;
@@ -377,6 +450,8 @@ impl Picker {
                     Rect::new(inner.x, inner.y, inner.width, 1),
                     locale,
                     theme,
+                    source,
+                    hits,
                 );
                 inner.y += 1;
                 inner.height -= 1;
@@ -392,55 +467,90 @@ impl Picker {
             let label = if control == Control::Order
                 && self.source_spec().is_some_and(|s| !s.sort.is_empty())
             {
-                format!("s {}", locale.machine_picker_text("agent-source-sort"))
+                locale.machine_picker_text("agent-source-sort").to_owned()
             } else {
                 locale.machine_agent_control(control, &self.agent_view)
             };
-            let label = format!(
-                "[{}]",
-                crate::terminal_text::truncate_display(
-                    &label,
-                    usize::from(width.saturating_sub(2)),
-                    theme.glyphs.ellipsis
-                )
+            let label = crate::terminal_text::truncate_display(
+                &label,
+                usize::from(width.saturating_sub(5)),
+                theme.glyphs.ellipsis,
             );
-            frame.render_widget(
-                Paragraph::new(label).style(theme.style(Role::AccentFocus)),
-                rect,
+            let _ = self.render_agent_action(
+                frame,
+                AgentAction {
+                    area: rect,
+                    control,
+                    label: &label,
+                    kind: ActionKind::Secondary,
+                },
+                theme,
+                source,
+                hits,
             );
-            self.control_hits.push((rect, control));
         }
         let rect = Rect::new(inner.x, inner.y + 1, inner.width, 1);
-        self.render_agent_query(frame, rect, locale, theme);
+        self.render_agent_query(frame, rect, locale, theme, source, hits);
         inner.y += 2;
         inner.height -= 2;
     }
 
     fn render_agent_query(
-        &mut self,
+        &self,
         frame: &mut Frame<'_>,
         mut rect: Rect,
         locale: Locale,
         theme: &Theme,
+        source: &PickerSource,
+        hits: &mut HitMapBuilder,
     ) {
         for control in [Control::Clear, Control::Done] {
             if control == Control::Done && !self.editing_query {
                 continue;
             }
             let label = locale.machine_agent_control(control, &self.agent_view);
-            let width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
-            if rect.width <= width.saturating_add(10) {
+            let state = component_state(
+                PointerPresentation::Rest,
+                NavigationState::None,
+                CurrentState::NotCurrent,
+                CheckedState::Unchecked,
+                Availability::Enabled,
+                OperationState::Idle,
+            );
+            let spec = ActionSpec::new(
+                &label,
+                ActionKind::Secondary,
+                ControlSurface::Overlay,
+                state,
+            );
+            let Some(measured) = action_rect(frame.area(), rect, spec, theme) else {
+                continue;
+            };
+            if rect.width <= measured.width.saturating_add(8) {
                 continue;
             }
-            let area = Rect::new(rect.right() - width, rect.y, width, 1);
-            if let Some(area) =
-                crate::tui_render::controls::button(frame, area, &label, theme, false)
-            {
-                self.control_hits.push((area, control));
-                rect.width = rect.width.saturating_sub(width + 1);
+            let area = Rect::new(
+                rect.right().saturating_sub(measured.width),
+                rect.y,
+                measured.width,
+                1,
+            );
+            if let Some(area) = self.render_agent_action(
+                frame,
+                AgentAction {
+                    area,
+                    control,
+                    label: &label,
+                    kind: ActionKind::Secondary,
+                },
+                theme,
+                source,
+                hits,
+            ) {
+                rect.width = area.x.saturating_sub(rect.x).saturating_sub(1);
             }
         }
-        let heading = format!("/ {}: ", locale.machine_picker_text("agent-search"));
+        let heading = format!("{}: ", locale.machine_picker_text("agent-search"));
         let mut query = self.agent_view.query.as_str();
         if self.editing_query {
             let width = usize::from(rect.width)
@@ -455,13 +565,14 @@ impl Picker {
         frame.render_widget(
             Paragraph::new(format!(
                 "{heading}{query}{}{}",
-                if self.editing_query { "▏" } else { "" },
+                if self.editing_query { "|" } else { "" },
                 if self.editing_query {
                     String::new()
                 } else {
                     self.source_spec().map_or(String::new(), |s| {
                         format!(
-                            " · {}: {}",
+                            " {} {}: {}",
+                            theme.glyphs.middle_dot,
                             locale.machine_picker_text("agent-source"),
                             crate::machine_discovery::display_label(
                                 s.label.as_deref().unwrap_or(&s.source)
@@ -477,6 +588,42 @@ impl Picker {
             })),
             rect,
         );
-        self.control_hits.push((rect, Control::Search));
+        let Some((target, interaction)) =
+            picker_interaction(source, PickerAction::Control(Control::Search))
+        else {
+            return;
+        };
+        let pointer = pointer_presentation(hits.projected_pointer(
+            HitLayer::Overlay,
+            rect,
+            rect,
+            &target,
+            interaction,
+        ));
+        let primary_role = if self.editing_query {
+            Role::AccentFocus
+        } else {
+            Role::HintLabel
+        };
+        if paint_row_interaction(
+            frame,
+            rect,
+            RowTracks::new(RowFocusCue::EnclosingFrame, rect).with_primary_role(primary_role),
+            &[],
+            ControlSurface::Overlay,
+            component_state(
+                pointer,
+                NavigationState::None,
+                CurrentState::NotCurrent,
+                CheckedState::Unchecked,
+                Availability::Enabled,
+                OperationState::Idle,
+            ),
+            theme,
+        )
+        .is_some()
+        {
+            hits.record_interaction(HitLayer::Overlay, rect, rect, target, interaction);
+        }
     }
 }

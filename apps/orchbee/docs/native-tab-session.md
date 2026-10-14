@@ -71,27 +71,38 @@ does not establish that the status was displayed. Every Resume, including on the
 requires both the exact current prompt and its eligible status to be shown. A complete Resume modal
 renders that status itself when it covers the ordinary status line. Missing status revokes the
 retained Resume prompt's shown qualification while preserving intent; renderer assumptions do not
-replace this state-owner check. Every successful draw also reports absence or
-incomplete visibility: a missing complete prompt revokes its shown qualification while retaining
-the intent and facts. A later complete draw may re-arm the same current intent. Thus a complete
-wide-window draw followed by a clipped narrow-window draw cannot authorize confirmation. Failed
-draws emit no successful receipt and follow existing failure/retirement handling. Observing an
-actual viewport or geometry change revokes both prompt and status display qualifications before
-dispatching an already-read input packet; a resize followed by confirmation in the same loop
-iteration cannot use the old draw. The shell signals any changed outer WindowDimensions through
-`invalidate_close_display` before dispatch, even when a sidebar change leaves terminal geometry
-unchanged; `observe_geometry` separately invalidates actual terminal geometry changes. Equal
-outer and terminal dimensions do not invalidate on every loop. Intent and facts survive until a complete draw can re-arm them. Prompt-owned
-input retains the remainder of its input packet after confirmation or cancellation, so trailing
-bytes cannot reach the shell. Unrecognized prompt input, including Enter, cannot confirm.
+replace this state-owner check.
+
+Prompt presentation and exact draw proof remain separate owner facts. `Presented` admits the
+incarnation only with its exact prompt token. A missing or covered receipt revokes current shown
+authority without classifying geometry or discarding the presentation phase. An evaluated
+`NotPresented` geometry result refuses and removes a new prompt that has never painted, leaving the
+localized resize fallback in that frame and no invisible input owner. After a successful paint, the
+same result suspends the existing prompt while preserving its token, frozen intent and local focus;
+`y` and stale pointer releases remain inert, local `Esc` may cancel, and a later complete paint of
+the same token resumes it. Accepted Close or Resume work already owns its operation independently;
+hiding or closing its former prompt cannot undo or cancel that work.
+
+Observing an actual viewport or geometry change revokes both prompt and status display
+qualifications before dispatching an already-read input packet; a resize followed by confirmation
+in the same loop iteration cannot use the old draw. The shell signals any changed outer
+WindowDimensions through `invalidate_close_display` before dispatch, even when a sidebar change
+leaves terminal geometry unchanged; `observe_geometry` separately invalidates actual terminal
+geometry changes. Equal outer and terminal dimensions do not invalidate on every loop. The prompt's
+phase, intent and facts survive revocation of current draw proof and remain subject to the next
+complete or geometry-blocked draw. Prompt-owned input retains the remainder of its decision packet
+after confirmation or cancellation, so trailing bytes from that packet cannot reach the shell;
+subsequent separately decoded input belongs to the then-current owner. Unrecognized prompt input,
+including Enter, cannot confirm.
 
 The renderer measures the sanitized target, warning and actions with Unicode cell widths and
 ratatui's actual wrapped line count in the final modal content rectangle. A grapheme wider than
 that rectangle is incomplete even when the wrapper would omit it. Incomplete content shows the
-localized resize/cancel hint and emits no prompt token. Both the complete modal and its hint
-suppress the old terminal cursor before terminal cells are drawn. A status token describes exact
-text still completely visible in the final frame; notice replacement, clipping or later coverage
-cannot qualify it. A complete Resume modal supplies its own exact status token.
+localized resize/cancel hint and yields `NotPresented`, never a successful prompt token. The owner
+then applies the refused-or-suspended rule above. Both the complete modal and its hint suppress the
+old terminal cursor before terminal cells are drawn. A status token describes exact text still
+completely visible in the final frame; notice replacement, clipping or later coverage cannot
+qualify it. A complete Resume modal supplies its own exact status token.
 
 A definite Close or Resume refusal displays “Close request was not applied” / “关闭请求未执行”.
 When a retained Close status exists, this local notice uses the secondary notice area and preserves
@@ -100,11 +111,12 @@ still govern a later Resume prompt.
 
 The real-session Close interaction corpus drives raw packets through NativeUi, successful
 TestBackend draws, the causal mailbox and a scripted wire peer. It covers both localized Close
-confirmations, unseen coalesced confirmation, cancellation and packet-tail capture, incomplete
-redraw, a sanitized 512-scalar Unicode target, and a same-loop 100-to-70-column resize whose
-terminal width remains 68 columns. Resume coverage exercises clipped and notice-replaced status
-plus the complete modal's two tokens. These checks establish the input/draw/admission boundary;
-the scripted peer does not establish Host disposal or the composed multi-Client process witness.
+confirmations, unseen coalesced confirmation, cancellation and packet-tail capture, blocked
+first-paint refusal, admitted suspension and same-token restoration, a sanitized 512-scalar Unicode
+target, and a same-loop 100-to-70-column resize whose terminal width remains 68 columns. Resume
+coverage exercises clipped and notice-replaced status plus the complete modal's two tokens. These
+checks establish the input/draw/admission boundary; the scripted peer does not establish Host
+disposal or the composed multi-Client process witness.
 
 Keep at most 256 target-keyed Close records. At capacity, refuse a new record as local Busy before
 request or queue allocation. A record can outlive current membership while an unresolved result or

@@ -1,5 +1,36 @@
 use super::super::rename_draft::RenameDraftEdit;
 use super::*;
+use crate::tui_presentation::GeometrySettlement;
+
+#[test]
+fn rename_draft_refuses_a_blocked_first_draw_but_preserves_an_admitted_editor() {
+    let mut refused = ready(2);
+    refused.open_rename_draft().unwrap();
+    assert_eq!(
+        refused.settle_rename_draft_not_presented(),
+        Some(GeometrySettlement::Refused)
+    );
+    assert!(refused.rename_draft().is_none());
+    assert_eq!(refused.notice, None);
+
+    let mut suspended = ready(2);
+    let token = suspended.open_rename_draft().unwrap();
+    suspended.acknowledge_rename_draw(Some(token));
+    assert!(suspended.rename_draft_input_ready(token));
+    assert!(suspended.edit_rename_draft(token, RenameDraftEdit::Append(" preserved")));
+    let text = suspended.rename_draft().unwrap().text().to_owned();
+    assert_eq!(
+        suspended.settle_rename_draft_not_presented(),
+        Some(GeometrySettlement::Suspended)
+    );
+    assert_eq!(suspended.rename_draft().unwrap().token(), token);
+    assert_eq!(suspended.rename_draft().unwrap().text(), text);
+    assert!(!suspended.rename_draft_input_ready(token));
+    assert!(suspended.plan_rename_draft(token).is_none());
+    suspended.acknowledge_rename_draw(Some(token));
+    assert!(suspended.rename_draft_input_ready(token));
+    assert_eq!(suspended.rename_draft().unwrap().text(), text);
+}
 
 #[test]
 fn rename_draft_requires_exact_draw_and_keeps_unchanged_text_authoritative() {

@@ -108,6 +108,8 @@ pub(crate) enum PrefixDesc {
     #[cfg(windows)]
     CopyRepeatSearch,
     #[cfg(windows)]
+    CopyReverseSearch,
+    #[cfg(windows)]
     CopySelection,
     #[cfg(windows)]
     CopySubmit,

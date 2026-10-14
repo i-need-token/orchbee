@@ -214,11 +214,11 @@ impl UiDriver {
         let token = mailbox
             .open_setup_draft_for(state, NativeSetupIntent::RenameLocation(target))
             .ok_or_else(|| test_error("location label draft admission"))?;
+        state.acknowledge_setup_draw(Some(token));
         if let Some(label) = replacement {
             assert!(state.edit_setup_draft(token, NativeSetupEdit::Clear));
             assert!(state.edit_setup_draft(token, NativeSetupEdit::Append(label)));
         }
-        state.acknowledge_setup_draw(Some(token));
         Ok(token)
     }
 }

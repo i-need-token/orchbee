@@ -1,5 +1,6 @@
 use std::{
     fmt, io,
+    io::Write as _,
     marker::PhantomData,
     panic,
     rc::Rc,
@@ -11,7 +12,6 @@ use std::{
 };
 
 use crossterm::{
-    ExecutableCommand,
     cursor::{Hide, Show},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -19,8 +19,9 @@ use crossterm::{
 use rustix::termios::{OptionalActions, Termios, tcgetattr, tcsetattr};
 
 use crate::terminal_device::InheritedTerminal;
-#[cfg(windows)]
-use std::io::Write;
+
+mod command;
+pub(crate) use command::write_ansi_command;
 
 const RESTORATION_ATTEMPTS_PER_MODE: u8 = 2;
 
@@ -81,9 +82,20 @@ impl crossterm::Command for BracketedPaste {
     }
 }
 
-/// Ordinary capture uses button-event tracking and SGR cells. Release also
-/// clears menu-scoped any-motion tracking, including a partially written switch.
-struct PointerCapture(bool);
+/// The one outer-terminal tracking level selected inside the pointer lease.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PointerTrackingLevel {
+    ButtonOnly,
+    AnyMotion,
+}
+
+/// Capture selects one tracking level and SGR cells. Every enable first
+/// disables the other level so inherited or partially restored state cannot
+/// leave both levels active. Release clears every level owned by the Client.
+struct PointerCapture {
+    enabled: bool,
+    level: PointerTrackingLevel,
+}
 
 impl crossterm::Command for PointerCapture {
     #[cfg(windows)]
@@ -96,31 +108,40 @@ impl crossterm::Command for PointerCapture {
     }
 
     fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
-        output.write_str(if self.0 {
-            "\x1b[?1002h\x1b[?1006h"
-        } else {
-            "\x1b[?1003l\x1b[?1006l\x1b[?1002l"
-        })
+        let sequence = match (self.enabled, self.level) {
+            (true, PointerTrackingLevel::ButtonOnly) => "\x1b[?1003l\x1b[?1002h\x1b[?1006h",
+            (true, PointerTrackingLevel::AnyMotion) => "\x1b[?1002l\x1b[?1003h\x1b[?1006h",
+            (false, _) => "\x1b[?1003l\x1b[?1006l\x1b[?1002l",
+        };
+        output.write_str(sequence)
     }
 }
 
-#[cfg(windows)]
-struct PointerHover(bool);
+struct PointerTrackingTransition {
+    from: PointerTrackingLevel,
+    to: PointerTrackingLevel,
+}
 
-#[cfg(windows)]
-impl crossterm::Command for PointerHover {
+impl crossterm::Command for PointerTrackingTransition {
+    #[cfg(windows)]
     fn execute_winapi(&self) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
+    #[cfg(windows)]
     fn is_ansi_code_supported(&self) -> bool {
         true
     }
     fn write_ansi(&self, output: &mut impl fmt::Write) -> fmt::Result {
-        output.write_str(if self.0 {
-            "\x1b[?1002l\x1b[?1003h"
-        } else {
-            "\x1b[?1003l\x1b[?1002h"
-        })
+        let sequence = match (self.from, self.to) {
+            (PointerTrackingLevel::ButtonOnly, PointerTrackingLevel::AnyMotion) => {
+                "\x1b[?1002l\x1b[?1003h"
+            }
+            (PointerTrackingLevel::AnyMotion, PointerTrackingLevel::ButtonOnly) => {
+                "\x1b[?1003l\x1b[?1002h"
+            }
+            _ => "",
+        };
+        output.write_str(sequence)
     }
 }
 
@@ -152,6 +173,12 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
     fn query_graphics(&self, _query: crate::terminal_graphics::Query) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
+    fn query_pointer_admission(
+        &self,
+        _query: crate::terminal_pointer_admission::Query,
+    ) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     #[cfg(windows)]
     fn notify_terminal(
         &self,
@@ -173,9 +200,12 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
     fn disable_focus_reporting(&self) -> io::Result<()>;
     fn enable_focus_reporting(&self) -> io::Result<()>;
     fn disable_pointer_capture(&self) -> io::Result<()>;
-    fn enable_pointer_capture(&self) -> io::Result<()>;
-    #[cfg(windows)]
-    fn set_pointer_hover(&self, _enabled: bool) -> io::Result<()> {
+    fn enable_pointer_capture(&self, level: PointerTrackingLevel) -> io::Result<()>;
+    fn set_pointer_tracking(
+        &self,
+        _from: PointerTrackingLevel,
+        _to: PointerTrackingLevel,
+    ) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
     fn disable_raw_mode(&self) -> io::Result<()>;
@@ -372,14 +402,21 @@ impl TerminalModeState {
 pub(crate) struct TerminalModeGuard<C: TerminalModes> {
     bracketed_paste_enabled: bool,
     pointer_capture_enabled: bool,
-    #[cfg(windows)]
-    // None fences a partially written tracking switch until capture is restored.
-    pointer_hover_enabled: Option<bool>,
+    pointer_tracking: PointerTrackingState,
     focus_reporting_enabled: bool,
     control: Arc<C>,
     _owner_thread_only: PhantomData<Rc<()>>,
     _panic_registration: Option<PanicRestorationRegistration>,
     state: Arc<TerminalModeState>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PointerTrackingState {
+    Released,
+    Active(PointerTrackingLevel),
+    /// A capture or level write may have emitted a prefix. Only the complete
+    /// release sequence may settle the lease after this point.
+    TransitionUnknown,
 }
 
 impl<C: TerminalModes> TerminalModeGuard<C> {
@@ -407,8 +444,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         let mut guard = Self {
             bracketed_paste_enabled: false,
             pointer_capture_enabled: false,
-            #[cfg(windows)]
-            pointer_hover_enabled: Some(false),
+            pointer_tracking: PointerTrackingState::Released,
             focus_reporting_enabled: false,
             _owner_thread_only: PhantomData,
             _panic_registration: panic_registration,
@@ -444,12 +480,13 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     pub(crate) fn restore(&mut self) -> Result<(), TerminalRestoreError> {
         self.bracketed_paste_enabled = false;
         self.pointer_capture_enabled = false;
-        #[cfg(windows)]
-        {
-            self.pointer_hover_enabled = Some(false);
-        }
+        self.pointer_tracking = PointerTrackingState::TransitionUnknown;
         self.focus_reporting_enabled = false;
-        restore_modes(self.control.as_ref(), &self.state)
+        let result = restore_modes(self.control.as_ref(), &self.state);
+        if result.is_ok() {
+            self.pointer_tracking = PointerTrackingState::Released;
+        }
+        result
     }
 
     pub(crate) fn synchronized_update_lease(&self) -> Arc<SynchronizedUpdateLease> {
@@ -480,6 +517,18 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
             return Err(io::ErrorKind::BrokenPipe.into());
         }
         self.control.query_graphics(query)
+    }
+
+    pub(crate) fn query_pointer_admission(
+        &self,
+        query: crate::terminal_pointer_admission::Query,
+    ) -> io::Result<()> {
+        if !self.state.raw_mode.restoration_required()
+            || self.state.synchronized_update.frame_output_blocked()
+        {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.control.query_pointer_admission(query)
     }
 
     #[cfg(windows)]
@@ -535,9 +584,19 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
     /// restoration obligation before the write; releasing runs the
     /// bounded restore and only clears the flag when it succeeds.
     pub(crate) fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()> {
-        if enabled {
+        self.set_pointer_capture_level(enabled.then_some(PointerTrackingLevel::ButtonOnly))
+    }
+
+    /// Arms the requested admitted level, or releases every owned pointer
+    /// mode. Callers retain the endpoint capability decision; this owner only
+    /// publishes a level after the complete command succeeded.
+    pub(crate) fn set_pointer_capture_level(
+        &mut self,
+        level: Option<PointerTrackingLevel>,
+    ) -> io::Result<()> {
+        if let Some(level) = level {
             if self.pointer_capture_enabled {
-                return Ok(());
+                return self.set_pointer_tracking(level);
             }
             if self.state.pointer_capture.restoration_required() {
                 return Err(io::Error::other(
@@ -545,15 +604,14 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
                 ));
             }
             self.state.pointer_capture.mark_operation_started();
-            self.control.enable_pointer_capture()?;
+            self.pointer_tracking = PointerTrackingState::TransitionUnknown;
+            self.control.enable_pointer_capture(level)?;
             self.pointer_capture_enabled = true;
+            self.pointer_tracking = PointerTrackingState::Active(level);
             return Ok(());
         }
         self.pointer_capture_enabled = false;
-        #[cfg(windows)]
-        {
-            self.pointer_hover_enabled = Some(false);
-        }
+        self.pointer_tracking = PointerTrackingState::TransitionUnknown;
         let mut failures = Vec::new();
         restore_mode(
             &self.state.pointer_capture,
@@ -562,30 +620,37 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
             &mut failures,
         );
         if failures.is_empty() {
+            self.pointer_tracking = PointerTrackingState::Released;
             Ok(())
         } else {
             Err(io::Error::other(TerminalRestoreError { failures }))
         }
     }
 
-    /// Switches tracking inside the existing capture lease; it cannot acquire capture.
-    /// Failure leaves the lease responsible for clearing all pointer modes on exit.
-    #[cfg(windows)]
-    pub(crate) fn set_pointer_hover(&mut self, enabled: bool) -> io::Result<()> {
-        if enabled && !self.pointer_capture_enabled {
-            return Err(io::Error::other("pointer hover requires active capture"));
+    /// Switches inside an existing lease. The old level is disabled before
+    /// the new one is enabled; an unknown partial write fences later runtime
+    /// switches until the full release sequence settles cleanup.
+    pub(crate) fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()> {
+        if !self.pointer_capture_enabled {
+            return Err(io::Error::other("pointer tracking requires active capture"));
         }
-        let Some(current) = self.pointer_hover_enabled else {
-            return Err(io::Error::other(
-                "pointer tracking still requires restoration",
-            ));
+        let current = match self.pointer_tracking {
+            PointerTrackingState::Active(current) => current,
+            PointerTrackingState::Released => {
+                return Err(io::Error::other("pointer capture is released"));
+            }
+            PointerTrackingState::TransitionUnknown => {
+                return Err(io::Error::other(
+                    "pointer tracking still requires restoration",
+                ));
+            }
         };
-        if current == enabled {
+        if current == level {
             return Ok(());
         }
-        self.pointer_hover_enabled = None;
-        self.control.set_pointer_hover(enabled)?;
-        self.pointer_hover_enabled = Some(enabled);
+        self.pointer_tracking = PointerTrackingState::TransitionUnknown;
+        self.control.set_pointer_tracking(current, level)?;
+        self.pointer_tracking = PointerTrackingState::Active(level);
         Ok(())
     }
 
@@ -744,10 +809,204 @@ pub(crate) struct InheritedTerminalModes {
     #[cfg(unix)]
     original_termios: Arc<Mutex<Option<Termios>>>,
     #[cfg(windows)]
-    original_console: Arc<Mutex<Option<(u32, u32)>>>,
+    original_console: Arc<Mutex<Option<SavedConsoleModes>>>,
     #[cfg(windows)]
-    original_title: Arc<Mutex<Option<String>>>,
+    original_title: Arc<Mutex<Option<Arc<str>>>>,
+    #[cfg(windows)]
+    alternate_sequence_started: Arc<AtomicBool>,
+    #[cfg(windows)]
+    output_vt_enabled: Arc<AtomicBool>,
     terminal: InheritedTerminal,
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug)]
+struct SavedConsoleMode {
+    original: u32,
+    restoration_required: bool,
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug)]
+struct SavedConsoleModes {
+    input: SavedConsoleMode,
+    output: SavedConsoleMode,
+}
+
+#[cfg(windows)]
+fn restoration_state<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    // A panic must not make the saved restoration values inaccessible to the
+    // panic hook. These state updates replace or copy complete values only.
+    state
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+#[cfg(windows)]
+fn capture_and_enable_windows_raw_mode(
+    saved_modes: &Mutex<Option<SavedConsoleModes>>,
+    read_input_mode: impl FnOnce() -> io::Result<u32>,
+    read_output_mode: impl FnOnce() -> io::Result<u32>,
+    set_input_mode: impl FnOnce(u32) -> io::Result<()>,
+) -> io::Result<()> {
+    // Reads cannot mutate the host. Complete both before publishing a debt so
+    // a failed inspection never invents a mode that needs restoration.
+    let input = read_input_mode()?;
+    let output = read_output_mode()?;
+    {
+        let mut saved = restoration_state(saved_modes);
+        if saved.is_some() {
+            return Err(io::ErrorKind::AlreadyExists.into());
+        }
+        // SetConsoleMode may change state before returning an error or panic.
+        // Publish the exact original word before crossing that boundary.
+        *saved = Some(SavedConsoleModes {
+            input: SavedConsoleMode {
+                original: input,
+                restoration_required: true,
+            },
+            output: SavedConsoleMode {
+                original: output,
+                restoration_required: false,
+            },
+        });
+    }
+
+    // Keep VT input so ConPTY retains bracketed-paste delimiters. Our one
+    // record reader preserves VK=0 control characters instead of feeding
+    // them through a key-layout translator. Pointer capture owns the mouse
+    // bit separately; raw admission must not capture with --mouse off.
+    set_input_mode((input | 0x0288) & !0x0057)
+}
+
+#[cfg(windows)]
+fn write_admitted_windows_command<W: io::Write>(
+    output_vt_enabled: &AtomicBool,
+    acquire_output: impl FnOnce() -> io::Result<W>,
+    command: &impl crossterm::Command,
+) -> io::Result<()> {
+    if !output_vt_enabled.load(Ordering::Acquire) {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "VT output processing is not active for this terminal session",
+        ));
+    }
+    let mut output = acquire_output()?;
+    write_ansi_command(&mut output, command)?;
+    output.flush()
+}
+
+#[cfg(windows)]
+fn admit_windows_vt_and_enter_alternate<W: io::Write>(
+    saved_modes: &Mutex<Option<SavedConsoleModes>>,
+    output_vt_enabled: &AtomicBool,
+    alternate_sequence_started: &AtomicBool,
+    set_output_mode: impl FnOnce(u32) -> io::Result<()>,
+    acquire_output: impl FnOnce() -> io::Result<W>,
+) -> io::Result<()> {
+    let admitted_mode = {
+        let mut saved = restoration_state(saved_modes);
+        let saved = saved.as_mut().ok_or_else(|| {
+            io::Error::other("console modes were not captured before VT admission")
+        })?;
+        // SetConsoleMode may change state before reporting failure. Arm the
+        // exact output-word debt while the state lock is short-held, then
+        // release the lock before calling into the host.
+        saved.output.restoration_required = true;
+        saved.output.original | 0x0005
+    };
+    set_output_mode(admitted_mode)?;
+    // ANSI is admitted only after the native output-mode call has completed.
+    output_vt_enabled.store(true, Ordering::Release);
+    let mut output = acquire_output()?;
+    // From this point a write or flush fault can follow an emitted prefix, so
+    // cleanup conservatively owes a leave while VT remains admitted.
+    alternate_sequence_started.store(true, Ordering::Release);
+    write_ansi_command(&mut output, &EnterAlternateScreen)?;
+    output.flush()
+}
+
+#[cfg(windows)]
+fn leave_windows_alternate<W: io::Write>(
+    output_vt_enabled: &AtomicBool,
+    alternate_sequence_started: &AtomicBool,
+    acquire_output: impl FnOnce() -> io::Result<W>,
+) -> io::Result<()> {
+    if !output_vt_enabled.load(Ordering::Acquire)
+        || !alternate_sequence_started.load(Ordering::Acquire)
+    {
+        return Ok(());
+    }
+    write_admitted_windows_command(output_vt_enabled, acquire_output, &LeaveAlternateScreen)?;
+    alternate_sequence_started.store(false, Ordering::Release);
+    Ok(())
+}
+
+#[cfg(windows)]
+fn restore_windows_console_modes(
+    saved_modes: &Mutex<Option<SavedConsoleModes>>,
+    output_vt_enabled: &AtomicBool,
+    mut set_output_mode: impl FnMut(u32) -> io::Result<()>,
+    mut set_input_mode: impl FnMut(u32) -> io::Result<()>,
+) -> io::Result<()> {
+    let pending = {
+        let saved = *restoration_state(saved_modes);
+        saved.map(|saved| {
+            (
+                saved
+                    .output
+                    .restoration_required
+                    .then_some(saved.output.original),
+                saved
+                    .input
+                    .restoration_required
+                    .then_some(saved.input.original),
+            )
+        })
+    };
+    let Some((output, input)) = pending else {
+        return Ok(());
+    };
+
+    // Settle each side independently. A failure on one side cannot suppress
+    // the other attempt, and a later outer retry sees only still-pending debt.
+    let mut output_error = None;
+    if let Some(mode) = output {
+        match set_output_mode(mode) {
+            Ok(()) => {
+                if let Some(saved) = restoration_state(saved_modes).as_mut() {
+                    saved.output.restoration_required = false;
+                }
+                output_vt_enabled.store(false, Ordering::Release);
+            }
+            Err(error) => output_error = Some(error),
+        }
+    }
+    let mut input_error = None;
+    if let Some(mode) = input {
+        match set_input_mode(mode) {
+            Ok(()) => {
+                if let Some(saved) = restoration_state(saved_modes).as_mut() {
+                    saved.input.restoration_required = false;
+                }
+            }
+            Err(error) => input_error = Some(error),
+        }
+    }
+
+    match (output_error, input_error) {
+        (None, None) => Ok(()),
+        (Some(error), None) | (None, Some(error)) => Err(error),
+        (Some(output), Some(input)) => {
+            let kind = output.kind();
+            Err(io::Error::new(
+                kind,
+                format!(
+                    "could not restore output console mode: {output}; could not restore input console mode: {input}"
+                ),
+            ))
+        }
+    }
 }
 
 impl InheritedTerminalModes {
@@ -759,13 +1018,29 @@ impl InheritedTerminalModes {
             original_console: Arc::new(Mutex::new(None)),
             #[cfg(windows)]
             original_title: Arc::new(Mutex::new(None)),
+            #[cfg(windows)]
+            alternate_sequence_started: Arc::new(AtomicBool::new(false)),
+            #[cfg(windows)]
+            output_vt_enabled: Arc::new(AtomicBool::new(false)),
             terminal,
         }
     }
 
     fn write_command(&self, command: impl crossterm::Command) -> io::Result<()> {
-        let mut output = self.terminal.output()?;
-        output.execute(command).map(drop)
+        #[cfg(windows)]
+        {
+            write_admitted_windows_command(
+                &self.output_vt_enabled,
+                || self.terminal.output(),
+                &command,
+            )
+        }
+        #[cfg(unix)]
+        {
+            let mut output = self.terminal.output()?;
+            write_ansi_command(&mut output, &command)?;
+            output.flush()
+        }
     }
 }
 
@@ -782,6 +1057,12 @@ impl TerminalModes for InheritedTerminalModes {
     fn query_graphics(&self, query: crate::terminal_graphics::Query) -> io::Result<()> {
         self.write_command(GraphicsQuery(query))
     }
+    fn query_pointer_admission(
+        &self,
+        query: crate::terminal_pointer_admission::Query,
+    ) -> io::Result<()> {
+        self.write_command(query)
+    }
     #[cfg(windows)]
     fn notify_terminal(
         &self,
@@ -795,27 +1076,26 @@ impl TerminalModes for InheritedTerminalModes {
     }
     #[cfg(windows)]
     fn set_window_title(&self, title: &str) -> io::Result<()> {
-        let mut original = self
-            .original_title
-            .lock()
-            .map_err(|_| io::Error::other("console title poisoned"))?;
-        if original.is_none() {
+        let capture_required = restoration_state(&self.original_title).is_none();
+        if capture_required {
             winsafe::SetLastError(winsafe::co::ERROR::SUCCESS);
-            *original = Some(captured_window_title(
+            let captured = Arc::<str>::from(captured_window_title(
                 win32console::console::WinConsole::get_title(),
             )?);
+            let mut original = restoration_state(&self.original_title);
+            if original.is_none() {
+                *original = Some(captured);
+            }
         }
         win32console::console::WinConsole::set_title(title)
     }
     #[cfg(windows)]
     fn restore_window_title(&self) -> io::Result<()> {
-        let original = self
-            .original_title
-            .lock()
-            .map_err(|_| io::Error::other("console title poisoned"))?;
-        original.as_ref().map_or(Ok(()), |title| {
-            win32console::console::WinConsole::set_title(title)
-        })
+        let original = restoration_state(&self.original_title).clone();
+        match original {
+            Some(title) => win32console::console::WinConsole::set_title(&title),
+            None => Ok(()),
+        }
     }
 
     fn disable_focus_reporting(&self) -> io::Result<()> {
@@ -837,22 +1117,29 @@ impl TerminalModes for InheritedTerminalModes {
     fn disable_pointer_capture(&self) -> io::Result<()> {
         #[cfg(windows)]
         self.terminal
-            .input_mode
-            .set_mode(self.terminal.input_mode.mode()? & !0x0010)?;
-        self.write_command(PointerCapture(false))
+            .set_input_mode(self.terminal.input_mode()? & !0x0010)?;
+        self.write_command(PointerCapture {
+            enabled: false,
+            level: PointerTrackingLevel::ButtonOnly,
+        })
     }
 
-    fn enable_pointer_capture(&self) -> io::Result<()> {
+    fn enable_pointer_capture(&self, level: PointerTrackingLevel) -> io::Result<()> {
         #[cfg(windows)]
         self.terminal
-            .input_mode
-            .set_mode(self.terminal.input_mode.mode()? | 0x0010)?;
-        self.write_command(PointerCapture(true))
+            .set_input_mode(self.terminal.input_mode()? | 0x0010)?;
+        self.write_command(PointerCapture {
+            enabled: true,
+            level,
+        })
     }
 
-    #[cfg(windows)]
-    fn set_pointer_hover(&self, enabled: bool) -> io::Result<()> {
-        self.write_command(PointerHover(enabled))
+    fn set_pointer_tracking(
+        &self,
+        from: PointerTrackingLevel,
+        to: PointerTrackingLevel,
+    ) -> io::Result<()> {
+        self.write_command(PointerTrackingTransition { from, to })
     }
 
     #[cfg(unix)]
@@ -906,9 +1193,16 @@ impl TerminalModes for InheritedTerminalModes {
 
     fn enter_alternate_screen(&self) -> io::Result<()> {
         #[cfg(windows)]
-        self.terminal
-            .output_mode
-            .set_mode(self.terminal.output_mode.mode()? | 0x0005)?;
+        {
+            admit_windows_vt_and_enter_alternate(
+                &self.original_console,
+                &self.output_vt_enabled,
+                &self.alternate_sequence_started,
+                |mode| self.terminal.set_output_mode(mode),
+                || self.terminal.output(),
+            )
+        }
+        #[cfg(unix)]
         self.write_command(EnterAlternateScreen)
     }
 
@@ -917,60 +1211,38 @@ impl TerminalModes for InheritedTerminalModes {
     }
 
     fn leave_alternate_screen(&self) -> io::Result<()> {
-        let result = self.write_command(LeaveAlternateScreen);
         #[cfg(windows)]
-        if let Some((_, output)) = *self
-            .original_console
-            .lock()
-            .map_err(|_| io::Error::other("console mode poisoned"))?
         {
-            self.terminal.output_mode.set_mode(output)?;
+            leave_windows_alternate(
+                &self.output_vt_enabled,
+                &self.alternate_sequence_started,
+                || self.terminal.output(),
+            )
         }
-        result
+        #[cfg(unix)]
+        self.write_command(LeaveAlternateScreen)
     }
 
     fn show_cursor(&self) -> io::Result<()> {
-        #[cfg(unix)]
-        {
-            self.write_command(Show)
-        }
-        #[cfg(windows)]
-        {
-            crossterm::Command::execute_winapi(&Show)
-        }
+        self.write_command(Show)
     }
     #[cfg(windows)]
     fn enable_raw_mode(&self) -> io::Result<()> {
-        let mut saved = self
-            .original_console
-            .lock()
-            .map_err(|_| io::Error::other("console mode poisoned"))?;
-        if saved.is_some() {
-            return Err(io::ErrorKind::AlreadyExists.into());
-        }
-        let original = (
-            self.terminal.input_mode.mode()?,
-            self.terminal.output_mode.mode()?,
-        );
-        *saved = Some(original);
-        // Keep VT input so ConPTY retains bracketed-paste delimiters. Our one
-        // record reader preserves VK=0 control characters instead of feeding
-        // them through a key-layout translator. Pointer capture owns the mouse
-        // bit separately; raw admission must not capture with --mouse off.
-        self.terminal
-            .input_mode
-            .set_mode((original.0 | 0x0288) & !0x0057)
+        capture_and_enable_windows_raw_mode(
+            &self.original_console,
+            || self.terminal.input_mode(),
+            || self.terminal.output_mode(),
+            |mode| self.terminal.set_input_mode(mode),
+        )
     }
     #[cfg(windows)]
     fn disable_raw_mode(&self) -> io::Result<()> {
-        if let Some((input, _)) = *self
-            .original_console
-            .lock()
-            .map_err(|_| io::Error::other("console mode poisoned"))?
-        {
-            self.terminal.input_mode.set_mode(input)?;
-        }
-        Ok(())
+        restore_windows_console_modes(
+            &self.original_console,
+            &self.output_vt_enabled,
+            |mode| self.terminal.set_output_mode(mode),
+            |mode| self.terminal.set_input_mode(mode),
+        )
     }
 }
 
@@ -1068,6 +1340,8 @@ fn process_panic_registry() -> &'static PanicRestorationRegistry {
 
 #[cfg(test)]
 mod tests;
+#[cfg(all(test, windows))]
+mod windows_tests;
 
 #[cfg(windows)]
 fn captured_window_title(result: io::Result<String>) -> io::Result<String> {

@@ -2,6 +2,7 @@
 use crate::{
     client_view::ClientView,
     terminal_session::TerminalSessionView,
+    tui_composition::{ClientCaptureClaims, project_capture},
     tui_theme::{Role, Theme},
 };
 use orchbee_workbench_protocol::{
@@ -121,22 +122,19 @@ impl State {
     }
 }
 pub(crate) fn available(view: &ClientView, session: Option<TerminalSessionView<'_>>) -> bool {
-    ({
-        #[cfg(windows)]
-        {
-            !view.machines.open && !view.copy_mode_active()
-        }
-        #[cfg(not(windows))]
-        {
-            true
-        }
-    }) && !view.prefix_active()
+    let Some(TerminalSessionView::Native(native)) = session else {
+        return false;
+    };
+    let client_claims = ClientCaptureClaims::default();
+    #[cfg(windows)]
+    let client_claims = client_claims
+        .with_machine(view.machines.open)
+        .with_resize(view.resize_mode());
+    project_capture(client_claims, native.capture_claims()).is_none()
+        && !view.prefix_active()
         && view.overlay().is_none()
         && !view.has_transient_notice()
-        && matches!(session,
-        Some(TerminalSessionView::Native(native)) if native.agent_board().is_none() && native.settings().is_none()
-        && native.close_confirmation().is_none() && native.panel_close_confirmation().is_none()
-        && native.rename_draft().is_none() && native.setup_draft().is_none() && native.notice().is_none())
+        && native.notice().is_none()
 }
 pub(crate) fn sound(kind: NotificationSound) {
     #[cfg(windows)]

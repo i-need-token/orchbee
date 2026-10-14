@@ -76,7 +76,7 @@ fn fixture() -> (InputDispatcher, ClientView, Port) {
 }
 
 #[test]
-fn divider_decoded_escape_cancels_without_forwarding_and_later_typing_reaches_the_pane() {
+fn divider_decoded_escape_cancels_and_fences_only_the_late_release_packet() {
     let (mut dispatcher, mut view, mut port) = fixture();
     dispatch_all(
         &mut dispatcher,
@@ -97,13 +97,15 @@ fn divider_decoded_escape_cancels_without_forwarding_and_later_typing_reaches_th
         .unwrap();
     assert!(dispatcher.divider_preview().is_none());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;61;6mx");
-    assert_eq!(port.bytes, b"x");
+    assert!(port.bytes.is_empty());
     assert_eq!(port.submissions, 0);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
+    assert_eq!(port.bytes, b"fresh");
 }
 
 #[test]
-fn divider_decoded_release_is_once_and_prefix_shift_or_map_invalidation_cancels() {
-    for ending in 0..4 {
+fn divider_decoded_release_is_once_and_every_transport_boundary_cancels() {
+    for ending in 0..5 {
         let (mut dispatcher, mut view, mut port) = fixture();
         dispatch_all(
             &mut dispatcher,
@@ -115,18 +117,54 @@ fn divider_decoded_release_is_once_and_prefix_shift_or_map_invalidation_cancels(
             0 => {}
             1 => dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02?"),
             2 => dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<36;61;6M"),
-            _ => dispatcher.invalidate_hit_map(&mut port),
+            3 => dispatcher.invalidate_hit_map(&mut port),
+            _ => {
+                dispatcher.set_pointer_capture(&mut view, &mut port, false);
+                dispatcher.set_pointer_capture(&mut view, &mut port, true);
+            }
         }
         dispatch_all(
             &mut dispatcher,
             &mut view,
             &mut port,
-            b"\x1b[<0;61;6m\x1b[<0;61;6m",
+            b"\x1b[<0;61;6m\x1b[<0;61;6mtail",
         );
         assert_eq!(port.submissions, usize::from(ending == 0));
         assert!(port.bytes.is_empty());
         assert!(dispatcher.divider_preview().is_none());
     }
+}
+
+#[test]
+fn divider_focus_loss_rolls_back_and_late_release_fences_only_its_packet() {
+    let (mut dispatcher, mut view, mut port) = fixture();
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;51;6M\x1b[<32;61;6M",
+    );
+    assert!(dispatcher.divider_preview().is_some());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O");
+    assert!(dispatcher.divider_preview().is_none());
+    assert_eq!(port.submissions, 0);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[I");
+    assert!(dispatcher.divider_preview().is_none());
+
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;61;6mtail\x1b[200~paste\x1b[201~\x1b[",
+    );
+    assert_eq!(port.submissions, 0);
+    assert!(port.bytes.is_empty());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"A");
+    assert!(port.bytes.is_empty());
+    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
+    assert_eq!(port.bytes, b"fresh");
 }
 
 #[test]

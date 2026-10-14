@@ -2,8 +2,12 @@
 use super::{ModalPresentation, NativeSessionView, NativeUi, SessionActionDisposition};
 use crate::{
     client_view::KeyEvent,
-    native_settings::{Edit, Editor, Observation, Row, Submission, Token, View, key_edit},
+    native_settings::{
+        Edit, Editor, Observation, Reconciliation, Row, SettingsDraw, SettingsInputContext,
+        Submission, Token, View, key_edit,
+    },
     terminal_session::settings_lane::{Job, Lane},
+    tui_presentation::{GeometrySettlement, PresentationPhase},
 };
 use orchbee_workbench_protocol::{
     NativeSettingsFailure, NativeSettingsOperation, NativeSettingsOutcome, NativeSettingsRequest,
@@ -21,6 +25,7 @@ pub(crate) enum Notice {
     Failed,
     Unknown,
     Busy,
+    PresentationUnavailable,
     TooSmall,
     Background,
 }
@@ -89,8 +94,16 @@ impl NativeSessionView<'_> {
     pub(crate) fn settings(&self) -> Option<View<'_>> {
         self.settings.and_then(|settings| settings.editor.view())
     }
+    pub(crate) fn settings_input_context(&self) -> Option<SettingsInputContext> {
+        self.settings?.editor.input_context()
+    }
     pub(crate) fn settings_pending(&self) -> bool {
         self.settings.is_some_and(|settings| settings.pending)
+    }
+    pub(crate) fn settings_presentation(&self) -> Option<PresentationPhase> {
+        let settings = self.settings?;
+        settings.editor.view()?;
+        Some(settings.editor.presentation())
     }
     pub(crate) fn settings_notice(&self) -> Option<Notice> {
         match self.command_notice {
@@ -214,7 +227,12 @@ impl NativeUi {
         }
     }
     fn fail_settings(&mut self, token: Token, notice: Notice) {
-        if self.settings.editor.failed(token) {
+        let reconciliation = match notice {
+            Notice::SourceChanged => Some(Reconciliation::SourceChanged),
+            Notice::Unknown => Some(Reconciliation::OutcomeUnknown),
+            _ => None,
+        };
+        if self.settings.editor.failed(token, reconciliation) {
             self.settings.started = None;
             self.settings.pending = false;
             self.settings.note(notice, self.clock.now());
@@ -298,6 +316,47 @@ impl NativeUi {
     pub(in crate::terminal_session) fn settings_active(&self) -> bool {
         self.settings.editor.visible()
     }
+    pub(in crate::terminal_session) fn settings_input_context(
+        &self,
+    ) -> Option<SettingsInputContext> {
+        self.view().settings_input_context()
+    }
+    /// Executes only against the exact Settings input snapshot selected by the compositor.
+    ///
+    /// `false` means that snapshot expired. The caller must discard the item rather than
+    /// reprojecting it onto another input owner.
+    pub(in crate::terminal_session) fn capture_settings_key_for(
+        &mut self,
+        expected: SettingsInputContext,
+        event: KeyEvent,
+    ) -> bool {
+        if self.settings_input_context() != Some(expected) {
+            return false;
+        }
+        if expected.readiness == crate::native_settings::SettingsInputReadiness::Interactive
+            || matches!(key_edit(event, false), Some(Edit::Cancel))
+        {
+            self.capture_settings_key(event);
+        }
+        true
+    }
+    /// Applies paste only while the exact selected Settings surface remains interactive.
+    ///
+    /// Recovery capture consumes paste without mutating the retained workflow. An expired
+    /// snapshot returns `false` and must still be discarded by the caller.
+    pub(in crate::terminal_session) fn capture_settings_paste_for(
+        &mut self,
+        expected: SettingsInputContext,
+        text: Option<&str>,
+    ) -> bool {
+        if self.settings_input_context() != Some(expected) {
+            return false;
+        }
+        if expected.readiness == crate::native_settings::SettingsInputReadiness::Interactive {
+            self.capture_settings_paste(text);
+        }
+        true
+    }
     pub(in crate::terminal_session) fn capture_settings_key(&mut self, event: KeyEvent) {
         let text_entry =
             matches!(self.settings.editor.view(), Some(View::Draft(draft)) if draft.text.is_some());
@@ -324,9 +383,6 @@ impl NativeUi {
             self.settings.editor.reject_paste();
         }
     }
-    pub(in crate::terminal_session) fn settings_text_remaining(&self) -> usize {
-        self.settings.editor.remaining_text_bytes()
-    }
     pub(in crate::terminal_session) fn click_settings_control(
         &mut self,
         token: Token,
@@ -345,15 +401,26 @@ impl NativeUi {
             self.submit_settings(submission);
         }
     }
-    pub(super) fn after_settings_draw(&mut self, draw: Option<ModalPresentation<Token>>) {
+    pub(super) fn after_settings_draw(&mut self, draw: Option<ModalPresentation<SettingsDraw>>) {
         match draw {
-            Some(ModalPresentation::Presented(token)) => self.settings.editor.draw(token),
-            Some(ModalPresentation::NotPresented) => {
-                // Retain the draft across resize; an unseen frame cannot arm Save.
-                self.settings.editor.not_presented();
-                self.settings.note(Notice::TooSmall, self.clock.now());
+            Some(ModalPresentation::Presented(draw)) => {
+                self.settings.editor.presented(draw);
+                if self.settings.notice(self.clock.now()) == Some(Notice::TooSmall) {
+                    self.settings.clear_notice();
+                }
             }
-            None => {}
+            Some(ModalPresentation::NotPresented) => {
+                match self.settings.editor.geometry_blocked() {
+                    Some(GeometrySettlement::Refused) => self
+                        .settings
+                        .note(Notice::PresentationUnavailable, self.clock.now()),
+                    Some(GeometrySettlement::Suspended) => {
+                        self.settings.note(Notice::TooSmall, self.clock.now())
+                    }
+                    None => {}
+                }
+            }
+            None => self.settings.editor.not_presented(),
         }
     }
 }

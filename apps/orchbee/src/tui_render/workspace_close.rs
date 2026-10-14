@@ -1,10 +1,13 @@
-use super::tab_close::{modal_area, wrapped_text_fits};
+use super::modal::{
+    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+};
 use crate::{
+    client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_session::{ModalPresentation, WorkspaceCloseConfirmationView, WorkspaceCloseToken},
-    terminal_text::{display_width, sanitize_terminal_text},
+    terminal_text::sanitize_terminal_text,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::{Role, Theme},
+    tui_theme::Theme,
 };
 use ratatui::{
     Frame,
@@ -20,7 +23,6 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<WorkspaceCloseToken>) {
-    hits.start_modal();
     let (title, warning) = match confirmation.project_member_count() {
         Some(count) => (
             locale.project_close_all_title(),
@@ -31,9 +33,24 @@ pub(super) fn render(
             locale.workspace_close_warning().to_owned(),
         ),
     };
-    let cancel = locale.workspace_close_cancel_button();
-    let confirm = locale.workspace_close_confirm_button();
-    let actions = format!("{cancel}  {confirm}");
+    let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
+    let confirm_key = modal_key_label(theme, &Binding::new(KeyCode::Char('y'), Modifiers::NONE));
+    let hints = [
+        super::controls::KeyHint::new(&escape, locale.workspace_close_cancel_hint()),
+        super::controls::KeyHint::new(&confirm_key, locale.workspace_close_confirm_hint()),
+    ];
+    let actions = [
+        ModalAction::new(
+            locale.workspace_close_cancel_label(),
+            super::controls::ActionKind::Secondary,
+            true,
+        ),
+        ModalAction::new(
+            locale.workspace_close_confirm_label(),
+            super::controls::ActionKind::Primary,
+            true,
+        ),
+    ];
     let text = Text::from(vec![
         Line::from(title),
         Line::from(""),
@@ -41,65 +58,58 @@ pub(super) fn render(
         Line::from(""),
         Line::from(warning),
         Line::from(""),
-        Line::from(actions.as_str()),
+        Line::from(""),
+        Line::from(""),
     ]);
-    let area = modal_area(content_area, &text);
-    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
-    let inner = block.inner(area);
-    // Decision labels stay on one row, so every recorded cell is actually painted.
-    let complete =
-        wrapped_text_fits(&text, inner) && display_width(&actions) <= usize::from(inner.width);
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    frame.render_widget(Clear, area);
-    frame.render_widget(block, area);
-    if let Some(close) = super::controls::close(frame, area, theme) {
-        hits.record(
-            HitLayer::Overlay,
-            close,
+    let Some(layout) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
+    else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+
+    hits.start_modal();
+    hits.record(
+        HitLayer::OverlaySurface,
+        layout.area,
+        HitTarget::OverlaySurface,
+    );
+    frame.render_widget(Clear, layout.area);
+    frame.render_widget(
+        super::overlay_surface(theme, true, Padding::horizontal(2)),
+        layout.area,
+    );
+    frame.render_widget(
+        Paragraph::new(text).wrap(Wrap { trim: false }),
+        layout.inner,
+    );
+    paint_modal_close(
+        frame,
+        layout.close,
+        HitTarget::WorkspaceClose {
+            token: confirmation.token(),
+            confirm: false,
+        },
+        theme,
+        hits,
+    );
+    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
+        .expect("admitted modal hints must paint");
+    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
+    for ((rect, action), confirm) in layout.actions.into_iter().zip(actions).zip([false, true]) {
+        paint_modal_action(
+            frame,
+            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
+            rect,
+            action,
             HitTarget::WorkspaceClose {
                 token: confirmation.token(),
-                confirm: false,
+                confirm,
             },
-        );
-    }
-    if complete {
-        let action_row = Paragraph::new(Text::from(text.lines[..text.lines.len() - 1].to_vec()))
-            .wrap(Wrap { trim: false })
-            .line_count(inner.width);
-        let cancel_width = display_width(cancel) as u16;
-        let y = inner.y + action_row as u16;
-        for (x, width, confirm) in [
-            (inner.x, cancel_width, false),
-            (
-                inner.x + cancel_width + 2,
-                display_width(confirm) as u16,
-                true,
-            ),
-        ] {
-            hits.record(
-                HitLayer::Overlay,
-                Rect::new(x, y, width, 1),
-                HitTarget::WorkspaceClose {
-                    token: confirmation.token(),
-                    confirm,
-                },
-            );
-        }
-        frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), inner);
-    } else {
-        frame.render_widget(
-            Paragraph::new(locale.close_resize_hint())
-                .style(theme.style(Role::StatusWarning))
-                .wrap(Wrap { trim: false }),
-            inner,
+            theme,
+            hits,
         );
     }
     (
-        area,
-        if complete {
-            ModalPresentation::Presented(confirmation.token())
-        } else {
-            ModalPresentation::NotPresented
-        },
+        layout.area,
+        ModalPresentation::Presented(confirmation.token()),
     )
 }

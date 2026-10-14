@@ -1,5 +1,7 @@
 //! Exact resize-mode bindings shared by pure input decisions and localized discovery.
-use super::{Binding, KeyCode, KeyEvent, KeyKind, LabelStyle, Modifiers, PanelDirection};
+use super::{
+    Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, LabelStyle, Modifiers, PanelDirection,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ResizeKey {
@@ -59,7 +61,7 @@ pub(super) fn decide(event: KeyEvent) -> Option<ResizeKey> {
     None
 }
 
-pub(super) fn labels(fine: bool) -> String {
+pub(super) fn labels_with_glyphs(fine: bool, glyphs: KeyLabelGlyphs) -> String {
     let mods = if fine {
         Modifiers::NONE.with_shift()
     } else {
@@ -67,21 +69,27 @@ pub(super) fn labels(fine: bool) -> String {
     };
     ARROWS
         .into_iter()
-        .map(|(code, _)| super::format_binding(&Binding::new(code, mods), LabelStyle::for_host()))
+        .map(|(code, _)| {
+            super::format_binding_with_glyphs(
+                &Binding::new(code, mods),
+                LabelStyle::for_host(),
+                glyphs,
+            )
+        })
         .collect::<Vec<_>>()
         .join(" / ")
 }
 
-pub(super) fn help_label() -> String {
-    super::format_binding(&HELP, LabelStyle::for_host())
+pub(super) fn help_label_with_glyphs(glyphs: KeyLabelGlyphs) -> String {
+    super::format_binding_with_glyphs(&HELP, LabelStyle::for_host(), glyphs)
 }
-pub(super) fn exit_label() -> String {
-    super::format_binding(&EXIT, LabelStyle::for_host())
+pub(super) fn exit_label_with_glyphs(glyphs: KeyLabelGlyphs) -> String {
+    super::format_binding_with_glyphs(&EXIT, LabelStyle::for_host(), glyphs)
 }
-pub(super) fn page_label() -> String {
+pub(super) fn page_label_with_glyphs(glyphs: KeyLabelGlyphs) -> String {
     PAGES
         .iter()
-        .map(|binding| super::format_binding(binding, LabelStyle::for_host()))
+        .map(|binding| super::format_binding_with_glyphs(binding, LabelStyle::for_host(), glyphs))
         .collect::<Vec<_>>()
         .join(" / ")
 }

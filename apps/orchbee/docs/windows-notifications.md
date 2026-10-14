@@ -8,6 +8,11 @@ The existing Server Workbench service owns an ephemeral notification registry. E
 
 A cancellable Client-owned connection polls independently of input/rendering. Only the UI owner installs notifications. With card delivery enabled, one five-second transient card uses the requested corner within the content region, never covers the status row, captures no keys or mouse, moves no focus and changes no layout. For cards, existing notices, dialogs and overlays make the listener temporarily unavailable; a race is resolved by discarding the incoming card rather than replacing a user-owned surface. Expiry schedules redraw while idle. Display text escapes terminal and directional formatting controls and clips using terminal display width. A successfully drawn card may issue one safe Windows sound cue: information for done, exclamation for request, no cue for none. System sound policy may suppress playback. External delivery requests sound independently of visual success; system mode requests a Windows notification-area balloon. No delivery activates a native window or navigates to an Agent target.
 
+TooSmall root frames do not paint notification cards, consume their pending sound, or acknowledge
+attention. The existing card and expiry remain retained; after geometry recovers, the first
+successful frame that actually paints the still-live card settles its pending sound once. A
+successful root frame alone is not a successful notification-card draw.
+
 ## Boundaries and evidence
 
 Herdr reference is `e0507237ad8d41f60aece10d00ef29ce2339ca34`, especially `server/headless/notifications.rs`: Client delivery policy is distinct from Server fallback policy. Native custom notifications honor Client delivery policy and omitted-position inheritance. Automatic Agent notifications are specified below; clipboard policy, custom audio and target navigation remain separate alignment work. Matched private cohorts upgrade/roll back together. No new persisted format, dependency version or unbounded queue is introduced.
@@ -101,6 +106,6 @@ Rolling back to an older binary also requires removing `agent_delivery`, `delay_
 
 The owning implementation tests cover baseline/replacement silence, exact Client/identity/sequence/kind deduplication, stale candidate rejection, client-local acknowledgement, mute policy, invalid-reload preservation, valid-reload cancellation and no effect after retirement.
 
-Maintain the concrete witnesses in `src/terminal_session/agent_notifications/tests.rs`, `src/terminal_session/agent_notifications/tests/generated.rs`, `src/notifications/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `src/terminal_session/agent_notifications/tests.rs`, `src/terminal_session/agent_notifications/tests/generated.rs`, `src/notifications/tests.rs`, `src/tui_shell/tests/notification_too_small.rs` and the adjacent state, carrier, input and rendering suites. The actual root-frame resize witness verifies hidden-card effect retention and one-time settlement without requesting OS sound. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

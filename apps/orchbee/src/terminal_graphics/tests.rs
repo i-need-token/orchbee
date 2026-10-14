@@ -1,6 +1,6 @@
 //! Probe ownership, real reply framing and literal input preservation witnesses.
 use super::*;
-use crate::terminal_input::{DecodedKind, LegacyDecoder};
+use crate::terminal_input::{DecodedKind, HostReply, LegacyDecoder};
 
 fn dimensions(columns: u16, rows: u16) -> WindowDimensions {
     WindowDimensions {
@@ -248,12 +248,12 @@ fn replies_are_metadata_but_reply_shaped_paste_and_alt_underscore_remain_input()
         decode(b"a\x1b[6;16;8t\x1b_Gi=31;OK\x1b\\b"),
         vec![
             DecodedKind::Key(KeyEvent::press(KeyCode::Char('a'), Modifiers::NONE)),
-            DecodedKind::HostReply(Reply::Cell(Some((8, 16)))),
-            DecodedKind::HostReply(Reply::Kitty {
+            DecodedKind::HostReply(HostReply::Graphics(Reply::Cell(Some((8, 16))))),
+            DecodedKind::HostReply(HostReply::Graphics(Reply::Kitty {
                 placement_id: None,
                 image_id: 31,
                 success: true
-            }),
+            })),
             DecodedKind::Key(KeyEvent::press(KeyCode::Char('b'), Modifiers::NONE)),
         ]
     );

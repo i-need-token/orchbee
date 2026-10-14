@@ -10,9 +10,10 @@
 use super::{
     native_cli_query::{run_json, spawn_real_server, validate, validators},
     native_workspace_fixture::{
-        DIRECTORY_ACCEPTED, DIRECTORY_NEEDED, DIRECTORY_PATH, DIRECTORY_READY, EMPTY, TEXT_ACTIONS,
-        modal,
+        DIRECTORY_ACCEPTED, DIRECTORY_INPUT_HINT, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION,
+        DIRECTORY_PATH, DIRECTORY_READY_ACTION, EMPTY, TEXT_ACTIONS, TEXT_HINTS, modal,
     },
+    tui_observer::{ModalRow, NativeHeader},
     *,
 };
 
@@ -133,7 +134,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
         .expect("workspace id")
         .to_owned();
 
-    let workspace_header = format!("WORKBENCH · {PROJECT_LABEL} / {WORKSPACE_LABEL}");
+    let workspace_header = format!("{PROJECT_LABEL} / {WORKSPACE_LABEL}");
     let mut tab_create = vec![
         "tab",
         "create",
@@ -157,7 +158,7 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     loop {
         client.collect();
         let now = Instant::now();
-        if client.contains(&workspace_header) {
+        if client.contains_native_header(NativeHeader::empty(&workspace_header)) {
             match settle {
                 Some(until) if now >= until => break,
                 None => settle = Some(now + Duration::from_millis(150)),
@@ -171,11 +172,12 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
         }
         thread::yield_now();
     }
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[workspace_header.as_str(), EMPTY, DIRECTORY_NEEDED],
-        &["[*1"],
+        NativeHeader::empty(&workspace_header),
+        &[EMPTY, DIRECTORY_NEEDED, DIRECTORY_NEEDED_ACTION],
+        &[],
         &[],
         &mut [],
     );
@@ -199,27 +201,25 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     let directory = fs::canonicalize(directory)?;
     let checkpoint = client.checkpoint();
     client.send(b"\x02e");
-    let hint = [
-        "Literal absolute path, at most 4,096 UTF-8 bytes, without NUL. No expansion or",
-        "directory creation.",
-    ];
+    let project_row = format!("Project: {PROJECT_LABEL}");
+    let workspace_row = format!("Workspaces: {WORKSPACE_LABEL}");
     modal(
         &mut client,
         checkpoint,
-        workspace_header.as_str(),
+        NativeHeader::empty(&workspace_header),
         &[
-            DIRECTORY_PATH,
-            "",
-            &format!("Project: {PROJECT_LABEL}"),
-            "",
-            &format!("Workspaces: {WORKSPACE_LABEL}"),
-            "",
-            "",
-            "",
-            hint[0],
-            hint[1],
-            "",
-            TEXT_ACTIONS,
+            ModalRow::exact(DIRECTORY_PATH),
+            ModalRow::exact(""),
+            ModalRow::exact(&project_row),
+            ModalRow::exact(""),
+            ModalRow::exact(&workspace_row),
+            ModalRow::exact(""),
+            ModalRow::field_at_end(""),
+            ModalRow::exact(""),
+            ModalRow::exact(DIRECTORY_INPUT_HINT),
+            ModalRow::exact(""),
+            ModalRow::exact(TEXT_HINTS),
+            ModalRow::exact(TEXT_ACTIONS),
         ],
     );
     let checkpoint = client.checkpoint();
@@ -228,34 +228,36 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
     modal(
         &mut client,
         checkpoint,
-        workspace_header.as_str(),
+        NativeHeader::empty(&workspace_header),
         &[
-            DIRECTORY_PATH,
-            "",
-            &format!("Project: {PROJECT_LABEL}"),
-            "",
-            &format!("Workspaces: {WORKSPACE_LABEL}"),
-            "",
-            path,
-            "",
-            hint[0],
-            hint[1],
-            "",
-            TEXT_ACTIONS,
+            ModalRow::exact(DIRECTORY_PATH),
+            ModalRow::exact(""),
+            ModalRow::exact(&project_row),
+            ModalRow::exact(""),
+            ModalRow::exact(&workspace_row),
+            ModalRow::exact(""),
+            ModalRow::field_at_end(path),
+            ModalRow::exact(""),
+            ModalRow::exact(DIRECTORY_INPUT_HINT),
+            ModalRow::exact(""),
+            ModalRow::exact(TEXT_HINTS),
+            ModalRow::exact(TEXT_ACTIONS),
         ],
     );
     let checkpoint = client.checkpoint();
     client.send(b"\r");
-    client.wait_frame_text_after(
+    let directory_fact = format!("Directory: {path}");
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
+        NativeHeader::empty(&workspace_header),
         &[
-            workspace_header.as_str(),
             EMPTY,
-            DIRECTORY_READY,
+            &directory_fact,
+            DIRECTORY_READY_ACTION,
             DIRECTORY_ACCEPTED,
         ],
-        &["[*1"],
+        &[],
         &[],
         &mut [],
     );

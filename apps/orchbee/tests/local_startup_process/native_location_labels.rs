@@ -1,4 +1,5 @@
 use super::native_workspace_fixture::*;
+use super::tui_observer::{ModalRow, NativeHeader};
 use super::*;
 use orchbee_workbench_protocol::Snapshot;
 use std::path::Path;
@@ -21,17 +22,6 @@ impl Target {
         match self {
             Self::Workspace => "Rename Workspace",
             Self::Project => "Rename Project",
-        }
-    }
-
-    fn actions(self) -> &'static str {
-        match self {
-            Self::Workspace => {
-                "Enter · rename Workspace    Esc · cancel    Backspace · delete    Ctrl+U · clear"
-            }
-            Self::Project => {
-                "Enter · rename Project    Esc · cancel    Backspace · delete    Ctrl+U · clear"
-            }
         }
     }
 
@@ -71,12 +61,30 @@ fn editor(
 ) {
     let project_row = format!("Project: {project}");
     let workspace_row = format!("Workspaces: {workspace}");
-    let mut rows = vec![target.title(), "", &project_row, ""];
+    let mut rows = vec![
+        ModalRow::exact(target.title()),
+        ModalRow::exact(""),
+        ModalRow::exact(&project_row),
+        ModalRow::exact(""),
+    ];
     if matches!(target, Target::Workspace) {
-        rows.extend([workspace_row.as_str(), ""]);
+        rows.extend([ModalRow::exact(workspace_row.as_str()), ModalRow::exact("")]);
     }
-    rows.extend([text, "", target.hint(), "", target.actions()]);
-    modal(client, checkpoint, &header(project, workspace), &rows);
+    rows.extend([
+        ModalRow::field_at_end(text),
+        ModalRow::exact(""),
+        ModalRow::exact(target.hint()),
+        ModalRow::exact(""),
+        ModalRow::exact(TEXT_HINTS),
+        ModalRow::exact(TEXT_ACTIONS),
+    ]);
+    let location = header(project, workspace);
+    modal(
+        client,
+        checkpoint,
+        NativeHeader::active(&location, 1, "1"),
+        &rows,
+    );
 }
 
 fn open_editor(client: &mut Client, target: Target, project: &str, workspace: &str) {
@@ -96,15 +104,16 @@ fn edit_label(client: &mut Client, target: Target, project: &str, workspace: &st
 }
 
 fn header(project: &str, workspace: &str) -> String {
-    format!("WORKBENCH · {project} / {workspace}")
+    format!("{project} / {workspace}")
 }
 
 fn wait_workspace(client: &mut Client, checkpoint: usize, header: &str, notice: Option<&str>) {
-    let mut required = vec![header, "[*1 1]"];
+    let mut required = Vec::new();
     required.extend(notice);
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
+        NativeHeader::active(header, 1, "1"),
         &required,
         &[
             "Rename Workspace",
@@ -137,15 +146,11 @@ fn observe_peer_refresh(
     let checkpoint = peer.checkpoint();
     peer.send(b"\x02w");
     // Active-header identity cannot be satisfied by a matching label in the navigator.
-    peer.wait_frame_text_after(
+    peer.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[
-            expected_header,
-            "[*1 1]",
-            "Tab 1 · Ready ·",
-            "LOCATION_SHELL_RETAINED",
-        ],
+        NativeHeader::active(expected_header, 1, "1"),
+        &["Tab 1 · Ready ·", "LOCATION_SHELL_RETAINED"],
         &["Workbench navigator", EMPTY],
         &[],
         &mut [active],
@@ -193,10 +198,11 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     ] {
         let checkpoint = client.checkpoint();
         client.send(target.shortcut());
-        client.wait_frame_text_after(
+        client.wait_native_frame_text_after(
             checkpoint,
             Instant::now() + SWITCH_TIMEOUT,
-            &[STANDALONE_HEADER, "[*1 1]", notice],
+            NativeHeader::active(STANDALONE_LOCATION, 1, "1"),
+            &[notice],
             &[target.title()],
             &[],
             &mut [],
@@ -212,14 +218,24 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     fs::create_dir(&directory)?;
     let directory = fs::canonicalize(directory)?;
     let checkpoint = submit_directory(&mut client, directory.to_str().ok_or("path UTF-8")?);
-    wait_empty(&mut client, checkpoint, Some(DIRECTORY_ACCEPTED));
-    finish_modal_handoff(&mut client, &[WORKSPACE_HEADER, EMPTY]);
+    wait_empty(
+        &mut client,
+        checkpoint,
+        Some(directory.to_str().ok_or("path UTF-8")?),
+        Some(DIRECTORY_ACCEPTED),
+    );
+    finish_modal_handoff(
+        &mut client,
+        NativeHeader::empty(WORKSPACE_LOCATION),
+        &[EMPTY],
+    );
     let checkpoint = client.checkpoint();
     client.send(b"\x02c");
-    client.wait_frame_text_after(
+    client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + STARTUP_OR_CREATE_TIMEOUT,
-        &[WORKSPACE_HEADER, "[*1 1]", "Tab 1 · Ready · controlling"],
+        NativeHeader::active(WORKSPACE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready · controlling"],
         &[EMPTY],
         &[],
         &mut [],
@@ -253,15 +269,11 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
     );
     let checkpoint = peer.checkpoint();
     peer.send(b"\x02]");
-    peer.wait_frame_text_after(
+    peer.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + SWITCH_TIMEOUT,
-        &[
-            WORKSPACE_HEADER,
-            "[*1 1]",
-            "Tab 1 · Ready · view only",
-            "LOCATION_SHELL_RETAINED",
-        ],
+        NativeHeader::active(WORKSPACE_LOCATION, 1, "1"),
+        &["Tab 1 · Ready · view only", "LOCATION_SHELL_RETAINED"],
         &[EMPTY],
         &[],
         &mut [&mut client],
@@ -308,15 +320,20 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
         );
         // The peer installs the committed rename through the publication probe itself —
         // no navigator, no `w` — replacing the previous header on its own.
-        peer.wait_frame_text_after(
+        peer.wait_native_frame_text_after(
             peer_checkpoint,
             Instant::now() + OBSERVATION_TIMEOUT,
-            &[&renamed_header],
+            NativeHeader::active(&renamed_header, 1, "1"),
+            &[],
             &[],
             &[],
             &mut [&mut client],
         );
-        finish_modal_handoff(&mut client, &[&renamed_header, "[*1 1]"]);
+        finish_modal_handoff(
+            &mut client,
+            NativeHeader::active(&renamed_header, 1, "1"),
+            &[],
+        );
         assert_shell_survives(&fixture, &mut client, &identity, checkpoint_name);
         observe_peer_refresh(&mut peer, &mut client, &expected, &renamed_header);
     }
@@ -340,7 +357,11 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
             expected,
             "unchanged submission preserves revision and every canonical fact"
         );
-        finish_modal_handoff(&mut client, &[&current_header, "[*1 1]"]);
+        finish_modal_handoff(
+            &mut client,
+            NativeHeader::active(&current_header, 1, "1"),
+            &[],
+        );
         assert_shell_survives(&fixture, &mut client, &identity, checkpoint_name);
 
         open_editor(&mut client, target, project, workspace);
@@ -359,7 +380,11 @@ fn native_location_rename_refresh_cancel_and_unchanged_preserve_the_live_workspa
             expected,
             "cancel allocates no canonical mutation"
         );
-        finish_modal_handoff(&mut client, &[&current_header, "[*1 1]"]);
+        finish_modal_handoff(
+            &mut client,
+            NativeHeader::active(&current_header, 1, "1"),
+            &[],
+        );
         assert_shell_survives(
             &fixture,
             &mut client,

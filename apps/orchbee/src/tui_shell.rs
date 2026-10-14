@@ -3,14 +3,13 @@ mod divider;
 #[cfg(windows)]
 mod machines;
 
-#[cfg(unix)]
-use std::io::Read;
 use std::{
     fmt,
-    fs::File,
     io::{self, BufWriter},
     time::{Duration, Instant},
 };
+#[cfg(unix)]
+use std::{fs::File, io::Read};
 
 #[cfg(unix)]
 use nix::{
@@ -25,8 +24,11 @@ use crate::{
     client_view::ClientView,
     localization::Locale,
     terminal_device::{InheritedTerminal, TerminalAdmissionError, WindowDimensions},
-    terminal_input::{DispatchOutcome, InputDispatcher, ModeRequest, UnavailableTerminalInputPort},
-    terminal_lifecycle::{InheritedTerminalModes, TerminalModeGuard},
+    terminal_input::{
+        DispatchOutcome, InputDispatcher, ModeRequest, PointerCaptureRequest,
+        UnavailableTerminalInputPort,
+    },
+    terminal_lifecycle::{InheritedTerminalModes, PointerTrackingLevel, TerminalModeGuard},
     termination_signal::{TerminationSignal, TerminationSource},
     tui_backend::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter},
     tui_pointer::HitMapBuilder,
@@ -37,6 +39,14 @@ const EVENT_POLL_INTERVAL_MILLISECONDS: u16 = 50;
 #[cfg(unix)]
 const MAXIMUM_INPUT_BYTES_PER_POLL: usize = 4096;
 const OUTPUT_BUFFER_CAPACITY: usize = 64 * 1024;
+
+fn pointer_tracking_level(request: PointerCaptureRequest) -> Option<PointerTrackingLevel> {
+    match request {
+        PointerCaptureRequest::Release => None,
+        PointerCaptureRequest::ButtonOnly => Some(PointerTrackingLevel::ButtonOnly),
+        PointerCaptureRequest::AnyMotion => Some(PointerTrackingLevel::AnyMotion),
+    }
+}
 
 #[derive(Debug)]
 pub(crate) enum TuiFailure {
@@ -108,18 +118,20 @@ trait ViewportSource {
 }
 
 struct InheritedInputSource {
+    #[cfg(unix)]
     input: File,
     #[cfg(windows)]
     terminal: InheritedTerminal,
 }
 
 impl InheritedInputSource {
-    fn new(input: File, _terminal: &InheritedTerminal) -> Self {
-        Self {
-            input,
+    fn open(terminal: &InheritedTerminal) -> io::Result<Self> {
+        Ok(Self {
+            #[cfg(unix)]
+            input: File::from(terminal.duplicate_input()?),
             #[cfg(windows)]
-            terminal: _terminal.clone(),
-        }
+            terminal: terminal.clone(),
+        })
     }
 }
 
@@ -136,7 +148,6 @@ impl InputSource for InheritedInputSource {
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
         #[cfg(windows)]
         {
-            let _ = &self.input;
             self.terminal.next_input(timeout)
         }
         #[cfg(unix)]
@@ -359,13 +370,16 @@ fn run_prepared_surface(
         },
     )
     .map_err(TuiFailure::Runtime)?;
-    let input = File::from(inherited.duplicate_input().map_err(TuiFailure::Runtime)?);
-    let mut inputs = InheritedInputSource::new(input, &inherited);
+    let mut inputs = InheritedInputSource::open(&inherited).map_err(TuiFailure::Runtime)?;
     let theme = crate::tui_theme::Theme::terminal_native();
     // Pointer reporting is armed (or left released) before the loop so the
     // first drawn frame already agrees with the dispatcher's settled flag.
     modes
-        .set_pointer_capture(mouse)
+        .set_pointer_capture_level(pointer_tracking_level(if mouse {
+            PointerCaptureRequest::ButtonOnly
+        } else {
+            PointerCaptureRequest::Release
+        }))
         .map_err(TuiFailure::Runtime)?;
 
     #[cfg(windows)]
@@ -385,6 +399,7 @@ fn run_prepared_surface(
         (&mut inputs, &mut |request| match request {
             ModeRequest::Bell => modes.ring_bell(),
             ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
+            ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
             #[cfg(windows)]
             ModeRequest::Notification(effect) => {
                 use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
@@ -403,9 +418,9 @@ fn run_prepared_surface(
                     .map_or("Orchbee", orchbee_workbench_protocol::WindowTitle::as_str),
             ),
             ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
-            ModeRequest::PointerCapture(enabled) => modes.set_pointer_capture(enabled),
-            #[cfg(windows)]
-            ModeRequest::PointerHover(enabled) => modes.set_pointer_hover(enabled),
+            ModeRequest::PointerCapture(request) => {
+                modes.set_pointer_capture_level(pointer_tracking_level(request))
+            }
         }),
         &mut surface,
         &termination,
@@ -558,7 +573,18 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         }
         // The lifecycle write already armed or released host reporting; the
         // dispatcher and the status indicator settle to the same truth here.
-        dispatcher.set_pointer_capture(&mut view, terminal_input, mouse);
+        dispatcher.settle_pointer_capture(
+            &mut view,
+            terminal_input,
+            if mouse {
+                PointerCaptureRequest::ButtonOnly
+            } else {
+                PointerCaptureRequest::Release
+            },
+        );
+        dispatcher.begin_pointer_admission(inputs.sample_time(), &mut |request| {
+            mode(request).map_err(LoopFailure::Input)
+        })?;
         if termination.requested() {
             return Ok(LoopExit::Signal);
         }
@@ -576,7 +602,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             &mut |request| mode(request).map_err(LoopFailure::Input),
         )?;
         terminal_input.observe_host_graphics(dispatcher.graphics_facts());
-        let _changed = terminal_input.tick();
+        let _changed = terminal_input.tick_with_client_capture(client_capture_claims(&view));
         if terminal_input.client_control_tick(&mut view, to_area(dimensions), chrome.locale) {
             dispatcher.invalidate_hit_map(terminal_input);
             synchronize_viewport(
@@ -590,7 +616,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         }
         #[cfg(windows)]
         update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
-        draw_surface(
+        let mut pointer_projection_redraw = draw_surface(
             terminal,
             &mut view,
             chrome,
@@ -598,6 +624,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             &mut dispatcher,
             mode,
         )?;
+        if pointer_projection_redraw {
+            wakeup.signal();
+        }
         loop {
             if termination.requested() {
                 return Ok(LoopExit::Signal);
@@ -612,7 +641,8 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 .next_input_or_wakeup(timeout, &wakeup)
                 .map_err(LoopFailure::Input)?;
             let terminal_input = surface.active();
-            let mut redraw = synchronize_viewport(
+            let mut redraw = std::mem::take(&mut pointer_projection_redraw);
+            let viewport_changed = synchronize_viewport(
                 terminal,
                 viewport,
                 &mut view,
@@ -620,13 +650,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 &mut dimensions,
                 dispatcher.graphics_facts().measurement,
             )?;
-            if redraw {
+            redraw |= viewport_changed;
+            if viewport_changed {
                 // Resize discards the recorded regions: until the next
                 // successful draw publishes a fresh map, pointer events drop
                 // instead of resolving against stale geometry.
                 dispatcher.invalidate_hit_map(terminal_input);
             }
-            redraw |= terminal_input.tick();
+            redraw |= terminal_input.tick_with_client_capture(client_capture_claims(&view));
             let now = inputs.sample_time();
             redraw |= dispatcher.query_graphics(
                 (dimensions.columns, dimensions.rows),
@@ -690,7 +721,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 if outcome == DispatchOutcome::Exit {
                     return Ok(LoopExit::User);
                 }
-                redraw = true;
+                redraw |= dispatcher.dispatch_requested_redraw();
             }
             redraw |= dispatcher.query_graphics(
                 (dimensions.columns, dimensions.rows),
@@ -767,7 +798,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 redraw = true;
             }
             if redraw {
-                draw_surface(
+                pointer_projection_redraw = draw_surface(
                     terminal,
                     &mut view,
                     chrome,
@@ -775,13 +806,16 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     &mut dispatcher,
                     mode,
                 )?;
+                if pointer_projection_redraw {
+                    wakeup.signal();
+                }
             }
             #[cfg(windows)]
             if let Some(effect) = view.notifications.take_effect()
                 && mode(ModeRequest::Notification(effect)).is_err()
             {
                 view.notification_unavailable();
-                draw_surface(
+                pointer_projection_redraw = draw_surface(
                     terminal,
                     &mut view,
                     chrome,
@@ -789,6 +823,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     &mut dispatcher,
                     mode,
                 )?;
+                if pointer_projection_redraw {
+                    wakeup.signal();
+                }
             }
         }
     })();
@@ -819,7 +856,7 @@ fn draw_surface<B: Backend + ResizableBackend>(
     surface: &mut (impl TerminalSurface + ?Sized),
     dispatcher: &mut InputDispatcher,
     mode: &mut impl FnMut(ModeRequest) -> io::Result<()>,
-) -> Result<(), LoopFailure<B::Error>> {
+) -> Result<bool, LoopFailure<B::Error>> {
     // Copy one complete cached palette for this frame, including every overlay and notice.
     let configured_theme = view.configured_theme();
     let chrome = Chrome {
@@ -828,24 +865,41 @@ fn draw_surface<B: Backend + ResizableBackend>(
     };
     #[cfg(windows)]
     surface.observe_client_viewport(view, terminal.get_frame().area());
+    #[cfg(windows)]
+    let capture_owner = {
+        let native_claims = match surface.view() {
+            Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
+                native.capture_claims()
+            }
+            _ => crate::tui_composition::NativeCaptureClaims::default(),
+        };
+        crate::tui_composition::project_capture(client_capture_claims(view), native_claims)
+    };
     let mut notification_painted = false;
     let mut receipt = crate::terminal_session::NativeDrawReceipt::default();
-    let mut hits = HitMapBuilder::new();
+    let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     #[cfg(windows)]
-    let preview = dispatcher
-        .divider_preview()
-        .map(divider::Preview::Divider)
-        .or_else(|| {
-            dispatcher
-                .sidebar_width_preview()
-                .map(divider::Preview::Sidebar)
-        });
+    let preview = if capture_owner.is_none() {
+        dispatcher
+            .divider_preview()
+            .map(divider::Preview::Divider)
+            .or_else(|| {
+                dispatcher
+                    .sidebar_width_preview()
+                    .map(divider::Preview::Sidebar)
+            })
+    } else {
+        None
+    };
     #[cfg(windows)]
     let graphics = terminal.backend().graphics_surface();
     #[cfg(windows)]
     let mut preview_painted = false;
     #[cfg(windows)]
-    let tab_drag = dispatcher.tab_drag_preview();
+    let tab_drag = capture_owner
+        .is_none()
+        .then(|| dispatcher.tab_drag_preview())
+        .flatten();
     let drawn = terminal.draw(|frame| {
         #[cfg(windows)]
         {
@@ -870,12 +924,22 @@ fn draw_surface<B: Backend + ResizableBackend>(
                 &mut hits,
             );
         }
-        if crate::notifications::available(view, surface.view()) {
+        let notifications_presentable =
+            crate::tui_layout::project_shell_areas(frame.area(), view.sidebar_surface()).tier
+                != crate::tui_layout::ViewportTier::TooSmall;
+        if notifications_presentable && crate::notifications::available(view, surface.view()) {
             notification_painted =
                 crate::notifications::render(frame, &view.notifications, chrome.theme);
         }
         #[cfg(windows)]
-        render_machine_surface(frame, view, chrome, preview_painted);
+        render_machine_surface(
+            frame,
+            view,
+            chrome,
+            capture_owner,
+            preview_painted,
+            &mut hits,
+        );
         #[cfg(windows)]
         if let Some(preview) = &tab_drag {
             crate::tui_render::render_tab_drag_preview(frame, preview, chrome.locale, chrome.theme);
@@ -884,14 +948,16 @@ fn draw_surface<B: Backend + ResizableBackend>(
         if let Some(graphics) = &graphics {
             graphics.finish_frame(
                 receipt.graphics_draws(),
-                preview_painted || view.machines.open || notification_painted,
+                preview_painted
+                    || capture_owner == Some(crate::tui_composition::CaptureOwner::Machine)
+                    || notification_painted,
             );
         }
     });
     if let Err(error) = drawn {
-        // A failed draw never publishes: the previous map stays the
-        // authority for the last frame that reached the screen whole.
-        // The failure itself is fatal to the loop.
+        // A partial frame may already have reached the host. Its candidate
+        // cannot authorize interaction; this loop exits before another input.
+        dispatcher.invalidate_hit_map(surface);
         return Err(LoopFailure::Terminal(error));
     }
     if notification_painted {
@@ -902,12 +968,15 @@ fn draw_surface<B: Backend + ResizableBackend>(
         hits.suppress_link_sources();
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
-    dispatcher.publish_hit_map(hits.finish());
+    let help_draw = dispatcher.publish_hit_map_with_help(hits.finish());
+    view.settle_help_draw(help_draw);
+    let pointer_projection_redraw = dispatcher.take_pointer_projection_redraw();
     #[cfg(windows)]
-    if view.machines.open {
+    if capture_owner == Some(crate::tui_composition::CaptureOwner::Machine) {
         // Covered native content cannot acknowledge successful visible presentation.
         surface.graphics_covered();
-        return Ok(());
+        surface.after_close_draw(crate::terminal_session::NativeDrawReceipt::default());
+        return Ok(pointer_projection_redraw);
     }
     if notification_painted {
         receipt = receipt.with_attention(None);
@@ -916,16 +985,12 @@ fn draw_surface<B: Backend + ResizableBackend>(
             receipt = receipt.with_graphics(Vec::new()).with_position(None);
         }
     }
-    let help_page = receipt.help_page();
     surface.after_close_draw(receipt);
-    if let Some(page) = help_page {
-        view.settle_help_page(page);
-    }
     surface.after_draw();
     surface
         .deliver_terminal_effect(&mut || mode(ModeRequest::Bell))
         .map_err(LoopFailure::Input)?;
-    Ok(())
+    Ok(pointer_projection_redraw)
 }
 
 #[cfg(windows)]
@@ -933,13 +998,16 @@ fn render_machine_surface(
     frame: &mut ratatui::Frame<'_>,
     view: &mut ClientView,
     chrome: Chrome<'_>,
+    capture_owner: Option<crate::tui_composition::CaptureOwner>,
     preview_painted: bool,
+    hits: &mut HitMapBuilder,
 ) {
     // The preview's persistent status owns this tail until the gesture ends.
-    if preview_painted || (view.copy_mode_active() && !view.machines.open) {
+    if preview_painted || capture_owner == Some(crate::tui_composition::CaptureOwner::Copy) {
         view.machines.invalidate();
     } else {
-        view.machines.render(frame, chrome.locale, chrome.theme);
+        view.machines
+            .render(frame, chrome.locale, chrome.theme, hits);
     }
 }
 
@@ -952,6 +1020,16 @@ fn synchronize_sidebar_visibility(view: &mut ClientView, dimensions: WindowDimen
             .is_some();
     view.machines.observe_agent_sidebar(visible);
     owned && !view.machines.sidebar_navigation_active()
+}
+
+#[cfg(windows)]
+fn popup_surface_area(dimensions: WindowDimensions, view: &ClientView, split: bool) -> Rect {
+    let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
+    if areas.tier == crate::tui_layout::ViewportTier::TooSmall {
+        Rect::default()
+    } else {
+        crate::tui_layout::native_terminal_area(areas.panel, areas.tier.shows_panel_frame(), split)
+    }
 }
 
 fn synchronize_viewport<B: Backend + ResizableBackend>(
@@ -1007,15 +1085,7 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
             terminal_input.observe_panes(&panes);
             #[cfg(windows)]
             {
-                let areas = crate::tui_layout::project_shell_areas(
-                    to_area(*dimensions),
-                    view.sidebar_surface(),
-                );
-                let area = crate::tui_layout::native_terminal_area(
-                    areas.panel,
-                    areas.tier.shows_panel_frame(),
-                    split,
-                );
+                let area = popup_surface_area(*dimensions, view, split);
                 let pixels = (
                     dimensions
                         .pixel_width
@@ -1278,6 +1348,12 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     fn tick(&mut self) -> bool {
         false
     }
+    fn tick_with_client_capture(
+        &mut self,
+        _claims: crate::tui_composition::ClientCaptureClaims,
+    ) -> bool {
+        self.tick()
+    }
     fn after_draw(&mut self) {}
     fn deliver_terminal_effect(
         &mut self,
@@ -1393,6 +1469,12 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     fn tick(&mut self) -> bool {
         self.tick()
     }
+    fn tick_with_client_capture(
+        &mut self,
+        claims: crate::tui_composition::ClientCaptureClaims,
+    ) -> bool {
+        crate::terminal_session::TerminalSession::tick_with_client_capture(self, claims)
+    }
     fn after_draw(&mut self) {
         self.after_draw()
     }
@@ -1426,6 +1508,15 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
 
 const fn to_area(dimensions: WindowDimensions) -> Rect {
     Rect::new(0, 0, dimensions.columns, dimensions.rows)
+}
+
+fn client_capture_claims(_view: &ClientView) -> crate::tui_composition::ClientCaptureClaims {
+    let claims = crate::tui_composition::ClientCaptureClaims::default();
+    #[cfg(windows)]
+    let claims = claims
+        .with_machine(_view.machines.open)
+        .with_resize(_view.resize_mode());
+    claims
 }
 
 #[cfg(test)]

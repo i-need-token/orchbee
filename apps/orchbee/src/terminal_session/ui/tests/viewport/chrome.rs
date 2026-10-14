@@ -15,7 +15,7 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [Theme::terminal_native(), Theme::one_light()] {
-                let (mut ui, _, _, _) = ready_ui();
+                let (mut ui, _, _, _) = controlling_ui();
                 let mut view = ClientView::new(width);
                 view.machines.available = true;
                 let area = Rect::new(0, 0, width, height);

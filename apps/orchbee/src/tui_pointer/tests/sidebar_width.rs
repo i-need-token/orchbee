@@ -161,6 +161,28 @@ fn sidebar_width_cancellation_cannot_replay_a_late_release() {
     }
 }
 
+#[test]
+fn compositor_cover_retires_sidebar_width_preview_and_owns_one_late_release() {
+    for button in [MouseButton::Left, MouseButton::None] {
+        let (mut pointer, mut view, mut port) = fixture();
+        report(&mut pointer, &mut view, &mut port, MouseAction::Press, 29);
+        report(&mut pointer, &mut view, &mut port, MouseAction::Motion, 45);
+        assert!(pointer.sidebar_width_preview().is_some());
+        let before = view.machines.sidebar_width();
+
+        assert!(pointer.retire_covered_chrome_gesture());
+        assert!(pointer.sidebar_width_preview().is_none());
+        let release = event(MouseAction::Release, button, 45, 4);
+        assert_eq!(
+            pointer.cancelled_ui_event(release),
+            PointerOutcome::ChromeGestureEnded,
+        );
+        assert_eq!(pointer.cancelled_ui_event(release), PointerOutcome::Ignored,);
+        assert_eq!(view.machines.sidebar_width(), before);
+        assert!(view.machines.request.is_none());
+    }
+}
+
 // Stable JSON commands: press/move/release/Esc/Shift/invalidate/draw/replace/
 // capture/modal/wrong-release. The oracle uses only scalar bounds, not drag code.
 fn replay(commands: &[[u16; 2]]) -> Result<(), String> {

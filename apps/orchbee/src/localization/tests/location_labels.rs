@@ -49,7 +49,10 @@ fn location_rename_recovery_preserves_its_target_without_offering_recovery_after
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let live =
                 locale.native_status_with_setup("live".to_owned(), false, None, Some(setup), false);
-            assert!(live.contains("Ctrl+B w"));
+            assert!(
+                live.contains(locale.location_label_status(target, Status::CommittedNeedRefresh))
+            );
+            assert!(!live.contains("Ctrl+B"));
             let retired = locale.native_status_with_setup(
                 "retired".to_owned(),
                 true,

@@ -1,7 +1,7 @@
 use super::super::tests::workspace_setup::{place, ready_snapshot};
 use super::super::*;
 use super::*;
-use crate::action_menu::MenuDraw;
+use crate::action_menu::{MenuDraw, MenuToken};
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::terminal_session::TerminalSessionView;
 use crate::terminal_session::mailbox::CommandLease;
@@ -27,6 +27,21 @@ fn grouped() -> Snapshot {
     snapshot
 }
 
+fn present_action_menu(ui: &mut NativeUi) -> MenuToken {
+    let (token, selected, visible_rows) = {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        (menu.token, menu.selected, menu.actions.len())
+    };
+    ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
+        selected,
+        token,
+        first: 0,
+        visible_rows,
+    })));
+    token
+}
+
 fn choose(ui: &mut NativeUi, action: MenuAction) {
     if !ui.view().action_menu().unwrap().actions.contains(&action) {
         let parent = match action {
@@ -44,6 +59,9 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
         };
         choose(ui, parent);
     }
+    // A menu first owns navigation only after one complete surface draw. Selection changes keep
+    // that surface lease, but revoke row-level activation until the new selection is painted.
+    present_action_menu(ui);
     let view = ui.view();
     let menu = view.action_menu().unwrap();
     let row = menu
@@ -62,12 +80,7 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
             crate::client_view::Modifiers::NONE,
         ));
     }
-    let token = ui.view().action_menu().unwrap().token;
-    ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
-        selected: ui.view().action_menu().unwrap().selected,
-        token,
-        rows: 80,
-    })));
+    present_action_menu(ui);
     ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
         crate::client_view::KeyCode::Enter,
         crate::client_view::Modifiers::NONE,
@@ -190,7 +203,6 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
     assert!(ui.open_action_menu(MenuTarget::TabGroupChoices(ids[2].clone()), None, false));
     choose(&mut ui, MenuAction::CreateGroup);
     let token = ui.view().setup_draft().unwrap().token();
-    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
@@ -224,6 +236,7 @@ fn selected_tab_configuration_menu_marks_exact_set_and_preserves_active_terminal
         assert!(!text.contains("1–512"));
     }
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
     ui.submit_setup_draft(token);
     let group = WorkbenchTabGroupId::parse(&format!("{:032x}", 1902)).unwrap();
     let operation = accept_configuration(
@@ -287,6 +300,7 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
     assert!(ui.open_action_menu(MenuTarget::Tab(ids[0].clone()), None, false));
     let view = ui.view();
     let menu = view.action_menu().unwrap();
+    let source = menu.source.clone();
     let token = menu.token;
     let row = menu
         .actions
@@ -296,7 +310,8 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected: ui.view().action_menu().unwrap().selected,
         token,
-        rows: 80,
+        first: 0,
+        visible_rows: ui.view().action_menu().unwrap().actions.len(),
     })));
     ui.state
         .as_mut()
@@ -306,7 +321,7 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
             super::super::super::state::TabSelectionChange::Toggle,
         )
         .unwrap();
-    ui.click_action_menu(token, row);
+    ui.activate_action_menu_row(&source, token, row);
     assert_eq!(
         ui.take_action_menu_action(false),
         None,
@@ -348,14 +363,14 @@ fn tab_group_menus_submit_canonical_operations_and_preserve_selected_terminal() 
     choose(&mut ui, MenuAction::ManageGroups);
     choose(&mut ui, MenuAction::CreateGroup);
     let token = ui.view().setup_draft().unwrap().token();
-    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
-    ui.edit_setup_draft(token, NativeSetupEdit::Paste("构建 🦀"));
     ui.submit_setup_draft(token);
     assert!(
         mailbox.try_recv().unwrap().is_none(),
         "draft also requires a complete paint"
     );
     ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
+    ui.edit_setup_draft(token, NativeSetupEdit::Paste("构建 🦀"));
     ui.submit_setup_draft(token);
     accept_configuration(
         &mut ui,
@@ -509,12 +524,14 @@ fn tab_groups_composed_screen_keeps_headers_members_and_localized_menu_hits() {
                         assert!(!member_hit);
                     }
                     if theme_index == 0 && [(120, 40), (80, 20)].contains(&(width, height)) {
-                        capture_screen(
-                            terminal.backend().buffer(),
+                        crate::tui_render::test_capture::capture_screen(
+                            &mut terminal,
                             &format!(
                                 "{locale:?}-{width}x{height}-{}",
                                 if collapsed { "collapsed" } else { "expanded" }
                             ),
+                            locale,
+                            &theme,
                         );
                     }
                 }
@@ -543,9 +560,11 @@ fn tab_groups_composed_screen_keeps_headers_members_and_localized_menu_hits() {
                             );
                         })
                         .unwrap();
-                    capture_screen(
-                        terminal.backend().buffer(),
+                    crate::tui_render::test_capture::capture_screen(
+                        &mut terminal,
                         &format!("{locale:?}-{width}x{height}-menu"),
+                        locale,
+                        &theme,
                     );
                     let hits = hits.finish();
                     assert!((0..height).any(|y| (0..width).any(|x| matches!(
@@ -652,7 +671,7 @@ fn tab_group_strip_reserves_quick_add_paint_and_hits_after_expanded_or_collapsed
                         .map(|point| terminal.backend().buffer()[*point].symbol())
                         .collect();
                     assert_eq!(
-                        paint, " + ",
+                        paint, "[+]",
                         "group clipping must not overwrite the existing control"
                     );
                     assert_eq!(
@@ -716,15 +735,18 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     "Tab selection has a monochrome text marker"
                 );
                 assert!(text.contains(locale.menu_action(MenuAction::PinTab)));
-                capture_screen(
-                    terminal.backend().buffer(),
+                crate::tui_render::test_capture::capture_screen(
+                    &mut terminal,
                     &format!("{locale:?}-{width}x{height}-selected-menu"),
+                    locale,
+                    &theme,
                 );
             }
             // The tiny layout intentionally hides the strip; the same menu must still scroll.
             ui.after_close_draw(receipt.take().unwrap());
             choose(&mut ui, MenuAction::TabTools);
             // Keyboard traversal scrolls to the final movement row; paint, then pointer invokes it.
+            present_action_menu(&mut ui);
             let last = ui.view().action_menu().unwrap().actions.len() - 1;
             for _ in 0..last {
                 ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
@@ -732,7 +754,10 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     crate::client_view::Modifiers::NONE,
                 ));
             }
-            let token = ui.view().action_menu().unwrap().token;
+            let view = ui.view();
+            let menu = view.action_menu().unwrap();
+            let source = menu.source.clone();
+            let token = menu.token;
             let mut hits = HitMapBuilder::new();
             terminal
                 .draw(|frame| {
@@ -749,7 +774,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             let hits = hits.finish();
             assert!((0..height).any(|y|(0..width).any(|x|matches!(hits.hit_target_at(x,y),Some(HitTarget::ActionMenuRow {token:painted,row}) if *painted==token && *row==last))));
             ui.after_close_draw(receipt.take().unwrap());
-            ui.click_action_menu(token, last);
+            ui.activate_action_menu_row(&source, token, last);
             let action = ui.take_action_menu_action(false).unwrap();
             assert!(matches!(
                 action,
@@ -764,15 +789,4 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             );
         }
     }
-}
-
-// Optional whole-screen evidence uses the actual composed TestBackend cells, not a separate mock.
-// The invoking task owns the supplied capture directory and its release after review.
-fn capture_screen(buffer: &ratatui::buffer::Buffer, name: &str) {
-    let Some(directory) = std::env::var_os("ORCHBEE_TUI_CAPTURE_DIR") else {
-        return;
-    };
-    let path = std::path::Path::new(&directory).join(format!("{name}.json"));
-    let cells: Vec<_> = buffer.content().iter().map(|cell| serde_json::json!({"symbol":cell.symbol(),"fg":format!("{:?}",cell.fg),"bg":format!("{:?}",cell.bg),"modifier":format!("{:?}",cell.modifier)})).collect();
-    std::fs::write(path, serde_json::to_vec(&serde_json::json!({"width":buffer.area.width,"height":buffer.area.height,"cells":cells})).unwrap()).unwrap();
 }

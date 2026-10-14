@@ -2,6 +2,7 @@
 //! attachment remain with their existing owners.
 mod draft;
 mod origin;
+use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use draft::Draft;
 pub(crate) use draft::{WorktreeEdit, WorktreeStage, WorktreeToken, WorktreeView};
 use orchbee_workbench_protocol::{
@@ -20,6 +21,7 @@ pub(crate) enum WorktreeMode {
 /// A presentation reason, independent of transport diagnostic text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WorktreeNotice {
+    PresentationUnavailable,
     Preparing,
     InvalidInput,
     InputLimit,
@@ -32,6 +34,7 @@ pub(crate) enum WorktreeNotice {
     Unknown,
     Failed,
     Opened,
+    EntryDeferred,
     EntryPending,
     EntryFailed,
     SourceChanged,
@@ -76,7 +79,13 @@ pub(in crate::terminal_session) struct Launcher {
     visible: bool,
     notice: WorktreeNotice,
     shown: Option<WorktreeToken>,
+    /// A current presented frame admitted this decoder-owned edit stream.
+    /// Semantic edits revoke submit proof but retain the stream until the
+    /// renderer reports absence or a geometry block.
+    input_frame_live: bool,
     focus_revoked: bool,
+    presentation: PresentationPhase,
+    presentation_notice: Option<WorktreeNotice>,
 }
 impl Default for Launcher {
     fn default() -> Self {
@@ -86,7 +95,10 @@ impl Default for Launcher {
             visible: false,
             notice: WorktreeNotice::Preparing,
             shown: None,
+            input_frame_live: false,
             focus_revoked: false,
+            presentation: PresentationPhase::Pending,
+            presentation_notice: None,
         }
     }
 }
@@ -100,7 +112,10 @@ impl Launcher {
         operation_id: WorkbenchRequestId,
         origin: &Origin,
     ) -> Option<Plan> {
-        if self.token() != Some(token) || self.shown != Some(token) {
+        if self.token() != Some(token)
+            || self.shown != Some(token)
+            || !self.presentation.interactive()
+        {
             return None;
         }
         let Phase::Draft(draft) = &mut self.phase else {
@@ -115,6 +130,7 @@ impl Launcher {
     pub fn scroll_choices(&mut self, token: WorktreeToken, up: bool, lines: usize) -> bool {
         if self.token() != Some(token)
             || self.shown != Some(token)
+            || !self.presentation.interactive()
             || !self
                 .view()
                 .is_some_and(|view| view.stage() == WorktreeStage::Checkout)
@@ -130,17 +146,38 @@ impl Launcher {
     pub fn token(&self) -> Option<WorktreeToken> {
         self.visible.then_some(WorktreeToken(self.last_token))
     }
+    pub fn accepts_input(&self, token: WorktreeToken) -> bool {
+        self.token() == Some(token) && self.presentation.interactive() && self.input_frame_live
+    }
+    pub fn default_create_ready(&self) -> bool {
+        self.shown == self.token()
+            && self.presentation.interactive()
+            && !self.focus_revoked
+            && matches!(&self.phase, Phase::Draft(draft) if draft.is_create())
+    }
+    fn focus_effect_allowed(&self) -> bool {
+        self.visible
+            && self.shown == Some(WorktreeToken(self.last_token))
+            && self.presentation.interactive()
+            && !self.focus_revoked
+    }
     fn advance_token(&mut self) -> Option<WorktreeToken> {
         self.last_token = self.last_token.checked_add(1)?;
         self.shown = None;
+        self.input_frame_live = false;
         Some(WorktreeToken(self.last_token))
     }
     pub fn reopen(&mut self) -> bool {
         if matches!(self.phase, Phase::Idle) {
             return false;
         }
+        if self.visible {
+            return true;
+        }
         self.visible = true;
         self.shown = None;
+        self.input_frame_live = false;
+        self.presentation = PresentationPhase::Pending;
         true
     }
     pub fn open(&mut self, mut preparation: Preparation) -> bool {
@@ -152,8 +189,11 @@ impl Launcher {
         };
         preparation.token = token;
         self.visible = true;
+        self.input_frame_live = false;
         self.notice = WorktreeNotice::Preparing;
         self.focus_revoked = false;
+        self.presentation = PresentationPhase::Pending;
+        self.presentation_notice = None;
         self.phase = Phase::Preparing(Box::new(preparation));
         true
     }
@@ -228,9 +268,21 @@ impl Launcher {
         true
     }
     pub fn edit(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
-        if self.token() != Some(token) {
+        if !self.accepts_input(token) {
             return false;
         }
+        let choice_stage = matches!(&self.phase, Phase::Draft(draft) if draft.is_checkout());
+        let revokes_input_frame = matches!(
+            &edit,
+            WorktreeEdit::NextField
+                | WorktreeEdit::Previous
+                | WorktreeEdit::Next
+                | WorktreeEdit::ScrollChoices { .. }
+        ) || choice_stage
+            && matches!(
+                &edit,
+                WorktreeEdit::Left | WorktreeEdit::Right | WorktreeEdit::Home | WorktreeEdit::End
+            );
         if matches!(edit, WorktreeEdit::Completeness(false)) {
             self.shown = None;
         }
@@ -247,20 +299,66 @@ impl Launcher {
         };
         if changed {
             self.notice = WorktreeNotice::Preparing;
-            if let Some(next) = self.advance_token()
-                && let Phase::Draft(draft) = &mut self.phase
-            {
-                draft.token = next;
+            let retain_input_frame = self.input_frame_live && !revokes_input_frame;
+            if let Some(next) = self.advance_token() {
+                if let Phase::Draft(draft) = &mut self.phase {
+                    draft.token = next;
+                    self.input_frame_live = retain_input_frame;
+                }
+            } else {
+                // A changed draft can never retain a submit proof when its
+                // revision token cannot advance.
+                self.shown = None;
+                self.input_frame_live = false;
+            }
+            if revokes_input_frame {
+                self.input_frame_live = false;
             }
         }
         true
     }
     pub fn draw(&mut self, token: Option<WorktreeToken>) {
         self.shown = token.filter(|token| self.token() == Some(*token));
+        self.input_frame_live = self.shown.is_some();
+        if self.shown.is_some() {
+            self.presentation.presented();
+            if let Some(notice) = self.presentation_notice.take()
+                && self.notice == WorktreeNotice::PresentationUnavailable
+            {
+                self.notice = notice;
+            }
+        }
+    }
+    pub fn geometry_blocked(&mut self) -> Option<GeometrySettlement> {
+        if !self.visible {
+            return None;
+        }
+        self.shown = None;
+        self.input_frame_live = false;
+        let settlement = self.presentation.geometry_blocked();
+        let accepted = matches!(
+            &self.phase,
+            Phase::Starting(_) | Phase::Observing(_) | Phase::Result(_)
+        );
+        if accepted {
+            self.suppress_focus();
+        }
+        if settlement == GeometrySettlement::Refused {
+            self.visible = false;
+            if accepted {
+                self.presentation_notice.get_or_insert(self.notice);
+            } else {
+                self.phase = Phase::Idle;
+                self.presentation_notice = None;
+            }
+            self.notice = WorktreeNotice::PresentationUnavailable;
+        }
+        Some(settlement)
     }
     pub fn entry_started(&mut self) {
         self.visible = false;
         self.shown = None;
+        self.input_frame_live = false;
     }
     pub fn confirm(
         &mut self,
@@ -268,7 +366,10 @@ impl Launcher {
         operation_id: WorkbenchRequestId,
         origin: &Origin,
     ) -> Option<Plan> {
-        if self.token() != Some(token) || self.shown != Some(token) {
+        if self.token() != Some(token)
+            || self.shown != Some(token)
+            || !self.presentation.interactive()
+        {
             return None;
         }
         let Phase::Draft(draft) = &mut self.phase else {
@@ -282,12 +383,14 @@ impl Launcher {
             self.notice = WorktreeNotice::InvalidInput;
             return None;
         };
-        self.shown = None;
+        // Keep the current frame proof only as automatic-entry eligibility for
+        // this accepted operation; the next draw receipt may revoke it.
         self.notice = WorktreeNotice::Pending;
         self.phase = Phase::Starting(Box::new(plan.clone()));
         Some(plan)
     }
-    /// A Create click already supplies the intent; no additional form or draw approval is needed.
+    /// A Create action supplies the intent; the first successful surface draw
+    /// authorizes its default plan without a second confirmation.
     pub fn create_with_defaults(
         &mut self,
         operation_id: WorkbenchRequestId,
@@ -297,11 +400,7 @@ impl Launcher {
         let Phase::Draft(draft) = &self.phase else {
             return None;
         };
-        if !draft.is_create()
-            || !draft.origin.unchanged(origin)
-            || !self.visible
-            || self.focus_revoked
-        {
+        if !self.default_create_ready() || !draft.is_create() || !draft.origin.unchanged(origin) {
             return None;
         }
         let mut plan = draft.plan(operation_id)?;
@@ -317,7 +416,8 @@ impl Launcher {
             return None;
         };
         *label = Some(orchbee_workbench_protocol::WorkbenchLabel::parse(&generated).ok()?);
-        self.shown = None;
+        // The draw that accepted default Create remains the current proof until
+        // a later frame reports that the surface is absent or blocked.
         self.notice = WorktreeNotice::Pending;
         self.phase = Phase::Starting(Box::new(plan.clone()));
         Some(plan)
@@ -327,6 +427,7 @@ impl Launcher {
         operation: &WorkbenchRequestId,
         result: Result<WorkbenchWorktreeOutcome, bool>,
     ) -> bool {
+        let focus_allowed = self.focus_effect_allowed();
         let Phase::Starting(plan) = &self.phase else {
             return false;
         };
@@ -337,7 +438,7 @@ impl Launcher {
         let op = Operation {
             plan,
             outcome: None,
-            focus_allowed: self.visible && !self.focus_revoked,
+            focus_allowed,
         };
         self.phase = Phase::Observing(Box::new(op));
         self.observed(operation, result)
@@ -375,6 +476,7 @@ impl Launcher {
         operation: &WorkbenchRequestId,
         result: Result<WorkbenchWorktreeOutcome, bool>,
     ) -> bool {
+        let focus_effect_allowed = self.focus_effect_allowed();
         let Phase::Observing(op) = &mut self.phase else {
             return false;
         };
@@ -408,6 +510,7 @@ impl Launcher {
                         }
                         WorktreeOperationStatus::Opened { checkout, .. } => {
                             terminal = true;
+                            op.focus_allowed &= focus_effect_allowed;
                             let path_matches = match &op.plan.intent {
                                 WorktreeIntent::Open {
                                     selector:
@@ -424,7 +527,11 @@ impl Launcher {
                                     == op.plan.discovery.source.common_directory
                                 && path_matches
                             {
-                                WorktreeNotice::Opened
+                                if op.focus_allowed {
+                                    WorktreeNotice::Opened
+                                } else {
+                                    WorktreeNotice::EntryDeferred
+                                }
                             } else {
                                 op.focus_allowed = false;
                                 WorktreeNotice::SourceChanged
@@ -469,6 +576,7 @@ impl Launcher {
     pub fn dismiss(&mut self) {
         self.visible = false;
         self.shown = None;
+        self.input_frame_live = false;
         match self.phase {
             Phase::Preparing(_) | Phase::Querying { .. } | Phase::Draft(_) => {
                 self.phase = Phase::Idle
@@ -490,6 +598,7 @@ impl Launcher {
     pub fn fail(&mut self, notice: WorktreeNotice) {
         self.notice = notice;
         self.shown = None;
+        self.input_frame_live = false;
         let operation = match &self.phase {
             Phase::Starting(plan) => Some(Operation {
                 plan: plan.as_ref().clone(),

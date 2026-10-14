@@ -5,6 +5,34 @@ use crate::{
 };
 
 impl Locale {
+    pub(crate) const fn tab_close_cancel_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Cancel",
+            Self::ZhCn => "取消",
+        }
+    }
+
+    pub(crate) const fn tab_close_cancel_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "cancel",
+            Self::ZhCn => "取消",
+        }
+    }
+
+    pub(crate) const fn tab_close_confirm_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Close",
+            Self::ZhCn => "关闭",
+        }
+    }
+
+    pub(crate) const fn tab_close_confirm_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "close",
+            Self::ZhCn => "关闭",
+        }
+    }
+
     pub(crate) fn close_set_title(self, count: usize) -> String {
         match self {
             Self::EnUs => format!("Close {count} terminal Tabs?"),
@@ -74,13 +102,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn close_resize_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "Enlarge the terminal to read the confirmation. Esc · cancel",
-            Self::ZhCn => "请扩大终端以阅读完整确认内容。Esc · 取消",
-        }
-    }
-
     pub(crate) fn native_close_status(self, status: &NativeCloseStatusView<'_>) -> String {
         let phase = match (self, status.status()) {
             (Self::EnUs, NativeCloseStatusKind::AwaitingStatus) => "Awaiting Close status",
@@ -106,20 +127,20 @@ impl Locale {
         );
         if status.unavailable() {
             text.push_str(match self {
-                Self::EnUs => " · Status check unavailable; Ctrl+B w to check again",
-                Self::ZhCn => " · 状态查询不可用；按 Ctrl+B 后按 w 再次查询",
+                Self::EnUs => " · Status check unavailable",
+                Self::ZhCn => " · 状态查询不可用",
             });
         }
         if status.observation_paused() {
             text.push_str(match self {
-                Self::EnUs => " · Automatic status checks paused; Ctrl+B w to check again",
-                Self::ZhCn => " · 自动状态查询已暂停；按 Ctrl+B 后按 w 再次查询",
+                Self::EnUs => " · Automatic status checks paused",
+                Self::ZhCn => " · 自动状态查询已暂停",
             });
         }
         if status.resumable() {
             text.push_str(match self {
-                Self::EnUs => " · Ctrl+B x to retry Close",
-                Self::ZhCn => " · 按 Ctrl+B 后按 x 重试关闭",
+                Self::EnUs => " · Close can be retried",
+                Self::ZhCn => " · 可以重试关闭",
             });
         }
         text

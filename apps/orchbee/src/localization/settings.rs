@@ -1,7 +1,10 @@
 //! Localized common-setting vocabulary and explicit draft/save outcomes.
 use super::Locale;
 use crate::{
-    native_settings::{Confirmation, DraftView, Page, Row, View},
+    native_settings::{
+        Confirmation, DraftView, Page, Reconciliation, Row, SettingCategory, SettingUnit,
+        SettingsHintLabel, setting_for_row,
+    },
     terminal_session::SettingsNotice,
 };
 use orchbee_workbench_protocol::{
@@ -11,20 +14,28 @@ use orchbee_workbench_protocol::{
 impl Locale {
     pub(crate) fn settings_back_button(self) -> &'static str {
         match self {
-            Self::EnUs => "[Esc · back]",
-            Self::ZhCn => "[Esc · 返回]",
+            Self::EnUs => "Back",
+            Self::ZhCn => "返回",
         }
     }
     pub(crate) fn settings_accept_button(self) -> &'static str {
         match self {
-            Self::EnUs => "[Confirm]",
-            Self::ZhCn => "[确认]",
+            Self::EnUs => "Confirm",
+            Self::ZhCn => "确认",
         }
     }
     pub(crate) fn settings_close_button(self) -> &'static str {
         match self {
-            Self::EnUs => "[Esc · close]",
-            Self::ZhCn => "[Esc · 关闭]",
+            Self::EnUs => "Close",
+            Self::ZhCn => "关闭",
+        }
+    }
+    pub(crate) fn settings_row_action(self, row: Row) -> Option<&'static str> {
+        match row {
+            Row::ResetAll => Some(self.setting("Reset all", "全部重置")),
+            Row::Reload => Some(self.setting("Reload", "重新读取")),
+            Row::Save => Some(self.setting("Save", "保存")),
+            _ => None,
         }
     }
     fn setting(self, english: &'static str, chinese: &'static str) -> &'static str {
@@ -77,19 +88,41 @@ impl Locale {
         self.setting(en, zh)
     }
     pub(crate) fn settings_category(self, row: Row) -> &'static str {
+        if let Some(metadata) = setting_for_row(row) {
+            return self.settings_category_name(metadata.category);
+        }
         match row {
-            Row::Theme => self.setting("Application appearance", "应用外观"),
-            Row::TerminalTheme | Row::Foreground | Row::Background => {
-                self.setting("Terminal colors", "终端颜色")
-            }
-            Row::CopyOnSelect => self.setting("Selection and clipboard", "选择与剪贴板"),
-            Row::TrimAgents | Row::Scrollback => self.setting("History", "历史记录"),
-            Row::Reminders | Row::CompletionReminders | Row::CompletionThreshold | Row::Sound => {
-                self.setting("Shell integration", "Shell 集成")
-            }
-            Row::Language => self.setting("Language", "语言"),
             Row::ResetAll | Row::Reload | Row::Save => self.setting("General", "通用"),
-            _ => self.setting("Launch profiles", "启动配置"),
+            Row::Profile
+            | Row::ProfileName
+            | Row::CommandType
+            | Row::Executable
+            | Row::Login
+            | Row::Argument
+            | Row::ArgumentValue
+            | Row::AddArgument
+            | Row::DeleteArgument
+            | Row::SetDefault
+            | Row::AddProfile
+            | Row::DeleteProfile
+            | Row::ResetProfiles
+            | Row::Back => self.settings_category_name(SettingCategory::LaunchProfiles),
+            _ => unreachable!("metadata-backed setting row resolved above"),
+        }
+    }
+    fn settings_category_name(self, category: SettingCategory) -> &'static str {
+        match category {
+            SettingCategory::Language => self.setting("Language", "语言"),
+            SettingCategory::ApplicationAppearance => {
+                self.setting("Application appearance", "应用外观")
+            }
+            SettingCategory::TerminalColors => self.setting("Terminal colors", "终端颜色"),
+            SettingCategory::SelectionAndClipboard => {
+                self.setting("Selection and clipboard", "选择与剪贴板")
+            }
+            SettingCategory::History => self.setting("History", "历史记录"),
+            SettingCategory::ShellIntegration => self.setting("Shell integration", "Shell 集成"),
+            SettingCategory::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
         }
     }
     pub(crate) fn settings_toggle(self, value: bool) -> &'static str {
@@ -97,6 +130,18 @@ impl Locale {
             self.setting("On", "开启")
         } else {
             self.setting("Off", "关闭")
+        }
+    }
+    pub(crate) fn settings_unit(self, unit: SettingUnit) -> &'static str {
+        match unit {
+            SettingUnit::Seconds => self.setting("s", "秒"),
+            SettingUnit::Bytes => self.setting("B", "字节"),
+        }
+    }
+    pub(crate) fn settings_value_with_unit(self, value: &str, unit: SettingUnit) -> String {
+        match self {
+            Self::EnUs => format!("{value} {}", self.settings_unit(unit)),
+            Self::ZhCn => format!("{value}{}", self.settings_unit(unit)),
         }
     }
     pub(crate) fn settings_value(self, draft: DraftView<'_>, row: Row) -> String {
@@ -190,26 +235,21 @@ impl Locale {
         };
         value.into()
     }
-    pub(crate) fn settings_footer(self, view: View<'_>) -> &'static str {
-        match view {
-            View::Saving { .. } => {
-                self.setting("Esc close; save continues", "Esc 关闭；保存继续执行")
-            }
-            View::Draft(draft) if draft.confirmation.is_some() => {
-                self.setting("Enter confirm · Esc cancel", "Enter 确认 · Esc 取消")
-            }
-            View::Draft(draft) if draft.text.is_some() => self.setting(
-                "Enter accept · Esc cancel · Ctrl+U clear",
-                "Enter 接受 · Esc 取消 · Ctrl+U 清空",
-            ),
-            _ => self.setting(
-                "Tab select · Left/Right change · Enter edit",
-                "Tab 选择 · 左右键切换 · Enter 编辑",
-            ),
+    pub(crate) fn settings_hint_label(self, label: SettingsHintLabel) -> &'static str {
+        match label {
+            SettingsHintLabel::Close => self.setting("close", "关闭"),
+            SettingsHintLabel::Back => self.setting("back", "返回"),
+            SettingsHintLabel::Cancel => self.setting("cancel", "取消"),
+            SettingsHintLabel::Confirm => self.setting("confirm", "确认"),
+            SettingsHintLabel::Accept => self.setting("accept", "接受"),
+            SettingsHintLabel::Clear => self.setting("clear", "清空"),
+            SettingsHintLabel::ActivateEdit => self.setting("activate/edit", "操作／编辑"),
+            SettingsHintLabel::Select => self.setting("select", "选择"),
+            SettingsHintLabel::Change => self.setting("change", "切换"),
         }
     }
     pub(crate) fn settings_cancel(self) -> &'static str {
-        self.setting("[Cancel]", "[取消]")
+        self.setting("Cancel", "取消")
     }
     pub(crate) fn settings_pending(self, saving: bool) -> &'static str {
         match (self, saving) {
@@ -219,12 +259,33 @@ impl Locale {
             (Self::ZhCn, true) => "[..] 正在保存",
         }
     }
-    pub(crate) fn settings_hint(self, view: View<'_>, pending: bool) -> String {
-        if pending {
-            self.settings_pending(matches!(view, View::Saving { .. }))
-                .into()
-        } else {
-            self.settings_footer(view).into()
+    pub(crate) fn settings_saving_fact(self) -> &'static str {
+        self.setting("Saving continues after close", "保存将在关闭后继续")
+    }
+    pub(crate) fn settings_state_facts(self, draft: DraftView<'_>) -> String {
+        match draft.reconciliation {
+            Some(Reconciliation::OutcomeUnknown) => self
+                .setting(
+                    "Save result unknown · Reload required",
+                    "保存结果未知 · 需要重新读取",
+                )
+                .into(),
+            Some(Reconciliation::SourceChanged) => self
+                .setting(
+                    "Saved settings changed elsewhere · Reload required",
+                    "已保存的设置已在其他位置更改 · 需要重新读取",
+                )
+                .into(),
+            None if draft.conflict => self
+                .setting(
+                    "Saved settings changed elsewhere · Reload required",
+                    "已保存的设置已在其他位置更改 · 需要重新读取",
+                )
+                .into(),
+            None if draft.dirty => self.setting("Unsaved changes", "有未保存的更改").into(),
+            None => self
+                .setting("No unsaved changes", "没有未保存的更改")
+                .into(),
         }
     }
     pub(crate) fn settings_detail(self, draft: DraftView<'_>) -> &'static str {
@@ -253,7 +314,21 @@ impl Locale {
         }
         if !draft.enabled(draft.selected) {
             return match draft.selected {
-                Row::Save => self.setting("No changes to save.", "没有需要保存的更改。"),
+                Row::Save => match draft.reconciliation {
+                    Some(Reconciliation::SourceChanged) => self.setting(
+                        "Source changed; reload before saving.",
+                        "来源已变化；请重新读取后再保存。",
+                    ),
+                    Some(Reconciliation::OutcomeUnknown) => self.setting(
+                        "Save outcome unknown; reload before saving again.",
+                        "保存结果未知；请重新读取后再保存。",
+                    ),
+                    None if draft.conflict => self.setting(
+                        "Settings changed elsewhere; reload before saving.",
+                        "另一端已修改设置；请重新读取后再保存。",
+                    ),
+                    None => self.setting("No changes to save.", "没有需要保存的更改。"),
+                },
                 Row::Foreground | Row::Background => self.setting(
                     "Select the custom terminal theme to edit these colors.",
                     "选择自定义终端主题后可编辑这些颜色。",
@@ -319,9 +394,13 @@ impl Locale {
                 "Settings busy · finish the current action first",
                 "设置正忙 · 请先完成当前操作",
             ),
+            PresentationUnavailable => self.setting(
+                "Cannot open Settings here · enlarge the window and try again",
+                "当前窗口无法打开设置 · 放大窗口后重试",
+            ),
             TooSmall => self.setting(
-                "Settings hidden: enlarge the window; draft kept",
-                "窗口太小，设置暂时隐藏；草稿已保留",
+                "Settings hidden: enlarge the window to resume",
+                "窗口太小，设置暂时隐藏；放大窗口后继续",
             ),
             Background => self.setting(
                 "Save continues · wait for its result",

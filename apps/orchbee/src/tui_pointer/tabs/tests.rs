@@ -4,7 +4,10 @@ use crate::{
     client_view::SessionActionDisposition,
     terminal_input::{PointerProbe, PointerTab, TerminalInputUnavailable},
     terminal_session::NativeContextLocation,
-    tui_pointer::{HitLayer, HitMapBuilder},
+    tui_pointer::{
+        HitLayer, HitMapBuilder, InteractionSpec, InteractionTarget, MotionObservability,
+        PrimaryContract, ProjectedPointer,
+    },
 };
 use orchbee_workbench_protocol::{SiteId, WorkbenchRevision, WorkbenchTerminalContextId};
 use std::time::Instant;
@@ -90,7 +93,17 @@ fn fixture(collapsed: bool) -> (PointerState, Port, ClientView, FrameHitMap) {
         (60, HitTarget::TabCreate(source.drawn.clone())),
     ] {
         if !collapsed || !matches!(&target, HitTarget::Tab(tab) if tab == &id(3) || tab == &id(4)) {
-            hits.record(HitLayer::Foreground, Rect::new(x, 0, 9, 1), target);
+            let rect = Rect::new(x, 0, 9, 1);
+            match target {
+                HitTarget::TabCreate(drawn) => hits.record_interaction(
+                    HitLayer::Foreground,
+                    rect,
+                    rect,
+                    InteractionTarget::TabCreate(drawn),
+                    InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+                ),
+                target => hits.record_tab_target(&source.drawn, rect, target),
+            }
         }
     }
     let map = hits.finish();
@@ -127,6 +140,155 @@ fn send(
             column: x,
             row: y,
         },
+    );
+}
+
+fn projected_tab(pointer: &PointerState, source: &DrawnTabCreate) -> ProjectedPointer {
+    HitMapBuilder::with_pointer(pointer.projection()).projected_tab_pointer(
+        source,
+        &HitTarget::Tab(id(2)),
+        Rect::new(10, 0, 9, 1),
+    )
+}
+
+#[test]
+fn leaving_a_pressed_tab_clears_pressed_without_rearming_or_blocking_a_later_drag() {
+    let (mut pointer, mut port, mut view, _) = fixture(false);
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Press,
+        18,
+        0,
+    );
+    assert_eq!(
+        projected_tab(&pointer, &port.source.drawn),
+        ProjectedPointer::Pressed
+    );
+
+    // One cell enters the gap without crossing the two-cell drag threshold.
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Motion,
+        19,
+        0,
+    );
+    assert_eq!(
+        projected_tab(&pointer, &port.source.drawn),
+        ProjectedPointer::Rest
+    );
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Motion,
+        18,
+        0,
+    );
+    assert_eq!(
+        projected_tab(&pointer, &port.source.drawn),
+        ProjectedPointer::Rest
+    );
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Release,
+        18,
+        0,
+    );
+    assert!(port.actions.is_empty() && port.writes.is_empty());
+
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Press,
+        18,
+        0,
+    );
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Motion,
+        19,
+        0,
+    );
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Motion,
+        34,
+        0,
+    );
+    assert!(pointer.tab_drag_preview().is_some());
+    assert_eq!(
+        projected_tab(&pointer, &port.source.drawn),
+        ProjectedPointer::Rest
+    );
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Release,
+        34,
+        0,
+    );
+    assert_eq!(port.writes.len(), 1);
+    assert!(port.actions.is_empty());
+}
+
+#[test]
+fn tab_projection_requires_any_motion_but_button_only_press_still_projects_pressed() {
+    let (mut pointer, mut port, mut view, map) = fixture(false);
+    let source = port.source.drawn.clone();
+    let motion = MouseEvent {
+        action: MouseAction::Motion,
+        button: MouseButton::None,
+        mods: Modifiers::NONE,
+        column: 12,
+        row: 0,
+    };
+    assert_eq!(
+        pointer.event(&mut view, &mut port, Instant::now(), motion),
+        PointerOutcome::IdleMotion { changed: false },
+    );
+    assert_eq!(projected_tab(&pointer, &source), ProjectedPointer::Rest);
+
+    pointer.set_motion_observability(MotionObservability::AnyMotion);
+    assert_eq!(
+        pointer.event(&mut view, &mut port, Instant::now(), motion),
+        PointerOutcome::IdleMotion { changed: true },
+    );
+    assert_eq!(projected_tab(&pointer, &source), ProjectedPointer::Hovered);
+
+    send(
+        &mut pointer,
+        &mut port,
+        &mut view,
+        MouseAction::Press,
+        12,
+        0,
+    );
+    assert_eq!(projected_tab(&pointer, &source), ProjectedPointer::Pressed);
+    pointer.publish(map);
+    assert_eq!(projected_tab(&pointer, &source), ProjectedPointer::Pressed);
+    pointer.set_host_focus(false);
+    assert_eq!(projected_tab(&pointer, &source), ProjectedPointer::Rest);
+    assert_eq!(
+        pointer.cancelled_ui_event(MouseEvent {
+            action: MouseAction::Release,
+            button: MouseButton::None,
+            mods: Modifiers::NONE,
+            column: 12,
+            row: 0,
+        }),
+        PointerOutcome::TabGestureEnded,
     );
 }
 
@@ -182,6 +344,46 @@ fn motion_is_private_and_release_commits_once_including_selected_set() {
         0,
     );
     assert_eq!(port.writes.len(), 1);
+}
+
+#[test]
+fn compositor_cover_retires_tab_drag_preview_and_owns_one_late_release() {
+    for button in [MouseButton::Left, MouseButton::None] {
+        let (mut pointer, mut port, mut view, _) = fixture(false);
+        send(
+            &mut pointer,
+            &mut port,
+            &mut view,
+            MouseAction::Press,
+            12,
+            0,
+        );
+        send(
+            &mut pointer,
+            &mut port,
+            &mut view,
+            MouseAction::Motion,
+            34,
+            0,
+        );
+        assert!(pointer.tab_drag_preview().is_some());
+
+        assert!(pointer.retire_covered_chrome_gesture());
+        assert!(pointer.tab_drag_preview().is_none());
+        let release = MouseEvent {
+            action: MouseAction::Release,
+            button,
+            mods: Modifiers::NONE,
+            column: 34,
+            row: 0,
+        };
+        assert_eq!(
+            pointer.cancelled_ui_event(release),
+            PointerOutcome::TabGestureEnded,
+        );
+        assert_eq!(pointer.cancelled_ui_event(release), PointerOutcome::Ignored,);
+        assert!(port.writes.is_empty() && port.actions.is_empty());
+    }
 }
 
 #[test]

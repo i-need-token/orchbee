@@ -1,8 +1,7 @@
 use super::field_window::{NativeFieldWindow, field_window};
 use super::line_editor::{LengthLimit, LineEditor};
-use super::{
-    AttachmentKey, NativeContextTabs, NativeSessionState, PaneKey, SessionNotice, SessionPhase,
-};
+use super::{AttachmentKey, NativeContextTabs, NativeSessionState, PaneKey, SessionPhase};
+use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{MAXIMUM_LABEL_LENGTH, WorkbenchLabel};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -20,6 +19,7 @@ struct RenameDraft {
     target: AttachmentKey,
     target_index: usize,
     editor: LineEditor,
+    presentation: PresentationPhase,
     shown: bool,
     input_fault: bool,
     complete: bool,
@@ -70,6 +70,12 @@ impl<'a> RenameDraftView<'a> {
     }
     pub(in crate::terminal_session) const fn input_fault(&self) -> bool {
         self.draft.input_fault
+    }
+    pub(in crate::terminal_session) const fn interactive(&self) -> bool {
+        self.draft.shown && self.draft.presentation.interactive()
+    }
+    pub(in crate::terminal_session) const fn presentation(&self) -> PresentationPhase {
+        self.draft.presentation
     }
 }
 
@@ -157,6 +163,7 @@ impl NativeSessionState {
                 tab.display_label(target_index).into_owned(),
                 LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
             ),
+            presentation: PresentationPhase::Pending,
             shown: false,
             input_fault: false,
             complete: true,
@@ -169,13 +176,18 @@ impl NativeSessionState {
         self.rename.draft = None;
     }
 
-    /// A draw receipt reporting that the draft could not be presented cancels
-    /// the capture with a notice instead of leaving it open swallowing keys.
-    pub(in crate::terminal_session) fn settle_rename_draft_not_presented(&mut self) {
-        if self.rename.draft.is_some() {
+    /// Refuses a new draft whose first draw is geometry-blocked, or suspends an
+    /// admitted draft while preserving its editor, cursor, and target.
+    pub(in crate::terminal_session) fn settle_rename_draft_not_presented(
+        &mut self,
+    ) -> Option<GeometrySettlement> {
+        let draft = self.rename.draft.as_mut()?;
+        draft.shown = false;
+        let settlement = draft.presentation.geometry_blocked();
+        if settlement == GeometrySettlement::Refused {
             self.rename.draft = None;
-            self.set_notice(SessionNotice::DraftCancelled);
         }
+        Some(settlement)
     }
 
     pub(in crate::terminal_session) fn acknowledge_rename_draw(
@@ -186,7 +198,19 @@ impl NativeSessionState {
             self.cancel_rename_draft();
         } else if let Some(draft) = self.rename.draft.as_mut() {
             draft.shown = token == Some(draft.token);
+            if draft.shown {
+                draft.presentation.presented();
+            }
         }
+    }
+
+    pub(in crate::terminal_session) fn rename_draft_input_ready(
+        &self,
+        token: RenameDraftToken,
+    ) -> bool {
+        self.current_rename_draft().is_some_and(|draft| {
+            draft.token == token && draft.shown && draft.presentation.interactive()
+        })
     }
 
     pub(in crate::terminal_session) fn edit_rename_draft(

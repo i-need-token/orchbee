@@ -1,14 +1,19 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
 
 use crate::{
-    terminal_text::{display_width, sanitize_terminal_text, truncate_display},
+    terminal_text::{sanitize_terminal_text, truncate_display},
+    tui_pointer::ProjectedPointer,
     tui_theme::{Role, Theme},
+};
+
+use super::controls::{
+    Availability, CheckedState, ControlSurface, CurrentState, FocusState, InteractionState,
+    NavigationState, OperationState, RowContentBand, RowFocusCue, RowTracks, paint_row_interaction,
 };
 
 pub(super) const MAX_VISIBLE_CONTEXTS: usize = 9;
@@ -22,14 +27,14 @@ pub(super) struct ContextDisplay<'a> {
     pub(super) standalone_label: &'a str,
 }
 
-/// Paints the navigator's context column and reports each painted row's
-/// `(context index, row offset)` to `on_row` in the same pass, so a
-/// recorded hit region can never disagree with what was drawn.
+/// Paints the navigator's context column and reports each complete row's exact
+/// rectangle to `on_row` in the same pass, so pointer projection and the
+/// recorded hit region cannot disagree with what was drawn.
 #[expect(
     clippy::too_many_arguments,
     reason = "paint data, active selection and keyboard focus have distinct owners"
 )]
-pub(super) fn render_navigator<'a>(
+pub(super) fn render_navigator<'a, C>(
     frame: &mut Frame<'_>,
     area: Rect,
     context_count: usize,
@@ -37,9 +42,11 @@ pub(super) fn render_navigator<'a>(
     focused_position: Option<usize>,
     context_at: impl Fn(usize) -> Option<ContextDisplay<'a>>,
     theme: &Theme,
-    on_row: &mut impl FnMut(usize, u16),
+    interaction_context: &mut C,
+    project_pointer: &mut impl FnMut(&C, usize, Rect) -> ProjectedPointer,
+    on_row: &mut impl FnMut(&mut C, usize, Rect),
 ) {
-    let lines = navigator_lines(
+    let projection = navigator_projection(
         usize::from(area.width),
         usize::from(area.height),
         context_count,
@@ -47,20 +54,70 @@ pub(super) fn render_navigator<'a>(
         focused_position,
         &context_at,
         theme,
-        on_row,
     );
-    frame.render_widget(Paragraph::new(lines), area);
+    let Some(layout) = NavigatorRowLayout::new(area, context_count) else {
+        if let Some((offset, position)) = projection.position {
+            frame.render_widget(
+                Paragraph::new(position).style(theme.style(Role::TextSecondary)),
+                Rect::new(area.x, area.y.saturating_add(offset), area.width, 1),
+            );
+        }
+        return;
+    };
+    for row in projection.rows {
+        let rect = Rect::new(area.x, area.y.saturating_add(row.offset), area.width, 1);
+        let pointer = project_pointer(&*interaction_context, row.index, rect);
+        frame.render_widget(Paragraph::new(row.line), rect);
+        let state = InteractionState::new(
+            FocusState::Focused,
+            super::tabs::pointer_presentation(pointer),
+            if row.focused {
+                NavigationState::Provisional
+            } else {
+                NavigationState::None
+            },
+            if row.active {
+                CurrentState::Current
+            } else {
+                CurrentState::NotCurrent
+            },
+            CheckedState::Unchecked,
+            Availability::Enabled,
+            OperationState::Idle,
+        );
+        let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, layout.primary(rect))
+            .with_provisional(layout.navigation(rect));
+        let bands = [
+            RowContentBand::semantic(layout.current(rect), Role::TextPrimary),
+            RowContentBand::semantic(layout.ordinal(rect), Role::TextSecondary),
+        ];
+        if paint_row_interaction(
+            frame,
+            rect,
+            tracks,
+            &bands,
+            ControlSurface::Overlay,
+            state,
+            theme,
+        )
+        .is_some()
+        {
+            on_row(interaction_context, row.index, rect);
+        }
+    }
+    if let Some((offset, position)) = projection.position {
+        frame.render_widget(
+            Paragraph::new(position).style(theme.style(Role::TextSecondary)),
+            Rect::new(area.x, area.y.saturating_add(offset), area.width, 1),
+        );
+    }
 }
 
 pub(super) fn location_label(context: ContextDisplay<'_>) -> String {
     context_label(context)
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "visible rows and their exact hit offsets are produced together"
-)]
-fn navigator_lines<'a>(
+fn navigator_projection<'a>(
     width: usize,
     height: usize,
     context_count: usize,
@@ -68,11 +125,10 @@ fn navigator_lines<'a>(
     focused_position: Option<usize>,
     context_at: &impl Fn(usize) -> Option<ContextDisplay<'a>>,
     theme: &Theme,
-    on_row: &mut impl FnMut(usize, u16),
-) -> Vec<Line<'static>> {
+) -> NavigatorProjection {
     let visible = height.min(MAX_VISIBLE_CONTEXTS).min(context_count);
     if visible == 0 || width == 0 {
-        return Vec::new();
+        return NavigatorProjection::default();
     }
     // A clipped window always keeps its last row for the current/total
     // position so hidden entries are presented as clipped, not as absent.
@@ -93,54 +149,65 @@ fn navigator_lines<'a>(
         .min(max_start);
     let end = start.saturating_add(item_rows).min(context_count);
 
-    let mut lines = Vec::new();
+    let Some(layout) = NavigatorRowLayout::from_width(width, context_count) else {
+        return NavigatorProjection {
+            rows: Vec::new(),
+            position: (context_count > visible).then(|| {
+                let current = active_index.map_or(end, |index| index.saturating_add(1));
+                (
+                    u16::try_from(item_rows).unwrap_or(u16::MAX),
+                    format!("{current}/{context_count}"),
+                )
+            }),
+        };
+    };
+    let mut rows = Vec::with_capacity(end.saturating_sub(start));
     for (offset, index) in (start..end).enumerate() {
         let Some(context) = context_at(index) else {
-            break;
+            return NavigatorProjection::default();
         };
         let focused = focused_position == Some(context.position);
-        let mut row = context_row(context, width, theme);
-        let mut style = navigator_style(context.active, theme);
-        if focused {
-            row.push_str(&" ".repeat(width.saturating_sub(display_width(&row))));
-            style = theme.style(Role::SurfaceSelection).patch(style);
-        }
-        lines.push(Line::from(Span::styled(row, style)));
-        // Ellipsized labels are intentional; a clipped identity prefix is not a target.
-        if width > context.position.to_string().len().saturating_add(4) {
-            on_row(index, u16::try_from(offset).unwrap_or(u16::MAX));
-        }
+        rows.push(ProjectedNavigatorRow {
+            index,
+            offset: u16::try_from(offset).unwrap_or(u16::MAX),
+            line: context_row(context, layout, theme),
+            active: context.active,
+            focused,
+        });
     }
-    if context_count > visible {
+    let position = if context_count > visible {
         let current = active_index.map_or(end, |index| index.saturating_add(1));
-        lines.push(Line::styled(
+        Some((
+            u16::try_from(item_rows).unwrap_or(u16::MAX),
             format!("{current}/{context_count}"),
-            theme.style(Role::TextSecondary),
-        ));
-    }
-    lines
+        ))
+    } else {
+        None
+    };
+    NavigatorProjection { rows, position }
 }
 
-fn context_row(context: ContextDisplay<'_>, width: usize, theme: &Theme) -> String {
+fn context_row(
+    context: ContextDisplay<'_>,
+    layout: NavigatorRowLayout,
+    theme: &Theme,
+) -> Line<'static> {
     let marker = if context.active {
         theme.glyphs.active_marker
     } else {
         " "
     };
-    let prefix = format!("[{marker}{}] ", context.position);
-    let prefix_width = display_width(&prefix);
+    let prefix = format!(
+        "  {marker} {:>width$} ",
+        context.position,
+        width = layout.ordinal_width,
+    );
     let label = context_label(context);
-    let row = format!("{prefix}{label}");
-    if display_width(&row) <= width {
-        return row;
-    }
-    let Some(label_budget) = width.checked_sub(prefix_width) else {
-        return truncate_display(&row, width, "");
-    };
-    format!(
-        "{prefix}{}",
-        truncate_display(&label, label_budget, theme.glyphs.ellipsis)
-    )
+    let label = truncate_display(&label, layout.primary_width, theme.glyphs.ellipsis);
+    Line::from(vec![
+        Span::styled(prefix, theme.style(Role::TextSecondary)),
+        Span::styled(label, theme.style(Role::TextPrimary)),
+    ])
 }
 
 fn context_label(context: ContextDisplay<'_>) -> String {
@@ -156,12 +223,64 @@ fn context_label(context: ContextDisplay<'_>) -> String {
     }
 }
 
-fn navigator_style(active: bool, theme: &Theme) -> Style {
-    if active {
-        theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
-    } else {
-        theme.style(Role::TextPrimary)
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct NavigatorRowLayout {
+    ordinal_width: usize,
+    primary_width: usize,
+}
+
+impl NavigatorRowLayout {
+    fn new(area: Rect, count: usize) -> Option<Self> {
+        Self::from_width(usize::from(area.width), count)
     }
+
+    fn from_width(width: usize, count: usize) -> Option<Self> {
+        let ordinal_width = count.max(1).to_string().len();
+        let primary_width = width.checked_sub(ordinal_width.checked_add(5)?)?;
+        (primary_width > 0).then_some(Self {
+            ordinal_width,
+            primary_width,
+        })
+    }
+
+    const fn navigation(self, row: Rect) -> Rect {
+        Rect::new(row.x, row.y, 1, 1)
+    }
+
+    const fn current(self, row: Rect) -> Rect {
+        Rect::new(row.x.saturating_add(2), row.y, 1, 1)
+    }
+
+    fn ordinal(self, row: Rect) -> Rect {
+        Rect::new(
+            row.x.saturating_add(4),
+            row.y,
+            u16::try_from(self.ordinal_width).unwrap_or(u16::MAX),
+            1,
+        )
+    }
+
+    fn primary(self, row: Rect) -> Rect {
+        let x = row
+            .x
+            .saturating_add(u16::try_from(self.ordinal_width + 5).unwrap_or(u16::MAX));
+        Rect::new(x, row.y, row.right().saturating_sub(x), 1)
+    }
+}
+
+#[derive(Debug, Default)]
+struct NavigatorProjection {
+    rows: Vec<ProjectedNavigatorRow>,
+    position: Option<(u16, String)>,
+}
+
+#[derive(Debug)]
+struct ProjectedNavigatorRow {
+    index: usize,
+    offset: u16,
+    line: Line<'static>,
+    active: bool,
+    focused: bool,
 }
 
 #[cfg(test)]

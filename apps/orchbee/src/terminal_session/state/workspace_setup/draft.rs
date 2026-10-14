@@ -1,8 +1,7 @@
 use super::super::field_window::{NativeFieldWindow, field_window};
 use super::super::line_editor::{LengthLimit, LineEditor};
-use super::{
-    NativeContextTabs, NativeSessionState, SessionNotice, WorkbenchLabel, WorkbenchProjectId,
-};
+use super::{NativeContextTabs, NativeSessionState, WorkbenchLabel, WorkbenchProjectId};
+use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{MAXIMUM_DIRECTORY_PATH_BYTES, MAXIMUM_LABEL_LENGTH};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -29,6 +28,7 @@ pub(crate) enum NativeSetupStage {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeSetupStatus {
+    PresentationUnavailable,
     WorkspaceOrganized,
     ProjectDissolved,
     TabsConfigured,
@@ -105,13 +105,24 @@ pub(super) struct SetupDraft {
     pub(super) shown: bool,
     pub(super) complete: bool,
     pub(super) faulted: bool,
+    pub(super) parent: Option<Box<SetupParent>>,
+}
+#[derive(Clone, Debug)]
+pub(super) struct SetupParent {
+    stage: NativeSetupStage,
+    selected: usize,
+    project: Option<WorkbenchProjectId>,
+    editor: LineEditor,
+    complete: bool,
+    faulted: bool,
+    quick: Option<super::quick::QuickWorkspaceFields>,
 }
 pub(crate) struct NativeSetupDraftView<'a> {
     pub(super) draft: &'a SetupDraft,
+    presentation: PresentationPhase,
 }
 pub(crate) struct NativeSetupProjectView<'a> {
     pub(super) position: usize,
-    pub(super) selected: bool,
     pub(super) label: Option<&'a str>,
     ungrouped: bool,
 }
@@ -144,14 +155,17 @@ impl<'a> NativeSetupProjectView<'a> {
     pub(crate) fn position(&self) -> usize {
         self.position
     }
-    pub(crate) fn selected(&self) -> bool {
-        self.selected
-    }
     pub(crate) fn label(&self) -> Option<&'a str> {
         self.label
     }
 }
 impl<'a> NativeSetupDraftView<'a> {
+    pub(crate) const fn interactive(&self) -> bool {
+        self.draft.shown && self.presentation.interactive()
+    }
+    pub(crate) const fn presentation(&self) -> PresentationPhase {
+        self.presentation
+    }
     /// Index within the current token's Project choices, including synthetic rows.
     pub(crate) fn selected_project(&self) -> usize {
         self.draft.selected
@@ -194,7 +208,6 @@ impl<'a> NativeSetupDraftView<'a> {
             ungrouped: self.draft.stage == NativeSetupStage::ChooseWorkspaceProject
                 && index == self.draft.baseline.projects().len(),
             position: index + 1,
-            selected: index == self.draft.selected,
             label: self
                 .draft
                 .baseline
@@ -240,9 +253,11 @@ impl NativeSessionState {
         if self.setup_draft().is_none() || self.quick_continuation().is_some() {
             return false;
         }
+        let interactive = self.setup.presentation.interactive();
         let Some(draft) = self.setup.draft.as_mut().filter(|draft| {
             draft.token == token
                 && draft.shown
+                && interactive
                 && draft.complete
                 && !draft.faulted
                 && matches!(
@@ -268,12 +283,9 @@ impl NativeSessionState {
         up: bool,
         lines: usize,
     ) -> bool {
-        if !self
-            .setup
-            .draft
-            .as_ref()
-            .is_some_and(|draft| draft.token == token && draft.shown)
-        {
+        if !self.setup.draft.as_ref().is_some_and(|draft| {
+            draft.token == token && draft.shown && self.setup.presentation.interactive()
+        }) {
             return false;
         }
         self.edit_setup_draft(token, NativeSetupEdit::ScrollProjects { up, lines })
@@ -393,6 +405,7 @@ impl NativeSessionState {
         let token = NativeSetupToken(self.setup.last_token.checked_add(1)?);
         self.setup.last_token = token.0;
         self.setup.status = None;
+        self.setup.presentation = PresentationPhase::Pending;
         self.setup.draft = Some(SetupDraft {
             organization,
             tab_configuration,
@@ -408,6 +421,7 @@ impl NativeSessionState {
             faulted: false,
             quick: None,
             continuation: None,
+            parent: None,
         });
         Some(token)
     }
@@ -427,7 +441,10 @@ impl NativeSessionState {
                 .quick
                 .as_ref()
                 .is_none_or(|fields| fields.target_current(self)))
-        .then_some(NativeSetupDraftView { draft })
+        .then_some(NativeSetupDraftView {
+            draft,
+            presentation: self.setup.presentation,
+        })
     }
     pub(in crate::terminal_session) fn clear_settled_setup_status(&mut self) {
         if !self.setup_blocks_structure() {
@@ -441,8 +458,16 @@ impl NativeSessionState {
         &mut self,
         token: Option<NativeSetupToken>,
     ) {
+        let presented = self
+            .setup
+            .draft
+            .as_ref()
+            .is_some_and(|draft| token == Some(draft.token));
         if let Some(draft) = self.setup.draft.as_mut() {
-            draft.shown = token == Some(draft.token);
+            draft.shown = presented;
+        }
+        if presented {
+            self.setup.presentation.presented();
         }
     }
     pub(in crate::terminal_session) fn cancel_setup_on_retirement(&mut self) {
@@ -451,21 +476,43 @@ impl NativeSessionState {
         self.setup.draft = None;
         self.setup.preparation = None;
     }
-    /// A draw receipt reporting that the draft could not be presented cancels
-    /// the capture with a notice instead of leaving it open swallowing keys.
-    pub(in crate::terminal_session) fn settle_setup_draft_not_presented(&mut self) {
-        if self.setup.draft.is_some() {
+    /// Classifies an evaluated geometry block without treating an absent or
+    /// covered surface as cancellation.
+    pub(in crate::terminal_session) fn settle_setup_draft_not_presented(
+        &mut self,
+    ) -> Option<GeometrySettlement> {
+        let draft = self.setup.draft.as_mut()?;
+        draft.shown = false;
+        let settlement = self.setup.presentation.geometry_blocked();
+        if settlement == GeometrySettlement::Refused {
             self.setup.draft = None;
-            self.set_notice(SessionNotice::DraftCancelled);
+            self.setup.status = Some(NativeSetupStatus::PresentationUnavailable);
         }
+        Some(settlement)
     }
     pub(in crate::terminal_session) fn cancel_setup_draft(&mut self, token: NativeSetupToken) {
-        if self
+        let Some(draft) = self
             .setup
             .draft
-            .as_ref()
-            .is_some_and(|draft| draft.token == token)
+            .as_mut()
+            .filter(|draft| draft.token == token)
+        else {
+            return;
+        };
+        if let Some(parent) = draft.parent.take()
+            && let Some(next) = self.setup.last_token.checked_add(1)
         {
+            draft.stage = parent.stage;
+            draft.selected = parent.selected;
+            draft.project = parent.project;
+            draft.editor = parent.editor;
+            draft.complete = parent.complete;
+            draft.faulted = parent.faulted;
+            draft.quick = parent.quick;
+            draft.token = NativeSetupToken(next);
+            draft.shown = false;
+            self.setup.last_token = next;
+        } else {
             self.setup.draft = None;
         }
     }
@@ -477,7 +524,13 @@ impl NativeSessionState {
         if self.setup_draft().is_none() || self.quick_continuation().is_some() {
             return false;
         }
-        let Some(draft) = self.setup.draft.as_mut().filter(|d| d.token == token) else {
+        let interactive = self.setup.presentation.interactive();
+        let Some(draft) = self
+            .setup
+            .draft
+            .as_mut()
+            .filter(|d| d.token == token && d.shown && interactive)
+        else {
             return false;
         };
         match edit {
@@ -588,9 +641,11 @@ impl NativeSessionState {
         if self.setup_draft().is_none() {
             return false;
         }
+        let interactive = self.setup.presentation.interactive();
         let Some(draft) = self.setup.draft.as_mut().filter(|d| {
             d.token == token
                 && d.shown
+                && interactive
                 && d.complete
                 && !d.faulted
                 && matches!(
@@ -607,6 +662,15 @@ impl NativeSessionState {
         }
         let Some(next) = self.setup.last_token.checked_add(1) else {
             return false;
+        };
+        let parent = SetupParent {
+            stage: draft.stage,
+            selected: draft.selected,
+            project: draft.project.clone(),
+            editor: draft.editor.clone(),
+            complete: draft.complete,
+            faulted: draft.faulted,
+            quick: draft.quick.clone(),
         };
         draft.project = draft
             .baseline
@@ -629,6 +693,7 @@ impl NativeSessionState {
         draft.token = NativeSetupToken(next);
         self.setup.last_token = next;
         draft.shown = false;
+        draft.parent = Some(Box::new(parent));
         true
     }
 }

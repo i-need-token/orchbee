@@ -3,6 +3,7 @@
 use crate::client_view::{
     Binding, ClientAction, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,
 };
+use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MenuTarget {
@@ -120,7 +121,6 @@ pub(crate) enum MenuUnavailable {
     OperationBusy,
     PointerReleased,
     NoMatchingTabs,
-    UnsupportedHost,
     NoRecentGroup,
 }
 
@@ -268,10 +268,61 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct MenuToken(u64);
 
+/// The local chrome actions owned by an open menu surface.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuControl {
+    Back,
+    Close,
+}
+
+/// What input the exact retained menu snapshot currently admits.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum MenuInputReadiness {
+    /// The owner retains capture, but no ordinary key may mutate this surface.
+    Recovery,
+    /// The whole surface is still the admitted owner while an exact row proof is renewed.
+    Continuation,
+    /// The selected row has a fresh exact draw and may activate.
+    ActivationReady,
+}
+
+/// One exact input snapshot for the retained menu surface.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct MenuInputContext {
+    token: MenuToken,
+    phase: PresentationPhase,
+    readiness: MenuInputReadiness,
+}
+
+impl MenuInputContext {
+    #[cfg(test)]
+    pub(crate) const fn token(self) -> MenuToken {
+        self.token
+    }
+
+    pub(crate) const fn phase(self) -> PresentationPhase {
+        self.phase
+    }
+
+    pub(crate) const fn readiness(self) -> MenuInputReadiness {
+        self.readiness
+    }
+
+    pub(crate) const fn activation_ready(self) -> bool {
+        matches!(self.readiness, MenuInputReadiness::ActivationReady)
+    }
+
+    pub(crate) const fn recovery_only(mut self) -> Self {
+        self.readiness = MenuInputReadiness::Recovery;
+        self
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct MenuDraw {
     pub(crate) token: MenuToken,
-    pub(crate) rows: usize,
+    pub(crate) first: usize,
+    pub(crate) visible_rows: usize,
     pub(crate) selected: usize,
 }
 
@@ -285,6 +336,7 @@ pub(crate) enum MenuSelection {
 
 #[derive(Clone, Copy)]
 pub(crate) struct MenuView<'a> {
+    pub(crate) source: &'a MenuTarget,
     pub(crate) has_parent: bool,
     pub(crate) title: &'a str,
     pub(crate) labels: &'a [Option<String>],
@@ -292,6 +344,7 @@ pub(crate) struct MenuView<'a> {
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
     pub(crate) selected: usize,
     pub(crate) first: usize,
+    pub(crate) follow_selection: bool,
     pub(crate) token: MenuToken,
     pub(crate) anchor: Option<(u16, u16)>,
     pub(crate) transferring: bool,
@@ -299,59 +352,61 @@ pub(crate) struct MenuView<'a> {
 
 impl MenuView<'_> {
     pub(crate) fn first_visible_row(&self, rows: usize) -> usize {
-        let mut first = self.first.min(self.selected);
-        while first > 0 && self.row_height(first - 1, self.actions.len()) <= rows {
-            first -= 1;
+        let rows = rows.max(1);
+        let mut maximum = self.actions.len().saturating_sub(1);
+        while maximum > 0 && self.row_height(maximum - 1, self.actions.len()) <= rows {
+            maximum -= 1;
+        }
+        let mut first = self.first.min(maximum);
+        if !self.follow_selection {
+            return first;
+        }
+        if self.selected < first {
+            first = self.selected;
         }
         while first < self.selected && self.row_height(first, self.selected + 1) > rows {
             first += 1;
         }
-        first
+        first.min(maximum)
     }
 
     pub(crate) fn separator_before(&self, index: usize) -> bool {
-        index > 0
-            && matches!(
-                self.actions[index],
-                MenuAction::DuplicateTab
-                    | MenuAction::CloseSelectedTabs
-                    | MenuAction::TabTools
-                    | MenuAction::NewTabInGroup
-                    | MenuAction::Ungroup
-                    | MenuAction::CollapseGroup
-                    | MenuAction::ExpandGroup
-                    | MenuAction::MoveTabPrevious
-                    | MenuAction::GroupMenu
-                    | MenuAction::NewGroupWithTab
-            )
+        separator_before(self.actions, index)
     }
 
     pub(crate) fn row_height(&self, first: usize, end: usize) -> usize {
-        end - first
-            + ((first + 1)..end)
-                .filter(|index| self.separator_before(*index))
-                .count()
+        row_height(self.actions, first, end)
     }
 }
 
-fn window_first(first: usize, selected: usize, rows: usize, action_count: usize) -> usize {
-    first
-        .min(selected)
-        .min(action_count.saturating_sub(rows))
-        .max((selected + 1).saturating_sub(rows))
+fn separator_before(actions: &[MenuAction], index: usize) -> bool {
+    if index == 0 {
+        return false;
+    }
+    let action = actions[index];
+    crate::action_projection::menu_metadata(action).starts_section(action)
+}
+
+fn row_height(actions: &[MenuAction], first: usize, end: usize) -> usize {
+    end - first
+        + ((first + 1)..end)
+            .filter(|index| separator_before(actions, *index))
+            .count()
 }
 
 struct Menu {
+    source: MenuTarget,
     labels: Vec<Option<String>>,
     title: String,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
     selected: usize,
     first: usize,
-    rows: usize,
+    visible_rows: usize,
+    follow_selection: bool,
     token: MenuToken,
-    drawn: Option<MenuToken>,
-    painted_selection: usize,
+    drawn: Option<MenuDraw>,
+    surface_presented: bool,
     anchor: Option<(u16, u16)>,
 }
 
@@ -360,9 +415,15 @@ pub(crate) struct ActionMenu {
     next: u64,
     menu: Option<Menu>,
     confirmed: Option<MenuAction>,
+    presentation: PresentationPhase,
 }
 
 impl ActionMenu {
+    fn allocate(&mut self) -> Option<MenuToken> {
+        self.next = self.next.checked_add(1)?;
+        Some(MenuToken(self.next))
+    }
+
     pub(crate) fn select_action(&mut self, action: MenuAction) {
         if let Some(index) = self
             .menu
@@ -404,8 +465,42 @@ impl ActionMenu {
         self.menu.is_some()
     }
 
+    pub(crate) fn input_context(&self) -> Option<MenuInputContext> {
+        let menu = self.menu.as_ref()?;
+        let exact_selected = self.confirmed.is_none()
+            && menu.drawn.is_some_and(|draw| {
+                draw.token == menu.token
+                    && draw.selected == menu.selected
+                    && (draw.first..draw.first.saturating_add(draw.visible_rows))
+                        .contains(&menu.selected)
+            });
+        let readiness = if !self.presentation.interactive() || !menu.surface_presented {
+            MenuInputReadiness::Recovery
+        } else if exact_selected {
+            MenuInputReadiness::ActivationReady
+        } else {
+            MenuInputReadiness::Continuation
+        };
+        Some(MenuInputContext {
+            token: menu.token,
+            phase: self.presentation,
+            readiness,
+        })
+    }
+
+    #[cfg(test)]
     pub(crate) fn open(
         &mut self,
+        title: String,
+        actions: Vec<MenuAction>,
+        anchor: Option<(u16, u16)>,
+    ) -> bool {
+        self.open_for(MenuTarget::Global, title, actions, anchor)
+    }
+
+    pub(crate) fn open_for(
+        &mut self,
+        source: MenuTarget,
         title: String,
         actions: Vec<MenuAction>,
         anchor: Option<(u16, u16)>,
@@ -416,24 +511,26 @@ impl ActionMenu {
         {
             return false;
         }
-        let Some(next) = self.next.checked_add(1) else {
+        let Some(token) = self.allocate() else {
             return false;
         };
-        self.next = next;
         self.menu = Some(Menu {
+            source,
             title,
             labels: vec![None; actions.len()],
             unavailable: vec![None; actions.len()],
             actions,
             selected: 0,
             first: 0,
-            rows: 1,
-            token: MenuToken(next),
+            visible_rows: 0,
+            follow_selection: true,
+            token,
             drawn: None,
-            painted_selection: 0,
+            surface_presented: false,
             anchor,
         });
         self.confirmed = None;
+        self.presentation = PresentationPhase::Pending;
         true
     }
 
@@ -449,18 +546,22 @@ impl ActionMenu {
             self.cancel();
             return;
         }
-        let Some(next) = self.next.checked_add(1) else {
+        let Some(token) = self.allocate() else {
             self.cancel();
             return;
         };
-        self.next = next;
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
         menu.labels = labels;
-        menu.token = MenuToken(next);
+        menu.token = token;
         menu.drawn = None;
+        menu.visible_rows = 0;
     }
 
     pub(crate) fn view(&self) -> Option<MenuView<'_>> {
         self.menu.as_ref().map(|menu| MenuView {
+            source: &menu.source,
             has_parent: false,
             title: &menu.title,
             labels: &menu.labels,
@@ -468,26 +569,80 @@ impl ActionMenu {
             unavailable: &menu.unavailable,
             selected: menu.selected,
             first: menu.first,
+            follow_selection: menu.follow_selection,
             token: menu.token,
             anchor: menu.anchor,
             transferring: self.confirmed.is_some(),
         })
     }
 
-    pub(crate) fn draw(&mut self, draw: Option<MenuDraw>) {
-        let Some(draw) = draw else {
-            self.cancel();
-            return;
+    /// Commits the exact row window from one completed menu frame.
+    pub(crate) fn presented(&mut self, draw: MenuDraw) -> bool {
+        let Some(menu) = &self.menu else {
+            return false;
         };
-        if let Some(menu) = &mut self.menu
-            && menu.token == draw.token
-            && draw.rows > 0
+        if menu.token != draw.token
+            || draw.visible_rows == 0
+            || draw.first >= menu.actions.len()
+            || draw.selected != menu.selected
+            || draw.first.saturating_add(draw.visible_rows) > menu.actions.len()
         {
-            menu.rows = draw.rows;
-            menu.first = window_first(menu.first, menu.selected, draw.rows, menu.actions.len());
-            menu.drawn = Some(draw.token);
-            menu.painted_selection = draw.selected;
+            self.revoke_exact_draw();
+            return false;
         }
+        let Some(menu) = &mut self.menu else {
+            return false;
+        };
+        menu.first = draw.first;
+        menu.visible_rows = draw.visible_rows;
+        menu.drawn = Some(draw);
+        menu.surface_presented = true;
+        self.presentation.presented();
+        true
+    }
+
+    /// Revokes row-level activation while preserving the admitted whole-surface lease.
+    fn revoke_exact_draw(&mut self) {
+        if let Some(menu) = &mut self.menu {
+            menu.drawn = None;
+            menu.visible_rows = 0;
+        }
+    }
+
+    /// Revokes both exact activation and proof that this owner occupied the latest whole frame.
+    pub(crate) fn not_presented(&mut self) {
+        let rekey = self
+            .menu
+            .as_ref()
+            .is_some_and(|menu| menu.surface_presented || menu.drawn.is_some());
+        let token = if rekey {
+            let Some(token) = self.allocate() else {
+                self.cancel();
+                return;
+            };
+            Some(token)
+        } else {
+            None
+        };
+        if let Some(menu) = &mut self.menu {
+            if let Some(token) = token {
+                menu.token = token;
+            }
+            menu.drawn = None;
+            menu.visible_rows = 0;
+            menu.surface_presented = false;
+        }
+    }
+
+    /// Settles an evaluated geometry block for this retained menu incarnation.
+    pub(crate) fn geometry_blocked(&mut self) -> Option<GeometrySettlement> {
+        self.menu.as_ref()?;
+        self.not_presented();
+        let settlement = self.presentation.geometry_blocked();
+        if settlement == GeometrySettlement::Refused {
+            self.cancel();
+        }
+        Some(settlement)
     }
 
     pub(crate) fn select(&mut self, selection: MenuSelection) {
@@ -508,35 +663,64 @@ impl ActionMenu {
 
     pub(crate) fn scroll(&mut self, token: MenuToken, up: bool, lines: usize) -> Option<MenuToken> {
         let menu = self.menu.as_ref()?;
-        if self.confirmed.is_some() || menu.token != token || menu.drawn != Some(token) {
+        let draw = menu.drawn?;
+        if self.confirmed.is_some()
+            || !self.presentation.interactive()
+            || menu.token != token
+            || draw.token != token
+        {
             return None;
         }
-        let selected = if up {
-            menu.selected.saturating_sub(lines)
+        // Derive the actual terminal-row budget from the admitted window. Separators mean the same
+        // budget can contain a different number of actions at the tail.
+        let rows = row_height(
+            &menu.actions,
+            draw.first,
+            draw.first.saturating_add(draw.visible_rows),
+        );
+        let mut maximum = menu.actions.len().saturating_sub(1);
+        while maximum > 0 && row_height(&menu.actions, maximum - 1, menu.actions.len()) <= rows {
+            maximum -= 1;
+        }
+        let first = if up {
+            draw.first.saturating_sub(lines)
         } else {
-            menu.selected
-                .saturating_add(lines)
-                .min(menu.actions.len() - 1)
+            draw.first.saturating_add(lines).min(maximum)
         };
-        self.select_row(selected);
-        self.view().map(|view| view.token)
+        if first == draw.first {
+            return Some(token);
+        }
+        let Some(next) = self.allocate() else {
+            self.cancel();
+            return None;
+        };
+        let menu = self.menu.as_mut()?;
+        menu.first = first;
+        menu.follow_selection = false;
+        menu.visible_rows = 0;
+        menu.token = next;
+        menu.drawn = None;
+        Some(next)
     }
 
     fn select_row(&mut self, selected: usize) {
         let Some(menu) = &mut self.menu else {
             return;
         };
-        if selected == menu.selected {
+        if selected == menu.selected && menu.follow_selection {
             return;
         }
-        let Some(next) = self.next.checked_add(1) else {
+        let Some(token) = self.allocate() else {
             self.cancel();
             return;
         };
-        self.next = next;
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
         menu.selected = selected;
-        menu.first = window_first(menu.first, selected, menu.rows, menu.actions.len());
-        menu.token = MenuToken(next);
+        menu.follow_selection = true;
+        menu.visible_rows = 0;
+        menu.token = token;
         menu.drawn = None;
     }
 
@@ -556,14 +740,17 @@ impl ActionMenu {
             self.cancel();
             return true;
         }
-        let Some(next) = self.next.checked_add(1) else {
+        let Some(token) = self.allocate() else {
             self.cancel();
             return true;
         };
-        self.next = next;
+        let Some(menu) = &mut self.menu else {
+            return false;
+        };
         menu.unavailable = unavailable;
-        menu.token = MenuToken(next);
+        menu.token = token;
         menu.drawn = None;
+        menu.visible_rows = 0;
         true
     }
 
@@ -574,8 +761,9 @@ impl ActionMenu {
         let Some(menu) = &self.menu else {
             return false;
         };
-        if menu.drawn != Some(menu.token)
-            || menu.painted_selection != menu.selected
+        if !self
+            .input_context()
+            .is_some_and(MenuInputContext::activation_ready)
             || menu.unavailable[menu.selected].is_some()
         {
             return false;
@@ -584,41 +772,22 @@ impl ActionMenu {
         true
     }
 
-    /// Hover uses only the last painted window and never grants execution authority.
-    pub(crate) fn hover(&mut self, token: MenuToken, row: usize) {
-        let Some(menu) = &mut self.menu else {
-            return;
-        };
-        if self.confirmed.is_some()
-            || menu.drawn != Some(token)
-            || menu.token != token
-            || row >= menu.actions.len()
-            || row < menu.first
-            || row >= menu.first + menu.rows
-        {
-            return;
-        }
-        // Highlighting an already painted row changes neither its identity nor
-        // its rectangle. Keep pointer authority across the immediate click and
-        // redraw; keyboard confirmation still requires this selection to paint.
-        menu.selected = row;
-    }
-
     pub(crate) fn click(&mut self, token: MenuToken, row: usize) -> bool {
         let Some(menu) = &mut self.menu else {
             return false;
         };
+        let Some(draw) = menu.drawn else {
+            return false;
+        };
         if self.confirmed.is_some()
-            || menu.drawn != Some(token)
+            || !self.presentation.interactive()
+            || draw.token != token
             || menu.token != token
             || row >= menu.actions.len()
-            || row < menu.first
-            || row >= menu.first + menu.rows
+            || row < draw.first
+            || row >= draw.first.saturating_add(draw.visible_rows)
+            || menu.unavailable[row].is_some()
         {
-            return false;
-        }
-        if menu.unavailable[row].is_some() {
-            self.select_row(row);
             return false;
         }
         menu.selected = row;
@@ -633,12 +802,14 @@ impl ActionMenu {
     pub(crate) fn take(&mut self) -> Option<MenuAction> {
         let action = self.confirmed.take()?;
         self.menu = None;
+        self.presentation = PresentationPhase::Pending;
         Some(action)
     }
 
     pub(crate) fn cancel(&mut self) {
         self.menu = None;
         self.confirmed = None;
+        self.presentation = PresentationPhase::Pending;
     }
 }
 

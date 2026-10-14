@@ -31,6 +31,39 @@ link decoration remain separate decisions.
 
 Mouse and keyboard enter the same native state owners. Visible bracketed controls and complete rows have exact hit rectangles; disabled, clipped or covered cells cannot activate an underlying target. Local navigation may act on press. Native form, menu, settings, copy, resize and Agent-board buttons wait for a matching plain-left release with the same painted token and rectangle. Keyboard input, focus loss, capture release and changed drawing authority revoke that press. A decision owns its packet tail and late release, then fresh input returns to the retained terminal focus.
 
+`tui_composition::project_capture` is the one authority for exclusive paint, input, and notification
+admission. Machine capture covers native exclusive surfaces; their existing order covers Copy,
+which covers Resize. Claims describe retained capture intent rather than proof that a surface was
+painted. A missing or stale context for the selected owner consumes input instead of exposing a
+lower owner. Copy exit retains its physical packet fence even when Resize becomes the next owner.
+
+Client shortcut help remains noncapturing. `client_chrome_overlay_allowed` admits its painting and
+mouse route over retained Copy or Resize while rejecting it beneath Machine or a native exclusive
+capture. Help mouse controls run before the retained mode; ordinary key and paste routing keep
+that mode's existing contract. Closing help restores the parent without releasing its input lease.
+
+When a separately admitted higher capture covers a chrome gesture, the dispatcher immediately
+retires its Divider, Sidebar-width, Tab-drag, or Tab-create arm into the existing one-shot release
+cleanup. Selection and modal interaction keep their own owners. The frame painter independently
+suppresses those previews whenever any exclusive owner is present, including a capture installed
+between input reconciliation and drawing. A pending plugin popup still admits its exact painted
+close target; its body, key, and paste readiness remain with the plugin owner.
+
+The central generic owner and the existing divider, sidebar-width, Tab-create, Tab-drag, and
+painted-modal owners retain only typed primary-release cleanup after revocation. That cleanup runs
+before capture, host-focus, and hit-map guards, including for an already queued report after capture
+release. The exact late release is consumed once and fences its whole physical packet without
+re-hit or effect; intervening pointer reports cannot re-hit through the debt. A fresh non-wheel
+press retires it, while an orphan release does not create one. Pane passthrough, links, selection,
+and their cleanup owners are unchanged by this contract.
+
+For painted modal controls, the cancelled painted-press record and the dispatcher's matching
+button-release debts, including an action menu's paired packet debt, settle in the same pre-owner
+step. A newer Settings or Machine surface cannot hide that cleanup or make a later release fence
+twice. An active release-committed modal control or copy-surface drag bypasses packet cleanup until
+its own owner has processed the exact release; cancelled cleanup never re-hits that target or runs
+its effect.
+
 | Surface                         | Mouse flow                                                                                                                                              |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Machine/Workspace/Agent search  | Bracketed categories switch views; complete rows select exact identities. Agent filters, search, Clear/Done and X remain local to the picker.           |
@@ -157,13 +190,16 @@ presses before that draw and admission after it, without changing Picker focus.
 ## Capture policy
 
 - Startup arms button-event tracking (`?1002h`) with SGR encoding (`?1006h`) through one
-  `ModeLease`; `orchbee tui --mouse off` skips arming. Windows action menus temporarily use
-  any-motion tracking (`1003`) while capture is enabled, then restore `1002`. The same lease
+  `ModeLease`; `orchbee tui --mouse off` skips arming. After this baseline completes, the dispatcher
+  issues one `1003` DECRQM query with a DA1 barrier for the retained outer endpoint. Only a reset
+  report (`2`) followed by that barrier admits global any-motion tracking. Unsupported or permanently
+  fixed reports retain button-only tracking; a contradictory set report, missing reply, or the
+  300 ms deadline settles unknown. None retries on menu open or capture re-arm. The same lease
   disables `1003`, `1006` and `1002` on every exit path — normal return, failure, owner-thread panic,
   and each termination signal — like every other leased mode.
 - `Ctrl+B m` releases and re-arms capture at runtime. The release applies only after the mode
-  write succeeds, so the persistent status indicator (`mouse released · Ctrl+B m restores` /
-  `鼠标已释放 · Ctrl+B m 恢复`) never disagrees with the host's actual reporting state. While
+  write succeeds, so the persistent status indicator (`mouse released · Ctrl+b m restores` /
+  `鼠标已释放 · Ctrl+b m 恢复`) never disagrees with the host's actual reporting state. While
   released every decoded pointer event is ignored before probing or hit resolution, and all
   in-flight gestures and the wheel stream are cancelled; re-arming does not resurrect them.
 - `--mouse` is admitted on `tui` (`off` and `on` values). Windows `terminal attach` and
@@ -186,25 +222,91 @@ fresh probe at click time, so a reorder between paint and click cannot misroute.
 front to back; within a layer, the first matching region wins. Specific controls are recorded
 before any containing surface region:
 
-| Painted surface                          | Layer            | Target                             | Accepted gesture                                                                                                              |
-| ---------------------------------------- | ---------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Navigator context row                    | `Overlay`        | `Context(location)`                | Press selects that context (`SelectContextAt`)                                                                                |
-| Navigator tab row                        | `Overlay`        | `Tab(tab_id)`                      | Press selects that Tab (`SelectTab`)                                                                                          |
-| Overlay body off every control           | `OverlaySurface` | `OverlaySurface`                   | Swallowed — never reaches the layers beneath                                                                                  |
-| Outside a capturing overlay              | —                | backdrop                           | Ordinary button press dismisses; wheel is inert. No region beneath, including uncovered tab chrome or a pane, sees the event. |
-| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)`                      | Windows plain left press arms a click/drag; release activates or commits once. Non-Windows keeps press selection.             |
-| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}` + painted source | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection      |
-| Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`                  | Press focuses only; the pane's program sees nothing                                                                           |
-| Visible Windows pane divider             | `Foreground`     | `Divider(source)`                  | Plain left press starts preview; release applies once; Esc or Shift cancels                                                   |
-| Everything else (status, gaps)           | —                | dead space                         | Ignored                                                                                                                       |
+The central interaction projection is now available as an adoption foundation. A feature may
+record an `InteractionSpec` only after its renderer admits and paints exact geometry. The record
+combines a closed `InteractionTarget` carrying the owner's complete semantic witness, hit layer,
+exact hit rectangle, complete painted rectangle, explicit primary-button contract
+(`ActivateOnRelease`, `SelectOnPress`, or `Specialized`), and availability. The fingerprint also
+canonicalizes the frontmost semantic winners within that painted rectangle. Adding, removing, or
+replacing a child therefore changes its containing row's effective exposure even when the press
+cell itself remains uncovered; a target outside that rectangle does not. A smaller child hit
+rectangle may refer to a complete painted rectangle. Neither target identity nor gesture policy is
+inferred from text, color, position, or a broad row target; child actions must be recorded before a
+containing row.
+
+`PointerState` projects only `Rest`, `Hovered`, or `Pressed` into the next candidate frame. It does
+not write keyboard focus, provisional selection, current or checked state, availability, pending
+state, or any domain model. `Hovered` requires a real button-free movement report after settled
+`AnyMotion` observability. Button-only observability, capture release, host-focus loss, and
+observability downgrade clear retained position, so restoration cannot synthesize hover. The
+dispatcher publishes `AnyMotion` only after both capability admission and the typed mode transition
+complete successfully. An uncertain partial transition exits through the restoring boundary instead
+of publishing a fallback state. Replies received while capture is released settle admission only;
+the next capture uses that result without another query. Late and duplicate replies cannot reopen
+settled admission. Action menus share this global observability and hold no separate `1003` lease.
+Mode support admission and semantic delivery evidence remain distinct; the
+[terminal environment reference](native-terminal-environment.md) owns the probe and host witness.
+
+An enabled `ActivateOnRelease` target arms on a plain left press and activates only when release
+still resolves to the same typed target, complete painted rectangle, contract, and availability.
+Its layer, exact hit extent, and effective exposure must also match. Leaving that target,
+replacement, occlusion, disablement, structural invalidation, or ownership loss permanently
+cancels the arm; a visual-only repaint of the same fingerprint does not. A cancelled arm consumes
+its late release and cannot retarget, while an already observed stationary position can reconcile
+hover against the next successful map. `SelectOnPress` exists only for a feature that explicitly
+owns provisional navigation, while `Specialized` leaves press handling to the feature's dedicated
+drag or selection state machine.
+
+The shell snapshots the projection before a candidate draw and publishes its candidate map only
+after that frame flushes successfully. Publication revalidates a stationary observed position. If
+that changes the projection, the shell schedules exactly one later-turn repaint; the follow-up map
+carries the new revision and does not reschedule itself. A failed or partial draw publishes no
+candidate and invalidates the previous pointer authority before the fatal loop exit. A packet made
+entirely of button-free motion can skip repaint only when every decoded item leaves the projection
+unchanged and no decoder, timer, layout, or owner transition changed anything else.
+
+Settings, action menus, sidebars, Agent board, Help, Navigator, Machine Picker, Presentation
+selectors, Tab creation, and the global Menu and Sidebar Restore buttons use this central
+protocol. Generic controls activate on matching release. Sidebar Menu/Create retain their
+specialized menu-opening owner, and Agent-board rows use `SelectOnPress` only for provisional
+navigation. Windows Tab/group arrangement, dividers, scrollbars, Copy selection, and pane input
+retain their specialized gesture owners. Disabled targets stay visible and consuming without
+falling through to a containing row or pane.
+
+Help controls and scrolling carry the exact opening episode and successfully presented page;
+complete refusal admits only its close control. Help remains noncapturing for keyboard input and
+paste. Navigator rows and close carry their opening and catalog source. Machine Picker uses an
+exact opening, mode, ordered catalog, and actual filter/query basis; its renderer stages targets
+in the central map and owns no local rectangle cache. Async replacement, reopen, or source drift
+cannot activate an older candidate. Global chrome actions have stable action identity and recheck
+live admission on release; Sidebar Restore also requires an available, currently hidden sidebar.
+
+Copy, Resize, and native forms publish explicit specialized modal-control fingerprints with
+availability and exact geometry. A raw modal-shaped region does not acquire implicit Enabled
+authority. Shared controls preserve focus, current, checked, provisional navigation, status, and
+operation cues while applying hover or pressed backgrounds. A cancelled Tab click also retires
+its pressed presentation; returning does not rearm it, while a later threshold-crossing drag
+retains the specialized arrangement contract.
+
+| Painted surface                          | Layer            | Target                                                     | Accepted gesture                                                                                                              |
+| ---------------------------------------- | ---------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Navigator context row                    | `Overlay`        | Windows `NavigatorRow(Row)`; otherwise `Context(location)` | Matching primary release selects the exact painted context                                                                    |
+| Navigator tab row                        | `Overlay`        | Windows `NavigatorRow(Row)`; otherwise `Tab(tab_id)`       | Matching primary release selects the exact painted Tab                                                                        |
+| Overlay body off every control           | `OverlaySurface` | `OverlaySurface`                                           | Swallowed — never reaches the layers beneath                                                                                  |
+| Outside a capturing overlay              | —                | backdrop                                                   | Ordinary button press dismisses; wheel is inert. No region beneath, including uncovered tab chrome or a pane, sees the event. |
+| Compact tab-strip token                  | `Foreground`     | `Tab(tab_id)` with explicit interaction metadata           | Windows press arms click/drag and release activates or commits once; other platforms use matching-release selection           |
+| Pane leaf viewport (content rect)        | `Foreground`     | `Pane{tab,panel}` + painted source                         | Exact `Ctrl`+primary click opens the painted link; other presses focus, then use program passthrough or Client selection      |
+| Pane leaf title row outside the viewport | `Foreground`     | `Pane{tab,panel}`                                          | Press focuses only; the pane's program sees nothing                                                                           |
+| Visible Windows pane divider             | `Foreground`     | `Divider(source)`                                          | Plain left press starts preview; release applies once; Esc or Shift cancels                                                   |
+| Everything else (status, gaps)           | —                | dead space                                                 | Ignored                                                                                                                       |
 
 A press on a pane region resolves against the _tab that was painted_: a stale-map edge where the
 painted Tab is no longer active degrades to a plain Tab selection rather than focusing an
 unreachable panel.
 
-The Windows navigator replaces the two legacy navigator targets above with
-`NavigatorRow(episode, source, target)` proofs for every completely painted row. Only a plain
-primary press on that exact row can request activation; keyboard Enter additionally requires
+The Windows navigator uses `NavigatorRow(episode, source, target)` proofs for every completely
+painted row and an exact `DrawSource` for close. Only a matching plain primary release on that
+exact row can request activation; keyboard Enter additionally requires
 the painted focus. The [navigator contract](native-context-selection.md#windows-capturing-navigator)
 owns admission and cancellation. Backdrop presses dismiss without click-through, except wheel
 and the existing Shift host bypass. Wheel scrolls only its painted column without activation; modified/right row presses do not activate. A consumed row/backdrop decision owns its matching release after a successful fresh
@@ -245,33 +347,64 @@ the queue bound. A same-epoch local focus that reuses the installed attachment a
 
 Modal input capture gives its painted controls exclusive pointer ownership; no gesture reaches the pane underneath. Ordinary overlays dismiss on an outside button press; modal surfaces swallow it. Wheel outside a painted list is inert.
 
+A modal control that uses the current painted-release arm is tied to its exact painted target and
+rectangle. Moving outside that rectangle permanently cancels the arm; moving back inside or
+repainting cannot re-arm it. A visual-only repaint of the same target and rectangle preserves an
+arm that never left. Activation then requires the matching release, and a cancelled interaction
+requires a fresh press. This is the current modal-control invariant; it does not claim that every
+native chrome target has already migrated from press activation.
+
 ## Pane passthrough
 
-- A pane program owns pointer events inside its content viewport while the current frame reports
-  any tracking mode, plus the wheel-on-alternate-screen fallback below. Frame facts — tracking,
-  format, cell geometry, alternate screen, DEC 1007, application-cursor mode — come from the trusted
-  `TerminalInteraction` of the newest verified frame, probed fresh per event.
-- An untracked pane never receives selection bytes. Its ordinary primary-button gesture follows
-  [native terminal selection and effects](native-terminal-selection-effects.md); `Shift` continues
-  to bypass Client ownership.
-- Forwarded events are translated to pane-local coordinates against the painted content origin
-  and re-encoded by one owner in the pane's requested tracking × format: X10 reports presses
-  only; Normal reports everything but motion; Button reports while a button is held (a press
-  counts itself as held); Any reports all; releases always report. Same-cell motion is deduplicated,
-  out-of-viewport non-release events report only under motion tracking while held and clamp to the
-  edge cell, legacy `Default` format refuses coordinates above 222 rather than wrapping, `Utf8`
-  encodes coordinates as codepoints, SGR uses `M`/`m` finals, and URXVT uses its decimal form.
-- Cell-only input is encoded as SGR cells even when the pane requests `SgrPixels` (`?1016`),
-  matching Herdr's cell fallback. Tracking, modifiers, release identity, clamping and motion
-  deduplication retain the ordinary SGR rules. This does not provide exact pixel input or invent
-  a cell center; host capture remains cell-based and never enables `?1016`.
-- Byte delivery reuses the existing `forward` path, including its `Controlling` check,
-  read-only refusal, and acknowledgement semantics. An attached pane may receive local read
-  focus regardless of input authority; a title-row press focuses without pane input. A content
-  press whose mode is still unknown waits within the original pending deadline. Once a tracking
-  pane settles as `ReadOnly`, its program-owned press is dropped with the input notice and no
-  implicit acquire. Read focus never substitutes for application-input permission, and history
-  never turns a program-owned tracking gesture into Client selection.
+A fresh event over pane content resolves against the exact painted `PaneRef`, viewport, and the
+newest verified frame. `Shift` stays host-owned. Program routing uses the same tracking predicate
+as the encoder:
+
+| Tracking | Program-reportable classes                                                            |
+| -------- | ------------------------------------------------------------------------------------- |
+| None     | None. Client selection/history or the separate DEC 1007 fallback may apply.           |
+| X10      | Left, middle, or right press only.                                                    |
+| Normal   | Encodable presses and a captured release; no motion.                                  |
+| Button   | Encodable presses, held-button motion, and a captured release; no button-free motion. |
+| Any      | The Button classes plus button-free motion.                                           |
+
+Fresh admission is narrower than wire reportability. A reportable non-wheel button press may start
+a `Pane` gesture; a reportable wheel press is one-shot. A release or held-button motion without that
+press-time owner remains an inert Client-side event and never retargets into the pane under the
+pointer. Button-free `Any` motion is the one stateless program event: it reaches only the exact
+already-focused, live, controlling pane inside its painted content rectangle, starts no gesture,
+and cannot focus or migrate to a sibling or replacement incarnation. Current startup capture
+remains button-event `1002`; this routing does not itself enable global any-motion capture.
+
+Once admitted, a `Pane` gesture retains its exact pane incarnation, painted viewport origin, and
+button until matching release. Accepted motion and release remain with that owner even if a newer
+frame changes tracking. The current tracking gate remains authoritative for bytes: an event class
+the new mode does not report is consumed silently, while its matching release still clears the
+gesture. This separates gesture cleanup from fresh Client routing and prevents an orphan tail from
+becoming selection, history, or input for another pane.
+
+With no tracking, only a vertical wheel press on an alternate-screen pane with DEC 1007 enters the
+cursor-arrow fallback below. The fallback is unavailable whenever tracking is active. An active
+mode receives only the classes it reports. For example, X10 wheel remains Client-owned: on the
+primary screen it can drive retained history without emitting an illegal program report. Selection
+bytes never reach an untracked pane. Its ordinary primary-button gesture follows
+[native terminal selection and effects](native-terminal-selection-effects.md).
+
+Forwarded events translate to pane-local coordinates against the painted content origin and use one
+tracking × format encoder. Same-cell captured motion is deduplicated. Out-of-viewport non-release
+events report only under motion tracking while held and clamp to the edge cell. Legacy `Default`
+refuses coordinates above 222 rather than wrapping; `Utf8` encodes coordinates as codepoints; SGR
+uses `M`/`m` finals; URXVT uses its decimal form. Cell-only input uses SGR cells when the pane
+requests `SgrPixels` (`?1016`), matching Herdr's cell fallback without inventing a pixel
+position or enabling `?1016` in host capture.
+
+Byte delivery reuses the existing `forward` path, including its `Controlling` check, read-only
+refusal, and acknowledgement semantics. An attached pane may receive local read focus without input
+authority; a title-row press focuses without pane input. A content press whose mode is still unknown
+waits within the original pending deadline. Once a reporting pane settles as `ReadOnly`, its
+program-owned press is dropped with the input notice and no implicit acquire. Read focus never
+substitutes for application-input permission, and history never converts a captured program gesture
+into Client selection.
 
 ## Link activation
 
@@ -354,7 +487,12 @@ use the [retained viewport](native-terminal-viewport.md) owner.
 - `LastDrawnOnly`: events resolve only against the map of the last complete successful draw;
   between a layout change and the next publish every pointer event drops rather than misroutes.
 - `PublishAfterDraw`: a staged map becomes authoritative only when its frame's draw completes —
-  a failed draw publishes nothing.
+  a failed draw publishes nothing and retires the previous map because the host may contain a
+  partial candidate.
+- `ExplicitInteraction`: generic hover and activation require painted `InteractionSpec` metadata;
+  labels, colors, region variants, and coordinates never invent a contract.
+- `ReleaseFingerprint`: generic activation requires the same target, painted rectangle, contract,
+  availability, and authoritative hit. Frame sequence alone neither cancels nor re-arms it.
 - `StableIdentity`: regions carry `WorkbenchTabId`/`NativeContextLocation`/`WorkbenchPanelId`
   re-resolved at click time; no cached index survives a reorder.
 - `OneGestureOwner`: press, drag, and release resolve against the press's region; capture
@@ -378,22 +516,23 @@ use the [retained viewport](native-terminal-viewport.md) owner.
 
 ## Source correspondence
 
-| Production surface                          | Model correspondence                                                                                                                                                                                                   |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tui_pointer.rs`                            | `PointerState` capture/map/gesture lifecycle, `FrameHitMap`/`HitMapBuilder` staged regions, `Gesture` (`Idle`/`Pending`/`Pane`/`Selection`/`Divider`/`Link`), `WheelStream`                                            |
-| `terminal_input/mouse.rs`                   | `MouseEvent` decode (`decode_sgr`, `decode_x10`), `pane_owns_pointer`, `encode_pane_report`, `encode_cursor_arrows`                                                                                                    |
-| `terminal_input/decoder.rs`                 | Typed `DecodedKind::Mouse`/`Ignored` items; X10 atomic three-byte body consumption, timeout, and abort; mouse-shaped malformed/aborted/over-bound runs decode `Ignored`                                                |
-| `terminal_input/dispatcher.rs`              | Explicit `Mouse` and `Ignored` arms before the raw-passthrough wildcard — `Ignored` is consumed and dropped, never pending; pending-byte flush first; `RegionsChanged` map staleness; external-change `invalidate_map` |
-| `terminal_lifecycle.rs`                     | `set_pointer_capture` ModeLease pair (`?1002`/`?1006`) armed at enter and restored on every exit path                                                                                                                  |
-| `tui_shell.rs`                              | Startup arming, `HitMapBuilder` staged per draw, publish-on-success, `set_pointer_capture` callback wiring                                                                                                             |
-| `tui_render.rs`, `tabs`, `contexts`         | Per-painted-rect region recording for tab tokens, navigator rows, overlay surface, and pane leaves                                                                                                                     |
-| `client_view.rs`, `client_view/bindings.rs` | `Ctrl+B m` → `TogglePointerCapture`, `SelectContextAt`/`FocusPanel`/`SelectTab` dispositions, released indicator and pointer notices                                                                                   |
-| `terminal_session/ui.rs`, `state/`          | `pointer_probe` fresh facts, `focus_panel`/`select_context_at` admission, stable-id accessors (`tab_id`, `panel_id`, `location`)                                                                                       |
-| `terminal_link_activation.rs`               | Exact source fences, OSC 8/plain resolution, ordered handler handoff, one-effect browser fallback, bounded lane and joined shutdown                                                                                    |
-| `terminal_session.rs` (test seam)           | Single-pane `Legacy` probe backed by the real projection frame and controller status — the connected-PTY witness backend                                                                                               |
-| `terminal_input.rs`                         | `PointerProbe`/`PointerTab`/`PointerFrameFacts` port surface and `forward_or_report` delivery                                                                                                                          |
-| `invocation.rs`, `cli/`                     | `tui --mouse off\|on` admission, help text, and three-shell completion                                                                                                                                                 |
-| `crates/terminal-protocol`                  | `TerminalInteraction` trusted Rust API exposing tracking/format/geometry/cursor-mode facts of the verified frame                                                                                                       |
+| Production surface                                                                                       | Model correspondence                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tui_pointer.rs`, `tui_pointer/interaction.rs`                                                           | `PointerState` capture/map/gesture lifecycle, typed interaction metadata and projection, stable release fingerprint, `FrameHitMap`/`HitMapBuilder` staged regions, specialized `Gesture` owners, `WheelStream`                    |
+| `terminal_input/mouse.rs`                                                                                | `MouseEvent` decode (`decode_sgr`, `decode_x10`), `route_pane_pointer`, `encode_pane_report`, `encode_cursor_arrows`                                                                                                              |
+| `terminal_input/decoder.rs`                                                                              | Typed `DecodedKind::Mouse`/`Ignored` items; X10 atomic three-byte body consumption, timeout, and abort; mouse-shaped malformed/aborted/over-bound runs decode `Ignored`                                                           |
+| `terminal_input/dispatcher.rs`                                                                           | Explicit `Mouse` and `Ignored` arms before raw forwarding; generic pointer outcomes and whole-packet unchanged-motion redraw decision; pending bytes and decoder deadlines retain ordering; structural changes invalidate the map |
+| `terminal_lifecycle.rs`                                                                                  | Baseline Button/SGR capture, one-shot typed `1003` admission, settled motion observability, journaled restoration on every exit                                                                                                   |
+| `tui_shell.rs`                                                                                           | Startup arming, immutable pointer projection per candidate, publish on success only, one later-turn reconciliation repaint, failed-draw authority invalidation, capture callback wiring                                           |
+| `tui_render/settings.rs`, `action_menu.rs`, `agent_board.rs`, `agent_sidebar.rs`, `workspace_sidebar.rs` | Exact typed interactions for Settings, open action menus, Agent board and visible sidebars                                                                                                                                        |
+| `tui_render.rs`, `help`, `navigator`, `tabs`, `contexts`, `presentation_selector`, `machine_picker`      | Exact authored chrome interactions and source witnesses; pane leaf regions keep their dedicated input contract                                                                                                                    |
+| `client_view.rs`, `client_view/bindings.rs`                                                              | `Ctrl+B m` → `TogglePointerCapture`, `SelectContextAt`/`FocusPanel`/`SelectTab` dispositions, released indicator and pointer notices                                                                                              |
+| `terminal_session/ui.rs`, `state/`                                                                       | `pointer_probe` fresh facts, `focus_panel`/`select_context_at` admission, stable-id accessors (`tab_id`, `panel_id`, `location`)                                                                                                  |
+| `terminal_link_activation.rs`                                                                            | Exact source fences, OSC 8/plain resolution, ordered handler handoff, one-effect browser fallback, bounded lane and joined shutdown                                                                                               |
+| `terminal_session.rs` (test seam)                                                                        | Single-pane `Legacy` probe backed by the real projection frame and controller status — the connected-PTY witness backend                                                                                                          |
+| `terminal_input.rs`                                                                                      | `PointerProbe`/`PointerTab`/`PointerFrameFacts` port surface and `forward_or_report` delivery                                                                                                                                     |
+| `invocation.rs`, `cli/`                                                                                  | `tui --mouse off\|on` admission, help text, and three-shell completion                                                                                                                                                            |
+| `crates/terminal-protocol`                                                                               | `TerminalInteraction` trusted Rust API exposing tracking/format/geometry/cursor-mode facts of the verified frame                                                                                                                  |
 
 ## Verification
 
@@ -404,14 +543,17 @@ control/attach byte witnesses described in [terminal streams](windows-terminal-s
 | Surface                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Decode                    | `terminal_input/mouse/tests` SGR/X10 tables — press/release/motion/wheel/modifiers, cross-chunk atomicity, malformed rejection without key fallthrough; `terminal_input/decoder/tests` — valid SGR/X10 items, X10 split feeds, timeout drain, ESC/C1 abort, malformed bodies, over-bound runs, and interleave with keys/paste — all malformed mouse-shaped bytes as `Ignored`                                                       |
-| Encode contract           | `encode_pane_report` table rows for every tracking × format cell, release finals, dedup, clamping, legacy bound, and SGR cell fallback                                                                                                                                                                                                                                                                                              |
+| Encode and ownership      | `route_pane_pointer` fresh-event matrix plus `encode_pane_report` rows for every tracking × format cell, captured cleanup, release finals, dedup, clamping, legacy bound, and SGR cell fallback                                                                                                                                                                                                                                     |
 | Hit map                   | `tui_pointer/tests` layer order, edge/outside cells, overlay capture and backdrop dismiss — including an outside press on the uncovered tab strip and pane that never selects or forwards — stale-map drop                                                                                                                                                                                                                          |
+| Interaction projection    | `tui_pointer/tests/interaction` covers hover enter/repeat/leave, disabled and specialized targets, press/release, permanent leave cancellation, repaint continuity, changed fingerprint/occlusion, transport loss, child precedence, and one bounded stationary-position follow-up                                                                                                                                                  |
+| Generic adopters          | Renderer/dispatcher tests cover Settings, menus, sidebars, Board, Help, Navigator, Machine Picker, Presentation, Tab creation and global chrome: exact sources/geometry, disabled consumption, stale refusal, model-independent hover, release cancellation and no retarget                                                                                                                                                         |
 | Gesture and pending focus | `tui_pointer/tests` press/release ordering, queue bound and overflow cancel, timeout, orphan, read-only, target-moved refusal, settled-without-frame wait, and fact-gated admission                                                                                                                                                                                                                                                 |
-| Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order                                                                                                                                                                                                                                     |
+| Dispatcher port writes    | `terminal_input/dispatcher/tests` — malformed SGR/X10 and aborted/timed-out mouse runs produce zero forwarded bytes while ordinary keys, paste, and unrelated unknown CSI pass through in order; continuous button-free motion cannot starve an expired Escape and only an all-unchanged-motion packet skips repaint                                                                                                                |
 | Wheel stream              | `tui_pointer/tests` three-per-notch, per-pass viewport cap, reversal clearing, stream close on drain                                                                                                                                                                                                                                                                                                                                |
 | Capture lifecycle         | `terminal_lifecycle/tests` lease pairing and restoration; dispatcher `Ctrl+B m` toggle test; status indicator                                                                                                                                                                                                                                                                                                                       |
 | Link click                | Recording pointer ports cover exact modifiers, same-cell release, cancellation, prior gesture owners and busy admission; the shared OSC 8 wide-cell and wrapped HTTP(S) resolvers retain their CLI integration fixtures; route tests use a recording browser port for priority, accepted ambiguity, definite no-handler fallback and one effect; controlled Windows integration covers the fresh viewer and native plugin transport |
 | CLI                       | `invocation/tests` `tui --mouse` value admission, bare/other-family refusal, `--format` refusal; `cli/completion` scripts                                                                                                                                                                                                                                                                                                           |
+| Controlled Windows Host   | `apps/terminal-host` `test-conpty-orchbee-pointer` launches the Orchbee child through pinned ConPTY/Ghostty and exercises the actual inherited Reader, reply decoder, one-shot mode admission, semantic hover distinction and mode restoration; it does not establish physical pointer/font/palette behavior                                                                                                                        |
 | Real PTY (Legacy seam)    | `tui_shell/tests/connected::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes` — recorded pane-local SGR bytes, pane-local translation, read-only drop, SGR cell fallback, wheel→arrows, capture toggle, mode restoration                                                                                                                                                                                    |
 | Real PTY (public Native)  | `tests/local_startup_process/native_pointer.rs` — the spawned `orchbee` binary on a real PTY: capture arming, X10 and SGR pane-local reports, unfocused-pane click focus and queued flush, read-only rejection, wheel→arrows, `Ctrl+B m`, `--mouse off`, exit restoration, and zero-pixel host geometry keeping cell-addressed reports while `?1016` uses SGR cell fallback                                                         |
 
@@ -423,6 +565,6 @@ The [Panel input policy](native-panel-input.md) gates fresh right presses before
 
 When the session is Ready or selected without attachment, Panels with multiple Presentations show `[<] [position/count] [>]` in their existing header: the borderless title band for single/zoomed Panels, or the leaf header for split Panels. The control reserves twelve cells for title/status; narrow headers and the Minimal tier keep the existing label/count and keyboard route. Each arrow has a three-cell hit region. The count and spaces are inert; split Pane hit regions exclude the entire selector strip, so controls never overlap terminal content or focus regions. No extra header row or host mouse mode is introduced.
 
-Only an unmodified left press selects the exact painted destination Presentation. Buttons wrap in canonical member order, equivalent to `Ctrl+B (` / `Ctrl+B )`. A bound target contains the current `PaneRef` and destination Presentation ID. An empty target contains its structural Pane key and exact selected Presentation ID; the fresh probe must still identify that member as unbound. Empty Panel body presses only focus and never start a terminal gesture. The fresh probe must retain the exact incarnation or unbound selection under the current desired anchor; the UI then resolves Panel/member within the active Tab before submitting the existing Switch transaction. Removed/replaced members, old anchors, modal input, capturing overlays and released mouse capture cannot redirect the gesture. Read-only terminal mode does not prohibit Client-local navigation; selection never forwards terminal bytes or bypasses binding-only child attachment. A successful click invalidates the old hit map until redraw.
+An unmodified left press arms the exact painted destination Presentation; only its matching release selects it. Buttons wrap in canonical member order, equivalent to the effective Previous/Next Presentation bindings (defaults `Ctrl+B (` / `Ctrl+B )`). A bound target contains the current `PaneRef` and destination Presentation ID. An empty target contains its structural Pane key and exact selected Presentation ID; the fresh probe must still identify that member as unbound. Empty Panel body presses only focus and never start a terminal gesture. The fresh probe must retain the exact incarnation or unbound selection under the current desired anchor; the UI then resolves Panel/member within the active Tab before submitting the existing Switch transaction. Removed/replaced members, old anchors, modal input, capturing overlays and released mouse capture cannot redirect the gesture. Read-only terminal mode does not prohibit Client-local navigation; selection never forwards terminal bytes or bypasses binding-only child attachment. A successful click invalidates the old hit map until redraw.
 
-Evidence covers button edges, inactive count/spacing, disjoint split rectangles, single/split/zoom rendering, narrow and Minimal degradation, modified/non-left reports, capture/overlay/modal guards, stale incarnation/anchor, removed members and actual UI admission to the exact child Switch. Final real-host visual/multi-Client acceptance remains deferred with the full Windows gate.
+Evidence covers button edges, inactive count/spacing, disjoint split rectangles, single/split/zoom rendering, narrow and Minimal degradation, modified/non-left reports, capture/overlay/modal guards, stale incarnation/anchor, removed members and actual UI admission to the exact child Switch. Composed TestBackend captures establish cell composition; physical host palette, font, pointer hardware, latency, and multi-Client visual behavior require their own native evidence.

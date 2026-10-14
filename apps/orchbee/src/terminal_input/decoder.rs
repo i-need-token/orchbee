@@ -75,7 +75,7 @@ pub(crate) enum DecodedKind {
     /// Host focus metadata, never terminal input or a prefix key.
     Focus(bool),
     /// Host query metadata cannot participate in key ownership or human activity.
-    HostReply(crate::terminal_graphics::Reply),
+    HostReply(super::HostReply),
     /// A mouse-shaped sequence that failed validation or never completed —
     /// malformed SGR parameters, an X10 body aborted or timed out, an
     /// over-bound `<`-prefixed run. These bytes are the host's pointer
@@ -466,7 +466,9 @@ impl LegacyDecoder {
                 State::Graphics { mut reply, owned } => {
                     if let Some(completed) = reply.push(byte, now) {
                         items.push(DecodedItem {
-                            kind: completed.map_or(DecodedKind::Ignored, DecodedKind::HostReply),
+                            kind: completed.map_or(DecodedKind::Ignored, |reply| {
+                                DecodedKind::HostReply(super::HostReply::Graphics(reply))
+                            }),
                             raw: Box::default(),
                             owned,
                         });
@@ -836,12 +838,16 @@ impl LegacyDecoder {
 
     fn finish_csi(&mut self, raw: &[u8], now: Instant, owned: bool, items: &mut Vec<DecodedItem>) {
         let body = &raw[csi_prefix_len(raw)..];
-        if let Some(reply) = crate::terminal_graphics::cell_reply(body) {
+        if let Some(reply) = csi_host_reply(body) {
             items.push(DecodedItem {
                 kind: DecodedKind::HostReply(reply),
                 raw: raw.into(),
                 owned,
             });
+            return;
+        }
+        if csi_host_metadata_shaped(body) {
+            items.push(DecodedItem::ignored(raw, owned));
             return;
         }
         if body == b"M" {
@@ -961,10 +967,55 @@ fn csi_prefix_len(raw: &[u8]) -> usize {
     }
 }
 
-/// A malformed mouse/cell report cannot expose its residue as typed input.
+/// Parses the bounded outer-terminal metadata that input owns. Pointer
+/// admission is intentionally strict: only mode 1003 and a syntactically
+/// complete primary device-attributes reply are admitted as typed replies.
+pub(super) fn csi_host_reply(body: &[u8]) -> Option<super::HostReply> {
+    if let Some(reply) = crate::terminal_graphics::cell_reply(body) {
+        return Some(super::HostReply::Graphics(reply));
+    }
+    let pointer = match body {
+        b"?1003;0$y" => Some(crate::terminal_pointer_admission::ModeReportState::Unsupported),
+        b"?1003;1$y" => Some(crate::terminal_pointer_admission::ModeReportState::Set),
+        b"?1003;2$y" => Some(crate::terminal_pointer_admission::ModeReportState::Reset),
+        b"?1003;3$y" => Some(crate::terminal_pointer_admission::ModeReportState::PermanentlySet),
+        b"?1003;4$y" => Some(crate::terminal_pointer_admission::ModeReportState::PermanentlyReset),
+        _ => None,
+    };
+    if let Some(state) = pointer {
+        return Some(super::HostReply::Pointer(
+            crate::terminal_pointer_admission::HostReply::Mode1003(state),
+        ));
+    }
+    primary_device_attributes(body).then_some(super::HostReply::Pointer(
+        crate::terminal_pointer_admission::HostReply::PrimaryDeviceAttributes,
+    ))
+}
+
+fn primary_device_attributes(body: &[u8]) -> bool {
+    let Some(parameters) = body
+        .strip_prefix(b"?")
+        .and_then(|body| body.strip_suffix(b"c"))
+    else {
+        return false;
+    };
+    !parameters.is_empty()
+        && parameters
+            .split(|byte| *byte == b';')
+            .all(|parameter| !parameter.is_empty() && parameter.iter().all(u8::is_ascii_digit))
+}
+
+/// A complete private CSI is host metadata only when it carries a reply final.
+/// Unknown private modes such as `?25h` remain generic input and pass through.
+pub(super) fn csi_host_metadata_shaped(body: &[u8]) -> bool {
+    body.starts_with(b"6;")
+        || (body.starts_with(b"?") && (body.ends_with(b"c") || body.ends_with(b"$y")))
+}
+
+/// A malformed mouse/host-metadata report cannot expose its residue as typed input.
 fn csi_metadata_shaped(raw: &[u8]) -> bool {
     let body = raw.get(csi_prefix_len(raw)..).unwrap_or_default();
-    body.starts_with(b"<") || body.starts_with(b"6;")
+    body.starts_with(b"<") || csi_host_metadata_shaped(body)
 }
 
 /// Host metadata drains are dropped; unrelated sequences retain passthrough order.

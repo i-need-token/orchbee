@@ -102,6 +102,11 @@ independent:
 - pending retains focus, current, and checked cues and adds a fixed-width `status-pending` glyph and
   localized operation verb.
 
+A collection declares where its one keyboard-owner focus cue is painted. A framed collection uses
+the enclosing `frame-focused` border; an unframed row owner reserves a dedicated focus track. This
+projection is explicit: omitting a track is never an implicit fallback, and a framed row does not
+repeat the frame's focus cue. Provisional navigation keeps its own shared row marker in either case.
+
 Checked belongs to the control's declared value model and commit boundary. It may project a parent
 draft, a staged multi-choice value, or a confirmed domain value, and remains independent of the
 provisional cursor. It never proves persistence by itself. When that projected value differs from
@@ -185,7 +190,8 @@ Rows use consistent tracks in this order:
 
 | Track            | Contract                                                                                                                          |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Focus            | Reserved for the keyboard-focus marker; never reused for an ordinal                                                               |
+| Focus            | Present only for an unframed row focus owner; a framed collection presents focus once on its enclosing frame                      |
+| Navigation       | Shared one-cell provisional cursor (`›`, ASCII `>`); never reused for current, checked, changed, or an ordinal                    |
 | Indent           | One constant step per tree depth within the component                                                                             |
 | Disclosure       | Reserved for every tree row at the same depth; leaves paint a blank slot                                                          |
 | State            | Fixed-width identity, checked, or operational glyph slot                                                                          |
@@ -195,6 +201,9 @@ Rows use consistent tracks in this order:
 
 - Sibling labels start in the same column whether or not a row has children, status, metadata, or a
   visible auxiliary action. Numbers appear only when ordinal position has product meaning.
+- The collection, rather than an item renderer, owns the navigation marker and its
+  `accent-selection` treatment. Feature code supplies provisional identity and fixed geometry, not
+  a replacement glyph.
 - The primary row target spans every cell and line owned by the row, including internal breathing
   space, so there are no dead strips. A separately painted auxiliary action has its own hit region
   and wins hit testing inside that region. Its keyboard equivalent remains discoverable.

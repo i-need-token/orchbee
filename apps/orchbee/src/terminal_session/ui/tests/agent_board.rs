@@ -15,6 +15,12 @@ use orchbee_workbench_protocol::*;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 
+mod captures;
+
+fn key(code: crate::client_view::KeyCode) -> crate::client_view::KeyEvent {
+    crate::client_view::KeyEvent::press(code, crate::client_view::Modifiers::NONE)
+}
+
 fn attachment(presentation: u64) -> AgentPresentationAttachment {
     AgentPresentationAttachment {
         generation: AgentAttachmentGeneration::parse("gen-1").unwrap(),
@@ -166,11 +172,13 @@ fn a_jump_against_an_unfed_index_waits_instead_of_reporting_gone() {
             },
             deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
         });
+    let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
+    ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
     // No canonical snapshot has ever fed the index: resolving now could
     // only guess, and guessing reports `Gone` for sessions that exist.
     // The drive must keep the candidate exactly where it is — waiting
     // inside the jump's own deadline, with no failure notice.
-    let _changed = ui.drive_agent_board();
+    let _changed = ui.drive_agent_board(true);
     let Some(jump) = ui.board.jump() else {
         panic!("the jump survives the unfed-index wait");
     };
@@ -180,4 +188,128 @@ fn a_jump_against_an_unfed_index_waits_instead_of_reporting_gone() {
     ));
     assert!(ui.board.notice().is_none());
     assert!(ui.board.jumping());
+}
+
+#[test]
+fn exact_board_capture_is_fail_closed_during_pending_and_suspended_recovery() {
+    let (mut ui, _mailbox, _clock) = fixture();
+    ui.board.open();
+    let stale = ui.board.episode();
+    ui.board.close();
+    ui.board.open();
+    let episode = ui.board.episode();
+    assert_ne!(episode, stale);
+
+    assert!(!ui.capture_agent_board_key(stale, &key(crate::client_view::KeyCode::Esc)));
+    assert!(
+        ui.board.is_open(),
+        "a stale owner cannot close this episode"
+    );
+    assert!(ui.capture_agent_board_key(episode, &key(crate::client_view::KeyCode::Enter)));
+    assert!(ui.board.is_open(), "Pending ordinary input is swallowed");
+
+    let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
+    ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
+    assert!(ui.board.input_context().unwrap().interactive());
+    assert_eq!(
+        ui.board
+            .settle_draw(Some(AgentBoardDraw::NotPresented(episode))),
+        Some(crate::tui_presentation::GeometrySettlement::Suspended)
+    );
+    assert!(!ui.board.input_context().unwrap().interactive());
+    assert!(ui.capture_agent_board_key(episode, &key(crate::client_view::KeyCode::Enter)));
+    assert!(ui.board.is_open(), "Suspended activation remains inert");
+    assert!(ui.capture_agent_board_key(episode, &key(crate::client_view::KeyCode::Esc)));
+    assert!(
+        !ui.board.is_open(),
+        "the declared local recovery exit remains live"
+    );
+}
+
+#[test]
+fn a_covered_board_keeps_an_accepted_jump_without_moving_workbench_focus() {
+    let (mut ui, mailbox, clock) = fixture();
+    bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
+    ui.board.open();
+    ui.board
+        .force_jump_t(super::super::super::agent_board::BoardJump {
+            serial: 1,
+            stage: super::super::super::agent_board::JumpStage::Navigating {
+                candidates: vec![attachment(0x3ea)].into_boxed_slice(),
+                index: 0,
+            },
+            deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
+        });
+    let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
+    ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
+    assert!(ui.board.input_context().unwrap().interactive());
+
+    let focused = ui.state.as_ref().unwrap().focus_panel_id().cloned();
+    let _changed = ui.drive_agent_board(false);
+    assert_eq!(
+        ui.state.as_ref().unwrap().focus_panel_id(),
+        focused.as_ref(),
+        "a Client-level cover blocks navigation before its draw receipt"
+    );
+    assert!(matches!(
+        ui.board.jump().map(|jump| &jump.stage),
+        Some(super::super::super::agent_board::JumpStage::Navigating { index: 0, .. })
+    ));
+
+    ui.after_agent_board_draw(None);
+    assert!(!ui.board.input_context().unwrap().interactive());
+    let _changed = ui.drive_agent_board(true);
+
+    assert_eq!(
+        ui.state.as_ref().unwrap().focus_panel_id(),
+        focused.as_ref(),
+        "a covered completion cannot move focus behind its child"
+    );
+    assert!(matches!(
+        ui.board.jump().map(|jump| &jump.stage),
+        Some(super::super::super::agent_board::JumpStage::Navigating { index: 0, .. })
+    ));
+}
+
+#[test]
+fn a_new_higher_capture_blocks_a_jump_before_the_next_cover_receipt() {
+    let (mut ui, mailbox, clock) = fixture();
+    bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
+    ui.board.open();
+    ui.board
+        .force_jump_t(super::super::super::agent_board::BoardJump {
+            serial: 1,
+            stage: super::super::super::agent_board::JumpStage::Navigating {
+                candidates: vec![attachment(0x3ea)].into_boxed_slice(),
+                index: 0,
+            },
+            deadline: std::time::Instant::now() + std::time::Duration::from_secs(30),
+        });
+    let actual = ui.agent_board_view().unwrap().actual_draw(4).unwrap();
+    ui.after_agent_board_draw(Some(AgentBoardDraw::Presented(actual)));
+    assert!(ui.board.input_context().unwrap().interactive());
+
+    assert!(matches!(
+        ui.request_panel_close_confirmation(),
+        SessionActionDisposition::DismissNavigator
+    ));
+    assert!(ui.view().panel_close_confirmation().is_some());
+    assert!(
+        ui.board.input_context().unwrap().interactive(),
+        "the previous Board frame has not received its cover receipt yet"
+    );
+    let focused = ui.state.as_ref().unwrap().focus_panel_id().cloned();
+    let _changed = ui.drive_agent_board(true);
+
+    assert_eq!(
+        ui.state.as_ref().unwrap().focus_panel_id(),
+        focused.as_ref(),
+        "a synchronously opened higher capture blocks Board focus effects"
+    );
+    assert!(matches!(
+        ui.board.jump().map(|jump| &jump.stage),
+        Some(super::super::super::agent_board::JumpStage::Navigating { index: 0, .. })
+    ));
 }

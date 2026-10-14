@@ -2,20 +2,33 @@
 
 ## 范围与归属
 
-本参考治理原生 Client 在运行时拥有的宿主终端契约的三个部分：面对瞬时零几何的视口观测、
-每个绘制帧的同步更新包裹，以及指针捕获模式对。它与 `terminal_device.rs`、
-`terminal_lifecycle.rs`、`tui_backend.rs`、`tui_shell.rs` 共同维护。准入验证 TTY
+本参考治理原生 Client 在运行时拥有的宿主终端契约：保留的 Windows 端点、raw 记录输入与
+Unicode VT 输出、面对瞬时零几何的视口观测、每个绘制帧的同步更新包裹，以及指针捕获模式对。
+它与 `terminal_device.rs`、`terminal_device/windows.rs`、`windows_console_input/records.rs`、
+`startup_wait.rs`、`terminal_lifecycle.rs`、`tui_backend.rs`、`tui_shell.rs` 及所属的
+`crates/windows-console-host` 边界共同维护。准入验证 TTY
 身份与描述符安全（两个流上的交互 TTY、同一终端身份、几何查询本身可用）；获得可绘制的
 单元格几何是独立的就绪关注，由 [`native-startup-wait.md`](native-startup-wait.md) 治理。
 宿主以零报告的像素几何被如实报告为 "pixel 未知"——一种正常状态，绝不伪造。
+指针能力 settle 还须与 `terminal_pointer_admission.rs` 及 `terminal_input/` 下的外层宿主
+解码器共同维护。
 
 ## Windows 输入归属
 
-准入后的继承控制台在启动等待、TUI 和直接 attach 之间共享一个记录读取器。
+Windows 适配器把准入后的标准输入与输出句柄各复制一次，交给
+[`orchbee-windows-console-host`](../../../crates/windows-console-host/README.zh-CN.md) 提供、以
+`OwnedHandle` 为后盾的 `ConsoleInput` 与 `ConsoleOutput` 端口。模式操作、raw 记录摄取、输出
+窗口观测和 Unicode 输出全都使用这些精确保留的句柄；适配器不会重新打开 `CONIN$` 或
+`CONOUT$`，也不会在准入后再次解析进程标准端点。边界 crate 的私有 `sys` 模块是这些 Win32
+调用与带 tag union 读取经过评审的 unsafe 边界；Client 使用它提供的安全记录与端口。
+
+准入后的继承控制台在启动等待、TUI 和直接 attach 之间拥有一个权威记录读取器。
 它在阶段切换时保留 UTF-16 代理项和有界重复状态；没有竞争读取的 Crossterm 事件读取器或
 后台输入线程。每次读取最多交付 4096 字节，活动排空预算为四毫秒。虚拟键码为零的 VT 字符，
 包括 C0 和 bracketed-paste 边界，原样进入语义解码器。物理键盘与鼠标记录复用已有字节编码；
-raw Ctrl+C 仍是应用输入。
+raw Ctrl+C 仍是应用输入。原生就绪计数与随后的一条记录读取是两个独立的 Win32 调用，并非
+针对外部消费者的原子预留。因此，有界读取契约要求外部读取器不得在两者之间排空同一控制台
+输入缓冲区；Client 的权威读取器在进程内部保证这个条件。
 
 raw mode 保持 `ENABLE_VIRTUAL_TERMINAL_INPUT` 开启并关闭 cooked 处理。关闭 VT 输入会让
 ConPTY 丢弃粘贴边界；用键盘布局查询解释零键码 ESC 也会丢失边界。指针租约单独拥有原生
@@ -23,6 +36,30 @@ ConPTY 丢弃粘贴边界；用键盘布局查询解释零键码 ESC 也会丢�
 恢复时还原保存的原始控制台输入／输出模式。参见微软的
 [控制台模式契约](https://learn.microsoft.com/en-us/windows/console/setconsolemode)与
 [粘贴边界过滤说明](https://github.com/microsoft/terminal/issues/18094)。
+
+## VT 命令输出
+
+Windows 成功启用 VT 输出处理后，生命周期、启动等待提示与固定视口渲染器使用
+`Command::write_ansi` 将 Crossterm 命令直接编码到调用方提供的写器。该路径不会运行
+Crossterm 的进程全局 Windows ANSI 探测、打开 `CONOUT$`，也不会退回到可能针对另一控制台
+的 WinAPI 操作。编码器不分配中间命令缓冲区，保留首个写器错误，而且不选择 flush 边界：
+生命周期 effect 在命令后 flush，提示与渲染器只在原有的完整输出边界 flush。已报告的写入
+错误可能发生在某个前缀已经发出之后；编码器既不重放该前缀，也不继续处理后续命令片段。
+
+精确句柄 Unicode 适配器使用 `WriteConsoleW`。每个取得的写器独立拥有一个有序流的不完整
+UTF-8 尾部、待写 low surrogate 与锁存故障。可信的原生短计数会映射回 UTF-8 前缀；拆开的
+surrogate 会在同一个写器接受后续字节之前恰好补完一次。零计数或不可能的计数、非法 UTF-8
+或原生错误会使该写器进入故障；之后对它的调用直接返回已保留错误，不再原生写入。原生错误
+的 effect 未知，且可能发生在前缀已经发出之后，因此适配器与调用方都不会重放失败
+payload。新写器以空编码状态开始，使有界生命周期清理能在帧写器故障后继续尝试完整 ASCII
+控制序列；它不会修复失败流、证明没有前缀逸出，也不会让控制台输出成为原子操作。
+
+直接编码由成功的原生 VT 模式变更门控。若该变更在尝试备用屏幕命令之前失败，恢复流程
+不会发出可能显示为文字的 ANSI 备用屏幕清理。在已准入路径上，显示光标与离开备用屏幕
+都在 VT 处理仍生效时尝试；还原保存的输出和输入模式字是最后一个原生步骤。两个原生恢复
+独立 settle：两个待恢复模式字都会被尝试，其中一个恢复成功后，不会仅因另一个失败而再次
+写入。模式捕获、VT 准入、输出、清理与恢复全都指向同一对保留的输入／输出端口；原始模式
+恢复债由生命周期 owner 登记并 settle，而不是由边界 crate 拥有。
 
 ## 视口观测
 
@@ -40,14 +77,39 @@ ConPTY 丢弃粘贴边界；用键盘布局查询解释零键码 ESC 也会丢�
 来解决——旧像素永远不是新尺寸的度量。已知 → 未知 → 已知 的转移走同一条几何路径；
 每个状态都按实测报告，下游依赖像素的功能按"成对已知"门控，而非按任何估计值。
 
-## 指针捕获模式对
+## 指针捕获生命周期
 
-指针上报是一对租约模式：button-event tracking（`?1002h`）与 SGR 编码（`?1006h`）一起，
-除非 `tui --mouse off` 拒绝，否则在启动时 arm，并由对应的 `?1002l`/`?1006l` 释放。
-该对与 bracketed paste 走同一套 `ModeLease` 机制——成功的 arm 登记恢复义务，失败的 arm
-不欠任何东西。运行时经 `Ctrl+B m` 的释放与重新 arm 和启动 arming 共用同一租约，因此已
-settle 的 client 标志与状态指示永远只描述一次确实成功的模式写。手势路由、命中测试与
-透传语义属于[原生鼠标输入](native-mouse-input.md)；本节只拥有模式生命周期。
+指针上报拥有一个 tracking level 加 SGR cell 编码。准入先关闭 any-motion（`?1003l`），
+再启用 `?1002h` 与 `?1006h`，建立 button-event baseline。该完整 baseline 成功后，生命周期
+控制的输出路径发出一次有序的 `?1003$p` DECRQM，并以 DA1 作为完成哨兵。只有
+`Reset (2)` DECRPM 回复准入 any-motion。`Set (1)` 与已经建立的 baseline 矛盾，settle 为
+unknown；`0`、`3`、`4` settle 为 unavailable；DA1 先到或有界 deadline 到期 settle 为
+unknown。由于回复没有 query identifier，同一端点绝不再次探测：迟到或重复回复会被消费，
+但不能改变已经 settle 的结果。
+
+普通宿主解码器与 modal 宿主解码器以相同规则识别 ESC-CSI 和 C1-CSI 两种形式的精确回复。
+DECRPM 只接受 `?1003;[0-4]$y`，DA1 回复必须由一个或多个非空十进制参数组成。完整 private
+CSI 只有带 DA1 的 `c` 或 DECRPM 的 `$y` 回复 final 时才属于宿主元数据；畸形但具有回复
+framing 的帧会被消费，绝不变成按键、编辑器输入或 pane 字节。其他完整 private CSI 仍是
+generic non-decision input，并保留 raw passthrough。若一个 run 在回复 final 到达前触及时间或
+大小上限，它同样回到有界 generic drain，不会无限延长元数据所有权。bracketed-paste payload
+保持字面值，绝不在其中检查这些回复。
+
+准入结果通过先关闭旧 level、再启用新 level，从 `1002` 切换到 `1003`。unknown 与
+unavailable 保持 `1002`，因此 click、drag、wheel 可用，而 idle hover 如实缺席。任一时刻
+恰好只有一个 tracking level 生效；`1006` 仍是其编码。捕获释放与重新 arm 复用端点已经
+settle 的结果，不再发出查询。
+只有完整 mode 写入成功后，已准入的切换才发布到指针交互状态。切换失败不发布 hover
+权限，运行中的输入循环也绝不重试；致命路径直接进入完整生命周期清理。全局准入后的
+any-motion 服务所有已绘制 chrome 控件，包括 action menu。不存在 menu-scoped `1003`
+租约；因此 ButtonOnly fallback 具有 click、drag、wheel，但不会在任何位置宣称 idle hover。
+
+tracking level 与编码共用一个 `ModeLease`；除非 `tui --mouse off` 拒绝，否则在启动时 arm。
+每次原生或 VT 变更开始前都先登记待恢复义务。因此部分 enable 或 level switch 会进入
+transition-unknown 状态，不能再尝试运行时 fallback；只有完整释放序列（`?1003l`、
+`?1006l`、`?1002l`）能够 settle 它。经 `Ctrl+B m` 的运行时释放、重新 arm、启动 arming、
+错误清理与 panic 清理共用该租约。手势路由、命中测试、降级或释放时的状态清理，以及 pane
+透传属于[原生鼠标输入](native-mouse-input.zh-CN.md)；本节拥有能力 settle 与模式生命周期。
 
 ## 同步帧输出
 
@@ -69,15 +131,18 @@ settle 的 client 标志与状态指示永远只描述一次确实成功的模�
 失败保留其首因。flush 失败仍尝试 end 标记；end 标记自身失败在尝试后报告，绝不在一帧内
 静默重试。draw 失败则放弃该未完成帧：错误路径上帧写器在其被 drop 前先被围断，其缓冲
 残量连同 drop 时的重试均不再送达终端。已写出的字节无法撤回；仍开启的对由恢复时经控制
-通道终结。
+通道终结。shell 在返回致命绘制错误前，还会撤销上一帧的命中图与已武装控件。
+未完成的候选帧和旧帧都不能再授权交互。该循环直接退出，不重放输出；若实现恢复，
+必须先建立新的终端基线并完成一次全量重绘。
 
 恢复由 lifecycle 拥有并按固定次序执行：先阻断后续帧输出，再经由终端控制通道在与其他
 模式相同的有界重试预算内终结仍开启的对，之后才关闭 bracketed paste、关闭指针捕获、
-显示光标、离开备用屏幕并恢复 raw 模式。帧写器带恢复门控：恢复一旦开始，缓冲的帧字节被丢弃而不再
-送达正在恢复的终端，这也覆盖了 panic 展开时的 unwind flush。输出失败后，同一围断在
-帧写器被 drop 前先行生效，使其 drop 时的重试同样无法发出被放弃的帧。干净关闭不欠任何东西，
-也不多发任何字节。本契约既不承诺每帧一次操作系统写，也不承诺在不支持同步更新模式的
-宿主上获得视觉原子性。
+显示光标、离开备用屏幕并恢复 raw 模式。在 Windows 上，VT 输出在光标与备用屏幕清理期间
+保持启用，之后 raw 恢复再还原两个已保存的原生模式字。帧写器带恢复门控：恢复一旦开始，
+缓冲的帧字节被丢弃而不再送达正在恢复的终端，这也覆盖了 panic 展开时的 unwind flush。
+输出失败后，同一围断在帧写器被 drop 前先行生效，使其 drop 时的重试同样无法发出被放弃
+的帧。干净关闭不欠任何东西，也不多发任何字节。本契约既不承诺每帧一次操作系统写，也不
+承诺在不支持同步更新模式的宿主上获得视觉原子性。
 
 ## 外层标题恢复
 

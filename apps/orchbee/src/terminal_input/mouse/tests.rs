@@ -3,8 +3,8 @@
 //! the Host's `input_encoding` remap, and herdr's `encode.rs`.
 
 use super::{
-    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PointerOwner, decode_sgr,
-    decode_x10, encode_cursor_arrows, encode_pane_report, pane_owns_pointer,
+    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute, decode_sgr,
+    decode_x10, encode_cursor_arrows, encode_pane_report, route_pane_pointer,
 };
 use crate::client_view::Modifiers;
 use orchbee_terminal_protocol::{MouseFormat, MouseTracking};
@@ -384,60 +384,126 @@ fn out_of_viewport_rules_match_the_host_gate() {
 }
 
 #[test]
-fn ownership_follows_interaction_and_shift() {
-    let press = MouseEvent {
-        action: MouseAction::Press,
-        button: MouseButton::Left,
+fn fresh_routing_matches_tracking_matrix_without_adopting_gesture_tails() {
+    let input = |action, button| MouseEvent {
+        action,
+        button,
         mods: Modifiers::NONE,
         column: 0,
         row: 0,
     };
-    let wheel = MouseEvent {
-        button: MouseButton::WheelUp,
-        ..press
-    };
-    // Any tracking mode hands the pane everything.
+    let events = [
+        input(MouseAction::Press, MouseButton::Left),
+        input(MouseAction::Press, MouseButton::WheelUp),
+        input(MouseAction::Motion, MouseButton::Left),
+        input(MouseAction::Motion, MouseButton::None),
+        input(MouseAction::Release, MouseButton::Left),
+        input(MouseAction::Release, MouseButton::None),
+    ];
+    let matrix = [
+        (
+            MouseTracking::None,
+            [
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+            ],
+        ),
+        (
+            MouseTracking::X10,
+            [
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+            ],
+        ),
+        (
+            MouseTracking::Normal,
+            [
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+            ],
+        ),
+        (
+            MouseTracking::Button,
+            [
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+            ],
+        ),
+        (
+            MouseTracking::Any,
+            [
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::Client,
+                PanePointerRoute::ProgramReport,
+                PanePointerRoute::Client,
+                PanePointerRoute::Client,
+            ],
+        ),
+    ];
+    for (tracking, expected) in matrix {
+        for (index, event) in events.iter().enumerate() {
+            assert_eq!(
+                route_pane_pointer(tracking, event, false),
+                expected[index],
+                "{tracking:?} event {index}"
+            );
+        }
+    }
+
+    let vertical_wheel = events[1];
+    assert_eq!(
+        route_pane_pointer(MouseTracking::None, &vertical_wheel, true),
+        PanePointerRoute::AlternateScroll
+    );
+    assert_eq!(
+        route_pane_pointer(MouseTracking::X10, &vertical_wheel, true),
+        PanePointerRoute::Client,
+        "DEC 1007 cannot override an active tracking mode"
+    );
+    let horizontal_wheel = input(MouseAction::Press, MouseButton::WheelLeft);
+    assert_eq!(
+        route_pane_pointer(MouseTracking::None, &horizontal_wheel, true),
+        PanePointerRoute::Client
+    );
+    let no_button_press = input(MouseAction::Press, MouseButton::None);
+    assert_eq!(
+        route_pane_pointer(MouseTracking::Any, &no_button_press, false),
+        PanePointerRoute::Client
+    );
+
     for tracking in [
+        MouseTracking::None,
         MouseTracking::X10,
         MouseTracking::Normal,
         MouseTracking::Button,
         MouseTracking::Any,
     ] {
+        let shifted = MouseEvent {
+            mods: Modifiers::NONE.with_shift(),
+            ..events[0]
+        };
         assert_eq!(
-            pane_owns_pointer(tracking, &press, false),
-            PointerOwner::Pane
-        );
-        assert_eq!(
-            pane_owns_pointer(tracking, &wheel, false),
-            PointerOwner::Pane
+            route_pane_pointer(tracking, &shifted, true),
+            PanePointerRoute::Host
         );
     }
-    // No tracking: wheel reaches the pane only on the alternate screen.
-    assert_eq!(
-        pane_owns_pointer(MouseTracking::None, &wheel, true),
-        PointerOwner::Pane
-    );
-    assert_eq!(
-        pane_owns_pointer(MouseTracking::None, &wheel, false),
-        PointerOwner::Client
-    );
-    assert_eq!(
-        pane_owns_pointer(MouseTracking::None, &press, true),
-        PointerOwner::Client
-    );
-    // Shift is always host-owned — never a Client gesture, never forwarded.
-    let shifted = MouseEvent {
-        mods: Modifiers::NONE.with_shift(),
-        ..press
-    };
-    assert_eq!(
-        pane_owns_pointer(MouseTracking::Any, &shifted, true),
-        PointerOwner::Host
-    );
-    assert_eq!(
-        pane_owns_pointer(MouseTracking::None, &shifted, false),
-        PointerOwner::Host
-    );
 }
 
 #[test]

@@ -4,9 +4,12 @@ use super::{
     Selection,
 };
 use crate::{
-    client_view::Binding, terminal_session::NativeContextLocation, tui_layout::SidebarWidthChange,
+    client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
+    terminal_session::NativeContextLocation,
+    tui_layout::SidebarWidthChange,
 };
 use orchbee_workbench_protocol::{SiteId, WorkbenchProjectId};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarTarget {
@@ -39,6 +42,166 @@ impl SidebarTarget {
             Self::Agent { target, .. } => &target.context.site_id,
         }
     }
+
+    pub(crate) fn selection(&self) -> Option<Selection> {
+        match self {
+            Self::Project { .. } => None,
+            Self::Context { machine, target } => Some(Selection {
+                machine: machine.clone(),
+                context: Some(target.clone().into()),
+            }),
+            Self::Agent { machine, target } => Some(Selection {
+                machine: machine.clone(),
+                context: Some(crate::terminal_session::NativeStartupTarget::Agent(
+                    target.clone(),
+                )),
+            }),
+        }
+    }
+}
+
+/// The independently actionable part of one painted Sidebar tree row.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SidebarPart {
+    Primary,
+    Disclosure,
+    Menu,
+    Create,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SidebarCatalogRow {
+    target: SidebarTarget,
+    parent: Option<SidebarTarget>,
+    disclosure: bool,
+    menu: bool,
+    create: bool,
+}
+
+/// Value-semantic action projection for one successfully painted Sidebar frame.
+///
+/// Presentation-only labels, statuses, theme roles, keyboard focus, pointer state and scroll
+/// position are deliberately absent. Topology and action eligibility remain so an armed frame is
+/// retired when its semantic catalog changes.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SidebarCatalog {
+    admitted: bool,
+    settings_admitted: bool,
+    rows: Vec<SidebarCatalogRow>,
+}
+
+impl SidebarCatalog {
+    fn has_part(&self, target: &SidebarTarget, part: SidebarPart) -> bool {
+        self.rows.iter().any(|row| {
+            row.target == *target
+                && match part {
+                    SidebarPart::Primary => true,
+                    SidebarPart::Disclosure => row.disclosure,
+                    SidebarPart::Menu => row.menu,
+                    SidebarPart::Create => row.create,
+                }
+        })
+    }
+
+    fn admits(&self, target: &SidebarTarget, part: SidebarPart) -> bool {
+        self.admitted && self.has_part(target, part)
+    }
+}
+
+/// One immutable Sidebar source shared by every target painted in the same frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SidebarSource(Arc<SidebarCatalog>);
+
+impl SidebarSource {
+    /// Returns whether this exact semantic catalog contains one row part.
+    ///
+    /// Layout preflight and painting use the same answer so rows reserve
+    /// auxiliary cells only for controls that semantically exist. Transient
+    /// surface admission remains independent and cannot move row geometry.
+    pub(crate) fn has_part(&self, target: &SidebarTarget, part: SidebarPart) -> bool {
+        self.0.has_part(target, part)
+    }
+
+    pub(crate) fn drawn(
+        &self,
+        target: SidebarTarget,
+        part: SidebarPart,
+        window: super::SidebarWindow,
+    ) -> Option<DrawnSidebarTarget> {
+        self.0.admits(&target, part).then(|| DrawnSidebarTarget {
+            source: self.clone(),
+            target,
+            part,
+            window,
+        })
+    }
+}
+
+/// Exact semantic target and window geometry admitted by one Sidebar frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DrawnSidebarTarget {
+    source: SidebarSource,
+    target: SidebarTarget,
+    part: SidebarPart,
+    window: super::SidebarWindow,
+}
+
+/// Stable identity of a fixed action on the painted Sidebar surface.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SidebarFixedAction {
+    NewWorkspace,
+    Search,
+    Settings,
+    Browse,
+}
+
+/// A fixed Sidebar action bound to the same immutable source as the tree frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DrawnSidebarFixedTarget {
+    source: SidebarSource,
+    action: SidebarFixedAction,
+    scope: Option<Selection>,
+}
+
+impl DrawnSidebarFixedTarget {
+    pub(crate) const fn action(&self) -> SidebarFixedAction {
+        self.action
+    }
+}
+
+/// Existing effect selected by a live, exact fixed-action release.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SidebarFixedActivation {
+    NewWorkspace,
+    Search,
+    Settings,
+    Browse,
+}
+
+impl DrawnSidebarTarget {
+    pub(crate) const fn part(&self) -> SidebarPart {
+        self.part
+    }
+
+    pub(crate) fn target(&self) -> &SidebarTarget {
+        &self.target
+    }
+
+    pub(crate) const fn window(&self) -> super::SidebarWindow {
+        self.window
+    }
+
+    pub(crate) fn selection(&self) -> Option<Selection> {
+        self.target.selection()
+    }
+}
+
+/// Existing Picker transition selected by an accepted ordinary row release.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SidebarActivation {
+    ToggleProject(SidebarTarget),
+    ToggleContext(SidebarTarget),
+    Activate(Selection),
 }
 
 pub(crate) enum SidebarRow<'a> {
@@ -162,6 +325,16 @@ pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
         SidebarCommand::Exit,
     ),
 ];
+
+pub(crate) fn sidebar_binding_label(
+    command: SidebarCommand,
+    glyphs: KeyLabelGlyphs,
+) -> Option<String> {
+    SIDEBAR_BINDINGS
+        .iter()
+        .find(|(_, candidate)| *candidate == command)
+        .map(|(binding, _)| format_binding_with_glyphs(binding, LabelStyle::for_host(), glyphs))
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarIntent {
@@ -403,6 +576,127 @@ impl Picker {
         entries
     }
 
+    /// Captures only the live semantics that can change a Sidebar target's release result.
+    /// Renderers call this once per candidate frame and clone its `Arc` into painted targets.
+    pub(crate) fn sidebar_source(&self) -> SidebarSource {
+        let admitted = self.available && self.spaces.visible() && !self.open;
+        let menu_site = self
+            .current_context
+            .as_ref()
+            .map(|context| &context.site_id);
+        let rows = self
+            .sidebar_navigation_rows()
+            .into_iter()
+            .map(|row| {
+                let target = row.target();
+                let menu = matches!(
+                    &target,
+                    SidebarTarget::Project { .. }
+                        | SidebarTarget::Context {
+                            target: NativeContextTarget {
+                                location: NativeContextLocation::Workspace { .. },
+                                ..
+                            },
+                            ..
+                        }
+                ) && target.machine() == &self.current
+                    && menu_site == Some(target.site_id());
+                SidebarCatalogRow {
+                    parent: self.sidebar_parent(&target),
+                    disclosure: match row {
+                        SidebarRow::Project { .. } => true,
+                        SidebarRow::Context { has_agents, .. } => has_agents,
+                        SidebarRow::Agent { .. } => false,
+                    },
+                    create: menu && matches!(&target, SidebarTarget::Project { .. }),
+                    menu,
+                    target,
+                }
+            })
+            .collect();
+        SidebarSource(Arc::new(SidebarCatalog {
+            admitted,
+            // Settings is global chrome. It remains a valid semantic action even when
+            // the machine-backed tree is unavailable; the shell decides whether this
+            // particular Sidebar surface is paintable.
+            settings_admitted: true,
+            rows,
+        }))
+    }
+
+    fn sidebar_fixed_scope(&self, action: SidebarFixedAction) -> Option<Selection> {
+        matches!(
+            action,
+            SidebarFixedAction::NewWorkspace | SidebarFixedAction::Browse
+        )
+        .then(|| Selection {
+            machine: self.current.clone(),
+            context: self.current_context.clone().map(Into::into),
+        })
+    }
+
+    /// Binds a fixed action to this frame's source and the action's current effect scope.
+    pub(crate) fn drawn_sidebar_fixed(
+        &self,
+        source: &SidebarSource,
+        action: SidebarFixedAction,
+    ) -> DrawnSidebarFixedTarget {
+        DrawnSidebarFixedTarget {
+            source: source.clone(),
+            action,
+            scope: self.sidebar_fixed_scope(action),
+        }
+    }
+
+    /// Rebuilds the pure action projection once at release and selects an existing owner effect.
+    pub(crate) fn sidebar_activation(
+        &self,
+        drawn: &DrawnSidebarTarget,
+    ) -> Option<SidebarActivation> {
+        let live = self.sidebar_source();
+        if live != drawn.source.clone() || !live.0.admits(&drawn.target, drawn.part) {
+            return None;
+        }
+        match (&drawn.target, drawn.part) {
+            (SidebarTarget::Project { .. }, SidebarPart::Primary | SidebarPart::Disclosure) => {
+                Some(SidebarActivation::ToggleProject(drawn.target.clone()))
+            }
+            (SidebarTarget::Context { .. }, SidebarPart::Disclosure) => {
+                Some(SidebarActivation::ToggleContext(drawn.target.clone()))
+            }
+            (SidebarTarget::Context { .. } | SidebarTarget::Agent { .. }, SidebarPart::Primary) => {
+                drawn.target.selection().map(SidebarActivation::Activate)
+            }
+            (_, SidebarPart::Menu | SidebarPart::Create) => None,
+            (SidebarTarget::Agent { .. }, SidebarPart::Disclosure) => None,
+        }
+    }
+
+    /// Rebuilds the semantic source once and authorizes no stale fixed-action effect.
+    pub(crate) fn sidebar_fixed_activation(
+        &self,
+        drawn: &DrawnSidebarFixedTarget,
+    ) -> Option<SidebarFixedActivation> {
+        let live = self.sidebar_source();
+        if live != drawn.source || self.sidebar_fixed_scope(drawn.action) != drawn.scope {
+            return None;
+        }
+        match drawn.action {
+            SidebarFixedAction::NewWorkspace if live.0.admitted => {
+                Some(SidebarFixedActivation::NewWorkspace)
+            }
+            SidebarFixedAction::Search if live.0.admitted => Some(SidebarFixedActivation::Search),
+            SidebarFixedAction::Settings if live.0.settings_admitted => {
+                Some(SidebarFixedActivation::Settings)
+            }
+            SidebarFixedAction::Browse if live.0.admitted => Some(SidebarFixedActivation::Browse),
+            SidebarFixedAction::NewWorkspace
+            | SidebarFixedAction::Search
+            | SidebarFixedAction::Settings
+            | SidebarFixedAction::Browse => None,
+        }
+    }
+
     pub(crate) fn sidebar_target_exists(&self, target: &SidebarTarget) -> bool {
         if !self
             .rows
@@ -529,6 +823,7 @@ impl Picker {
         });
         self.spaces.reveal();
     }
+    #[cfg(test)]
     pub(crate) fn focus_sidebar_target(&mut self, target: &SidebarTarget) -> bool {
         if !self.available || self.open || !self.spaces.visible() {
             return false;

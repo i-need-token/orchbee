@@ -198,6 +198,14 @@ struct JobCommands {
 struct TestHooks {
     faults: Faults,
     witness: Arc<Mutex<JobWitness>>,
+    #[cfg(all(test, windows))]
+    after_spawn: Option<AfterSpawnBarrier>,
+}
+
+#[cfg(all(test, windows))]
+struct AfterSpawnBarrier {
+    reached: std::sync::mpsc::SyncSender<()>,
+    release: std::sync::mpsc::Receiver<()>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -717,6 +725,12 @@ fn drain_child(spawned: SpawnedChild, ctx: &mut StageCtx<'_>) -> StageEnd {
             witness.pipe_ends.push((fd, target));
         }
     });
+    #[cfg(all(test, windows))]
+    if let Some(barrier) = hooks.and_then(|hooks| hooks.after_spawn.as_ref())
+        && barrier.reached.send(()).is_ok()
+    {
+        let _ = barrier.release.recv();
+    }
     let setup_failed = [
         out.as_ref().map(|file| file as &dyn AsLocalIo),
         err.as_ref().map(|file| file as &dyn AsLocalIo),

@@ -19,6 +19,26 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
         forwarded: Vec<Vec<u8>>,
     }
     impl TerminalInputPort for ModalInput {
+        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+            crate::tui_composition::NativeCaptureClaims::default().with_tab_close(self.active)
+        }
+
+        fn native_capture_context(
+            &self,
+            owner: crate::tui_composition::NativeCaptureOwner,
+        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+            if owner != crate::tui_composition::NativeCaptureOwner::TabClose || !self.active {
+                return None;
+            }
+            Some(crate::terminal_session::NativeCaptureContext::TabClose(
+                crate::terminal_session::ConfirmationCaptureContext {
+                    token: crate::terminal_session::NativeCloseConfirmationToken::for_test(1),
+                    phase: crate::tui_presentation::PresentationPhase::Admitted,
+                    readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                },
+            ))
+        }
+
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.forwarded.push(bytes.to_vec());
             Ok(())
@@ -32,7 +52,14 @@ fn modal_capture_keeps_the_packet_tail_after_cancel_and_preserves_prior_bytes() 
             }
             Some(SessionActionDisposition::KeepNavigator)
         }
-        fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
+        fn capture_tab_confirmation_key_for(
+            &mut self,
+            token: crate::terminal_session::NativeCloseConfirmationToken,
+            key: crate::client_view::ClientKey,
+        ) -> bool {
+            if token != crate::terminal_session::NativeCloseConfirmationToken::for_test(1) {
+                return false;
+            }
             if !self.active {
                 return false;
             }
@@ -84,6 +111,26 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
         forwarded: Vec<Vec<u8>>,
     }
     impl TerminalInputPort for ConfirmTail {
+        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+            crate::tui_composition::NativeCaptureClaims::default().with_tab_close(self.active)
+        }
+
+        fn native_capture_context(
+            &self,
+            owner: crate::tui_composition::NativeCaptureOwner,
+        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+            if owner != crate::tui_composition::NativeCaptureOwner::TabClose || !self.active {
+                return None;
+            }
+            Some(crate::terminal_session::NativeCaptureContext::TabClose(
+                crate::terminal_session::ConfirmationCaptureContext {
+                    token: crate::terminal_session::NativeCloseConfirmationToken::for_test(1),
+                    phase: crate::tui_presentation::PresentationPhase::Admitted,
+                    readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                },
+            ))
+        }
+
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.forwarded.push(bytes.to_vec());
             Ok(())
@@ -97,7 +144,14 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
             }
             Some(SessionActionDisposition::KeepNavigator)
         }
-        fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
+        fn capture_tab_confirmation_key_for(
+            &mut self,
+            token: crate::terminal_session::NativeCloseConfirmationToken,
+            key: crate::client_view::ClientKey,
+        ) -> bool {
+            if token != crate::terminal_session::NativeCloseConfirmationToken::for_test(1) {
+                return false;
+            }
             if !self.active {
                 return false;
             }
@@ -462,30 +516,72 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
     use orchbee_workbench_protocol::WorkbenchRequestId;
     struct PopupPort {
         id: Option<WorkbenchRequestId>,
+        interactive: bool,
         decoded: Vec<Vec<u8>>,
         forwarded: Vec<Vec<u8>>,
+        mouse: Vec<WorkbenchRequestId>,
+        close_attempts: Vec<WorkbenchRequestId>,
     }
     impl TerminalInputPort for PopupPort {
+        fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+            crate::tui_composition::NativeCaptureClaims::default().with_popup(self.id.is_some())
+        }
+
+        fn native_capture_context(
+            &self,
+            owner: crate::tui_composition::NativeCaptureOwner,
+        ) -> Option<crate::terminal_session::NativeCaptureContext> {
+            if owner != crate::tui_composition::NativeCaptureOwner::Popup {
+                return None;
+            }
+            self.id.clone().map(|id| {
+                crate::terminal_session::NativeCaptureContext::Popup(
+                    crate::terminal_session::PopupInputContext::for_test(id, self.interactive),
+                )
+            })
+        }
+
         fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             self.forwarded.push(bytes.to_vec());
             Ok(())
         }
-        fn popup_captured(&self) -> bool {
-            self.id.is_some()
+        fn popup_input(&mut self, id: &WorkbenchRequestId, item: &super::DecodedItem) {
+            if self.id.as_ref() == Some(id) {
+                self.decoded.push(item.raw.to_vec());
+            }
         }
-        fn popup_identity(&self) -> Option<&WorkbenchRequestId> {
-            self.id.as_ref()
+        fn popup_mouse(
+            &mut self,
+            id: &WorkbenchRequestId,
+            _: ratatui::layout::Rect,
+            _: super::MouseEvent,
+        ) {
+            if self.id.as_ref() != Some(id) {
+                return;
+            }
+            self.mouse.push(id.clone());
         }
-        fn popup_input(&mut self, item: &super::DecodedItem) {
-            self.decoded.push(item.raw.to_vec());
+        fn activate_drawn_popup_close(
+            &mut self,
+            target: &crate::terminal_session::DrawnPopupClose,
+        ) -> bool {
+            self.close_attempts.push(target.id().clone());
+            if self.id.as_ref() != Some(target.id()) {
+                return false;
+            }
+            self.id = None;
+            true
         }
     }
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     let mut port = PopupPort {
         id: Some(WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap()),
+        interactive: true,
         decoded: Vec::new(),
         forwarded: Vec::new(),
+        mouse: Vec::new(),
+        close_attempts: Vec::new(),
     };
     let now = Instant::now();
     dispatch_input(
@@ -563,4 +659,86 @@ fn popup_captures_prefix_escape_paste_and_retires_cross_packet_fragments() {
     })
     .unwrap();
     assert_eq!(port.forwarded.concat(), b"Z");
+
+    // Opening is a recovery capture for keys, but its current painted close
+    // control remains an exact pointer authority. A stale map cannot close a
+    // replacement, while the current close owns the rest of its read packet.
+    use crate::tui_pointer::{HitLayer, HitMapBuilder};
+    use ratatui::layout::Rect;
+    let stale = WorkbenchRequestId::parse(&format!("{:032x}", 19)).unwrap();
+    let current = WorkbenchRequestId::parse(&format!("{:032x}", 20)).unwrap();
+    let close_map = |id: WorkbenchRequestId| {
+        let mut hits = HitMapBuilder::new();
+        hits.start_modal();
+        let popup = crate::terminal_session::PopupView {
+            id: &id,
+            title: "Dashboard",
+            projection: None,
+            width: None,
+            height: None,
+            closing: false,
+        };
+        hits.record_interaction(
+            HitLayer::Overlay,
+            Rect::new(10, 5, 1, 1),
+            Rect::new(10, 5, 1, 1),
+            crate::tui_pointer::InteractionTarget::PopupClose(popup.close_target()),
+            crate::tui_pointer::InteractionSpec::enabled(
+                crate::tui_pointer::PrimaryContract::ActivateOnRelease,
+            ),
+        );
+        hits.finish()
+    };
+    port.id = Some(current.clone());
+    port.interactive = false;
+    port.decoded.clear();
+    port.forwarded.clear();
+    port.mouse.clear();
+    port.close_attempts.clear();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .synchronize(&mut view, &mut port, now, &mut |_| Ok::<_, Infallible>(()))
+        .unwrap();
+
+    dispatcher.publish_hit_map(close_map(stale.clone()));
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x1b[<0;11;6M\x1b[<0;11;6m",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert_eq!(port.id.as_ref(), Some(&current));
+    assert!(port.mouse.is_empty());
+    assert_eq!(port.close_attempts, [stale]);
+
+    dispatcher.publish_hit_map(close_map(current.clone()));
+    port.close_attempts.clear();
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"\x1b[<0;11;6M\x1b[<0;11;6mtail\x1b[200~paste\x1b[201~",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert!(port.mouse.is_empty());
+    assert_eq!(port.close_attempts, [current]);
+    assert!(port.id.is_none());
+    assert!(port.decoded.is_empty());
+    assert!(port.forwarded.is_empty());
+
+    dispatch_input(
+        &mut dispatcher,
+        &mut view,
+        b"normal",
+        &mut port,
+        now,
+        |_, _| Ok::<_, Infallible>(()),
+    )
+    .unwrap();
+    assert_eq!(port.forwarded.concat(), b"normal");
 }

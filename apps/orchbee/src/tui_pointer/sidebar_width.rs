@@ -19,6 +19,8 @@ impl PointerState {
     pub(crate) fn cancel_sidebar_width(&mut self) -> bool {
         if matches!(self.gesture, Gesture::SidebarWidth(_)) {
             self.gesture = Gesture::Idle;
+            self.cancelled_chrome_release
+                .get_or_insert(super::CancelledChromeRelease::SidebarWidth);
             // The captured gesture owns this frame's input until a clean
             // canonical frame is published after its preview ends.
             self.map = None;
@@ -92,6 +94,11 @@ impl PointerState {
         };
         if event.mods.shift || !self.sidebar_width_source_alive(view, &drag.target) {
             self.cancel_sidebar_width();
+            if event.action == MouseAction::Release
+                && matches!(event.button, MouseButton::Left | MouseButton::None)
+            {
+                self.cancelled_chrome_release = None;
+            }
             return PointerOutcome::SidebarWidthEnded;
         }
         match event.action {

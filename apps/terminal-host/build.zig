@@ -347,6 +347,16 @@ pub fn build(builder: *std.Build) void {
     conpty_resize_test_module.addImport("terminal-host-model", model_module);
     conpty_resize_test_module.addImport("terminal-host-platform", platform_module);
     conpty_resize_test_module.addOptions("conpty_resize_test_options", conpty_resize_test_options);
+    const conpty_orchbee_pointer_test_module = builder.createModule(.{
+        .root_source_file = builder.path("src/engine/__tests__/conpty_orchbee_pointer_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    conpty_orchbee_pointer_test_module.addImport("ghostty-vt", ghostty_vt_module);
+    conpty_orchbee_pointer_test_module.addImport("terminal-protocol", protocol_module);
+    conpty_orchbee_pointer_test_module.addImport("terminal-host-engine", engine_module);
+    conpty_orchbee_pointer_test_module.addImport("terminal-host-model", model_module);
+    conpty_orchbee_pointer_test_module.addImport("terminal-host-platform", platform_module);
     const core_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/core/__tests__/core_test.zig"),
         .target = target,
@@ -567,6 +577,27 @@ pub fn build(builder: *std.Build) void {
         run_conpty_resize_tests.addArtifactArg(conpty_resize_tests);
         conpty_resize_step.dependOn(&run_conpty_resize_tests.step);
         test_step.dependOn(&run_conpty_resize_tests.step);
+    }
+    const conpty_orchbee_pointer_tests = builder.addTest(.{
+        .name = "terminal-host-conpty-orchbee-pointer-tests",
+        .root_module = conpty_orchbee_pointer_test_module,
+    });
+    conpty_orchbee_pointer_tests.root_module.link_libc = true;
+    test_compile_step.dependOn(&conpty_orchbee_pointer_tests.step);
+    const conpty_orchbee_pointer_step = builder.step(
+        "test-conpty-orchbee-pointer",
+        "Run the real ConPTY Orchbee pointer-admission witness",
+    );
+    conpty_orchbee_pointer_step.dependOn(&conpty_orchbee_pointer_tests.step);
+    if (target.result.os.tag == .windows and target.result.cpu.arch == .x86_64) {
+        const run_conpty_orchbee_pointer_tests = builder.addSystemCommand(&.{
+            "node",
+            builder.pathFromRoot("scripts/run-conpty-orchbee-pointer-test.mjs"),
+            "--test-executable",
+        });
+        run_conpty_orchbee_pointer_tests.addArtifactArg(conpty_orchbee_pointer_tests);
+        conpty_orchbee_pointer_step.dependOn(&run_conpty_orchbee_pointer_tests.step);
+        test_step.dependOn(&run_conpty_orchbee_pointer_tests.step);
     }
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",

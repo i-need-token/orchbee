@@ -30,6 +30,31 @@ Windows [动作菜单](native-action-menus.zh-CN.md) 在普通聚焦之前消费
 
 鼠标与键盘进入相同的 native 状态所有者。可见方括号控件和完整行具有准确命中矩形；禁用、截断或被覆盖的单元格不能激活底层目标。本地导航可以在按下时执行。原生表单、菜单、设置、复制、调整大小和 Agent 看板按钮等待匹配的普通左键释放，令牌和矩形必须仍与绘制时相同。键盘输入、失焦、释放捕获和绘制授权变化撤销该次按下。决策拥有数据包尾部及迟到释放，随后新输入回到保留的终端焦点。
 
+`tui_composition::project_capture` 是独占绘制、输入和通知准入的唯一权威。Machine 捕获覆盖原生
+独占表面；原有原生顺序覆盖 Copy，Copy 再覆盖 Resize。Claim 表达保留的捕获意图，不代表表面
+已经绘制。被选所有者的 context 缺失或变旧时，输入仍被消费，不能暴露更低层所有者。即使 Resize
+成为下一个所有者，退出 Copy 仍保留其物理数据包围栏。
+
+Client 快捷键帮助仍不捕获输入。`client_chrome_overlay_allowed` 允许它覆盖保留的 Copy 或 Resize
+进行绘制和鼠标路由，但在 Machine 或原生独占捕获之下拒绝准入。帮助鼠标控件先于保留模式运行；
+普通按键和粘贴路由保持该模式的既有契约。关闭帮助恢复父级，不释放父级输入租约。
+
+独立获准的更高捕获覆盖 chrome 手势时，dispatcher 会立即将 Divider、侧栏宽度、Tab 拖动或
+Tab 新建的 arm 退役为既有的一次性释放清理。选择和 modal 交互保留各自所有者。只要存在独占
+所有者，帧绘制器也会独立抑制这些预览，包括在输入协调与绘制之间安装的捕获。仍在加载的插件
+popup 允许其精确已绘制关闭目标；其正文、按键和粘贴的就绪性仍由插件所有者管理。
+
+撤销后，中央 generic 所有者以及现有分隔条、侧栏宽度、Tab 新建、Tab 拖动和已绘制 modal
+所有者只保留类型化主键释放清理。该清理在捕获、宿主焦点和命中图守卫之前运行，也涵盖释放捕获后
+已经排队的报告。准确的迟到释放只消费一次并围住其整个物理数据包，且不重新命中或产生效果；新的
+非滚轮按下会退役债务，期间的指针报告不能借债务重新命中，孤立释放不会创建债务。pane 透传、链接、
+选择及其清理所有者不受本契约改变。
+
+对于已绘制 modal 控件，已取消的已绘制按下记录与 dispatcher 中对应的按钮释放债务（包括 action
+menu 配对的数据包债务）会在同一个所有者前置步骤中结算。更新的 Settings 或 Machine 表面不能隐藏
+该清理，也不能让之后的释放再次建立数据包围栏。仍然活动且在释放时提交的 modal 控件或复制表面拖动
+会绕过数据包清理，直到其自身所有者处理精确释放；已取消的清理绝不重新命中该目标，也不执行其效果。
+
 | 界面                        | 鼠标流程                                                                                     |
 | --------------------------- | -------------------------------------------------------------------------------------------- |
 | 机器／Workspace／Agent 搜索 | 方括号分类切换视图；完整行选择准确身份。Agent 筛选、搜索、清除／完成和 X 只作用于选择器。    |
@@ -132,11 +157,13 @@ Picker 拥有侧栏偏好宽度；`SidebarSurface` 把同一个偏好传给布�
 ## 捕获策略
 
 - 启动通过一个 `ModeLease` arm button-event tracking（`?1002h`）与 SGR 编码（`?1006h`）；
-  `orchbee tui --mouse off` 跳过 arming。Windows 动作菜单在捕获启用时临时使用任意移动跟踪（`1003`），
-  然后恢复 `1002`。同一租约在每条退出路径上禁用 `1003`、`1006` 和 `1002`——正常返回、失败、owner 线程 panic 以及每个
+  `orchbee tui --mouse off` 跳过 arming。基线完成后，dispatcher 为保留的外层端点发出一次 `1003`
+  DECRQM 查询与 DA1 屏障。只有 reset 报告（`2`）后接该屏障，才准入全局任意移动跟踪。不支持或
+  固定模式的报告保持 button-only；矛盾的 set 报告、缺少回复或 300 ms 截止均结算为 unknown。
+  打开菜单和重新 arm 捕获都不重试。同一租约在每条退出路径上禁用 `1003`、`1006` 和 `1002`——正常返回、失败、owner 线程 panic 以及每个
   终止信号。
 - `Ctrl+B m` 在运行时释放并重新 arm 捕获。释放只在模式写成功后生效，因此持久状态指示
-  （`mouse released · Ctrl+B m restores` / `鼠标已释放 · Ctrl+B m 恢复`）与宿主实际上报
+  （`mouse released · Ctrl+b m restores` / `鼠标已释放 · Ctrl+b m 恢复`）与宿主实际上报
   状态绝不不一致。released 期间，每个已解码指针事件在探测或命中解析之前即被忽略，所有
   在途手势与滚轮流取消；重新 arm 不复活它们。
 - `--mouse` 在 `tui` 准入（`off` 与 `on` 两个值）。Windows `terminal attach` 和
@@ -155,23 +182,71 @@ map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`�
 点击时按新探测解析为位置，因此绘制与点击之间的重排不会误路由。层从前到后解析；同层内
 第一个匹配区域优先。具体控件先于包含它的表面区域记录：
 
-| 绘制表面                    | 层               | 目标                           | 接受的手势                                                                               |
-| --------------------------- | ---------------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
-| Navigator context 行        | `Overlay`        | `Context(location)`            | Press 选择该 context（`SelectContextAt`）                                                |
-| Navigator tab 行            | `Overlay`        | `Tab(tab_id)`                  | Press 选择该 Tab（`SelectTab`）                                                          |
-| 控件之外的 overlay 本体     | `OverlaySurface` | `OverlaySurface`               | 吞掉——绝不到达下层                                                                       |
-| 捕获型 overlay 之外         | —                | backdrop                       | 普通按钮按下关闭，滚轮无效。底层任何区域，包括未遮盖的 tab 构件或 pane，都看不到该事件。 |
-| 紧凑 tab-strip 标记         | `Foreground`     | `Tab(tab_id)`                  | Windows 无修饰左键按下开始点击／拖拽，释放时激活或一次提交。非 Windows 保留按下选择。    |
-| Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}` + 已绘制来源 | 精确 `Ctrl`+主键点击打开已绘制链接；其他 Press 先聚焦，再使用程序透传或 Client 选择      |
-| 视口之外的 pane 叶标题行    | `Foreground`     | `Pane{tab,panel}`              | Press 只聚焦；pane 内程序看不到任何内容                                                  |
-| Windows 可见 pane 分隔线    | `Foreground`     | `Divider(source)`              | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                  |
-| 其余一切（状态、空隙）      | —                | dead space                     | 忽略                                                                                     |
+中央交互 projection 现已作为迁移基础提供。feature 只能在 renderer 准入并绘制精确几何后记录
+`InteractionSpec`。记录组合一份封闭的 `InteractionTarget`（携带 owner 的完整语义凭据）、命中
+层、精确命中矩形、完整绘制矩形、显式主键契约（`ActivateOnRelease`、`SelectOnPress` 或
+`Specialized`）及 availability。fingerprint 还会规范化该绘制矩形内最前方的语义 winner；因此
+新增、移除或替换 child 会改变其包含行的有效暴露形状，即使 press cell 本身未被覆盖，矩形外
+目标则不会。较小的子项命中矩形可以引用完整绘制矩形。目标身份与手势策略都不能从文本、
+颜色、位置或宽泛的整行目标推断；子 action 必须先于包含它的整行记录。
+
+`PointerState` 只把 `Rest`、`Hovered` 或 `Pressed` 投影到下一个候选 frame；它不写键盘焦点、
+临时选择、current 或 checked 状态、availability、pending 状态或任何领域模型。`Hovered` 要求
+在明确 settle 为 `AnyMotion` 可观测之后收到真实的无键移动报告。button-only 可观测性、释放
+捕获、宿主失焦及可观测性降级都会清掉保留位置，因此恢复不能合成 hover。dispatcher 只有在能力
+准入和类型化模式切换都成功完成后，才发布 `AnyMotion`。不确定的部分切换会通过恢复边界退出，
+而不发布回退状态。捕获释放期间收到的回复只结算准入；下一次捕获使用该结果，不再查询。迟到及
+重复回复不能重新开启已结算准入。动作菜单共享这份全局可观测性，不持有独立的 `1003` 租约。
+模式支持准入与语义交付证据仍是两个维度；[终端环境参考](native-terminal-environment.zh-CN.md)
+拥有探测与宿主见证。
+
+启用的 `ActivateOnRelease` 目标在无修饰左键 press 时 arm，且只有 release 仍解析为同一个类型化
+目标、完整绘制矩形、契约和 availability 时才激活；其层、精确命中范围及有效暴露形状也必须
+一致。移出目标、替换、遮挡、禁用、结构失效或归属丢失都会永久取消 arm；同一 fingerprint
+的纯视觉重绘不会取消。已取消 arm 会消费迟到的 release，且不能改投目标；已经观测到的静止
+位置仍可在下一份成功 map 上重新对齐 hover。`SelectOnPress` 只供明确拥有临时导航的 feature
+使用；`Specialized` 则把 press 交给 feature 专用的拖动或选择状态机。
+
+shell 在候选 draw 前快照 projection，且只在该 frame 成功 flush 后发布候选 map。发布会按静止的
+已观测位置重新验证；若 projection 因此变化，shell 只安排一次后续 turn 重绘，后续 map 携带
+新 revision，不会再次自行调度。失败或部分 draw 不发布候选，并在 loop 致命退出前使先前指针
+权威失效。只有当一个 packet 全部由无键 motion 构成、每个解码 item 都未改变 projection，且
+decoder、timer、布局与 owner transition 均无其它变化时，才可跳过重绘。
+
+Settings、动作菜单、侧边栏、Agent board、Help、Navigator、Machine Picker、Presentation
+选择器、Tab 创建及全局 Menu 和 Sidebar Restore 按钮都使用该中央协议。通用控件在匹配释放
+时激活。侧边栏 Menu/Create 保留专用菜单打开 owner，Agent-board 行只用 `SelectOnPress`
+进行临时导航。Windows Tab/group 排列、分隔线、滚动条、Copy 选择及 pane 输入保留专用
+手势 owner。禁用目标保持可见并消费输入，不会穿透到包含它的行或 pane。
+
+Help 控件与滚动携带精确打开 episode 和成功呈现的页；完整拒绝只准入关闭控件。Help 仍不
+捕获键盘输入与粘贴。Navigator 行和关闭携带打开身份与 catalog 来源。Machine Picker 使用
+精确打开身份、模式、有序 catalog 及真实筛选／查询依据；renderer 只向中央 map 暂存目标，
+不拥有局部矩形缓存。异步替换、重新打开或来源变化不能激活旧候选。全局 chrome action
+使用稳定动作身份，在释放时复验实时准入；Sidebar Restore 还要求侧边栏可用且当前隐藏。
+
+Copy、Resize 与原生表单发布包含 availability 和精确几何的显式专用 modal-control fingerprint。
+只有 modal 形状的 raw region 不会获得隐式 Enabled 权威。共享控件应用 hover／pressed
+背景时，保留 focus、current、checked、临时导航、状态及 operation 提示。已取消的 Tab 点击
+也会退休 pressed 呈现；移回不会重臂，之后跨阈值的拖动仍遵循专用排列契约。
+
+| 绘制表面                    | 层               | 目标                                                      | 接受的手势                                                                               |
+| --------------------------- | ---------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Navigator context 行        | `Overlay`        | Windows `NavigatorRow(Row)`；其它平台 `Context(location)` | 匹配主键释放选择精确绘制的 context                                                       |
+| Navigator tab 行            | `Overlay`        | Windows `NavigatorRow(Row)`；其它平台 `Tab(tab_id)`       | 匹配主键释放选择精确绘制的 Tab                                                           |
+| 控件之外的 overlay 本体     | `OverlaySurface` | `OverlaySurface`                                          | 吞掉——绝不到达下层                                                                       |
+| 捕获型 overlay 之外         | —                | backdrop                                                  | 普通按钮按下关闭，滚轮无效。底层任何区域，包括未遮盖的 tab 构件或 pane，都看不到该事件。 |
+| 紧凑 tab-strip 标记         | `Foreground`     | 带显式交互元数据的 `Tab(tab_id)`                          | Windows 按下为点击／拖拽建立手势，释放时激活或一次提交；其它平台在匹配释放时选择         |
+| Pane 叶视口（content 矩形） | `Foreground`     | `Pane{tab,panel}` + 已绘制来源                            | 精确 `Ctrl`+主键点击打开已绘制链接；其他 Press 先聚焦，再使用程序透传或 Client 选择      |
+| 视口之外的 pane 叶标题行    | `Foreground`     | `Pane{tab,panel}`                                         | Press 只聚焦；pane 内程序看不到任何内容                                                  |
+| Windows 可见 pane 分隔线    | `Foreground`     | `Divider(source)`                                         | 无修饰左键按下开始预览，松手一次应用，Esc 或 Shift 取消                                  |
+| 其余一切（状态、空隙）      | —                | dead space                                                | 忽略                                                                                     |
 
 pane 区域上的 press 按*被绘制的那个 Tab* 解析：当绘制时的 Tab 不再处于 active 的
 stale-map 边界退化为普通 Tab 选择，而不是聚焦一个不可达的 panel。
 
-Windows 导航器将上面两个旧导航目标替换为每个完整绘制行的
-`NavigatorRow(episode, source, target)` 凭据。只有无修饰主键点击该精确行才可请求激活，
+Windows 导航器为每个完整绘制行使用 `NavigatorRow(episode, source, target)` 凭据，关闭使用
+精确 `DrawSource`。只有该精确行上无修饰主键的匹配释放才可请求激活，
 键盘 Enter 还要求已绘焦点。[导航器契约](native-context-selection.zh-CN.md#windows-捕获输入的导航器)
 拥有准入与取消。背景按下仅关闭而不穿透，滚轮及现有 Shift 宿主绕过除外；滚轮仅滚动已绘制的列而不激活，行上的
 修饰键／右键按下不激活。已消费的行／背景决策在成功新帧后仍拥有对应释放事件，
@@ -206,29 +281,54 @@ Client 所有。`Scrollbar` 手势保留准确窗格身份和绘制几何，在�
 
 Modal 输入捕获让其已绘制控件独占指针归属；手势不能到达底层 pane。普通 overlay 在外部按钮按下时关闭，modal 表面则吞掉它。已绘制列表外的滚轮无效。
 
+使用当前 painted-release arm 的 modal 控件绑定到精确的已绘制目标及矩形。移出该矩形会永久
+取消本次 arm；移回矩形内或重新绘制都不会重新 arm。仅视觉变化且目标与矩形相同时，只要指针
+从未移出，就会保留原 arm。激活仍要求匹配的 release；被取消的交互必须重新 press。这是当前
+modal 控件的不变式，不表示所有 native chrome 目标都已经从 press 激活迁移完成。
+
 ## Pane 透传
 
-- 当当前帧报告任一 tracking 模式时，pane 程序拥有其 content 视口内的指针事件，外加下文
-  的备用屏幕滚轮回退。帧事实——tracking、format、cell 几何、备用屏幕、DEC 1007、application-cursor
-  模式——来自最新已验证帧的可信 `TerminalInteraction`，每个事件重新探测。
-- 未跟踪鼠标的 pane 绝不接收选择字节。其普通主键手势遵循
-  [原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)；`Shift` 继续绕过 Client
-  归属。
-- 被转发的事件按绘制的 content 原点平移为 pane-local 坐标，并由唯一 owner 按该 pane
-  请求的 tracking × format 重新编码：X10 只报 press；Normal 报除 motion 外的一切；
-  Button 在有按住时上报（press 自身计为已按住）；Any 全报；release 始终上报。同 cell
-  motion 去重；视口外的非 release 事件仅在 motion tracking 且有按住时上报并夹到边缘
-  cell；legacy `Default` 格式拒绝超过 222 的坐标而不回绕；`Utf8` 把坐标编码为
-  codepoint；SGR 使用 `M`/`m` 结尾；URXVT 使用其十进制形式。
-- 仅有 cell 坐标的输入，即使 pane 请求 `SgrPixels`（`?1016`），也按 SGR cell 编码，
-  与 Herdr 的 cell 降级一致。tracking、修饰键、release 按钮身份、夹取和 motion 去重
-  保持普通 SGR 规则。这不提供精确像素输入，也不推测 cell 中心；宿主捕获仍以 cell
-  为单位，绝不开启 `?1016`。
-- 字节投递复用既有 `forward` 路径，包括其 `Controlling` 检查、只读拒绝与确认语义。
-  有 attachment 的 pane 可以获得本地读取焦点，不依赖输入权限；title 行 press 只聚焦而不
-  发送 pane 输入。mode 仍未知的 content press 在原始 pending 期限内等待。跟踪 pane 一旦
-  明确为 `ReadOnly`，其属于程序的 press 就会被丢弃并报告输入说明，不隐式 acquire。读取焦点
-  绝不代替应用输入权限，历史也绝不把属于程序的跟踪手势改为 Client 选择。
+落在 pane 内容区的 fresh 事件按照精确的已绘制 `PaneRef`、视口和最新已验证 frame
+解析；`Shift` 始终属于宿主。程序路由与编码器使用同一个 tracking 判定：
+
+| Tracking | 程序可上报的事件类别                                         |
+| -------- | ------------------------------------------------------------ |
+| None     | 无。可以进入 Client 选择／历史，或独立的 DEC 1007 回退。     |
+| X10      | 仅左键、中键或右键按下。                                     |
+| Normal   | 可编码的按下及已捕获的释放；不报告移动。                     |
+| Button   | 可编码的按下、有键按住的移动及已捕获的释放；不报告无键移动。 |
+| Any      | Button 的类别，外加无键移动。                                |
+
+fresh 准入比线协议的可上报范围更窄。可上报的非滚轮按键 press 可以开始 `Pane` 手势；
+可上报的滚轮 press 是一次性事件。没有该 press-time owner 的 release 或有键移动仍是无操作的
+Client 侧事件，绝不重新定向给指针下的 pane。无键 `Any` 移动是唯一无状态的程序事件：它只
+到达精确且已经聚焦、处于 live 和 controlling 状态的 pane，且必须位于已绘制内容矩形内；它
+不开始手势、不改变焦点，也不会迁移到同级或替换后的实例。当前启动捕获仍为 button-event
+`1002`；本路由自身不会开启全局 any-motion 捕获。
+
+一旦准入，`Pane` 手势保留其精确 pane 实例、已绘制视口原点和按键，直到匹配的 release。
+即使新 frame 改变 tracking，已接受的 motion 与 release 仍属于原 owner。当前 tracking gate
+仍决定是否产生字节：新模式不报告的事件类别会被静默消费，但其匹配 release 仍会清除手势。
+这把手势清理与 fresh Client 路由分开，防止无主尾部变成选择、历史操作或另一个 pane 的输入。
+
+未启用 tracking 时，只有启用 DEC 1007 的备用屏幕 pane 上的垂直滚轮 press 会进入下文的
+方向键回退。启用 tracking 时不会使用该回退；活动模式也只能取得其实际上报的类别。例如
+X10 滚轮仍属于 Client，可以驱动主屏幕的保留历史，且不会产生非法程序报告。未跟踪鼠标的
+pane 绝不接收选择字节；其普通主键手势遵循
+[原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)。
+
+被转发的事件按已绘制内容原点转换为 pane-local 坐标，并由唯一 tracking × format 编码器
+处理。已捕获的同 cell motion 会去重；视口外的非 release 事件只有在 motion tracking 且有键
+按住时才上报，并夹到边缘 cell。legacy `Default` 拒绝超过 222 的坐标而不回绕；
+`Utf8` 把坐标编码为 codepoint；SGR 使用 `M`/`m` 结尾；URXVT 使用十进制形式。
+仅有 cell 坐标的输入在 pane 请求 `SgrPixels`（`?1016`）时使用 SGR cell，与 Herdr
+的 cell 回退一致；它不虚构 pixel 位置，也不在宿主捕获中启用 `?1016`。
+
+字节投递复用既有 `forward` 路径，包括其 `Controlling` 检查、只读拒绝与确认语义。
+有 attachment 的 pane 可以获得本地读取焦点而不拥有输入权限；title 行 press 只聚焦而不发送
+pane 输入。mode 仍未知的 content press 在原始 pending 期限内等待。上报 pane 一旦明确为
+`ReadOnly`，其属于程序的 press 会被丢弃并报告输入说明，不隐式 acquire。读取焦点绝不
+代替应用输入权限，历史也绝不把已捕获的程序手势变成 Client 选择。
 
 ## 链接激活
 
@@ -299,7 +399,11 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 - `LastDrawnOnly`：事件只按最近一次完整成功 draw 的 map 解析；布局变化与下一次发布之间
   的每个指针事件被丢弃而绝不误路由。
 - `PublishAfterDraw`：暂存 map 仅当其所属帧的绘制完成才成为权威——失败的 draw 不发布
-  任何内容。
+  任何内容，且由于宿主可能已有部分候选内容，会退休先前 map。
+- `ExplicitInteraction`：通用 hover 与激活要求已绘制的 `InteractionSpec` 元数据；label、颜色、
+  region variant 与坐标都不能发明契约。
+- `ReleaseFingerprint`：通用激活要求同一目标、绘制矩形、契约、availability 及权威命中；
+  frame 序号本身既不会取消，也不会重新 arm。
 - `StableIdentity`：区域携带 `WorkbenchTabId`/`NativeContextLocation`/`WorkbenchPanelId`
   并在点击时重新解析；重排之后不残留缓存下标。
 - `OneGestureOwner`：press、drag、release 按 press 命中的区域解析；捕获释放、modal 捕获
@@ -322,22 +426,23 @@ Shift 始终属于宿主。进入、合并导航与恢复沿用[保留视口](na
 
 ## 源码对应
 
-| 生产表面                                    | 模型对应                                                                                                                                                                        |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tui_pointer.rs`                            | `PointerState` 捕获/map/手势生命周期、`FrameHitMap`/`HitMapBuilder` 暂存区域、`Gesture`（`Idle`/`Pending`/`Pane`/`Selection`/`Divider`/`Link`）、`WheelStream`                  |
-| `terminal_input/mouse.rs`                   | `MouseEvent` 解码（`decode_sgr`、`decode_x10`）、`pane_owns_pointer`、`encode_pane_report`、`encode_cursor_arrows`                                                              |
-| `terminal_input/decoder.rs`                 | 类型化 `DecodedKind::Mouse`/`Ignored` item；X10 三字节 body 原子消费、超时与中止；鼠标形态的畸形/中止/越界运行解码为 `Ignored`                                                  |
-| `terminal_input/dispatcher.rs`              | 位于 raw 透传通配之前的显式 `Mouse` 与 `Ignored` 臂——`Ignored` 被消费并丢弃、绝不入 pending；先 flush pending 字节；`RegionsChanged` 置 map 为 stale；外部变化 `invalidate_map` |
-| `terminal_lifecycle.rs`                     | `set_pointer_capture` ModeLease 对（`?1002`/`?1006`），enter 时 arm、每条退出路径恢复                                                                                           |
-| `tui_shell.rs`                              | 启动 arming、每次 draw 暂存 `HitMapBuilder`、成功才发布、`set_pointer_capture` 回调接线                                                                                         |
-| `tui_render.rs`、`tabs`、`contexts`         | 按绘制矩形记录 tab 标记、navigator 行、overlay 本体与 pane 叶的区域                                                                                                             |
-| `client_view.rs`、`client_view/bindings.rs` | `Ctrl+B m` → `TogglePointerCapture`，`SelectContextAt`/`FocusPanel`/`SelectTab` disposition，released 指示与指针 notice                                                         |
-| `terminal_session/ui.rs`、`state/`          | `pointer_probe` 新鲜事实、`focus_panel`/`select_context_at` 准入、稳定 id 访问器（`tab_id`、`panel_id`、`location`）                                                            |
-| `terminal_link_activation.rs`               | 精确来源围栏、OSC 8／纯文本解析、有序 handler 交接、单效果浏览器 fallback、有界通道与 join 关闭                                                                                 |
-| `terminal_session.rs`（test 接缝）          | 由真实 projection 帧与 controller 状态支撑的单 pane `Legacy` probe——connected-PTY 见证后端                                                                                      |
-| `terminal_input.rs`                         | `PointerProbe`/`PointerTab`/`PointerFrameFacts` 端口表面与 `forward_or_report` 投递                                                                                             |
-| `invocation.rs`、`cli/`                     | `tui --mouse off\|on` 准入、help 文本与三种 shell 补全                                                                                                                          |
-| `crates/terminal-protocol`                  | `TerminalInteraction` 可信 Rust API，暴露已验证帧的 tracking/format/几何/cursor 模式事实                                                                                        |
+| 生产表面                                                                                                 | 模型对应                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tui_pointer.rs`、`tui_pointer/interaction.rs`                                                           | `PointerState` 捕获/map/手势生命周期、类型化交互元数据与 projection、稳定 release fingerprint、`FrameHitMap`/`HitMapBuilder` 暂存区域、specialized `Gesture` owner、`WheelStream` |
+| `terminal_input/mouse.rs`                                                                                | `MouseEvent` 解码（`decode_sgr`、`decode_x10`）、`route_pane_pointer`、`encode_pane_report`、`encode_cursor_arrows`                                                               |
+| `terminal_input/decoder.rs`                                                                              | 类型化 `DecodedKind::Mouse`/`Ignored` item；X10 三字节 body 原子消费、超时与中止；鼠标形态的畸形/中止/越界运行解码为 `Ignored`                                                    |
+| `terminal_input/dispatcher.rs`                                                                           | raw 透传前的显式 `Mouse` 与 `Ignored` 臂；通用指针 outcome 与整包不变 motion 重绘裁决；pending 字节及 decoder deadline 保持顺序；结构变化使 map 失效                              |
+| `terminal_lifecycle.rs`                                                                                  | 基线 Button/SGR 捕获、一次性类型化 `1003` 准入、已结算 motion 可观测性及每条退出路径的日志式恢复                                                                                  |
+| `tui_shell.rs`                                                                                           | 启动 arming、每个候选使用不可变 pointer projection、成功才发布、一次后续 turn 对账重绘、失败 draw 使权威失效、capture 回调接线                                                    |
+| `tui_render/settings.rs`、`action_menu.rs`、`agent_board.rs`、`agent_sidebar.rs`、`workspace_sidebar.rs` | Settings、已打开的动作菜单、Agent board 与可见侧边栏的精确类型化交互                                                                                                              |
+| `tui_render.rs`、`help`、`navigator`、`tabs`、`contexts`、`presentation_selector`、`machine_picker`      | 精确 authored chrome 交互与来源凭据；pane 叶区域保留专用输入契约                                                                                                                  |
+| `client_view.rs`、`client_view/bindings.rs`                                                              | `Ctrl+B m` → `TogglePointerCapture`，`SelectContextAt`/`FocusPanel`/`SelectTab` disposition，released 指示与指针 notice                                                           |
+| `terminal_session/ui.rs`、`state/`                                                                       | `pointer_probe` 新鲜事实、`focus_panel`/`select_context_at` 准入、稳定 id 访问器（`tab_id`、`panel_id`、`location`）                                                              |
+| `terminal_link_activation.rs`                                                                            | 精确来源围栏、OSC 8／纯文本解析、有序 handler 交接、单效果浏览器 fallback、有界通道与 join 关闭                                                                                   |
+| `terminal_session.rs`（test 接缝）                                                                       | 由真实 projection 帧与 controller 状态支撑的单 pane `Legacy` probe——connected-PTY 见证后端                                                                                        |
+| `terminal_input.rs`                                                                                      | `PointerProbe`/`PointerTab`/`PointerFrameFacts` 端口表面与 `forward_or_report` 投递                                                                                               |
+| `invocation.rs`、`cli/`                                                                                  | `tui --mouse off\|on` 准入、help 文本与三种 shell 补全                                                                                                                            |
+| `crates/terminal-protocol`                                                                               | `TerminalInteraction` 可信 Rust API，暴露已验证帧的 tracking/format/几何/cursor 模式事实                                                                                          |
 
 ## 验证
 
@@ -348,14 +453,17 @@ control/attach 字节实测覆盖。
 | 表面                    | 证据                                                                                                                                                                                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 解码                    | `terminal_input/mouse/tests` SGR/X10 表——press/release/motion/wheel/修饰、跨 chunk 原子性、畸形拒绝且不退化为按键；`terminal_input/decoder/tests`——合法 SGR/X10 item、X10 分片喂入、超时 drain、ESC/C1 中止、畸形 body、越界运行、与按键/粘贴交错——所有鼠标形态畸形字节均为 `Ignored`            |
-| 编码契约                | `encode_pane_report` 覆盖每个 tracking × format 单元的表行、release 结尾、去重、夹取、legacy 上界与 SGR cell 降级                                                                                                                                                                                |
+| 编码与归属              | `route_pane_pointer` 的 fresh 事件矩阵，加上 `encode_pane_report` 对每个 tracking × format 单元、已捕获清理、release 结尾、去重、夹取、legacy 上界与 SGR cell 降级的覆盖                                                                                                                         |
 | Hit map                 | `tui_pointer/tests` 层序、边缘/外侧 cell、overlay 捕获与 backdrop 关闭——包括落在未遮盖 tab 条与 pane 上的外点 press 既不选择也不转发、stale-map 丢弃                                                                                                                                             |
+| 交互 projection         | `tui_pointer/tests/interaction` 覆盖 hover 进入／重复／离开、disabled 与 specialized 目标、press/release、移出后永久取消、重绘连续性、fingerprint／遮挡变化、transport 丢失、子项优先级及一次有界静止位置后续重绘                                                                                |
+| 通用接入                | Renderer/dispatcher 测试覆盖 Settings、菜单、侧边栏、Board、Help、Navigator、Machine Picker、Presentation、Tab 创建及全局 chrome：精确来源／几何、禁用消费、陈旧拒绝、与模型无关的 hover、释放取消及禁止改投                                                                                     |
 | 手势与 pending focus    | `tui_pointer/tests` press/release 顺序、队列上界与溢出取消、超时、orphan、只读、目标移动拒绝、settled 无帧等待与按事实准入                                                                                                                                                                       |
-| dispatcher 端口写       | `terminal_input/dispatcher/tests`——畸形 SGR/X10 与中止/超时鼠标运行产生零转发字节，而普通按键、粘贴与无关未知 CSI 按序透传                                                                                                                                                                       |
+| dispatcher 端口写       | `terminal_input/dispatcher/tests`——畸形 SGR/X10 与中止/超时鼠标运行产生零转发字节，而普通按键、粘贴与无关未知 CSI 按序透传；连续无键 motion 不能让到期 Escape 饥饿，且只有全部不变 motion 的 packet 才跳过重绘                                                                                   |
 | 滚轮流                  | `tui_pointer/tests` 每 notch 三次、每次一屏上限、反转清零、排空后关闭                                                                                                                                                                                                                            |
 | 捕获生命周期            | `terminal_lifecycle/tests` 租约配对与恢复；dispatcher `Ctrl+B m` 切换测试；状态指示                                                                                                                                                                                                              |
 | 链接点击                | recording pointer port 覆盖精确修饰键、同 cell 释放、取消、既有手势 owner 与忙碌准入；共享 OSC 8 宽字符和折行 HTTP(S) 解析器保留其 CLI 集成 fixture；路由测试用 recording browser port 覆盖优先级、受理后不明、确定无 handler fallback 与单效果；受控 Windows 集成覆盖新鲜 viewer 和原生插件传输 |
 | CLI                     | `invocation/tests` `tui --mouse` 值准入、裸调用/其他族拒绝、`--format` 拒绝；`cli/completion` 脚本                                                                                                                                                                                               |
+| 受控 Windows Host       | `apps/terminal-host` 的 `test-conpty-orchbee-pointer` 通过固定 ConPTY/Ghostty 启动 Orchbee child，覆盖真实 inherited Reader、reply decoder、一次性模式准入、语义 hover 区分及模式恢复；不证明物理指针／字体／配色行为                                                                            |
 | 真实 PTY（Legacy 接缝） | `tui_shell/tests/connected::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes`——记录的 pane-local SGR 字节、pane-local 平移、只读丢弃、SGR cell 降级、滚轮转方向键、捕获切换、模式恢复                                                                                    |
 | 真实 PTY（公开 Native） | `tests/local_startup_process/native_pointer.rs`——真实 PTY 上 spawn 的 `orchbee` 二进制：捕获 arm、X10 与 SGR pane-local 报告、未聚焦 pane 点击聚焦与排队放行、只读拒绝、滚轮转方向键、`Ctrl+B m`、`--mouse off`、退出恢复，以及零像素宿主几何下 cell 寻址报告仍可用、`?1016` 使用 SGR cell 降级  |
 
@@ -367,6 +475,6 @@ control/attach 字节实测覆盖。
 
 会话就绪或已选择但未附着时，包含多个 Presentation 的 Panel 在现有标题栏展示 `[<] [position/count] [>]`：单面板／放大使用无外框标题带，分屏使用叶节点标题。控件为标题／状态保留十二个单元；窄标题栏和 Minimal 层级保留既有标签／数量及键盘路径。每个箭头有三个单元的命中区域。数量和空格不响应；分屏 Pane 命中区域排除整个选择器条，因此控件不与终端内容或聚焦区域重叠。不增加标题行或主机鼠标模式。
 
-仅无修饰键的左键按下选择绘制时的精确目标 Presentation。按钮按规范成员顺序循环，与 `Ctrl+B (`／`Ctrl+B )` 等价。已绑定目标包含当前 `PaneRef` 和目的 Presentation ID。空目标包含结构 Pane key 与精确选中的 Presentation ID；新鲜探针必须仍确认该成员未绑定。空 Panel 内容区的按下只聚焦，不开始终端手势。新鲜探针必须仍在当前 desired anchor 下保留同一实例或空选择；UI 随后在活动 Tab 内解析 Panel／成员，才提交既有 Switch 事务。已删除／替换成员、旧 anchor、模态输入、捕获 overlay 和已释放鼠标捕获均不能改投手势。终端只读模式不禁止 Client 本地导航；选择从不转发终端字节，也不绕过子项仅 binding 附着。成功点击后旧命中图失效，直到重绘。
+无修饰左键按下为绘制时的精确目标 Presentation 建立手势，只有匹配释放才选择它。按钮按规范成员顺序循环，与当前有效的 Previous/Next Presentation 绑定等价（默认 `Ctrl+B (`／`Ctrl+B )`）。已绑定目标包含当前 `PaneRef` 和目的 Presentation ID。空目标包含结构 Pane key 与精确选中的 Presentation ID；新鲜探针必须仍确认该成员未绑定。空 Panel 内容区的按下只聚焦，不开始终端手势。新鲜探针必须仍在当前 desired anchor 下保留同一实例或空选择；UI 随后在活动 Tab 内解析 Panel／成员，才提交既有 Switch 事务。已删除／替换成员、旧 anchor、模态输入、捕获 overlay 和已释放鼠标捕获均不能改投手势。终端只读模式不禁止 Client 本地导航；选择从不转发终端字节，也不绕过子项仅 binding 附着。成功点击后旧命中图失效，直到重绘。
 
-证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。真实主机视觉／多 Client 验收仍随最终 Windows 全量门禁统一执行。
+证据覆盖按钮边界、不响应的数量／空格、不重叠的分屏矩形、单面板／分屏／放大渲染、窄窗口及 Minimal 降级、修饰键／非左键报告、捕获／overlay／模态守卫、旧实例／anchor、成员移除及实际 UI 准入精确子项 Switch。组合 TestBackend 截图证明 cell composition；物理宿主配色、字体、鼠标硬件、延迟及多 Client 视觉行为需要各自的原生证据。

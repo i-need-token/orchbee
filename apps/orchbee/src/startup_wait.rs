@@ -1,13 +1,11 @@
 #[cfg(unix)]
-use std::io::Read;
+use std::{fs::File, io::Read};
 use std::{
-    fs::File,
     io::{self, Write},
     time::{Duration, Instant},
 };
 
 use crossterm::{
-    ExecutableCommand,
     cursor::MoveTo,
     terminal::{Clear, ClearType},
 };
@@ -23,8 +21,12 @@ use std::os::fd::AsFd;
 use crate::{
     client_view::ClientView,
     terminal_device::{InheritedTerminal, WindowDimensions},
-    terminal_input::{DispatchOutcome, InputDispatcher, UnavailableTerminalInputPort},
-    terminal_lifecycle::{TerminalModeGuard, TerminalModes},
+    terminal_input::{
+        DispatchOutcome, InputDispatcher, PointerCaptureRequest, UnavailableTerminalInputPort,
+    },
+    terminal_lifecycle::{
+        PointerTrackingLevel, TerminalModeGuard, TerminalModes, write_ansi_command,
+    },
     termination_signal::TerminationSource,
     tui_layout,
 };
@@ -84,7 +86,7 @@ pub(crate) fn standalone_presentable_area(dimensions: WindowDimensions) -> Optio
 /// the lifecycle owner; tests inject a scripted guard through `enter`.
 pub(crate) trait WaitModeGuard {
     fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()>;
-    fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()>;
+    fn set_pointer_capture(&mut self, request: PointerCaptureRequest) -> io::Result<()>;
     fn restore(&mut self) -> io::Result<()>;
 }
 
@@ -92,8 +94,15 @@ impl<M: TerminalModes> WaitModeGuard for TerminalModeGuard<M> {
     fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
         TerminalModeGuard::set_bracketed_paste(self, enabled)
     }
-    fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()> {
-        TerminalModeGuard::set_pointer_capture(self, enabled)
+    fn set_pointer_capture(&mut self, request: PointerCaptureRequest) -> io::Result<()> {
+        TerminalModeGuard::set_pointer_capture_level(
+            self,
+            match request {
+                PointerCaptureRequest::Release => None,
+                PointerCaptureRequest::ButtonOnly => Some(PointerTrackingLevel::ButtonOnly),
+                PointerCaptureRequest::AnyMotion => Some(PointerTrackingLevel::AnyMotion),
+            },
+        )
     }
     fn restore(&mut self) -> io::Result<()> {
         TerminalModeGuard::restore(self).map_err(io::Error::other)
@@ -178,20 +187,20 @@ where
                     |_, _| Ok(false),
                     &mut |request| match request {
                         crate::terminal_input::ModeRequest::GraphicsQuery(_)
+                        | crate::terminal_input::ModeRequest::PointerAdmissionQuery(_)
                         | crate::terminal_input::ModeRequest::Bell => {
                             Err(io::ErrorKind::Unsupported.into())
                         }
                         #[cfg(windows)]
                         crate::terminal_input::ModeRequest::WindowTitle(_)
-                        | crate::terminal_input::ModeRequest::Notification(_)
-                        | crate::terminal_input::ModeRequest::PointerHover(_) => {
+                        | crate::terminal_input::ModeRequest::Notification(_) => {
                             Err(io::ErrorKind::Unsupported.into())
                         }
                         crate::terminal_input::ModeRequest::BracketedPaste(enabled) => {
                             guard.set_bracketed_paste(enabled)
                         }
-                        crate::terminal_input::ModeRequest::PointerCapture(enabled) => {
-                            guard.set_pointer_capture(enabled)
+                        crate::terminal_input::ModeRequest::PointerCapture(request) => {
+                            guard.set_pointer_capture(request)
                         }
                     },
                 ) {
@@ -236,9 +245,8 @@ fn sample<V: WaitViewport>(
 }
 
 fn draw_prompt(output: &mut impl Write, prompt: WaitPrompt<'_>) -> io::Result<()> {
-    output
-        .execute(Clear(ClearType::All))?
-        .execute(MoveTo(0, 0))?;
+    write_ansi_command(output, &Clear(ClearType::All))?;
+    write_ansi_command(output, &MoveTo(0, 0))?;
     output.write_all(prompt.notice.as_bytes())?;
     output.write_all(prompt.exit_hint.as_bytes())?;
     // The session renderer terminates every complete frame with a double
@@ -273,9 +281,10 @@ impl WaitViewport for InheritedWaitViewport<'_> {
     }
 }
 
-/// The production input source: polls and reads a duplicate of the inherited
-/// terminal input descriptor — never a fresh `/dev/tty`.
+/// The production input source: Unix polls a duplicate of the admitted input;
+/// Windows keeps the admitted terminal's one stateful record reader.
 pub(crate) struct InheritedWaitInput {
+    #[cfg(unix)]
     input: File,
     #[cfg(windows)]
     terminal: InheritedTerminal,
@@ -284,6 +293,7 @@ pub(crate) struct InheritedWaitInput {
 impl InheritedWaitInput {
     pub(crate) fn open(terminal: &InheritedTerminal) -> io::Result<Self> {
         Ok(Self {
+            #[cfg(unix)]
             input: File::from(terminal.duplicate_input()?),
             #[cfg(windows)]
             terminal: terminal.clone(),
@@ -295,7 +305,6 @@ impl WaitInput for InheritedWaitInput {
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
         #[cfg(windows)]
         {
-            let _ = &self.input;
             self.terminal.next_input(timeout)
         }
         #[cfg(unix)]

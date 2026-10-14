@@ -2,8 +2,12 @@ use super::super::*;
 use crate::terminal_session::state::worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeToken, tests::discovery,
 };
+use crate::{
+    tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl},
+    tui_theme::Role,
+};
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchRequestId, WorktreeSource};
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Modifier};
 
 pub(in crate::terminal_session::ui) fn ready(mode: WorktreeMode) -> NativeUi {
     ready_with_project(mode, true)
@@ -54,8 +58,37 @@ fn draw_with_theme(
     height: u16,
     theme: &crate::tui_theme::Theme,
 ) -> String {
+    draw_frame_with_theme(ui, locale, width, height, theme).text
+}
+
+struct DrawnWorktree {
+    text: String,
+    buffer: Buffer,
+    hits: FrameHitMap,
+}
+
+fn visible_row(buffer: &Buffer, width: u16, y: u16) -> String {
+    let mut row = String::new();
+    let mut x = 0;
+    while x < width {
+        let symbol = buffer[(x, y)].symbol();
+        row.push_str(symbol);
+        let columns = crate::terminal_text::display_width(symbol).max(1);
+        x = x.saturating_add(u16::try_from(columns).unwrap_or(u16::MAX));
+    }
+    row
+}
+
+fn draw_frame_with_theme(
+    ui: &mut NativeUi,
+    locale: crate::localization::Locale,
+    width: u16,
+    height: u16,
+    theme: &crate::tui_theme::Theme,
+) -> DrawnWorktree {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut receipt = NativeDrawReceipt::default();
+    let mut hits = HitMapBuilder::new();
     terminal
         .draw(|frame| {
             receipt = crate::tui_render::render_terminal_shell(
@@ -66,10 +99,11 @@ fn draw_with_theme(
                     ui.view(),
                 )),
                 theme,
-                &mut crate::tui_pointer::HitMapBuilder::new(),
+                &mut hits,
             );
         })
         .unwrap();
+    let buffer = terminal.backend().buffer().clone();
     let text = terminal
         .backend()
         .buffer()
@@ -78,11 +112,15 @@ fn draw_with_theme(
         .map(|cell| cell.symbol())
         .collect::<String>();
     ui.after_close_draw(receipt);
-    text.replace(' ', "")
+    DrawnWorktree {
+        text: text.replace(' ', ""),
+        buffer,
+        hits: hits.finish(),
+    }
 }
 
 #[test]
-fn worktree_complete_draw_in_both_locales_arms_one_exact_plan_and_small_draw_cancels() {
+fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
@@ -102,19 +140,106 @@ fn worktree_complete_draw_in_both_locales_arms_one_exact_plan_and_small_draw_can
             ] {
                 let mut ui = ready(WorktreeMode::Create);
                 let token = ui.worktrees.launcher.token().unwrap();
-                ui.edit_worktree(token, WorktreeEdit::Paste("feature/猫"));
-                let token = ui.worktrees.launcher.token().unwrap();
-                let text = draw_with_theme(&mut ui, locale, width, height, &theme);
-                if fits {
-                    assert!(text.contains("feature/猫"));
+                let first = draw_with_theme(&mut ui, locale, width, height, &theme);
+                let token = if fits {
+                    assert!(ui.edit_worktree(token, WorktreeEdit::Paste("feature/猫")));
+                    let token = ui.worktrees.launcher.token().unwrap();
+                    let drawn = draw_frame_with_theme(&mut ui, locale, width, height, &theme);
+                    assert!(drawn.text.contains("feature/猫"));
+                    let cancel_label = locale.worktree_cancel_label(WorktreeStage::Branch);
+                    let submit_label = locale.worktree_submit_label(WorktreeStage::Branch);
                     assert!(
-                        text.contains(
-                            &locale
-                                .worktree_actions(WorktreeStage::Branch)
-                                .replace(' ', "")
-                        )
+                        drawn
+                            .text
+                            .contains(&format!("[{}]", cancel_label.replace(' ', "")))
                     );
-                }
+                    assert!(
+                        drawn
+                            .text
+                            .contains(&format!("[{}]", submit_label.replace(' ', "")))
+                    );
+
+                    let hint_y = (0..height)
+                        .find(|&y| {
+                            (0..width.saturating_sub(2)).any(|x| {
+                                drawn.buffer[(x, y)].symbol() == "E"
+                                    && drawn.buffer[(x + 1, y)].symbol() == "s"
+                                    && drawn.buffer[(x + 2, y)].symbol() == "c"
+                            })
+                        })
+                        .expect("exit-first Worktree footer");
+                    let hint_x = (0..width.saturating_sub(2))
+                        .find(|&x| {
+                            drawn.buffer[(x, hint_y)].symbol() == "E"
+                                && drawn.buffer[(x + 1, hint_y)].symbol() == "s"
+                                && drawn.buffer[(x + 2, hint_y)].symbol() == "c"
+                        })
+                        .unwrap();
+                    let footer = visible_row(&drawn.buffer, width, hint_y);
+                    let cancel_hint = locale.worktree_cancel_hint(WorktreeStage::Branch);
+                    let submit_hint = locale.worktree_submit_hint(WorktreeStage::Branch);
+                    let required_hints = format!(
+                        "Esc {cancel_hint} {} Enter {submit_hint}",
+                        theme.glyphs.middle_dot
+                    );
+                    assert!(footer.contains(&required_hints), "{locale:?}: {footer:?}");
+                    let key_style = drawn.buffer[(hint_x, hint_y)].style();
+                    let spacing_style = drawn.buffer[(hint_x + 3, hint_y)].style();
+                    let label_style = drawn.buffer[(hint_x + 4, hint_y)].style();
+                    assert_eq!(drawn.buffer[(hint_x + 3, hint_y)].symbol(), " ");
+                    assert_eq!(key_style.fg, theme.style(Role::HintKey).fg);
+                    assert_eq!(spacing_style.fg, theme.style(Role::HintLabel).fg);
+                    assert_eq!(label_style.fg, theme.style(Role::HintLabel).fg);
+                    assert!(key_style.add_modifier.contains(Modifier::BOLD));
+                    assert!(!spacing_style.add_modifier.contains(Modifier::BOLD));
+                    assert!(!label_style.add_modifier.contains(Modifier::BOLD));
+
+                    let target_count = |control| {
+                        (0..height)
+                            .flat_map(|y| (0..width).map(move |x| (x, y)))
+                            .filter(|(x, y)| {
+                                matches!(
+                                    drawn.hits.hit_target_at(*x, *y),
+                                    Some(HitTarget::Worktree {
+                                        token: painted,
+                                        control: painted_control,
+                                    }) if *painted == token && *painted_control == control
+                                )
+                            })
+                            .count()
+                    };
+                    let focus_width =
+                        crate::terminal_text::display_width(theme.glyphs.active_marker).max(1);
+                    assert_eq!(
+                        target_count(ModalControl::Cancel),
+                        focus_width + 4 + crate::terminal_text::display_width(cancel_label) + 3 // The independent header [x] shares the cancel intent.
+                    );
+                    assert_eq!(
+                        target_count(ModalControl::Submit),
+                        focus_width + 4 + crate::terminal_text::display_width(submit_label)
+                    );
+                    assert!(target_count(ModalControl::NextField) > 0);
+                    assert!(
+                        (0..height)
+                            .flat_map(|y| (0..width).map(move |x| (x, y)))
+                            .all(|(x, y)| {
+                                !matches!(
+                                    drawn.hits.hit_target_at(x, y),
+                                    Some(HitTarget::Worktree { token: painted, .. })
+                                        if *painted != token
+                                )
+                            })
+                    );
+                    token
+                } else {
+                    assert!(!first.contains("feature/猫"));
+                    assert!(!ui.worktrees.launcher.visible());
+                    assert_eq!(
+                        ui.worktrees.launcher.notice(),
+                        WorktreeNotice::PresentationUnavailable
+                    );
+                    token
+                };
                 let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
                 let plan = ui.worktrees.launcher.confirm(
                     token,
@@ -129,10 +254,82 @@ fn worktree_complete_draw_in_both_locales_arms_one_exact_plan_and_small_draw_can
 }
 
 #[test]
+fn an_admitted_worktree_surface_suspends_at_small_geometry_and_resumes_in_place() {
+    let mut ui = ready(WorktreeMode::Create);
+    draw(&mut ui, crate::localization::Locale::EnUs, 80, 24);
+    let token = ui.worktrees.launcher.token().unwrap();
+    assert!(ui.edit_worktree(token, WorktreeEdit::Append("feature/preserved")));
+    let token = ui.worktrees.launcher.token().unwrap();
+    draw(&mut ui, crate::localization::Locale::EnUs, 80, 24);
+    let before = ui.worktrees.launcher.view().unwrap().branch().to_owned();
+
+    draw(&mut ui, crate::localization::Locale::EnUs, 12, 3);
+    assert!(ui.worktrees.launcher.visible());
+    assert_eq!(ui.worktrees.launcher.token(), Some(token));
+    assert!(ui.worktree_capture_claim());
+    assert!(ui.worktree_input_context().is_none());
+    assert_eq!(
+        ui.view().worktree().unwrap().presentation(),
+        crate::tui_presentation::PresentationPhase::Suspended
+    );
+    assert!(ui.edit_worktree(token, WorktreeEdit::Append("-hidden")));
+    assert_eq!(ui.worktrees.launcher.view().unwrap().branch(), before);
+    ui.submit_worktree(token);
+    assert!(ui.worktrees.launcher.operation().is_none());
+
+    draw(&mut ui, crate::localization::Locale::EnUs, 80, 24);
+    assert!(ui.edit_worktree(token, WorktreeEdit::Append("-resumed")));
+    assert_eq!(
+        ui.worktrees.launcher.view().unwrap().branch(),
+        "feature/preserved-resumed"
+    );
+}
+
+#[test]
+fn worktree_capture_claim_tracks_visibility_and_context_keeps_live_frame_continuity() {
+    let mut ui = ready(WorktreeMode::Create);
+    let token = ui.worktrees.launcher.token().unwrap();
+    assert!(ui.view().worktree_capture_claim());
+    assert!(ui.worktree_capture_claim());
+    assert!(ui.view().worktree_input_context().is_none());
+    assert!(ui.worktree_input_context().is_none());
+
+    ui.worktrees.launcher.draw(Some(token));
+    assert_eq!(ui.view().worktree_input_context().unwrap().token, token);
+    assert_eq!(ui.worktree_input_context().unwrap().token, token);
+
+    assert!(ui.edit_worktree(token, WorktreeEdit::Append("feature/live")));
+    let edited = ui.worktrees.launcher.token().unwrap();
+    assert_ne!(edited, token);
+    assert!(ui.worktree_capture_claim());
+    assert_eq!(ui.worktree_input_context().unwrap().token, edited);
+
+    assert!(ui.edit_worktree(edited, WorktreeEdit::NextField));
+    let next_field = ui.worktrees.launcher.token().unwrap();
+    assert!(ui.worktree_capture_claim());
+    assert!(ui.worktree_input_context().is_none());
+
+    ui.worktrees.launcher.draw(Some(next_field));
+    assert_eq!(ui.worktree_input_context().unwrap().token, next_field);
+    ui.after_worktree_draw(None);
+    assert!(ui.worktree_capture_claim());
+    assert!(ui.worktree_input_context().is_none());
+    assert_eq!(
+        ui.view().worktree().unwrap().presentation(),
+        crate::tui_presentation::PresentationPhase::Admitted
+    );
+
+    ui.dismiss_worktree(next_field);
+    assert!(!ui.worktree_capture_claim());
+    assert!(ui.worktree_input_context().is_none());
+}
+
+#[test]
 fn worktree_checkout_picker_windows_selection_and_disambiguates_duplicate_branches_by_path() {
     let mut ui = ready(WorktreeMode::Open);
+    draw(&mut ui, crate::localization::Locale::ZhCn, 80, 24);
     let token = ui.worktrees.launcher.token().unwrap();
-    ui.edit_worktree(token, WorktreeEdit::Next);
+    assert!(ui.edit_worktree(token, WorktreeEdit::Next));
     let text = draw(&mut ui, crate::localization::Locale::ZhCn, 80, 24);
     assert!(text.contains("C:/trees/猫"));
     assert!(text.contains("2/2"));
@@ -143,8 +340,9 @@ fn worktree_checkout_picker_windows_selection_and_disambiguates_duplicate_branch
 #[test]
 fn a_geometry_change_revokes_the_draw_without_submitting_or_changing_source() {
     let mut ui = ready(WorktreeMode::Create);
+    draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);
     let token = ui.worktrees.launcher.token().unwrap();
-    ui.edit_worktree(token, WorktreeEdit::Append("feature/one"));
+    assert!(ui.edit_worktree(token, WorktreeEdit::Append("feature/one")));
     draw(&mut ui, crate::localization::Locale::EnUs, 120, 40);
     let old = ui.state.as_ref().unwrap().desired().cloned();
     ui.observe_geometry(Geometry::new(100, 24, 8, 16).unwrap());
@@ -215,7 +413,10 @@ fn hidden_completion_reopens_the_same_receipt_without_new_preparation_or_focus()
         let retained = ui.worktrees.launcher.operation().unwrap();
         assert_eq!(retained.plan.operation_id, operation);
         assert!(!retained.focus_allowed);
-        assert_eq!(ui.worktrees.launcher.notice(), WorktreeNotice::Opened);
+        assert_eq!(
+            ui.worktrees.launcher.notice(),
+            WorktreeNotice::EntryDeferred
+        );
         assert_eq!(
             ui.worktrees.launcher.view().unwrap().stage(),
             WorktreeStage::Result

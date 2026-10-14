@@ -41,8 +41,12 @@ mod panel_reports;
 pub(crate) use pane_graphics::{Canvas as PaneGraphicsCanvas, Draw as PaneGraphicsDraw};
 #[cfg(windows)]
 mod plugin_overlays;
+#[cfg(all(windows, test))]
+pub(crate) use independent_popup::PopupInputContext;
 #[cfg(windows)]
-pub(crate) use independent_popup::{PopupView, resolve_geometry as popup_geometry};
+pub(crate) use independent_popup::{
+    DrawnPopupClose, PopupView, resolve_geometry as popup_geometry,
+};
 #[cfg(all(windows, test))]
 pub(crate) use panel_reports::PanelReport;
 #[cfg(windows)]
@@ -85,25 +89,33 @@ pub(crate) use workbench_projection::{
 
 #[cfg(windows)]
 pub(crate) use ui::{
-    WorktreeEdit, WorktreeInputContext, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken,
-    WorktreeView,
+    WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 
 #[cfg(windows)]
 pub(crate) use ui::RetainedFrameBank;
+#[cfg(all(windows, test))]
+pub(crate) use ui::WorktreeCaptureContext;
 pub(crate) use ui::{
-    AgentBoardControl, AgentBoardDraw, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
-    AgentBoardSummary, AgentBoardToken, JumpFailure, ModalPresentation, NativeAgentBoardView,
-    NativeCloseConfirmationKind, NativeCloseConfirmationToken, NativeCloseConfirmationView,
-    NativeCloseStatusKind, NativeCloseStatusToken, NativeCloseStatusView, NativeDisplayController,
-    NativeDisplayPhase, NativeDisplayProvenance, NativeDisplayRetirement, NativeDrawReceipt,
-    NativeLocationLabelStatus, NativeLocationLabelTarget, NativePanelCloseConfirmationToken,
-    NativePanelCloseConfirmationView, NativeProjectionStatus, NativeRefreshStatus,
-    NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeRenameInputContext,
-    NativeSessionNotice, NativeSessionView, NativeSetupDraftView, NativeSetupEdit,
-    NativeSetupInputContext, NativeSetupStage, NativeSetupStatus, NativeSetupToken, NativeTabView,
+    AgentBoardActualDraw, AgentBoardControl, AgentBoardControlTarget, AgentBoardDraw,
+    AgentBoardEpisodeToken, AgentBoardRead, AgentBoardReadFailure, AgentBoardRow,
+    AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, CaptureReadiness,
+    DrawnPresentationTarget, JumpFailure, ModalPresentation, NativeAgentBoardView,
+    NativeCaptureContext, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
+    NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
+    NativeCloseStatusView, NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
+    NativeDisplayRetirement, NativeDrawReceipt, NativeLocationLabelStatus,
+    NativeLocationLabelTarget, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
+    NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
+    NativeRenameEdit, NativeSessionNotice, NativeSessionView, NativeSetupDraftView,
+    NativeSetupEdit, NativeSetupStage, NativeSetupStatus, NativeSetupToken, NativeTabView,
     NativeViewportSurface, PresentationPlacement, WorkspaceCloseConfirmationView,
     WorkspaceCloseStatus, WorkspaceCloseStatusView, WorkspaceCloseToken,
+};
+#[cfg(test)]
+pub(crate) use ui::{
+    AgentBoardInputContext, ConfirmationCaptureContext, NativeRenameInputContext,
+    SetupCaptureContext,
 };
 
 #[derive(Clone, Debug)]
@@ -452,13 +464,20 @@ impl TerminalSession {
     }
 
     pub(crate) fn tick(&mut self) -> bool {
+        self.tick_with_client_capture(crate::tui_composition::ClientCaptureClaims::default())
+    }
+
+    pub(crate) fn tick_with_client_capture(
+        &mut self,
+        client_capture: crate::tui_composition::ClientCaptureClaims,
+    ) -> bool {
         #[cfg(windows)]
         let position_failed = self
             .position_writer
             .as_ref()
             .is_some_and(startup_preference::Writer::take_failure);
         let changed = match &mut self.backend {
-            SessionBackend::Native(native) => native.tick(),
+            SessionBackend::Native(native) => native.tick_with_client_capture(client_capture),
             #[cfg(test)]
             SessionBackend::Legacy(legacy) => legacy.tick(&self.shutdown),
         };
@@ -473,6 +492,14 @@ impl TerminalSession {
         };
         self.finalize_native_retirement();
         std::mem::take(&mut self.retirement_redraw_pending) || changed
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.rename_input_context(),
+            SessionBackend::Legacy(_) => None,
+        }
     }
 
     // Only the shell's successful draw calls this, so an undrawn frame is never acknowledged.
@@ -881,6 +908,25 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        match &self.backend {
+            SessionBackend::Native(native) => native.capture_claims(),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => crate::tui_composition::NativeCaptureClaims::default(),
+        }
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<NativeCaptureContext> {
+        match &self.backend {
+            SessionBackend::Native(native) => native.capture_context(owner),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => None,
+        }
+    }
+
     #[cfg(windows)]
     fn click_resize_control(
         &mut self,
@@ -912,29 +958,23 @@ impl TerminalInputPort for TerminalSession {
         }
         self.finalize_native_retirement();
     }
-    fn settings_active(&self) -> bool {
-        match &self.backend {
-            SessionBackend::Native(native) => native.settings_active(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
-        }
+    fn capture_settings_key_for(
+        &mut self,
+        expected: crate::native_settings::SettingsInputContext,
+        event: crate::client_view::KeyEvent,
+    ) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.capture_settings_key_for(expected, event))
     }
-    fn capture_settings_key(&mut self, event: crate::client_view::KeyEvent) {
-        if let Some(native) = self.backend.native_mut() {
-            native.capture_settings_key(event);
-        }
-    }
-    fn capture_settings_paste(&mut self, text: Option<&str>) {
-        if let Some(native) = self.backend.native_mut() {
-            native.capture_settings_paste(text);
-        }
-    }
-    fn settings_text_remaining(&self) -> usize {
-        match &self.backend {
-            SessionBackend::Native(native) => native.settings_text_remaining(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => 0,
-        }
+    fn capture_settings_paste_for(
+        &mut self,
+        expected: crate::native_settings::SettingsInputContext,
+        text: Option<&str>,
+    ) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.capture_settings_paste_for(expected, text))
     }
     fn click_settings_control(
         &mut self,
@@ -963,14 +1003,6 @@ impl TerminalInputPort for TerminalSession {
         }
     }
     #[cfg(windows)]
-    fn action_menu_active(&self) -> bool {
-        match &self.backend {
-            SessionBackend::Native(native) => native.action_menu_active(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
-        }
-    }
-    #[cfg(windows)]
     fn tab_create_action(
         &mut self,
         target: &crate::action_menu::DrawnTabCreate,
@@ -989,21 +1021,35 @@ impl TerminalInputPort for TerminalSession {
             .is_some_and(|native| native.open_action_menu(target, anchor, pointer_released))
     }
     #[cfg(windows)]
-    fn capture_action_menu_key(&mut self, event: crate::client_view::KeyEvent) {
+    fn capture_action_menu_key_for(
+        &mut self,
+        expected: crate::action_menu::MenuInputContext,
+        event: crate::client_view::KeyEvent,
+    ) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.capture_action_menu_key_for(expected, event))
+    }
+    #[cfg(windows)]
+    fn activate_action_menu_row(
+        &mut self,
+        source: &crate::action_menu::MenuTarget,
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    ) {
         if let Some(native) = self.backend.native_mut() {
-            native.capture_action_menu_key(event);
+            native.activate_action_menu_row(source, token, row);
         }
     }
     #[cfg(windows)]
-    fn click_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
+    fn activate_action_menu_control(
+        &mut self,
+        source: &crate::action_menu::MenuTarget,
+        token: crate::action_menu::MenuToken,
+        control: crate::action_menu::MenuControl,
+    ) {
         if let Some(native) = self.backend.native_mut() {
-            native.click_action_menu(token, row);
-        }
-    }
-    #[cfg(windows)]
-    fn click_action_menu_control(&mut self, token: crate::action_menu::MenuToken, back: bool) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_action_menu_control(token, back);
+            native.activate_action_menu_control(source, token, control);
         }
     }
     #[cfg(windows)]
@@ -1016,12 +1062,6 @@ impl TerminalInputPort for TerminalSession {
         self.backend
             .native_mut()?
             .scroll_action_menu(token, up, lines)
-    }
-    #[cfg(windows)]
-    fn hover_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
-        if let Some(native) = self.backend.native_mut() {
-            native.hover_action_menu(token, row);
-        }
     }
     #[cfg(windows)]
     fn cancel_action_menu(&mut self) {
@@ -1042,21 +1082,13 @@ impl TerminalInputPort for TerminalSession {
         }
     }
     #[cfg(windows)]
-    fn popup_identity(&self) -> Option<&orchbee_workbench_protocol::WorkbenchRequestId> {
-        match &self.backend {
-            SessionBackend::Native(native) => native.popup_identity(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
-        }
-    }
-    #[cfg(windows)]
-    fn popup_captured(&self) -> bool {
-        matches!(&self.backend, SessionBackend::Native(native) if native.popup_captured())
-    }
-    #[cfg(windows)]
-    fn popup_input(&mut self, item: &crate::terminal_input::DecodedItem) {
+    fn popup_input(
+        &mut self,
+        id: &orchbee_workbench_protocol::WorkbenchRequestId,
+        item: &crate::terminal_input::DecodedItem,
+    ) {
         if let Some(native) = self.backend.native_mut() {
-            native.popup_input(item);
+            native.popup_input(id, item);
         }
     }
     #[cfg(windows)]
@@ -1065,11 +1097,16 @@ impl TerminalInputPort for TerminalSession {
         id: &orchbee_workbench_protocol::WorkbenchRequestId,
         content: ratatui::layout::Rect,
         event: crate::terminal_input::MouseEvent,
-        close: bool,
     ) {
         if let Some(native) = self.backend.native_mut() {
-            native.popup_mouse(id, content, event, close);
+            native.popup_mouse(id, content, event);
         }
+    }
+    #[cfg(windows)]
+    fn activate_drawn_popup_close(&mut self, target: &DrawnPopupClose) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.activate_drawn_popup_close(target))
     }
 
     fn observe_focus(&mut self, focused: bool) {
@@ -1078,10 +1115,6 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
-    #[cfg(windows)]
-    fn worktree_input_context(&mut self) -> Option<WorktreeInputContext> {
-        self.backend.native_mut()?.worktree_input_context()
-    }
     #[cfg(windows)]
     fn edit_worktree(&mut self, token: WorktreeToken, edit: WorktreeEdit<'_>) -> bool {
         self.backend
@@ -1122,12 +1155,6 @@ impl TerminalInputPort for TerminalSession {
         if let Some(ui) = self.backend.native_mut() {
             ui.after_worktree_draw(None);
         }
-    }
-
-    fn setup_input_context(&mut self) -> Option<NativeSetupInputContext> {
-        self.backend
-            .native_mut()
-            .and_then(ui::NativeUi::setup_input_context)
     }
 
     fn edit_setup_draft(&mut self, token: NativeSetupToken, edit: NativeSetupEdit<'_>) -> bool {
@@ -1175,14 +1202,6 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
-    fn rename_input_context(&mut self) -> Option<NativeRenameInputContext> {
-        match &mut self.backend {
-            SessionBackend::Native(native) => native.rename_input_context(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => None,
-        }
-    }
-
     fn edit_rename_draft(
         &mut self,
         token: NativeRenameDraftToken,
@@ -1220,12 +1239,41 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
-    fn capture_confirmation_key(&mut self, key: crate::client_view::ClientKey) -> bool {
-        let captured = match &mut self.backend {
-            SessionBackend::Native(native) => native.capture_confirmation_key(key),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
-        };
+    fn capture_tab_confirmation_key_for(
+        &mut self,
+        token: NativeCloseConfirmationToken,
+        key: crate::client_view::ClientKey,
+    ) -> bool {
+        let captured = self
+            .backend
+            .native_mut()
+            .is_some_and(|native| native.capture_tab_confirmation_key(token, key));
+        self.finalize_native_retirement();
+        captured
+    }
+
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        token: NativePanelCloseConfirmationToken,
+        key: crate::client_view::ClientKey,
+    ) -> bool {
+        let captured = self
+            .backend
+            .native_mut()
+            .is_some_and(|native| native.capture_panel_confirmation_key(token, key));
+        self.finalize_native_retirement();
+        captured
+    }
+
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        key: crate::client_view::ClientKey,
+    ) -> bool {
+        let captured = self
+            .backend
+            .native_mut()
+            .is_some_and(|native| native.capture_workspace_close_key(token, key));
         self.finalize_native_retirement();
         captured
     }
@@ -1236,28 +1284,21 @@ impl TerminalInputPort for TerminalSession {
         }
     }
 
-    fn agent_board_input(&mut self) -> bool {
-        match &mut self.backend {
-            SessionBackend::Native(native) => native.agent_board_input(),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
-        }
-    }
-
-    fn capture_agent_board_key(&mut self, key: crate::client_view::KeyEvent) -> bool {
-        match &mut self.backend {
-            SessionBackend::Native(native) => native.capture_agent_board_key(&key),
-            #[cfg(test)]
-            SessionBackend::Legacy(_) => false,
-        }
-    }
-
-    fn agent_board_select(
+    fn capture_agent_board_key_for(
         &mut self,
-        session: &orchbee_agent_observation_protocol::AgentSessionId,
+        episode: AgentBoardEpisodeToken,
+        key: crate::client_view::KeyEvent,
     ) -> bool {
         match &mut self.backend {
-            SessionBackend::Native(native) => native.agent_board_select(session),
+            SessionBackend::Native(native) => native.capture_agent_board_key(episode, &key),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    fn agent_board_select(&mut self, target: &AgentBoardRowTarget) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.agent_board_select(target),
             #[cfg(test)]
             SessionBackend::Legacy(_) => false,
         }
@@ -1274,10 +1315,10 @@ impl TerminalInputPort for TerminalSession {
             .scroll_agent_board(token, up, lines)
     }
 
-    fn click_agent_board_control(&mut self, token: &AgentBoardToken, control: AgentBoardControl) {
-        if let Some(native) = self.backend.native_mut() {
-            native.click_agent_board_control(token, control);
-        }
+    fn click_agent_board_control(&mut self, target: &AgentBoardControlTarget) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.click_agent_board_control(target))
     }
 
     fn agent_board_dismiss(&mut self) {
@@ -1334,6 +1375,20 @@ impl TerminalInputPort for TerminalSession {
         );
         self.finalize_native_retirement();
         result
+    }
+
+    fn activate_drawn_presentation(
+        &mut self,
+        target: &DrawnPresentationTarget,
+    ) -> SessionActionDisposition {
+        let disposition = self
+            .backend
+            .native_mut()
+            .map_or(SessionActionDisposition::KeepNavigator, |native| {
+                native.activate_drawn_presentation(target)
+            });
+        self.finalize_native_retirement();
+        disposition
     }
 
     fn pointer_selection(

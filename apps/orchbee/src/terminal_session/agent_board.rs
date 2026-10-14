@@ -18,6 +18,8 @@ use orchbee_agent_observation_protocol::{
     AgentSessionRejectionReason, AgentSessionSummary,
 };
 
+use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
+
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use super::agent_read_lane as lane;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -135,12 +137,151 @@ pub(crate) enum JumpFailure {
     Expired,
 }
 
-/// What the last draw actually did with the board, reported back through
-/// `NativeDrawReceipt` so input capture settles on the painted truth.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) struct AgentBoardDraw {
-    pub(crate) presented: bool,
-    pub(crate) viewport_rows: usize,
+/// Stable identity for one open Board incarnation.
+///
+/// Selection, viewport and row-source changes deliberately do not advance this
+/// token. They belong to the exact draw witness below; late work from another
+/// open incarnation remains excluded by this episode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AgentBoardEpisodeToken(u64);
+
+impl AgentBoardEpisodeToken {
+    #[cfg(test)]
+    pub(crate) const fn for_test(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+/// Value-semantic source behind one Board draw.
+///
+/// `rows_revision` changes whenever the installed visible row set changes;
+/// selection and jump availability remain explicit so a pointer release cannot
+/// act on a different projection that happens to share a viewport offset.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AgentBoardDrawSource {
+    episode: AgentBoardEpisodeToken,
+    rows_revision: u64,
+    selected: Option<AgentSessionId>,
+    jumping: bool,
+}
+
+/// Exact successful-paint evidence for one Board frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct AgentBoardActualDraw {
+    token: AgentBoardToken,
+    visible_rows: usize,
+    first: Option<AgentSessionId>,
+    selected: Option<AgentSessionId>,
+}
+
+impl AgentBoardActualDraw {
+    fn new(
+        token: AgentBoardToken,
+        visible_rows: usize,
+        first: Option<AgentSessionId>,
+        selected: Option<AgentSessionId>,
+    ) -> Option<Self> {
+        (visible_rows > 0).then_some(Self {
+            token,
+            visible_rows,
+            first,
+            selected,
+        })
+    }
+
+    pub(crate) const fn episode(&self) -> AgentBoardEpisodeToken {
+        self.token.source.episode
+    }
+
+    pub(crate) const fn token(&self) -> &AgentBoardToken {
+        &self.token
+    }
+
+    pub(crate) const fn visible_rows(&self) -> usize {
+        self.visible_rows
+    }
+
+    pub(crate) const fn first(&self) -> Option<&AgentSessionId> {
+        self.first.as_ref()
+    }
+
+    pub(crate) const fn selected(&self) -> Option<&AgentSessionId> {
+        self.selected.as_ref()
+    }
+
+    pub(crate) fn row_target(&self, session: AgentSessionId) -> AgentBoardRowTarget {
+        AgentBoardRowTarget {
+            token: self.token.clone(),
+            session,
+        }
+    }
+
+    pub(crate) fn control_target(&self, control: AgentBoardControl) -> AgentBoardControlTarget {
+        AgentBoardControlTarget {
+            token: self.token.clone(),
+            control,
+        }
+    }
+}
+
+/// What the renderer actually did with one exact Board episode.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum AgentBoardDraw {
+    Presented(AgentBoardActualDraw),
+    NotPresented(AgentBoardEpisodeToken),
+}
+
+impl AgentBoardDraw {
+    pub(crate) const fn is_presented(&self) -> bool {
+        matches!(self, Self::Presented(_))
+    }
+
+    pub(crate) const fn episode(&self) -> AgentBoardEpisodeToken {
+        match self {
+            Self::Presented(draw) => draw.episode(),
+            Self::NotPresented(episode) => *episode,
+        }
+    }
+}
+
+/// Owner projection consumed by the top-input compositor.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AgentBoardInputContext {
+    episode: AgentBoardEpisodeToken,
+    presentation: PresentationPhase,
+    interactive: bool,
+}
+
+impl AgentBoardInputContext {
+    #[cfg(test)]
+    pub(crate) const fn for_test(
+        episode: AgentBoardEpisodeToken,
+        presentation: PresentationPhase,
+        interactive: bool,
+    ) -> Self {
+        Self {
+            episode,
+            presentation,
+            interactive,
+        }
+    }
+
+    pub(crate) const fn episode(self) -> AgentBoardEpisodeToken {
+        self.episode
+    }
+
+    #[cfg(test)]
+    pub(crate) const fn presentation(self) -> PresentationPhase {
+        self.presentation
+    }
+
+    /// Whether a complete frame for this episode still holds its visibility
+    /// lease. The compositor separately decides whether the Board is the top
+    /// owner. Together those facts permit owner-local navigation; activations
+    /// and pointer effects also require exact current draw proof.
+    pub(crate) const fn interactive(self) -> bool {
+        self.interactive
+    }
 }
 
 /// The sidebar's honest summary of the last completed read — `None` means
@@ -302,6 +443,39 @@ fn navigation_locations(
 /// The board's key map, resolved in one place so the capture handler and
 /// its tests share the exact binding set. All bindings are plain (no
 /// modifiers); `Ctrl+B g` reaches the dispatcher before the board layer.
+const BOARD_SELECT_UP_KEYS: [crate::client_view::Binding; 2] = [
+    crate::client_view::Binding::new(
+        crate::client_view::KeyCode::Up,
+        crate::client_view::Modifiers::NONE,
+    ),
+    crate::client_view::Binding::new(
+        crate::client_view::KeyCode::Char('k'),
+        crate::client_view::Modifiers::NONE,
+    ),
+];
+const BOARD_SELECT_DOWN_KEYS: [crate::client_view::Binding; 2] = [
+    crate::client_view::Binding::new(
+        crate::client_view::KeyCode::Down,
+        crate::client_view::Modifiers::NONE,
+    ),
+    crate::client_view::Binding::new(
+        crate::client_view::KeyCode::Char('j'),
+        crate::client_view::Modifiers::NONE,
+    ),
+];
+const BOARD_REFRESH_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Char('r'),
+    crate::client_view::Modifiers::NONE,
+);
+const BOARD_JUMP_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Enter,
+    crate::client_view::Modifiers::NONE,
+);
+const BOARD_CLOSE_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Esc,
+    crate::client_view::Modifiers::NONE,
+);
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum AgentBoardKeyAction {
     SelectUp,
@@ -312,23 +486,21 @@ pub(super) enum AgentBoardKeyAction {
 }
 
 pub(super) fn board_key_action(event: crate::client_view::KeyEvent) -> Option<AgentBoardKeyAction> {
-    use crate::client_view::{Binding, KeyCode, Modifiers};
-    const UP: Binding = Binding::new(KeyCode::Up, Modifiers::NONE);
-    const UP_VIM: Binding = Binding::new(KeyCode::Char('k'), Modifiers::NONE);
-    const DOWN: Binding = Binding::new(KeyCode::Down, Modifiers::NONE);
-    const DOWN_VIM: Binding = Binding::new(KeyCode::Char('j'), Modifiers::NONE);
-    const REFRESH: Binding = Binding::new(KeyCode::Char('r'), Modifiers::NONE);
-    const JUMP: Binding = Binding::new(KeyCode::Enter, Modifiers::NONE);
-    const CLOSE: Binding = Binding::new(KeyCode::Esc, Modifiers::NONE);
-    if UP.matches(event) || UP_VIM.matches(event) {
+    if BOARD_SELECT_UP_KEYS
+        .iter()
+        .any(|binding| binding.matches(event))
+    {
         Some(AgentBoardKeyAction::SelectUp)
-    } else if DOWN.matches(event) || DOWN_VIM.matches(event) {
+    } else if BOARD_SELECT_DOWN_KEYS
+        .iter()
+        .any(|binding| binding.matches(event))
+    {
         Some(AgentBoardKeyAction::SelectDown)
-    } else if REFRESH.matches(event) {
+    } else if BOARD_REFRESH_KEY.matches(event) {
         Some(AgentBoardKeyAction::Refresh)
-    } else if JUMP.matches(event) {
+    } else if BOARD_JUMP_KEY.matches(event) {
         Some(AgentBoardKeyAction::Jump)
-    } else if CLOSE.matches(event) {
+    } else if BOARD_CLOSE_KEY.matches(event) {
         Some(AgentBoardKeyAction::Close)
     } else {
         None
@@ -457,9 +629,47 @@ pub(super) enum JumpStage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AgentBoardToken {
-    epoch: u64,
-    selected: Option<AgentSessionId>,
+    source: AgentBoardDrawSource,
     scroll: usize,
+}
+
+impl AgentBoardToken {
+    pub(crate) const fn scroll(&self) -> usize {
+        self.scroll
+    }
+}
+
+/// Exact Board row painted into one admitted frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct AgentBoardRowTarget {
+    token: AgentBoardToken,
+    session: AgentSessionId,
+}
+
+impl AgentBoardRowTarget {
+    #[cfg(test)]
+    pub(crate) fn for_test(episode: AgentBoardEpisodeToken, session: AgentSessionId) -> Self {
+        Self {
+            token: AgentBoardToken {
+                source: AgentBoardDrawSource {
+                    episode,
+                    rows_revision: 0,
+                    selected: Some(session.clone()),
+                    jumping: false,
+                },
+                scroll: 0,
+            },
+            session,
+        }
+    }
+
+    pub(crate) const fn token(&self) -> &AgentBoardToken {
+        &self.token
+    }
+
+    pub(crate) const fn session(&self) -> &AgentSessionId {
+        &self.session
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -469,12 +679,37 @@ pub(crate) enum AgentBoardControl {
     Close,
 }
 
+/// Exact Board control painted into one admitted frame.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct AgentBoardControlTarget {
+    token: AgentBoardToken,
+    control: AgentBoardControl,
+}
+
+impl AgentBoardControlTarget {
+    pub(crate) const fn token(&self) -> &AgentBoardToken {
+        &self.token
+    }
+
+    pub(crate) const fn control(&self) -> AgentBoardControl {
+        self.control
+    }
+}
+
 pub(super) struct AgentBoard {
     open: bool,
     /// Bump on every open/close — lane outcomes carrying an older epoch
     /// are stale by construction and dropped.
     epoch: u64,
+    presentation: PresentationPhase,
+    /// Whole-surface visibility lease for ordinary owner-local navigation.
+    /// Only an exact successful paint grants it; cover, geometry block,
+    /// reopen and close revoke it. Semantic state changes invalidate `shown`
+    /// activation proof without pretending the still-visible Board vanished.
+    visible: bool,
+    shown: Option<AgentBoardActualDraw>,
     rows: Vec<AgentBoardRow>,
+    rows_revision: u64,
     selection: usize,
     scroll: usize,
     /// Rows the last paint could show at once — the selection-visibility
@@ -513,23 +748,92 @@ pub(super) struct AgentBoard {
 }
 
 impl AgentBoard {
+    pub(super) const fn episode(&self) -> AgentBoardEpisodeToken {
+        AgentBoardEpisodeToken(self.epoch)
+    }
+
+    fn draw_source(&self) -> AgentBoardDrawSource {
+        AgentBoardDrawSource {
+            episode: self.episode(),
+            rows_revision: self.rows_revision,
+            selected: self.selected_row().map(|row| row.session_id.clone()),
+            jumping: self.jumping(),
+        }
+    }
+
     fn token(&self) -> AgentBoardToken {
         AgentBoardToken {
-            epoch: self.epoch,
-            selected: self.selected_row().map(|row| row.session_id.clone()),
+            source: self.draw_source(),
             scroll: self.scroll,
         }
     }
 
-    pub(super) fn control(&mut self, token: &AgentBoardToken, control: AgentBoardControl) {
-        if !self.open || *token != self.token() {
-            return;
+    fn current_draw(&self) -> Option<&AgentBoardActualDraw> {
+        let draw = self.shown.as_ref()?;
+        (draw.token == self.token()).then_some(draw)
+    }
+
+    pub(super) fn input_context(&self) -> Option<AgentBoardInputContext> {
+        self.open.then_some(AgentBoardInputContext {
+            episode: self.episode(),
+            presentation: self.presentation,
+            interactive: self.interactive(),
+        })
+    }
+
+    fn interactive(&self) -> bool {
+        self.open && self.presentation.interactive() && self.visible
+    }
+
+    pub(super) fn selected_is_shown(&self) -> bool {
+        let Some(draw) = self.current_draw() else {
+            return false;
+        };
+        self.selected_row()
+            .is_some_and(|row| draw.selected() == Some(row.session_id()))
+    }
+
+    fn actual_draw(&self, visible_rows: usize) -> Option<AgentBoardActualDraw> {
+        if !self.open || visible_rows == 0 {
+            return None;
         }
-        match control {
-            AgentBoardControl::Open => self.request_jump(),
+        let first_index = self
+            .scroll
+            .min(self.rows.len().saturating_sub(visible_rows));
+        let token = AgentBoardToken {
+            source: self.draw_source(),
+            scroll: first_index,
+        };
+        let first = self
+            .rows
+            .get(first_index)
+            .map(|row| row.session_id().clone());
+        let selected = self
+            .rows
+            .get(self.selection)
+            .filter(|_| {
+                self.selection >= first_index
+                    && self.selection < first_index.saturating_add(visible_rows)
+            })
+            .map(|row| row.session_id().clone());
+        AgentBoardActualDraw::new(token, visible_rows, first, selected)
+    }
+
+    pub(super) fn control_drawn(&mut self, target: &AgentBoardControlTarget) -> bool {
+        if !self.interactive()
+            || self
+                .current_draw()
+                .is_none_or(|draw| draw.token() != target.token())
+        {
+            return false;
+        }
+        match target.control() {
+            AgentBoardControl::Open if self.selected_is_shown() => self.request_jump(),
+            AgentBoardControl::Open => return false,
             AgentBoardControl::Refresh => self.request_refresh(),
             AgentBoardControl::Close => self.close(),
         }
+        true
     }
 
     pub(super) fn scroll_painted(
@@ -538,7 +842,7 @@ impl AgentBoard {
         up: bool,
         lines: usize,
     ) -> Option<AgentBoardToken> {
-        if !self.open || *token != self.token() {
+        if !self.interactive() || self.current_draw().is_none_or(|draw| draw.token() != token) {
             return None;
         }
         let lines = isize::try_from(lines).ok()?;
@@ -550,7 +854,11 @@ impl AgentBoard {
         Self {
             open: false,
             epoch: 0,
+            presentation: PresentationPhase::Pending,
+            visible: false,
+            shown: None,
             rows: Vec::new(),
+            rows_revision: 0,
             selection: 0,
             scroll: 0,
             viewport_rows: 0,
@@ -582,12 +890,10 @@ impl AgentBoard {
     pub(super) const fn is_open(&self) -> bool {
         self.open
     }
-    /// Input ownership is synchronous from `open`: a key arriving before
-    /// the first paint still belongs to the board — it can never fall
-    /// through to a pane or an overlay underneath. A paint that cannot
-    /// present the board at all closes it (see `settle_draw`), so the
-    /// only invisible capture window is the one frame that carries that
-    /// verdict — and that same frame already shows the refusal notice.
+    /// Capture presence is synchronous from `open`: a key arriving before
+    /// the first paint still belongs to the board and never falls through.
+    /// Activation remains separately gated by exact successful-draw proof.
+    #[cfg(test)]
     pub(super) const fn owns_input(&self) -> bool {
         self.open
     }
@@ -595,16 +901,21 @@ impl AgentBoard {
     pub(super) fn open(&mut self) {
         self.open = true;
         self.epoch += 1;
+        self.presentation = PresentationPhase::Pending;
+        self.visible = false;
+        self.shown = None;
         self.intent = Some(BoardIntent::Refresh);
         self.inflight = None;
         self.jump = None;
         self.notice = None;
-        self.clamp_selection();
+        self.clamp_viewport();
     }
 
     pub(super) fn close(&mut self) {
         self.open = false;
         self.epoch += 1;
+        self.visible = false;
+        self.shown = None;
         self.intent = None;
         self.inflight = None;
         self.jump = None;
@@ -621,25 +932,60 @@ impl AgentBoard {
         }
     }
 
-    /// Settle the renderer's verdict: a board the draw could not present
-    /// at all closes itself instead of surviving as an invisible input
-    /// owner — the same frame already carries the `overlay_refused`
-    /// status line as the honest notice. `None` (the draw ran before
-    /// the board's paint site, or the board is closed) changes nothing.
-    pub(super) fn settle_draw(&mut self, draw: Option<AgentBoardDraw>) {
+    /// Settles exact paint evidence. `None` means another composed surface
+    /// covered the Board: revoke current-frame authority but retain the open
+    /// episode and all domain work. `NotPresented` is geometry evidence and
+    /// therefore refuses only a never-presented episode.
+    pub(super) fn settle_draw(
+        &mut self,
+        draw: Option<AgentBoardDraw>,
+    ) -> Option<GeometrySettlement> {
         let Some(draw) = draw else {
-            return;
+            self.visible = false;
+            self.shown = None;
+            return None;
         };
-        if !draw.presented {
-            if self.open {
-                self.close();
+        if !self.open || draw.episode() != self.episode() {
+            return None;
+        }
+        match draw {
+            AgentBoardDraw::NotPresented(_) => {
+                self.visible = false;
+                self.shown = None;
+                let settlement = self.presentation.geometry_blocked();
+                if settlement == GeometrySettlement::Refused {
+                    self.close();
+                }
+                Some(settlement)
             }
-            return;
+            AgentBoardDraw::Presented(actual) => {
+                let visible = actual.visible_rows();
+                let maximum = self.rows.len().saturating_sub(visible);
+                let first_index = self.scroll.min(maximum);
+                let first = self.rows.get(first_index).map(AgentBoardRow::session_id);
+                let selected = self
+                    .rows
+                    .get(self.selection)
+                    .filter(|_| {
+                        self.selection >= first_index
+                            && self.selection < first_index.saturating_add(visible)
+                    })
+                    .map(AgentBoardRow::session_id);
+                if actual.token.source != self.draw_source()
+                    || actual.token.scroll != first_index
+                    || actual.first() != first
+                    || actual.selected() != selected
+                {
+                    return None;
+                }
+                self.viewport_rows = visible;
+                self.scroll = first_index;
+                self.presentation.presented();
+                self.visible = true;
+                self.shown = Some(actual);
+                None
+            }
         }
-        if draw.viewport_rows > 0 {
-            self.viewport_rows = draw.viewport_rows;
-        }
-        self.clamp_selection();
     }
 
     pub(super) fn rows(&self) -> &[AgentBoardRow] {
@@ -647,9 +993,6 @@ impl AgentBoard {
     }
     pub(super) const fn selection(&self) -> usize {
         self.selection
-    }
-    pub(super) const fn scroll(&self) -> usize {
-        self.scroll
     }
     pub(super) const fn read(&self) -> AgentBoardRead {
         self.read
@@ -675,7 +1018,7 @@ impl AgentBoard {
         self.rows.get(self.selection)
     }
 
-    fn clamp_selection(&mut self) {
+    fn clamp_viewport(&mut self) {
         if self.rows.is_empty() {
             self.selection = 0;
             self.scroll = 0;
@@ -683,13 +1026,22 @@ impl AgentBoard {
         }
         self.selection = self.selection.min(self.rows.len() - 1);
         let visible = self.viewport_rows.max(1);
+        let maximum = self.rows.len().saturating_sub(visible);
+        self.scroll = self.scroll.min(maximum);
+    }
+
+    fn reveal_selection(&mut self) {
+        self.clamp_viewport();
+        if self.rows.is_empty() {
+            return;
+        }
+        let visible = self.viewport_rows.max(1);
         if self.selection < self.scroll {
             self.scroll = self.selection;
         } else if self.selection >= self.scroll + visible {
             self.scroll = self.selection + 1 - visible;
         }
-        let maximum = self.rows.len().saturating_sub(visible);
-        self.scroll = self.scroll.min(maximum);
+        self.clamp_viewport();
     }
 
     pub(super) fn move_selection(&mut self, delta: isize) {
@@ -700,17 +1052,51 @@ impl AgentBoard {
             .selection
             .saturating_add_signed(delta)
             .min(self.rows.len() - 1);
-        self.clamp_selection();
+        self.shown = None;
+        self.reveal_selection();
     }
 
-    /// Pointer row select — resolves by stable session identity, so a
-    /// stale click can only ever pick a row that still exists.
+    /// Pointer row selection commits on press, but only against the exact
+    /// successfully painted source and visible range carried by the target.
+    pub(super) fn select_drawn_row(&mut self, target: &AgentBoardRowTarget) -> bool {
+        if !self.interactive()
+            || self
+                .current_draw()
+                .is_none_or(|draw| draw.token() != target.token())
+        {
+            return false;
+        }
+        let Some(draw) = self.current_draw() else {
+            return false;
+        };
+        let end = draw
+            .token
+            .scroll
+            .saturating_add(draw.visible_rows)
+            .min(self.rows.len());
+        let Some(index) = self.rows[draw.token.scroll..end]
+            .iter()
+            .position(|row| row.session_id() == target.session())
+            .map(|index| index + draw.token.scroll)
+        else {
+            return false;
+        };
+        self.selection = index;
+        self.shown = None;
+        self.clamp_viewport();
+        true
+    }
+
+    /// Internal stable-id selection seam retained for non-pointer tests and
+    /// owner operations that do not claim painted pointer authority.
+    #[cfg(test)]
     pub(super) fn select_session(&mut self, session: &AgentSessionId) -> bool {
         let Some(index) = self.rows.iter().position(|row| row.session_id() == session) else {
             return false;
         };
         self.selection = index;
-        self.clamp_selection();
+        self.shown = None;
+        self.reveal_selection();
         true
     }
 
@@ -718,12 +1104,7 @@ impl AgentBoard {
         let visible = self.viewport_rows.max(1);
         let maximum = self.rows.len().saturating_sub(visible);
         self.scroll = self.scroll.saturating_add_signed(delta).min(maximum);
-        // Keep the focus inside the scrolled window so the next draw does not
-        // pull the viewport back to its previous selection.
-        self.selection = self
-            .selection
-            .max(self.scroll)
-            .min((self.scroll + visible - 1).min(self.rows.len().saturating_sub(1)));
+        self.shown = None;
     }
 
     pub(super) fn request_refresh(&mut self) {
@@ -763,6 +1144,7 @@ impl AgentBoard {
         let target = row.session_id.clone();
         self.notice = None;
         self.jump = None;
+        self.shown = None;
         self.intent = Some(BoardIntent::Jump { target });
     }
 
@@ -855,6 +1237,7 @@ impl AgentBoard {
             stage: JumpStage::Checking,
             deadline,
         });
+        self.shown = None;
         // The Get's own deadline sits inside the jump's total budget —
         // it cannot outlive either.
         let get_deadline = now
@@ -973,6 +1356,8 @@ impl AgentBoard {
                 let replace = round.complete || !self.rows_from_complete;
                 if replace {
                     let held = self.selected_row().map(|row| row.session_id.clone());
+                    let anchored = self.rows.get(self.scroll).map(|row| row.session_id.clone());
+                    let old_scroll = self.scroll;
                     let mut rows: Vec<AgentBoardRow> = round
                         .items
                         .into_iter()
@@ -989,6 +1374,8 @@ impl AgentBoard {
                     });
                     rows.truncate(MAXIMUM_ROWS);
                     self.rows = rows;
+                    self.rows_revision = self.rows_revision.wrapping_add(1);
+                    self.shown = None;
                     // The selection follows the opaque session identity —
                     // never a stale row index. A vanished selection
                     // repairs deterministically to the first row in the
@@ -1000,9 +1387,18 @@ impl AgentBoard {
                             .position(|row| row.session_id() == &held)
                             .unwrap_or(0);
                     }
+                    // A background refresh preserves the manual reading
+                    // anchor independently of the logical selection. When
+                    // that row vanished, retain the bounded viewport offset;
+                    // never snap back to selection merely because data landed.
+                    self.scroll = anchored
+                        .and_then(|anchor| {
+                            self.rows.iter().position(|row| row.session_id() == &anchor)
+                        })
+                        .unwrap_or(old_scroll);
                     self.rows_from_complete = round.complete;
                     self.rows_at = Some(now);
-                    self.clamp_selection();
+                    self.clamp_viewport();
                 }
                 // When last_good rows are kept, their install time is the
                 // honest freshness — not the moment this partial landed.
@@ -1146,6 +1542,7 @@ impl AgentBoard {
     pub(super) fn fail_jump(&mut self, kind: JumpFailure) {
         self.notice = Some(kind);
         self.jump = None;
+        self.shown = None;
     }
 
     /// The jump landed on the exact panel — the user is where they asked
@@ -1160,6 +1557,7 @@ impl AgentBoard {
     #[cfg(test)]
     pub(super) fn force_jump_t(&mut self, jump: BoardJump) {
         self.jump = Some(jump);
+        self.shown = None;
     }
 
     /// Test seam: hand the board a prepared lane (queued outcomes or a
@@ -1211,9 +1609,6 @@ pub(crate) struct NativeAgentBoardView<'a> {
 }
 
 impl<'a> NativeAgentBoardView<'a> {
-    pub(crate) fn token(&self) -> AgentBoardToken {
-        self.board.token()
-    }
     pub(super) const fn new(board: &'a AgentBoard, index: &'a PresentationIndex) -> Self {
         Self {
             board,
@@ -1245,11 +1640,42 @@ impl<'a> NativeAgentBoardView<'a> {
     pub(crate) fn rows(&self) -> &'a [AgentBoardRow] {
         self.board.rows()
     }
+    pub(crate) const fn episode(&self) -> AgentBoardEpisodeToken {
+        self.board.episode()
+    }
+    pub(crate) const fn presentation(&self) -> PresentationPhase {
+        self.board.presentation
+    }
+    pub(crate) fn input_context(&self) -> AgentBoardInputContext {
+        self.board
+            .input_context()
+            .expect("a NativeAgentBoardView borrows an open Board")
+    }
+    /// Builds the exact successful-frame witness after the renderer has
+    /// resolved the viewport. The owner supplies the source revision,
+    /// logical selection proof and stable top-row identity in one value.
+    pub(crate) fn actual_draw(&self, visible_rows: usize) -> Option<AgentBoardActualDraw> {
+        self.board.actual_draw(visible_rows)
+    }
+    pub(crate) const fn close_binding(&self) -> crate::client_view::Binding {
+        BOARD_CLOSE_KEY
+    }
+    pub(crate) const fn jump_binding(&self) -> crate::client_view::Binding {
+        BOARD_JUMP_KEY
+    }
+    pub(crate) const fn refresh_binding(&self) -> crate::client_view::Binding {
+        BOARD_REFRESH_KEY
+    }
+    pub(crate) const fn navigation_bindings(&self) -> [crate::client_view::Binding; 4] {
+        [
+            BOARD_SELECT_UP_KEYS[0],
+            BOARD_SELECT_DOWN_KEYS[0],
+            BOARD_SELECT_DOWN_KEYS[1],
+            BOARD_SELECT_UP_KEYS[1],
+        ]
+    }
     pub(crate) const fn selection(&self) -> usize {
         self.board.selection()
-    }
-    pub(crate) const fn scroll(&self) -> usize {
-        self.board.scroll()
     }
     pub(crate) const fn read(&self) -> AgentBoardRead {
         self.board.read()

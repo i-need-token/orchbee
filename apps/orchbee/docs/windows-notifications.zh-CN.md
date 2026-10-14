@@ -8,6 +8,10 @@
 
 Client 自有的可取消连接独立于输入/绘制进行轮询，只有 UI 所有者安装通知。启用卡片投递时，单个五秒临时卡片出现在内容区的指定角落，不盖住状态行，不捕获键盘/鼠标，不移动焦点，不改变布局。卡片模式下，已有提示、对话框和覆盖层会暂停接收；竞态下丢弃到达的卡片，不替换用户拥有的界面。空闲到期也触发重绘。显示文字转义终端及方向格式控制字符，按终端显示宽度裁剪。成功绘制后可请求一次安全 Windows 声音：done 使用信息声，request 使用感叹声，none 静音。系统声音策略可能抑制播放。外部投递的声音请求独立于视觉成功；system 模式请求 Windows 通知区域气泡。任何投递均不激活原生窗口，不跳转到 Agent 目标。
 
+TooSmall 根帧不绘制通知卡、不消费待播放声音，也不确认 attention。既有卡片与到期时间
+继续保留；几何恢复后，首个真正绘制仍有效卡片的成功帧才一次性结算待播放声音。
+仅根帧成功并不表示通知卡绘制成功。
+
 ## 边界与证据
 
 Herdr 参照为 `e0507237ad8d41f60aece10d00ef29ce2339ca34`，尤其是 `server/headless/notifications.rs`：Client 交付策略与 Server 回退策略不同。原生自定义通知遵循 Client 投递策略及省略位置继承。自动 Agent 通知在下文规定；剪贴板策略、自定义音频和目标跳转仍属独立对齐工作。私有 cohort 匹配升级/回退，不新增持久化格式、依赖版本或无界队列。
@@ -92,6 +96,6 @@ Session 将键位、侧栏设置及完整通知 profile 原子发布。启动或
 
 所属实现测试覆盖基线/替换静默、准确 Client/身份/序号/类型去重、拒绝过期候选、Client 局部确认、静音策略、无效重载保留、有效重载取消和退役后无效果。
 
-在 `src/terminal_session/agent_notifications/tests.rs`、`src/terminal_session/agent_notifications/tests/generated.rs`、`src/notifications/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+在 `src/terminal_session/agent_notifications/tests.rs`、`src/terminal_session/agent_notifications/tests/generated.rs`、`src/notifications/tests.rs`、`src/tui_shell/tests/notification_too_small.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。真实根帧尺寸恢复用例不请求 OS 声音，验证隐藏卡片的效果保留与一次性结算。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

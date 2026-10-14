@@ -213,6 +213,14 @@ Workspace policy 对自有代码使用 `unsafe_code = "forbid"`。局部 `allow`
 收窄到一个适配器，记录每项安全不变量，并添加边界测试。此策略不审计第三方依赖内部的
 unsafe 代码；依赖与 feature 评审仍然必要。
 
+已接受的操作系统例外是 `crates/windows-console-host` 中的 `orchbee-windows-console-host`
+package。该 crate 声明 `unsafe_code = "deny"`，而不继承 workspace `forbid`；只有其私有
+`src/sys.rs` 模块带有说明理由的 `allow`，用于 safe API 无法表达的 Win32 call 与 tagged-union
+read。Rust runner 固定 package、manifest、私有 module declaration 与一致的 Clippy policy；其他
+member、location、module 或更宽的 lint escape 都会被拒绝。该 crate 的 safe module 与 test 仍为
+deny。[package contract](../../crates/windows-console-host/README.zh-CN.md) 负责 handle、count 与
+Unicode safety invariant 及其 boundary evidence。
+
 `clippy::all` 是默认 lint 组，并非全部可用的 Clippy 检查。针对已证明的风险选择额外检查，并
 区分生产不变量和刻意无效的测试输入。不要仅为增加 lint 数量而启用整个可选组。每次执行规则
 变更都在固定工具链下同步更新权威、配置、自有诊断以及有意义的正向和负向回归证据。

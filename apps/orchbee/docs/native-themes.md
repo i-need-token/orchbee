@@ -22,15 +22,39 @@ The light/dark roles distinguish canvas, chrome and raised overlays. System uses
 defaults; quantization may collapse surface differences while borders, labels and focus remain.
 Overlay frames share theme corner and focus roles; titles use independent primary bold text.
 
+The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. For the
+shared Light and Dark application appearances, these roles adapt the public product color intent in
+[`tokens.css`](../../../packages/design-tokens/src/tokens.css): primary action, hovered surface and
+pressed surface respectively. The Light cell-grid adapter makes the translucent hover and press
+tokens opaque over its existing chrome surface; the Dark adapter resolves the declared neutral
+references. A source-conformance test includes the CSS authority and pins both the semantic token
+chain and its RGB projection. System and terminal-native stay host-relative and do not claim RGB
+equality with either named appearance. These roles are available to renderers, but each surface
+still requires consumer render evidence before it can claim adoption.
+
+Adding the interaction surfaces exposed insufficient supporting-text contrast in the previous
+named-theme secondary colors. One Light moves from `[104, 107, 119]` to `[90, 93, 105]`; One Dark
+moves from `[157, 164, 178]` to `[170, 177, 189]`. Light uses the smallest uniform downward RGB
+step that clears 4.5:1. Dark uses the componentwise boundary that clears 4.5:1 on every shipped
+surface, remains lower-luminance than primary text and quantizes to a distinct ANSI-256 value.
+Pressed and provisional-selection fills are included. The shared secondary triplet also feeds
+`text-disabled`, `hint-label` and `status-pending`, so those projections change with it; the pending
+modifier remains independent. Primary text retains higher contrast on every surface and neither
+adjustment uses bold. This is the readability adjustment required by the new interaction matrix;
+all independently valued existing named-theme roles remain unchanged.
+
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
 both named themes use a low-contrast neutral fill against chrome and retain their primary/secondary
 text colors. This fill remains quieter than keyboard selection and preserves readable text contrast. Current names
-are bold; status glyphs and explicit token colors remain semantic. When quantization collapses the
-fill onto chrome, the gutter retains `*` even if configured text disables bold. Keyboard navigation
-uses `surface-selection` and its paired text on a noncurrent identity line, with a separate gutter
-marker. Current context keeps its neutral fill when both states coincide. Explicit token colors
-and modifiers apply after the focus style. This does not infer host polarity or change a terminal's palette.
+are bold; status glyphs and explicit token colors remain semantic. Rows reserve separate tracks for
+provisional navigation, current identity, operational state and unread state. A current row shows `*`
+in its current track when quantization collapses its fill onto chrome or when an identity token
+explicitly disables bold; the configured token modifiers remain unchanged. Keyboard navigation uses
+`surface-selection`, its paired text and the separate navigation marker. When the provisional target
+is also current, `surface-selection` wins the row background while bold identity or the current marker
+retains persistent-current evidence; operational and unread glyphs remain in their own tracks. Explicit
+token colors and modifiers apply after the focus style. This does not infer host polarity or change a terminal's palette.
 
 ## Color capabilities
 
@@ -64,6 +88,14 @@ foregrounds coincide; `terminal-native` keeps its host-relative DIM.
 At low color levels, a host may render DIM black like ordinary black. Visible
 unavailability reasons remain necessary even when the disabled modifier is present.
 
+Terminal-native maps `accent-action` to ANSI cyan without a modifier. Hover and press use the
+theme resolver's reverse-video interaction band; the component, not the surface role, adds bold to
+only the primary label while it is pressed. If 256-color or 16-color quantization collapses a named
+hover or press fill onto another interaction, base, current or selection fill, the resolver applies
+the same reverse-video fallback. Monochrome does likewise. It does not make an at-rest primary
+action bold or reversed: the control's stable action grammar, verb and grouping preserve its
+affordance while focus and press keep independent cues.
+
 ## Color diagnosis
 
 The retained Host inherits its launch environment, then applies each terminal’s launch delta.
@@ -95,6 +127,7 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Legacy names and migration admission                        | Settings decision cases and CLI warning/schema checks                           | Windows TOML owner and existing fatal source boundary                                                             |
 | Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases       | Three themes, canonical palette, sampled environment; program colors excluded                                     |
+| Shared Light/Dark interaction palette remains aligned       | CSS source-conformance test and exact foreign-input verification edge           | Public design tokens map only shared Light/Dark roles; System remains host-relative                               |
 | Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate |
 | Confirmed shared publication preserves complete appearance  | Server/Client publication traces and shared contract corpus                     | Shared settings lane and CAS traces; physical display capability remains separate                                 |
 | Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                   | Native Windows process/byte evidence; physical emulator appearance is separate                                    |

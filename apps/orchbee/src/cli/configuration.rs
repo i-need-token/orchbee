@@ -195,11 +195,7 @@ impl Settings {
             ("keyOverrides".into(), self.keys.overrides.len().into()),
             ("keyPrefix".into(), {
                 let bindings = crate::client_view::Bindings::configured(&self.keys);
-                crate::client_view::format_binding(
-                    &bindings.prefix,
-                    crate::client_view::LabelStyle::for_host(),
-                )
-                .into()
+                crate::client_view::format_configuration_binding(&bindings.prefix).into()
             }),
             ("defaultShell".into(), self.shell.executable().into()),
             ("shellMode".into(), self.shell.mode().as_str().into()),

@@ -4,6 +4,7 @@ use super::{
 };
 #[cfg(windows)]
 use super::{ClientAction, Modifiers, PanelDirection, PrefixAction, ShellCommand};
+use crate::action_projection::{ActionMetadata, binding_metadata};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Entry {
@@ -82,8 +83,34 @@ impl Bindings {
         )
     }
     pub(crate) fn descriptions(&self) -> Vec<PrefixDesc> {
-        let mut result: Vec<_> = PREFIX_GROUPS.iter().map(|g| g.desc).collect();
+        let mut projected = Vec::<(PrefixDesc, ActionMetadata<'_>)>::new();
+        let mut result = Vec::new();
+        for group in PREFIX_GROUPS {
+            for member in group.members {
+                let Some(metadata) = binding_metadata(&member.action) else {
+                    continue;
+                };
+                if !projected.iter().any(|(desc, existing)| {
+                    *desc == group.desc && existing.same_discovery_entry(&metadata)
+                }) {
+                    projected.push((group.desc, metadata));
+                }
+            }
+            if projected.iter().any(|(desc, _)| *desc == group.desc)
+                && !result.contains(&group.desc)
+            {
+                result.push(group.desc);
+            }
+        }
         for entry in &self.entries {
+            let Some(metadata) = binding_metadata(&entry.member.action) else {
+                continue;
+            };
+            if !projected.iter().any(|(desc, existing)| {
+                *desc == entry.desc && existing.same_discovery_entry(&metadata)
+            }) {
+                projected.push((entry.desc, metadata));
+            }
             if !result.contains(&entry.desc) {
                 result.push(entry.desc);
             }
@@ -94,7 +121,7 @@ impl Bindings {
         let entries: Vec<_> = self
             .entries
             .iter()
-            .filter(|entry| entry.desc == desc)
+            .filter(|entry| entry.desc == desc && binding_metadata(&entry.member.action).is_some())
             .collect();
         if entries.is_empty() {
             return None;
@@ -215,26 +242,38 @@ impl Bindings {
         self.entries
             .iter()
             .filter(|entry| entry.enabled && entry.desc == desc)
-            .map(|entry| self.entry_label(entry))
+            .map(|entry| self.entry_label(entry, super::super::KeyLabelGlyphs::Unicode))
             .collect()
     }
 
-    #[cfg(windows)]
     pub(crate) fn action_labels(&self, action: PrefixAction) -> Vec<String> {
+        self.action_labels_with_glyphs(action, super::super::KeyLabelGlyphs::Unicode)
+    }
+
+    pub(crate) fn action_labels_with_glyphs(
+        &self,
+        action: PrefixAction,
+        glyphs: super::super::KeyLabelGlyphs,
+    ) -> Vec<String> {
         self.entries
             .iter()
             .filter(|entry| entry.enabled && entry.member.action == action)
-            .map(|entry| self.entry_label(entry))
+            .map(|entry| self.entry_label(entry, glyphs))
             .collect()
     }
 
-    fn entry_label(&self, entry: &Entry) -> String {
+    fn entry_label(&self, entry: &Entry, glyphs: super::super::KeyLabelGlyphs) -> String {
         let style = super::super::LabelStyle::for_host();
-        let key = entry.member.keys.label(style);
+        let key = match entry.member.keys {
+            KeySet::One(binding) => {
+                super::super::format_binding_with_glyphs(&binding, style, glyphs)
+            }
+            KeySet::CharRange(first, last) => format!("{first}..{last}"),
+        };
         if entry.prefix {
             format!(
                 "{} {key}",
-                super::super::format_binding(&self.prefix, style)
+                super::super::format_binding_with_glyphs(&self.prefix, style, glyphs)
             )
         } else {
             key
@@ -524,3 +563,6 @@ fn action(name: &str) -> (PrefixAction, PrefixDesc, ShellCommand) {
     };
     (PrefixAction::Client(action), desc, ShellCommand::None)
 }
+
+#[cfg(all(test, windows))]
+mod tests;

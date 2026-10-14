@@ -983,6 +983,41 @@ fn raw_forward_search_and_carriage_return_submit_without_pane_input() {
 }
 
 #[test]
+fn ctrl_r_reverses_the_search_draft_and_ctrl_g_returns_to_copy_navigation() {
+    let (mut ui, mailbox, _, _) = ready_ui();
+    install_projection(&mut ui, Some((0, true, 24)), 0);
+    assert_eq!(
+        ui.enter_copy_mode(),
+        crate::client_view::SessionActionDisposition::DismissNavigator
+    );
+    assert!(ui.capture_copy_mode_key(&KeyEvent::press(KeyCode::Char('/'), Modifiers::NONE,)));
+    assert_eq!(
+        ui.copy_mode_view().unwrap().search.unwrap().direction,
+        crate::terminal_copy::CopySearchDirection::Forward
+    );
+
+    assert!(ui.capture_copy_mode_key(&KeyEvent::press(KeyCode::Char('r'), Modifiers::CTRL,)));
+    assert_eq!(
+        ui.copy_mode_view().unwrap().search.unwrap().direction,
+        crate::terminal_copy::CopySearchDirection::Backward
+    );
+    assert!(ui.capture_copy_mode_key(&KeyEvent {
+        kind: KeyKind::Release,
+        ..KeyEvent::press(KeyCode::Char('r'), Modifiers::CTRL)
+    }));
+    assert_eq!(
+        ui.copy_mode_view().unwrap().search.unwrap().direction,
+        crate::terminal_copy::CopySearchDirection::Backward
+    );
+
+    assert!(ui.capture_copy_mode_key(&KeyEvent::press(KeyCode::Char('g'), Modifiers::CTRL,)));
+    assert!(ui.copy_mode_view().unwrap().search.is_none());
+    assert!(ui.copy_mode_active());
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(ui.cancel_copy_mode());
+}
+
+#[test]
 fn raw_ctrl_h_del_and_tab_follow_inline_search_editing() {
     let (mut ui, mailbox, _, _) = ready_ui();
     install_projection(&mut ui, Some((0, true, 24)), 0);
@@ -1326,6 +1361,22 @@ fn primary_pending_output_refresh_allows_q_and_escape_to_exit() {
 fn primary_pending_output_refresh_preserves_local_search_editing_without_submission() {
     let mut fixture = primary_refresh(true);
     let desired = fixture.ui.copy_mode.mode().unwrap().desired();
+    assert!(
+        fixture
+            .ui
+            .capture_copy_mode_key(&KeyEvent::press(KeyCode::Char('r'), Modifiers::CTRL))
+    );
+    assert_eq!(
+        fixture
+            .ui
+            .copy_mode_view()
+            .unwrap()
+            .search
+            .unwrap()
+            .direction,
+        crate::terminal_copy::CopySearchDirection::Forward,
+        "a pending surface cannot accept the keyboard equivalent of disabled Reverse"
+    );
     assert!(
         fixture
             .ui

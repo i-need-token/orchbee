@@ -1,0 +1,281 @@
+use super::*;
+use crate::{
+    action_menu::{ActionMenu, MenuToken},
+    client_view::{ClientAction, ClientView, PrefixAction},
+    tui_pointer::{FrameHitMap, HitLayer, HitTarget},
+};
+use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
+
+fn render_machines_row(
+    width: u16,
+    height: u16,
+    client: &ClientView,
+    locale: Locale,
+    theme: &Theme,
+) -> (Buffer, FrameHitMap, MenuToken) {
+    let mut menu = ActionMenu::default();
+    assert!(menu.open(String::new(), vec![MenuAction::Machines], None));
+    let token = menu.view().unwrap().token;
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    let mut presentation = None;
+    terminal
+        .draw(|frame| {
+            presentation = Some(render(
+                frame,
+                Rect::new(0, 0, width, height),
+                menu.view().unwrap(),
+                client.bindings(),
+                locale,
+                theme,
+                &mut hits,
+            ));
+        })
+        .unwrap();
+    assert!(matches!(
+        presentation,
+        Some(ModalPresentation::Presented(MenuDraw {
+            token: drawn,
+            first: 0,
+            visible_rows: 1,
+            selected: 0,
+        })) if drawn == token
+    ));
+    (terminal.backend().buffer().clone(), hits.finish(), token)
+}
+
+fn action_row_rect(map: &FrameHitMap, area: Rect, token: MenuToken) -> Rect {
+    let points = (area.y..area.bottom())
+        .flat_map(|y| (area.x..area.right()).map(move |x| (x, y)))
+        .filter(|(x, y)| {
+            matches!(
+                map.hit_target_at(*x, *y),
+                Some(HitTarget::ActionMenuRow { token: drawn, row: 0 }) if *drawn == token
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !points.is_empty(),
+        "the painted action row owns a hit region"
+    );
+    let y = points[0].1;
+    assert!(points.iter().all(|(_, candidate_y)| *candidate_y == y));
+    let left = points.iter().map(|(x, _)| *x).min().unwrap();
+    let right = points.iter().map(|(x, _)| *x).max().unwrap() + 1;
+    let row = Rect::new(left, y, right - left, 1);
+    for x in row.x..row.right() {
+        assert!(matches!(
+            map.hit_target_at(x, row.y),
+            Some(HitTarget::ActionMenuRow { token: drawn, row: 0 }) if *drawn == token
+        ));
+    }
+    row
+}
+
+fn assert_text_at(buffer: &Buffer, mut x: u16, y: u16, text: &str) -> u16 {
+    for grapheme in Span::raw(text).styled_graphemes(Style::default()) {
+        assert_eq!(buffer[(x, y)].symbol(), grapheme.symbol);
+        let width = u16::try_from(display_width(grapheme.symbol)).unwrap();
+        for trailing in 1..width {
+            assert_eq!(buffer[(x + trailing, y)].symbol(), " ");
+        }
+        x += width;
+    }
+    x
+}
+
+fn assert_bound_row_layout(
+    buffer: &Buffer,
+    map: &FrameHitMap,
+    token: MenuToken,
+    locale: Locale,
+    theme: &Theme,
+    chord: &str,
+    expect_truncated: bool,
+) {
+    let row = action_row_rect(map, buffer.area, token);
+    let marker_end = assert_text_at(buffer, row.x, row.y, theme.glyphs.navigation_marker);
+    let chord_width = u16::try_from(display_width(chord)).unwrap();
+    let chord_x = row.right() - chord_width;
+    assert_eq!(assert_text_at(buffer, chord_x, row.y, chord), row.right());
+    let label_right = chord_x - ROW_BINDING_GAP;
+    let label_budget = usize::from(label_right - marker_end);
+    let full_label = locale.menu_action(MenuAction::Machines);
+    let label = truncate_display(full_label, label_budget, theme.glyphs.ellipsis);
+    assert!(display_width(&label) <= label_budget);
+    assert_eq!(display_width(full_label) > label_budget, expect_truncated);
+    let label_end = assert_text_at(buffer, marker_end, row.y, &label);
+    for x in label_end..chord_x {
+        assert_eq!(buffer[(x, row.y)].symbol(), " ");
+        assert!(matches!(
+            map.hit_target_at(x, row.y),
+            Some(HitTarget::ActionMenuRow { token: drawn, row: 0 }) if *drawn == token
+        ));
+    }
+    assert_eq!(chord_x - label_right, ROW_BINDING_GAP);
+    assert!(chord_x - label_end >= ROW_BINDING_GAP);
+}
+
+fn configured_prefix(
+    key: &str,
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    super_key: bool,
+) -> WindowsKeySettings {
+    WindowsKeySettings {
+        commands: Vec::new(),
+        prefix: WindowsKeyChord {
+            key: key.into(),
+            ctrl,
+            alt,
+            shift,
+            super_key,
+        },
+        overrides: Vec::new(),
+    }
+}
+
+#[test]
+fn rejected_menu_paints_nothing_and_does_not_claim_the_pointer_backdrop() {
+    let mut menu = ActionMenu::default();
+    assert!(menu.open("Actions".into(), vec![MenuAction::Help], None));
+    let client = ClientView::new(16);
+    let theme = Theme::terminal_native();
+    let mut hits = HitMapBuilder::new();
+    hits.record(
+        HitLayer::Foreground,
+        Rect::new(0, 0, 1, 1),
+        HitTarget::MenuButton,
+    );
+    let mut terminal = Terminal::new(TestBackend::new(16, 5)).unwrap();
+
+    // This passes the outer size floor, then fails the required exit-hint admission.
+    terminal
+        .draw(|frame| {
+            frame
+                .buffer_mut()
+                .set_string(0, 0, "underlay remains", Style::default());
+            let before = frame.buffer_mut().clone();
+            assert_eq!(
+                render(
+                    frame,
+                    Rect::new(0, 0, 16, 5),
+                    menu.view().unwrap(),
+                    client.bindings(),
+                    Locale::EnUs,
+                    &theme,
+                    &mut hits,
+                ),
+                ModalPresentation::NotPresented
+            );
+            assert_eq!(
+                *frame.buffer_mut(),
+                before,
+                "a rejected menu must not mutate the candidate frame"
+            );
+        })
+        .unwrap();
+
+    let map = hits.finish();
+    assert!(matches!(
+        map.hit_target_at(0, 0),
+        Some(HitTarget::MenuButton)
+    ));
+}
+
+#[test]
+fn wide_english_row_keeps_the_full_label_and_effective_chord_in_separate_slots() {
+    let width = 120;
+    let height = 24;
+    let client = ClientView::new(width);
+    let theme = Theme::one_dark();
+    let chord = client
+        .bindings()
+        .action_labels_with_glyphs(
+            PrefixAction::Client(ClientAction::OpenMachines),
+            key_label_glyphs(&theme),
+        )
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(chord, "Ctrl+b Shift+M");
+    let (buffer, map, token) = render_machines_row(width, height, &client, Locale::EnUs, &theme);
+
+    assert_bound_row_layout(&buffer, &map, token, Locale::EnUs, &theme, &chord, false);
+    assert_ne!(
+        theme.color(Role::SurfaceOverlay),
+        theme.color(Role::SurfaceChrome)
+    );
+    let close_row = (0..height)
+        .find(|&y| {
+            (0..width).any(|x| {
+                matches!(
+                    map.hit_target_at(x, y),
+                    Some(HitTarget::ActionMenuControl { token: drawn, back: false })
+                        if *drawn == token
+                )
+            })
+        })
+        .expect("top close target");
+    let close_cells = (0..width)
+        .filter(|&x| {
+            matches!(
+                map.hit_target_at(x, close_row),
+                Some(HitTarget::ActionMenuControl { token: drawn, back: false })
+                    if *drawn == token
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(close_cells.len(), 3, "fixed [x] close extent");
+    assert!(
+        close_cells
+            .iter()
+            .all(|&x| { buffer[(x, close_row)].bg == theme.color(Role::SurfaceOverlay) })
+    );
+}
+
+#[test]
+fn compact_chinese_row_truncates_only_the_label_and_keeps_a_custom_chord_whole() {
+    let width = 60;
+    let height = 12;
+    let mut client = ClientView::new(width);
+    client.configure_keys(&configured_prefix("pagedown", true, true, true, true));
+    let theme = Theme::terminal_native();
+    let chord = client
+        .bindings()
+        .action_labels_with_glyphs(
+            PrefixAction::Client(ClientAction::OpenMachines),
+            key_label_glyphs(&theme),
+        )
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(chord, "Ctrl+Alt+Shift+Super+PageDown Shift+M");
+    let (buffer, map, token) = render_machines_row(width, height, &client, Locale::ZhCn, &theme);
+
+    assert_bound_row_layout(&buffer, &map, token, Locale::ZhCn, &theme, &chord, true);
+}
+
+#[test]
+fn minimal_row_omits_an_unfit_chord_as_one_unit_without_shrinking_its_hit_geometry() {
+    let width = 26;
+    let height = 8;
+    let mut client = ClientView::new(width);
+    client.configure_keys(&configured_prefix("pagedown", true, true, true, true));
+    let theme = Theme::terminal_native();
+    let chord = "Ctrl+Alt+Shift+Super+PageDown Shift+M";
+    let (buffer, map, token) = render_machines_row(width, height, &client, Locale::ZhCn, &theme);
+    let row = action_row_rect(&map, buffer.area, token);
+    let text = (row.x..row.right())
+        .map(|x| buffer[(x, row.y)].symbol())
+        .collect::<String>();
+
+    assert!(!text.contains(chord));
+    assert!(
+        !text.contains("PageDown"),
+        "no clipped chord fragment: {text:?}"
+    );
+    assert_text_at(&buffer, row.x, row.y, theme.glyphs.navigation_marker);
+}

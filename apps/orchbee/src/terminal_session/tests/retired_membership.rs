@@ -131,9 +131,9 @@ fn retire_on_poll(
 
 /// While the joined ordinary Poll is still leased and unreplied, opens the
 /// real panel-close confirmation through `ClientAction::ClosePanel` and proves
-/// it armed with one actual draw — an unpresentable prompt would have
-/// cancelled it, and a submitted close cancels it before any Panel request is
-/// queued. The armed confirmation therefore also witnesses that no Panel
+/// it admitted with one actual draw — an unpresentable first paint would have
+/// refused it, and a submitted close removes it before any Panel request is
+/// queued. The admitted confirmation therefore also witnesses that no Panel
 /// request was submitted. Returns the correlated Poll request id and releases
 /// the server's typed loss.
 fn arm_uncommitted_panel_close(

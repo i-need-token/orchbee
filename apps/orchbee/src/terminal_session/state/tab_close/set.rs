@@ -356,6 +356,7 @@ impl NativeSessionState {
             token,
             intent: CloseIntent::Set(Box::new(capture)),
             local_focus: None,
+            presentation: crate::tui_presentation::PresentationPhase::Pending,
             shown: false,
         });
         self.close.set = None;

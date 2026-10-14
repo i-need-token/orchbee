@@ -38,6 +38,9 @@ signal-hook = { version = "0.3.18", default-features = false }
 [target.'cfg(windows)'.dependencies]
 # Owned Unicode clipboard writes through a hidden HWND; no reads or monitoring.
 clipboard-win = { version = "=5.4.1", default-features = false, features = ["std"] }
+# Exact retained console handles provide raw input records, mode and window
+# observation, and count-aware UTF-16 output without process-global reopening.
+orchbee-windows-console-host = { path = "../../crates/windows-console-host" }
 # Original console-title capture/restoration through safe UTF-16 Windows wrappers.
 win32console.workspace = true
 base64.workspace = true
@@ -57,7 +60,6 @@ windows.workspace = true
 # Reuse the cohort's existing safe Windows bindings.
 winsafe = { workspace = true, features = ["kernel", "shell", "gui"] }
 winapi-util.workspace = true
-crossterm_winapi = { version = "=0.9.1", default-features = false }
 ctrlc = { version = "=3.5.2", default-features = false }
 crossterm = { version = "0.29.0", default-features = false, features = ["windows", "events"] }
 

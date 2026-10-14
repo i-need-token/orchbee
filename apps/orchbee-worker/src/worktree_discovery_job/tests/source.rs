@@ -210,6 +210,7 @@ fn unavailable_directory_is_prepared_by_the_owner_and_late_cancellation_never_sp
             ..Faults::default()
         },
         witness: Arc::clone(&witness),
+        after_spawn: None,
     });
     let report = run_owner(
         commands,

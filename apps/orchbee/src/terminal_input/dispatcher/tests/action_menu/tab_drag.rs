@@ -93,7 +93,11 @@ fn drag_release_and_cancellation_fence_keys_paste_and_fragmented_packet_tails() 
             b"\x1b[<0;18;1mtail\x1b[200~paste\x1b[201~\x1b[",
         );
         assert_eq!(port.arrangements.len(), usize::from(cancel == 0));
-        assert!(forwarded_bytes(&port.calls).is_empty());
+        let forwarded = forwarded_bytes(&port.calls);
+        assert!(
+            forwarded.is_empty(),
+            "cancel={cancel} leaked the late-release packet tail: {forwarded:?}",
+        );
         dispatcher.publish_hit_map(map);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"A");
         assert!(
@@ -103,4 +107,108 @@ fn drag_release_and_cancellation_fence_keys_paste_and_fragmented_packet_tails() 
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
         assert_eq!(forwarded_bytes(&port.calls), b"fresh");
     }
+}
+
+#[test]
+fn unfocused_orphan_release_does_not_claim_its_packet_tail() {
+    let mut port = Port::new(MenuAction::NewTab);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O");
+    port.calls.borrow_mut().clear();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;18;1mtail");
+
+    assert_eq!(forwarded_bytes(&port.calls), b"tail");
+}
+
+#[test]
+fn asynchronously_opened_menu_retires_tab_drag_but_owns_its_late_release_once() {
+    let mut port = Port::new(MenuAction::NewTab);
+    let context = sidebar_context();
+    let drawn = crate::action_menu::DrawnTabCreate {
+        source: crate::action_menu::DrawnMenuSource {
+            site: context.site_id,
+            revision: WorkbenchRevision::new(1),
+        },
+        location: context.location,
+    };
+    port.drag = Some(TabDragSource {
+        drawn: drawn.clone(),
+        tabs: (1..=2)
+            .map(|i| TabDragTab {
+                id: WorkbenchTabId::parse(&format!("{i:032x}")).unwrap(),
+                pinned: false,
+                group: None,
+                selected: i == 1,
+                collapsed: false,
+            })
+            .collect(),
+    });
+    port.probe.tabs = port
+        .drag
+        .as_ref()
+        .unwrap()
+        .tabs
+        .iter()
+        .enumerate()
+        .map(|(index, tab)| crate::terminal_input::PointerTab {
+            id: tab.id.clone(),
+            position: index + 1,
+        })
+        .collect();
+    let mut hits = HitMapBuilder::new();
+    hits.record_action_menu_source(Some(drawn.source));
+    for (index, tab) in port.probe.tabs.iter().enumerate() {
+        hits.record(
+            HitLayer::Foreground,
+            Rect::new(u16::try_from(index).unwrap() * 10, 0, 9, 1),
+            HitTarget::Tab(tab.id.clone()),
+        );
+    }
+    let map = hits.finish();
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher.publish_hit_map(map.clone());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;3;1M");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<32;18;1M");
+    assert!(dispatcher.tab_drag_preview().is_some());
+    assert!(port.arrangements.is_empty());
+
+    assert!(port.open_action_menu(MenuTarget::Global, None, false));
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    assert!(dispatcher.tab_drag_preview().is_none());
+    assert!(port.arrangements.is_empty());
+
+    port.menu.cancel();
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
+    dispatcher.publish_hit_map(map.clone());
+    port.calls.borrow_mut().clear();
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;18;1mtail\x1b[200~paste\x1b[201~",
+    );
+    assert!(port.arrangements.is_empty());
+    assert!(forwarded_bytes(&port.calls).is_empty());
+
+    dispatcher.publish_hit_map(map);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;18;1mnormal",
+    );
+    assert_eq!(forwarded_bytes(&port.calls), b"normal");
 }

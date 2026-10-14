@@ -51,10 +51,10 @@ impl Locale {
             (Self::ZhCn, SidebarCommand::Exit) => "返回终端",
         }
     }
-    pub(crate) const fn sidebar_restore_button(self) -> &'static str {
+    pub(crate) const fn sidebar_restore_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[Sidebar]",
-            Self::ZhCn => "[侧栏]",
+            Self::EnUs => "Sidebar",
+            Self::ZhCn => "侧栏",
         }
     }
     pub(crate) fn machine_picker_text(self, key: &str) -> &'static str {
@@ -83,11 +83,18 @@ impl Locale {
             (Self::ZhCn, "capture-hint") => "Esc 关闭 · ↑/↓ 选择 · Enter 打开 · Tab 切换",
             (Self::EnUs, "capture-short-hint") => "Esc Close",
             (Self::ZhCn, "capture-short-hint") => "Esc 关闭",
-            (Self::EnUs, "query-capture-hint") => "Enter/Esc Finish · Type Search · Ctrl+U Clear",
-            (Self::ZhCn, "query-capture-hint") => "Enter/Esc 完成输入 · 输入搜索 · Ctrl+U 清空",
-            (Self::EnUs, "query-capture-short-hint") => "Esc Finish",
-            (Self::ZhCn, "query-capture-short-hint") => "Esc 完成输入",
-            (Self::EnUs | Self::ZhCn, "capture-key") => "Esc",
+            (Self::EnUs, "picker-close-hint") => "Close",
+            (Self::ZhCn, "picker-close-hint") => "关闭",
+            (Self::EnUs, "picker-choose-hint") => "Choose",
+            (Self::ZhCn, "picker-choose-hint") => "选择",
+            (Self::EnUs, "picker-open-hint") => "Open",
+            (Self::ZhCn, "picker-open-hint") => "打开",
+            (Self::EnUs, "picker-mode-hint") => "Mode",
+            (Self::ZhCn, "picker-mode-hint") => "模式",
+            (Self::EnUs, "picker-finish-hint") => "Finish",
+            (Self::ZhCn, "picker-finish-hint") => "完成",
+            (Self::EnUs, "picker-clear-hint") => "Clear",
+            (Self::ZhCn, "picker-clear-hint") => "清空",
             (Self::EnUs, "machines-mode") => "Machines",
             (Self::ZhCn, "machines-mode") => "机器",
             (Self::EnUs, "workspaces-mode") => "Workspaces",
@@ -96,6 +103,10 @@ impl Locale {
             (Self::ZhCn, "agents-mode") => "Agent",
             (Self::EnUs, "workspace-sidebar-open") => "Browse",
             (Self::ZhCn, "workspace-sidebar-open") => "浏览",
+            (Self::EnUs, "sidebar-create") => "Create",
+            (Self::ZhCn, "sidebar-create") => "新建",
+            (Self::EnUs, "sidebar-menu") => "Menu",
+            (Self::ZhCn, "sidebar-menu") => "菜单",
             (Self::EnUs, "agent-sidebar-open") => "Filter",
             (Self::ZhCn, "agent-sidebar-open") => "筛选",
             (Self::EnUs, "no-agents") => "No agents",
@@ -112,18 +123,6 @@ impl Locale {
             (Self::ZhCn, "agent-source") => "视图",
             (Self::EnUs, "agent-search") => "Search",
             (Self::ZhCn, "agent-search") => "搜索",
-            (Self::EnUs, "agent-query-hint") => {
-                "Type search · Backspace Erase · Ctrl+U Clear\nEnter/Esc Finish"
-            }
-            (Self::ZhCn, "agent-query-hint") => {
-                "输入搜索 · Backspace 删除 · Ctrl+U 清空\nEnter/Esc 完成输入"
-            }
-            (Self::EnUs, "agent-controls-hint") => {
-                "↑/↓ Choose · Enter Open · f State · s Sort\nc Scope · / Search · Tab Mode · Esc Close"
-            }
-            (Self::ZhCn, "agent-controls-hint") => {
-                "↑/↓ 选择 · Enter 打开 · f 状态 · s 排序\nc 范围 · / 搜索 · Tab 切换 · Esc 关闭"
-            }
             (Self::EnUs, "agent-all-states") => "All states",
             (Self::ZhCn, "agent-all-states") => "全部状态",
             (Self::EnUs, "agent-scope-all") => "All machines",
@@ -190,54 +189,45 @@ impl Locale {
         use crate::machine_agents::view::{Order, Scope};
         use crate::machine_picker::Control;
         use orchbee_workbench_protocol::MetadataState as State;
-        let (shortcut, label) = match control {
+        let label = match control {
             Control::Done => {
                 return match self {
-                    Self::EnUs => "[Done]",
-                    Self::ZhCn => "[完成]",
+                    Self::EnUs => "Done",
+                    Self::ZhCn => "完成",
                 }
                 .into();
             }
             Control::Clear => {
                 return match self {
-                    Self::EnUs => "[Clear]",
-                    Self::ZhCn => "[清空]",
+                    Self::EnUs => "Clear",
+                    Self::ZhCn => "清空",
                 }
                 .into();
             }
-            Control::State => (
-                "f",
-                match view.state {
-                    None => "agent-all-states",
-                    Some(State::Blocked) => "agent-blocked",
-                    Some(State::Done) => "agent-done",
-                    Some(State::Error) => "agent-error",
-                    Some(State::Working) => "agent-working",
-                    Some(State::Idle) => "agent-idle",
-                    Some(State::Unknown) => "agent-unknown",
-                },
-            ),
-            Control::Scope => (
-                "c",
-                match view.scope {
-                    Scope::All => "agent-scope-all",
-                    Scope::Machine => "agent-scope-machine",
-                    Scope::Context => "agent-scope-context",
-                },
-            ),
-            Control::Order => (
-                "s",
-                match view.order {
-                    Order::Placement => "agent-order-placement",
-                    Order::Priority => "agent-order-priority",
-                    Order::Provider => "agent-order-provider",
-                    Order::Title => "agent-order-title",
-                    Order::Sequence => "agent-order-sequence",
-                },
-            ),
-            Control::Search => ("/", "agent-search"),
+            Control::State => match view.state {
+                None => "agent-all-states",
+                Some(State::Blocked) => "agent-blocked",
+                Some(State::Done) => "agent-done",
+                Some(State::Error) => "agent-error",
+                Some(State::Working) => "agent-working",
+                Some(State::Idle) => "agent-idle",
+                Some(State::Unknown) => "agent-unknown",
+            },
+            Control::Scope => match view.scope {
+                Scope::All => "agent-scope-all",
+                Scope::Machine => "agent-scope-machine",
+                Scope::Context => "agent-scope-context",
+            },
+            Control::Order => match view.order {
+                Order::Placement => "agent-order-placement",
+                Order::Priority => "agent-order-priority",
+                Order::Provider => "agent-order-provider",
+                Order::Title => "agent-order-title",
+                Order::Sequence => "agent-order-sequence",
+            },
+            Control::Search => "agent-search",
         };
-        format!("{shortcut} {}", self.machine_picker_text(label))
+        self.machine_picker_text(label).to_owned()
     }
 
     pub(crate) fn machine_overview(

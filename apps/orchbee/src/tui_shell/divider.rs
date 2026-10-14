@@ -60,7 +60,7 @@ pub(super) fn render(
         }
         // Covering during the rejected candidate pass suppressed image planning. Reset both
         // plans and cells before repainting with no preview; the new map then cancels the gesture.
-        *hits = HitMapBuilder::new();
+        hits.reset_candidate();
         frame.render_widget(Clear, frame.area());
     }
 }

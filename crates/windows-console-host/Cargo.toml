@@ -1,0 +1,19 @@
+[package]
+name = "orchbee-windows-console-host"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+# This one accepted operating-system boundary cannot inherit the workspace's
+# `forbid`, because its private `sys` module must locally admit reviewed Win32
+# calls and union reads. The Rust runner pins this exact exception.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+wildcard_imports = "deny"

@@ -13,26 +13,44 @@ mutates Agent state, and never creates a Panel. Maintain this reference with the
 
 Each row uses the shared six-state symbols: purple `◐` working, amber `!` needs attention, green `✓` succeeded, red `×` failed/canceled/interrupted, gray `○` idle and gray `?` unknown. A separate trailing blue dot reflects this Client’s unread observation. Reading clears only that dot; selected-row backgrounds preserve semantic foregrounds. Freshness remains a separate label.
 
-`Ctrl+B g` toggles the board. Opening claims input immediately — before the first paint — so no
-keystroke falls through to the terminal shell; the first draw then settles the claim. If the
-overlay cannot be presented (the viewport is too small) the draw verdict closes the board through
-the same ordered cancel as `Esc` and reports the refusal separately, instead of leaving an
-invisible input owner; a stale presented receipt can never reopen it. While open the board owns
-input after modal and confirmation overlays and the armed prefix: Up/Down and `j`/`k` select a row
-by opaque Agent session id, `Enter` requests a jump, `r` requests a refresh, `Esc` or an ordinary
-backdrop press closes, click selects and the inner wheel scrolls rows. The outer wheel, unknown
-keys and paste are consumed; nothing reaches the terminal shell. Modal or confirmation ownership
+`Ctrl+B g` toggles the board. Opening creates a stable episode and claims the top input slot before
+the first paint, so no keystroke falls through to the terminal shell. The first evaluated draw
+either admits that episode or refuses it when geometry cannot present the surface. A refused new
+episode closes and reports the refusal separately. Once admitted, a temporary small viewport
+suspends presentation instead: rows, selection, manual reading position and already accepted work
+remain owned for the same episode. While covered or suspended, ordinary keys, paste, wheel and
+activation are consumed without an effect; `Esc` remains the board's local close route. A later
+complete paint resumes the episode, while a receipt from an older episode can neither reopen it nor
+restore input authority. Accepted lane work may settle into the same hidden episode, but staged jump
+navigation advances only while the compositor still names the board as the top native owner and its
+same-episode visibility lease is live. It never moves Workbench focus behind a covering surface,
+including the interval after a child opens and before the next cover receipt.
+
+While interactive, Up/Down and `j`/`k` move the logical selection by opaque Agent session id and
+reveal it, `Enter` requests a jump only when that selection is in the exact painted viewport, `r`
+requests a refresh, and `Esc` or an ordinary backdrop press closes. A row press selects, while the
+inner wheel scrolls the reading viewport without changing selection. The outer wheel, unknown keys
+and paste are consumed; nothing reaches the terminal shell. Modal or confirmation ownership
 refuses opening; prefix chords still resolve, so `Ctrl+B g` closes the board too. Both ownership
 edges — open and close — invalidate the published pointer hit map, so a click can never land on a
 vanished board row or pass through the overlay onto a stale foreground region. Names,
 notifications, task sending, scheduling, persistence and new panel creation are excluded.
 
-Visible Open, Refresh and Close buttons share the keyboard owners; the header also has a close
-control. A press arms the exact epoch, selected Agent identity and scroll position, and only a
-matching release inside the still-painted control can invoke it. Keyboard input, focus loss,
-changed geometry or another input owner cancels the press. List wheel uses three rows per notch,
-coalesces at one viewport per pass and keeps the first new notch on reversal. Selection stays in
-the visible window; wheel never jumps to an Agent.
+The successful surface frame grants a same-episode visibility lease for owner-local navigation and
+refresh. Therefore consecutive arrow or `j`/`k` keys can advance the cursor in one input packet even
+after the first step invalidates its old row proof. Starting a jump and applying a row, wheel or
+control effect still require an exact current draw; they wait for the next complete frame rather than
+acting on an unseen cursor.
+
+Visible Open, Refresh and Close controls use the shared action grammar. The localized shortcut line
+uses atomic key and verb items, ordered with `Esc` first, so narrow layouts drop only complete
+trailing hints. The header also has a close control. A row or control publishes the stable episode,
+row-source revision, logical selection, jump state, viewport offset and visible-row proof from the
+successful frame. A row press validates that proof and moves the provisional selection immediately;
+a control invokes only after a matching release inside the still-painted target. Keyboard input,
+focus loss, changed geometry or another input owner cancels an armed control. List wheel uses three
+rows per notch, coalesces at one viewport per pass and keeps the first new notch on reversal. Wheel
+never changes the logical selection; the next keyboard navigation reveals that selection.
 
 ## State and transition contract
 
@@ -50,16 +68,16 @@ queued and still matches applies first; a request whose outcome can never arrive
 credit honestly — a jump fails `Unavailable`, a List settles as a failed round — and the board
 never hangs in flight.
 
-| Transition     | Guard and result                                                                                                                                                                                                                                                                                                                                           |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Open           | Modal/confirmation-free board admits a fresh epoch and one lane thread; a previous lane must have actually exited first. Last-good rows, their install age and the residual cooldown persist across the reopen; selection is repaired by opaque id against the preserved rows.                                                                             |
-| Draw settle    | The first paint either presents the overlay or refuses it; a refusal closes the board like `Esc` and reports `overlay_refused`, never leaving an invisible input owner. A stale presented receipt cannot reopen the board.                                                                                                                                 |
-| List round     | One bounded walk: at most six same-revision pages under one absolute deadline, one re-walk on a stale cursor, twelve exchanges and 12 MiB total.                                                                                                                                                                                                           |
-| Settle read    | A same-revision full walk is complete and becomes `last_good`; an exhausted budget or deadline is incomplete or failed — never a masquerading empty success, and never a rewrite of `last_good`'s install age.                                                                                                                                             |
-| Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                       |
-| Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`. |
-| Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                  |
-| Close          | Invalidate the generation, cancel intents and in-flight work, then the owner reclaims thread, wake handle, socket and intent; reopen only after actual exit.                                                                                                                                                                                               |
+| Transition     | Guard and result                                                                                                                                                                                                                                                                                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open           | Modal/confirmation-free board admits a fresh epoch and one lane thread; a previous lane must have actually exited first. Last-good rows, their install age and the residual cooldown persist across the reopen; selection is repaired by opaque id against the preserved rows.                                                                                    |
+| Draw settle    | The first evaluated paint either admits the episode or refuses it. A later geometry block suspends an admitted episode without destroying rows, selection, viewport or accepted work; cover revokes current-frame visibility and exact activation proof. Resume requires a complete exact-episode paint. A stale receipt cannot mutate or reopen another episode. |
+| List round     | One bounded walk: at most six same-revision pages under one absolute deadline, one re-walk on a stale cursor, twelve exchanges and 12 MiB total.                                                                                                                                                                                                                  |
+| Settle read    | A same-revision full walk is complete and becomes `last_good`; an exhausted budget or deadline is incomplete or failed — never a masquerading empty success, and never a rewrite of `last_good`'s install age.                                                                                                                                                    |
+| Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                              |
+| Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.        |
+| Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                         |
+| Close          | Invalidate the generation, cancel intents and in-flight work, then the owner reclaims thread, wake handle, socket and intent; reopen only after actual exit.                                                                                                                                                                                                      |
 
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked
 stale; without `last_good` it may show only same-revision rows marked incomplete — and preserving
@@ -71,6 +89,9 @@ last completed read's counts, timestamp and completeness mark — closed or unre
 live or zero. Get freshness and List freshness are separate domains and never substitute for each
 other.
 
+A refresh repairs selection by its stable id and independently preserves the current top-row
+id when it still exists; background data never snaps a manually scrolled reader back to selection.
+
 The presentation index that navigation resolves through is fed only by canonical snapshots the
 session actually accepted — bootstrap and every snapshot-bearing applier rebuild inside their
 accepted arm, and a rejected or non-installing outcome never reaches the index. Resolution waits
@@ -81,7 +102,7 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 ## Correctness evidence
 
-The owning implementation tests cover same-revision row assembly, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, modal input isolation, unpaintable close and both locales.
+The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection and both locales.
 
 Maintain the concrete witnesses in `src/terminal_session/agent_board/tests.rs`, `src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

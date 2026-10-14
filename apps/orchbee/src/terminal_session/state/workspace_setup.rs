@@ -8,7 +8,7 @@ mod projection;
 pub(in crate::terminal_session) mod quick;
 use super::{
     NativeContextTabs, NativeSessionState, NavigatorRefreshStatus, OperationDeadlines,
-    PreparedRefresh, SelectedTab, SessionNotice, SessionPhase, validate_canonical_refresh,
+    PreparedRefresh, SelectedTab, SessionPhase, validate_canonical_refresh,
 };
 use crate::local_client::workbench::workspace_setup::{
     WorkbenchSetupCommit, WorkbenchSetupRequest,
@@ -16,6 +16,7 @@ use crate::local_client::workbench::workspace_setup::{
 use crate::terminal_session::workbench_projection::{
     NativeContextLocation, project_native_context_tabs,
 };
+use crate::tui_presentation::PresentationPhase;
 pub(in crate::terminal_session) use draft::NativeSetupIntent;
 use draft::SetupDraft;
 pub(crate) use draft::{
@@ -49,6 +50,7 @@ pub(super) struct SetupState {
     uncertain: Option<SetupOperation>,
     status: Option<NativeSetupStatus>,
     deadlines: Option<OperationDeadlines>,
+    presentation: PresentationPhase,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct SetupOperation {
@@ -238,7 +240,8 @@ impl NativeSessionState {
     ) -> Option<SetupOperation> {
         let draft = self.setup_draft()?.draft;
         if draft.token != token
-            || (!draft.shown && draft.continuation.is_none())
+            || ((!draft.shown || !self.setup.presentation.interactive())
+                && draft.continuation.is_none())
             || !draft.complete
             || draft.faulted
         {

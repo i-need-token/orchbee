@@ -1,4 +1,7 @@
-use super::native_cohort::Fixture;
+use super::{
+    native_cohort::Fixture,
+    tui_observer::{CompletedFrame, ModalRow, NativeHeader, Screen},
+};
 use nix::{
     fcntl::{FcntlArg, OFlag, fcntl, open},
     pty::{grantpt, posix_openpt, ptsname_r, unlockpt},
@@ -18,7 +21,6 @@ use std::{
 pub(super) const COLUMNS: usize = 120;
 pub(super) const ROWS: usize = 32;
 const MAX_OUTPUT: usize = 8 * 1024 * 1024;
-const COMPLETE_DRAW: &[u8] = b"\x1b[0m\x1b[0m";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ReadyMode {
@@ -38,6 +40,22 @@ impl ReadyMode {
 
 fn ready_status(text: &str) -> bool {
     text.contains(" · Ready ·") || text.contains(" · 已就绪 ·")
+}
+
+fn initial_ready_mode(frame: &CompletedFrame) -> Option<ReadyMode> {
+    if !frame.prefix_active() || !frame.has_active_tab(1, "1") {
+        return None;
+    }
+    [ReadyMode::Controlling, ReadyMode::ViewOnly]
+        .into_iter()
+        .find(|mode| frame.text().contains(&mode.footer(1)))
+}
+
+struct FrameExpectation<'a> {
+    header: Option<NativeHeader<'a>>,
+    required: &'a [&'a str],
+    forbidden: &'a [&'a str],
+    exact_content_rows: &'a [&'a str],
 }
 
 pub(super) struct Client {
@@ -243,9 +261,9 @@ impl Client {
     #[track_caller]
     pub(super) fn ready_before(&mut self, deadline: Instant) -> ReadyMode {
         self.observe_after(0, deadline, "first Tab frame", |frame| {
-            frame.text().contains("[*1 1]").then_some(())
+            frame.has_active_tab(1, "1").then_some(())
         });
-        self.probe_status(deadline, &mut [], CompletedFrame::initial_ready_mode)
+        self.probe_status(deadline, &mut [], |frame| initial_ready_mode(frame))
     }
 
     pub(super) fn checkpoint(&mut self) -> usize {
@@ -263,17 +281,68 @@ impl Client {
         exact_content_rows: &[&str],
         pumped_peers: &mut [&mut Client],
     ) {
+        self.wait_frame_observation_after(
+            checkpoint,
+            deadline,
+            FrameExpectation {
+                header: None,
+                required,
+                forbidden,
+                exact_content_rows,
+            },
+            pumped_peers,
+        );
+    }
+
+    #[track_caller]
+    pub(super) fn wait_native_frame_text_after(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        header: NativeHeader<'_>,
+        required: &[&str],
+        forbidden: &[&str],
+        exact_content_rows: &[&str],
+        pumped_peers: &mut [&mut Client],
+    ) {
+        self.wait_frame_observation_after(
+            checkpoint,
+            deadline,
+            FrameExpectation {
+                header: Some(header),
+                required,
+                forbidden,
+                exact_content_rows,
+            },
+            pumped_peers,
+        );
+    }
+
+    fn wait_frame_observation_after(
+        &mut self,
+        checkpoint: usize,
+        deadline: Instant,
+        expectation: FrameExpectation<'_>,
+        pumped_peers: &mut [&mut Client],
+    ) {
         // Readiness is contextual chrome. First wait for the requested content and
         // modal dismissal, then explicitly open the prefix surface to inspect status.
-        let needs_status = required.iter().any(|part| ready_status(part));
+        let needs_status = expectation.required.iter().any(|part| ready_status(part));
         let matches = |frame: &CompletedFrame, include_status: bool| {
             let rows = frame.displayed_rows();
             let text = rows.join("\n");
-            (required
-                .iter()
-                .all(|part| (!include_status && ready_status(part)) || text.contains(part))
-                && forbidden.iter().all(|part| !text.contains(part))
-                && exact_content_rows.iter().all(|expected| {
+            (expectation
+                .header
+                .is_none_or(|header| frame.has_native_header(header))
+                && expectation
+                    .required
+                    .iter()
+                    .all(|part| (!include_status && ready_status(part)) || text.contains(part))
+                && expectation
+                    .forbidden
+                    .iter()
+                    .all(|part| !text.contains(part))
+                && expectation.exact_content_rows.iter().all(|expected| {
                     rows.iter().any(|row| {
                         row.trim_matches(|character: char| {
                             character.is_whitespace() || matches!(character, '│' | '┃' | '║')
@@ -333,11 +402,15 @@ impl Client {
         content_rows: &[&str],
         pumped_peers: &mut [&mut Client],
     ) {
+        let content_rows = content_rows
+            .iter()
+            .map(|row| ModalRow::exact(row))
+            .collect::<Vec<_>>();
         self.wait_modal_prompt_after(
             checkpoint,
             deadline,
-            active_header,
-            content_rows,
+            NativeHeader::active(active_header, 1, "1"),
+            &content_rows,
             pumped_peers,
         );
     }
@@ -347,8 +420,8 @@ impl Client {
         &mut self,
         checkpoint: usize,
         deadline: Instant,
-        active_header: &str,
-        content_rows: &[&str],
+        header: NativeHeader<'_>,
+        content_rows: &[ModalRow<'_>],
         pumped_peers: &mut [&mut Client],
     ) {
         self.observe_after_pumping(
@@ -357,9 +430,8 @@ impl Client {
             "complete modal prompt with exact content inside its borders",
             pumped_peers,
             |frame| {
-                (frame.text().contains(active_header)
-                    && frame.has_bordered_modal_content(content_rows))
-                .then_some(())
+                (frame.has_native_header(header) && frame.has_bordered_modal_content(content_rows))
+                    .then_some(())
             },
         );
     }
@@ -373,9 +445,14 @@ impl Client {
         safe_label: &str,
         mode: ReadyMode,
     ) {
-        let active = format!("[*{tab_number} {safe_label}]");
         let footer = mode.footer(tab_number);
-        self.wait_frame_text_after(checkpoint, deadline, &[&active, &footer], &[], &[], &mut []);
+        self.observe_after(checkpoint, deadline, "active native Tab", |frame| {
+            frame.has_active_tab(tab_number, safe_label).then_some(())
+        });
+        self.probe_status(deadline, &mut [], |frame| {
+            (frame.has_active_tab(tab_number, safe_label) && frame.text().contains(&footer))
+                .then_some(())
+        });
     }
 
     #[track_caller]
@@ -402,30 +479,10 @@ impl Client {
             |screen| {
                 let rows = screen.rows();
                 if !screen.has_ordered_tabs(labels, active_position)
+                    || !screen.has_ordered_navigator_rows(labels, active_position)
                     || !rows.iter().any(|row| row.contains("Workbench navigator"))
                 {
                     return None;
-                }
-                let mut previous_row = None;
-                for (index, label) in labels.iter().enumerate() {
-                    let position = index + 1;
-                    let marker = if position == active_position {
-                        '*'
-                    } else {
-                        ' '
-                    };
-                    let token = format!("[{marker}{position}] {label}");
-                    let mut matches = rows
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, row)| row.contains(&token));
-                    let (row, _) = matches.next()?;
-                    if matches.next().is_some()
-                        || previous_row.is_some_and(|previous| previous >= row)
-                    {
-                        return None;
-                    }
-                    previous_row = Some(row);
                 }
                 rows.iter().find_map(|row| {
                     let suffix = row.split_once("Tabs refreshed · revision ")?.1;
@@ -547,32 +604,54 @@ impl Client {
         safe_label: &str,
         mode: ReadyMode,
     ) {
-        let active = format!("[*{tab_number} {safe_label}]");
         let footer = mode.footer(tab_number);
-        self.wait_frame_text_after(
+        self.observe_after(
             checkpoint,
             deadline,
-            &[&active, &footer],
-            &[
-                "Workbench navigator",
-                "[*1] 1",
-                "[ 2] 2",
-                "Tabs refreshed · revision ",
-            ],
-            &[],
-            &mut [],
+            "closed Workbench navigator",
+            |frame| {
+                (frame.has_active_tab(tab_number, safe_label)
+                    && !frame.text().contains("Workbench navigator")
+                    && !frame.text().contains("Tabs refreshed · revision "))
+                .then_some(())
+            },
         );
+        self.probe_status(deadline, &mut [], |frame| {
+            (frame.has_active_tab(tab_number, safe_label)
+                && !frame.text().contains("Workbench navigator")
+                && frame.text().contains(&footer))
+            .then_some(())
+        });
     }
 
-    pub(super) fn current_row_containing(&mut self, needle: &str) -> String {
+    pub(super) fn contains_native_header(&mut self, header: NativeHeader<'_>) -> bool {
         self.collect();
         self.screen
             .latest_frame()
-            .map(CompletedFrame::rows)
-            .unwrap_or_default()
-            .into_iter()
-            .find(|row| row.contains(needle))
-            .unwrap_or_else(|| panic!("no current row contains {needle:?}; {}", self.diagnostic(0)))
+            .is_some_and(|frame| frame.has_native_header(header))
+    }
+
+    pub(super) fn current_has_ordered_tabs(
+        &mut self,
+        labels: &[&str],
+        active_position: usize,
+    ) -> bool {
+        self.collect();
+        self.screen
+            .latest_frame()
+            .is_some_and(|frame| frame.has_ordered_tabs(labels, active_position))
+    }
+
+    pub(super) fn current_frame_matches(
+        &mut self,
+        header: NativeHeader<'_>,
+        required: &[&str],
+    ) -> bool {
+        self.collect();
+        self.screen.latest_frame().is_some_and(|frame| {
+            let text = frame.text();
+            frame.has_native_header(header) && required.iter().all(|part| text.contains(part))
+        })
     }
 
     pub(super) fn send(&mut self, bytes: &[u8]) {
@@ -824,601 +903,14 @@ pub(super) fn wait_file_containing(
     }
 }
 
-// A test-only observer for this backend's absolute cursor writes and CSI modes, not a product VT.
-struct Screen {
-    cells: Vec<Vec<String>>,
-    x: usize,
-    y: usize,
-    escape: Option<Vec<u8>>,
-    utf8: Vec<u8>,
-    raw: Vec<u8>,
-    complete_draw_prefix: usize,
-    latest_completed: Option<CompletedFrame>,
-}
-
-pub(super) struct CompletedFrame {
-    cells: Vec<Vec<String>>,
-    marker_offset: usize,
-}
-
-impl Screen {
-    fn new(columns: usize, rows: usize) -> Self {
-        Self {
-            cells: vec![vec![" ".to_owned(); columns]; rows],
-            x: 0,
-            y: 0,
-            escape: None,
-            utf8: Vec::new(),
-            raw: Vec::new(),
-            complete_draw_prefix: 0,
-            latest_completed: None,
-        }
-    }
-
-    fn feed_all(&mut self, bytes: &[u8]) -> io::Result<()> {
-        for byte in bytes {
-            self.raw.push(*byte);
-            if self.raw.len() > MAX_OUTPUT {
-                return Err(io::Error::other("TUI output exceeded witness bound"));
-            }
-            self.feed(*byte)?;
-            if self.advance_complete_draw(*byte) {
-                self.latest_completed = Some(CompletedFrame {
-                    cells: self.cells.clone(),
-                    marker_offset: self.raw.len(),
-                });
-            }
-        }
-        Ok(())
-    }
-
-    fn advance_complete_draw(&mut self, byte: u8) -> bool {
-        if byte == COMPLETE_DRAW[self.complete_draw_prefix] {
-            self.complete_draw_prefix += 1;
-        } else {
-            self.complete_draw_prefix = usize::from(byte == COMPLETE_DRAW[0]);
-        }
-        if self.complete_draw_prefix == COMPLETE_DRAW.len() {
-            self.complete_draw_prefix = 0;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn feed(&mut self, byte: u8) -> io::Result<()> {
-        if let Some(escape) = self.escape.as_mut() {
-            escape.push(byte);
-            if escape.len() > 128 {
-                return Err(io::Error::other("invalid backend escape"));
-            }
-            if escape.len() == 1 && byte != b'[' {
-                self.escape = None;
-            } else if escape.len() >= 2 && (0x40..=0x7e).contains(&byte) {
-                let value = String::from_utf8_lossy(escape).into_owned();
-                self.escape = None;
-                self.apply_escape(&value);
-            }
-            return Ok(());
-        }
-        if !self.utf8.is_empty() || byte >= 0x80 {
-            self.utf8.push(byte);
-            let expected = utf8_length(self.utf8[0]);
-            if expected == 0 || self.utf8.len() > expected {
-                self.utf8.clear();
-                self.put_char('�');
-            } else if self.utf8.len() == expected {
-                let decoded = std::str::from_utf8(&self.utf8)
-                    .ok()
-                    .and_then(|value| value.chars().next())
-                    .unwrap_or('�');
-                self.utf8.clear();
-                self.put_char(decoded);
-            }
-        } else if byte == 0x1b {
-            self.escape = Some(Vec::new());
-        } else if byte == b'\r' {
-            self.x = 0;
-        } else if byte == b'\n' {
-            self.y = self.y.saturating_add(1);
-        } else if byte == 0x08 {
-            self.x = self.x.saturating_sub(1);
-        } else if byte == b'\t' {
-            self.x = (self.x + 8) & !7;
-        } else if byte.is_ascii_graphic() || byte == b' ' {
-            self.put_char(char::from(byte));
-        }
-        Ok(())
-    }
-
-    fn apply_escape(&mut self, value: &str) {
-        let final_byte = value.as_bytes().last().copied();
-        let parameters = value
-            .strip_prefix('[')
-            .and_then(|value| value.get(..value.len().saturating_sub(1)))
-            .unwrap_or_default();
-        match final_byte {
-            Some(b'H' | b'f') => {
-                let mut coordinates = parameters.split(';');
-                self.y = coordinates
-                    .next()
-                    .and_then(|value| value.parse::<usize>().ok())
-                    .unwrap_or(1)
-                    .saturating_sub(1);
-                self.x = coordinates
-                    .next()
-                    .and_then(|value| value.parse::<usize>().ok())
-                    .unwrap_or(1)
-                    .saturating_sub(1);
-            }
-            Some(b'J') => self.clear_display(parameters),
-            Some(b'K') => self.clear_line(parameters),
-            _ => {}
-        }
-    }
-
-    fn clear_display(&mut self, parameters: &str) {
-        match parameters {
-            "" | "0" => {
-                self.clear_line_from(self.y, self.x);
-                for row in self.cells.iter_mut().skip(self.y.saturating_add(1)) {
-                    row.fill(" ".to_owned());
-                }
-            }
-            "1" => {
-                for row in self.cells.iter_mut().take(self.y) {
-                    row.fill(" ".to_owned());
-                }
-                self.clear_line_to(self.y, self.x);
-            }
-            "2" | "3" => {
-                for row in &mut self.cells {
-                    row.fill(" ".to_owned());
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn clear_line(&mut self, parameters: &str) {
-        match parameters {
-            "" | "0" => self.clear_line_from(self.y, self.x),
-            "1" => self.clear_line_to(self.y, self.x),
-            "2" => {
-                if let Some(row) = self.cells.get_mut(self.y) {
-                    row.fill(" ".to_owned());
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn clear_line_from(&mut self, y: usize, x: usize) {
-        if let Some(row) = self.cells.get_mut(y) {
-            for cell in row.iter_mut().skip(x) {
-                *cell = " ".to_owned();
-            }
-        }
-    }
-
-    fn clear_line_to(&mut self, y: usize, x: usize) {
-        if let Some(row) = self.cells.get_mut(y) {
-            for cell in row.iter_mut().take(x.saturating_add(1)) {
-                *cell = " ".to_owned();
-            }
-        }
-    }
-
-    fn put_char(&mut self, value: char) {
-        if let Some(cell) = self
-            .cells
-            .get_mut(self.y)
-            .and_then(|row| row.get_mut(self.x))
-        {
-            cell.clear();
-            cell.push(value);
-        }
-        self.x = self.x.saturating_add(1);
-    }
-
-    fn checkpoint(&self) -> usize {
-        self.raw.len()
-    }
-
-    fn latest_frame(&self) -> Option<&CompletedFrame> {
-        self.latest_completed.as_ref()
-    }
-
-    fn observe_completed_before<T>(
-        &self,
-        checkpoint: usize,
-        deadline: Instant,
-        predicate: &mut impl FnMut(&CompletedFrame) -> Option<T>,
-    ) -> Option<T> {
-        let frame = self
-            .latest_completed
-            .as_ref()
-            .filter(|frame| frame.marker_offset > checkpoint)?;
-        let value = predicate(frame)?;
-        (Instant::now() < deadline).then_some(value)
-    }
-
-    fn working_text(&self) -> String {
-        rows(&self.cells).join("\n")
-    }
-
-    fn raw_contains(&self, value: &[u8]) -> bool {
-        self.raw.windows(value.len()).any(|part| part == value)
-    }
-
-    fn raw_contains_after(&self, checkpoint: usize, value: &[u8]) -> bool {
-        self.raw
-            .get(checkpoint.min(self.raw.len())..)
-            .is_some_and(|tail| tail.windows(value.len()).any(|part| part == value))
-    }
-
-    fn raw_since(&self, checkpoint: usize) -> String {
-        let start = checkpoint.min(self.raw.len());
-        let start = start.max(self.raw.len().saturating_sub(4096));
-        format!("{:?}", String::from_utf8_lossy(&self.raw[start..]))
-    }
-}
-
-impl CompletedFrame {
-    fn has_bordered_modal_content(&self, expected: &[&str]) -> bool {
-        if expected.is_empty() {
-            return false;
-        }
-        for (top, row) in self.cells.iter().enumerate() {
-            for (left, cell) in row.iter().enumerate() {
-                if cell != "┌" {
-                    continue;
-                }
-                let Some(right) = (left + 1..row.len()).find(|index| row[*index] == "┐") else {
-                    continue;
-                };
-                if !row[left + 1..right].iter().all(|cell| cell == "─") {
-                    continue;
-                }
-                let Some(bottom) = (top + 1..self.cells.len()).find(|index| {
-                    let row = &self.cells[*index];
-                    row.get(left).is_some_and(|cell| cell == "└")
-                        && row.get(right).is_some_and(|cell| cell == "┘")
-                        && row[left + 1..right].iter().all(|cell| cell == "─")
-                }) else {
-                    continue;
-                };
-                let interior = &self.cells[top + 1..bottom];
-                if interior.len() < expected.len()
-                    || !interior.iter().all(|row| {
-                        row.get(left).is_some_and(|cell| cell == "│")
-                            && row.get(right).is_some_and(|cell| cell == "│")
-                    })
-                {
-                    continue;
-                }
-                // Compare only the modal's interior; adjacent terminal cells are unrelated.
-                if interior.iter().zip(expected).all(|(row, expected)| {
-                    let cells = &row[left + 1..right];
-                    let mut text = String::new();
-                    let mut column = 0;
-                    while let Some(symbol) = cells.get(column) {
-                        text.push_str(symbol);
-                        column += ratatui::text::Line::raw(symbol.as_str()).width().max(1);
-                    }
-                    text.trim() == *expected
-                }) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    fn has_ordered_tabs(&self, labels: &[&str], active_position: usize) -> bool {
-        let expected = labels
-            .iter()
-            .enumerate()
-            .map(|(index, label)| {
-                let position = index + 1;
-                let marker = if position == active_position {
-                    '*'
-                } else {
-                    ' '
-                };
-                format!("[{marker}{position} {label}]")
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-        !labels.is_empty()
-            && self.rows().iter().any(|row| {
-                row.contains(&expected)
-                    && row.matches('[').count() == labels.len()
-                    && row.matches("[*").count() == 1
-            })
-    }
-
-    // Decode displayed symbols without the placeholder cells after wide glyphs.
-    fn displayed_rows(&self) -> Vec<String> {
-        self.cells
-            .iter()
-            .map(|cells| {
-                let mut text = String::new();
-                let mut column = 0;
-                while let Some(symbol) = cells.get(column) {
-                    text.push_str(symbol);
-                    column += ratatui::text::Line::raw(symbol.as_str()).width().max(1);
-                }
-                text.trim_end().to_owned()
-            })
-            .collect()
-    }
-
-    fn prefix_active(&self) -> bool {
-        self.displayed_rows()
-            .iter()
-            .any(|row| row.contains("PREFIX Ctrl+B") || row.contains("前缀 Ctrl+B"))
-    }
-
-    fn initial_ready_mode(&self) -> Option<ReadyMode> {
-        let text = self.text();
-        if !self.prefix_active() || !text.contains("[*1 1]") {
-            return None;
-        }
-        [ReadyMode::Controlling, ReadyMode::ViewOnly]
-            .into_iter()
-            .find(|mode| text.contains(&mode.footer(1)))
-    }
-
-    /// First `(column, row)` cell whose row tail starts with `needle`.
-    fn cell_position(&self, needle: &str) -> Option<(u16, u16)> {
-        self.cells.iter().enumerate().find_map(|(row, cells)| {
-            (0..cells.len())
-                .find(|column| cells[*column..].concat().starts_with(needle))
-                .map(|column| (column as u16, row as u16))
-        })
-    }
-
-    fn rows(&self) -> Vec<String> {
-        rows(&self.cells)
-    }
-
-    fn text(&self) -> String {
-        self.rows().join("\n")
-    }
-
-    pub(super) fn cells(&self) -> &[Vec<String>] {
-        &self.cells
-    }
-}
-
-fn rows(cells: &[Vec<String>]) -> Vec<String> {
-    cells
-        .iter()
-        .map(|row| row.concat().trim_end().to_owned())
-        .collect()
-}
-
-fn utf8_length(first: u8) -> usize {
-    if first < 0x80 {
-        1
-    } else if first & 0xe0 == 0xc0 {
-        2
-    } else if first & 0xf0 == 0xe0 {
-        3
-    } else if first & 0xf8 == 0xf0 {
-        4
-    } else {
-        0
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use nix::fcntl::{FcntlArg, FdFlag, OFlag, fcntl};
 
     #[test]
-    fn close_prompt_observer_isolates_the_modal_target_from_adjacent_shell_text() {
-        let expected = ["Close terminal Tab?", "", "1", "", "warning", "", "actions"];
-        for (target, right_border, accepted) in
-            [("1", "│", true), ("2", "│", false), ("1", " ", false)]
-        {
-            let mut screen = Screen::new(COLUMNS, ROWS);
-            let top = format!("  ┌{}┐", "─".repeat(70));
-            screen
-                .feed_all(format!("\x1b[2;1H{top}").as_bytes())
-                .unwrap();
-            for (index, content) in [
-                "Close terminal Tab?",
-                "",
-                target,
-                "",
-                "warning",
-                "",
-                "actions",
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                let row = format!("  │{content:70}{right_border}a│ 1");
-                screen
-                    .feed_all(format!("\x1b[{};1H{row}", index + 3).as_bytes())
-                    .unwrap();
-            }
-            let bottom = format!("  └{}┘", "─".repeat(70));
-            screen
-                .feed_all(format!("\x1b[10;1H{bottom}\x1b[0m\x1b[0m").as_bytes())
-                .unwrap();
-            assert_eq!(
-                screen
-                    .latest_frame()
-                    .unwrap()
-                    .has_bordered_modal_content(&expected),
-                accepted,
-                "target {target:?}, right border {right_border:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn ordered_tab_observer_rejects_stale_order_missing_members_and_extra_selection() {
-        for (strip, expected) in [
-            ("[ 1 3] [*2 1] [ 3 2]", true),
-            ("[*1 1] [ 2 2] [ 3 3]", false),
-            ("[ 1 3] [*2 1]", false),
-            ("[ 1 3] [*2 1] [ 3 2] [*4 4]", false),
-            ("[ 1 3] [*2 1] [ 3 2] [ 4 4]", false),
-            ("[ 1 3] [ 2 1] [*3 2]", false),
-        ] {
-            let mut screen = Screen::new(COLUMNS, ROWS);
-            screen
-                .feed_all(format!("\x1b[1;1H{strip}\x1b[0m\x1b[0m").as_bytes())
-                .unwrap();
-            assert_eq!(
-                screen
-                    .latest_frame()
-                    .unwrap()
-                    .has_ordered_tabs(&["3", "1", "2"], 2),
-                expected,
-                "{strip}"
-            );
-        }
-    }
-
-    #[test]
-    fn initial_ready_requires_the_first_active_tab_and_native_ready_mode() {
-        for (active, footer, expected) in [
-            (
-                "[*1 1]",
-                "Tab 1 · Ready · controlling",
-                Some(ReadyMode::Controlling),
-            ),
-            (
-                "[*1 1]",
-                "Tab 1 · Ready · view only",
-                Some(ReadyMode::ViewOnly),
-            ),
-            ("[*1 1]", "Terminal connected", None),
-            ("[*1 1]", "Viewing only", None),
-            ("[*1 1]", "Tab 1 · Connecting…", None),
-            ("[*2 2]", "Tab 1 · Ready · controlling", None),
-            ("[*1 1]", "Tab 2 · Ready · controlling", None),
-        ] {
-            let mut screen = Screen::new(COLUMNS, ROWS);
-            screen
-                .feed_all(
-                    format!(
-                        "\x1b[1;1H{active}\x1b[31;1HPREFIX Ctrl+B\x1b[32;1H{footer}\x1b[0m\x1b[0m"
-                    )
-                    .as_bytes(),
-                )
-                .unwrap();
-            assert_eq!(
-                screen.latest_frame().unwrap().initial_ready_mode(),
-                expected,
-                "{active}: {footer}"
-            );
-        }
-    }
-
-    #[test]
-    fn fragmented_complete_draw_rejects_a_later_half_draw_hybrid() {
-        let mut screen = Screen::new(COLUMNS, ROWS);
-        let complete = concat!(
-            "\x1b[1;1H[ 1 1] [*2 2]",
-            "\x1b[32;1HTab 2 · Ready · controlling",
-            "\x1b[0m\x1b[0m"
-        )
-        .as_bytes();
-        for byte in complete {
-            screen.feed_all(std::slice::from_ref(byte)).unwrap();
-        }
-        let checkpoint = screen.checkpoint();
-        let frame = screen.latest_frame().unwrap();
-        assert_eq!(frame.marker_offset, complete.len());
-        assert!(frame.text().contains("[*2 2]"));
-        assert!(frame.text().contains("Tab 2 · Ready · controlling"));
-
-        let partial = concat!("\x1b[1;1H[*1 1] [ 2 2]", "\x1b[32;5H1").as_bytes();
-        screen.feed_all(partial).unwrap();
-        assert!(screen.working_text().contains("[*1 1]"));
-        assert!(
-            screen
-                .working_text()
-                .contains("Tab 1 · Ready · controlling")
-        );
-        let mut false_ready = |frame: &CompletedFrame| {
-            let text = frame.text();
-            (text.contains("[*1 1]") && text.contains("Tab 1 · Ready · controlling")).then_some(())
-        };
-        assert!(
-            screen
-                .observe_completed_before(
-                    checkpoint,
-                    Instant::now() + Duration::from_secs(1),
-                    &mut false_ready,
-                )
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn complete_frame_snapshot_ignores_next_partial_draw_in_the_same_batch() {
-        let mut screen = Screen::new(COLUMNS, ROWS);
-        let complete = concat!(
-            "\x1b[1;1H[*1 1] [ 2 2]",
-            "\x1b[32;1HTab 1 · Ready · controlling",
-            "\x1b[0m\x1b[0m"
-        );
-        let partial = concat!("\x1b[1;1H[ 1 1] [*2 2]", "\x1b[32;5H2");
-        screen
-            .feed_all(format!("{complete}{partial}").as_bytes())
-            .unwrap();
-
-        let frame = screen.latest_frame().unwrap();
-        assert_eq!(frame.marker_offset, complete.len());
-        assert!(frame.text().contains("[*1 1]"));
-        assert!(frame.text().contains("Tab 1 · Ready · controlling"));
-        assert!(screen.working_text().contains("[*2 2]"));
-        assert!(
-            screen
-                .working_text()
-                .contains("Tab 2 · Ready · controlling")
-        );
-
-        screen
-            .feed_all(b"\x1b[32;1H\x1b[2KTab 2 - Switching\x1b[0m\x1b[0m")
-            .unwrap();
-        let mut stale_ready = |frame: &CompletedFrame| {
-            frame
-                .text()
-                .contains("Tab 1 · Ready · controlling")
-                .then_some(())
-        };
-        assert!(
-            screen
-                .observe_completed_before(
-                    0,
-                    Instant::now() + Duration::from_secs(1),
-                    &mut stale_ready,
-                )
-                .is_none(),
-            "an older complete Ready frame must not beat the latest complete frame"
-        );
-    }
-
-    #[test]
-    fn expired_deadline_rejects_preloaded_screen_and_file_observations() {
-        let mut screen = Screen::new(COLUMNS, ROWS);
-        screen.feed_all(b"\x1b[1;1Hready\x1b[0m\x1b[0m").unwrap();
+    fn expired_deadline_rejects_a_preloaded_file_observation() {
         let expired = Instant::now() - Duration::from_secs(1);
-        let mut predicate = |frame: &CompletedFrame| frame.text().contains("ready").then_some(());
-        assert!(
-            screen
-                .observe_completed_before(0, expired, &mut predicate)
-                .is_none()
-        );
         assert!(nonempty_file_before(Path::new("/proc/self/cmdline"), expired).is_none());
     }
 

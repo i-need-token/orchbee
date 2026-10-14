@@ -811,6 +811,7 @@ fn focus_loss_after_modal_submit_survives_the_captured_packet_tail() {
 #[test]
 fn graphics_replies_inside_native_text_capture_never_edit_the_draft() {
     use crate::terminal_graphics::Reply;
+    use crate::terminal_input::HostReply;
     let now = Instant::now();
     let mut decoder = ModalDecoder::default();
     assert!(decoder.start());
@@ -819,12 +820,18 @@ fn graphics_replies_inside_native_text_capture_never_edit_the_draft() {
         events.extend(feed(&mut decoder, chunk, now, 512));
     }
     assert_eq!(appended(&events), "ab");
-    assert!(events.contains(&Event::HostReply(Reply::Cell(Some((8, 16))))));
-    assert!(events.contains(&Event::HostReply(Reply::Kitty {
-        placement_id: None,
-        image_id: 31,
-        success: true
-    })));
+    assert!(
+        events.contains(&Event::HostReply(HostReply::Graphics(Reply::Cell(Some((
+            8, 16
+        ))))))
+    );
+    assert!(
+        events.contains(&Event::HostReply(HostReply::Graphics(Reply::Kitty {
+            placement_id: None,
+            image_id: 31,
+            success: true
+        })))
+    );
     assert!(!events.contains(&Event::Fault));
     let paste = feed(
         &mut decoder,
@@ -880,5 +887,71 @@ fn malformed_or_timed_out_cell_metadata_does_not_fault_or_edit_a_native_field() 
     );
     let events = feed(&mut decoder, b"8ty", now + Duration::from_millis(70), 512);
     assert_eq!(appended(&events), "y");
+    assert!(!events.contains(&Event::Fault));
+}
+
+#[test]
+fn pointer_admission_replies_are_metadata_inside_native_text_capture() {
+    use crate::terminal_input::HostReply;
+    use crate::terminal_pointer_admission::{HostReply as PointerReply, ModeReportState};
+
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    let mut events = Vec::new();
+    for chunk in b"a\x1b[?1003;2$y\x9b?1;2cb".chunks(2) {
+        events.extend(feed(&mut decoder, chunk, now, 512));
+    }
+    assert_eq!(appended(&events), "ab");
+    assert!(events.contains(&Event::HostReply(HostReply::Pointer(
+        PointerReply::Mode1003(ModeReportState::Reset)
+    ))));
+    assert!(events.contains(&Event::HostReply(HostReply::Pointer(
+        PointerReply::PrimaryDeviceAttributes
+    ))));
+    assert!(!events.contains(&Event::Fault));
+
+    let literal = "\u{1b}[?1003;2$y\u{1b}[?1;2c";
+    let paste = feed(
+        &mut decoder,
+        format!("\x1b[200~{literal}\x1b[201~").as_bytes(),
+        now,
+        512,
+    );
+    assert_eq!(pasted(&paste), literal);
+    assert!(
+        !paste
+            .iter()
+            .any(|event| matches!(event, Event::HostReply(_)))
+    );
+}
+
+#[test]
+fn only_reply_framed_private_csi_is_metadata_inside_a_modal() {
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    let reply_shaped = feed(&mut decoder, b"a\x1b[?1003;5$y\x1b[?1;:cb", now, 512);
+    assert_eq!(appended(&reply_shaped), "ab");
+    assert!(!reply_shaped.contains(&Event::Fault));
+    assert!(
+        !reply_shaped
+            .iter()
+            .any(|event| matches!(event, Event::HostReply(_)))
+    );
+
+    let oversized = [b"\x1b[?".as_slice(), &[b'9'; 64], b"cx"].concat();
+    let events = feed(&mut decoder, &oversized, now, 512);
+    assert_eq!(appended(&events), "x");
+    assert!(events.contains(&Event::Fault));
+
+    feed(&mut decoder, b"\x1b[?1003;", now, 512);
+    assert!(
+        decoder
+            .tick(now + Duration::from_millis(60))
+            .contains(&Event::Fault)
+    );
+    let events = feed(&mut decoder, b"2$yz", now + Duration::from_millis(70), 512);
+    assert_eq!(appended(&events), "z");
     assert!(!events.contains(&Event::Fault));
 }

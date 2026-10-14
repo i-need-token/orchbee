@@ -9,10 +9,8 @@ impl Locale {
             (Self::ZhCn, TakeoverStatus::Pending) => "正在接管",
             (Self::EnUs, TakeoverStatus::Ready) => "Control acquired · using this pane's size",
             (Self::ZhCn, TakeoverStatus::Ready) => "已接管 · 使用本 pane 尺寸",
-            (Self::EnUs, TakeoverStatus::Refused) => {
-                "Control request refused or not submitted · Ctrl+B t to try again"
-            }
-            (Self::ZhCn, TakeoverStatus::Refused) => "接管被拒绝或未提交 · Ctrl+B t 重试",
+            (Self::EnUs, TakeoverStatus::Refused) => "Control request refused or not submitted",
+            (Self::ZhCn, TakeoverStatus::Refused) => "接管被拒绝或未提交",
             (Self::EnUs, TakeoverStatus::Unknown) => {
                 "Control outcome unknown · no replay · exit and reconnect"
             }
@@ -23,10 +21,8 @@ impl Locale {
             (Self::ZhCn, TakeoverStatus::Granted) => {
                 "已收到控制权回执；尺寸同步未完成 · 退出后重新连接"
             }
-            (Self::EnUs, TakeoverStatus::Lost) => {
-                "Control changed again · view only · Ctrl+B t to take control"
-            }
-            (Self::ZhCn, TakeoverStatus::Lost) => "控制权再次变化 · 仅查看 · Ctrl+B t 接管",
+            (Self::EnUs, TakeoverStatus::Lost) => "Control changed again · view only",
+            (Self::ZhCn, TakeoverStatus::Lost) => "控制权再次变化 · 仅查看",
         };
         if matches!(status, TakeoverStatus::Unknown | TakeoverStatus::Granted) {
             format!("{text} · {id}")

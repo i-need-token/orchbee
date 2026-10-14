@@ -24,7 +24,8 @@ impl UiWakeup {
         }
     }
 
-    pub(super) fn signal(&self) {
+    /// Notify the owning UI loop that an already-derived local redraw is pending.
+    pub(crate) fn signal(&self) {
         self.pending.store(true, Ordering::Release);
         self.waiter.unpark();
     }

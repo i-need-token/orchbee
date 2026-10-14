@@ -14,7 +14,9 @@ use super::{
     standalone_presentable_area,
 };
 use crate::termination_signal::TerminationSource;
-use crate::{localization::Locale, terminal_device::WindowDimensions};
+use crate::{
+    localization::Locale, terminal_device::WindowDimensions, terminal_input::PointerCaptureRequest,
+};
 
 fn dimensions(columns: u16, rows: u16) -> WindowDimensions {
     WindowDimensions {
@@ -128,11 +130,11 @@ impl WaitModeGuard for RecordingGuard {
             "disable-bracketed-paste"
         })
     }
-    fn set_pointer_capture(&mut self, enabled: bool) -> io::Result<()> {
-        self.record(if enabled {
-            "enable-pointer-capture"
-        } else {
-            "disable-pointer-capture"
+    fn set_pointer_capture(&mut self, request: PointerCaptureRequest) -> io::Result<()> {
+        self.record(match request {
+            PointerCaptureRequest::Release => "disable-pointer-capture",
+            PointerCaptureRequest::ButtonOnly => "enable-pointer-capture",
+            PointerCaptureRequest::AnyMotion => "enable-pointer-any-motion",
         })
     }
     fn restore(&mut self) -> io::Result<()> {
@@ -324,6 +326,35 @@ fn prefix_exit_across_packets_cancels() {
     let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
 
     assert!(matches!(outcome, StartupWait::Cancelled));
+}
+
+#[test]
+fn pointer_admission_query_is_rejected_during_startup_wait_and_restores_modes() {
+    let mut harness = Harness::new(Duration::ZERO);
+    let small = dimensions(120, 4);
+    let mut viewport = ScriptedViewport::new(vec![result(small)], result(small));
+    let mut input = ScriptedInput::new(
+        vec![(Duration::ZERO, Ok(Some(vec![0x02, b'm'])))],
+        Rc::clone(&harness.clock),
+    );
+
+    let outcome = harness.run(&mut viewport, &mut input, &mut standalone_presentable_area);
+
+    assert!(matches!(
+        outcome,
+        StartupWait::Fault(error) if error.kind() == io::ErrorKind::Unsupported
+    ));
+    let ops = harness.ops();
+    let capture = ops
+        .iter()
+        .position(|operation| *operation == "enable-pointer-capture")
+        .expect("the typed ButtonOnly request must complete before the query");
+    let restore = ops
+        .iter()
+        .position(|operation| *operation == "show-cursor")
+        .expect("query rejection must restore the lifecycle guard");
+    assert!(capture < restore);
+    assert!(!ops.contains(&"enable-pointer-any-motion"));
 }
 
 #[test]

@@ -248,6 +248,15 @@ safely, it requires a separately accepted policy change that narrows the excepti
 documents every safety invariant, and adds boundary tests. This policy does not audit unsafe code
 inside third-party dependencies; dependency and feature review remain necessary.
 
+The accepted operating-system exception is the `orchbee-windows-console-host` package at
+`crates/windows-console-host`. That crate declares `unsafe_code = "deny"` instead of inheriting the
+workspace `forbid`, and only its private `src/sys.rs` module has a reasoned `allow` for the Win32
+calls and tagged-union reads that its safe API cannot express. The Rust runner pins the package,
+manifest, private module declaration, and mirrored Clippy policy; it rejects another member,
+location, module, or broader lint escape. Safe modules and tests in that crate remain denied. Its
+[package contract](../crates/windows-console-host/README.md) owns the handle, count, and Unicode
+safety invariants and their boundary evidence.
+
 `clippy::all` is the default lint group, not every available Clippy check. Select additional checks
 for demonstrated risks and distinguish production invariants from deliberate invalid test inputs.
 Do not enable an entire optional group merely to maximize lint count. Each enforcement change

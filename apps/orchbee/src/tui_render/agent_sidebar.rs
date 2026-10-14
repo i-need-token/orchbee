@@ -1,32 +1,164 @@
 //! Paints the existing merged Agent projection; never reads or acknowledges terminals.
+use super::controls::{
+    ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
+    InteractionState, NavigationState, OperationState, PointerPresentation, action_rect,
+    render_action,
+};
 use super::sidebar_text::machine_label;
 use super::{
-    Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, HitTarget, Line, List,
-    ListItem, Locale, Modifier, Padding, Paragraph, Rect, Role, SidebarArea, SidebarLayer,
-    SiteStatus, Span, Theme, display_width, truncate_display,
+    Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, Line, List, ListItem,
+    Locale, Padding, Paragraph, Rect, Role, SidebarArea, SidebarLayer, SiteStatus, Span, Theme,
+    display_width, truncate_display,
 };
-use crate::client_view::Overlay;
+use crate::client_view::{ClientAction, KeyLabelGlyphs, Overlay, PrefixAction};
 use crate::machine_discovery::display_label;
 use crate::tui_layout::{DrawnSidebarWidth, SidebarWidthDrag};
+use crate::tui_pointer::{
+    HitTarget, InteractionSpec, InteractionTarget, PrimaryContract, ProjectedPointer,
+};
 use ratatui::style::Style;
 pub(super) mod tokens;
+
+pub(super) fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
+    match theme.glyphs.mode() {
+        crate::tui_theme::GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
+        #[cfg(test)]
+        crate::tui_theme::GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
+    }
+}
+
+fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
+    match pointer {
+        ProjectedPointer::Rest => PointerPresentation::Rest,
+        ProjectedPointer::Hovered => PointerPresentation::Hovered,
+        ProjectedPointer::Pressed => PointerPresentation::Pressed,
+    }
+}
+
+struct FixedAction<'a> {
+    label: &'a str,
+    hint: Option<&'a str>,
+    kind: ActionKind,
+    enabled: bool,
+    target: InteractionTarget,
+}
+
+pub(super) struct RenderContext<'a> {
+    pub(super) view: &'a ClientView,
+    pub(super) locale: Locale,
+    pub(super) backend_status: SiteStatus<'a>,
+    pub(super) theme: &'a Theme,
+    pub(super) owns_keyboard: bool,
+}
+
+struct ActionsContext<'a> {
+    view: &'a ClientView,
+    locale: Locale,
+    theme: &'a Theme,
+    layer: HitLayer,
+    owns_keyboard: bool,
+    source: &'a crate::machine_picker::SidebarSource,
+}
+
+fn render_fixed_action(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    action: FixedAction<'_>,
+    theme: &Theme,
+    layer: HitLayer,
+    hits: Option<&mut HitMapBuilder>,
+) -> Option<Rect> {
+    let FixedAction {
+        label,
+        hint,
+        kind,
+        enabled,
+        target,
+    } = action;
+    let availability = if enabled {
+        Availability::Enabled
+    } else {
+        Availability::Disabled
+    };
+    let base_state = InteractionState::new(
+        FocusState::Unfocused,
+        PointerPresentation::Rest,
+        NavigationState::None,
+        CurrentState::NotCurrent,
+        CheckedState::Unchecked,
+        availability,
+        OperationState::Idle,
+    );
+    let rest = ActionSpec::new(label, kind, ControlSurface::Chrome, base_state);
+    let rect = action_rect(frame.area(), area, rest, theme)?;
+    let interaction = if enabled {
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+    } else {
+        InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
+    };
+    let pointer = hits.as_deref().map_or(PointerPresentation::Rest, |hits| {
+        pointer_presentation(hits.projected_pointer(layer, rect, rect, &target, interaction))
+    });
+    let painted = render_action(
+        frame,
+        area,
+        ActionSpec::new(
+            label,
+            kind,
+            ControlSurface::Chrome,
+            base_state.with_pointer(pointer),
+        ),
+        theme,
+    )?;
+    if painted != rect {
+        return None;
+    }
+    if let Some(hits) = hits {
+        hits.record_interaction(layer, rect, rect, target, interaction);
+    }
+    if let Some(hint) = hint {
+        let hint_width = u16::try_from(display_width(hint)).unwrap_or(u16::MAX);
+        let hint_x = rect.right().saturating_add(1);
+        if hint_width > 0 && hint_x.saturating_add(hint_width) <= area.right() {
+            frame.render_widget(
+                Paragraph::new(hint).style(theme.style(if enabled {
+                    Role::HintKey
+                } else {
+                    Role::TextDisabled
+                })),
+                Rect::new(hint_x, area.y, hint_width, 1),
+            );
+        }
+    }
+    Some(painted)
+}
 
 fn render_actions(
     frame: &mut Frame<'_>,
     area: Rect,
-    locale: Locale,
-    theme: &Theme,
-    layer: HitLayer,
+    context: ActionsContext<'_>,
     mut hits: Option<&mut HitMapBuilder>,
 ) {
-    use crate::machine_picker::SidebarCommand;
-    for (offset, (icon, command, target)) in [
+    use crate::machine_picker::{SidebarCommand, SidebarFixedAction};
+    let ActionsContext {
+        view,
+        locale,
+        theme,
+        layer,
+        owns_keyboard,
+        source,
+    } = context;
+    for (offset, (command, action, kind)) in [
         (
-            "+",
             SidebarCommand::NewWorkspace,
-            HitTarget::NewWorkspaceButton,
+            SidebarFixedAction::NewWorkspace,
+            ActionKind::Primary,
         ),
-        ("/", SidebarCommand::Search, HitTarget::SearchButton),
+        (
+            SidebarCommand::Search,
+            SidebarFixedAction::Search,
+            ActionKind::Secondary,
+        ),
     ]
     .into_iter()
     .enumerate()
@@ -35,49 +167,52 @@ fn render_actions(
             break;
         }
         let row = Rect::new(area.x, area.y + offset as u16, area.width, 1);
-        frame.render_widget(
-            Paragraph::new(truncate_display(
-                &format!("{icon} {}", locale.sidebar_navigation_action(command)),
-                usize::from(row.width),
-                theme.glyphs.ellipsis,
-            ))
-            .style(theme.style(Role::TextPrimary)),
+        let hint = owns_keyboard
+            .then(|| crate::machine_picker::sidebar_binding_label(command, key_label_glyphs(theme)))
+            .flatten();
+        let target =
+            InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(source, action));
+        let _ = render_fixed_action(
+            frame,
             row,
+            FixedAction {
+                label: locale.sidebar_navigation_action(command),
+                hint: hint.as_deref(),
+                kind,
+                enabled: view.machines.available,
+                target,
+            },
+            theme,
+            layer,
+            hits.as_deref_mut(),
         );
-        if let Some(hits) = hits.as_deref_mut() {
-            hits.record(layer, row, target);
-        }
     }
-}
-
-fn render_settings_entry(frame: &mut Frame<'_>, area: Rect, locale: Locale, theme: &Theme) {
-    let line = Line::styled(
-        truncate_display(
-            locale.settings_title(),
-            usize::from(area.width),
-            theme.glyphs.ellipsis,
-        ),
-        theme.style(Role::TextPrimary),
-    );
-    frame.render_widget(Paragraph::new(line), area);
 }
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
     sidebar: SidebarArea,
-    view: &ClientView,
-    locale: Locale,
-    backend_status: SiteStatus<'_>,
-    theme: &Theme,
+    context: RenderContext<'_>,
     mut hits: Option<&mut HitMapBuilder>,
 ) {
+    let RenderContext {
+        view,
+        locale,
+        backend_status,
+        theme,
+        owns_keyboard,
+    } = context;
     if sidebar.layer == SidebarLayer::Overlay {
         frame.render_widget(Clear, sidebar.area);
     }
     let text = locale.shell();
     let block = Block::new()
         .borders(Borders::RIGHT)
-        .border_style(theme.style(Role::FrameDivider))
+        .border_style(theme.style(if owns_keyboard {
+            Role::AccentFocus
+        } else {
+            Role::FrameDivider
+        }))
         .padding(Padding::new(0, 1, 1, 0))
         .style(theme.style(Role::SurfaceChrome));
     let mut inner = block.inner(sidebar.area);
@@ -102,7 +237,20 @@ pub(super) fn render(
             HitTarget::OverlaySurface,
         );
     }
-    render_actions(frame, inner, locale, theme, layer, hits.as_deref_mut());
+    let source = view.machines.sidebar_source();
+    render_actions(
+        frame,
+        inner,
+        ActionsContext {
+            view,
+            locale,
+            theme,
+            layer,
+            owns_keyboard,
+            source: &source,
+        },
+        hits.as_deref_mut(),
+    );
     let action_rows = inner
         .height
         .min(if frame.area().height >= 24 { 3 } else { 2 });
@@ -155,10 +303,32 @@ pub(super) fn render(
         return;
     }
     let settings = Rect::new(area.x, area.bottom() - 1, area.width, 1);
-    render_settings_entry(frame, settings, locale, theme);
-    if let Some(hits) = hits.as_deref_mut() {
-        hits.record(layer, settings, HitTarget::SettingsButton);
-    }
+    let settings_hint = view
+        .bindings()
+        .action_labels_with_glyphs(
+            PrefixAction::Client(ClientAction::OpenSettings),
+            key_label_glyphs(theme),
+        )
+        .into_iter()
+        .next();
+    let _ =
+        render_fixed_action(
+            frame,
+            settings,
+            FixedAction {
+                label: locale.settings_title(),
+                hint: settings_hint.as_deref(),
+                kind: ActionKind::Secondary,
+                enabled: true,
+                target: InteractionTarget::SidebarFixed(view.machines.drawn_sidebar_fixed(
+                    &source,
+                    crate::machine_picker::SidebarFixedAction::Settings,
+                )),
+            },
+            theme,
+            layer,
+            hits.as_deref_mut(),
+        );
     area.height = area.height.saturating_sub(1);
     super::workspace_sidebar::render(
         frame,
@@ -168,6 +338,9 @@ pub(super) fn render(
             locale,
             theme,
             layer,
+            sidebar_width: sidebar.area.width,
+            owns_keyboard,
+            source: &source,
         },
         &rows,
         hits,

@@ -35,7 +35,13 @@ fn unnamed_group_has_localized_visible_header_and_identity_hit_region() {
                     &tabs,
                     &Theme::terminal_native(),
                     label,
-                    &mut |index, header, x, cells| hits.push((index, header, x, cells)),
+                    GroupInteractions::new(
+                        &mut (),
+                        &mut |_, _, _, _| crate::tui_pointer::ProjectedPointer::Rest,
+                        &mut |_, index, header, rect| {
+                            hits.push((index, header, usize::from(rect.x), usize::from(rect.width)))
+                        },
+                    ),
                 )
             })
             .unwrap();
@@ -88,7 +94,18 @@ fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
                             &tabs,
                             &theme,
                             "Unnamed group",
-                            &mut |index, header, x, cells| hits.push((index, header, x, cells)),
+                            GroupInteractions::new(
+                                &mut (),
+                                &mut |_, _, _, _| crate::tui_pointer::ProjectedPointer::Rest,
+                                &mut |_, index, header, rect| {
+                                    hits.push((
+                                        index,
+                                        header,
+                                        usize::from(rect.x),
+                                        usize::from(rect.width),
+                                    ))
+                                },
+                            ),
                         )
                     })
                     .unwrap();
@@ -122,6 +139,183 @@ fn headers_clip_by_cells_keep_active_member_and_never_emit_control_bytes() {
                             && cell.bg == ratatui::style::Color::Reset)
                 );
             }
+        }
+    }
+}
+
+fn rendered_group_state(
+    active: bool,
+    selected: bool,
+    collapsed: bool,
+) -> (ratatui::buffer::Buffer, Vec<(usize, bool, usize, usize)>) {
+    let group = TabGroup {
+        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
+        label: "Group".into(),
+        color: TabGroupColor::Blue,
+    };
+    let tabs = [GroupTabDisplay {
+        tab: TabDisplay {
+            position: 1,
+            active,
+            label: "member".into(),
+        },
+        group: Some(&group),
+        collapsed,
+        selected,
+    }];
+    let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
+    let mut hits = Vec::new();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                frame.area(),
+                &tabs,
+                &Theme::rgb_test_dark(),
+                "Unnamed group",
+                GroupInteractions::new(
+                    &mut (),
+                    &mut |_, _, _, _| crate::tui_pointer::ProjectedPointer::Rest,
+                    &mut |_, index, header, rect| {
+                        hits.push((index, header, usize::from(rect.x), usize::from(rect.width)))
+                    },
+                ),
+            )
+        })
+        .unwrap();
+    (terminal.backend().buffer().clone(), hits)
+}
+
+#[test]
+fn checked_and_current_tracks_keep_fixed_member_geometry() {
+    let (unchecked, unchecked_hits) = rendered_group_state(true, false, false);
+    let (checked, checked_hits) = rendered_group_state(true, true, false);
+    let theme = Theme::rgb_test_dark();
+
+    let (_, _, unchecked_x, unchecked_width) = unchecked_hits
+        .iter()
+        .copied()
+        .find(|(_, header, _, _)| !header)
+        .expect("expanded group paints its member");
+    let (_, _, checked_x, checked_width) = checked_hits
+        .iter()
+        .copied()
+        .find(|(_, header, _, _)| !header)
+        .expect("expanded group paints its member");
+    assert_eq!(unchecked_width, checked_width);
+    let unchecked_x = u16::try_from(unchecked_x).unwrap();
+    let checked_x = u16::try_from(checked_x).unwrap();
+    assert_eq!(unchecked[(unchecked_x, 0)].symbol(), " ");
+    assert_eq!(checked[(checked_x, 0)].symbol(), "*");
+    assert_eq!(
+        unchecked[(unchecked_x + 2, 0)].symbol(),
+        theme.glyphs.active_marker
+    );
+    assert_eq!(
+        checked[(checked_x + 2, 0)].symbol(),
+        theme.glyphs.active_marker
+    );
+    assert_eq!(
+        checked[(checked_x, 0)].fg,
+        theme.color(crate::tui_theme::Role::AccentSelection)
+    );
+}
+
+#[test]
+fn collapsed_group_reserves_the_current_marker_track() {
+    let (inactive, inactive_hits) = rendered_group_state(false, false, true);
+    let (active, active_hits) = rendered_group_state(true, false, true);
+    let theme = Theme::rgb_test_dark();
+
+    assert_eq!(inactive_hits, active_hits);
+    assert_eq!(inactive[(1, 0)].symbol(), " ");
+    assert_eq!(active[(1, 0)].symbol(), theme.glyphs.active_marker);
+    assert_eq!(inactive[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
+    assert_eq!(active[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
+}
+
+#[test]
+fn pointer_surfaces_preserve_group_color_and_member_checked_current_tracks() {
+    use crate::{
+        tui_pointer::ProjectedPointer,
+        tui_theme::{Role, Theme},
+    };
+
+    let group = TabGroup {
+        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
+        label: "Group".into(),
+        color: TabGroupColor::Blue,
+    };
+    let tabs = [GroupTabDisplay {
+        tab: TabDisplay {
+            position: 1,
+            active: true,
+            label: "member".into(),
+        },
+        group: Some(&group),
+        collapsed: false,
+        selected: true,
+    }];
+    let theme = Theme::rgb_test_dark();
+
+    for (header_target, pointer, role) in [
+        (true, ProjectedPointer::Hovered, Role::SurfaceHover),
+        (false, ProjectedPointer::Pressed, Role::SurfacePressed),
+    ] {
+        let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
+        let mut tokens = Vec::new();
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    frame.area(),
+                    &tabs,
+                    &theme,
+                    "Unnamed group",
+                    GroupInteractions::new(
+                        &mut (),
+                        &mut |_, _, header, _| {
+                            if header == header_target {
+                                pointer
+                            } else {
+                                ProjectedPointer::Rest
+                            }
+                        },
+                        &mut |_, index, header, rect| tokens.push((index, header, rect)),
+                    ),
+                )
+            })
+            .unwrap();
+
+        let target = tokens
+            .iter()
+            .find(|(_, header, _)| *header == header_target)
+            .expect("the targeted group token is painted")
+            .2;
+        let buffer = terminal.backend().buffer();
+        assert_eq!(buffer[(target.x, target.y)].bg, theme.color(role));
+        if header_target {
+            assert_eq!(
+                buffer[(target.x + 2, target.y)].symbol(),
+                theme.glyphs.disclosure_open
+            );
+            assert_eq!(
+                buffer[(target.x + 2, target.y)].style().fg,
+                theme.tab_group_style(TabGroupColor::Blue).fg
+            );
+        } else {
+            assert_eq!(
+                buffer[(target.x, target.y)].symbol(),
+                theme.glyphs.active_marker
+            );
+            assert_eq!(
+                buffer[(target.x + 2, target.y)].symbol(),
+                theme.glyphs.active_marker
+            );
+            assert_eq!(
+                buffer[(target.x, target.y)].fg,
+                theme.color(Role::AccentSelection)
+            );
         }
     }
 }

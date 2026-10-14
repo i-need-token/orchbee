@@ -773,7 +773,10 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
     assert_eq!(session.status(), TerminalStatus::Connecting);
     let mut client_view = ClientView::new(120);
     let before_feedback = render_native_session(&session, &client_view)?;
-    assert!(before_feedback.contains(" 1 standalone "));
+    assert!(
+        before_feedback.contains("*1 standalone"),
+        "{before_feedback}"
+    );
     assert!(before_feedback.contains("Tab 1 · Connecting"));
     assert!(session.startup_draw_ready());
     session.after_draw();
@@ -1059,11 +1062,15 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
         } else {
             render_prefix_session(&session, &view)?
         };
-        assert!(rendered.contains(if unavailable {
-            "Tab moved · Ctrl+B w"
+        if unavailable {
+            assert!(
+                rendered.contains("Tab moved · refresh required"),
+                "{rendered}"
+            );
+            assert!(rendered.contains("Ctrl+b w refresh"), "{rendered}");
         } else {
-            "Tab 2 · Ready · controlling"
-        }));
+            assert!(rendered.contains("Tab 2 · Ready · controlling"));
+        }
         assert!(TerminalInputPort::forward(&mut session, b"still attached").is_ok());
         assert!(spin_with_draw(&mut session, |_| input_seen
             .try_recv()
@@ -2316,20 +2323,31 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
         }
         let mut client_view = ClientView::new(120);
         let rendered = render_native_session(&session, &client_view)?;
-        assert!(rendered.contains(" 1 standalone "));
-        let rendered = render_prefix_session(&session, &client_view)?;
-        assert!(rendered.contains(if controlling {
+        assert!(rendered.contains("*1 standalone"), "{rendered}");
+        if !controlling {
+            assert!(rendered.contains("Tab 1 · Ready · view only"), "{rendered}");
+            #[cfg(windows)]
+            assert!(rendered.contains("Ctrl+b t take control"), "{rendered}");
+            #[cfg(not(windows))]
+            assert!(!rendered.contains("Ctrl+b t"), "{rendered}");
+        }
+        let prefixed = render_prefix_session(&session, &client_view)?;
+        assert!(prefixed.contains(if controlling {
             "Tab 1 · Ready · controlling"
         } else {
-            if cfg!(windows) {
-                "Tab 1 · Ready · view only · Ctrl+B t to take control"
-            } else {
-                "Tab 1 · Ready · view only"
-            }
+            "Tab 1 · Ready · view only"
         }));
         open_navigator(&mut client_view);
         let navigator = render_native_session(&session, &client_view)?;
-        assert!(navigator.contains("[*1] standalone"));
+        assert!(navigator.contains("* 1 standalone"), "{navigator}");
+        assert!(
+            navigator.contains("Navigator · Esc return · Enter open"),
+            "{navigator}"
+        );
+        assert!(
+            navigator.contains("Esc / Ctrl+b w return · Enter open"),
+            "{navigator}"
+        );
         session.observe_geometry(changed_geometry);
         if controlling {
             assert!(spin_with_draw(&mut session, |_session| {

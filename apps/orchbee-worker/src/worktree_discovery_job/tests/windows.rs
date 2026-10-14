@@ -93,17 +93,23 @@ fn native_pipes_preserve_raw_bytes_and_nonzero_exit() {
 fn native_cancel_timeout_and_busy_release_the_exact_children() {
     for cancel in [false, true] {
         let slot = WorktreeDiscoverySlot::new();
+        let (reached, observe_reached) = std::sync::mpsc::sync_channel(0);
+        let (release, await_release) = std::sync::mpsc::sync_channel(0);
         let witness = Arc::new(Mutex::new(JobWitness::default()));
         let mut cmds = commands("Start-Sleep -Seconds 30", "exit 0");
         cmds.test_hooks = Some(TestHooks {
             faults: Faults::default(),
             witness: Arc::clone(&witness),
+            after_spawn: Some(AfterSpawnBarrier {
+                reached,
+                release: await_release,
+            }),
         });
         start(&slot, 1, Duration::from_millis(1500), cmds);
-        let until = Instant::now() + Duration::from_secs(2);
-        while witness.lock().unwrap().spawned.is_empty() && Instant::now() < until {
-            thread::sleep(POLL_SLICE);
-        }
+        observe_reached
+            .recv_timeout(Duration::from_secs(2))
+            .expect("the owned child must reach the admission barrier");
+        assert_eq!(witness.lock().unwrap().spawned.len(), 1);
         assert_eq!(
             slot.start_with(
                 id(2),
@@ -116,6 +122,9 @@ fn native_cancel_timeout_and_busy_release_the_exact_children() {
         if cancel {
             assert_eq!(slot.cancel(id(1)), CancelOutcome::Registered);
         }
+        release
+            .send(())
+            .expect("the admitted owner must retain its release receiver");
         assert_eq!(
             settle(&slot, 1),
             if cancel {
@@ -143,6 +152,7 @@ fn explicit_stop_cancels_and_settles_owned_child_and_refuses_unknown_cleanup() {
     cmds.test_hooks = Some(TestHooks {
         faults: Faults::default(),
         witness: Arc::clone(&witness),
+        after_spawn: None,
     });
     start(&slot, 1, Duration::from_secs(15), cmds);
     let until = Instant::now() + Duration::from_secs(3);
@@ -213,6 +223,7 @@ fn native_output_limits_and_failure_cleanup_are_bounded() {
         cmds.test_hooks = Some(TestHooks {
             faults,
             witness: Arc::clone(&witness),
+            after_spawn: None,
         });
         start(&slot, 3, Duration::from_secs(10), cmds);
         assert_eq!(

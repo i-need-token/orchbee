@@ -1,11 +1,14 @@
-use super::tab_close::{modal_area, wrapped_text_fits};
+use super::modal::{
+    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+};
 use crate::{
+    client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_session::{
         ModalPresentation, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
     },
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::{Role, Theme},
+    tui_theme::Theme,
 };
 use ratatui::{
     Frame,
@@ -19,6 +22,12 @@ pub(super) struct PanelModalDraw {
     pub(super) prompt: ModalPresentation<NativePanelCloseConfirmationToken>,
 }
 
+struct PreparedContent<'a> {
+    text: Text<'a>,
+    hints: &'a [super::controls::KeyHint<'a>],
+    actions: [ModalAction<'a>; 2],
+}
+
 pub(super) fn render(
     frame: &mut Frame<'_>,
     locale: Locale,
@@ -27,7 +36,6 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> PanelModalDraw {
-    hits.start_modal();
     let text = confirmation_text(
         locale,
         confirmation.panel_position(),
@@ -36,54 +44,101 @@ pub(super) fn render(
         confirmation.tab_label(),
         confirmation.dissolves_tab(),
     );
-    let (area, complete) = render_content(
+    let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
+    let confirm = modal_key_label(theme, &Binding::new(KeyCode::Char('y'), Modifiers::NONE));
+    let hints = [
+        super::controls::KeyHint::new(&escape, locale.panel_close_cancel_hint()),
+        super::controls::KeyHint::new(&confirm, locale.panel_close_confirm_hint()),
+    ];
+    let actions = [
+        ModalAction::new(
+            locale.panel_close_cancel_label(),
+            super::controls::ActionKind::Secondary,
+            true,
+        ),
+        ModalAction::new(
+            locale.panel_close_confirm_label(),
+            super::controls::ActionKind::Primary,
+            true,
+        ),
+    ];
+    render_prepared(
         frame,
+        confirmation.token(),
         content_area,
-        locale.panel_close_resize_hint(),
-        text.clone(),
+        PreparedContent {
+            text,
+            hints: &hints,
+            actions,
+        },
         theme,
+        hits,
+    )
+}
+
+fn render_prepared(
+    frame: &mut Frame<'_>,
+    token: NativePanelCloseConfirmationToken,
+    content_area: Rect,
+    content: PreparedContent<'_>,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> PanelModalDraw {
+    let PreparedContent {
+        text,
+        hints,
+        actions,
+    } = content;
+    let Some(layout) = modal_layout(frame.area(), content_area, &text, hints, actions, theme)
+    else {
+        return PanelModalDraw {
+            area: Rect::default(),
+            prompt: ModalPresentation::NotPresented,
+        };
+    };
+
+    hits.start_modal();
+    frame.render_widget(Clear, layout.area);
+    frame.render_widget(
+        super::overlay_surface(theme, true, Padding::horizontal(2)),
+        layout.area,
     );
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    if let Some(close) = super::controls::close(frame, area, theme) {
-        hits.record(
-            HitLayer::Overlay,
-            close,
-            HitTarget::PanelClose {
-                token: confirmation.token(),
-                confirm: false,
-            },
+    frame.render_widget(
+        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        layout.inner,
+    );
+    paint_modal_close(
+        frame,
+        layout.close,
+        HitTarget::PanelClose {
+            token,
+            confirm: false,
+        },
+        theme,
+        hits,
+    );
+    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, hints, theme)
+        .expect("admitted modal hints must paint");
+    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
+    for ((rect, action), confirm) in layout.actions.into_iter().zip(actions).zip([false, true]) {
+        paint_modal_action(
+            frame,
+            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
+            rect,
+            action,
+            HitTarget::PanelClose { token, confirm },
+            theme,
+            hits,
         );
     }
-    if complete {
-        let inner = super::overlay_surface(theme, true, Padding::horizontal(2)).inner(area);
-        if let Some(buttons) = super::controls::pair(
-            frame,
-            super::controls::text_row(&text, inner, text.lines.len() - 1),
-            [
-                locale.workspace_close_cancel_button(),
-                locale.workspace_close_confirm_button(),
-            ],
-            theme,
-        ) {
-            for (rect, confirm) in buttons.into_iter().zip([false, true]) {
-                hits.record(
-                    HitLayer::Overlay,
-                    rect,
-                    HitTarget::PanelClose {
-                        token: confirmation.token(),
-                        confirm,
-                    },
-                );
-            }
-        }
-    }
+    hits.record(
+        HitLayer::OverlaySurface,
+        layout.area,
+        HitTarget::OverlaySurface,
+    );
     PanelModalDraw {
-        area,
-        prompt: if complete {
-            ModalPresentation::Presented(confirmation.token())
-        } else {
-            ModalPresentation::NotPresented
-        },
+        area: layout.area,
+        prompt: ModalPresentation::Presented(token),
     }
 }
 
@@ -105,45 +160,39 @@ fn confirmation_text(
         Line::from(""),
         Line::from(locale.panel_close_warning(dissolves_tab)),
         Line::from(""),
-        Line::from(format!(
-            "{}  {}",
-            locale.workspace_close_cancel_button(),
-            locale.workspace_close_confirm_button()
-        )),
+        Line::from(""),
+        Line::from(""),
     ])
 }
 
-/// A panel close can only be confirmed while its complete warning text fit the
-/// draw inside the unified content area: a clipped or unplaceable modal
-/// renders the resize hint and yields a `NotPresented` outcome.
+/// Test seam for the same atomic geometry admission and paint used by the
+/// production panel-close compositor.
+#[cfg(test)]
 fn render_content(
     frame: &mut Frame<'_>,
     content_area: Rect,
-    resize_hint: &str,
     text: Text<'_>,
+    hints: &[super::controls::KeyHint<'_>],
+    actions: [ModalAction<'_>; 2],
     theme: &Theme,
 ) -> (Rect, bool) {
-    let area = modal_area(content_area, &text);
-    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
-    let inner = block.inner(area);
-    let complete = wrapped_text_fits(&text, inner)
-        && text
-            .lines
-            .last()
-            .is_some_and(|line| line.width() <= usize::from(inner.width));
-    frame.render_widget(Clear, area);
-    frame.render_widget(block, area);
-    if complete {
-        frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), inner);
-    } else {
-        frame.render_widget(
-            Paragraph::new(resize_hint)
-                .style(theme.style(Role::StatusWarning))
-                .wrap(Wrap { trim: false }),
-            inner,
-        );
-    }
-    (area, complete)
+    let mut hits = HitMapBuilder::new();
+    let draw = render_prepared(
+        frame,
+        NativePanelCloseConfirmationToken::for_test(0),
+        content_area,
+        PreparedContent {
+            text,
+            hints,
+            actions,
+        },
+        theme,
+        &mut hits,
+    );
+    (
+        draw.area,
+        matches!(draw.prompt, ModalPresentation::Presented(_)),
+    )
 }
 
 #[cfg(test)]

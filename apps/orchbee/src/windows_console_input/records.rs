@@ -3,19 +3,21 @@
 //! includes the ESC characters in ConPTY bracketed-paste delimiters.
 use super::{Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind, encode};
 use crossterm::event::{KeyEvent, MouseEvent};
-use crossterm_winapi::{
-    ButtonState, Console, ControlKeyState, EventFlags, Handle, HandleType, InputRecord,
-    ScreenBuffer,
-};
+use orchbee_windows_console_host::{ConsoleInput, ConsoleOutput, InputRecord};
 use std::{
     fmt, io,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 const BURST: usize = 4096;
+const MOUSE_MOVED: u32 = 0x0001;
+const DOUBLE_CLICK: u32 = 0x0002;
+const MOUSE_WHEELED: u32 = 0x0004;
+const MOUSE_HWHEELED: u32 = 0x0008;
 
 pub(crate) struct Reader {
-    console: Console,
+    source: NativeRecordSource,
     codec: Codec,
     pending: Option<Pending>,
 }
@@ -25,12 +27,12 @@ impl fmt::Debug for Reader {
     }
 }
 impl Reader {
-    pub(crate) fn new() -> io::Result<Self> {
-        Ok(Self {
-            console: Console::from(Handle::new(HandleType::InputHandle)?),
+    pub(crate) fn new(input: Arc<ConsoleInput>, output: Arc<ConsoleOutput>) -> Self {
+        Self {
+            source: NativeRecordSource { input, output },
             codec: Codec::default(),
             pending: None,
-        })
+        }
     }
     pub(crate) fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>> {
         self.next_input_until(timeout, || false)
@@ -42,7 +44,7 @@ impl Reader {
         interrupted: impl FnMut() -> bool,
     ) -> io::Result<Option<Vec<u8>>> {
         collect_input(
-            &mut self.console,
+            &mut self.source,
             &mut self.codec,
             &mut self.pending,
             timeout,
@@ -51,10 +53,16 @@ impl Reader {
     }
 }
 
+struct NativeRecordSource {
+    input: Arc<ConsoleInput>,
+    output: Arc<ConsoleOutput>,
+}
+
 // Isolate console readiness and waiting so the same bounded read loop can be
 // exercised with a controlled clock, without opening a native console window.
 trait RecordSource {
     fn read_ready(&mut self) -> io::Result<Option<InputRecord>>;
+    fn window_origin(&self) -> io::Result<(i16, i16)>;
     fn now(&self) -> Instant {
         Instant::now()
     }
@@ -63,14 +71,16 @@ trait RecordSource {
     }
 }
 
-impl RecordSource for Console {
+impl RecordSource for NativeRecordSource {
     fn read_ready(&mut self) -> io::Result<Option<InputRecord>> {
-        if self.number_of_console_input_events()? == 0 {
-            return Ok(None);
-        }
-        // This inherited terminal's single reader owns every record. Readiness
-        // cannot race another console input consumer.
-        self.read_single_input_event().map(Some)
+        // No other application-owned reader races this endpoint. External OS
+        // aliases remain outside that single-reader guarantee.
+        self.input.read_ready_record()
+    }
+
+    fn window_origin(&self) -> io::Result<(i16, i16)> {
+        let window = self.output.window_info()?;
+        Ok((window.left, window.top))
     }
 }
 
@@ -108,7 +118,12 @@ fn collect_input(
             continue;
         };
         work.get_or_insert(observed_at + Duration::from_millis(4));
-        *pending = codec.record(record)?;
+        let window_origin = if matches!(&record, InputRecord::Mouse(_)) {
+            Some(source.window_origin()?)
+        } else {
+            None
+        };
+        *pending = codec.record(record, window_origin)?;
     }
     Ok((!output.is_empty()).then_some(output))
 }
@@ -146,31 +161,40 @@ struct Codec {
     buttons: u8,
 }
 impl Codec {
-    fn record(&mut self, record: InputRecord) -> io::Result<Option<Pending>> {
+    fn record(
+        &mut self,
+        record: InputRecord,
+        window_origin: Option<(i16, i16)>,
+    ) -> io::Result<Option<Pending>> {
         let mut bytes = Vec::new();
         match record {
-            InputRecord::KeyEvent(key) => {
+            InputRecord::Key(key) => {
                 return Ok(self.key(
                     key.virtual_key_code,
-                    key.u_char,
+                    key.utf16_unit,
                     key.key_down,
                     key.repeat_count,
                     modifiers(key.control_key_state),
-                    key.control_key_state.has_state(1) && key.control_key_state.has_state(12),
+                    key.control_key_state & 1 != 0 && key.control_key_state & 12 != 0,
                 ));
             }
-            InputRecord::FocusEvent(focus) => encode(
-                if focus.set_focus {
+            InputRecord::Focus(focused) => encode(
+                if focused {
                     Event::FocusGained
                 } else {
                     Event::FocusLost
                 },
                 &mut bytes,
             ),
-            InputRecord::MouseEvent(mouse) => {
-                let window = ScreenBuffer::current()?.info()?.terminal_window();
-                let x = i32::from(mouse.mouse_position.x) - i32::from(window.left);
-                let y = i32::from(mouse.mouse_position.y) - i32::from(window.top);
+            InputRecord::Mouse(mouse) => {
+                let (left, top) = window_origin.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "console mouse record is missing its output-window origin",
+                    )
+                })?;
+                let x = i32::from(mouse.x) - i32::from(left);
+                let y = i32::from(mouse.y) - i32::from(top);
                 let (Ok(column), Ok(row)) = (u16::try_from(x), u16::try_from(y)) else {
                     return Ok(None);
                 };
@@ -182,7 +206,8 @@ impl Codec {
                     modifiers(mouse.control_key_state),
                 ));
             }
-            _ => {}
+            InputRecord::Resize { .. } | InputRecord::Menu { .. } | InputRecord::Unknown { .. } => {
+            }
         }
         Ok(Pending::new(bytes, 1))
     }
@@ -190,14 +215,14 @@ impl Codec {
         &mut self,
         column: u16,
         row: u16,
-        button_state: ButtonState,
-        event_flags: EventFlags,
+        button_state: u32,
+        event_flags: u32,
         mods: KeyModifiers,
     ) -> Option<Pending> {
         let mut bytes = Vec::new();
-        let current = u8::from(button_state.left_button())
-            | (u8::from(button_state.middle_button()) << 1)
-            | (u8::from(button_state.right_button()) << 2);
+        let current = u8::from(button_state & 1 != 0)
+            | (u8::from(button_state & 4 != 0) << 1)
+            | (u8::from(button_state & (2 | 8 | 16) != 0) << 2);
         let mut emit = |kind| {
             encode(
                 Event::Mouse(MouseEvent {
@@ -210,7 +235,7 @@ impl Codec {
             )
         };
         match event_flags {
-            EventFlags::PressOrRelease | EventFlags::DoubleClick => {
+            0 | DOUBLE_CLICK => {
                 for (bit, button) in [
                     (1, MouseButton::Left),
                     (2, MouseButton::Middle),
@@ -225,7 +250,7 @@ impl Codec {
                     }
                 }
             }
-            EventFlags::MouseMoved => emit(if current != 0 {
+            MOUSE_MOVED => emit(if current != 0 {
                 MouseEventKind::Drag(if current & 1 != 0 {
                     MouseButton::Left
                 } else if current & 2 != 0 {
@@ -235,16 +260,16 @@ impl Codec {
                 })
             } else {
                 // Preserve button-free Win32 mouse records as SGR any-motion
-                // input. The dispatcher owns whether a current menu lease
-                // consumes the motion.
+                // input. The dispatcher owns whether admitted global
+                // any-motion observation may consume it.
                 MouseEventKind::Moved
             }),
-            EventFlags::MouseWheeled => emit(if button_state.scroll_down() {
+            MOUSE_WHEELED => emit(if (button_state as i32) < 0 {
                 MouseEventKind::ScrollDown
             } else {
                 MouseEventKind::ScrollUp
             }),
-            EventFlags::MouseHwheeled => emit(if button_state.scroll_left() {
+            MOUSE_HWHEELED => emit(if (button_state as i32) < 0 {
                 MouseEventKind::ScrollLeft
             } else {
                 MouseEventKind::ScrollRight
@@ -339,15 +364,15 @@ impl Codec {
         Pending::new(bytes, if is_prefix { 1 } else { repeat.max(1) })
     }
 }
-fn modifiers(state: ControlKeyState) -> KeyModifiers {
+fn modifiers(state: u32) -> KeyModifiers {
     let mut mods = KeyModifiers::NONE;
-    if state.has_state(0x10) {
+    if state & 0x10 != 0 {
         mods |= KeyModifiers::SHIFT;
     }
-    if state.has_state(3) {
+    if state & 3 != 0 {
         mods |= KeyModifiers::ALT;
     }
-    if state.has_state(12) {
+    if state & 12 != 0 {
         mods |= KeyModifiers::CONTROL;
     }
     mods

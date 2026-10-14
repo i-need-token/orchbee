@@ -83,9 +83,19 @@ fn agent(context: NativeContextTarget, number: u64) -> crate::machine_agents::Ro
 }
 
 fn observe_agents(picker: &mut Picker, rows: Vec<crate::machine_agents::Row>) {
+    observe_agents_at(picker, rows, 1);
+}
+
+fn observe_agents_at(
+    picker: &mut Picker,
+    rows: Vec<crate::machine_agents::Row>,
+    report_revision: u64,
+) {
     let mut checkpoint = crate::machine_agents::tests::checkpoint(rows)
         .as_ref()
         .clone();
+    checkpoint.report_revision =
+        orchbee_workbench_protocol::WorkbenchRevision::new(report_revision);
     checkpoint.site_id = SiteId::parse(&format!("{:032x}", 9)).unwrap();
     checkpoint.contexts = picker
         .local_contexts
@@ -97,6 +107,229 @@ fn observe_agents(picker: &mut Picker, rows: Vec<crate::machine_agents::Row>) {
         Choice::Local,
         crate::machine_agents::Observation::Ready(std::sync::Arc::new(checkpoint)),
     )]);
+}
+
+#[test]
+fn sidebar_source_tracks_release_semantics_without_focus_scroll_or_copy() {
+    let mut picker = picker();
+    let target = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: workspace(1, 21).target,
+    };
+    let rows = picker.sidebar_navigation_rows();
+    let window =
+        picker.space_window_for_row_gaps(&rows, &vec![1; rows.len()], &vec![0; rows.len()], 3);
+    let source = picker.sidebar_source();
+    let drawn = source
+        .drawn(target.clone(), SidebarPart::Primary, window)
+        .unwrap();
+    assert_eq!(
+        picker.sidebar_activation(&drawn),
+        Some(SidebarActivation::Activate(
+            target.selection().expect("Context selection")
+        ))
+    );
+
+    assert!(picker.enter_sidebar_navigation());
+    assert!(picker.focus_sidebar_target(&target));
+    picker.queue_space_scroll(window, false);
+    assert_eq!(picker.sidebar_source(), source);
+    assert_eq!(
+        picker.sidebar_activation(&drawn),
+        Some(SidebarActivation::Activate(
+            target.selection().expect("Context selection")
+        ))
+    );
+
+    let mut relabeled = vec![
+        context(11),
+        workspace(1, 21),
+        workspace(1, 22),
+        workspace(2, 23),
+    ];
+    relabeled[1].workspace = Some("renamed visible copy".into());
+    relabeled[1].project = Some("renamed project copy".into());
+    picker.observe_local(relabeled);
+    assert_eq!(picker.sidebar_source(), source);
+    assert_eq!(
+        picker.sidebar_activation(&drawn),
+        Some(SidebarActivation::Activate(
+            target.selection().expect("Context selection")
+        ))
+    );
+}
+
+#[test]
+fn sidebar_source_mints_only_live_parts_and_rejects_structurally_stale_release() {
+    let mut picker = picker();
+    let selected_context = workspace(1, 21).target;
+    let agent = agent(selected_context.clone(), 23);
+    observe_agents(&mut picker, vec![agent.clone()]);
+    let context_target = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: selected_context.clone(),
+    };
+    let agent_target = SidebarTarget::Agent {
+        machine: Choice::Local,
+        target: Box::new(agent.target.clone()),
+    };
+    picker.observe_focus(Choice::Local, Some(selected_context), None);
+    let project = picker.sidebar_parent(&context_target).unwrap();
+    let rows = picker.sidebar_navigation_rows();
+    let window =
+        picker.space_window_for_row_gaps(&rows, &vec![1; rows.len()], &vec![0; rows.len()], 10);
+    let source = picker.sidebar_source();
+
+    assert!(
+        source
+            .drawn(project.clone(), SidebarPart::Menu, window)
+            .is_some()
+    );
+    assert!(
+        source
+            .drawn(project.clone(), SidebarPart::Create, window)
+            .is_some()
+    );
+    assert!(
+        source
+            .drawn(context_target.clone(), SidebarPart::Menu, window)
+            .is_some()
+    );
+    assert!(
+        source
+            .drawn(context_target.clone(), SidebarPart::Create, window)
+            .is_none()
+    );
+    assert!(
+        source
+            .drawn(agent_target.clone(), SidebarPart::Menu, window)
+            .is_none()
+    );
+    assert!(source.has_part(&project, SidebarPart::Menu));
+    assert!(source.has_part(&project, SidebarPart::Create));
+    assert!(source.has_part(&context_target, SidebarPart::Menu));
+    assert!(!source.has_part(&context_target, SidebarPart::Create));
+    assert!(!source.has_part(&agent_target, SidebarPart::Menu));
+    let standalone = SidebarTarget::Context {
+        machine: Choice::Local,
+        target: context(11).target,
+    };
+    assert!(
+        source
+            .drawn(standalone, SidebarPart::Menu, window)
+            .is_none()
+    );
+
+    picker.open = true;
+    let covered = picker.sidebar_source();
+    assert!(covered.has_part(&project, SidebarPart::Menu));
+    assert!(covered.has_part(&project, SidebarPart::Create));
+    assert!(
+        covered
+            .drawn(project.clone(), SidebarPart::Menu, window)
+            .is_none(),
+        "surface admission is independent from the semantic control footprint"
+    );
+    picker.open = false;
+
+    let project_primary = source
+        .drawn(project.clone(), SidebarPart::Primary, window)
+        .unwrap();
+    let context_disclosure = source
+        .drawn(context_target.clone(), SidebarPart::Disclosure, window)
+        .unwrap();
+    let agent_primary = source
+        .drawn(agent_target.clone(), SidebarPart::Primary, window)
+        .unwrap();
+    assert!(
+        source
+            .drawn(agent_target, SidebarPart::Disclosure, window)
+            .is_none()
+    );
+    assert_eq!(
+        picker.sidebar_activation(&project_primary),
+        Some(SidebarActivation::ToggleProject(project.clone()))
+    );
+    assert_eq!(
+        picker.sidebar_activation(&context_disclosure),
+        Some(SidebarActivation::ToggleContext(context_target))
+    );
+    assert!(matches!(
+        picker.sidebar_activation(&agent_primary),
+        Some(SidebarActivation::Activate(_))
+    ));
+
+    let mut refreshed = agent;
+    refreshed.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    refreshed.state = orchbee_workbench_protocol::PanelAgentState::Blocked;
+    observe_agents_at(&mut picker, vec![refreshed], 2);
+    assert_eq!(picker.sidebar_source(), source);
+    assert!(matches!(
+        picker.sidebar_activation(&agent_primary),
+        Some(SidebarActivation::Activate(_))
+    ));
+
+    assert!(picker.toggle_sidebar_project(&project));
+    assert!(picker.sidebar_activation(&project_primary).is_none());
+    assert!(picker.sidebar_activation(&context_disclosure).is_none());
+    assert!(picker.sidebar_activation(&agent_primary).is_none());
+}
+
+#[test]
+fn sidebar_fixed_actions_revalidate_their_effect_scope_and_availability() {
+    let mut picker = picker();
+    picker.observe_focus(Choice::Local, Some(workspace(1, 21).target), None);
+    let source = picker.sidebar_source();
+    let new_workspace = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::NewWorkspace);
+    let search = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::Search);
+    let settings = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::Settings);
+    let browse = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::Browse);
+    assert_eq!(
+        picker.sidebar_fixed_activation(&new_workspace),
+        Some(SidebarFixedActivation::NewWorkspace)
+    );
+    assert_eq!(
+        picker.sidebar_fixed_activation(&search),
+        Some(SidebarFixedActivation::Search)
+    );
+    assert_eq!(
+        picker.sidebar_fixed_activation(&settings),
+        Some(SidebarFixedActivation::Settings)
+    );
+    assert_eq!(
+        picker.sidebar_fixed_activation(&browse),
+        Some(SidebarFixedActivation::Browse)
+    );
+
+    picker.observe_focus(Choice::Local, Some(workspace(1, 22).target), None);
+    assert_eq!(
+        picker.sidebar_source(),
+        source,
+        "same-site current movement is not a tree-source change"
+    );
+    assert!(picker.sidebar_fixed_activation(&new_workspace).is_none());
+    assert!(picker.sidebar_fixed_activation(&browse).is_none());
+    assert_eq!(
+        picker.sidebar_fixed_activation(&search),
+        Some(SidebarFixedActivation::Search)
+    );
+    assert_eq!(
+        picker.sidebar_fixed_activation(&settings),
+        Some(SidebarFixedActivation::Settings)
+    );
+
+    let source = picker.sidebar_source();
+    let settings = picker.drawn_sidebar_fixed(&source, SidebarFixedAction::Settings);
+    picker.available = false;
+    assert!(picker.sidebar_fixed_activation(&settings).is_none());
+    let unavailable = picker.sidebar_source();
+    let settings = picker.drawn_sidebar_fixed(&unavailable, SidebarFixedAction::Settings);
+    let search = picker.drawn_sidebar_fixed(&unavailable, SidebarFixedAction::Search);
+    assert_eq!(
+        picker.sidebar_fixed_activation(&settings),
+        Some(SidebarFixedActivation::Settings)
+    );
+    assert!(picker.sidebar_fixed_activation(&search).is_none());
 }
 
 #[test]

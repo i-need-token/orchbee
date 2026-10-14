@@ -3,7 +3,10 @@ use super::*;
 use crate::{
     client_view::SessionActionDisposition,
     tui_layout::{DrawnSidebarWidth, SidebarWidth},
-    tui_pointer::{FrameHitMap, HitLayer, HitMapBuilder, HitTarget},
+    tui_pointer::{
+        FrameHitMap, GlobalChromeAction, HitLayer, HitMapBuilder, HitTarget, InteractionSpec,
+        InteractionTarget, PrimaryContract,
+    },
 };
 use ratatui::layout::Rect;
 
@@ -160,48 +163,110 @@ fn sidebar_width_escape_and_competing_action_cancel_without_changing_preference(
 }
 
 #[test]
-fn sidebar_restore_uses_existing_focus_action_and_acquires_lease_before_mutation() {
-    for fail in [false, true] {
-        let (mut dispatcher, mut view, mut port) = fixture();
-        view.commit(
-            view.decide_action(ClientAction::ToggleBusinessSidebar),
-            SessionActionDisposition::KeepNavigator,
-        );
-        assert_eq!(
-            view.sidebar_surface(),
-            crate::client_view::SidebarSurface::Hidden
-        );
-        dispatcher.set_pointer_capture(&mut view, &mut port, true);
-        let mut hits = HitMapBuilder::new();
-        hits.record(
-            HitLayer::Foreground,
-            Rect::new(100, 39, 8, 1),
-            HitTarget::SidebarRestoreButton,
-        );
-        dispatcher.publish_hit_map(hits.finish());
-        let result = dispatcher.dispatch(
-            &mut view,
-            b"\x1b[<0;101;40Mtail",
-            &mut port,
-            Instant::now(),
-            |_, _| Ok::<bool, io::Error>(false),
-            &mut |request| {
-                if fail && request == ModeRequest::BracketedPaste(true) {
-                    Err(io::Error::other("mode write"))
-                } else {
-                    Ok(())
-                }
-            },
-        );
-        assert_eq!(result.is_err(), fail);
-        assert_eq!(view.machines.sidebar_navigation_active(), !fail);
-        assert_eq!(
-            view.sidebar_surface() == crate::client_view::SidebarSurface::Hidden,
-            fail
-        );
-        assert!(view.machines.request.is_none());
-        assert!(port.bytes.is_empty());
-    }
+fn sidebar_width_focus_loss_rolls_back_and_fences_the_late_release_packet() {
+    let (mut dispatcher, mut view, mut port) = fixture();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher.publish_hit_map(map(&view));
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;30;5M\x1b[<32;51;5M",
+    );
+    assert!(dispatcher.sidebar_width_preview().is_some());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
+    assert!(dispatcher.sidebar_width_preview().is_none());
+    assert_eq!(view.machines.sidebar_width(), SidebarWidth::DEFAULT);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;51;5mtail\x1b[200~paste\x1b[201~\x1b[",
+    );
+    assert_eq!(view.machines.sidebar_width(), SidebarWidth::DEFAULT);
+    assert!(port.bytes.is_empty());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"A");
+    assert!(port.bytes.is_empty());
+    dispatcher.publish_hit_map(map(&view));
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"fresh");
+    assert_eq!(port.bytes, b"fresh");
+}
+
+#[test]
+fn sidebar_restore_uses_the_existing_toggle_on_exact_release() {
+    let (mut dispatcher, mut view, mut port) = fixture();
+    view.commit(
+        view.decide_action(ClientAction::ToggleBusinessSidebar),
+        SessionActionDisposition::KeepNavigator,
+    );
+    assert_eq!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Hidden
+    );
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let rect = Rect::new(100, 39, 8, 1);
+    let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+    hits.record_interaction(
+        HitLayer::Foreground,
+        rect,
+        rect,
+        InteractionTarget::GlobalChrome(GlobalChromeAction::RestoreSidebar),
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+    );
+    dispatcher.publish_hit_map(hits.finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;101;40M");
+    assert_eq!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Hidden,
+        "press only arms the restore control"
+    );
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;101;40mtail",
+    );
+    assert_ne!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Hidden
+    );
+    assert!(!view.machines.sidebar_navigation_active());
+    assert!(view.machines.request.is_none());
+    assert!(port.bytes.is_empty());
+}
+
+#[test]
+fn sidebar_restore_release_revalidates_machine_availability() {
+    let (mut dispatcher, mut view, mut port) = fixture();
+    view.commit(
+        view.decide_action(ClientAction::ToggleBusinessSidebar),
+        SessionActionDisposition::KeepNavigator,
+    );
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let rect = Rect::new(100, 39, 8, 1);
+    let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
+    hits.record_interaction(
+        HitLayer::Foreground,
+        rect,
+        rect,
+        InteractionTarget::GlobalChrome(GlobalChromeAction::RestoreSidebar),
+        InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+    );
+    dispatcher.publish_hit_map(hits.finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;101;40M");
+    view.machines.available = false;
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[<0;101;40mtail",
+    );
+    assert_eq!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Hidden
+    );
+    assert!(port.bytes.is_empty());
 }
 
 #[test]
@@ -271,7 +336,12 @@ fn sidebar_width_end_keeps_packet_input_owned_until_canonical_paint() {
                 })
                 .unwrap();
             dispatcher.publish_hit_map(hits.finish());
-            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;3;40M");
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                b"\x1b[<0;3;40M\x1b[<0;3;40m",
+            );
             assert_eq!(port.settings, 1);
         }
     }

@@ -254,6 +254,16 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
                 for column in [Command::Tabs, Command::Locations] {
                     view.navigator.move_focus(column, 5);
                     view.navigator.move_focus(Command::Last, 5);
+                    let capture = width == 120
+                        && height == 40
+                        && locale == Locale::EnUs
+                        && !remapped
+                        && column == Command::Locations;
+                    let theme = if capture {
+                        crate::tui_theme::Theme::terminal_native()
+                    } else {
+                        crate::tui_theme::Theme::rgb_test_dark()
+                    };
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
                     terminal
@@ -263,11 +273,19 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
                                 &view,
                                 locale,
                                 Some(TerminalSessionView::Native(ui.view())),
-                                &crate::tui_theme::Theme::rgb_test_dark(),
+                                &theme,
                                 &mut hits,
                             );
                         })
                         .unwrap();
+                    if capture {
+                        crate::tui_render::test_capture::capture_screen(
+                            &mut terminal,
+                            "alignment-navigator-locations-en-us-120x40-terminal-native",
+                            locale,
+                            &theme,
+                        );
+                    }
                     let map = hits.finish();
                     let paint = map.navigator_paint().unwrap();
                     assert!(paint.rows.len() < 40);
@@ -281,15 +299,25 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
                         assert!(view.navigator.accepts(row, false));
                     }
                     let mut hit_count = 0;
+                    let mut close_hit_count = 0;
                     for y in 0..height {
                         for x in 0..width {
                             if let Some(HitTarget::NavigatorRow(row)) = map.hit_target_at(x, y) {
                                 assert!(paint.rows.contains(row));
                                 hit_count += 1;
                             }
+                            if matches!(map.hit_target_at(x, y), Some(HitTarget::NavigatorClose(_)))
+                            {
+                                assert_eq!(
+                                    terminal.backend().buffer()[(x, y)].bg,
+                                    theme.color(crate::tui_theme::Role::SurfaceOverlay)
+                                );
+                                close_hit_count += 1;
+                            }
                         }
                     }
                     assert!(hit_count > paint.rows.len());
+                    assert_eq!(close_hit_count, 3);
                     let text: String = terminal
                         .backend()
                         .buffer()
@@ -299,7 +327,7 @@ fn long_navigator_lists_paint_only_complete_scrolled_rows_in_both_locales_and_si
                         .collect();
                     assert!(text.contains("Esc"));
                     assert!(text.contains("Enter"));
-                    assert!(text.contains(if remapped { "Ctrl+A w" } else { "Ctrl+B w" }));
+                    assert!(text.contains(if remapped { "Ctrl+a w" } else { "Ctrl+b w" }));
                     assert!(text.contains(if column == Command::Tabs {
                         "20/20"
                     } else {

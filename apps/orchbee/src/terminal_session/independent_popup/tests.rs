@@ -220,7 +220,14 @@ fn popup_lane_trace(editor: bool) -> TestResult {
                             TerminalViewerOutcome::FeedbackAccepted {}
                         }
                         TerminalViewerAction::Detach { .. } => {
-                            assert_eq!(inputs, [b"\x02q".to_vec(), b"hello\nworld".to_vec()]);
+                            assert_eq!(
+                                inputs,
+                                [
+                                    b"\x1b".to_vec(),
+                                    b"\x02q".to_vec(),
+                                    b"hello\nworld".to_vec()
+                                ]
+                            );
                             let response =
                                 ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
                                     request.request_id().clone(),
@@ -359,6 +366,52 @@ fn popup_lane_trace(editor: bool) -> TestResult {
         driver.completion(&operation, true),
         Some(ClientViewCompletionOutcome::PopupOpened { .. })
     ));
+    let escape = DecodedItem {
+        kind: DecodedKind::Key(crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Esc,
+            crate::client_view::Modifiers::NONE,
+        )),
+        raw: b"\x1b".to_vec().into_boxed_slice(),
+        owned: false,
+    };
+    let admitted = driver.input_context().expect("active popup context");
+    assert_eq!(admitted.id(), &operation);
+    assert!(admitted.interactive());
+    let close = driver.view().unwrap().close_target();
+    let stale_close = DrawnPopupClose(WorkbenchRequestId::parse(&id(11))?);
+
+    // The shell supplies an empty surface while its viewport is TooSmall.
+    // That revokes program input without changing the popup incarnation or
+    // replacing the lane's last nonzero desired geometry.
+    driver.observe_surface(
+        Rect::default(),
+        (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
+    );
+    let suspended = driver.input_context().expect("retained popup context");
+    assert_eq!(suspended.id(), &operation);
+    assert!(!suspended.interactive());
+    assert_eq!(driver.identity(), Some(&operation));
+    assert_eq!(
+        *driver
+            .lane
+            .as_ref()
+            .expect("retained popup lane")
+            .resize
+            .lock()
+            .unwrap(),
+        geometry,
+        "an unpaintable surface must not request a zero-sized resize"
+    );
+    driver.input(&operation, &escape);
+
+    driver.observe_surface(
+        area,
+        (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
+    );
+    let resumed = driver.input_context().expect("resumed popup context");
+    assert_eq!(resumed.id(), &operation);
+    assert!(resumed.interactive());
+    driver.input(&operation, &escape);
     driver.enqueue(Input::Bytes(ControlInput::new(b"\x02q".to_vec())?));
     driver.enqueue(Input::Paste(PasteContent::new(b"hello\nworld".to_vec())?));
     driver.observe_surface(area, (2, 3));
@@ -369,7 +422,10 @@ fn popup_lane_trace(editor: bool) -> TestResult {
     );
     wait_until(&mut driver, Driver::input_ready);
     received.recv_timeout(Duration::from_secs(3))?;
-    assert!(driver.begin_close());
+    assert!(!driver.activate_drawn_close(&stale_close));
+    assert!(driver.input_ready());
+    assert!(driver.activate_drawn_close(&close));
+    assert!(!driver.activate_drawn_close(&close));
     assert!(driver.completion(&operation, false).is_none());
     assert!(!driver.input_ready());
     wait_until(&mut driver, |driver| {

@@ -267,7 +267,6 @@ fn divider_preview_emits_over_wide_glyphs_and_restores_visible_underlay() {
     use crate::{
         terminal_text::display_width,
         tui_layout::divide_panes,
-        tui_pointer::HitLayer,
         tui_theme::{Role, Theme},
     };
     use orchbee_workbench_protocol::PanelOrientation;
@@ -363,11 +362,7 @@ fn divider_preview_emits_over_wide_glyphs_and_restores_visible_underlay() {
                     .draw(|frame| *frame.buffer_mut() = underlay.clone())
                     .unwrap();
                 let mut hits = HitMapBuilder::new();
-                hits.record(
-                    HitLayer::Foreground,
-                    target.divider,
-                    HitTarget::Divider(target.clone()),
-                );
+                hits.record_divider(target.clone());
                 let preview = terminal
                     .draw(|frame| {
                         *frame.buffer_mut() = incoming.clone();
@@ -389,18 +384,19 @@ fn divider_preview_emits_over_wide_glyphs_and_restores_visible_underlay() {
                         let cell = &preview[(x, y)];
                         assert_eq!(cell.symbol(), expected, "preview {case} ({x},{y})");
                         assert_eq!(cell.diff_option, CellDiffOption::None);
-                        let original_style = if y == line.y && x >= glyph_x && x < glyph_right {
-                            lead_style
-                        } else {
-                            underlay[(x, y)].style()
-                        };
+                        let mut expected_style =
+                            if y == line.y && intersects && x >= glyph_x && x < glyph_right {
+                                lead_style
+                            } else {
+                                underlay[(x, y)].style()
+                            };
+                        // Preview owns only the divider foreground. The visible
+                        // cell beneath it keeps its background and modifiers,
+                        // including those recovered from a wide-glyph lead.
+                        expected_style.fg = theme.style(Role::FrameDivider).fg;
                         assert_eq!(
                             cell.style(),
-                            original_style.patch(
-                                theme
-                                    .style(Role::AccentSelection)
-                                    .add_modifier(Modifier::BOLD)
-                            ),
+                            expected_style,
                             "preview style {case} ({x},{y})"
                         );
                         assert!(

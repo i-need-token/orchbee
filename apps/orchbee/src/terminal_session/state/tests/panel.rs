@@ -12,6 +12,7 @@ use crate::terminal_session::state::panel::{
     PanelResult, PendingPanelCommit,
 };
 use crate::terminal_session::state::panel_close::PanelCloseStateError;
+use crate::tui_presentation::GeometrySettlement;
 use orchbee_workbench_protocol::{
     WorkbenchCommandUnavailableReason, WorkbenchPanelSplitDirection, WorkbenchRejectionReason,
     WorkbenchSnapshotOutcome, WorkbenchSnapshotUnavailableReason, WorkbenchTabMoveDirection,
@@ -2340,17 +2341,50 @@ fn last_leaf_nature_change_stales_the_armed_panel_close() {
     assert!(state.invariant_holds());
 }
 
-/// A draw receipt reporting the confirmation could not be presented cancels
-/// the capture with the bounded notice; nothing may confirm what was never
-/// fully shown.
+/// A new confirmation that cannot complete its first paint is refused without
+/// being mislabeled as an explicit cancellation.
 #[test]
-fn unpresentable_panel_close_draw_cancels_with_notice() {
+fn first_unpresentable_panel_close_draw_is_refused() {
     let mut state = split_ready();
     assert!(state.open_panel_close_confirmation().is_ok());
-    state.settle_panel_close_not_presented();
+    assert_eq!(
+        state.settle_panel_close_not_presented(),
+        Some(GeometrySettlement::Refused)
+    );
     assert!(state.view().panel_close_confirmation().is_none());
-    assert_eq!(state.notice, Some(SessionNotice::ConfirmationCancelled));
-    state.settle_panel_close_not_presented();
+    assert_eq!(state.notice, None);
+    assert_eq!(state.settle_panel_close_not_presented(), None);
+    assert!(state.invariant_holds());
+}
+
+#[test]
+fn presented_panel_close_confirmation_suspends_and_resumes() {
+    let mut state = split_ready();
+    assert!(state.open_panel_close_confirmation().is_ok());
+    let token = state.view().panel_close_confirmation().unwrap().token();
+    state.acknowledge_panel_close_draw(Some(token));
+    assert!(
+        state
+            .view()
+            .panel_close_confirmation()
+            .unwrap()
+            .interactive()
+    );
+    assert_eq!(
+        state.settle_panel_close_not_presented(),
+        Some(GeometrySettlement::Suspended)
+    );
+    let suspended = state.view().panel_close_confirmation().unwrap();
+    assert_eq!(suspended.token(), token);
+    assert!(!suspended.interactive());
+    state.acknowledge_panel_close_draw(Some(token));
+    assert!(
+        state
+            .view()
+            .panel_close_confirmation()
+            .unwrap()
+            .interactive()
+    );
     assert!(state.invariant_holds());
 }
 

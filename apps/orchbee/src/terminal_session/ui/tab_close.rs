@@ -1,4 +1,6 @@
 use super::{NativePanelCloseConfirmationToken, NativeSessionView, NativeUi};
+#[cfg(windows)]
+use crate::terminal_session::state::TabCloseResumePermit;
 use crate::terminal_session::state::{CloseConfirmationView, CloseStatusView};
 use crate::{
     client_view::{ClientKey, SessionActionDisposition},
@@ -15,11 +17,13 @@ pub(crate) use crate::terminal_session::state::{
     CloseStatusKind as NativeCloseStatusKind, CloseStatusToken as NativeCloseStatusToken,
 };
 
-/// The renderer's typed outcome for a modal surface inside the unified content
-/// area: `Presented` when the complete content was drawn and carries the armed
-/// token, `NotPresented` when the offered area could not present it. The UI
-/// settles a `NotPresented` outcome after the draw — rendering never mutates
-/// Session state itself.
+/// The renderer's geometry verdict for one modal surface in a completed draw.
+/// `Presented` proves the complete surface was written. `NotPresented` means
+/// only that the renderer evaluated this surface and the offered geometry could
+/// not present it; the owning UI state decides whether that is a first-draw
+/// refusal or a temporary suspension. An absent receipt means the surface was
+/// absent or covered and revokes draw authority without making a geometry
+/// verdict. Rendering itself never mutates UI state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ModalPresentation<T> {
     Presented(T),
@@ -37,7 +41,7 @@ impl<T> ModalPresentation<T> {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NativeDrawReceipt {
-    settings: Option<ModalPresentation<crate::native_settings::Token>>,
+    settings: Option<ModalPresentation<crate::native_settings::SettingsDraw>>,
     #[cfg(windows)]
     menu: Option<ModalPresentation<crate::action_menu::MenuDraw>>,
     #[cfg(windows)]
@@ -50,14 +54,10 @@ pub(crate) struct NativeDrawReceipt {
     worktree: Option<ModalPresentation<super::WorktreeToken>>,
     panel_prompt: Option<ModalPresentation<NativePanelCloseConfirmationToken>>,
     workspace_prompt: Option<ModalPresentation<super::WorkspaceCloseToken>>,
-    /// The Agent board's painted verdict: `Some` while the board is open —
-    /// `presented` gates its input capture and `viewport_rows` bounds its
-    /// selection window. `None` means the board is closed.
+    /// The Agent board's exact-episode draw verdict. `Presented` carries the
+    /// successful viewport proof; `NotPresented` reports evaluated geometry.
+    /// `None` revokes current proof because the board was absent or covered.
     agent_board: Option<super::AgentBoardDraw>,
-    /// The shortcut-help page the renderer actually presented, reported back
-    /// to the ClientView through the draw receipt so the dispatcher's page
-    /// state settles on the clamped value (render never mutates it).
-    help_page: Option<usize>,
     attention: Option<crate::terminal_session::agent_attention::NativeAgentAttentionDraw>,
     #[cfg(windows)]
     graphics: Vec<crate::terminal_session::PaneGraphicsDraw>,
@@ -66,7 +66,7 @@ pub(crate) struct NativeDrawReceipt {
 impl NativeDrawReceipt {
     pub(crate) fn with_settings(
         mut self,
-        draw: Option<ModalPresentation<crate::native_settings::Token>>,
+        draw: Option<ModalPresentation<crate::native_settings::SettingsDraw>>,
     ) -> Self {
         self.settings = draw;
         self
@@ -110,17 +110,7 @@ impl NativeDrawReceipt {
         self.attention = attention;
         self
     }
-    pub(crate) const fn help_page(&self) -> Option<usize> {
-        self.help_page
-    }
-    pub(crate) const fn with_help_page(mut self, help_page: Option<usize>) -> Self {
-        self.help_page = help_page;
-        self
-    }
-    pub(crate) const fn with_agent_board(
-        mut self,
-        agent_board: Option<super::AgentBoardDraw>,
-    ) -> Self {
+    pub(crate) fn with_agent_board(mut self, agent_board: Option<super::AgentBoardDraw>) -> Self {
         self.agent_board = agent_board;
         self
     }
@@ -159,7 +149,6 @@ impl NativeDrawReceipt {
             panel_prompt: None,
             workspace_prompt: None,
             agent_board: None,
-            help_page: None,
             attention: None,
             #[cfg(windows)]
             graphics: Vec::new(),
@@ -218,6 +207,12 @@ impl<'a> NativeCloseConfirmationView<'a> {
     }
     pub(crate) const fn kind(&self) -> NativeCloseConfirmationKind {
         self.inner.kind()
+    }
+    pub(crate) const fn interactive(&self) -> bool {
+        self.inner.interactive()
+    }
+    pub(crate) const fn presentation(&self) -> crate::tui_presentation::PresentationPhase {
+        self.inner.presentation()
     }
     pub(crate) fn resume_status(&self) -> Option<NativeCloseStatusView<'a>> {
         self.inner
@@ -385,28 +380,64 @@ impl NativeUi {
             .state
             .as_ref()
             .and_then(|state| state.view().close_confirmation())
-            .is_some_and(|prompt| prompt.token() == token)
+            .is_some_and(|prompt| prompt.token() == token && prompt.interactive())
         {
-            self.capture_confirmation_key(if confirm {
-                ClientKey::Plain('y')
-            } else {
-                ClientKey::Escape
-            });
+            self.capture_tab_confirmation_key(
+                token,
+                if confirm {
+                    ClientKey::Plain('y')
+                } else {
+                    ClientKey::Escape
+                },
+            );
         }
     }
 
+    #[cfg(test)]
     pub(in crate::terminal_session) fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
-        if self.capture_workspace_close_key(key) {
-            return true;
-        }
-        if self.capture_panel_confirmation_key(key) {
-            return true;
-        }
-        if self
+        if let Some(token) = self
             .state
             .as_ref()
-            .is_none_or(|state| state.view().close_confirmation().is_none())
+            .and_then(NativeSessionState::workspace_close_confirmation)
+            .map(|prompt| prompt.token())
+            && self.capture_workspace_close_key(token, key)
         {
+            return true;
+        }
+        if let Some(token) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.view().panel_close_confirmation())
+            .map(|prompt| prompt.token())
+            && self.capture_panel_confirmation_key(token, key)
+        {
+            return true;
+        }
+        let Some(token) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.view().close_confirmation())
+            .map(|prompt| prompt.token())
+        else {
+            return false;
+        };
+        self.capture_tab_confirmation_key(token, key)
+    }
+
+    pub(in crate::terminal_session) fn capture_tab_confirmation_key(
+        &mut self,
+        expected: NativeCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        let Some((actual, interactive)) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.view().close_confirmation())
+            .map(|prompt| (prompt.token(), prompt.interactive()))
+        else {
+            return false;
+        };
+        if actual != expected {
             return false;
         }
         if self
@@ -414,6 +445,12 @@ impl NativeUi {
             .as_mut()
             .is_some_and(|state| state.settle_stale_close_confirmations())
         {
+            return true;
+        }
+        if !interactive {
+            if key == ClientKey::Escape {
+                self.apply_client_action(crate::client_view::ClientAction::CancelClose);
+            }
             return true;
         }
         match key {
@@ -452,6 +489,27 @@ impl NativeUi {
         };
         if mailbox
             .apply_local_for(state, |state| state.open_tab_close_resume(tab_id))
+            .is_ok()
+        {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
+
+    #[cfg(windows)]
+    pub(super) fn request_tab_close_resume_with_permit(
+        &mut self,
+        tab_id: &orchbee_workbench_protocol::WorkbenchTabId,
+        permit: &TabCloseResumePermit,
+    ) -> SessionActionDisposition {
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if mailbox
+            .apply_local_for(state, |state| {
+                state.open_tab_close_resume_with_permit(tab_id, permit)
+            })
             .is_ok()
         {
             SessionActionDisposition::DismissNavigator
@@ -558,7 +616,7 @@ impl NativeUi {
                 receipt.status,
             );
             if matches!(receipt.prompt, Some(ModalPresentation::NotPresented)) {
-                state.settle_close_confirmation_not_presented();
+                let _ = state.settle_close_confirmation_not_presented();
             }
         }
         self.after_panel_close_draw(receipt.panel_prompt);

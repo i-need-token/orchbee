@@ -4,6 +4,7 @@ use crate::{
     localization::Locale,
     terminal_session::TerminalSessionView,
     tui_pointer::{HitMapBuilder, HitTarget},
+    tui_render::test_capture::capture_screen,
     tui_theme::{Role, Theme},
 };
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
@@ -118,7 +119,7 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
     for (width, height) in [(80, 24), (120, 40), (70, 16), (40, 8), (19, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
-                let (mut ui, _mailbox, _, _) = ready_ui();
+                let (mut ui, _mailbox, _, _) = controlling_ui();
                 let key = install_projection(&mut ui, Some((1000, false, 24)), 0);
                 let view = ClientView::new(width);
                 let area = Rect::new(0, 0, width, height);
@@ -277,6 +278,9 @@ fn scrollbar_split_and_zoom_keep_each_thumb_on_its_exact_pane_and_outside_divide
                 };
                 for (key, content) in &panes {
                     fill_frame(&mut ui, key, *content);
+                    let live = projection_at(&mut ui, key).value.frame().unwrap();
+                    assert_eq!(live.geometry.columns, content.width);
+                    assert_eq!(live.geometry.rows, content.height);
                 }
                 if history {
                     let source = ui.view().pane_scrollbar(focus.pane().panel()).unwrap();
@@ -286,6 +290,27 @@ fn scrollbar_split_and_zoom_keep_each_thumb_on_its_exact_pane_and_outside_divide
                 }
                 let theme = Theme::terminal_native();
                 let (buffer, map) = paint(&ui, &view, 120, 40, locale, &theme);
+                if !zoom && history && locale == Locale::EnUs {
+                    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+                    terminal
+                        .draw(|frame| {
+                            crate::tui_render::render_terminal_shell(
+                                frame,
+                                &view,
+                                locale,
+                                Some(TerminalSessionView::Native(ui.view())),
+                                &theme,
+                                &mut HitMapBuilder::new(),
+                            );
+                        })
+                        .unwrap();
+                    capture_screen(
+                        &mut terminal,
+                        "alignment-divider-split-history-120x40-en-terminal-native",
+                        locale,
+                        &theme,
+                    );
+                }
                 let mut actual = 0;
                 for y in 0..40 {
                     for x in 0..120 {
@@ -298,35 +323,57 @@ fn scrollbar_split_and_zoom_keep_each_thumb_on_its_exact_pane_and_outside_divide
                         }
                     }
                 }
-                assert_eq!(
-                    actual,
-                    panes
-                        .iter()
-                        .map(|(_, content)| usize::from(content.height))
-                        .sum::<usize>()
-                );
+                // `ready_split_ui` is deliberately read-only. Its status is an
+                // overlay: the terminal keeps the complete canonical geometry,
+                // while covered gutter cells stop publishing scrollbar targets.
+                let visible_scrollbar_rows = panes
+                    .iter()
+                    .map(|(_, content)| {
+                        let gutter = Rect::new(content.right(), content.y, 1, content.height);
+                        usize::from(
+                            gutter
+                                .height
+                                .saturating_sub(gutter.intersection(areas.status).height),
+                        )
+                    })
+                    .sum::<usize>();
+                assert_eq!(actual, visible_scrollbar_rows);
                 for (key, content) in &panes {
                     let source = ui.view().pane_scrollbar(key.pane().panel()).unwrap();
                     let thumb = source
                         .thumb(Rect::new(content.right(), content.y, 1, content.height))
                         .unwrap();
-                    assert_eq!(
-                        buffer[(thumb.x, thumb.y)].symbol(),
-                        theme.glyphs.scrollbar_thumb
-                    );
-                    assert_eq!(buffer[(content.right() - 1, content.y + 1)].symbol(), "x");
                     let expected_role = if *key == focus {
                         Role::AccentFocus
                     } else {
                         Role::TextSecondary
                     };
-                    assert_eq!(
-                        buffer[(thumb.x, thumb.y)].fg,
-                        theme
-                            .style(expected_role)
-                            .fg
-                            .unwrap_or(ratatui::style::Color::Reset)
-                    );
+                    for y in thumb.y..thumb.bottom() {
+                        let cell = &buffer[(thumb.x, y)];
+                        if areas
+                            .status
+                            .contains(ratatui::layout::Position::new(thumb.x, y))
+                        {
+                            assert_eq!(
+                                map.hit_target_at(thumb.x, y),
+                                Some(&HitTarget::OverlaySurface),
+                                "the read-only status overlays the terminal without resizing it"
+                            );
+                            // The status owner may paint a fact, key, label, or padding here.
+                            // Its role coverage belongs to the status-line tests; this suite
+                            // proves the exact scrollbar occlusion without shrinking geometry.
+                        } else {
+                            assert_eq!(cell.symbol(), theme.glyphs.scrollbar_thumb);
+                            assert_eq!(
+                                cell.fg,
+                                theme
+                                    .style(expected_role)
+                                    .fg
+                                    .unwrap_or(ratatui::style::Color::Reset)
+                            );
+                        }
+                    }
+                    assert_eq!(buffer[(content.right() - 1, content.y + 1)].symbol(), "x");
                     if history && *key == focus {
                         assert!(thumb.y > content.y && thumb.bottom() < content.bottom());
                     } else {

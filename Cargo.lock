@@ -842,7 +842,6 @@ dependencies = [
  "base64",
  "clipboard-win",
  "crossterm",
- "crossterm_winapi",
  "ctrlc",
  "getrandom",
  "jsonschema",
@@ -855,6 +854,7 @@ dependencies = [
  "orchbee-local-site-protocol",
  "orchbee-local-site-runtime",
  "orchbee-terminal-protocol",
+ "orchbee-windows-console-host",
  "orchbee-workbench-protocol",
  "process-wrap",
  "ratatui",
@@ -990,6 +990,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "orchbee-windows-console-host"
+version = "0.1.0"
+dependencies = [
+ "windows",
 ]
 
 [[package]]

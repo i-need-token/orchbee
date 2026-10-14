@@ -4,6 +4,7 @@
 use super::*;
 #[cfg(windows)]
 mod divider;
+mod interaction;
 mod modal;
 #[cfg(windows)]
 mod navigator;
@@ -17,6 +18,8 @@ mod tab_groups;
 
 use orchbee_terminal_protocol::MouseFormat;
 use orchbee_workbench_protocol::WorkbenchPanelId;
+#[cfg(windows)]
+use orchbee_workbench_protocol::WorkbenchRequestId;
 
 #[cfg(windows)]
 use crate::terminal_input::PointerLinkAdmission;
@@ -87,10 +90,11 @@ fn render_sidebar_map(view: &ClientView) -> FrameHitMap {
 
 #[cfg(windows)]
 #[test]
-fn sidebar_gestures_require_exact_plain_left_press_and_obey_capture_and_modals() {
+fn sidebar_gestures_require_exact_plain_release_and_obey_capture_and_modals() {
+    use crate::machine_picker::{SidebarPart, SidebarTarget};
+    use crate::terminal_session::NativeStartupTarget;
+
     for (action, button, mods) in [
-        (MouseAction::Press, MouseButton::Left, Modifiers::NONE),
-        (MouseAction::Press, MouseButton::Right, Modifiers::NONE),
         (MouseAction::Press, MouseButton::Middle, Modifiers::NONE),
         (MouseAction::Release, MouseButton::Left, Modifiers::NONE),
         (MouseAction::Motion, MouseButton::Left, Modifiers::NONE),
@@ -107,10 +111,6 @@ fn sidebar_gestures_require_exact_plain_left_press_and_obey_capture_and_modals()
             .iter()
             .find(|r| matches!(r.target, HitTarget::MachineAgentRow { .. }))
             .unwrap();
-        let selected = match &region.target {
-            HitTarget::MachineAgentRow { selected, .. } => selected.clone(),
-            _ => unreachable!(),
-        };
         let mut input = event(action, button, region.rect.x, region.rect.y);
         input.mods = mods;
         let mut pointer = PointerState::default();
@@ -118,13 +118,8 @@ fn sidebar_gestures_require_exact_plain_left_press_and_obey_capture_and_modals()
         pointer.publish(map.clone());
         let mut port = RecordingPort::default();
         let outcome = pointer.event(&mut view, &mut port, Instant::now(), input);
-        if action == MouseAction::Press && button == MouseButton::Left && mods == Modifiers::NONE {
-            assert_eq!(outcome, PointerOutcome::MachineNavigation);
-            assert_eq!(view.machines.request.take(), Some(selected));
-        } else {
-            assert_eq!(outcome, PointerOutcome::Ignored);
-            assert!(!view.machines.open);
-        }
+        assert_eq!(outcome, PointerOutcome::Ignored);
+        assert!(!view.machines.open);
         assert!(port.actions.is_empty() && port.forwarded.is_empty());
         view.machines.open = false;
         pointer.set_capture(false);
@@ -140,6 +135,58 @@ fn sidebar_gestures_require_exact_plain_left_press_and_obey_capture_and_modals()
         );
         assert!(!view.machines.open);
     }
+
+    let (mut view, map) = sidebar_fixture(2);
+    let region = map
+        .regions
+        .iter()
+        .find(|r| matches!(r.target, HitTarget::MachineAgentRow { .. }))
+        .unwrap();
+    let HitTarget::MachineAgentRow { selected, window } = &region.target else {
+        unreachable!()
+    };
+    let Some(NativeStartupTarget::Agent(agent)) = &selected.context else {
+        unreachable!()
+    };
+    let drawn = view
+        .machines
+        .sidebar_source()
+        .drawn(
+            SidebarTarget::Agent {
+                machine: selected.machine.clone(),
+                target: agent.clone(),
+            },
+            SidebarPart::Primary,
+            *window,
+        )
+        .expect("the rendered Agent row belongs to the same sidebar source");
+    let at = (region.rect.x, region.rect.y);
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(map);
+    let mut port = RecordingPort::default();
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            Instant::now(),
+            event(MouseAction::Press, MouseButton::Left, at.0, at.1),
+        ),
+        PointerOutcome::Handled
+    );
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            Instant::now(),
+            event(MouseAction::Release, MouseButton::Left, at.0, at.1),
+        ),
+        PointerOutcome::Interaction {
+            target: InteractionTarget::Sidebar(drawn),
+            contract: PrimaryContract::ActivateOnRelease,
+        }
+    );
+    assert!(view.machines.request.is_none());
 }
 
 #[cfg(windows)]
@@ -1591,6 +1638,252 @@ fn pane_press_on_reporting_pane_encodes_local_coordinates() {
 }
 
 #[test]
+fn any_tracking_routes_button_free_motion_to_the_exact_focused_pane() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let focused = pane_ref(1, 1, 1, 0);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Any, MouseFormat::Sgr, false)),
+            ..active_probe(0, 0, 1, 1)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, focused);
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Motion, MouseButton::None, 2, 3)
+        ),
+        PointerOutcome::Handled
+    );
+    assert_eq!(port.bytes(), b"\x1b[<35;3;3M");
+    assert!(port.actions.is_empty() && port.selections.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+}
+
+#[test]
+fn fresh_motion_and_release_never_retarget_to_another_pane() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Any, MouseFormat::Sgr, false)),
+            ..active_probe(0, 0, 1, 2)
+        },
+        ..RecordingPort::default()
+    };
+    // The only painted region names panel 2 while panel 1 remains focused.
+    publish_two_panel_map(&mut pointer);
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Motion, MouseButton::None, 2, 3)
+        ),
+        // Button-free motion keeps its scheduling class even when no admitted
+        // pane or chrome owner changes. It still cannot retarget panel 2.
+        PointerOutcome::IdleMotion { changed: false }
+    );
+    for input in [
+        event(MouseAction::Motion, MouseButton::Left, 2, 3),
+        event(MouseAction::Release, MouseButton::Left, 2, 3),
+        event(MouseAction::Release, MouseButton::None, 2, 3),
+    ] {
+        assert_eq!(
+            pointer.event(&mut view, &mut port, now(), input),
+            PointerOutcome::Ignored
+        );
+    }
+    assert!(port.forwarded.is_empty());
+    assert!(port.actions.is_empty() && port.selections.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+
+    // A map for incarnation 0 also cannot redirect stateless Any motion
+    // to incarnation 1 of the same logical pane.
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    publish_focused_map(&mut pointer, pane_ref(1, 1, 1, 0));
+    set_leaf(
+        &mut port.probe,
+        pane_leaf(1, 1, 1, 1, true, Some(true), true),
+    );
+    port.probe.focus = Some(pane_ref(1, 1, 1, 1));
+    port.probe.desired = Some(pane_key(1, 1, 1));
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Motion, MouseButton::None, 2, 3)
+        ),
+        PointerOutcome::IdleMotion { changed: false }
+    );
+    assert!(port.forwarded.is_empty());
+}
+
+#[test]
+fn fresh_gesture_tails_do_not_report_to_the_focused_any_tracking_pane() {
+    let focused = pane_ref(1, 1, 1, 0);
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Any, MouseFormat::Sgr, false)),
+            ..active_probe(0, 0, 1, 1)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, focused);
+
+    for input in [
+        event(MouseAction::Motion, MouseButton::Left, 2, 3),
+        event(MouseAction::Release, MouseButton::Left, 2, 3),
+        event(MouseAction::Release, MouseButton::None, 2, 3),
+    ] {
+        assert_eq!(
+            pointer.event(&mut view, &mut port, now(), input),
+            PointerOutcome::Ignored
+        );
+    }
+    assert!(port.forwarded.is_empty());
+    assert!(port.actions.is_empty() && port.selections.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+}
+
+#[test]
+fn captured_pane_gesture_cleans_up_when_the_new_mode_is_silent() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let focused = pane_ref(1, 1, 1, 0);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false)),
+            ..active_probe(0, 0, 1, 1)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, focused);
+    pointer.event(&mut view, &mut port, now(), press(2, 3));
+    assert!(matches!(pointer.gesture, Gesture::Pane(_)));
+    let press_bytes = port.bytes();
+
+    port.probe.frame.as_mut().unwrap().tracking = MouseTracking::X10;
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Motion, MouseButton::Left, 4, 3)
+        ),
+        PointerOutcome::Handled
+    );
+    assert!(matches!(pointer.gesture, Gesture::Pane(_)));
+    assert_eq!(port.bytes(), press_bytes);
+
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Release, MouseButton::Left, 4, 3)
+        ),
+        PointerOutcome::Handled
+    );
+    assert_eq!(port.bytes(), press_bytes);
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+}
+
+#[test]
+fn x10_wheel_uses_primary_history_without_emitting_program_bytes() {
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let focused = pane_ref(1, 1, 1, 0);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::X10, MouseFormat::Sgr, false)),
+            ..active_probe(0, 0, 1, 1)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, focused.clone());
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Press, MouseButton::WheelUp, 2, 3)
+        ),
+        PointerOutcome::Handled
+    );
+    assert_eq!(port.wheels, [(focused, true)]);
+    assert!(port.forwarded.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+}
+
+#[test]
+fn horizontal_wheel_is_a_one_shot_program_report_or_inert_client_event() {
+    let focused = pane_ref(1, 1, 1, 0);
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    let mut view = ClientView::new(120);
+    let mut port = RecordingPort {
+        probe: PointerProbe {
+            frame: Some(frame_facts(MouseTracking::Normal, MouseFormat::Sgr, false)),
+            ..active_probe(0, 0, 1, 1)
+        },
+        ..RecordingPort::default()
+    };
+    publish_focused_map(&mut pointer, focused.clone());
+
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Press, MouseButton::WheelLeft, 2, 3)
+        ),
+        PointerOutcome::Handled
+    );
+    assert_eq!(port.bytes(), b"\x1b[<66;3;3M");
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+
+    port.forwarded.clear();
+    port.probe.frame.as_mut().unwrap().tracking = MouseTracking::None;
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Press, MouseButton::WheelRight, 2, 3)
+        ),
+        PointerOutcome::Ignored
+    );
+    assert!(port.forwarded.is_empty() && port.wheels.is_empty());
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+
+    port.probe.viewport_non_live = true;
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Press, MouseButton::WheelLeft, 2, 3)
+        ),
+        PointerOutcome::Ignored
+    );
+    assert!(port.forwarded.is_empty() && port.wheels.is_empty());
+}
+
+#[test]
 fn pending_wheel_arrows_stop_when_the_latest_frame_revokes_alternate_scroll() {
     for revoked in 0..4 {
         let mut pointer = PointerState::default();
@@ -2395,124 +2688,128 @@ fn primary_wheel_enters_history_only_over_focused_content_without_shift() {
 }
 
 #[test]
-fn presentation_click_is_exact_unmodified_left_only_and_never_terminal_input() {
+fn presentation_controls_activate_only_on_exact_generic_release() {
     let presentation =
         orchbee_workbench_protocol::TerminalPresentationId::parse(&"9".repeat(32)).unwrap();
-    let expected = pane_ref(1, 1, 1, 0);
-    for scenario in 0..12 {
+    let target = crate::terminal_session::DrawnPresentationTarget::Attached {
+        pane: pane_ref(1, 1, 1, 0),
+        presentation,
+    };
+    let area = Rect::new(4, 2, 3, 1);
+    let paint = |target: crate::terminal_session::DrawnPresentationTarget, area| {
         let mut builder = HitMapBuilder::new();
-        builder.record(
+        builder.record_interaction(
             HitLayer::Foreground,
-            Rect::new(4, 2, 3, 1),
-            HitTarget::Presentation {
-                pane: expected.clone(),
-                presentation: presentation.clone(),
-            },
+            area,
+            area,
+            InteractionTarget::Presentation(target),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
         );
-        if scenario == 8 {
-            builder.mark_overlay_active();
-        }
-        let mut pointer = PointerState::default();
-        pointer.set_capture(scenario != 9);
-        pointer.publish(builder.finish());
-        let mut port = RecordingPort {
-            probe: active_probe(0, 0, 2, 1),
-            ..Default::default()
-        };
-        let mut input = press(5, 2);
-        match scenario {
-            1 => input.action = MouseAction::Release,
-            2 => input.button = MouseButton::Right,
-            3 => input.button = MouseButton::WheelUp,
-            4 => input.mods.shift = true,
-            5 => port.probe.panes[0].record = pane_ref(1, 1, 1, 1),
-            6 => port.probe.desired = Some(pane_key(2, 1, 1)),
-            7 => port.probe.input_captured = true,
-            10 => port.probe.desired = Some(pane_key(1, 2, 11)),
-            11 => port.probe.panes.clear(),
-            _ => {}
-        }
-        let mut view = ClientView::new(120);
-        pointer.event(&mut view, &mut port, now(), input);
-        if scenario == 0 {
-            assert_eq!(
-                port.actions,
-                vec![ClientAction::SelectPresentation {
-                    panel: panel_id(1),
-                    presentation: presentation.clone()
-                }]
-            );
-            pointer.stale_map();
-            assert_eq!(
-                pointer.event(&mut view, &mut port, now(), input),
-                PointerOutcome::Ignored
-            );
-            assert_eq!(port.actions.len(), 1);
-        } else {
-            assert!(port.actions.is_empty(), "scenario {scenario}");
-        }
-        assert!(port.forwarded.is_empty() && port.wheels.is_empty());
-    }
+        builder.finish()
+    };
+
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(paint(target.clone(), area));
+    let mut port = RecordingPort::default();
+    let mut view = ClientView::new(120);
+    assert_eq!(
+        pointer.event(&mut view, &mut port, now(), press(5, 2)),
+        PointerOutcome::Handled,
+    );
+    assert!(port.actions.is_empty());
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Release, MouseButton::Left, 5, 2),
+        ),
+        PointerOutcome::Interaction {
+            target: InteractionTarget::Presentation(target.clone()),
+            contract: PrimaryContract::ActivateOnRelease,
+        },
+    );
+    assert!(port.actions.is_empty() && port.forwarded.is_empty());
+
+    pointer.publish(paint(target.clone(), area));
+    assert_eq!(
+        pointer.event(&mut view, &mut port, now(), press(5, 2)),
+        PointerOutcome::Handled,
+    );
+    let replacement = crate::terminal_session::DrawnPresentationTarget::Attached {
+        pane: pane_ref(1, 1, 1, 1),
+        presentation: target.presentation().clone(),
+    };
+    pointer.publish(paint(replacement, area));
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Release, MouseButton::Left, 5, 2),
+        ),
+        PointerOutcome::InteractionEnded,
+    );
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Release, MouseButton::Left, 5, 2),
+        ),
+        PointerOutcome::Ignored,
+    );
 }
 
 #[test]
-fn unbound_clicks_require_exact_empty_member_and_never_forward_input() {
+fn unbound_panel_focus_requires_exact_empty_member_and_never_forwards_input() {
     let id = orchbee_workbench_protocol::TerminalPresentationId::parse(&"8".repeat(32)).unwrap();
-    let destination =
-        orchbee_workbench_protocol::TerminalPresentationId::parse(&"9".repeat(32)).unwrap();
-    for member_arrow in [false, true] {
-        for scenario in 0..7 {
-            let selected = crate::terminal_input::PointerUnboundPane {
-                key: pane_key(1, 1, 1),
-                presentation: id.clone(),
-            };
-            let mut builder = HitMapBuilder::new();
-            builder.record(
-                HitLayer::Foreground,
-                Rect::new(0, 0, 4, 4),
-                HitTarget::Unbound {
-                    selected: selected.clone(),
-                    presentation: member_arrow.then(|| destination.clone()),
-                },
-            );
-            let mut pointer = PointerState::default();
-            pointer.set_capture(true);
-            pointer.publish(builder.finish());
-            let mut port = RecordingPort {
-                probe: PointerProbe {
-                    desired: Some(selected.key.clone()),
-                    unbound: vec![selected],
-                    ..PointerProbe::default()
-                },
-                ..RecordingPort::default()
-            };
-            let mut input = press(1, 1);
-            match scenario {
-                1 => port.probe.unbound.clear(),
-                2 => port.probe.unbound[0].presentation = destination.clone(),
-                3 => port.probe.desired = Some(pane_key(2, 1, 1)),
-                4 => input.button = MouseButton::Right,
-                5 => input.mods = Modifiers::NONE.with_shift(),
-                6 => input.action = MouseAction::Release,
-                _ => {}
+    for scenario in 0..7 {
+        let selected = crate::terminal_input::PointerUnboundPane {
+            key: pane_key(1, 1, 1),
+            presentation: id.clone(),
+        };
+        let mut builder = HitMapBuilder::new();
+        builder.record(
+            HitLayer::Foreground,
+            Rect::new(0, 0, 4, 4),
+            HitTarget::Unbound {
+                selected: selected.clone(),
+                presentation: None,
+            },
+        );
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        pointer.publish(builder.finish());
+        let mut port = RecordingPort {
+            probe: PointerProbe {
+                desired: Some(selected.key.clone()),
+                unbound: vec![selected],
+                ..PointerProbe::default()
+            },
+            ..RecordingPort::default()
+        };
+        let mut input = press(1, 1);
+        match scenario {
+            1 => port.probe.unbound.clear(),
+            2 => {
+                port.probe.unbound[0].presentation =
+                    orchbee_workbench_protocol::TerminalPresentationId::parse(&"9".repeat(32))
+                        .unwrap()
             }
-            pointer.event(&mut ClientView::new(120), &mut port, now(), input);
-            assert_eq!(port.actions.len(), usize::from(scenario == 0));
-            if scenario == 0 {
-                assert_eq!(
-                    port.actions[0],
-                    if member_arrow {
-                        ClientAction::SelectPresentation {
-                            panel: panel_id(1),
-                            presentation: destination.clone(),
-                        }
-                    } else {
-                        ClientAction::FocusPanel(panel_id(1))
-                    }
-                );
-            }
-            assert!(port.forwarded.is_empty() && port.wheels.is_empty());
+            3 => port.probe.desired = Some(pane_key(2, 1, 1)),
+            4 => input.button = MouseButton::Right,
+            5 => input.mods = Modifiers::NONE.with_shift(),
+            6 => input.action = MouseAction::Release,
+            _ => {}
         }
+        pointer.event(&mut ClientView::new(120), &mut port, now(), input);
+        assert_eq!(port.actions.len(), usize::from(scenario == 0));
+        if scenario == 0 {
+            assert_eq!(port.actions[0], ClientAction::FocusPanel(panel_id(1)));
+        }
+        assert!(port.forwarded.is_empty() && port.wheels.is_empty());
     }
 }
 
@@ -2634,62 +2931,66 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
 }
 #[cfg(windows)]
 #[test]
-fn workspace_sidebar_pointer_requires_plain_left_press_and_revalidates_old_duplicate_labels() {
-    for (action, button, mods) in [
-        (MouseAction::Press, MouseButton::Left, Modifiers::NONE),
-        (MouseAction::Press, MouseButton::Right, Modifiers::NONE),
-        (MouseAction::Release, MouseButton::Left, Modifiers::NONE),
-        (MouseAction::Motion, MouseButton::Left, Modifiers::NONE),
-        (MouseAction::Press, MouseButton::Left, Modifiers::CTRL),
-    ] {
-        let (mut view, map) = workspace_fixture(2);
-        let region = map
-            .regions
-            .iter()
-            .find(|r| matches!(r.target, HitTarget::MachineWorkspaceRow { .. }))
-            .unwrap();
-        let exact = match &region.target {
-            HitTarget::MachineWorkspaceRow { selected, .. } => selected.clone(),
-            _ => unreachable!(),
-        };
-        let mut input = event(action, button, region.rect.x, region.rect.y);
-        input.mods = mods;
-        let mut pointer = PointerState::default();
-        pointer.set_capture(true);
-        pointer.publish(map.clone());
-        let mut port = RecordingPort::default();
-        let result = pointer.event(&mut view, &mut port, Instant::now(), input);
-        if action == MouseAction::Press && button == MouseButton::Left && mods == Modifiers::NONE {
-            assert_eq!(result, PointerOutcome::MachineNavigation);
-            assert_eq!(view.machines.request, Some(exact));
-        } else {
-            assert_eq!(result, PointerOutcome::Ignored);
-            assert!(view.machines.request.is_none());
-        }
-        assert!(port.actions.is_empty() && port.bytes().is_empty());
-    }
+fn workspace_sidebar_release_emits_the_exact_drawn_target_without_mutating_navigation() {
+    use crate::machine_picker::{SidebarPart, SidebarTarget};
+    use crate::terminal_session::NativeStartupTarget;
+
     let (mut view, map) = workspace_fixture(2);
     let region = map
         .regions
         .iter()
         .find(|r| matches!(r.target, HitTarget::MachineWorkspaceRow { .. }))
         .unwrap();
-    let input = event(
-        MouseAction::Press,
-        MouseButton::Left,
-        region.rect.x,
-        region.rect.y,
-    );
-    view.machines.observe_local(Vec::new());
+    let HitTarget::MachineWorkspaceRow { selected, window } = &region.target else {
+        unreachable!()
+    };
+    let Some(NativeStartupTarget::Context(context)) = &selected.context else {
+        unreachable!()
+    };
+    let target = SidebarTarget::Context {
+        machine: selected.machine.clone(),
+        target: context.clone(),
+    };
+    let drawn = view
+        .machines
+        .sidebar_source()
+        .drawn(target, SidebarPart::Primary, *window)
+        .expect("the rendered workspace row belongs to the same sidebar source");
+    let at = (region.rect.x, region.rect.y);
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     pointer.publish(map);
     let mut port = RecordingPort::default();
+
     assert_eq!(
-        pointer.event(&mut view, &mut port, Instant::now(), input),
-        PointerOutcome::Ignored
+        pointer.event(
+            &mut view,
+            &mut port,
+            Instant::now(),
+            event(MouseAction::Press, MouseButton::Left, at.0, at.1),
+        ),
+        PointerOutcome::Handled
     );
     assert!(view.machines.request.is_none());
+
+    // Owner state may change after the accepted press. Pointer authority
+    // emits the press-time witness; the central owner must validate it and
+    // can never resolve this release through the newer current selection.
+    view.machines.observe_local(Vec::new());
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            Instant::now(),
+            event(MouseAction::Release, MouseButton::Left, at.0, at.1),
+        ),
+        PointerOutcome::Interaction {
+            target: InteractionTarget::Sidebar(drawn),
+            contract: PrimaryContract::ActivateOnRelease,
+        }
+    );
+    assert!(view.machines.request.is_none());
+    assert!(port.actions.is_empty() && port.bytes().is_empty());
 }
 #[cfg(windows)]
 #[test]
@@ -2729,7 +3030,14 @@ fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remainin
             _ => None,
         })
         .unwrap();
-    assert_eq!(spaces.top, window.maximum);
+    assert_eq!(
+        spaces.top,
+        window
+            .top
+            .saturating_add(window.capacity)
+            .min(window.maximum),
+        "one cadence advances at most one painted workspace window",
+    );
     assert!(pointer.map.is_none());
     pointer.set_capture(false);
     assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
@@ -2789,6 +3097,11 @@ fn selection_survives_output_repaint_and_structural_edges_cancel_exactly_once() 
             },
         )]
     );
+    #[cfg(windows)]
+    {
+        assert!(!pointer.retire_covered_chrome_gesture());
+        assert!(matches!(pointer.gesture, Gesture::Selection(_)));
+    }
 
     // A successful output repaint and its temporary stale-map window keep
     // the press owner and its original geometry.
@@ -3365,27 +3678,58 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
 }
 
 #[cfg(windows)]
+struct PopupPointerPort(Vec<(WorkbenchRequestId, Rect, MouseEvent)>);
+
+#[cfg(windows)]
+impl TerminalInputPort for PopupPointerPort {
+    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        panic!("popup mouse leaked");
+    }
+
+    fn popup_mouse(&mut self, id: &WorkbenchRequestId, rect: Rect, event: MouseEvent) {
+        self.0.push((id.clone(), rect, event));
+    }
+}
+
+#[cfg(windows)]
+fn popup_close_target(id: &WorkbenchRequestId) -> crate::terminal_session::DrawnPopupClose {
+    crate::terminal_session::PopupView {
+        id,
+        title: "Popup",
+        projection: None,
+        width: None,
+        height: None,
+        closing: false,
+    }
+    .close_target()
+}
+
+#[cfg(windows)]
+fn popup_close_map(
+    target: crate::terminal_session::DrawnPopupClose,
+    rect: Rect,
+    availability: InteractionAvailability,
+) -> FrameHitMap {
+    let mut hits = HitMapBuilder::new();
+    hits.mark_overlay_active();
+    hits.record_interaction(
+        HitLayer::Overlay,
+        rect,
+        rect,
+        InteractionTarget::PopupClose(target),
+        InteractionSpec::new(PrimaryContract::ActivateOnRelease, availability),
+    );
+    hits.record(
+        HitLayer::OverlaySurface,
+        Rect::new(0, 0, 80, 30),
+        HitTarget::OverlaySurface,
+    );
+    hits.finish()
+}
+
+#[cfg(windows)]
 #[test]
 fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometry() {
-    use orchbee_workbench_protocol::WorkbenchRequestId;
-    struct Port(Vec<(WorkbenchRequestId, Rect, MouseEvent, bool)>);
-    impl TerminalInputPort for Port {
-        fn forward(
-            &mut self,
-            _: &[u8],
-        ) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
-            panic!("popup mouse leaked");
-        }
-        fn popup_mouse(
-            &mut self,
-            id: &WorkbenchRequestId,
-            rect: Rect,
-            event: MouseEvent,
-            close: bool,
-        ) {
-            self.0.push((id.clone(), rect, event, close));
-        }
-    }
     let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
     let rect = Rect::new(20, 10, 10, 5);
     let mut hits = HitMapBuilder::new();
@@ -3401,7 +3745,7 @@ fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometr
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     pointer.publish(hits.finish());
-    let mut port = Port(Vec::new());
+    let mut port = PopupPointerPort(Vec::new());
     let event = |action, button, column, row| MouseEvent {
         action,
         button,
@@ -3440,7 +3784,7 @@ fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometr
     assert!(
         port.0
             .iter()
-            .all(|(owner, area, _, close)| owner == &id && area == &rect && !close)
+            .all(|(owner, area, _)| owner == &id && area == &rect)
     );
     pointer.popup_event(
         &mut port,
@@ -3453,4 +3797,175 @@ fn popup_mouse_keeps_drag_release_with_the_painted_owner_and_drops_stale_geometr
         event(MouseAction::Press, MouseButton::Left, 21, 11),
     );
     assert_eq!(port.0.len(), 3);
+}
+
+#[cfg(windows)]
+#[test]
+fn popup_close_arms_then_activates_once_on_matching_release() {
+    let id = WorkbenchRequestId::parse(&format!("{:032x}", 41)).unwrap();
+    let target = popup_close_target(&id);
+    let area = Rect::new(70, 2, 3, 1);
+    let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+    let interaction = InteractionTarget::PopupClose(target.clone());
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(popup_close_map(
+        target.clone(),
+        area,
+        InteractionAvailability::Enabled,
+    ));
+    let mut port = PopupPointerPort(Vec::new());
+    let report = |action, column| MouseEvent {
+        action,
+        button: MouseButton::Left,
+        column,
+        row: area.y,
+        mods: Modifiers::NONE,
+    };
+
+    assert_eq!(
+        pointer.popup_event(&mut port, report(MouseAction::Press, area.x + 1)),
+        PointerOutcome::Handled,
+    );
+    let mut repaint = HitMapBuilder::with_pointer(pointer.projection());
+    repaint.mark_overlay_active();
+    assert_eq!(
+        repaint.projected_pointer(HitLayer::Overlay, area, area, &interaction, spec,),
+        ProjectedPointer::Pressed,
+    );
+    pointer.publish(popup_close_map(
+        target.clone(),
+        area,
+        InteractionAvailability::Enabled,
+    ));
+    assert_eq!(
+        pointer.popup_event(&mut port, report(MouseAction::Release, area.x + 1)),
+        PointerOutcome::Interaction {
+            target: interaction,
+            contract: PrimaryContract::ActivateOnRelease,
+        },
+    );
+    assert_eq!(
+        pointer.popup_event(&mut port, report(MouseAction::Release, area.x + 1)),
+        PointerOutcome::Handled,
+    );
+    assert!(port.0.is_empty());
+}
+
+#[cfg(windows)]
+#[test]
+fn popup_close_changed_authority_cleans_up_without_rearming_or_retargeting() {
+    let first_id = WorkbenchRequestId::parse(&format!("{:032x}", 51)).unwrap();
+    let second_id = WorkbenchRequestId::parse(&format!("{:032x}", 52)).unwrap();
+    let first = popup_close_target(&first_id);
+    let second = popup_close_target(&second_id);
+    let area = Rect::new(70, 2, 3, 1);
+    for cancellation in 0..5 {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        pointer.publish(popup_close_map(
+            first.clone(),
+            area,
+            InteractionAvailability::Enabled,
+        ));
+        let mut port = PopupPointerPort(Vec::new());
+        let report = |action, column| MouseEvent {
+            action,
+            button: MouseButton::Left,
+            column,
+            row: area.y,
+            mods: Modifiers::NONE,
+        };
+        assert_eq!(
+            pointer.popup_event(&mut port, report(MouseAction::Press, area.x + 1)),
+            PointerOutcome::Handled,
+            "cancellation {cancellation}",
+        );
+        match cancellation {
+            0 => {
+                assert_eq!(
+                    pointer.popup_event(&mut port, report(MouseAction::Motion, area.x - 1)),
+                    PointerOutcome::Handled,
+                );
+                assert_eq!(
+                    pointer.popup_event(&mut port, report(MouseAction::Motion, area.x + 1)),
+                    PointerOutcome::Handled,
+                );
+            }
+            1 => pointer.publish(popup_close_map(
+                second.clone(),
+                area,
+                InteractionAvailability::Enabled,
+            )),
+            2 => pointer.publish(popup_close_map(
+                first.clone(),
+                Rect::new(area.x - 1, area.y, area.width, area.height),
+                InteractionAvailability::Enabled,
+            )),
+            3 => pointer.stale_map(),
+            4 => pointer.set_capture(false),
+            _ => unreachable!(),
+        }
+        let release = report(MouseAction::Release, area.x + 1);
+        assert_eq!(
+            pointer.popup_event(&mut port, release),
+            PointerOutcome::InteractionEnded,
+            "cancellation {cancellation}",
+        );
+        assert!(
+            !matches!(
+                pointer.popup_event(&mut port, release),
+                PointerOutcome::Interaction { .. } | PointerOutcome::InteractionEnded
+            ),
+            "cancellation {cancellation} must settle once",
+        );
+        assert!(port.0.is_empty());
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn disabled_or_untyped_popup_close_is_swallow_only() {
+    let id = WorkbenchRequestId::parse(&format!("{:032x}", 61)).unwrap();
+    let target = popup_close_target(&id);
+    let area = Rect::new(70, 2, 3, 1);
+    for explicit_disabled in [true, false] {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        if explicit_disabled {
+            pointer.publish(popup_close_map(
+                target.clone(),
+                area,
+                InteractionAvailability::Disabled,
+            ));
+        } else {
+            let mut hits = HitMapBuilder::new();
+            hits.mark_overlay_active();
+            hits.record(
+                HitLayer::Overlay,
+                area,
+                HitTarget::PopupClose(target.clone()),
+            );
+            pointer.publish(hits.finish());
+        }
+        let mut port = PopupPointerPort(Vec::new());
+        let report = |action| MouseEvent {
+            action,
+            button: MouseButton::Left,
+            column: area.x + 1,
+            row: area.y,
+            mods: Modifiers::NONE,
+        };
+        assert_eq!(
+            pointer.popup_event(&mut port, report(MouseAction::Press)),
+            PointerOutcome::Handled,
+        );
+        let release = pointer.popup_event(&mut port, report(MouseAction::Release));
+        if explicit_disabled {
+            assert_eq!(release, PointerOutcome::InteractionEnded);
+        } else {
+            assert_eq!(release, PointerOutcome::Handled);
+        }
+        assert!(port.0.is_empty());
+    }
 }

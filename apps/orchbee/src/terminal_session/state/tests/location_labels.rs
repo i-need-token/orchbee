@@ -39,10 +39,6 @@ fn operation(
             Target::Workspace => NativeSetupStage::WorkspaceRename,
         }
     );
-    if let Some(label) = replacement {
-        state.edit_setup_draft(token, Edit::Clear);
-        state.edit_setup_draft(token, Edit::Append(label));
-    }
     let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
     let request = WorkbenchRequestId::parse(&id(900 + u128::from(generation))).unwrap();
     assert!(
@@ -51,6 +47,10 @@ fn operation(
             .is_none()
     );
     state.acknowledge_setup_draw(Some(token));
+    if let Some(label) = replacement {
+        state.edit_setup_draft(token, Edit::Clear);
+        state.edit_setup_draft(token, Edit::Append(label));
+    }
     state
         .plan_setup(token, request, generation, deadlines)
         .unwrap()
@@ -410,11 +410,11 @@ fn targeted_operation(state: &mut NativeSessionState, changed: bool) -> SetupOpe
         Some("Project")
     );
     assert_eq!(state.setup_draft().unwrap().text(), "Project");
+    state.acknowledge_setup_draw(Some(token));
     if changed {
         state.edit_setup_draft(token, Edit::Clear);
         state.edit_setup_draft(token, Edit::Append("Target 雪"));
     }
-    state.acknowledge_setup_draw(Some(token));
     state
         .plan_setup(
             token,

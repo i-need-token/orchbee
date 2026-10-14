@@ -1,0 +1,88 @@
+//! Raw status-line copy. Binding owners provide separately formatted effective key labels.
+
+use super::Locale;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct StatusText {
+    pub(crate) prefix: &'static str,
+    pub(crate) pointer_released: &'static str,
+    pub(crate) zoomed: &'static str,
+    pub(crate) navigator: &'static str,
+    pub(crate) sidebar: &'static str,
+    pub(crate) resize: &'static str,
+    pub(crate) resize_pending: &'static str,
+    pub(crate) divider: &'static str,
+    pub(crate) release_to_apply: &'static str,
+    pub(crate) shortcuts: &'static str,
+    pub(crate) help: &'static str,
+    pub(crate) exit: &'static str,
+    pub(crate) cancel: &'static str,
+    pub(crate) restore: &'static str,
+    pub(crate) create_tab: &'static str,
+    pub(crate) refresh: &'static str,
+    pub(crate) check_again: &'static str,
+    pub(crate) retry_close: &'static str,
+    pub(crate) take_control: &'static str,
+    pub(crate) configure_directory: &'static str,
+    pub(crate) resize_coarse: &'static str,
+    pub(crate) resize_fine: &'static str,
+}
+
+const EN_US: StatusText = StatusText {
+    prefix: "PREFIX",
+    pointer_released: "Mouse released",
+    zoomed: "Zoomed",
+    navigator: "Navigator",
+    sidebar: "Sidebar",
+    resize: "Resize",
+    resize_pending: "Resizing",
+    divider: "Divider",
+    release_to_apply: "release to apply",
+    shortcuts: "shortcuts",
+    help: "help",
+    exit: "exit",
+    cancel: "cancel",
+    restore: "restore",
+    create_tab: "create Tab",
+    refresh: "refresh",
+    check_again: "check again",
+    retry_close: "retry Close",
+    take_control: "take control",
+    configure_directory: "configure directory",
+    resize_coarse: "move 5%",
+    resize_fine: "move 1%",
+};
+
+const ZH_CN: StatusText = StatusText {
+    prefix: "前缀",
+    pointer_released: "鼠标已释放",
+    zoomed: "已放大",
+    navigator: "导航器",
+    sidebar: "侧栏",
+    resize: "调整",
+    resize_pending: "正在调整",
+    divider: "分隔线",
+    release_to_apply: "松手应用",
+    shortcuts: "快捷键",
+    help: "帮助",
+    exit: "退出",
+    cancel: "取消",
+    restore: "恢复",
+    create_tab: "创建 Tab",
+    refresh: "刷新",
+    check_again: "再次查询",
+    retry_close: "重试关闭",
+    take_control: "接管",
+    configure_directory: "配置目录",
+    resize_coarse: "移动 5%",
+    resize_fine: "移动 1%",
+};
+
+impl Locale {
+    pub(crate) const fn status(self) -> StatusText {
+        match self {
+            Self::EnUs => EN_US,
+            Self::ZhCn => ZH_CN,
+        }
+    }
+}

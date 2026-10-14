@@ -10,28 +10,58 @@ impl Locale {
             Self::ZhCn => "工作区",
         }
     }
-    pub(crate) const fn setup_picker_actions(self) -> &'static str {
+    pub(crate) const fn setup_submit_label(self) -> &'static str {
         match self {
-            Self::EnUs => "↑/↓ choose · Enter select · Esc cancel",
-            Self::ZhCn => "↑/↓ 选择 · Enter 确定 · Esc 取消",
+            Self::EnUs => "Submit",
+            Self::ZhCn => "提交",
         }
     }
-    pub(crate) const fn setup_picker_compact_actions(self) -> &'static str {
+    pub(crate) const fn setup_submit_hint(self) -> &'static str {
         match self {
-            Self::EnUs => "↑/↓ · Enter · Esc",
-            Self::ZhCn => "↑/↓ · Enter · Esc",
+            Self::EnUs => "submit",
+            Self::ZhCn => "提交",
         }
     }
-    pub(crate) const fn setup_submit_button(self) -> &'static str {
+    pub(crate) const fn setup_cancel_label(self) -> &'static str {
         match self {
-            Self::EnUs => "[ Submit ]",
-            Self::ZhCn => "[ 提交 ]",
+            Self::EnUs => "Cancel",
+            Self::ZhCn => "取消",
         }
     }
-    pub(crate) const fn setup_cancel_button(self) -> &'static str {
+    pub(crate) const fn setup_cancel_hint(self) -> &'static str {
         match self {
-            Self::EnUs => "[ Cancel ]",
-            Self::ZhCn => "[ 取消 ]",
+            Self::EnUs => "cancel",
+            Self::ZhCn => "取消",
+        }
+    }
+    pub(crate) const fn setup_select_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "select",
+            Self::ZhCn => "确定",
+        }
+    }
+    pub(crate) const fn setup_choose_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "choose",
+            Self::ZhCn => "选择",
+        }
+    }
+    pub(crate) const fn setup_next_field_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "next field",
+            Self::ZhCn => "切换字段",
+        }
+    }
+    pub(crate) const fn setup_delete_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "delete",
+            Self::ZhCn => "删除",
+        }
+    }
+    pub(crate) const fn setup_clear_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "clear",
+            Self::ZhCn => "清空",
         }
     }
     pub(crate) const fn setup_choice_unavailable(self) -> &'static str {
@@ -121,8 +151,8 @@ impl Locale {
 
     const fn setup_workspace_directory_action(self) -> &'static str {
         match self {
-            Self::EnUs => "Workspace created · Ctrl+B e to configure its first directory",
-            Self::ZhCn => "工作区已创建 · 按 Ctrl+B e 配置首个目录",
+            Self::EnUs => "Workspace created · its first directory is not configured",
+            Self::ZhCn => "工作区已创建 · 尚未配置首个目录",
         }
     }
 
@@ -166,16 +196,10 @@ impl Locale {
             Self::ZhCn => "目录",
         }
     }
-    pub(crate) const fn quick_workspace_actions(self) -> &'static str {
+    pub(crate) const fn quick_workspace_preparing_fact(self) -> &'static str {
         match self {
-            Self::EnUs => "Tab: name / directory · Enter: create and enter · Esc: cancel",
-            Self::ZhCn => "Tab：切换名称／目录 · Enter：创建并进入 · Esc：取消",
-        }
-    }
-    pub(crate) const fn quick_workspace_preparing_actions(self) -> &'static str {
-        match self {
-            Self::EnUs => "Esc: cancel · no Workspace has been created",
-            Self::ZhCn => "Esc：取消 · 尚未创建工作区",
+            Self::EnUs => "No Workspace has been created yet.",
+            Self::ZhCn => "尚未创建工作区。",
         }
     }
 
@@ -196,19 +220,6 @@ impl Locale {
         match self {
             Self::EnUs => "Project",
             Self::ZhCn => "项目",
-        }
-    }
-
-    pub(crate) const fn setup_actions(self, picker: bool) -> &'static str {
-        match (self, picker) {
-            (Self::EnUs, true) => "[ / ] · choose Project    Enter · continue    Esc · cancel",
-            (Self::ZhCn, true) => "[ / ] · 选择项目    Enter · 继续    Esc · 取消",
-            (Self::EnUs, false) => {
-                "Enter · submit    Esc · cancel    Backspace · delete    Ctrl+U · clear"
-            }
-            (Self::ZhCn, false) => {
-                "Enter · 提交    Esc · 取消    Backspace · 删除    Ctrl+U · 清空"
-            }
         }
     }
 
@@ -237,15 +248,14 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn setup_resize_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "Enlarge the window to see the complete form, or press Esc to cancel.",
-            Self::ZhCn => "请扩大窗口以查看完整表单，或按 Esc 取消。",
-        }
-    }
-
     pub(crate) const fn setup_status(self, status: NativeSetupStatus) -> &'static str {
         match (self, status) {
+            (Self::EnUs, NativeSetupStatus::PresentationUnavailable) => {
+                "Cannot open here: enlarge the terminal."
+            }
+            (Self::ZhCn, NativeSetupStatus::PresentationUnavailable) => {
+                "终端尺寸不足，放大后重试。"
+            }
             (Self::EnUs, NativeSetupStatus::WorkspaceOrganized) => "Workspace organization updated",
             (Self::ZhCn, NativeSetupStatus::WorkspaceOrganized) => "工作区分组已更新",
             (Self::EnUs, NativeSetupStatus::ProjectDissolved) => {
@@ -259,10 +269,10 @@ impl Locale {
             }
             (Self::ZhCn, NativeSetupStatus::TabsNotApplied) => "标签页未更新 · 请检查目标后再试",
             (Self::EnUs, NativeSetupStatus::TabsCommittedNeedRefresh) => {
-                "Tabs updated · Ctrl+B w to recover the snapshot; do not resubmit"
+                "Tabs updated · recover the snapshot; do not resubmit"
             }
             (Self::ZhCn, NativeSetupStatus::TabsCommittedNeedRefresh) => {
-                "标签页已更新 · 按 Ctrl+B w 恢复快照；请勿重复提交"
+                "标签页已更新 · 恢复快照；请勿重复提交"
             }
             (Self::EnUs, NativeSetupStatus::TabsOutcomeUnknown) => {
                 "Tab update outcome unknown · connection retired; do not repeat the mutation"
@@ -286,16 +296,14 @@ impl Locale {
             (Self::EnUs, NativeSetupStatus::WorkspaceCreated) => "Workspace created",
             (Self::ZhCn, NativeSetupStatus::WorkspaceCreated) => "工作区已创建",
             (Self::EnUs, NativeSetupStatus::DirectoryAccepted) => {
-                "Directory configured · Ctrl+B c to launch a terminal"
+                "Directory configured · ready to launch a terminal"
             }
-            (Self::ZhCn, NativeSetupStatus::DirectoryAccepted) => {
-                "目录已配置 · 按 Ctrl+B c 启动终端"
-            }
+            (Self::ZhCn, NativeSetupStatus::DirectoryAccepted) => "目录已配置 · 可以启动终端",
             (Self::EnUs, NativeSetupStatus::CommittedNeedRefresh) => {
-                "Setup committed · Ctrl+B w to recover the snapshot; do not resubmit"
+                "Setup committed · recover the snapshot; do not resubmit"
             }
             (Self::ZhCn, NativeSetupStatus::CommittedNeedRefresh) => {
-                "设置已提交 · 按 Ctrl+B w 恢复快照；请勿重复提交"
+                "设置已提交 · 恢复快照；请勿重复提交"
             }
             (Self::EnUs, NativeSetupStatus::OutcomeUnknown) => {
                 "Setup outcome unknown · connection retired; do not repeat the mutation"
@@ -308,17 +316,15 @@ impl Locale {
 
     pub(crate) fn setup_directory_ready(self, path: &str) -> String {
         match self {
-            Self::EnUs => {
-                format!("Directory: {path}\nCtrl+B c · launch a terminal in this directory")
-            }
-            Self::ZhCn => format!("目录：{path}\nCtrl+B c · 在此目录启动终端"),
+            Self::EnUs => format!("Directory: {path}"),
+            Self::ZhCn => format!("目录：{path}"),
         }
     }
 
     pub(crate) const fn setup_directory_needed(self) -> &'static str {
         match self {
-            Self::EnUs => "No directory configured. Ctrl+B e · configure the first directory",
-            Self::ZhCn => "尚未配置目录。Ctrl+B e · 配置首个目录",
+            Self::EnUs => "No directory configured.",
+            Self::ZhCn => "尚未配置目录。",
         }
     }
 }

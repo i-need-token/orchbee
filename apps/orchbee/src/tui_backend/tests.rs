@@ -3,10 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use crossterm::{
-    QueueableCommand,
-    style::{Attribute, SetAttribute},
-};
+use crossterm::style::{Attribute, SetAttribute};
 use ratatui::{
     Terminal,
     backend::Backend,
@@ -18,11 +15,12 @@ use crate::{
     terminal_device::WindowDimensions,
     terminal_lifecycle::{
         SYNCHRONIZED_UPDATE_BEGIN, SYNCHRONIZED_UPDATE_END, SynchronizedUpdateLease,
+        write_ansi_command,
     },
 };
 
 use super::{
-    FixedViewportBackend, ResizableBackend, RestorationGatedWriter, queue_modifier_transition,
+    FixedViewportBackend, ResizableBackend, RestorationGatedWriter, write_modifier_transition,
 };
 
 fn new_test_backend<W: Write>(writer: W, dimensions: WindowDimensions) -> FixedViewportBackend<W> {
@@ -178,14 +176,14 @@ fn cursor_run_tracks_emitted_wide_symbols_and_real_gaps() -> io::Result<()> {
 
 fn attribute_bytes(attribute: Attribute) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.queue(SetAttribute(attribute)).unwrap();
+    write_ansi_command(&mut bytes, &SetAttribute(attribute)).unwrap();
     bytes
 }
 
 #[test]
 fn removing_one_blink_kind_reapplies_the_other_after_shared_reset() -> io::Result<()> {
     let mut bytes = Vec::new();
-    queue_modifier_transition(
+    write_modifier_transition(
         &mut bytes,
         Modifier::SLOW_BLINK | Modifier::RAPID_BLINK,
         Modifier::SLOW_BLINK,

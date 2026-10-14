@@ -18,8 +18,8 @@ fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_c
         let baseline = ui.state.as_ref().unwrap().cache().clone();
         let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
         let token = ui.request_rename_draft().unwrap();
-        ui.edit_rename_draft(token, NativeRenameEdit::Append("changed"));
         ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
+        ui.edit_rename_draft(token, NativeRenameEdit::Append("changed"));
         assert_eq!(
             ui.submit_rename_draft(token),
             SessionActionDisposition::DismissNavigator
@@ -109,9 +109,9 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
     let (mut ui, mailbox, clock, elapsed) = super::super::tests::move_membership::ready_ui();
     let old = ui.state.as_ref().unwrap().desired().unwrap().clone();
     let token = ui.request_rename_draft().unwrap();
+    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
     ui.edit_rename_draft(token, NativeRenameEdit::Clear);
     ui.edit_rename_draft(token, NativeRenameEdit::Append("new"));
-    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
     ui.submit_rename_draft(token);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Rename(marker) = lease.record() else {

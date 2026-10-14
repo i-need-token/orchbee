@@ -59,7 +59,7 @@ fn ordinal_agent_focus_uses_source_sorted_targets_and_never_counts_placeholders(
     ];
     picker.observe_agents(observations.clone());
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let text = paint(&mut picker, locale, 100, 30);
+        let text = paint(&picker, locale, 100, 30);
         assert!(text.contains("1 remote /"));
         assert!(text.contains("2 remote /"));
         assert!(!text.contains("3 Local /") && !text.contains("3 本地 /"));
@@ -175,7 +175,7 @@ fn active_source_view_drives_list_and_global_cycle_and_failed_source_never_clear
         candidates[0].agent.as_ref().unwrap().target.member,
         blocked.target.member
     );
-    let text = paint(&mut picker, Locale::EnUs, 90, 24);
+    let text = paint(&picker, Locale::EnUs, 90, 24);
     assert!(text.contains("Blocked"));
     assert!(text.contains("Sort from view"));
     picker.agent_control(Control::Order);
@@ -290,7 +290,7 @@ fn query_enter_escape_clear_and_bounds_never_activate_a_terminal() {
     picker.key(KeyEvent::press(KeyCode::Char('\u{202e}'), Modifiers::NONE));
     assert_eq!(picker.agent_view.query.chars().count(), 128);
     assert!(
-        paint(&mut picker, Locale::ZhCn, 50, 30).contains("▏"),
+        paint(&picker, Locale::ZhCn, 50, 30).contains('|'),
         "the editor keeps its end visible for wide characters"
     );
     picker.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
@@ -304,28 +304,22 @@ fn query_enter_escape_clear_and_bounds_never_activate_a_terminal() {
 fn drawn_controls_filter_without_reusing_old_mouse_authority() {
     let mut picker = picker();
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let text = paint(&mut picker, locale, 100, 30);
+        let text = paint(&picker, locale, 100, 30);
         let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
         assert!(compact.contains(locale.machine_picker_text("agent-search")));
     }
-    let old_row = picker.painted[1].0;
-    let state = picker
-        .control_hits
-        .iter()
-        .find(|(_, c)| *c == Control::State)
-        .unwrap()
-        .0;
-    picker.pointer(click(state));
+    let painted = paint(&picker, Locale::EnUs, 100, 30);
+    let old_row = painted.target(PickerAction::Row(1));
+    let state = painted.target(PickerAction::Control(Control::State));
+    assert!(picker.activate_drawn_picker(&state));
     assert_eq!(
         picker.agent_view.state,
         Some(orchbee_workbench_protocol::MetadataState::Blocked)
     );
-    assert!(picker.painted.is_empty());
-    assert!(picker.control_hits.is_empty());
-    picker.pointer(click(old_row));
+    assert!(!picker.activate_drawn_picker(&old_row));
     assert!(picker.request.is_none());
     assert!(picker.visible_rows().iter().all(|r| !r.enabled));
-    assert!(paint(&mut picker, Locale::EnUs, 100, 30).contains("No matching agents"));
+    assert!(paint(&picker, Locale::EnUs, 100, 30).contains("No matching agents"));
     picker.key(KeyEvent::press(KeyCode::Char('f'), Modifiers::NONE));
     assert_eq!(
         picker.agent_view.state,
@@ -343,12 +337,10 @@ fn drawn_controls_filter_without_reusing_old_mouse_authority() {
         picker.visible_rows().iter().filter(|r| r.enabled).count(),
         2
     );
-    let old_control = picker.control_hits.first().map(|v| v.0).unwrap_or(state);
-    paint(&mut picker, Locale::ZhCn, 20, 5);
-    assert!(picker.painted.is_empty());
-    assert!(picker.control_hits.is_empty());
+    let tiny = paint(&picker, Locale::ZhCn, 20, 5);
+    assert!(!tiny.has_target(PickerAction::Control(Control::State)));
     let view = picker.agent_view.clone();
-    picker.pointer(click(old_control));
+    assert!(!picker.activate_drawn_picker(&state));
     assert_eq!(picker.agent_view, view);
 }
 #[test]
@@ -478,8 +470,8 @@ fn sorting_preserves_selected_physical_identity_and_invalidates_pointer_hits() {
     let mut picker = picker();
     picker.selected = 1;
     let selected = picker.selection();
-    paint(&mut picker, Locale::EnUs, 100, 30);
-    let old = picker.painted[1].0;
+    let painted = paint(&picker, Locale::EnUs, 100, 30);
+    let old = painted.target(PickerAction::Row(1));
     let mut other = agent_row();
     other.state = orchbee_workbench_protocol::PanelAgentState::Blocked;
     other.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
@@ -495,8 +487,7 @@ fn sorting_preserves_selected_physical_identity_and_invalidates_pointer_hits() {
     ]);
     picker.agent_control(Control::Order);
     assert_eq!(picker.selection(), selected);
-    assert!(picker.painted.is_empty());
-    picker.pointer(click(old));
+    assert!(!picker.activate_drawn_picker(&old));
     assert!(picker.request.is_none());
 }
 
@@ -525,11 +516,12 @@ fn agent_metadata_is_visible_without_changing_activation_identity() {
         Choice::Local,
         Agents::Ready(crate::machine_agents::tests::checkpoint(vec![row.clone()])),
     )]);
-    let text = paint(&mut picker, Locale::EnUs, 100, 30);
+    let text = paint(&picker, Locale::EnUs, 100, 30);
     for label in ["Fix docs", "Friendly Agent", "Reviewing", "issue: ORCH-42"] {
-        assert!(text.contains(label), "{label}: {text}");
+        assert!(text.contains(label), "{label}: {}", text.text.as_str());
     }
-    picker.pointer(click(picker.painted[0].0));
+    let target = text.target(PickerAction::Row(0));
+    assert!(picker.activate_drawn_picker(&target));
     assert_eq!(
         picker.request.take(),
         Some(Selection {

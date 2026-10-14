@@ -6,6 +6,7 @@ use crate::terminal_session::state::{
     CloseSelection, CloseState, CloseStateError, CloseStatusKind, CloseTarget, NativeSessionState,
     PendingCloseResult, SessionNotice,
 };
+use crate::tui_presentation::GeometrySettlement;
 use orchbee_workbench_protocol::{
     PanelNode, PanelOrientation, PanelSlot, Presentation, PresentationBinding, TerminalId,
     TerminalPresentationId, WorkbenchPanelId, WorkbenchPanelSlotId, WorkbenchRevision,
@@ -146,6 +147,102 @@ fn original_carrier_resume_requires_displayed_status_and_both_current_modal_toke
         state.confirmed_intent(token),
         Err(CloseStateError::NotDisplayed)
     );
+}
+
+#[test]
+fn covered_menu_can_continue_only_the_exact_previously_displayed_resume() {
+    let mut state = ready(3);
+    let selected = selection(1);
+    let tab_id = selected.target().tab_id().clone();
+    state.close.retain_submission(selected.clone()).unwrap();
+    observe(&mut state.close, &selected, 7, parked());
+
+    assert!(state.capture_tab_close_resume_permit(&tab_id).is_none());
+    let status = state.close.status(selected.target()).unwrap().token();
+    state.acknowledge_close_draw(None, Some(status));
+    let permit = state.capture_tab_close_resume_permit(&tab_id).unwrap();
+    assert!(state.tab_close_resume_available(&tab_id));
+
+    // A covering child revokes the status draw receipt. The raw shortcut stays
+    // disabled, while the exact continuation captured before coverage remains
+    // valid for this one operation and attempt.
+    state.acknowledge_close_draw(None, None);
+    assert!(!state.tab_close_resume_available(&tab_id));
+    assert_eq!(
+        state.open_tab_close_resume(&tab_id),
+        Err(CloseStateError::NotResumable)
+    );
+
+    state.close.open_confirmation(selection(0)).unwrap();
+    assert!(!state.validate_tab_close_resume_permit(&tab_id, &permit));
+    state.close.cancel_confirmation();
+    assert!(state.validate_tab_close_resume_permit(&tab_id, &permit));
+    state
+        .open_tab_close_resume_with_permit(&tab_id, &permit)
+        .unwrap();
+
+    let prompt = state.view().close_confirmation().unwrap();
+    assert_eq!(prompt.kind(), CloseConfirmationKind::Resume);
+    assert_eq!(prompt.resume_status().unwrap().token(), status);
+    let token = prompt.token();
+    assert_eq!(
+        state.close.confirmed_intent(token),
+        Err(CloseStateError::NotDisplayed)
+    );
+    state.acknowledge_close_draw(Some(token), Some(status));
+    assert!(matches!(
+        state.close.confirmed_intent(token),
+        Ok(CloseIntent::Resume { .. })
+    ));
+}
+
+#[test]
+fn covered_resume_permit_never_retargets_or_falls_back_to_ordinary_close() {
+    let mut state = ready(3);
+    let selected = selection(1);
+    let tab_id = selected.target().tab_id().clone();
+    state.close.retain_submission(selected.clone()).unwrap();
+    observe(&mut state.close, &selected, 7, parked());
+    let status = state.close.status(selected.target()).unwrap().token();
+    state.acknowledge_close_draw(None, Some(status));
+    let permit = state.capture_tab_close_resume_permit(&tab_id).unwrap();
+    state.acknowledge_close_draw(None, None);
+
+    let other = state.cache().tabs()[0].tab_id().clone();
+    assert!(!state.validate_tab_close_resume_permit(&other, &permit));
+    assert_eq!(
+        state.open_tab_close_resume_with_permit(&other, &permit),
+        Err(CloseStateError::NotResumable)
+    );
+    assert!(state.view().close_confirmation().is_none());
+
+    // A later observation mints a new status identity for the same record and
+    // attempt generation, so the covered permit is stale even though the new
+    // status remains resumable.
+    observe(&mut state.close, &selected, 7, parked());
+    assert!(!state.validate_tab_close_resume_permit(&tab_id, &permit));
+    assert_eq!(
+        state.open_tab_close_resume_with_permit(&tab_id, &permit),
+        Err(CloseStateError::NotResumable)
+    );
+    assert!(state.view().close_confirmation().is_none());
+
+    let next_status = state.close.status(selected.target()).unwrap().token();
+    state.acknowledge_close_draw(None, Some(next_status));
+    let next_attempt = state.capture_tab_close_resume_permit(&tab_id).unwrap();
+    observe(&mut state.close, &selected, 8, parked());
+    assert!(!state.validate_tab_close_resume_permit(&tab_id, &next_attempt));
+
+    let attempt_status = state.close.status(selected.target()).unwrap().token();
+    state.acknowledge_close_draw(None, Some(attempt_status));
+    let resumable = state.capture_tab_close_resume_permit(&tab_id).unwrap();
+    observe(&mut state.close, &selected, 8, disposed(false));
+    assert!(!state.validate_tab_close_resume_permit(&tab_id, &resumable));
+    assert_eq!(
+        state.open_tab_close_resume_with_permit(&tab_id, &resumable),
+        Err(CloseStateError::NotResumable)
+    );
+    assert!(state.view().close_confirmation().is_none());
 }
 
 #[test]
@@ -575,17 +672,44 @@ fn drifted_close_confirmation_settles_as_cancelled_with_notice() {
     assert!(state.invariant_holds());
 }
 
-/// A draw receipt reporting the confirmation could not be presented cancels
-/// the capture with the bounded notice; nothing may confirm what was never
-/// fully shown.
+/// A new confirmation that cannot complete its first paint is refused without
+/// being mislabeled as an explicit cancellation.
 #[test]
-fn unpresentable_close_draw_cancels_with_notice() {
+fn first_unpresentable_close_draw_is_refused() {
     let mut state = ready(2);
     state.open_close_confirmation().unwrap();
-    state.settle_close_confirmation_not_presented();
+    assert_eq!(
+        state.settle_close_confirmation_not_presented(),
+        Some(GeometrySettlement::Refused)
+    );
     assert!(state.view().close_confirmation().is_none());
-    assert_eq!(state.notice, Some(SessionNotice::ConfirmationCancelled));
-    state.settle_close_confirmation_not_presented();
+    assert_eq!(state.notice, None);
+    assert_eq!(state.settle_close_confirmation_not_presented(), None);
+    assert!(state.invariant_holds());
+}
+
+/// Once presented, geometry loss retains the same frozen confirmation while
+/// revoking its exact-draw authority; a later complete paint resumes it.
+#[test]
+fn presented_close_confirmation_suspends_and_resumes() {
+    let mut state = ready(2);
+    state.open_close_confirmation().unwrap();
+    let token = state.view().close_confirmation().unwrap().token();
+    state.acknowledge_close_draw(Some(token), None);
+    assert!(state.view().close_confirmation().unwrap().interactive());
+    assert_eq!(
+        state.settle_close_confirmation_not_presented(),
+        Some(GeometrySettlement::Suspended)
+    );
+    let suspended = state.view().close_confirmation().unwrap();
+    assert_eq!(suspended.token(), token);
+    assert!(!suspended.interactive());
+    assert_eq!(
+        state.close.confirmed_intent(token),
+        Err(CloseStateError::NotDisplayed)
+    );
+    state.acknowledge_close_draw(Some(token), None);
+    assert!(state.view().close_confirmation().unwrap().interactive());
     assert!(state.invariant_holds());
 }
 

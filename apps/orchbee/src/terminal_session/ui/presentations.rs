@@ -1,10 +1,46 @@
 //! Presentation navigation uses the existing switch admission and cleanup transaction.
 use super::{
     ActionBuildError, Arc, CommandMailbox, NativeSessionView, NativeUi, OperationDeadlines,
-    SelectionPlan, SessionActionDisposition, SessionPhaseKind, SwitchMarker, WorkbenchPanelId,
-    finish_action,
+    PaneRef, SelectionPlan, SessionActionDisposition, SessionPhaseKind, SwitchMarker,
+    WorkbenchPanelId, finish_action,
 };
+use crate::terminal_input::PointerUnboundPane;
 use orchbee_workbench_protocol::TerminalPresentationId;
+
+/// One presentation control exactly as it was drawn for a live pane source.
+///
+/// The destination alone is not authority. Attached controls retain the
+/// physical pane incarnation that owned the header; unbound controls retain
+/// the current logical pane and selected member. Release revalidates both the
+/// source and the destination against current membership before switching.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum DrawnPresentationTarget {
+    Attached {
+        pane: PaneRef,
+        presentation: TerminalPresentationId,
+    },
+    Unbound {
+        selected: PointerUnboundPane,
+        presentation: TerminalPresentationId,
+    },
+}
+
+impl DrawnPresentationTarget {
+    pub(crate) const fn presentation(&self) -> &TerminalPresentationId {
+        match self {
+            Self::Attached { presentation, .. } | Self::Unbound { presentation, .. } => {
+                presentation
+            }
+        }
+    }
+
+    fn panel(&self) -> &WorkbenchPanelId {
+        match self {
+            Self::Attached { pane, .. } => pane.pane().panel(),
+            Self::Unbound { selected, .. } => selected.key.panel(),
+        }
+    }
+}
 
 impl NativeUi {
     /// Empty sessions and a lost focused viewer cannot rely on their own Poll
@@ -97,6 +133,57 @@ impl NativeUi {
         }
     }
 
+    /// Activates one exact presentation control after revalidating its painted
+    /// pane source and destination against the current active membership.
+    pub(in crate::terminal_session) fn activate_drawn_presentation(
+        &mut self,
+        target: &DrawnPresentationTarget,
+    ) -> SessionActionDisposition {
+        if self.modal_owns_input() || self.retirement_failure.is_some() {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let Some((index, panel)) = self.state.as_ref().and_then(|state| {
+            if !matches!(
+                state.phase_kind(),
+                SessionPhaseKind::Ready | SessionPhaseKind::SelectedWithoutAttachment
+            ) {
+                return None;
+            }
+            let active = state.active()?;
+            let tab = state.cache().tabs().get(active.index())?;
+            let panel = tab.panel(tab.panel_index(target.panel())?)?;
+            if panel.presentation_index(target.presentation()).is_none()
+                || state.selected_presentation(panel).presentation_id() == target.presentation()
+                || state.desired().map(|key| key.anchor()) != Some(active.key().anchor())
+            {
+                return None;
+            }
+            let source_is_current = match target {
+                DrawnPresentationTarget::Attached { pane, .. } => {
+                    pane.anchor() == active.key().anchor()
+                        && state
+                            .pane_by_panel(panel.panel_id())
+                            .is_some_and(|record| record.pane_ref().eq(pane))
+                }
+                DrawnPresentationTarget::Unbound { selected, .. } => {
+                    selected.key.anchor() == active.key().anchor()
+                        && selected.key.panel() == panel.panel_id()
+                        && state.selected_presentation(panel).binding().is_none()
+                        && state.selected_presentation(panel).presentation_id()
+                            == &selected.presentation
+                }
+            };
+            source_is_current.then(|| (active.index(), panel.panel_id().clone()))
+        }) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if self.select_presentation(index, &panel, target.presentation()) {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
+
     pub(super) fn cycle_presentation(&mut self, forward: bool) -> SessionActionDisposition {
         if self.modal_owns_input() {
             return SessionActionDisposition::KeepNavigator;
@@ -175,6 +262,24 @@ impl NativeUi {
 }
 
 impl<'a> NativeSessionView<'a> {
+    pub(crate) fn drawn_presentation_target(
+        &self,
+        panel: &super::super::NativePanel,
+        index: usize,
+    ) -> Option<DrawnPresentationTarget> {
+        let presentation = panel.presentation(index)?.presentation_id().clone();
+        Some(
+            if let Some(pane) = self.pane_ref_for_panel(panel.panel_id()) {
+                DrawnPresentationTarget::Attached { pane, presentation }
+            } else {
+                DrawnPresentationTarget::Unbound {
+                    selected: self.unbound_pane(panel)?,
+                    presentation,
+                }
+            },
+        )
+    }
+
     pub(crate) fn unbound_pane(
         &self,
         panel: &super::super::NativePanel,

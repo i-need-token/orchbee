@@ -67,11 +67,7 @@ fn target() -> DrawnDivider {
 }
 fn map(target: &DrawnDivider) -> FrameHitMap {
     let mut hits = HitMapBuilder::new();
-    hits.record(
-        HitLayer::Foreground,
-        target.divider,
-        HitTarget::Divider(target.clone()),
-    );
+    hits.record_divider(target.clone());
     hits.finish()
 }
 fn fixture() -> (PointerState, ClientView, Port) {
@@ -105,6 +101,52 @@ fn report(
         Instant::now(),
         event(action, MouseButton::Left, x, y),
     );
+}
+
+fn projected(pointer: &PointerState, target: &DrawnDivider) -> ProjectedPointer {
+    HitMapBuilder::with_pointer(pointer.projection()).projected_divider_pointer(target)
+}
+
+#[test]
+fn divider_projection_uses_exact_painted_source_and_clears_on_transport_loss() {
+    let (mut pointer, mut view, mut port) = fixture();
+    let target = port.target.clone();
+    let (x, y) = (target.divider.x, target.divider.y);
+    assert_eq!(projected(&pointer, &target), ProjectedPointer::Rest);
+
+    pointer.set_motion_observability(MotionObservability::AnyMotion);
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            Instant::now(),
+            event(MouseAction::Motion, MouseButton::None, x, y),
+        ),
+        PointerOutcome::IdleMotion { changed: true },
+    );
+    assert_eq!(projected(&pointer, &target), ProjectedPointer::Hovered);
+
+    report(&mut pointer, &mut view, &mut port, MouseAction::Press, x, y);
+    assert_eq!(projected(&pointer, &target), ProjectedPointer::Pressed);
+    pointer.publish(map(&target));
+    assert_eq!(projected(&pointer, &target), ProjectedPointer::Pressed);
+
+    let mut replacement = target.clone();
+    replacement.source.revision = WorkbenchRevision::new(2);
+    pointer.publish(map(&replacement));
+    assert_eq!(projected(&pointer, &target), ProjectedPointer::Rest);
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            Instant::now(),
+            event(MouseAction::Release, MouseButton::Left, x, y),
+        ),
+        PointerOutcome::ChromeGestureEnded,
+    );
+
+    pointer.set_host_focus(false);
+    assert_eq!(projected(&pointer, &target), ProjectedPointer::Rest);
 }
 
 #[test]
@@ -283,6 +325,34 @@ fn divider_cancellation_never_commits_or_revives_on_late_release() {
             x + 10,
             y,
         );
+        assert!(port.submissions.is_empty());
+    }
+}
+
+#[test]
+fn compositor_cover_retires_divider_preview_and_owns_one_late_release() {
+    for button in [MouseButton::Left, MouseButton::None] {
+        let (mut pointer, mut view, mut port) = fixture();
+        let (x, y) = (port.target.divider.x, port.target.divider.y);
+        report(&mut pointer, &mut view, &mut port, MouseAction::Press, x, y);
+        report(
+            &mut pointer,
+            &mut view,
+            &mut port,
+            MouseAction::Motion,
+            x + 10,
+            y,
+        );
+        assert!(pointer.divider_preview().is_some());
+
+        assert!(pointer.retire_covered_chrome_gesture());
+        assert!(pointer.divider_preview().is_none());
+        let release = event(MouseAction::Release, button, x + 10, y);
+        assert_eq!(
+            pointer.cancelled_ui_event(release),
+            PointerOutcome::ChromeGestureEnded,
+        );
+        assert_eq!(pointer.cancelled_ui_event(release), PointerOutcome::Ignored,);
         assert!(port.submissions.is_empty());
     }
 }

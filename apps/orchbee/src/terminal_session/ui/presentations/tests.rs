@@ -111,6 +111,7 @@ fn painted_selector(
     ui: &NativeUi,
     width: u16,
     height: u16,
+    capture: Option<&str>,
 ) -> (
     ratatui::buffer::Buffer,
     crate::tui_pointer::FrameHitMap,
@@ -119,20 +120,25 @@ fn painted_selector(
     let mut terminal =
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
     let mut hits = crate::tui_pointer::HitMapBuilder::new();
+    let locale = crate::localization::Locale::EnUs;
+    let theme = crate::tui_theme::Theme::terminal_native();
     terminal
         .draw(|frame| {
             crate::tui_render::render_terminal_shell(
                 frame,
                 &crate::client_view::ClientView::new(width),
-                crate::localization::Locale::EnUs,
+                locale,
                 Some(crate::terminal_session::TerminalSessionView::Native(
                     ui.view(),
                 )),
-                &crate::tui_theme::Theme::terminal_native(),
+                &theme,
                 &mut hits,
             );
         })
         .unwrap();
+    if let Some(name) = capture {
+        crate::tui_render::test_capture::capture_screen(&mut terminal, name, locale, &theme);
+    }
     let panes = hits.painted_panes().count();
     (terminal.backend().buffer().clone(), hits.finish(), panes)
 }
@@ -148,10 +154,117 @@ impl crate::terminal_input::TerminalInputPort for PointerUi<'_> {
         Some(self.0.apply_client_action(action))
     }
 }
+
+fn activate_painted_presentation(
+    pointer: &mut crate::tui_pointer::PointerState,
+    ui: &mut NativeUi,
+    column: u16,
+    row: u16,
+) -> SessionActionDisposition {
+    use crate::{
+        terminal_input::{MouseAction, MouseButton, MouseEvent},
+        tui_pointer::{InteractionTarget, PointerOutcome, PrimaryContract},
+    };
+    let mut view = crate::client_view::ClientView::new(120);
+    let now = std::time::Instant::now();
+    let event = |action| MouseEvent {
+        action,
+        button: MouseButton::Left,
+        mods: crate::client_view::Modifiers::NONE,
+        column,
+        row,
+    };
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut PointerUi(ui),
+            now,
+            event(MouseAction::Press),
+        ),
+        PointerOutcome::Handled
+    );
+    let PointerOutcome::Interaction {
+        target: InteractionTarget::Presentation(target),
+        contract: PrimaryContract::ActivateOnRelease,
+    } = pointer.event(
+        &mut view,
+        &mut PointerUi(ui),
+        now,
+        event(MouseAction::Release),
+    )
+    else {
+        panic!("matching release must carry the exact painted presentation target")
+    };
+    ui.activate_drawn_presentation(&target)
+}
+
+#[test]
+fn drawn_presentation_activation_revalidates_live_member_and_unbound_source() {
+    let (mut attached, attached_mailbox, _, _) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(child_source(true));
+    let (target, foreign_member) = {
+        let view = attached.view();
+        let tab = view.tab(0).unwrap();
+        let panel = tab.panel(0).unwrap();
+        let peer = tab.panel(1).unwrap();
+        (
+            view.drawn_presentation_target(panel, 1).unwrap(),
+            peer.presentation(1).unwrap().presentation_id().clone(),
+        )
+    };
+    let wrong_member = match target.clone() {
+        DrawnPresentationTarget::Attached { pane, .. } => DrawnPresentationTarget::Attached {
+            pane,
+            presentation: foreign_member,
+        },
+        DrawnPresentationTarget::Unbound { .. } => panic!("ready pane must be attached"),
+    };
+    assert_eq!(
+        attached.activate_drawn_presentation(&wrong_member),
+        SessionActionDisposition::KeepNavigator
+    );
+    assert!(attached_mailbox.try_recv().unwrap().is_none());
+    assert_eq!(
+        attached.activate_drawn_presentation(&target),
+        SessionActionDisposition::DismissNavigator
+    );
+    assert!(matches!(
+        attached_mailbox.try_recv().unwrap().unwrap().record(),
+        crate::terminal_session::mailbox::QueuedCommand::Switch(_)
+    ));
+
+    let (mut unbound, unbound_mailbox, _) = empty_ui();
+    let (target, prior_member) = {
+        let view = unbound.view();
+        let panel = view.tab(0).unwrap().panel(0).unwrap();
+        (
+            view.drawn_presentation_target(panel, 2).unwrap(),
+            panel.presentation(1).unwrap().presentation_id().clone(),
+        )
+    };
+    let stale_source = match target {
+        DrawnPresentationTarget::Unbound {
+            mut selected,
+            presentation,
+        } => {
+            selected.presentation = prior_member;
+            DrawnPresentationTarget::Unbound {
+                selected,
+                presentation,
+            }
+        }
+        DrawnPresentationTarget::Attached { .. } => panic!("empty slot must be unbound"),
+    };
+    assert_eq!(
+        unbound.activate_drawn_presentation(&stale_source),
+        SessionActionDisposition::KeepNavigator
+    );
+    assert!(unbound_mailbox.try_recv().unwrap().is_none());
+}
+
 #[test]
 fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() {
-    use crate::terminal_input::{MouseAction, MouseButton, MouseEvent};
-    use crate::tui_pointer::{HitTarget, PointerOutcome, PointerState};
+    use crate::tui_pointer::{HitTarget, PointerState};
     for layout in 0..3 {
         let (mut ui, mailbox, clock, _) =
             super::super::tests::move_membership::ready_ui_with_snapshot(child_source(layout != 0));
@@ -161,15 +274,10 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         if layout == 2 {
             ui.apply_client_action(ClientAction::ToggleZoom);
         }
-        let (buffer, hits, painted_panes) = painted_selector(&ui, 120, 40);
+        let (buffer, hits, painted_panes) = painted_selector(&ui, 120, 40, None);
         let count = (0..40)
             .flat_map(|y| (0..120).map(move |x| (x, y)))
-            .filter(|&(x, y)| {
-                matches!(
-                    hits.hit_target_at(x, y),
-                    Some(HitTarget::Presentation { .. })
-                )
-            })
+            .filter(|&(x, y)| matches!(hits.hit_target_at(x, y), Some(HitTarget::Presentation(_))))
             .count();
         assert_eq!(count, if layout == 1 { 12 } else { 6 });
         if layout == 1 {
@@ -191,7 +299,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
             .presentation_id()
             .clone();
         let (x,y) = (0..40).flat_map(|y| (0..120).map(move |x| (x,y))).find(|&(x,y)| {
-            matches!(hits.hit_target_at(x,y), Some(HitTarget::Presentation { presentation, .. }) if presentation == &destination)
+            matches!(hits.hit_target_at(x,y), Some(HitTarget::Presentation(target)) if target.presentation() == &destination)
         }).unwrap();
         // The whole three-cell [>] glyph is clickable; surrounding cells cannot select.
         assert_eq!(buffer[(x, y)].symbol(), "[");
@@ -202,13 +310,13 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         assert_eq!(buffer[(x + 2, y)].symbol(), "]");
         for offset in 0..3 {
             assert!(
-                matches!(hits.hit_target_at(x+offset,y), Some(HitTarget::Presentation { presentation, .. }) if presentation == &destination)
+                matches!(hits.hit_target_at(x+offset,y), Some(HitTarget::Presentation(target)) if target.presentation() == &destination)
             );
         }
         for (cx, cy) in [(x - 1, y), (x + 3, y), (x, y + 1), (x, y - 1)] {
             assert!(!matches!(
                 hits.hit_target_at(cx, cy),
-                Some(HitTarget::Presentation { .. })
+                Some(HitTarget::Presentation(_))
             ));
         }
         assert!(
@@ -219,19 +327,10 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         let mut pointer = PointerState::default();
         pointer.set_capture(true);
         pointer.publish(hits);
-        let outcome = pointer.event(
-            &mut crate::client_view::ClientView::new(120),
-            &mut PointerUi(&mut ui),
-            std::time::Instant::now(),
-            MouseEvent {
-                action: MouseAction::Press,
-                button: MouseButton::Left,
-                mods: crate::client_view::Modifiers::NONE,
-                column: x + 1,
-                row: y,
-            },
+        assert_eq!(
+            activate_painted_presentation(&mut pointer, &mut ui, x + 1, y),
+            SessionActionDisposition::DismissNavigator
         );
-        assert_eq!(outcome, PointerOutcome::RegionsChanged);
         let command = mailbox.try_recv().unwrap().unwrap();
         assert!(matches!(
             command.record(),
@@ -257,44 +356,62 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
             view.selected_presentation(panel).presentation_id(),
             &destination
         );
+        if layout == 0 {
+            let (selected_buffer, _, _) = painted_selector(
+                &ui,
+                120,
+                40,
+                Some("alignment-presentation-en-us-120x40-terminal-native"),
+            );
+            let selected_text: String = selected_buffer
+                .content
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect();
+            assert!(selected_text.contains("child"), "{selected_text}");
+        }
     }
 }
 #[test]
-fn selector_degrades_in_minimal_view_and_rejects_missing_foreign_or_selected_members() {
+fn selector_degrades_in_minimal_view_and_exact_targets_reject_selected_or_foreign_members() {
     use crate::tui_pointer::HitTarget;
     let (mut ui, mailbox, _, _) =
         super::super::tests::move_membership::ready_ui_with_snapshot(child_source(false));
-    let (_, hits, _) = painted_selector(&ui, 59, 11);
-    assert!((0..11).all(|y| (0..59).all(|x| !matches!(
-        hits.hit_target_at(x, y),
-        Some(HitTarget::Presentation { .. })
-    ))));
+    let (_, hits, _) = painted_selector(&ui, 59, 11, None);
+    assert!((0..11).all(|y| {
+        (0..59).all(|x| !matches!(hits.hit_target_at(x, y), Some(HitTarget::Presentation(_))))
+    }));
     let view = ui.view();
     let tab = view.tab(0).unwrap();
     let primary = tab.panel(0).unwrap();
-    let panel_id = primary.panel_id().clone();
-    let primary_id = primary.presentation_id().clone();
-    let other = view.tab(1).unwrap().panel(0).unwrap();
-    let foreign_panel = other.panel_id().clone();
-    let foreign_id = other.presentation_id().clone();
-    for (panel, presentation) in [
-        (panel_id.clone(), primary_id),
-        (
-            panel_id.clone(),
-            TerminalPresentationId::parse(&"f".repeat(32)).unwrap(),
-        ),
-        (foreign_panel, foreign_id.clone()),
-        (panel_id, foreign_id),
-    ] {
-        assert_eq!(
-            ui.apply_client_action(ClientAction::SelectPresentation {
-                panel,
-                presentation
-            }),
-            SessionActionDisposition::KeepNavigator
-        );
-        assert!(mailbox.try_recv().unwrap().is_none());
-    }
+    let selected_index = primary
+        .presentation_index(view.selected_presentation(primary).presentation_id())
+        .unwrap();
+    let selected = view
+        .drawn_presentation_target(primary, selected_index)
+        .unwrap();
+    let prior_tab = view
+        .drawn_presentation_target(primary, (selected_index + 1) % primary.presentation_count())
+        .unwrap();
+    assert_eq!(
+        ui.activate_drawn_presentation(&selected),
+        SessionActionDisposition::KeepNavigator
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+
+    // The same exact target is a foreign source in a client whose selected
+    // Tab is the other member. It was minted by a real view while its Tab was
+    // current; activation must not reinterpret it against the new selection.
+    let mut foreign_source = child_source(false);
+    foreign_source.terminal_contexts[0].tabs.swap(0, 1);
+    let (mut foreign_ui, foreign_mailbox, _, _) =
+        super::super::tests::move_membership::ready_ui_with_snapshot(foreign_source);
+    assert_ne!(foreign_ui.view().focus_panel_id(), Some(prior_tab.panel()));
+    assert_eq!(
+        foreign_ui.activate_drawn_presentation(&prior_tab),
+        SessionActionDisposition::KeepNavigator
+    );
+    assert!(foreign_mailbox.try_recv().unwrap().is_none());
 }
 
 #[test]
@@ -343,14 +460,16 @@ fn narrow_split_headers_drop_controls_without_covering_title_or_terminal_content
     while let Some(lease) = mailbox.try_recv().unwrap() {
         mailbox.finish_lease(lease).unwrap();
     }
-    let (_, hits, painted_panes) = painted_selector(&ui, 60, 12);
+    let (_, hits, painted_panes) = painted_selector(&ui, 60, 12, None);
     assert_eq!(painted_panes, 3);
     let mut buttons = 0;
     let mut small_header = false;
     for y in 0..12 {
         for x in 0..60 {
             match hits.hit_target_at(x, y) {
-                Some(HitTarget::Presentation { pane, .. }) => {
+                Some(HitTarget::Presentation(DrawnPresentationTarget::Attached {
+                    pane, ..
+                })) => {
                     assert_ne!(pane.pane().panel(), &small_panel);
                     buttons += 1;
                 }
@@ -556,8 +675,8 @@ fn empty_ui() -> (
 
 #[test]
 fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without_viewer() {
-    use crate::terminal_input::{MouseAction, MouseButton, MouseEvent};
-    use crate::tui_pointer::{HitTarget, PointerOutcome, PointerState};
+    use crate::terminal_session::DrawnPresentationTarget;
+    use crate::tui_pointer::{HitTarget, PointerState};
     let (mut ui, mailbox, _) = empty_ui();
     assert!(ui.state.as_ref().unwrap().invariant_holds());
     assert!(ui.pointer_probe().panes.is_empty());
@@ -566,7 +685,7 @@ fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without
         ui.control_observation(false).unwrap().1.phase,
         orchbee_workbench_protocol::ClientViewPhase::Ready
     );
-    let (buffer, hits, painted) = painted_selector(&ui, 120, 40);
+    let (buffer, hits, painted) = painted_selector(&ui, 120, 40, None);
     assert_eq!(painted, 0);
     let text: String = buffer.content.iter().map(|cell| cell.symbol()).collect();
     assert!(
@@ -581,29 +700,20 @@ fn unbound_bootstrap_paints_empty_guidance_and_clickable_member_selector_without
     let (x, y, target) = (0..40)
         .flat_map(|y| (0..120).map(move |x| (x, y)))
         .find_map(|(x, y)| match hits.hit_target_at(x, y) {
-            Some(HitTarget::Unbound {
-                presentation: Some(id),
+            Some(HitTarget::Presentation(DrawnPresentationTarget::Unbound {
+                presentation: id,
                 ..
-            }) => Some((x, y, id.clone())),
+            })) => Some((x, y, id.clone())),
             _ => None,
         })
         .unwrap();
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     pointer.publish(hits);
-    let result = pointer.event(
-        &mut crate::client_view::ClientView::new(120),
-        &mut PointerUi(&mut ui),
-        std::time::Instant::now(),
-        MouseEvent {
-            action: MouseAction::Press,
-            button: MouseButton::Left,
-            mods: crate::client_view::Modifiers::NONE,
-            column: x,
-            row: y,
-        },
+    assert_eq!(
+        activate_painted_presentation(&mut pointer, &mut ui, x, y),
+        SessionActionDisposition::DismissNavigator
     );
-    assert_eq!(result, PointerOutcome::RegionsChanged);
     assert!(matches!(
         mailbox.try_recv().unwrap().unwrap().record(),
         crate::terminal_session::mailbox::QueuedCommand::Switch(_)

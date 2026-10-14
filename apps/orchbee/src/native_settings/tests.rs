@@ -1,5 +1,6 @@
 //! Independent episode traces and concrete conflict/reset/text boundaries.
 use super::*;
+use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use orchbee_workbench_protocol::{AgentReminderMode, ApplicationAppearance, PreferencesLocale};
 
 fn basis() -> Basis {
@@ -15,6 +16,7 @@ fn ready() -> Editor {
     let mut editor = Editor::default();
     let token = editor.open().unwrap();
     assert!(editor.loaded(token, basis()));
+    draw(&mut editor);
     editor
 }
 fn draw(editor: &mut Editor) {
@@ -27,18 +29,217 @@ fn submit(editor: &mut Editor) -> Submission {
 }
 
 #[test]
+fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
+    assert_eq!(
+        SETTINGS
+            .iter()
+            .map(|metadata| metadata.key)
+            .collect::<Vec<_>>(),
+        PreferenceKey::ALL.to_vec(),
+        "the native projection must cover the closed protocol inventory in canonical order"
+    );
+    let rows = SETTINGS
+        .iter()
+        .map(|metadata| metadata.row)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        rows.as_slice(),
+        &Page::General.rows()[..PreferenceKey::ALL.len()],
+        "ordinary setting rows must not acquire a second ordering"
+    );
+    for metadata in &SETTINGS {
+        assert_eq!(setting(metadata.key), metadata);
+        assert_eq!(setting_for_row(metadata.row), Some(metadata));
+    }
+    assert_eq!(
+        setting(PreferenceKey::CustomForeground).availability,
+        SettingAvailability::TerminalDisplayThemeCustom
+    );
+    assert_eq!(
+        setting(PreferenceKey::CopyOnSelect).category,
+        SettingCategory::SelectionAndClipboard
+    );
+    assert_eq!(
+        setting(PreferenceKey::LaunchProfiles).effect,
+        SettingEffect::NewDefaultLaunch
+    );
+    assert_eq!(
+        setting(PreferenceKey::CompletionReminderMinimumSeconds).control,
+        SettingControl::BoundedInteger {
+            minimum: 1,
+            maximum: 3_600,
+            small_step: 1,
+            large_step: 10,
+            unit: SettingUnit::Seconds,
+        }
+    );
+    assert_eq!(
+        setting(PreferenceKey::ScrollbackBytes).control,
+        SettingControl::BoundedInteger {
+            minimum: 0,
+            maximum: 1_000_000_000,
+            small_step: 1_000_000,
+            large_step: 10_000_000,
+            unit: SettingUnit::Bytes,
+        }
+    );
+}
+
+#[test]
+fn bounded_adjustments_use_owner_steps_without_rounding_and_disable_at_endpoints() {
+    let mut editor = ready();
+    editor.edit(Edit::Select(Row::CompletionThreshold));
+    draw(&mut editor);
+    editor.edit(Edit::AdjustLarge(false));
+    let View::Draft(threshold) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(threshold.values.completion_reminder_minimum_seconds, 1);
+    assert_eq!(
+        threshold.adjustment(Row::CompletionThreshold),
+        Some(Adjustment {
+            backward: false,
+            forward: true,
+        })
+    );
+    let token = threshold.token;
+    draw(&mut editor);
+    editor.edit(Edit::Adjust(false));
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(draft))
+            if draft.token == token
+                && draft.values.completion_reminder_minimum_seconds == 1
+    ));
+    editor.edit(Edit::AdjustLarge(true));
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(draft)) if draft.values.completion_reminder_minimum_seconds == 11
+    ));
+
+    editor.edit(Edit::Select(Row::Scrollback));
+    draw(&mut editor);
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Clear);
+    editor.paste("10000001");
+    editor.edit(Edit::Activate);
+    draw(&mut editor);
+    editor.edit(Edit::Adjust(false));
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(draft)) if draft.values.scrollback_bytes == 9_000_001
+    ));
+}
+
+#[test]
+fn shifted_horizontal_keys_are_large_steps_only_outside_text_editors() {
+    let shifted_left = KeyEvent::press(KeyCode::Left, Modifiers::NONE.with_shift());
+    let shifted_right = KeyEvent::press(KeyCode::Right, Modifiers::NONE.with_shift());
+    assert!(matches!(
+        key_edit(shifted_left, false),
+        Some(Edit::AdjustLarge(false))
+    ));
+    assert!(matches!(
+        key_edit(shifted_right, false),
+        Some(Edit::AdjustLarge(true))
+    ));
+    assert!(key_edit(shifted_left, true).is_none());
+    assert!(key_edit(shifted_right, true).is_none());
+}
+
+#[test]
+fn typed_boolean_and_changed_projections_follow_the_local_draft() {
+    let mut editor = ready();
+    let View::Draft(before) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(before.checked(Row::Sound), Some(false));
+    assert!(!before.changed(Row::Sound));
+    editor.edit(Edit::Select(Row::Sound));
+    draw(&mut editor);
+    editor.edit(Edit::Activate);
+    let View::Draft(after) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(after.checked(Row::Sound), Some(true));
+    assert!(after.changed(Row::Sound));
+    assert!(!after.changed(Row::Save));
+}
+
+#[test]
+fn wheel_preserves_the_focus_anchor_and_painted_geometry_owns_row_activation() {
+    let mut editor = ready();
+    editor.edit(Edit::Select(Row::Theme));
+    draw(&mut editor);
+    let View::Draft(before) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    let token = before.token;
+    let values = before.values.clone();
+    let next = editor.scroll(token, false, 1).unwrap();
+    assert_ne!(next, token);
+    let View::Draft(visible) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(visible.selected, Row::Theme);
+    assert_eq!(visible.values, &values);
+    assert_eq!(visible.viewport, 1);
+    assert!(!visible.follow_selection);
+    assert_eq!(visible.first_visible(4), 1);
+    editor.presented(visible.presentation(4));
+    editor.edit(Edit::Adjust(true));
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(draft))
+            if draft.values.application_theme == ApplicationAppearance::Dark
+                && draft.selected == Row::Theme
+                && !draft.follow_selection
+    ));
+
+    let View::Draft(visible) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    let draw = visible.presentation(4);
+    let token = visible.token;
+    editor.presented(draw);
+    let next = editor.scroll(token, false, 2).unwrap();
+    let View::Draft(hidden) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(hidden.viewport, 3);
+    editor.presented(hidden.presentation(4));
+    editor.edit(Edit::Adjust(true));
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(draft))
+            if draft.values.application_theme == ApplicationAppearance::Dark
+                && draft.selected == Row::Theme
+                && !draft.follow_selection
+                && draft.token == next
+    ));
+
+    editor.edit(Edit::Next);
+    let View::Draft(following) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    let first = following.first_visible(4);
+    let selected = following
+        .page
+        .rows()
+        .iter()
+        .position(|row| *row == following.selected)
+        .unwrap();
+    assert!(following.follow_selection);
+    assert!((first..first + 4).contains(&selected));
+}
+
+#[test]
 fn settings_mouse_controls_follow_text_back_confirmation_and_hidden_save_lifetimes() {
     let mut editor = ready();
     draw(&mut editor);
-    editor.control(
-        editor.view().unwrap().token(),
-        Control::Row(Row::LaunchProfiles),
-    );
+    editor.click(editor.view().unwrap().token(), Row::LaunchProfiles);
     draw(&mut editor);
-    editor.control(
-        editor.view().unwrap().token(),
-        Control::Row(Row::ProfileName),
-    );
+    editor.click(editor.view().unwrap().token(), Row::ProfileName);
     editor.edit(Edit::Clear);
     editor.paste("Mouse profile");
     draw(&mut editor);
@@ -58,7 +259,7 @@ fn settings_mouse_controls_follow_text_back_confirmation_and_hidden_save_lifetim
         matches!(editor.view(), Some(View::Draft(draft)) if draft.page == Page::General && draft.dirty)
     );
     draw(&mut editor);
-    editor.control(editor.view().unwrap().token(), Control::Row(Row::ResetAll));
+    editor.click(editor.view().unwrap().token(), Row::ResetAll);
     draw(&mut editor);
     editor.control(editor.view().unwrap().token(), Control::Back);
     assert!(
@@ -66,7 +267,7 @@ fn settings_mouse_controls_follow_text_back_confirmation_and_hidden_save_lifetim
     );
     draw(&mut editor);
     let submission = editor
-        .control(editor.view().unwrap().token(), Control::Row(Row::Save))
+        .click(editor.view().unwrap().token(), Row::Save)
         .unwrap();
     editor.control(submission.token, Control::Close);
     assert!(!editor.visible());
@@ -110,6 +311,7 @@ fn stale_frames_cancelled_loads_and_hidden_frames_cannot_authorize_a_save() {
     let current = editor.open().unwrap();
     assert!(!editor.loaded(old, basis()));
     assert!(editor.loaded(current, basis()));
+    draw(&mut editor);
     editor.edit(Edit::Adjust(true));
     editor.draw(old);
     assert!(editor.click(old, Row::Save).is_none());
@@ -121,12 +323,210 @@ fn stale_frames_cancelled_loads_and_hidden_frames_cannot_authorize_a_save() {
     draw(&mut editor);
     assert!(editor.edit(Edit::Activate).is_some());
 }
+
 #[test]
-fn failures_preserve_the_original_cas_basis_and_the_exact_draft_without_replay() {
+fn input_context_tracks_whole_surface_proof_across_state_replacements() {
+    let mut editor = Editor::default();
+    assert_eq!(editor.input_context(), None);
+
+    let loading = editor.open().unwrap();
+    assert_eq!(
+        editor.input_context(),
+        Some(SettingsInputContext {
+            token: loading,
+            phase: PresentationPhase::Pending,
+            readiness: SettingsInputReadiness::Recovery,
+            remaining_text_bytes: 0,
+        })
+    );
+    editor.presented(SettingsDraw::surface(loading));
+    assert_eq!(
+        editor.input_context().unwrap().readiness,
+        SettingsInputReadiness::Interactive
+    );
+
+    assert!(editor.loaded(loading, basis()));
+    let View::Draft(draft) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    let draft_token = draft.token;
+    assert_ne!(draft_token, loading);
+    assert_eq!(
+        editor.input_context(),
+        Some(SettingsInputContext {
+            token: draft_token,
+            phase: PresentationPhase::Admitted,
+            readiness: SettingsInputReadiness::Recovery,
+            remaining_text_bytes: 0,
+        }),
+        "loading proof cannot authorize its replacement draft"
+    );
+    editor.presented(SettingsDraw::surface(loading));
+    assert_eq!(
+        editor.input_context().unwrap().readiness,
+        SettingsInputReadiness::Recovery,
+        "a stale loading receipt cannot restore readiness"
+    );
+    let View::Draft(draft) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    let draw = draft.presentation(4);
+    editor.presented(draw);
+
+    editor.edit(Edit::Select(Row::CompletionThreshold));
+    editor.edit(Edit::Activate);
+    let text = editor.input_context().unwrap();
+    assert_eq!(text.readiness, SettingsInputReadiness::Interactive);
+    assert_eq!(
+        text.remaining_text_bytes,
+        Row::CompletionThreshold.text_limit().unwrap()
+            - basis()
+                .values
+                .completion_reminder_minimum_seconds
+                .to_string()
+                .len()
+    );
+    assert_ne!(text.token, draft_token);
+    editor.not_presented();
+    assert_eq!(
+        editor.input_context().unwrap(),
+        SettingsInputContext {
+            token: text.token,
+            phase: PresentationPhase::Admitted,
+            readiness: SettingsInputReadiness::Recovery,
+            remaining_text_bytes: 0,
+        },
+        "a covered surface retains capture intent without text admission"
+    );
+}
+
+#[test]
+fn saving_and_suspended_settings_require_a_new_surface_receipt() {
+    let mut editor = ready();
+    editor.edit(Edit::Select(Row::Sound));
+    editor.edit(Edit::Activate);
+    let submission = submit(&mut editor);
+    assert_eq!(
+        editor.input_context().unwrap().readiness,
+        SettingsInputReadiness::Recovery,
+        "the saving surface replaces its painted draft"
+    );
+    editor.presented(SettingsDraw::surface(submission.token));
+    assert_eq!(
+        editor.input_context().unwrap().readiness,
+        SettingsInputReadiness::Interactive
+    );
+
+    assert!(editor.failed(submission.token, None));
+    assert_eq!(
+        editor.input_context().unwrap().readiness,
+        SettingsInputReadiness::Recovery,
+        "the restored draft replaces the painted saving surface"
+    );
+    let View::Draft(draft) = editor.view().unwrap() else {
+        panic!("restored draft");
+    };
+    let draw = draft.presentation(4);
+    editor.presented(draw);
+    assert_eq!(
+        editor.geometry_blocked(),
+        Some(GeometrySettlement::Suspended)
+    );
+    let suspended = editor.input_context().unwrap();
+    assert_eq!(suspended.phase, PresentationPhase::Suspended);
+    assert_eq!(suspended.readiness, SettingsInputReadiness::Recovery);
+    editor.presented(draw);
+    assert_eq!(
+        editor.input_context().unwrap().readiness,
+        SettingsInputReadiness::Interactive
+    );
+
+    editor.edit(Edit::Cancel);
+    assert_eq!(editor.input_context(), None);
+}
+
+#[test]
+fn first_geometry_block_refuses_the_surface_but_settles_accepted_work() {
+    let mut editor = Editor::default();
+    let loading = editor.open().unwrap();
+    assert_eq!(editor.presentation(), PresentationPhase::Pending);
+    assert_eq!(editor.geometry_blocked(), Some(GeometrySettlement::Refused));
+    assert!(!editor.visible());
+    assert!(
+        editor.open().is_none(),
+        "the accepted read still owns this editor incarnation"
+    );
+    assert!(
+        !editor.loaded(loading, basis()),
+        "a refused surface settles the read without reopening itself"
+    );
+    assert!(editor.open().is_some());
+
+    let mut loaded = Editor::default();
+    let token = loaded.open().unwrap();
+    assert!(loaded.loaded(token, basis()));
+    assert_eq!(loaded.geometry_blocked(), Some(GeometrySettlement::Refused));
+    assert!(
+        !loaded.visible(),
+        "an unpainted draft is not silently captured"
+    );
+}
+
+#[test]
+fn admitted_draft_suspends_and_resumes_with_its_local_navigation() {
+    let mut editor = ready();
+    editor.edit(Edit::Select(Row::Sound));
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Select(Row::LaunchProfiles));
+    draw(&mut editor);
+    editor.edit(Edit::Activate);
+    draw(&mut editor);
+    assert_eq!(editor.presentation(), PresentationPhase::Admitted);
+    let View::Draft(before) = editor.view().unwrap() else {
+        panic!("draft")
+    };
+    assert_eq!(before.page, Page::Profiles);
+    assert!(before.dirty);
+
+    assert_eq!(
+        editor.geometry_blocked(),
+        Some(GeometrySettlement::Suspended)
+    );
+    assert_eq!(editor.presentation(), PresentationPhase::Suspended);
+    let View::Draft(suspended) = editor.view().unwrap() else {
+        panic!("retained draft")
+    };
+    assert_eq!(suspended.page, Page::Profiles);
+    assert!(suspended.values.sound_enabled);
+    assert!(suspended.dirty);
+    let suspended_token = suspended.token;
+    let suspended_row = suspended.selected;
+    let resumed_draw = suspended.presentation(4);
+    assert!(editor.edit(Edit::Next).is_none());
+    assert_eq!(
+        editor.view().unwrap().token(),
+        suspended_token,
+        "suspended input cannot mutate the hidden draft"
+    );
+
+    editor.presented(resumed_draw);
+    assert_eq!(editor.presentation(), PresentationPhase::Admitted);
+    editor.edit(Edit::Next);
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(resumed))
+            if resumed.page == Page::Profiles
+                && resumed.values.sound_enabled
+                && resumed.dirty
+                && resumed.selected != suspended_row
+    ));
+}
+#[test]
+fn definite_failures_preserve_the_original_cas_basis_and_allow_an_explicit_retry() {
     let mut editor = ready();
     editor.edit(Edit::Adjust(true));
     let submission = submit(&mut editor);
-    assert!(editor.failed(submission.token));
+    assert!(editor.failed(submission.token, None));
     let View::Draft(draft) = editor.view().unwrap() else {
         panic!("draft");
     };
@@ -151,6 +551,87 @@ fn failures_preserve_the_original_cas_basis_and_the_exact_draft_without_replay()
         "no silent rebase over the other client"
     );
 }
+
+#[test]
+fn a_confirmed_observation_during_save_is_retained_if_the_draft_returns() {
+    let mut editor = ready();
+    editor.edit(Edit::Select(Row::Sound));
+    editor.edit(Edit::Activate);
+    let submission = submit(&mut editor);
+    let mut latest = basis();
+    latest.source = "b".repeat(64);
+    latest.values.locale = PreferencesLocale::ZhCn;
+    assert_eq!(editor.observe(&latest), Observation::Unchanged);
+    assert!(editor.failed(submission.token, Some(Reconciliation::SourceChanged)));
+    let View::Draft(draft) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(draft.basis_source, "missing");
+    assert_eq!(draft.effective_source, latest.source.as_str());
+    assert_eq!(draft.effective_values.locale, PreferencesLocale::ZhCn);
+    assert!(draft.conflict);
+    assert_eq!(draft.reconciliation, Some(Reconciliation::SourceChanged));
+    assert!(!draft.enabled(Row::Save));
+}
+
+#[test]
+fn unknown_save_requires_a_matched_explicit_read_before_another_save() {
+    let mut editor = ready();
+    editor.edit(Edit::Select(Row::Sound));
+    editor.edit(Edit::Activate);
+    let submission = submit(&mut editor);
+    assert!(editor.failed(submission.token, Some(Reconciliation::OutcomeUnknown)));
+    let View::Draft(retained) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert!(retained.dirty);
+    assert_eq!(
+        retained.reconciliation,
+        Some(Reconciliation::OutcomeUnknown)
+    );
+    assert!(!retained.enabled(Row::Save));
+
+    draw(&mut editor);
+    assert!(editor.edit(Edit::Activate).is_none());
+    assert_eq!(
+        editor.observe(&basis()),
+        Observation::Unchanged,
+        "a cached passive snapshot is not a new read receipt"
+    );
+
+    let mut passive = basis();
+    passive.source = "c".repeat(64);
+    passive.values.locale = PreferencesLocale::ZhCn;
+    assert_eq!(editor.observe(&passive), Observation::Conflict);
+    let View::Draft(conflicted) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(conflicted.basis_source, "missing");
+    assert_eq!(conflicted.effective_source, passive.source.as_str());
+    assert_eq!(
+        conflicted.reconciliation,
+        Some(Reconciliation::OutcomeUnknown),
+        "passive runtime publication cannot clear unknown commit state"
+    );
+    assert!(!conflicted.enabled(Row::Save));
+    assert!(!editor.loaded(submission.token, passive.clone()));
+
+    editor.edit(Edit::Select(Row::Reload));
+    editor.edit(Edit::Activate);
+    draw(&mut editor);
+    let reload = editor.edit(Edit::Activate).expect("explicit fresh read");
+    assert!(matches!(reload.operation, NativeSettingsOperation::Open {}));
+    assert!(!editor.loaded(submission.token, passive.clone()));
+    assert!(editor.loaded(reload.token, passive));
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(draft))
+            if !draft.dirty
+                && !draft.conflict
+                && draft.reconciliation.is_none()
+                && draft.basis_source == draft.effective_source
+    ));
+}
 #[test]
 fn external_observation_refreshes_clean_views_and_disarms_old_pointer_frames() {
     let mut editor = ready();
@@ -165,6 +646,9 @@ fn external_observation_refreshes_clean_views_and_disarms_old_pointer_frames() {
         panic!("draft")
     };
     assert_eq!(draft.values.locale, PreferencesLocale::ZhCn);
+    assert_eq!(draft.basis_values.locale, PreferencesLocale::ZhCn);
+    assert_eq!(draft.effective_values.locale, PreferencesLocale::ZhCn);
+    assert!(!draft.conflict);
     assert_eq!(draft.selected, Row::Theme);
     assert!(!draft.dirty);
     assert_ne!(draft.token, old);
@@ -194,7 +678,10 @@ fn external_observation_never_rebases_edits_text_or_confirmations() {
             panic!("draft")
         };
         assert_eq!(draft.values.locale, PreferencesLocale::System);
-        assert_eq!(draft.token, old);
+        assert_eq!(draft.basis_values.locale, PreferencesLocale::System);
+        assert_eq!(draft.effective_values.locale, PreferencesLocale::ZhCn);
+        assert!(draft.conflict);
+        assert_ne!(draft.token, old, "a new effective value revokes old hits");
         let State::Draft(draft) = &editor.state else {
             panic!("draft")
         };
@@ -206,6 +693,47 @@ fn external_observation_never_rebases_edits_text_or_confirmations() {
             assert_eq!(draft.confirmation, Some(Confirmation::ResetAll));
         }
     }
+}
+
+#[test]
+fn profiles_child_freezes_the_basis_and_restores_parent_navigation() {
+    let mut editor = ready();
+    draw(&mut editor);
+    let token = editor.view().unwrap().token();
+    editor.scroll(token, false, 4).unwrap();
+    editor.edit(Edit::Select(Row::LaunchProfiles));
+    let View::Draft(parent) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(parent.viewport, 4);
+    draw(&mut editor);
+    editor.edit(Edit::Activate);
+    assert!(matches!(
+        editor.view(),
+        Some(View::Draft(draft)) if draft.page == Page::Profiles && draft.selected == Row::Profile
+    ));
+
+    let mut latest = basis();
+    latest.source = "d".repeat(64);
+    latest.values.locale = PreferencesLocale::ZhCn;
+    assert_eq!(editor.observe(&latest), Observation::Conflict);
+    let View::Draft(child) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(child.values.locale, PreferencesLocale::System);
+    assert_eq!(child.basis_values.locale, PreferencesLocale::System);
+    assert_eq!(child.effective_values.locale, PreferencesLocale::ZhCn);
+    assert!(child.conflict);
+
+    editor.edit(Edit::Cancel);
+    let View::Draft(restored) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    assert_eq!(restored.page, Page::General);
+    assert_eq!(restored.selected, Row::LaunchProfiles);
+    assert_eq!(restored.viewport, 4);
+    assert!(restored.follow_selection);
+    assert!(restored.conflict);
 }
 #[test]
 fn profile_reset_claims_only_catalog_and_preserves_other_edits_and_valid_selection() {
@@ -379,6 +907,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
     let mut stale = None;
     let mut values = (1, false, false);
     let mut row = Row::Theme;
+    let mut presented = false;
     let mut drawn = false;
     let mut saves = Vec::new();
     for op in trace {
@@ -409,6 +938,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                         phase = if visible { 2 } else { 0 };
                         values = (1, false, false);
                         row = Row::Theme;
+                        presented = false;
                         drawn = false;
                     }
                 }
@@ -417,6 +947,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                 if let Some(view) = editor.view() {
                     editor.draw(view.token());
                     if phase == 2 {
+                        presented = true;
                         drawn = true;
                     }
                 }
@@ -469,7 +1000,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                     if changes != UserPreferencesPatch::between(&basis().values, &expected) {
                         return Err("dirty leaves".into());
                     }
-                } else if phase == 2 && row != Row::Save {
+                } else if phase == 2 && presented && row != Row::Save {
                     match row {
                         Row::Theme => values.0 = (values.0 + 1) % 3,
                         Row::Reminders => values.1 = !values.1,
@@ -482,6 +1013,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
             Trace::Cancel => {
                 editor.edit(Edit::Cancel);
                 visible = false;
+                presented = false;
                 if !matches!(phase, 1 | 3) {
                     phase = 0;
                 }
@@ -494,6 +1026,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                     if matches!(phase, 1 | 3) {
                         phase = 0;
                         visible = false;
+                        presented = false;
                     }
                 }
             }

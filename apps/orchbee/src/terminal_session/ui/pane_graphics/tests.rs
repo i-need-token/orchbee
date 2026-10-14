@@ -1,7 +1,5 @@
 use super::*;
-use crate::terminal_session::ui::{
-    tests::move_membership::ready_ui, tests::viewport::install_projection,
-};
+use crate::terminal_session::ui::tests::viewport::{controlling_ui, install_projection};
 use crate::{
     client_view::ClientView,
     localization::Locale,
@@ -46,7 +44,7 @@ fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncov
             Theme::one_dark(),
         ] {
             for (width, height) in [(80, 24), (120, 40), (60, 18), (32, 10)] {
-                let (mut ui, _, _, _) = ready_ui();
+                let (mut ui, _, _, _) = controlling_ui();
                 install_projection(&mut ui, Some((9, false, 24)), 0);
                 ui.after_close_draw(draw(&ui, width, height, locale, &theme).0);
                 let view = ui.view();
@@ -141,7 +139,7 @@ fn actual_native_shell_places_confirmed_pixels_inside_one_frame_and_clears_under
         tui_backend::{FixedViewportBackend, ResizableBackend},
     };
     use ratatui::{TerminalOptions, Viewport};
-    let (mut ui, _, _, _) = ready_ui();
+    let (mut ui, _, _, _) = controlling_ui();
     install_projection(&mut ui, Some((9, false, 24)), 0);
     let theme = Theme::rgb_test_dark();
     ui.after_close_draw(draw(&ui, 80, 24, Locale::EnUs, &theme).0);

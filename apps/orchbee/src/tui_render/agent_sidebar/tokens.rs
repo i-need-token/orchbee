@@ -1,7 +1,7 @@
 //! Pure token projection from the already-fenced Agent row. No I/O or Agent authority.
+use super::super::workspace_sidebar::{CurrentIdentityEmphasis, ProjectedSidebarLines};
 use super::{
-    ClientView, Line, Locale, Modifier, Role, Span, Theme, display_label, display_width,
-    machine_label,
+    ClientView, Line, Locale, Role, Span, Theme, display_label, display_width, machine_label,
 };
 use crate::machine_picker::Row;
 use orchbee_local_site_runtime::{
@@ -101,15 +101,13 @@ pub(in crate::tui_render) fn height(view: &ClientView, row: &Row, locale: Locale
         .count()
         .max(1) as u16
 }
-pub(in crate::tui_render) fn lines(
+pub(in crate::tui_render) fn projection(
     view: &ClientView,
     row: &Row,
-    ordinal: usize,
     locale: Locale,
     theme: &Theme,
     width: usize,
-    focused: bool,
-) -> Vec<Line<'static>> {
+) -> ProjectedSidebarLines {
     let Some(context) = Context::new(view, row, locale) else {
         let mut lines = Vec::new();
         if view
@@ -129,23 +127,11 @@ pub(in crate::tui_render) fn lines(
             locale.machine_picker_text(row.sidebar_status().unwrap_or("agents-unavailable")),
             theme.style(Role::TextDisabled),
         ));
-        return lines;
+        return ProjectedSidebarLines::new(lines, CurrentIdentityEmphasis::Theme);
     };
     let (_, state_role) = super::super::sidebar_text::state_role(context.agent.display_state());
-    let current = view.machines.current_agent(&row.choice, context.agent);
-    let text_style = |role, first_line| {
-        theme.sidebar_token_style(
-            role,
-            Default::default(),
-            current && first_line,
-            focused && first_line,
-        )
-    };
-    let ordinal = if ordinal < 9 {
-        format!("{} ", ordinal + 1)
-    } else {
-        "  ".to_owned()
-    };
+    let text_style =
+        |role, _first_line| theme.sidebar_token_style(role, Default::default(), false, false);
     let Some(rows) = configured(view, context.agent) else {
         let provider = display_label(context.agent.provider());
         let title = display_label(context.agent.title());
@@ -155,10 +141,10 @@ pub(in crate::tui_render) fn lines(
             title
         };
         let state = display_label(context.state);
-        let mut detail = vec![Span::raw("    ")];
+        let mut detail = Vec::new();
         if !provider.is_empty()
             && provider != title
-            && display_width(&provider) <= width.saturating_sub(7 + display_width(&state))
+            && display_width(&provider) <= width.saturating_sub(3 + display_width(&state))
         {
             detail.push(Span::styled(
                 provider,
@@ -170,33 +156,16 @@ pub(in crate::tui_render) fn lines(
             ));
         }
         detail.push(Span::styled(state, text_style(state_role, false)));
-        return vec![
-            Line::from(vec![
-                Span::styled(ordinal, text_style(Role::HintLabel, true)),
-                Span::styled(
-                    format!(
-                        "{} ",
-                        super::super::sidebar_text::state_glyph(
-                            context.agent.display_state(),
-                            theme
-                        )
-                    ),
-                    text_style(state_role, true),
-                ),
-                Span::styled(
-                    title,
-                    if current {
-                        text_style(Role::TextPrimary, true).add_modifier(Modifier::BOLD)
-                    } else {
-                        text_style(Role::TextPrimary, true)
-                    },
-                ),
-            ]),
-            Line::from(detail).style(text_style(Role::TextPrimary, false)),
-        ];
+        return ProjectedSidebarLines::new(
+            vec![
+                Line::from(Span::styled(title, text_style(Role::TextPrimary, true))),
+                Line::from(detail).style(text_style(Role::TextPrimary, false)),
+            ],
+            CurrentIdentityEmphasis::Theme,
+        );
     };
     let mut lines = Vec::new();
-    let continuation_indent = 4;
+    let mut current_identity = CurrentIdentityEmphasis::Theme;
     for row in rows {
         let mut spans = Vec::new();
         let mut previous_icon = false;
@@ -230,39 +199,29 @@ pub(in crate::tui_render) fn lines(
             } else {
                 Role::TextSecondary
             };
-            let mut projected = theme.sidebar_token_style(
-                token_role,
-                style,
-                current && lines.is_empty(),
-                focused && lines.is_empty(),
-            );
-            if current && token_role == Role::TextPrimary && style.bold.is_none() {
-                projected = projected.add_modifier(Modifier::BOLD);
+            if token_role == Role::TextPrimary && style.bold == Some(false) {
+                current_identity = CurrentIdentityEmphasis::ExplicitPlain;
             }
+            let projected = theme.sidebar_token_style(token_role, style, false, false);
             spans.push(Span::styled(text, projected));
         }
         if !spans.is_empty() {
-            if !lines.is_empty() {
-                spans.insert(0, Span::raw(" ".repeat(continuation_indent)));
-            }
             lines.push(Line::from(spans));
         }
     }
     if lines.is_empty() {
         lines.push(Line::default());
     }
-    lines[0].spans.insert(
-        0,
-        Span::styled(
-            format!(
-                "{} ",
-                super::super::sidebar_text::state_glyph(context.agent.display_state(), theme)
-            ),
-            text_style(state_role, true),
-        ),
-    );
-    lines[0]
-        .spans
-        .insert(0, Span::styled(ordinal, text_style(Role::HintLabel, true)));
-    lines
+    ProjectedSidebarLines::new(lines, current_identity)
+}
+
+#[cfg(test)]
+pub(in crate::tui_render) fn lines(
+    view: &ClientView,
+    row: &Row,
+    locale: Locale,
+    theme: &Theme,
+    width: usize,
+) -> Vec<Line<'static>> {
+    projection(view, row, locale, theme, width).into_parts().0
 }

@@ -1,15 +1,19 @@
-use super::tab_close::{modal_area, set_modal_cursor, wrapped_text_fits};
+use super::modal::{
+    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+    set_modal_cursor,
+};
 use crate::{
+    client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_session::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
-    terminal_text::{display_width, sanitize_terminal_text},
+    terminal_text::sanitize_terminal_text,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::{Role, Theme},
+    tui_theme::Theme,
 };
 use ratatui::{
     Frame,
     layout::Rect,
-    text::{Line, Text},
+    text::{Line, Span, Text},
     widgets::{Clear, Padding, Paragraph, Wrap},
 };
 
@@ -24,7 +28,6 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
-    hits.start_modal();
     let mut lines = vec![
         Line::from(locale.rename_title()),
         Line::from(""),
@@ -45,74 +48,108 @@ pub(super) fn render(
         lines.push(Line::from(locale.rename_invalid()));
         lines.push(Line::from(""));
     }
-    lines.push(Line::from(locale.rename_actions()));
-    let labels = [
-        locale.workspace_close_cancel_button(),
-        locale.rename_submit_button(),
+    lines.extend([Line::from(""), Line::from("")]);
+    let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
+    let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
+    let backspace = modal_key_label(theme, &Binding::new(KeyCode::Backspace, Modifiers::NONE));
+    let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
+    let hints = [
+        super::controls::KeyHint::new(&escape, locale.rename_cancel_hint()),
+        super::controls::KeyHint::new(&enter, locale.rename_submit_hint()),
+        super::controls::KeyHint::new(&backspace, locale.rename_delete_hint()),
+        super::controls::KeyHint::new(&clear, locale.rename_clear_hint()),
     ];
-    let actions = format!("{}  {}", labels[0], labels[1]);
-    lines.push(Line::from(actions.as_str()));
+    let submit_enabled = draft.label_valid() && !draft.input_fault();
+    let actions = [
+        ModalAction::new(
+            locale.rename_cancel_label(),
+            super::controls::ActionKind::Secondary,
+            true,
+        ),
+        ModalAction::new(
+            locale.rename_submit_label(),
+            super::controls::ActionKind::Primary,
+            submit_enabled,
+        ),
+    ];
     let text = Text::from(lines);
-    let area = modal_area(content_area, &text);
-    let block = super::overlay_surface(theme, true, Padding::horizontal(2));
-    let inner = block.inner(area);
+    let Some(candidate) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
+    else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
     // The raw draft stays exact; what the modal draws is its safe projection
     // inside the inner width, with the raw cursor mapped through the same
     // projection — never a raw byte offset applied to sanitized text.
-    let window = draft.field_window(usize::from(inner.width));
+    let Some(field_width) = candidate.inner.width.checked_sub(4) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let Some(window) = draft.field_window(usize::from(field_width)) else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
     let mut lines = text.lines;
-    if let Some(window) = &window {
-        lines[FIELD] = Line::from(window.display().to_owned());
-    }
+    let mut displayed = window.display().to_owned();
+    displayed.push_str(&" ".repeat(
+        usize::from(field_width).saturating_sub(crate::terminal_text::display_width(&displayed)),
+    ));
+    lines[FIELD] = Line::from(vec![
+        Span::styled("[ ", theme.style(crate::tui_theme::Role::AccentFocus)),
+        Span::styled(displayed, theme.style(crate::tui_theme::Role::TextPrimary)),
+        Span::styled(" ]", theme.style(crate::tui_theme::Role::AccentFocus)),
+    ]);
     let text = Text::from(lines);
-    let complete =
-        wrapped_text_fits(&text, inner) && display_width(&actions) <= usize::from(inner.width);
-    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    frame.render_widget(Clear, area);
-    frame.render_widget(block, area);
-    if let Some(close) = super::controls::close(frame, area, theme) {
-        hits.record(
-            HitLayer::Overlay,
-            close,
+    let Some(layout) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
+    else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+
+    hits.start_modal();
+    hits.record(
+        HitLayer::OverlaySurface,
+        layout.area,
+        HitTarget::OverlaySurface,
+    );
+    frame.render_widget(Clear, layout.area);
+    frame.render_widget(
+        super::overlay_surface(theme, true, Padding::horizontal(2)),
+        layout.area,
+    );
+    frame.render_widget(
+        Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
+        layout.inner,
+    );
+    paint_modal_close(
+        frame,
+        layout.close,
+        HitTarget::Rename {
+            token: draft.token(),
+            submit: false,
+        },
+        theme,
+        hits,
+    );
+    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
+        .expect("admitted modal hints must paint");
+    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
+    for ((rect, action), submit) in layout.actions.into_iter().zip(actions).zip([false, true]) {
+        paint_modal_action(
+            frame,
+            Rect::new(rect.x, rect.y, layout.inner.right() - rect.x, 1),
+            rect,
+            action,
             HitTarget::Rename {
                 token: draft.token(),
-                submit: false,
+                submit,
             },
-        );
-    }
-    if complete {
-        frame.render_widget(
-            Paragraph::new(text.clone()).wrap(Wrap { trim: false }),
-            inner,
-        );
-        if let Some(buttons) = super::controls::pair(
-            frame,
-            super::controls::text_row(&text, inner, text.lines.len() - 1),
-            labels,
             theme,
-        ) {
-            for (rect, submit) in buttons.into_iter().zip([false, true]) {
-                hits.record(
-                    HitLayer::Overlay,
-                    rect,
-                    HitTarget::Rename {
-                        token: draft.token(),
-                        submit,
-                    },
-                );
-            }
-        }
-        if let Some(window) = window {
-            set_modal_cursor(frame, &text, inner, FIELD, window.cursor_column());
-        }
-        (area, ModalPresentation::Presented(draft.token()))
-    } else {
-        frame.render_widget(
-            Paragraph::new(locale.rename_resize_hint())
-                .style(theme.style(Role::StatusWarning))
-                .wrap(Wrap { trim: false }),
-            inner,
+            hits,
         );
-        (area, ModalPresentation::NotPresented)
     }
+    set_modal_cursor(
+        frame,
+        &text,
+        layout.inner,
+        FIELD,
+        window.cursor_column() + 2,
+    );
+    (layout.area, ModalPresentation::Presented(draft.token()))
 }

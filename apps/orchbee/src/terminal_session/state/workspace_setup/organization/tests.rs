@@ -51,9 +51,10 @@ fn open(state: &mut NativeSessionState) {
         Instant::now() + Duration::from_secs(30),
     )
     .unwrap();
-    state
+    let token = state
         .open_setup_draft(NativeSetupIntent::Organize(Box::new(request)))
         .unwrap();
+    state.acknowledge_setup_draw(Some(token));
 }
 fn plan(state: &mut NativeSessionState) -> SetupOperation {
     let token = state.setup_draft().unwrap().token();
@@ -145,6 +146,7 @@ fn create_project_and_move_is_one_commit_and_dissolve_keeps_workspace_resources(
         NativeSetupStage::WorkspaceProjectName
     );
     let token = state.setup_draft().unwrap().token();
+    state.acknowledge_setup_draw(Some(token));
     assert!(state.edit_setup_draft(token, NativeSetupEdit::Append("New group")));
     let operation = plan(&mut state);
     assert!(

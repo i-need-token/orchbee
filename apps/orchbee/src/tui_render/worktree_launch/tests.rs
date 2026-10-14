@@ -11,7 +11,6 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let token = WorktreeToken::for_test(8);
                     let mut hits = HitMapBuilder::new();
-                    hits.start_modal();
                     let visits = Cell::new(0);
                     let path = format!("C:/repo/{}/checkout", "雪".repeat(1000));
                     let mut result = None;
@@ -48,6 +47,7 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                     assert!(area.bottom() < height);
                     let map = hits.finish();
                     let mut choices = std::collections::BTreeSet::new();
+                    let mut selected_row = None;
                     for y in 0..height {
                         for x in 0..width {
                             if let Some(HitTarget::Worktree {
@@ -58,17 +58,28 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                                 assert_eq!(*painted, token);
                                 assert!(*index < 200);
                                 choices.insert(*index);
+                                if *index == selected && selected_row.is_none() {
+                                    selected_row = Some(y);
+                                }
                             }
                         }
                     }
                     if width == 20 {
                         assert!(matches!(presented, ModalPresentation::NotPresented));
+                        assert!(area.is_empty());
                         assert!(choices.is_empty());
                     } else {
                         assert!(
                             matches!(presented, ModalPresentation::Presented(value) if value == token)
                         );
                         assert!(choices.contains(&selected));
+                        let inner =
+                            super::super::overlay_surface(&theme, true, Padding::horizontal(2))
+                                .inner(area);
+                        assert_eq!(
+                            terminal.backend().buffer()[(inner.x, selected_row.unwrap())].symbol(),
+                            theme.glyphs.navigation_marker,
+                        );
                         let text = terminal
                             .backend()
                             .buffer()
@@ -79,10 +90,10 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                         assert!(text.contains(&format!("{}/200", selected + 1)));
                         assert!(text.contains("/checkout"));
                         assert!(!text.contains('\x1b'));
-                        assert!(
-                            text.replace(' ', "")
-                                .contains(&locale.setup_cancel_button().replace(' ', ""))
-                        );
+                        assert!(text.replace(' ', "").contains(&format!(
+                            "[{}]",
+                            locale.worktree_cancel_label(WorktreeStage::Checkout)
+                        )));
                     }
                     assert!(visits.get() <= usize::from(height / 2));
                 }
@@ -95,7 +106,6 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
 fn bare_and_missing_checkout_paths_are_visible_without_activation_hits() {
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     let mut hits = HitMapBuilder::new();
-    hits.start_modal();
     let theme = Theme::terminal_native();
     let mut area = Rect::default();
     terminal
@@ -126,21 +136,15 @@ fn bare_and_missing_checkout_paths_are_visible_without_activation_hits() {
         .unwrap();
     let map = hits.finish();
     let inner = super::super::overlay_surface(&theme, true, Padding::horizontal(2)).inner(area);
-    for row in 2..6 {
+    for (row, choice) in [(2, 0), (3, 0), (4, 1), (5, 1), (6, 2), (7, 2)] {
         assert!(matches!(
             map.hit_target_at(inner.x, inner.y + row),
-            Some(HitTarget::ListScroll(
-                crate::tui_pointer::ListScrollTarget::Worktree(_)
-            ))
+            Some(HitTarget::Worktree {
+                control: ModalControl::Choice(index),
+                ..
+            }) if *index == choice
         ));
     }
-    assert!(matches!(
-        map.hit_target_at(inner.x, inner.y + 6),
-        Some(HitTarget::Worktree {
-            control: ModalControl::Choice(2),
-            ..
-        })
-    ));
     let text = terminal
         .backend()
         .buffer()
@@ -153,4 +157,74 @@ fn bare_and_missing_checkout_paths_are_visible_without_activation_hits() {
             .count(),
         2
     );
+}
+
+#[test]
+fn refused_checkout_picker_preserves_the_underlay_and_prior_hit_map() {
+    let width = 20;
+    let height = 5;
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    hits.start_modal();
+    hits.record(
+        HitLayer::Overlay,
+        Rect::new(0, 0, 1, 1),
+        HitTarget::OverlaySurface,
+    );
+    let mut result = None;
+    terminal
+        .draw(|frame| {
+            let frame_area = frame.area();
+            let underlay = Text::from(
+                (0..height)
+                    .map(|_| Line::from("x".repeat(usize::from(width))))
+                    .collect::<Vec<_>>(),
+            );
+            frame.render_widget(Paragraph::new(underlay), frame_area);
+            result = Some(render_checkouts(
+                frame,
+                Locale::EnUs,
+                CheckoutPicker {
+                    token: WorktreeToken::for_test(8),
+                    mode: WorktreeMode::Open,
+                    source: "C:/repo",
+                    count: 2,
+                    selected: 0,
+                },
+                frame_area,
+                &Theme::terminal_native(),
+                &mut hits,
+                |_| {
+                    Some(CheckoutChoice {
+                        label: "branch".to_owned(),
+                        path: "C:/repo",
+                        openable: true,
+                    })
+                },
+            ));
+        })
+        .unwrap();
+    let (area, presentation) = result.unwrap();
+    assert!(area.is_empty());
+    assert!(matches!(presentation, ModalPresentation::NotPresented));
+    assert!(
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .all(|cell| cell.symbol() == "x")
+    );
+    let map = hits.finish();
+    assert!(matches!(
+        map.hit_target_at(0, 0),
+        Some(HitTarget::OverlaySurface)
+    ));
+    for y in 0..height {
+        for x in 0..width {
+            if (x, y) != (0, 0) {
+                assert!(map.hit_target_at(x, y).is_none());
+            }
+        }
+    }
 }

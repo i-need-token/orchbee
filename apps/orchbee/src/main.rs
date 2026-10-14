@@ -12,6 +12,8 @@
 
 #[cfg(windows)]
 mod action_menu;
+#[cfg(any(unix, windows))]
+mod action_projection;
 #[cfg(windows)]
 mod agent_configuration_windows;
 mod agent_doctor;
@@ -78,6 +80,8 @@ mod terminal_link_activation;
 #[cfg(windows)]
 mod terminal_links;
 #[cfg(any(unix, windows))]
+mod terminal_pointer_admission;
+#[cfg(any(unix, windows))]
 mod terminal_projection;
 #[cfg(any(unix, windows))]
 mod terminal_scrollbar;
@@ -91,12 +95,16 @@ mod terminal_title;
 mod termination_signal;
 #[cfg(any(unix, windows))]
 mod tui_backend;
+#[cfg(any(unix, windows))]
+mod tui_composition;
 #[cfg(windows)]
 mod tui_graphics;
 #[cfg(any(unix, windows))]
 mod tui_layout;
 #[cfg(any(unix, windows))]
 mod tui_pointer;
+#[cfg(any(unix, windows))]
+mod tui_presentation;
 #[cfg(any(unix, windows))]
 mod tui_render;
 #[cfg(any(unix, windows))]

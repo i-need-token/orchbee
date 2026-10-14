@@ -16,6 +16,7 @@ fn halted_close(
 ) -> (
     orchbee_workbench_protocol::WorkbenchTabId,
     orchbee_workbench_protocol::WorkbenchRequestId,
+    crate::terminal_session::state::CloseOperation,
 ) {
     use crate::terminal_session::state::{CloseLeaseAcknowledgement, CloseResult};
     use orchbee_workbench_protocol::{
@@ -70,7 +71,7 @@ fn halted_close(
         .unwrap();
     state.acknowledge_close_lease(CloseLeaseAcknowledgement::Exchange(read.key().clone()));
     assert!(state.close_set_status().unwrap().halted);
-    (ids[0].clone(), known)
+    (ids[0].clone(), known, read)
 }
 
 #[test]
@@ -82,7 +83,7 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
         {
             let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
             let original = ui.state.as_ref().unwrap().desired().cloned();
-            let (target, known) = halted_close(
+            let (target, known, _) = halted_close(
                 &mut ui,
                 target_index,
                 WorkbenchTabCloseStatus::CleanupBlocked {
@@ -112,7 +113,41 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
                     .contains(&MenuAction::ResumeTabClose)
             );
             assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
-            // A real menu draw must not revoke the recovery status behind its body.
+            // The menu honestly revokes the covered status draw; its exact permit preserves only
+            // this continuation authority.
+            draw_themed(
+                &mut ui,
+                locale,
+                width,
+                height,
+                None,
+                &Theme::terminal_native(),
+            );
+            assert!(
+                !ui.state
+                    .as_ref()
+                    .unwrap()
+                    .tab_close_resume_available(&target)
+            );
+            let view = ui.view();
+            let menu = view.action_menu().unwrap();
+            let row = menu
+                .actions
+                .iter()
+                .position(|action| *action == MenuAction::ResumeTabClose)
+                .unwrap();
+            ui.capture_action_menu_key(KeyEvent::press(
+                crate::client_view::KeyCode::Home,
+                crate::client_view::Modifiers::NONE,
+            ));
+            for _ in 0..row {
+                ui.capture_action_menu_key(KeyEvent::press(
+                    crate::client_view::KeyCode::Down,
+                    crate::client_view::Modifiers::NONE,
+                ));
+            }
+            // Navigation keeps the admitted surface but revokes exact row authority. The fresh
+            // composed draw both reveals the selected recovery action and arms its pointer route.
             draw_themed(
                 &mut ui,
                 locale,
@@ -123,12 +158,10 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
             );
             let view = ui.view();
             let menu = view.action_menu().unwrap();
-            let row = menu
-                .actions
-                .iter()
-                .position(|action| *action == MenuAction::ResumeTabClose)
-                .unwrap();
-            ui.click_action_menu(menu.token, row);
+            assert_eq!(menu.selected, row);
+            let source = menu.source.clone();
+            let token = menu.token;
+            ui.activate_action_menu_row(&source, token, row);
             let action = ui
                 .take_action_menu_action(false)
                 .expect("painted recovery menu handoff");
@@ -188,6 +221,144 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
 }
 
 #[test]
+fn close_set_menu_rejects_a_handoff_after_its_exact_close_observation_changes() {
+    use crate::terminal_session::state::{
+        CloseOperation, CloseOperationKind, CloseReadMode, CloseResult, PendingCloseResult,
+    };
+    use orchbee_workbench_protocol::{
+        WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
+        WorkbenchTabCloseReadOutcome, WorkbenchTabCloseStatus,
+    };
+    let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
+    let original = ui.state.as_ref().unwrap().desired().cloned();
+    let selected = ui.view().selected_tab_ids();
+    let (target, known, initial_read) = halted_close(
+        &mut ui,
+        0,
+        WorkbenchTabCloseStatus::CleanupBlocked {
+            reason: WorkbenchTabCloseBlockedReason::HostRefused,
+            resumable: true,
+        },
+    );
+    draw_themed(
+        &mut ui,
+        Locale::EnUs,
+        120,
+        40,
+        None,
+        &Theme::terminal_native(),
+    );
+    assert!(
+        ui.state
+            .as_ref()
+            .unwrap()
+            .tab_close_resume_available(&target)
+    );
+    assert!(ui.open_action_menu(MenuTarget::Tab(target.clone()), None, false));
+    draw_themed(
+        &mut ui,
+        Locale::EnUs,
+        120,
+        40,
+        None,
+        &Theme::terminal_native(),
+    );
+    assert!(
+        !ui.state
+            .as_ref()
+            .unwrap()
+            .tab_close_resume_available(&target)
+    );
+    let row = ui
+        .view()
+        .action_menu()
+        .unwrap()
+        .actions
+        .iter()
+        .position(|action| *action == MenuAction::ResumeTabClose)
+        .unwrap();
+    ui.capture_action_menu_key(KeyEvent::press(
+        crate::client_view::KeyCode::Home,
+        crate::client_view::Modifiers::NONE,
+    ));
+    for _ in 0..row {
+        ui.capture_action_menu_key(KeyEvent::press(
+            crate::client_view::KeyCode::Down,
+            crate::client_view::Modifiers::NONE,
+        ));
+    }
+    draw_themed(
+        &mut ui,
+        Locale::EnUs,
+        120,
+        40,
+        None,
+        &Theme::terminal_native(),
+    );
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    assert_eq!(menu.selected, row);
+    let source = menu.source.clone();
+    let token = menu.token;
+    ui.activate_action_menu_row(&source, token, row);
+    let action = ui
+        .take_action_menu_action(false)
+        .expect("painted recovery menu handoff");
+    assert!(matches!(
+        &action,
+        ClientAction::TabMenu {
+            action: MenuAction::ResumeTabClose,
+            tab_id: Some(tab_id),
+        } if tab_id == &target
+    ));
+
+    // A newer owner-typed observation replaces both the attempt and status identity while the
+    // already-taken menu action still carries the old one-shot permit.
+    let replacement = CloseOperation::new(
+        WorkbenchRequestId::parse("0000000000000000000000000000ee4b").unwrap(),
+        initial_read.selection().clone(),
+        CloseOperationKind::Read {
+            expected_operation: Some(known.clone()),
+            mode: CloseReadMode::Manual,
+        },
+        ui.clock.now() + std::time::Duration::from_secs(50),
+    );
+    let replacement_result = CloseResult::Read(WorkbenchTabCloseReadOutcome::Available {
+        close_request_id: known,
+        terminal_context_id: initial_read.key().target().terminal_context_id().clone(),
+        tab_id: target.clone(),
+        attempt_generation: WorkbenchTabCloseAttemptGeneration::new(8).unwrap(),
+        status: WorkbenchTabCloseStatus::CleanupBlocked {
+            reason: WorkbenchTabCloseBlockedReason::HostRefused,
+            resumable: true,
+        },
+    });
+    ui.state
+        .as_mut()
+        .unwrap()
+        .retain_close_worker_result(PendingCloseResult::new(replacement, replacement_result))
+        .unwrap();
+    assert!(
+        !ui.state
+            .as_ref()
+            .unwrap()
+            .tab_close_resume_available(&target)
+    );
+
+    let replay = action.clone();
+    ui.apply_client_action(action);
+    assert!(ui.view().close_confirmation().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
+    assert_eq!(ui.view().selected_tab_ids(), selected);
+    ui.apply_client_action(replay);
+    assert!(ui.view().close_confirmation().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
+    assert_eq!(ui.view().selected_tab_ids(), selected);
+}
+
+#[test]
 fn close_set_menu_cannot_resume_an_unrelated_target_without_a_record_or_change_selection() {
     use orchbee_workbench_protocol::{WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus};
     let (mut ui, mailbox, _, snapshot) = ready_snapshot(grouped());
@@ -223,7 +394,7 @@ fn close_set_menu_never_offers_resume_for_unknown_close_facts() {
         WorkbenchTabCloseStatus, WorkbenchTabCloseUnknownPhase, WorkbenchTabCloseUnknownReason,
     };
     let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
-    let (target, _) = halted_close(
+    let (target, _, _) = halted_close(
         &mut ui,
         0,
         WorkbenchTabCloseStatus::OutcomeUnknown {
@@ -257,7 +428,7 @@ fn close_set_keyboard_recovery_addresses_the_presented_background_member() {
     use orchbee_workbench_protocol::{WorkbenchTabCloseBlockedReason, WorkbenchTabCloseStatus};
     let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
     let original = ui.state.as_ref().unwrap().desired().cloned();
-    let (target, known) = halted_close(
+    let (target, known, _) = halted_close(
         &mut ui,
         1,
         WorkbenchTabCloseStatus::CleanupBlocked {
@@ -297,6 +468,15 @@ struct Port<'a> {
     forwarded: &'a mut Vec<u8>,
 }
 impl TerminalInputPort for Port<'_> {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        self.ui.capture_claims()
+    }
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        self.ui.capture_context(owner)
+    }
     fn forward(&mut self, input: &[u8]) -> Result<(), TerminalInputUnavailable> {
         self.forwarded.extend_from_slice(input);
         Ok(())
@@ -307,11 +487,26 @@ impl TerminalInputPort for Port<'_> {
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         Some(self.ui.apply_client_action(action))
     }
-    fn capture_confirmation_key(&mut self, key: ClientKey) -> bool {
-        self.ui.capture_confirmation_key(key)
+    fn capture_tab_confirmation_key_for(
+        &mut self,
+        token: NativeCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_tab_confirmation_key(token, key)
     }
-    fn action_menu_active(&self) -> bool {
-        self.ui.action_menu_active()
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        token: NativePanelCloseConfirmationToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_panel_confirmation_key(token, key)
+    }
+    fn capture_workspace_confirmation_key_for(
+        &mut self,
+        token: WorkspaceCloseToken,
+        key: ClientKey,
+    ) -> bool {
+        self.ui.capture_workspace_close_key(token, key)
     }
     fn open_action_menu(
         &mut self,
@@ -321,11 +516,36 @@ impl TerminalInputPort for Port<'_> {
     ) -> bool {
         self.ui.open_action_menu(target, anchor, released)
     }
-    fn capture_action_menu_key(&mut self, key: KeyEvent) {
-        self.ui.capture_action_menu_key(key);
+    fn capture_action_menu_key_for(
+        &mut self,
+        expected: crate::action_menu::MenuInputContext,
+        key: KeyEvent,
+    ) -> bool {
+        self.ui.capture_action_menu_key_for(expected, key)
     }
-    fn click_action_menu(&mut self, token: crate::action_menu::MenuToken, row: usize) {
-        self.ui.click_action_menu(token, row);
+    fn activate_action_menu_row(
+        &mut self,
+        source: &crate::action_menu::MenuTarget,
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    ) {
+        self.ui.activate_action_menu_row(source, token, row);
+    }
+    fn activate_action_menu_control(
+        &mut self,
+        source: &crate::action_menu::MenuTarget,
+        token: crate::action_menu::MenuToken,
+        control: crate::action_menu::MenuControl,
+    ) {
+        self.ui.activate_action_menu_control(source, token, control);
+    }
+    fn scroll_action_menu(
+        &mut self,
+        token: crate::action_menu::MenuToken,
+        up: bool,
+        lines: usize,
+    ) -> Option<crate::action_menu::MenuToken> {
+        self.ui.scroll_action_menu(token, up, lines)
     }
     fn take_action_menu_action(&mut self, released: bool) -> Option<ClientAction> {
         self.ui.take_action_menu_action(released)
@@ -392,7 +612,7 @@ fn draw_themed(
         })
         .unwrap();
     if let Some(name) = capture {
-        capture_screen(terminal.backend().buffer(), name);
+        crate::tui_render::test_capture::capture_screen(&mut terminal, name, locale, theme);
     }
     let text = rendered_text(terminal.backend().buffer());
     ui.after_close_draw(receipt.unwrap());
@@ -482,12 +702,10 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                     locale.close_set_title(4),
                     locale.close_set_more(1),
                     locale.close_set_warning().to_owned(),
-                    locale.workspace_close_cancel_button().to_owned(),
-                    locale.workspace_close_confirm_button().to_owned(),
                 ] {
                     assert!(compact(&screen).contains(&compact(&required)), "{screen}");
                 }
-                assert!(!screen.contains(locale.close_resize_hint()));
+                assert!(!screen.contains(locale.presentation_notice(false)));
                 assert!(ui.capture_confirmation_key(ClientKey::Plain('y')));
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 let QueuedCommand::Close(operation) = lease.record() else {
@@ -696,7 +914,7 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
 }
 
 #[test]
-fn close_set_prompt_resize_small_draw_and_cancellation_never_submit() {
+fn close_set_prompt_cancel_resize_and_small_suspension_never_submit() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for action in ["cancel", "resize", "small"] {
             let (mut ui, mailbox, _, _) = ready_snapshot(grouped());
@@ -706,44 +924,54 @@ fn close_set_prompt_resize_small_draw_and_cancellation_never_submit() {
             });
             let before = mailbox.cursors();
             draw(&mut ui, locale, 120, 40, None);
+            let token = ui.view().close_confirmation().unwrap().token();
             if action == "resize" {
                 ui.invalidate_close_display();
             }
             if action == "small" {
                 draw(&mut ui, locale, 24, 7, None);
-            }
-            if action == "small" {
-                assert!(ui.view().close_confirmation().is_none());
-            } else {
-                let mut dispatcher = InputDispatcher::default();
-                let mut view = ClientView::new(120);
-                let mut forwarded = Vec::new();
-                dispatch(
-                    &mut dispatcher,
-                    &mut view,
-                    &mut ui,
-                    &mut forwarded,
-                    if action == "cancel" {
-                        b"\x1b"
-                    } else {
-                        b"yTAIL"
-                    },
+                let prompt = ui.view().close_confirmation().unwrap();
+                assert_eq!(prompt.token(), token);
+                assert!(!prompt.interactive());
+                assert_eq!(
+                    prompt.presentation(),
+                    crate::tui_presentation::PresentationPhase::Suspended
                 );
+            }
+            let mut dispatcher = InputDispatcher::default();
+            let mut view = ClientView::new(120);
+            let mut forwarded = Vec::new();
+            dispatch(
+                &mut dispatcher,
+                &mut view,
+                &mut ui,
+                &mut forwarded,
                 if action == "cancel" {
-                    dispatcher
-                        .synchronize(
-                            &mut view,
-                            &mut Port {
-                                ui: &mut ui,
-                                forwarded: &mut forwarded,
-                            },
-                            Instant::now() + std::time::Duration::from_secs(1),
-                            &mut |_| Ok::<_, io::Error>(()),
-                        )
-                        .unwrap();
-                }
-                assert!(forwarded.is_empty());
-                assert_eq!(ui.view().close_confirmation().is_some(), action == "resize");
+                    b"\x1b"
+                } else {
+                    b"yTAIL"
+                },
+            );
+            if action == "cancel" {
+                dispatcher
+                    .synchronize(
+                        &mut view,
+                        &mut Port {
+                            ui: &mut ui,
+                            forwarded: &mut forwarded,
+                        },
+                        Instant::now() + std::time::Duration::from_secs(1),
+                        &mut |_| Ok::<_, io::Error>(()),
+                    )
+                    .unwrap();
+            }
+            assert!(forwarded.is_empty());
+            assert_eq!(ui.view().close_confirmation().is_some(), action != "cancel");
+            if action == "small" {
+                draw(&mut ui, locale, 120, 40, None);
+                let resumed = ui.view().close_confirmation().unwrap();
+                assert_eq!(resumed.token(), token);
+                assert!(resumed.interactive());
             }
             assert_eq!(mailbox.cursors(), before);
             assert!(mailbox.try_recv().unwrap().is_none());

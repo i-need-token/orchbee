@@ -21,7 +21,7 @@ fn choose(ui: &mut NativeUi, target: MenuTarget, action: MenuAction) -> ClientAc
         .unwrap();
     assert_eq!(ui.view().action_menu().unwrap().unavailable[row], None);
     let token = arm(ui);
-    ui.click_action_menu(token, row);
+    activate_row(ui, token, row);
     let action = ui.take_action_menu_action(false).unwrap();
     assert_eq!(ui.take_action_menu_action(false), None);
     action

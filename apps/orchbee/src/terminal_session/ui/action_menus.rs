@@ -4,13 +4,16 @@ use super::{
     NativeSessionView, NativeUi, PaneKey, PaneRef, SessionPhaseKind,
 };
 use crate::action_menu::{
-    ActionMenu, DrawnMenuSource, MenuAction, MenuDraw, MenuTarget, MenuToken, MenuUnavailable,
-    MenuView,
+    ActionMenu, DrawnMenuSource, MenuAction, MenuControl, MenuDraw, MenuInputContext,
+    MenuInputReadiness, MenuTarget, MenuToken, MenuUnavailable, MenuView,
 };
+use crate::action_projection::ActionAvailability;
 use crate::client_view::KeyEvent;
+use crate::terminal_session::state::TabCloseResumePermit;
 use crate::terminal_session::workbench_projection::{
     NativeContextLocation, NativeMenuContextSource, NativeSimpleTab,
 };
+use crate::tui_presentation::GeometrySettlement;
 use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests;
@@ -101,50 +104,55 @@ struct ProjectContext {
     source: NativeMenuContextSource,
 }
 
-fn action_unavailable(
+fn action_availability(
     state: Option<&NativeSessionState>,
     target: &Target,
     action: MenuAction,
     pointer_released: bool,
-) -> Option<MenuUnavailable> {
+    resume_permit: Option<&TabCloseResumePermit>,
+) -> ActionAvailability<MenuUnavailable> {
     use super::super::state::workspace_setup::DirectoryConfigurationUnavailable;
     if action == MenuAction::MoveToNewWindow {
-        return Some(MenuUnavailable::UnsupportedHost);
+        return ActionAvailability::Hidden;
     }
     if action == MenuAction::NewTabInRecentGroup
         && state
             .and_then(NativeSessionState::recent_tab_group)
             .is_none()
     {
-        return Some(MenuUnavailable::NoRecentGroup);
+        return ActionAvailability::Disabled(MenuUnavailable::NoRecentGroup);
     }
     if action == MenuAction::ResumeTabClose {
-        return match (state, target) {
-            (Some(state), Target::Tab { tab, .. })
-                if state.tab_close_resume_available(tab.tab_id()) =>
+        return match (state, target, resume_permit) {
+            (Some(state), Target::Tab { tab, .. }, Some(permit))
+                if state.validate_tab_close_resume_permit(tab.tab_id(), permit) =>
             {
-                None
+                ActionAvailability::Enabled
             }
-            _ => Some(MenuUnavailable::OperationBusy),
+            _ => ActionAvailability::Disabled(MenuUnavailable::OperationBusy),
         };
     }
     if let (Some(state), Target::Tab { tab, .. }) = (state, target)
         && super::tab_groups::close_tab_ids(state, tab.tab_id(), action)
             .is_some_and(|ids| ids.is_empty())
     {
-        return Some(MenuUnavailable::NoMatchingTabs);
+        return ActionAvailability::Disabled(MenuUnavailable::NoMatchingTabs);
     }
     if matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace {
-        return state
-            .is_none_or(|state| !state.quick_workspace_available())
-            .then_some(MenuUnavailable::OperationBusy);
+        return ActionAvailability::from_disabled_reason(
+            state
+                .is_none_or(|state| !state.quick_workspace_available())
+                .then_some(MenuUnavailable::OperationBusy),
+        );
     }
     if (matches!(target, Target::Project { .. }) && action == MenuAction::CloseProjectWorkspaces)
         || (matches!(target, Target::Workspace { .. }) && action == MenuAction::CloseWorkspace)
     {
-        return state
-            .is_none_or(|state| !state.close_scope_available())
-            .then_some(MenuUnavailable::OperationBusy);
+        return ActionAvailability::from_disabled_reason(
+            state
+                .is_none_or(|state| !state.close_scope_available())
+                .then_some(MenuUnavailable::OperationBusy),
+        );
     }
     if (matches!(target, Target::Project { .. })
         && matches!(
@@ -153,21 +161,23 @@ fn action_unavailable(
         ))
         || action == MenuAction::MoveWorkspace
     {
-        return state
-            .is_none_or(|state| !state.project_rename_available())
-            .then_some(MenuUnavailable::OperationBusy);
+        return ActionAvailability::from_disabled_reason(
+            state
+                .is_none_or(|state| !state.project_rename_available())
+                .then_some(MenuUnavailable::OperationBusy),
+        );
     }
     if matches!(target, Target::Project { context: None, .. }) {
-        return Some(MenuUnavailable::ProjectWorkspaceRequired);
+        return ActionAvailability::Disabled(MenuUnavailable::ProjectWorkspaceRequired);
     }
     if action == MenuAction::ReleasePointer && pointer_released {
-        return Some(MenuUnavailable::PointerReleased);
+        return ActionAvailability::Disabled(MenuUnavailable::PointerReleased);
     }
     if action != MenuAction::WorkspaceDirectory {
-        return None;
+        return ActionAvailability::Enabled;
     }
     let Target::Workspace { location, source } = target else {
-        return None;
+        return ActionAvailability::Enabled;
     };
     if matches!(
         source,
@@ -176,12 +186,13 @@ fn action_unavailable(
             ..
         }
     ) {
-        return Some(MenuUnavailable::DirectoryConfigured);
+        return ActionAvailability::Disabled(MenuUnavailable::DirectoryConfigured);
     }
-    let state = state.filter(|state| state.cache().location() == location)?;
-    state
-        .directory_configuration_unavailable()
-        .map(|reason| match reason {
+    let Some(state) = state.filter(|state| state.cache().location() == location) else {
+        return ActionAvailability::Enabled;
+    };
+    ActionAvailability::from_disabled_reason(state.directory_configuration_unavailable().map(
+        |reason| match reason {
             DirectoryConfigurationUnavailable::Configured => MenuUnavailable::DirectoryConfigured,
             DirectoryConfigurationUnavailable::EmptyRequired => {
                 MenuUnavailable::EmptyWorkspaceRequired
@@ -190,7 +201,19 @@ fn action_unavailable(
                 MenuUnavailable::WorkspaceRequired
             }
             DirectoryConfigurationUnavailable::Busy => MenuUnavailable::OperationBusy,
-        })
+        },
+    ))
+}
+
+fn visible_unavailable(
+    availability: ActionAvailability<MenuUnavailable>,
+) -> Option<MenuUnavailable> {
+    match availability {
+        ActionAvailability::Enabled => None,
+        ActionAvailability::Disabled(reason) => Some(reason),
+        // Callers remove hidden rows or cancel the episode before asking for a visible reason.
+        ActionAvailability::Hidden => None,
+    }
 }
 
 enum Stage {
@@ -237,6 +260,7 @@ struct Intent {
     stage: Stage,
     zoomed: bool,
     pointer_released: bool,
+    resume_permit: Option<TabCloseResumePermit>,
 }
 
 #[derive(Default)]
@@ -245,19 +269,51 @@ pub(super) struct Coordinator {
     intent: Option<Intent>,
     geometry: Option<Geometry>,
     parents: Vec<ParentMenu>,
+    resume_handoff: Option<ResumeHandoff>,
 }
 
 struct ParentMenu {
     target: MenuTarget,
     anchor: Option<(u16, u16)>,
     selected: MenuAction,
+    resume_permit: Option<TabCloseResumePermit>,
+}
+
+enum ResumePermitSeed {
+    CaptureDisplayed,
+    Inherit(Option<TabCloseResumePermit>),
+}
+
+struct ResumeHandoff {
+    deadline: Instant,
+    location: NativeContextLocation,
+    source: NativeMenuContextSource,
+    tab: Box<NativeSimpleTab>,
+    permit: TabCloseResumePermit,
+}
+
+pub(super) enum TabCloseResumeHandoff {
+    Direct,
+    Menu(TabCloseResumePermit),
+    Refused,
 }
 
 impl Coordinator {
     pub(super) fn view(&self) -> Option<MenuView<'_>> {
+        self.intent.as_ref()?;
         self.menu.view().map(|mut menu| {
             menu.has_parent = !self.parents.is_empty();
             menu
+        })
+    }
+
+    fn input_context(&self) -> Option<MenuInputContext> {
+        let intent = self.intent.as_ref()?;
+        let context = self.menu.input_context()?;
+        Some(if matches!(intent.stage, Stage::Open) {
+            context
+        } else {
+            context.recovery_only()
         })
     }
 }
@@ -275,6 +331,9 @@ impl NativeSessionView<'_> {
     }
     pub(crate) fn action_menu(&self) -> Option<MenuView<'_>> {
         self.menu.and_then(Coordinator::view)
+    }
+    pub(crate) fn action_menu_input_context(&self) -> Option<MenuInputContext> {
+        self.menu.and_then(Coordinator::input_context)
     }
     pub(crate) fn action_menu_source(&self) -> Option<DrawnMenuSource> {
         if self.retirement.is_some() {
@@ -309,8 +368,16 @@ impl NativeUi {
         }
         Some(ClientAction::CreateTab)
     }
+    pub(in crate::terminal_session) fn action_menu_capture_claim(&self) -> bool {
+        self.view().action_menu_input_context().is_some()
+    }
+    pub(in crate::terminal_session) fn action_menu_input_context(
+        &self,
+    ) -> Option<MenuInputContext> {
+        self.view().action_menu_input_context()
+    }
     pub(in crate::terminal_session) fn action_menu_active(&self) -> bool {
-        self.menus.menu.active()
+        self.action_menu_capture_claim()
     }
 
     pub(super) fn observe_action_menu_geometry(&mut self, geometry: Geometry) {
@@ -320,7 +387,7 @@ impl NativeUi {
             .replace(geometry)
             .is_some_and(|old| old != geometry)
         {
-            self.fail_action_menu();
+            self.menus.menu.not_presented();
         }
     }
 
@@ -335,13 +402,21 @@ impl NativeUi {
         self.menus.menu.cancel();
         self.menus.intent = None;
         self.menus.parents.clear();
+        self.menus.resume_handoff = None;
     }
 
     pub(super) fn fail_action_menu(&mut self) {
-        if !self.action_menu_active() {
+        // `drive_action_menu` temporarily moves the intent out while it validates the episode.
+        // The retained model remains the failure authority during that interval, even though the
+        // public view projection deliberately has no claim without its coordinator intent.
+        if !self.menus.menu.active() {
             return;
         }
         self.cancel_action_menu();
+        self.note_action_menu_unavailable();
+    }
+
+    fn note_action_menu_unavailable(&mut self) {
         self.command_notice = self
             .clock
             .now()
@@ -355,6 +430,22 @@ impl NativeUi {
         anchor: Option<(u16, u16)>,
         pointer_released: bool,
     ) -> bool {
+        self.open_action_menu_with_resume_permit(
+            target,
+            anchor,
+            pointer_released,
+            ResumePermitSeed::CaptureDisplayed,
+        )
+    }
+
+    fn open_action_menu_with_resume_permit(
+        &mut self,
+        target: MenuTarget,
+        anchor: Option<(u16, u16)>,
+        pointer_released: bool,
+        resume_seed: ResumePermitSeed,
+    ) -> bool {
+        self.menus.resume_handoff = None;
         if self.action_menu_active()
             || self.modal_owns_input()
             || self.copy_mode_active()
@@ -564,6 +655,29 @@ impl NativeUi {
                 return false;
             }
         };
+        let resume_permit = match (state, &target, resume_seed) {
+            (Some(state), Target::Tab { tab, .. }, ResumePermitSeed::CaptureDisplayed)
+                if matches!(&entry, MenuTarget::Tab(_)) =>
+            {
+                state.capture_tab_close_resume_permit(tab.tab_id())
+            }
+            (Some(state), Target::Tab { tab, .. }, ResumePermitSeed::Inherit(Some(permit)))
+                if matches!(&entry, MenuTarget::Tab(_))
+                    && state.validate_tab_close_resume_permit(tab.tab_id(), &permit) =>
+            {
+                Some(permit)
+            }
+            _ => None,
+        };
+        actions.retain(|action| *action != MenuAction::ResumeTabClose || resume_permit.is_some());
+        if resume_permit.is_some()
+            && !actions.contains(&MenuAction::ResumeTabClose)
+            && let Some(index) = actions
+                .iter()
+                .position(|action| *action == MenuAction::CloseSelectedTabs)
+        {
+            actions.insert(index, MenuAction::ResumeTabClose);
+        }
         if creation_only {
             actions.retain(|action| {
                 matches!(
@@ -598,6 +712,16 @@ impl NativeUi {
                 MenuAction::NewGroupWithTab,
             ];
         }
+        actions.retain(|action| {
+            !action_availability(
+                state,
+                &target,
+                *action,
+                pointer_released,
+                resume_permit.as_ref(),
+            )
+            .is_hidden()
+        });
         let intent = Intent {
             entry,
             target,
@@ -605,8 +729,13 @@ impl NativeUi {
             stage: Stage::Open,
             zoomed: state.is_some_and(NativeSessionState::zoom_active),
             pointer_released,
+            resume_permit,
         };
-        if !self.menus.menu.open(title, actions, anchor) {
+        if !self
+            .menus
+            .menu
+            .open_for(intent.entry.clone(), title, actions, anchor)
+        {
             return false;
         }
         self.menus.menu.set_labels(|action| match action {
@@ -645,7 +774,13 @@ impl NativeUi {
             _ => None,
         });
         self.menus.menu.refresh_availability(|action| {
-            action_unavailable(state, &intent.target, action, intent.pointer_released)
+            visible_unavailable(action_availability(
+                state,
+                &intent.target,
+                action,
+                intent.pointer_released,
+                intent.resume_permit.as_ref(),
+            ))
         });
         if !self.menus.menu.active() {
             return false;
@@ -657,14 +792,31 @@ impl NativeUi {
         true
     }
 
-    pub(in crate::terminal_session) fn capture_action_menu_key(&mut self, event: KeyEvent) {
+    /// Routes one key only if the central input owner captured this exact menu snapshot.
+    ///
+    /// A false result means that driving current state retired or revised the supplied snapshot.
+    /// The central owner still consumes that stale key instead of falling through to another
+    /// feature. A true result means this menu snapshot owned and consumed the key, even when its
+    /// current phase deliberately admits no state change.
+    pub(in crate::terminal_session) fn capture_action_menu_key_for(
+        &mut self,
+        expected: MenuInputContext,
+        event: KeyEvent,
+    ) -> bool {
         self.drive_action_menu();
-        if event.kind != crate::client_view::KeyKind::Release
-            && event.mods == crate::client_view::Modifiers::NONE
-            && matches!(
-                event.code,
-                crate::client_view::KeyCode::Left | crate::client_view::KeyCode::Esc
-            )
+        let Some(current) = self.action_menu_input_context() else {
+            return false;
+        };
+        if current != expected {
+            return false;
+        }
+
+        let is_press = event.kind != crate::client_view::KeyKind::Release
+            && event.mods == crate::client_view::Modifiers::NONE;
+        if is_press
+            && (event.code == crate::client_view::KeyCode::Esc
+                || (current.readiness() != MenuInputReadiness::Recovery
+                    && event.code == crate::client_view::KeyCode::Left))
             && matches!(
                 self.menus.intent.as_ref().map(|intent| &intent.stage),
                 Some(Stage::Open)
@@ -673,6 +825,7 @@ impl NativeUi {
                 target,
                 anchor,
                 selected,
+                resume_permit,
             }) = self.menus.parents.pop()
         {
             let released = self
@@ -682,13 +835,41 @@ impl NativeUi {
                 .is_some_and(|intent| intent.pointer_released);
             self.menus.menu.cancel();
             self.menus.intent = None;
-            if self.open_action_menu(target, anchor, released) {
+            if self.open_action_menu_with_resume_permit(
+                target,
+                anchor,
+                released,
+                ResumePermitSeed::Inherit(resume_permit),
+            ) {
                 self.menus.menu.select_action(selected);
             } else {
                 self.menus.parents.clear();
             }
-            return;
+            return true;
         }
+
+        // Escape is always a local exit, including while the retained surface is pending,
+        // suspended, or transferring an already confirmed action.
+        if is_press && event.code == crate::client_view::KeyCode::Esc {
+            let _ = self.menus.menu.key(event);
+            if !self.action_menu_active() {
+                self.menus.intent = None;
+                self.menus.parents.clear();
+            }
+            return true;
+        }
+
+        // Recovery retains ownership without an ordinary editing lease. Pending, suspended,
+        // covered, reopened-parent and transfer states therefore swallow everything except Esc.
+        if current.readiness() == MenuInputReadiness::Recovery
+            || !matches!(
+                self.menus.intent.as_ref().map(|intent| &intent.stage),
+                Some(Stage::Open)
+            )
+        {
+            return true;
+        }
+
         if self.menus.menu.key(event) {
             self.confirm_action_menu();
         }
@@ -696,31 +877,62 @@ impl NativeUi {
             self.menus.intent = None;
             self.menus.parents.clear();
         }
+        true
     }
 
-    pub(in crate::terminal_session) fn click_action_menu_control(
+    #[cfg(test)]
+    pub(in crate::terminal_session) fn capture_action_menu_key(&mut self, event: KeyEvent) {
+        let Some(expected) = self.action_menu_input_context() else {
+            return;
+        };
+        let _ = self.capture_action_menu_key_for(expected, event);
+    }
+
+    fn action_menu_source_matches(&self, source: &MenuTarget, token: MenuToken) -> bool {
+        self.view()
+            .action_menu()
+            .is_some_and(|menu| menu.source == source && menu.token == token)
+    }
+
+    pub(in crate::terminal_session) fn activate_action_menu_control(
         &mut self,
+        source: &MenuTarget,
         token: MenuToken,
-        back: bool,
+        control: MenuControl,
     ) {
         self.drive_action_menu();
-        if self
-            .menus
-            .menu
-            .view()
-            .is_none_or(|menu| menu.token != token)
-        {
+        if !self.action_menu_source_matches(source, token) {
             return;
         }
-        if back {
-            self.capture_action_menu_key(KeyEvent::press(
-                crate::client_view::KeyCode::Left,
-                crate::client_view::Modifiers::NONE,
-            ));
-        } else {
-            self.cancel_action_menu();
+        match control {
+            MenuControl::Back => {
+                let Some(expected) = self.action_menu_input_context() else {
+                    return;
+                };
+                let _ = self.capture_action_menu_key_for(
+                    expected,
+                    KeyEvent::press(
+                        crate::client_view::KeyCode::Left,
+                        crate::client_view::Modifiers::NONE,
+                    ),
+                );
+            }
+            MenuControl::Close => self.cancel_action_menu(),
         }
     }
+
+    pub(in crate::terminal_session) fn activate_action_menu_row(
+        &mut self,
+        source: &MenuTarget,
+        token: MenuToken,
+        row: usize,
+    ) {
+        self.drive_action_menu();
+        if self.action_menu_source_matches(source, token) && self.menus.menu.click(token, row) {
+            self.confirm_action_menu();
+        }
+    }
+
     pub(in crate::terminal_session) fn scroll_action_menu(
         &mut self,
         token: MenuToken,
@@ -729,18 +941,6 @@ impl NativeUi {
     ) -> Option<MenuToken> {
         self.drive_action_menu();
         self.menus.menu.scroll(token, up, lines)
-    }
-
-    pub(in crate::terminal_session) fn click_action_menu(&mut self, token: MenuToken, row: usize) {
-        self.drive_action_menu();
-        if self.menus.menu.click(token, row) {
-            self.confirm_action_menu();
-        }
-    }
-
-    pub(in crate::terminal_session) fn hover_action_menu(&mut self, token: MenuToken, row: usize) {
-        self.drive_action_menu();
-        self.menus.menu.hover(token, row);
     }
 
     fn confirm_action_menu(&mut self) {
@@ -758,13 +958,29 @@ impl NativeUi {
         self.drive_action_menu();
     }
 
+    fn settle_blocked_action_menu_geometry(&mut self) {
+        match self.menus.menu.geometry_blocked() {
+            Some(GeometrySettlement::Refused) => {
+                self.menus.intent = None;
+                self.menus.parents.clear();
+                self.note_action_menu_unavailable();
+            }
+            Some(GeometrySettlement::Suspended) | None => {}
+        }
+    }
+
     pub(super) fn after_action_menu_draw(&mut self, draw: Option<ModalPresentation<MenuDraw>>) {
-        if !self.action_menu_active() {
+        if !self.action_menu_capture_claim() {
             return;
         }
         match draw {
-            Some(ModalPresentation::Presented(draw)) => self.menus.menu.draw(Some(draw)),
-            _ => self.fail_action_menu(),
+            Some(ModalPresentation::Presented(draw)) => {
+                let _ = self.menus.menu.presented(draw);
+            }
+            Some(ModalPresentation::NotPresented) => self.settle_blocked_action_menu_geometry(),
+            // No verdict means that another owner covered this surface. Revoke exact activation
+            // proof without reclassifying the retained menu's geometry lifecycle.
+            None => self.menus.menu.not_presented(),
         }
     }
 
@@ -903,24 +1119,41 @@ impl NativeUi {
         let mut changed = false;
         match intent.stage {
             Stage::Open => {
+                if self.menus.menu.view().is_some_and(|menu| {
+                    menu.actions.iter().any(|action| {
+                        action_availability(
+                            self.state.as_ref(),
+                            &intent.target,
+                            *action,
+                            intent.pointer_released,
+                            intent.resume_permit.as_ref(),
+                        )
+                        .is_hidden()
+                    })
+                }) {
+                    self.fail_action_menu();
+                    return true;
+                }
                 changed = self.menus.menu.refresh_availability(|action| {
-                    action_unavailable(
+                    visible_unavailable(action_availability(
                         self.state.as_ref(),
                         &intent.target,
                         action,
                         intent.pointer_released,
-                    )
+                        intent.resume_permit.as_ref(),
+                    ))
                 });
             }
             Stage::Confirmed(deadline) => {
                 if self.menus.menu.confirmed().is_some_and(|action| {
-                    action_unavailable(
+                    !action_availability(
                         self.state.as_ref(),
                         &intent.target,
                         action,
                         intent.pointer_released,
+                        intent.resume_permit.as_ref(),
                     )
-                    .is_some()
+                    .is_enabled()
                 }) {
                     self.fail_action_menu();
                     return true;
@@ -1049,13 +1282,14 @@ impl NativeUi {
         let action = self.menus.menu.confirmed()?;
         if !self.target_valid(&intent.target)
             || !self.menu_target_selected(&intent.target, action)
-            || action_unavailable(
+            || !action_availability(
                 self.state.as_ref(),
                 &intent.target,
                 action,
                 pointer_released,
+                intent.resume_permit.as_ref(),
             )
-            .is_some()
+            .is_enabled()
             || (action == MenuAction::Zoom
                 && self
                     .state
@@ -1074,6 +1308,7 @@ impl NativeUi {
                 target: intent.entry.clone(),
                 anchor: self.menus.menu.view()?.anchor,
                 selected: action,
+                resume_permit: intent.resume_permit.clone(),
             };
             self.menus.menu.take()?;
             self.menus.intent = None;
@@ -1101,6 +1336,7 @@ impl NativeUi {
                     target: intent.entry.clone(),
                     anchor: self.menus.menu.view()?.anchor,
                     selected: action,
+                    resume_permit: intent.resume_permit.clone(),
                 };
                 self.menus.menu.take()?;
                 self.menus.intent = None;
@@ -1112,6 +1348,30 @@ impl NativeUi {
                 return None;
             }
         }
+        let resume_handoff = match (
+            &intent.target,
+            action,
+            intent.resume_permit.as_ref(),
+            intent.stage.deadline(),
+        ) {
+            (
+                Target::Tab {
+                    location,
+                    tab,
+                    source,
+                },
+                MenuAction::ResumeTabClose,
+                Some(permit),
+                Some(deadline),
+            ) => Some(ResumeHandoff {
+                deadline,
+                location: location.clone(),
+                source: source.clone(),
+                tab: tab.clone(),
+                permit: permit.clone(),
+            }),
+            _ => None,
+        };
         let action = match (&intent.target, action) {
             (
                 Target::Workspace {
@@ -1174,7 +1434,48 @@ impl NativeUi {
         self.menus.menu.take()?;
         self.menus.intent = None;
         self.menus.parents.clear();
+        self.menus.resume_handoff = resume_handoff;
         Some(action)
+    }
+
+    pub(super) fn take_action_menu_resume_handoff(
+        &mut self,
+        action: &ClientAction,
+    ) -> TabCloseResumeHandoff {
+        let Some(handoff) = self.menus.resume_handoff.take() else {
+            return TabCloseResumeHandoff::Direct;
+        };
+        let ClientAction::TabMenu {
+            action: MenuAction::ResumeTabClose,
+            tab_id,
+        } = action
+        else {
+            return TabCloseResumeHandoff::Direct;
+        };
+        let Some(tab_id) = tab_id else {
+            return TabCloseResumeHandoff::Refused;
+        };
+        let Some(state) = self.state.as_ref() else {
+            return TabCloseResumeHandoff::Refused;
+        };
+        if self.clock.now() >= handoff.deadline
+            || !self.menu_carrier_live()
+            || state.cache().location() != &handoff.location
+            || state
+                .cache()
+                .menu_context_source(&handoff.location)
+                .as_ref()
+                != Some(&handoff.source)
+            || state
+                .cache()
+                .tab_index(tab_id)
+                .and_then(|index| state.cache().tabs().get(index))
+                != Some(handoff.tab.as_ref())
+            || !state.validate_tab_close_resume_permit(tab_id, &handoff.permit)
+        {
+            return TabCloseResumeHandoff::Refused;
+        }
+        TabCloseResumeHandoff::Menu(handoff.permit)
     }
 
     pub(super) fn menu_navigation_prepared(&mut self, navigation: NavigationKey, accepted: bool) {

@@ -4,11 +4,19 @@ use crate::client_view::{
     ClientAction, ClientKey, ClientView, KeyCode, KeyKind, Modifiers, PrefixInput,
     SessionActionDisposition, ShellCommand,
 };
-use crate::tui_pointer::{FrameHitMap, PointerOutcome, PointerState};
+use crate::terminal_session::NativeSetupStage;
+use crate::tui_composition::{
+    CaptureOwner, ClientCaptureClaims, NativeCaptureOwner, client_chrome_overlay_allowed,
+    project_capture,
+};
+use crate::tui_pointer::{
+    CancelledModalEvent, FrameHitMap, InteractionTarget, MotionObservability, PointerOutcome,
+    PointerState, PrimaryContract, ReleaseOwnership,
+};
 
 use super::{
-    DispatchOutcome, ModeRequest, NativeRenameDraftToken, NativeRenameEdit, NativeSetupEdit,
-    NativeSetupStage, NativeSetupToken, TerminalInputPort,
+    DispatchOutcome, HostReply, ModeRequest, NativeRenameDraftToken, NativeRenameEdit,
+    NativeSetupEdit, NativeSetupToken, PointerCaptureRequest, TerminalInputPort,
     decoder::{DecodedItem, DecodedKind, LegacyDecoder},
     forward_or_report,
     modal::{ModalCapacity, ModalDecoder, ModalInputEvent},
@@ -22,6 +30,11 @@ pub(crate) struct InputDispatcher {
     #[cfg(windows)]
     navigator: navigator::Capture,
     graphics: crate::terminal_graphics::Probe,
+    pointer_admission: crate::terminal_pointer_admission::Probe,
+    pointer_capture: PointerCaptureRequest,
+    /// A failed level switch may have emitted a prefix. Runtime must exit and
+    /// lifecycle cleanup must settle it; input never retries that transition.
+    pointer_transition_failed: bool,
     #[cfg(windows)]
     graphics_replies: Vec<crate::terminal_graphics::Reply>,
     #[cfg(windows)]
@@ -53,11 +66,6 @@ pub(crate) struct InputDispatcher {
     copy_packet: bool,
     #[cfg(windows)]
     copy_owned: bool,
-    #[cfg(windows)]
-    menu_owned: bool,
-    #[cfg(windows)]
-    menu_hover: bool,
-    settings_owned: bool,
     settings_packet: bool,
     settings_cancel_capture: bool,
     #[cfg(windows)]
@@ -69,13 +77,16 @@ pub(crate) struct InputDispatcher {
     menu_release: Option<super::MouseButton>,
     #[cfg(windows)]
     popup_owned: Option<orchbee_workbench_protocol::WorkbenchRequestId>,
-    /// The board's input ownership as last observed — an open or close
-    /// edge rewrites what the painted regions mean, so the recorded hit
-    /// map drops until the next frame publishes.
-    board_owned: bool,
     /// Pointer ownership: capture flag, last-drawn hit map, gesture
     /// lifecycle, and the bounded wheel stream.
     pointer: PointerState,
+    /// Conservative repaint decision for the most recently completed input packet.
+    dispatch_redraw: bool,
+    /// Set only by the ordinary pointer path for one button-free motion item.
+    item_idle_motion: Option<bool>,
+    /// Last observed result of the shared stateless compositor. This only
+    /// detects presentation-map edges; owner selection is always recomputed.
+    capture_owner: Option<CaptureOwner>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -84,6 +95,12 @@ enum ModalEpoch {
     Setup(NativeSetupToken),
     #[cfg(windows)]
     Worktree(crate::terminal_session::WorktreeToken),
+}
+
+struct ProjectedCaptureItem {
+    owner: CaptureOwner,
+    item: DecodedItem,
+    now: Instant,
 }
 
 #[cfg(test)]
@@ -126,8 +143,66 @@ fn literal_chord_byte(item: &DecodedItem) -> Option<u8> {
 }
 
 impl InputDispatcher {
+    fn projected_capture(
+        _view: &ClientView,
+        port: &(impl TerminalInputPort + ?Sized),
+    ) -> Option<CaptureOwner> {
+        let client = ClientCaptureClaims::default();
+        #[cfg(windows)]
+        let client = client
+            .with_machine(_view.machines.open)
+            .with_resize(_view.resize_mode());
+        #[cfg(windows)]
+        let native = port
+            .native_capture_claims()
+            .with_copy(port.copy_mode_active());
+        #[cfg(not(windows))]
+        let native = port.native_capture_claims();
+        project_capture(client, native)
+    }
+
+    fn modal_remaining(port: &mut (impl TerminalInputPort + ?Sized), epoch: ModalEpoch) -> usize {
+        use crate::terminal_session::NativeCaptureContext;
+
+        match epoch {
+            ModalEpoch::Rename(token) => {
+                match port.native_capture_context(NativeCaptureOwner::Rename) {
+                    Some(crate::terminal_session::NativeCaptureContext::Rename(context))
+                        if context.token == token =>
+                    {
+                        context.remaining_scalars
+                    }
+                    _ => 0,
+                }
+            }
+            ModalEpoch::Setup(token) => {
+                match port.native_capture_context(NativeCaptureOwner::Setup) {
+                    Some(NativeCaptureContext::Setup(context)) if context.token == token => {
+                        if matches!(
+                            context.stage,
+                            NativeSetupStage::DirectoryPath | NativeSetupStage::QuickDirectory
+                        ) {
+                            context.remaining_bytes
+                        } else {
+                            context.remaining_scalars
+                        }
+                    }
+                    _ => 0,
+                }
+            }
+            #[cfg(windows)]
+            ModalEpoch::Worktree(token) => {
+                match port.native_capture_context(NativeCaptureOwner::Worktree) {
+                    Some(NativeCaptureContext::Worktree(context)) if context.token == token => {
+                        context.remaining_bytes
+                    }
+                    _ => 0,
+                }
+            }
+        }
+    }
+
     fn settle_settings_closed(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
-        self.settings_owned = false;
         self.settings_packet = true;
         self.settings_cancel_capture = true;
         self.keys.capture_pending();
@@ -135,24 +210,10 @@ impl InputDispatcher {
     }
     #[cfg(windows)]
     fn settle_action_menu_closed(&mut self, port: &mut (impl TerminalInputPort + ?Sized)) {
-        self.menu_owned = false;
         self.menu_packet = true;
         self.menu_cancel_capture = true;
         self.keys.capture_pending();
         self.pointer.invalidate_map_with_port(port);
-    }
-    #[cfg(windows)]
-    fn synchronize_menu_hover<Error>(
-        &mut self,
-        port: &(impl TerminalInputPort + ?Sized),
-        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
-    ) -> Result<(), Error> {
-        let enabled = self.pointer.capture_enabled() && port.action_menu_active();
-        if enabled != self.menu_hover {
-            mode(ModeRequest::PointerHover(enabled))?;
-            self.menu_hover = enabled;
-        }
-        Ok(())
     }
     #[cfg(windows)]
     pub(crate) fn complete_action_menu<Port: TerminalInputPort + ?Sized, Error>(
@@ -167,19 +228,25 @@ impl InputDispatcher {
             return Ok(None);
         };
         self.settle_action_menu_closed(port);
-        self.synchronize_menu_hover(port, mode)?;
         let transition = view.decide_action(action);
         self.apply_transition(view, port, now, transition, None, after_layout, mode)
             .map(Some)
     }
-    fn host_reply(&mut self, reply: crate::terminal_graphics::Reply, now: Instant) {
-        self.graphics.reply(reply, now);
-        #[cfg(windows)]
-        if matches!(reply, crate::terminal_graphics::Reply::Kitty { .. }) {
-            if self.graphics_replies.len() < 128 {
-                self.graphics_replies.push(reply);
-            } else {
-                self.graphics_reply_overflow = true;
+    fn host_reply(&mut self, reply: HostReply, now: Instant) {
+        match reply {
+            HostReply::Graphics(reply) => {
+                self.graphics.reply(reply, now);
+                #[cfg(windows)]
+                if matches!(reply, crate::terminal_graphics::Reply::Kitty { .. }) {
+                    if self.graphics_replies.len() < 128 {
+                        self.graphics_replies.push(reply);
+                    } else {
+                        self.graphics_reply_overflow = true;
+                    }
+                }
+            }
+            HostReply::Pointer(reply) => {
+                self.pointer_admission.observe(reply, now);
             }
         }
     }
@@ -208,38 +275,145 @@ impl InputDispatcher {
         }
         Ok(self.graphics.facts() != previous)
     }
+
+    /// Starts this endpoint's sole pointer capability query after the
+    /// ButtonOnly baseline is known to be active.
+    pub(crate) fn begin_pointer_admission<Error>(
+        &mut self,
+        now: Instant,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        if self.pointer_capture == PointerCaptureRequest::ButtonOnly
+            && let Some(query) = self.pointer_admission.begin(now)
+        {
+            mode(ModeRequest::PointerAdmissionQuery(query))?;
+        }
+        Ok(())
+    }
+
+    fn admitted_pointer_capture(&self) -> PointerCaptureRequest {
+        if self.pointer_admission.any_motion_admitted() {
+            PointerCaptureRequest::AnyMotion
+        } else {
+            PointerCaptureRequest::ButtonOnly
+        }
+    }
+
+    /// Applies a settled admission only while capture is active. The mode
+    /// effect precedes publication, so a partial/failed transition cannot
+    /// create hover authority in the dispatcher.
+    fn synchronize_pointer_admission<Error>(
+        &mut self,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        if !self.pointer_transition_failed
+            && self.pointer_capture == PointerCaptureRequest::ButtonOnly
+            && self.pointer_admission.any_motion_admitted()
+        {
+            if let Err(error) = mode(ModeRequest::PointerCapture(
+                PointerCaptureRequest::AnyMotion,
+            )) {
+                self.pointer_transition_failed = true;
+                return Err(error);
+            }
+            self.pointer_capture = PointerCaptureRequest::AnyMotion;
+            self.pointer
+                .set_motion_observability(MotionObservability::AnyMotion);
+        }
+        Ok(())
+    }
     #[cfg(windows)]
     pub(crate) fn machine_surface_changed(&mut self) {
         self.keys.capture_pending();
         self.pointer.invalidate_map();
-        self.board_owned = false;
     }
 
     /// The shell settles the armed flag after the terminal mode write
     /// succeeded, so client state never claims a capture the host did not
     /// actually take.
+    #[cfg(test)]
     pub(crate) fn set_pointer_capture(
         &mut self,
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
         enabled: bool,
     ) {
+        self.settle_pointer_capture(
+            view,
+            port,
+            if enabled {
+                PointerCaptureRequest::ButtonOnly
+            } else {
+                PointerCaptureRequest::Release
+            },
+        );
+    }
+
+    /// Publishes the exact tracking level after its lifecycle request has
+    /// completed. Direct fixture callers retain the ButtonOnly helper above.
+    pub(crate) fn settle_pointer_capture(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut (impl TerminalInputPort + ?Sized),
+        request: PointerCaptureRequest,
+    ) {
+        let enabled = request != PointerCaptureRequest::Release;
         #[cfg(windows)]
         if !enabled {
-            self.menu_hover = false;
-            let closing = self.menu_owned || port.action_menu_active();
+            let closing = port
+                .native_capture_claims()
+                .contains(NativeCaptureOwner::ActionMenu);
             port.cancel_action_menu();
             self.menu_release = None;
             if closing {
                 self.settle_action_menu_closed(port);
             }
         }
+        self.pointer.set_motion_observability(match request {
+            PointerCaptureRequest::AnyMotion => MotionObservability::AnyMotion,
+            PointerCaptureRequest::Release | PointerCaptureRequest::ButtonOnly => {
+                MotionObservability::ButtonOnly
+            }
+        });
         self.pointer.set_capture_with_port(port, enabled);
         view.settle_pointer_released(!enabled);
+        self.pointer_capture = request;
+        self.pointer_transition_failed = false;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_pointer_motion_observability(
+        &mut self,
+        observability: crate::tui_pointer::MotionObservability,
+    ) {
+        self.pointer.set_motion_observability(observability);
+    }
+
+    pub(crate) fn pointer_projection(&self) -> crate::tui_pointer::PointerProjection {
+        self.pointer.projection()
+    }
+
+    pub(crate) fn take_pointer_projection_redraw(&mut self) -> bool {
+        self.pointer.take_projection_redraw()
+    }
+
+    pub(crate) const fn dispatch_requested_redraw(&self) -> bool {
+        self.dispatch_redraw
     }
 
     /// The renderer's finished frame map becomes the resolution authority.
+    #[cfg(test)]
     pub(crate) fn publish_hit_map(&mut self, map: FrameHitMap) {
+        let _ = self.publish_hit_map_with_help(map);
+    }
+
+    /// Publishes the map and returns its exact Help draw proof to the
+    /// client-owned surface authority. Other callers do not need to observe it.
+    pub(crate) fn publish_hit_map_with_help(
+        &mut self,
+        map: FrameHitMap,
+    ) -> Option<crate::client_view::help::HelpDrawSource> {
+        let help = map.help_draw_source().copied();
         self.settings_cancel_capture = false;
         #[cfg(windows)]
         {
@@ -252,6 +426,7 @@ impl InputDispatcher {
             self.sidebar_cancel_capture = false;
         }
         self.pointer.publish(map);
+        help
     }
 
     /// A layout change or pending redraw drops the recorded regions:
@@ -288,27 +463,95 @@ impl InputDispatcher {
         self.pointer.sidebar_width_preview()
     }
 
-    /// The board's open or close edge changes what the recorded regions
-    /// mean the same way a resize does: the surface they describe is no
-    /// longer what is on screen. Dropping the map makes pointer events
-    /// fall out until the next frame publishes fresh regions — a stale
-    /// map could otherwise route a click into a board that is no longer
-    /// there, or past one that just appeared.
-    fn settle_board_edge<Port: TerminalInputPort + ?Sized>(&mut self, port: &mut Port) {
+    /// Detects an edge in the shared composition result. The cached value is
+    /// only a map/packet fence; the next owner is always recomputed from the
+    /// current claims rather than selected from this history.
+    fn settle_capture_edge<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        view: &ClientView,
+        port: &mut Port,
+    ) -> bool {
+        let current = Self::projected_capture(view, port);
+        #[cfg(windows)]
+        let popup = if current == Some(CaptureOwner::Native(NativeCaptureOwner::Popup)) {
+            match port.native_capture_context(NativeCaptureOwner::Popup) {
+                Some(crate::terminal_session::NativeCaptureContext::Popup(context)) => {
+                    Some(context.id().clone())
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+        #[cfg(windows)]
+        let popup_changed = popup != self.popup_owned;
         #[cfg(windows)]
         {
-            let popup = port.popup_identity();
-            if popup != self.popup_owned.as_ref() {
-                self.popup_owned = popup.cloned();
-                self.keys.capture_pending();
-                self.pointer.invalidate_map_with_port(port);
+            self.popup_owned = popup;
+        }
+        if current == self.capture_owner && {
+            #[cfg(windows)]
+            {
+                !popup_changed
             }
+            #[cfg(not(windows))]
+            {
+                true
+            }
+        } {
+            return false;
         }
-        let owned = port.agent_board_input();
-        if owned != self.board_owned {
-            self.board_owned = owned;
-            self.pointer.invalidate_map_with_port(port);
+
+        let previous = std::mem::replace(&mut self.capture_owner, current);
+        #[cfg(windows)]
+        if current.is_some() && self.pointer.retire_covered_chrome_gesture() {
+            self.pointer_packet = true;
         }
+        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::Settings))
+            && current != previous
+        {
+            self.settle_settings_closed(port);
+        }
+        #[cfg(windows)]
+        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
+            && current != previous
+        {
+            self.settle_action_menu_closed(port);
+        }
+        #[cfg(windows)]
+        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
+            && (current != previous || popup_changed)
+        {
+            self.popup_packet = true;
+        }
+        #[cfg(windows)]
+        if previous == Some(CaptureOwner::Machine) && current != previous {
+            self.machine_packet = true;
+        }
+        if matches!(
+            previous,
+            Some(CaptureOwner::Native(
+                NativeCaptureOwner::PanelClose
+                    | NativeCaptureOwner::TabClose
+                    | NativeCaptureOwner::WorkspaceClose
+            ))
+        ) && current != previous
+        {
+            self.confirm_packet = true;
+        }
+        if previous == Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard))
+            && current != previous
+        {
+            self.pointer_packet = true;
+        }
+        self.keys.capture_pending();
+        // A newly covering compositor owner revokes painted chrome authority,
+        // but it does not own an already admitted pane gesture. Preserve that
+        // gesture for its live-identity settlement while dropping the old map
+        // and any queued list work.
+        self.pointer.cancel_list_scroll();
+        self.pointer.stale_map();
+        true
     }
 
     #[cfg(test)]
@@ -335,14 +578,16 @@ impl InputDispatcher {
         idle: bool,
     ) -> Result<bool, Error> {
         self.graphics.tick(now);
-        let owned_input = self.decoder.owns_input() || port.settings_active();
+        self.pointer_admission.tick(now);
+        self.synchronize_pointer_admission(mode)?;
+        // Compare the settled owner from the preceding boundary with the
+        // post-reconcile projection below. An asynchronously installed owner
+        // is already visible to the pure projector here, but it has not yet
+        // acquired the host paste lease.
+        let owned_input = self.decoder.owns_input() || self.capture_owner.is_some();
         #[cfg(windows)]
-        let owned_input = owned_input
-            || view.navigator_active()
-            || port.copy_mode_active()
-            || port.action_menu_active()
-            || port.settings_active()
-            || view.machines.sidebar_navigation_active();
+        let owned_input =
+            owned_input || view.navigator_active() || view.machines.sidebar_navigation_active();
         // An idle read is a packet boundary too: a `Released` guard left
         // over from an earlier packet ends here so the lease is returned
         // even when no further bytes ever arrive. A release produced by
@@ -353,6 +598,7 @@ impl InputDispatcher {
             let events = self.decoder.tick(now);
             changed |= !events.is_empty();
             self.apply_events(view, port, events, now);
+            self.synchronize_pointer_admission(mode)?;
         }
         self.confirm_packet = false;
         self.pointer_packet = false;
@@ -378,22 +624,16 @@ impl InputDispatcher {
         }
         changed |= self.pointer.tick(view, port, now);
         changed |= self.reconcile(view, port, now);
-        let capturing = self.decoder.owns_input() || port.settings_active();
+        let capturing = self.decoder.owns_input() || Self::projected_capture(view, port).is_some();
         #[cfg(windows)]
-        let capturing = capturing
-            || view.navigator_active()
-            || port.copy_mode_active()
-            || port.action_menu_active()
-            || port.settings_active()
-            || view.machines.sidebar_navigation_active();
+        let capturing =
+            capturing || view.navigator_active() || view.machines.sidebar_navigation_active();
         if !capturing {
             mode(ModeRequest::BracketedPaste(false))?;
         } else if !owned_input {
             // A later wizard step can arrive after the previous decoder released its lease.
             mode(ModeRequest::BracketedPaste(true))?;
         }
-        #[cfg(windows)]
-        self.synchronize_menu_hover(port, mode)?;
         Ok(changed)
     }
 
@@ -407,47 +647,40 @@ impl InputDispatcher {
         mut after_layout: impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
+        self.dispatch_redraw = true;
+        self.item_idle_motion = None;
+        let mut redraw = self.synchronize_input(view, port, now, mode, input.is_empty())?;
+        let mut saw_item = false;
+        let mut only_idle_motion = true;
         // Ready bytes resolve pending frames before idle timeouts, and a newly
         // available reversal precedes draining the previous list burst.
-        self.synchronize_input(view, port, now, mode, input.is_empty())?;
         #[cfg(windows)]
-        if self.complete_action_menu(view, port, now, &mut after_layout, mode)?
-            == Some(DispatchOutcome::Exit)
+        if let Some(outcome) =
+            self.complete_action_menu(view, port, now, &mut after_layout, mode)?
         {
-            return Ok(DispatchOutcome::Exit);
+            redraw = true;
+            only_idle_motion = false;
+            if outcome == DispatchOutcome::Exit {
+                return Ok(DispatchOutcome::Exit);
+            }
         }
         // A new read packet begins: the modal's packet-tail guard ends at
         // this boundary, while an in-flight frame or an open ESC
         // disambiguation keeps ownership under its own rules.
         self.decoder.begin_packet(now);
         for byte in input.iter().copied() {
-            self.reconcile(view, port, now);
-            let remaining = match self.epoch {
-                Some(ModalEpoch::Rename(_)) => port
-                    .rename_input_context()
-                    .map_or(0, |context| context.remaining_scalar_capacity()),
-                Some(ModalEpoch::Setup(_)) => port.setup_input_context().map_or(0, |context| {
-                    if matches!(
-                        context.stage(),
-                        NativeSetupStage::DirectoryPath | NativeSetupStage::QuickDirectory
-                    ) {
-                        context.remaining_bytes()
-                    } else {
-                        context.remaining_scalars()
-                    }
-                }),
-                #[cfg(windows)]
-                Some(ModalEpoch::Worktree(_)) => port
-                    .worktree_input_context()
-                    .map_or(0, |c| c.remaining_bytes),
-                None if port.settings_active() => port.settings_text_remaining(),
-                None => 0,
-            };
+            redraw |= self.reconcile(view, port, now);
+            let remaining = self
+                .epoch
+                .map_or(0, |epoch| Self::modal_remaining(port, epoch));
             let (captured, events) = self.decoder.push(byte, now, remaining);
             if captured || !events.is_empty() {
+                redraw = true;
+                only_idle_motion = false;
                 self.flush_pending(view, port);
                 self.apply_events(view, port, events, now);
-                self.reconcile(view, port, now);
+                self.synchronize_pointer_admission(mode)?;
+                redraw |= self.reconcile(view, port, now);
                 if captured {
                     continue;
                 }
@@ -463,356 +696,114 @@ impl InputDispatcher {
                 || self.sidebar_packet
                 || self.popup_packet
                 || self.copy_packet
-                || self.menu_packet
-                || self.settings_packet;
+                || self.menu_packet;
             for item in self.keys.push(byte, now, owned) {
+                saw_item = true;
+                self.item_idle_motion = None;
                 if let DispatchOutcome::Exit =
                     self.handle_item(view, port, now, item, &mut after_layout, mode)?
                 {
                     self.flush_pending(view, port);
                     return Ok(DispatchOutcome::Exit);
                 }
+                match self.item_idle_motion.take() {
+                    Some(changed) => redraw |= changed,
+                    None => {
+                        redraw = true;
+                        only_idle_motion = false;
+                    }
+                }
             }
         }
         self.flush_pending(view, port);
         // Queued pointer gestures and the wheel stream advance at the same
         // packet boundary the modal leases do.
-        let _list_changed = self.pointer.flush_list_scroll(view, port);
-        let _changed = self.pointer.tick(view, port, now);
+        redraw |= self.pointer.flush_list_scroll(view, port);
+        redraw |= self.pointer.tick(view, port, now);
         // The final pointer report may retire an input owner without a
         // following byte. Settle that edge before a frame can be published.
-        self.reconcile(view, port, now);
+        redraw |= self.reconcile(view, port, now);
         #[cfg(windows)]
-        if self.complete_action_menu(view, port, now, &mut after_layout, mode)?
-            == Some(DispatchOutcome::Exit)
+        if let Some(outcome) =
+            self.complete_action_menu(view, port, now, &mut after_layout, mode)?
         {
-            return Ok(DispatchOutcome::Exit);
+            redraw = true;
+            only_idle_motion = false;
+            if outcome == DispatchOutcome::Exit {
+                return Ok(DispatchOutcome::Exit);
+            }
         }
-        #[cfg(windows)]
-        self.synchronize_menu_hover(port, mode)?;
+        self.dispatch_redraw = redraw || !saw_item || !only_idle_motion;
         Ok(DispatchOutcome::Continue)
     }
 
-    /// Routes one decoded item through the ownership order: an open
-    /// confirmation packet consumes the whole rest of the chunk, an armed
-    /// prefix resolves the item against the binding registry, and anything
-    /// else joins `self.pending` so its source bytes forward in order.
-    /// the configured prefix arms its layer; configured direct bindings run
-    /// after capture and history ownership.
-    fn handle_item<Port: TerminalInputPort + ?Sized, Error>(
+    fn handle_projected_capture<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
         view: &mut ClientView,
         port: &mut Port,
-        now: Instant,
-        item: DecodedItem,
+        projected: ProjectedCaptureItem,
         after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
-        if let DecodedKind::HostReply(reply) = item.kind {
-            self.flush_pending(view, port);
-            self.host_reply(reply, now);
-            return Ok(DispatchOutcome::Continue);
-        }
-        if let DecodedKind::Focus(focused) = item.kind {
-            if !focused {
-                self.pointer.cancel_list_scroll();
-                self.pointer.cancel_modal_press();
-                self.pointer.cancel_scrollbar();
-            }
-            #[cfg(windows)]
-            if !focused {
-                self.menu_release = None;
-                self.navigator.release = None;
-                if self.pointer.cancel_tab_drag() {
-                    self.menu_packet = true;
-                    self.keys.capture_pending();
+        use crate::terminal_session::NativeCaptureContext;
+
+        let ProjectedCaptureItem { owner, item, now } = projected;
+
+        #[cfg(windows)]
+        if owner == CaptureOwner::Machine {
+            let mut regions_changed = false;
+            match item.kind {
+                DecodedKind::Key(key) => {
+                    // Keyboard input settles at most one exposed wheel chunk
+                    // at the common pre-dispatch boundary, then cancels the
+                    // remainder before this edit reaches the Picker.
+                    view.machines.key(key);
+                    regions_changed = true;
                 }
-            }
-            self.flush_pending(view, port);
-            port.observe_focus(focused);
-            #[cfg(windows)]
-            if self.menu_owned && !port.action_menu_active() {
-                self.settle_action_menu_closed(port);
-            }
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        let resize_controls = (view.resize_mode() || port.copy_mode_active())
-            && view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp);
-        #[cfg(not(windows))]
-        let resize_controls = false;
-        if let DecodedKind::Mouse(event) = item.kind
-            && !port.settings_active()
-            && !port.agent_board_input()
-            && !resize_controls
-            && self.capture_modal_release(event)
-        {
-            return Ok(DispatchOutcome::Continue);
-        }
-        if matches!(
-            &item.kind,
-            DecodedKind::Key(_) | DecodedKind::Paste { .. } | DecodedKind::RejectedPaste
-        ) {
-            self.pointer.flush_list_scroll(view, port);
-            self.pointer.cancel_list_scroll();
-            self.pointer.cancel_modal_press();
-            self.pointer.cancel_scrollbar();
-        }
-        #[cfg(windows)]
-        if let DecodedKind::Mouse(event) = item.kind
-            && event.action == super::MouseAction::Press
-            && !port.action_menu_active()
-            && !self.menu_packet
-            && !item.owned
-            && self.menu_release == Some(event.button)
-        {
-            // A new press proves that an unreported old release can no longer arrive.
-            self.menu_release = None;
-        }
-        #[cfg(windows)]
-        if let DecodedKind::Mouse(event) = item.kind
-            && event.action == super::MouseAction::Release
-            && !port.action_menu_active()
-            && self.menu_release.is_some_and(|button| {
-                event.button == button || event.button == super::MouseButton::None
-            })
-        {
-            self.menu_release = None;
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        if self.capture_navigator_release(&item) {
-            return Ok(DispatchOutcome::Continue);
-        }
-        if item.owned {
-            // The item completes a frame that began inside a captured
-            // packet: consumed by that capture, never forwarded or decided.
-            self.flush_pending(view, port);
-            return Ok(DispatchOutcome::Continue);
-        }
-        if self.settings_packet || port.settings_active() {
-            self.flush_pending(view, port);
-            if !self.settings_packet {
-                match item.kind {
-                    DecodedKind::Paste { text } => port.capture_settings_paste(Some(&text)),
-                    DecodedKind::RejectedPaste => port.capture_settings_paste(None),
-                    DecodedKind::Key(event) => {
-                        port.capture_settings_key(event);
-                        if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
-                            .matches(event)
-                            || crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE)
-                                .matches(event)
-                        {
-                            self.settings_packet = true;
-                            self.keys.capture_pending();
-                        }
-                    }
-                    DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
-                        let decision = self.pointer.settings_event(port, event);
-                        self.capture_modal_release(event);
-                        if event.action == super::MouseAction::Press
-                            && matches!(
-                                event.button,
-                                super::MouseButton::Left | super::MouseButton::Right
-                            )
-                        {
-                            self.modal_release = Some(event.button);
-                        }
-                        if decision {
-                            self.settings_packet = true;
-                            self.keys.capture_pending();
-                        }
-                    }
-                    _ => {}
-                }
-                if !port.settings_active() {
-                    self.settle_settings_closed(port);
-                    mode(ModeRequest::BracketedPaste(false))?;
-                }
-            }
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        if self.menu_packet || port.action_menu_active() {
-            self.flush_pending(view, port);
-            if !self.menu_packet {
-                match item.kind {
-                    DecodedKind::Key(event) => {
-                        port.capture_action_menu_key(event);
-                        if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
-                            .matches(event)
-                            || crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE)
-                                .matches(event)
-                        {
-                            self.menu_packet = true;
-                            self.keys.capture_pending();
-                        }
-                    }
-                    DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
-                        let decision = self.pointer.action_menu_event(port, event);
-                        if event.action == super::MouseAction::Release
-                            && self.menu_release.is_some_and(|button| {
-                                event.button == button || event.button == super::MouseButton::None
-                            })
-                        {
-                            self.menu_release = None;
-                        }
-                        if event.action == super::MouseAction::Press
-                            && matches!(
-                                event.button,
-                                super::MouseButton::Left | super::MouseButton::Right
-                            )
-                        {
-                            self.menu_release = Some(event.button);
-                        }
-                        if decision {
-                            self.menu_packet = true;
-                            self.keys.capture_pending();
-                        }
-                    }
-                    _ => {}
-                }
-                if !port.action_menu_active() {
-                    self.settle_action_menu_closed(port);
-                    mode(ModeRequest::BracketedPaste(
-                        view.machines.sidebar_navigation_active(),
-                    ))?;
-                }
-            }
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        if self.popup_packet || port.popup_captured() {
-            self.flush_pending(view, port);
-            if !self.popup_packet {
-                if let DecodedKind::Mouse(event) = item.kind {
+                DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
                     self.pointer.external_capture_event(event);
-                    self.pointer.popup_event(port, event);
-                } else {
-                    port.popup_input(&item);
-                }
-                if !port.popup_captured() {
-                    self.popup_packet = true;
-                    self.pointer.invalidate_map_with_port(port);
-                }
-            }
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        if self.machine_packet || view.machines.open {
-            self.flush_pending(view, port);
-            if !self.machine_packet {
-                match item.kind {
-                    DecodedKind::Key(key) => view.machines.key(key),
-                    DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
-                        self.pointer.external_capture_event(event);
-                        view.machines.pointer(event);
+                    match self.pointer.machine_picker_event(event) {
+                        PointerOutcome::Interaction {
+                            target: InteractionTarget::MachinePicker(target),
+                            contract: PrimaryContract::ActivateOnRelease,
+                        } => {
+                            regions_changed = view.machines.activate_drawn_picker(&target);
+                            self.machine_packet = true;
+                            self.keys.capture_pending();
+                        }
+                        PointerOutcome::Interaction { .. } | PointerOutcome::InteractionEnded => {
+                            // The drawn Picker target owns this release even
+                            // when exact source revalidation refuses its effect.
+                            self.machine_packet = true;
+                            self.keys.capture_pending();
+                        }
+                        PointerOutcome::RegionsChanged => regions_changed = true,
+                        PointerOutcome::Ignored
+                        | PointerOutcome::Handled
+                        | PointerOutcome::IdleMotion { .. } => {}
+                        PointerOutcome::TabGestureEnded
+                        | PointerOutcome::SidebarWidthEnded
+                        | PointerOutcome::MenuRequested { .. }
+                        | PointerOutcome::ChromeGestureEnded => {
+                            unreachable!("Machine Picker routing cannot produce chrome output")
+                        }
                     }
-                    _ => {}
                 }
+                _ => {}
             }
             if !view.machines.open || view.machines.request.is_some() {
                 self.machine_packet = true;
-            }
-            self.pointer.invalidate_map_with_port(port);
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        if view.machines.direct_selection_pending()
-            && let DecodedKind::Key(event) = item.kind
-            && crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE).matches(event)
-            && event.kind != KeyKind::Release
-        {
-            self.flush_pending(view, port);
-            view.machines.cancel_selection();
-            self.machine_packet = true;
-            self.keys.capture_pending();
-            self.pointer.invalidate_map_with_port(port);
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        if let DecodedKind::Mouse(event) = item.kind
-            && self.pointer.capture_enabled()
-            && view.machines.pointer(event)
-        {
-            self.flush_pending(view, port);
-            self.pointer.external_capture_event(event);
-            self.machine_packet = true;
-            self.pointer.invalidate_map_with_port(port);
-            return Ok(DispatchOutcome::Continue);
-        }
-        #[cfg(windows)]
-        if match &item.kind {
-            DecodedKind::Key(event) => event.kind != KeyKind::Release,
-            DecodedKind::Paste { .. } | DecodedKind::RejectedPaste => true,
-            DecodedKind::Mouse(event) => {
-                event.action != super::mouse::MouseAction::Release
-                    && event.button != super::mouse::MouseButton::None
-            }
-            _ => false,
-        } {
-            port.observe_input_intent();
-        }
-        if !self.confirm_packet
-            && let DecodedKind::Mouse(event) = item.kind
-            && let Some(decision) = self.pointer.confirmation_event(port, event)
-        {
-            self.flush_pending(view, port);
-            self.confirm_packet = decision;
-            if decision {
                 self.keys.capture_pending();
+                regions_changed = true;
+            }
+            if regions_changed {
+                self.pointer.invalidate_map_with_port(port);
             }
             return Ok(DispatchOutcome::Continue);
         }
-        if self.confirm_packet || port.capture_confirmation_key(client_key(&item)) {
-            #[cfg(windows)]
-            {
-                view.exit_resize_mode();
-                view.machines.leave_sidebar_navigation();
-                port.cancel_copy_mode();
-            }
-            self.flush_pending(view, port);
-            self.confirm_packet = true;
-            return Ok(DispatchOutcome::Continue);
-        }
-        if let DecodedKind::Mouse(event) = item.kind
-            && port.agent_board_input()
-        {
-            self.flush_pending(view, port);
-            let decision = self.pointer.board_event(port, event);
-            self.capture_modal_release(event);
-            if event.action == super::MouseAction::Press
-                && matches!(
-                    event.button,
-                    super::MouseButton::Left
-                        | super::MouseButton::Right
-                        | super::MouseButton::Middle
-                )
-            {
-                self.modal_release = Some(event.button);
-            }
-            if decision {
-                self.pointer_packet = true;
-                self.keys.capture_pending();
-            }
-            self.settle_board_edge(port);
-            return Ok(DispatchOutcome::Continue);
-        }
-        if let DecodedKind::Mouse(event) = item.kind
-            && self.pointer.help_event(view, event)
-        {
-            self.flush_pending(view, port);
-            if event.action == super::MouseAction::Press && event.button == super::MouseButton::Left
-            {
-                self.modal_release = Some(event.button);
-                self.pointer_packet = true;
-                self.keys.capture_pending();
-            }
-            return Ok(DispatchOutcome::Continue);
-        }
+
         #[cfg(windows)]
-        if self.copy_packet || port.copy_mode_active() {
-            self.flush_pending(view, port);
+        if owner == CaptureOwner::Copy {
             if !self.copy_packet {
                 match &item.kind {
                     DecodedKind::Mouse(event) => {
@@ -855,6 +846,606 @@ impl InputDispatcher {
             view.settle_copy_mode(port.copy_mode_active());
             return Ok(DispatchOutcome::Continue);
         }
+
+        #[cfg(windows)]
+        if owner == CaptureOwner::Resize {
+            if let DecodedKind::Mouse(event) = item.kind {
+                if after_layout(view, port)? {
+                    self.pointer.invalidate_map_with_port(port);
+                }
+                let decision = self.pointer.resize_event(view, port, event);
+                self.capture_modal_release(event);
+                if event.action == super::MouseAction::Press
+                    && matches!(
+                        event.button,
+                        super::MouseButton::Left
+                            | super::MouseButton::Right
+                            | super::MouseButton::Middle
+                    )
+                {
+                    self.modal_release = Some(event.button);
+                }
+                if decision {
+                    self.pointer_packet = true;
+                    self.keys.capture_pending();
+                }
+                return Ok(DispatchOutcome::Continue);
+            }
+            if matches!(item.kind, DecodedKind::Key(event) if event.kind == KeyKind::Release) {
+                return Ok(DispatchOutcome::Continue);
+            }
+            return self.decide(view, port, now, item, after_layout, mode);
+        }
+
+        let native_owner = match owner {
+            #[cfg(windows)]
+            CaptureOwner::Machine => unreachable!("the machine capture returned above"),
+            #[cfg(windows)]
+            CaptureOwner::Copy | CaptureOwner::Resize => {
+                unreachable!("the client capture returned above")
+            }
+            CaptureOwner::Native(owner) => owner,
+        };
+        let context = port.native_capture_context(native_owner);
+        match (native_owner, context) {
+            (NativeCaptureOwner::Settings, Some(NativeCaptureContext::Settings(expected))) => {
+                match item.kind {
+                    DecodedKind::Paste { text } => {
+                        let _consumed = port.capture_settings_paste_for(expected, Some(&text));
+                        self.pointer.invalidate_map_with_port(port);
+                    }
+                    DecodedKind::RejectedPaste => {
+                        let _consumed = port.capture_settings_paste_for(expected, None);
+                        self.pointer.invalidate_map_with_port(port);
+                    }
+                    DecodedKind::Key(event) => {
+                        let _consumed = port.capture_settings_key_for(expected, event);
+                        self.pointer.invalidate_map_with_port(port);
+                        if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
+                            .matches(event)
+                            || crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE)
+                                .matches(event)
+                        {
+                            self.settings_packet = true;
+                            self.keys.capture_pending();
+                        }
+                    }
+                    DecodedKind::Mouse(event) => match self.pointer.settings_event(event) {
+                        PointerOutcome::IdleMotion { changed } => {
+                            self.item_idle_motion = Some(changed);
+                        }
+                        PointerOutcome::Interaction { target, contract } => {
+                            if contract == PrimaryContract::ActivateOnRelease {
+                                match target {
+                                    InteractionTarget::SettingsRow { token, row } => {
+                                        port.click_settings(token, row);
+                                    }
+                                    InteractionTarget::SettingsControl { token, control } => {
+                                        port.click_settings_control(token, control);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            self.settings_packet = true;
+                            self.keys.capture_pending();
+                            self.pointer.invalidate_map_with_port(port);
+                        }
+                        PointerOutcome::InteractionEnded => {
+                            self.settings_packet = true;
+                            self.keys.capture_pending();
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+                if Self::projected_capture(view, port)
+                    != Some(CaptureOwner::Native(NativeCaptureOwner::Settings))
+                {
+                    self.settle_settings_closed(port);
+                    if Self::projected_capture(view, port).is_none() {
+                        mode(ModeRequest::BracketedPaste(false))?;
+                    }
+                }
+            }
+            #[cfg(windows)]
+            (NativeCaptureOwner::ActionMenu, Some(NativeCaptureContext::ActionMenu(expected))) => {
+                match item.kind {
+                    DecodedKind::Key(event) => {
+                        let _consumed = port.capture_action_menu_key_for(expected, event);
+                        if crate::client_view::Binding::new(KeyCode::Enter, Modifiers::NONE)
+                            .matches(event)
+                            || crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE)
+                                .matches(event)
+                        {
+                            self.menu_packet = true;
+                            self.keys.capture_pending();
+                        }
+                    }
+                    DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
+                        let outcome = self.pointer.action_menu_event(port, event);
+                        if event.action == super::MouseAction::Release
+                            && self.menu_release.is_some_and(|button| {
+                                event.button == button || event.button == super::MouseButton::None
+                            })
+                        {
+                            self.menu_release = None;
+                        }
+                        if event.action == super::MouseAction::Press
+                            && matches!(
+                                event.button,
+                                super::MouseButton::Left | super::MouseButton::Right
+                            )
+                        {
+                            self.menu_release = Some(event.button);
+                        }
+                        match outcome {
+                            PointerOutcome::IdleMotion { changed } => {
+                                self.item_idle_motion = Some(changed);
+                            }
+                            PointerOutcome::Interaction { target, contract } => {
+                                if contract == PrimaryContract::ActivateOnRelease {
+                                    match target {
+                                        InteractionTarget::ActionMenuRow { source, token, row } => {
+                                            port.activate_action_menu_row(&source, token, row)
+                                        }
+                                        InteractionTarget::ActionMenuControl {
+                                            source,
+                                            token,
+                                            control,
+                                        } => port
+                                            .activate_action_menu_control(&source, token, control),
+                                        _ => {}
+                                    }
+                                }
+                                self.menu_packet = true;
+                                self.keys.capture_pending();
+                                self.pointer.invalidate_map_with_port(port);
+                            }
+                            PointerOutcome::InteractionEnded => {
+                                self.menu_packet = true;
+                                self.keys.capture_pending();
+                            }
+                            PointerOutcome::RegionsChanged => {
+                                self.menu_packet = true;
+                                self.keys.capture_pending();
+                                self.pointer.stale_map();
+                            }
+                            PointerOutcome::Ignored | PointerOutcome::Handled => {}
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+                if Self::projected_capture(view, port)
+                    != Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
+                {
+                    self.settle_action_menu_closed(port);
+                    if Self::projected_capture(view, port).is_none()
+                        && !view.machines.sidebar_navigation_active()
+                    {
+                        mode(ModeRequest::BracketedPaste(false))?;
+                    }
+                }
+            }
+            #[cfg(windows)]
+            (NativeCaptureOwner::Popup, Some(NativeCaptureContext::Popup(expected))) => {
+                if let DecodedKind::Mouse(event) = &item.kind {
+                    self.pointer.external_capture_event(*event);
+                    match self.pointer.popup_event(port, *event) {
+                        PointerOutcome::Interaction { target, contract } => {
+                            self.popup_packet = true;
+                            self.keys.capture_pending();
+                            if let (
+                                InteractionTarget::PopupClose(target),
+                                PrimaryContract::ActivateOnRelease,
+                            ) = (target, contract)
+                            {
+                                let _activated = port.activate_drawn_popup_close(&target);
+                            }
+                            // Accepted and stale exact releases both retire this
+                            // painted authority. Neither may re-hit a replacement.
+                            self.pointer.invalidate_map_with_port(port);
+                        }
+                        PointerOutcome::InteractionEnded => {
+                            self.popup_packet = true;
+                            self.keys.capture_pending();
+                        }
+                        PointerOutcome::IdleMotion { changed } => {
+                            self.item_idle_motion = Some(changed);
+                        }
+                        PointerOutcome::Ignored
+                        | PointerOutcome::Handled
+                        | PointerOutcome::RegionsChanged
+                        | PointerOutcome::TabGestureEnded
+                        | PointerOutcome::SidebarWidthEnded
+                        | PointerOutcome::ChromeGestureEnded
+                        | PointerOutcome::MenuRequested { .. } => {}
+                    }
+                } else if expected.interactive() {
+                    port.popup_input(expected.id(), &item);
+                }
+                if Self::projected_capture(view, port)
+                    != Some(CaptureOwner::Native(NativeCaptureOwner::Popup))
+                {
+                    self.popup_packet = true;
+                    self.keys.capture_pending();
+                    self.pointer.invalidate_map_with_port(port);
+                }
+            }
+            #[cfg(windows)]
+            (NativeCaptureOwner::Worktree, Some(NativeCaptureContext::Worktree(_)))
+            | (NativeCaptureOwner::Setup, Some(NativeCaptureContext::Setup(_)))
+            | (NativeCaptureOwner::Rename, Some(NativeCaptureContext::Rename(_))) => {
+                // The modal decoder owns all interactive and recovery input for
+                // these surfaces. A complete legacy item here means its exact
+                // context disappeared between byte reconciliation and dispatch;
+                // consume it without selecting a lower owner.
+            }
+            #[cfg(not(windows))]
+            (NativeCaptureOwner::Setup, Some(NativeCaptureContext::Setup(_)))
+            | (NativeCaptureOwner::Rename, Some(NativeCaptureContext::Rename(_))) => {}
+            (NativeCaptureOwner::PanelClose, Some(NativeCaptureContext::PanelClose(expected))) => {
+                if let DecodedKind::Mouse(event) = &item.kind {
+                    self.capture_confirmation_mouse(port, *event);
+                } else {
+                    let _consumed =
+                        port.capture_panel_confirmation_key_for(expected.token, client_key(&item));
+                    self.confirm_packet = true;
+                    self.keys.capture_pending();
+                }
+            }
+            (NativeCaptureOwner::TabClose, Some(NativeCaptureContext::TabClose(expected))) => {
+                if let DecodedKind::Mouse(event) = &item.kind {
+                    self.capture_confirmation_mouse(port, *event);
+                } else {
+                    let _consumed =
+                        port.capture_tab_confirmation_key_for(expected.token, client_key(&item));
+                    self.confirm_packet = true;
+                    self.keys.capture_pending();
+                }
+            }
+            (
+                NativeCaptureOwner::WorkspaceClose,
+                Some(NativeCaptureContext::WorkspaceClose(expected)),
+            ) => {
+                if let DecodedKind::Mouse(event) = &item.kind {
+                    self.capture_confirmation_mouse(port, *event);
+                } else {
+                    let _consumed = port
+                        .capture_workspace_confirmation_key_for(expected.token, client_key(&item));
+                    self.confirm_packet = true;
+                    self.keys.capture_pending();
+                }
+            }
+            (NativeCaptureOwner::AgentBoard, Some(NativeCaptureContext::AgentBoard(expected))) => {
+                if let DecodedKind::Mouse(event) = item.kind {
+                    let outcome = self.pointer.board_event(port, event);
+                    self.capture_modal_release(event);
+                    if event.action == super::MouseAction::Press
+                        && matches!(
+                            event.button,
+                            super::MouseButton::Left
+                                | super::MouseButton::Right
+                                | super::MouseButton::Middle
+                        )
+                    {
+                        self.modal_release = Some(event.button);
+                    }
+                    match outcome {
+                        PointerOutcome::IdleMotion { changed } => {
+                            self.item_idle_motion = Some(changed);
+                        }
+                        PointerOutcome::Interaction { target, contract } => {
+                            match (target, contract) {
+                                (
+                                    InteractionTarget::AgentBoardRow(target),
+                                    PrimaryContract::SelectOnPress,
+                                ) => {
+                                    let _accepted = port.agent_board_select(&target);
+                                }
+                                (
+                                    InteractionTarget::AgentBoardControl(target),
+                                    PrimaryContract::ActivateOnRelease,
+                                ) => {
+                                    let _accepted = port.click_agent_board_control(&target);
+                                }
+                                _ => {}
+                            }
+                            self.pointer_packet = true;
+                            self.keys.capture_pending();
+                            self.pointer.invalidate_map_with_port(port);
+                        }
+                        PointerOutcome::InteractionEnded => {
+                            self.pointer_packet = true;
+                            self.keys.capture_pending();
+                        }
+                        PointerOutcome::RegionsChanged => {
+                            self.pointer_packet = true;
+                            self.keys.capture_pending();
+                            self.pointer.stale_map();
+                        }
+                        PointerOutcome::Ignored | PointerOutcome::Handled => {}
+                        _ => {}
+                    }
+                } else if let DecodedKind::Key(event) = item.kind {
+                    let _consumed = port.capture_agent_board_key_for(expected.episode(), event);
+                }
+                if Self::projected_capture(view, port)
+                    != Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard))
+                {
+                    self.pointer_packet = true;
+                    self.keys.capture_pending();
+                    self.pointer.invalidate_map_with_port(port);
+                }
+            }
+            // An owner changed its exact context between the claim and this
+            // lookup. The selected surface still consumes this item; the next
+            // complete item obtains a fresh projection.
+            _ => {}
+        }
+        Ok(DispatchOutcome::Continue)
+    }
+
+    /// Routes one decoded item through the ownership order: an open
+    /// confirmation packet consumes the whole rest of the chunk, an armed
+    /// prefix resolves the item against the binding registry, and anything
+    /// else joins `self.pending` so its source bytes forward in order.
+    /// the configured prefix arms its layer; configured direct bindings run
+    /// after capture and history ownership.
+    fn handle_item<Port: TerminalInputPort + ?Sized, Error>(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut Port,
+        now: Instant,
+        item: DecodedItem,
+        after_layout: &mut impl FnMut(&mut ClientView, &mut Port) -> Result<bool, Error>,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<DispatchOutcome, Error> {
+        if let DecodedKind::HostReply(reply) = item.kind {
+            self.flush_pending(view, port);
+            self.host_reply(reply, now);
+            self.synchronize_pointer_admission(mode)?;
+            return Ok(DispatchOutcome::Continue);
+        }
+        if let DecodedKind::Focus(focused) = item.kind {
+            #[cfg(windows)]
+            // Preserve the active-drag edge before focus teardown installs its
+            // cleanup tombstone; that edge owns the rest of this host packet.
+            let tab_drag_cancelled = !focused && self.pointer.cancel_tab_drag();
+            self.pointer.set_host_focus(focused);
+            if !focused {
+                self.pointer.cancel_list_scroll();
+                self.pointer.cancel_modal_press();
+                self.pointer.cancel_scrollbar();
+            }
+            #[cfg(windows)]
+            if !focused {
+                self.menu_release = None;
+                self.navigator.release = None;
+                if tab_drag_cancelled {
+                    self.menu_packet = true;
+                    self.keys.capture_pending();
+                }
+            }
+            self.flush_pending(view, port);
+            port.observe_focus(focused);
+            self.settle_capture_edge(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        if let DecodedKind::Mouse(event) = item.kind {
+            match self.pointer.cancelled_modal_event(event) {
+                CancelledModalEvent::Ended => {
+                    // The painted owner and the packet-level button debt are
+                    // one gesture. Settle both before a newer surface can
+                    // reinterpret the same physical release.
+                    self.modal_release = None;
+                    #[cfg(windows)]
+                    {
+                        self.menu_release = None;
+                    }
+                    self.pointer_packet = true;
+                    self.keys.capture_pending();
+                    return Ok(DispatchOutcome::Continue);
+                }
+                CancelledModalEvent::Captured => return Ok(DispatchOutcome::Continue),
+                CancelledModalEvent::Retired => {
+                    // A fresh press proves the old release can no longer
+                    // arrive. It remains eligible for the current owner.
+                    self.modal_release = None;
+                    #[cfg(windows)]
+                    {
+                        self.menu_release = None;
+                    }
+                }
+                CancelledModalEvent::Ignored => {}
+            }
+            match self.pointer.cancelled_ui_event(event) {
+                PointerOutcome::InteractionEnded => {
+                    self.modal_release = None;
+                    #[cfg(windows)]
+                    {
+                        // A generic menu interaction and the legacy packet
+                        // release latch describe the same physical button.
+                        // Retire both when the generic owner settles it.
+                        self.menu_release = None;
+                    }
+                    self.pointer_packet = true;
+                    self.keys.capture_pending();
+                    return Ok(DispatchOutcome::Continue);
+                }
+                #[cfg(windows)]
+                PointerOutcome::ChromeGestureEnded => {
+                    self.pointer_packet = true;
+                    self.keys.capture_pending();
+                    return Ok(DispatchOutcome::Continue);
+                }
+                #[cfg(windows)]
+                PointerOutcome::TabGestureEnded => {
+                    self.menu_packet = true;
+                    self.keys.capture_pending();
+                    self.pointer.invalidate_map_with_port(port);
+                    return Ok(DispatchOutcome::Continue);
+                }
+                PointerOutcome::Handled => return Ok(DispatchOutcome::Continue),
+                PointerOutcome::Ignored => {}
+                _ => unreachable!("cancelled UI cleanup cannot produce a semantic effect"),
+            }
+            if self.capture_modal_release(event) {
+                return Ok(DispatchOutcome::Continue);
+            }
+        }
+        if matches!(
+            &item.kind,
+            DecodedKind::Key(_) | DecodedKind::Paste { .. } | DecodedKind::RejectedPaste
+        ) {
+            self.pointer.flush_list_scroll(view, port);
+            self.pointer.cancel_list_scroll();
+            self.pointer.cancel_modal_press();
+            self.pointer.cancel_scrollbar();
+        }
+        #[cfg(windows)]
+        if let DecodedKind::Mouse(event) = item.kind
+            && event.action == super::MouseAction::Press
+            && !matches!(
+                event.button,
+                super::MouseButton::WheelUp
+                    | super::MouseButton::WheelDown
+                    | super::MouseButton::WheelLeft
+                    | super::MouseButton::WheelRight
+            )
+            && !self.menu_packet
+            && !item.owned
+            && self.menu_release.is_some()
+        {
+            // A new physical press proves that an unreported old menu release can no
+            // longer complete that gesture. The current owner may immediately arm a
+            // new debt for this press below.
+            self.menu_release = None;
+        }
+        #[cfg(windows)]
+        if let DecodedKind::Mouse(event) = item.kind
+            && event.action == super::MouseAction::Release
+            && Self::projected_capture(view, port)
+                != Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
+            && self.menu_release.is_some_and(|button| {
+                event.button == button || event.button == super::MouseButton::None
+            })
+        {
+            self.menu_release = None;
+            return Ok(DispatchOutcome::Continue);
+        }
+        // A confirmation owns its complete decision packet, including keys
+        // and paste, but an accepted painted press must still see its exact
+        // matching release before that packet fence swallows the tail.
+        if let DecodedKind::Mouse(event) = item.kind
+            && event.action == super::MouseAction::Release
+            && self.modal_release.is_some_and(|button| {
+                event.button == button || event.button == super::MouseButton::None
+            })
+            && self.pointer.modal_release_ownership() == ReleaseOwnership::Active
+            && let Some(
+                owner @ CaptureOwner::Native(
+                    NativeCaptureOwner::PanelClose
+                    | NativeCaptureOwner::TabClose
+                    | NativeCaptureOwner::WorkspaceClose,
+                ),
+            ) = Self::projected_capture(view, port)
+        {
+            self.flush_pending(view, port);
+            return self.handle_projected_capture(
+                view,
+                port,
+                ProjectedCaptureItem { owner, item, now },
+                after_layout,
+                mode,
+            );
+        }
+        // Help is noncapturing, but an accepted generic Help press owns its
+        // exact release even when intervening packet bytes were fenced. Route
+        // that release before `item.owned` can consume it as ordinary tail.
+        if let DecodedKind::Mouse(event) = item.kind
+            && event.action == super::MouseAction::Release
+            && self.modal_release.is_some_and(|button| {
+                event.button == button || event.button == super::MouseButton::None
+            })
+            && self.pointer.modal_release_ownership() == ReleaseOwnership::Active
+            && view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp)
+            && client_chrome_overlay_allowed(Self::projected_capture(view, port))
+        {
+            self.flush_pending(view, port);
+            let captured = self.capture_help_mouse(view, port, event);
+            debug_assert!(captured, "an active Help release remains Help-owned");
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if self.capture_navigator_release(&item) {
+            return Ok(DispatchOutcome::Continue);
+        }
+        if item.owned {
+            // The item completes a frame that began inside a captured
+            // packet: consumed by that capture, never forwarded or decided.
+            self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        let exclusive_packet = self.confirm_packet || self.settings_packet;
+        #[cfg(windows)]
+        let exclusive_packet = exclusive_packet
+            || self.machine_packet
+            || self.popup_packet
+            || self.copy_packet
+            || self.menu_packet;
+        if exclusive_packet {
+            self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        if let Some(owner) = Self::projected_capture(view, port) {
+            if client_chrome_overlay_allowed(Some(owner))
+                && let DecodedKind::Mouse(event) = &item.kind
+                && self.capture_help_mouse(view, port, *event)
+            {
+                self.flush_pending(view, port);
+                return Ok(DispatchOutcome::Continue);
+            }
+            self.flush_pending(view, port);
+            return self.handle_projected_capture(
+                view,
+                port,
+                ProjectedCaptureItem { owner, item, now },
+                after_layout,
+                mode,
+            );
+        }
+        #[cfg(windows)]
+        if view.machines.direct_selection_pending()
+            && let DecodedKind::Key(event) = item.kind
+            && crate::client_view::Binding::new(KeyCode::Esc, Modifiers::NONE).matches(event)
+            && event.kind != KeyKind::Release
+        {
+            self.flush_pending(view, port);
+            view.machines.cancel_selection();
+            self.machine_packet = true;
+            self.keys.capture_pending();
+            self.pointer.invalidate_map_with_port(port);
+            return Ok(DispatchOutcome::Continue);
+        }
+        #[cfg(windows)]
+        if match &item.kind {
+            DecodedKind::Key(event) => event.kind != KeyKind::Release,
+            DecodedKind::Paste { .. } | DecodedKind::RejectedPaste => true,
+            DecodedKind::Mouse(event) => {
+                event.action != super::mouse::MouseAction::Release
+                    && event.button != super::mouse::MouseButton::None
+            }
+            _ => false,
+        } {
+            port.observe_input_intent();
+        }
+        if let DecodedKind::Mouse(event) = &item.kind
+            && self.capture_help_mouse(view, port, *event)
+        {
+            self.flush_pending(view, port);
+            return Ok(DispatchOutcome::Continue);
+        }
         #[cfg(windows)]
         if self.navigator.packet || view.navigator_active() {
             self.flush_pending(view, port);
@@ -882,43 +1473,17 @@ impl InputDispatcher {
             && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
         {
             let sidebar_ended = self.pointer.cancel_sidebar_width();
-            if sidebar_ended || self.pointer.cancel_divider() {
+            let divider_ended = self.pointer.cancel_divider();
+            if sidebar_ended || divider_ended {
                 self.flush_pending(view, port);
                 if sidebar_ended {
                     self.capture_sidebar_redraw(port);
-                }
-                return Ok(DispatchOutcome::Continue);
-            }
-        }
-        #[cfg(windows)]
-        if view.resize_mode() {
-            self.flush_pending(view, port);
-            if let DecodedKind::Mouse(event) = item.kind {
-                if after_layout(view, port)? {
-                    self.pointer.invalidate_map_with_port(port);
-                }
-                let decision = self.pointer.resize_event(view, port, event);
-                self.capture_modal_release(event);
-                if event.action == super::MouseAction::Press
-                    && matches!(
-                        event.button,
-                        super::MouseButton::Left
-                            | super::MouseButton::Right
-                            | super::MouseButton::Middle
-                    )
-                {
-                    self.modal_release = Some(event.button);
-                }
-                if decision {
+                } else {
                     self.pointer_packet = true;
                     self.keys.capture_pending();
                 }
                 return Ok(DispatchOutcome::Continue);
             }
-            if matches!(item.kind, DecodedKind::Key(event) if event.kind == KeyKind::Release) {
-                return Ok(DispatchOutcome::Continue);
-            }
-            return self.decide(view, port, now, item, after_layout, mode);
         }
         #[cfg(windows)]
         if self.sidebar_packet
@@ -1001,7 +1566,6 @@ impl InputDispatcher {
                         if let Some(target) = self.pointer.sidebar_menu_target(view, &target) {
                             mode(ModeRequest::BracketedPaste(true))?;
                             if port.open_action_menu(target, None, view.pointer_released()) {
-                                self.menu_owned = true;
                                 self.menu_packet = true;
                                 self.keys.capture_pending();
                                 self.pointer.invalidate_map_with_port(port);
@@ -1029,12 +1593,8 @@ impl InputDispatcher {
                 DecodedKind::Paste { .. } => {
                     // Paste is exclusive-capture data, never a binding key;
                     // the pane owns it in original order and the prefix
-                    // stays armed — unless the open board owns input, in
-                    // which case the whole run is swallowed like every
-                    // other item under its capture.
-                    if !port.agent_board_input() {
-                        forward_or_report(view, &item.raw, port);
-                    }
+                    // stays armed.
+                    forward_or_report(view, &item.raw, port);
                     return Ok(DispatchOutcome::Continue);
                 }
                 DecodedKind::RejectedPaste => {
@@ -1063,122 +1623,196 @@ impl InputDispatcher {
                 // packet order, then the pointer state resolves the event
                 // against the last drawn frame's hit map. A handled event
                 // syncs the viewport like a keypress; a region-changing one
-                // also stales the map — the gesture that owns the pointer
-                // survives either way.
+                // also stales the map while dedicated gesture owners retain
+                // their cleanup path.
                 self.flush_pending(view, port);
-                self.settle_board_edge(port);
+                let capture_changed = self.settle_capture_edge(view, port);
                 match self.pointer.event(view, port, now, event) {
                     PointerOutcome::Ignored => {}
-                    #[cfg(windows)]
-                    PointerOutcome::TabCreateRequested(target) => {
-                        // Creation may replace the input target. Fence this packet's tail,
-                        // including a refused stale click, like other chrome action handoffs.
-                        self.menu_packet = true;
-                        self.keys.capture_pending();
-                        self.pointer.invalidate_map_with_port(port);
-                        if let Some(action) = port.tab_create_action(&target) {
-                            let transition = view.decide_action(action);
-                            return self.apply_transition(
-                                view,
-                                port,
-                                now,
-                                transition,
-                                None,
-                                after_layout,
-                                mode,
-                            );
-                        }
-                    }
-                    PointerOutcome::SettingsRequested => {
-                        let transition = view.decide_action(ClientAction::OpenSettings);
-                        return self.apply_transition(
-                            view,
-                            port,
-                            now,
-                            transition,
-                            None,
-                            after_layout,
-                            mode,
-                        );
-                    }
-                    #[cfg(windows)]
-                    PointerOutcome::NewWorkspaceRequested => {
-                        self.menu_packet = true;
-                        self.keys.capture_pending();
-                        self.pointer.invalidate_map_with_port(port);
-                        let transition = view.decide_action(ClientAction::RequestQuickWorkspace);
-                        return self.apply_transition(
-                            view,
-                            port,
-                            now,
-                            transition,
-                            None,
-                            after_layout,
-                            mode,
-                        );
-                    }
-                    #[cfg(windows)]
-                    PointerOutcome::SidebarFocusRequested => {
-                        let transition = view.decide_action(ClientAction::FocusBusinessSidebar);
-                        return self.apply_transition(
-                            view,
-                            port,
-                            now,
-                            transition,
-                            None,
-                            after_layout,
-                            mode,
-                        );
-                    }
-                    #[cfg(windows)]
-                    PointerOutcome::SidebarDisclosureRequested(target) => {
-                        if !matches!(target, crate::machine_picker::SidebarTarget::Agent { .. }) {
-                            // A disclosure is chrome owned even if its painted identity became
-                            // stale before this read. Fence the whole packet and retire that map;
-                            // only a still-current target may mutate presentation state.
-                            let project = matches!(
-                                target,
-                                crate::machine_picker::SidebarTarget::Project { .. }
-                            );
-                            let current = view.machines.sidebar_target_exists(&target);
-                            // Project disclosure also enters sidebar keyboard navigation and must
-                            // acquire its terminal-input lease. Context disclosure is display-only.
-                            if project && current {
-                                mode(ModeRequest::BracketedPaste(true))?;
-                            }
-                            self.sidebar_packet = true;
-                            self.keys.capture_pending();
+                    PointerOutcome::IdleMotion { changed } => {
+                        let layout_changed = after_layout(view, port)?;
+                        if layout_changed {
                             self.pointer.invalidate_map_with_port(port);
-                            let changed = if current {
-                                match &target {
-                                    crate::machine_picker::SidebarTarget::Project { .. } => {
-                                        if view.machines.focus_sidebar_target(&target) {
-                                            view.machines.toggle_sidebar_project(&target);
-                                            true
-                                        } else {
-                                            false
+                        }
+                        self.item_idle_motion = Some(changed || layout_changed || capture_changed);
+                    }
+                    PointerOutcome::Interaction { target, contract } => {
+                        self.pointer_packet = true;
+                        self.keys.capture_pending();
+                        self.pointer.invalidate_map_with_port(port);
+                        if contract == PrimaryContract::ActivateOnRelease {
+                            match target {
+                                InteractionTarget::Presentation(target) => {
+                                    let disposition = port.activate_drawn_presentation(&target);
+                                    view.commit_pointer(disposition);
+                                    self.reconcile(view, port, now);
+                                    if disposition == SessionActionDisposition::LayoutChanged {
+                                        after_layout(view, port)?;
+                                    }
+                                }
+                                #[cfg(windows)]
+                                InteractionTarget::GlobalChrome(action) => {
+                                    if Self::projected_capture(view, port).is_none() {
+                                        let action = match action {
+                                            crate::tui_pointer::GlobalChromeAction::OpenMenu => {
+                                                Some(ClientAction::OpenActionMenu)
+                                            }
+                                            crate::tui_pointer::GlobalChromeAction::RestoreSidebar
+                                                if view.machines.available
+                                                    && view.sidebar_surface()
+                                                        == crate::client_view::SidebarSurface::Hidden =>
+                                            {
+                                                Some(ClientAction::ToggleBusinessSidebar)
+                                            }
+                                            crate::tui_pointer::GlobalChromeAction::RestoreSidebar => {
+                                                None
+                                            }
+                                        };
+                                        if let Some(action) = action {
+                                            let transition = view.decide_action(action);
+                                            return self.apply_transition(
+                                                view,
+                                                port,
+                                                now,
+                                                transition,
+                                                None,
+                                                after_layout,
+                                                mode,
+                                            );
                                         }
                                     }
-                                    crate::machine_picker::SidebarTarget::Context { .. } => {
-                                        // Disclosure changes only Client-local presentation. It
-                                        // never activates or focuses the Workspace/terminal it
-                                        // annotates.
-                                        view.machines.toggle_sidebar_context_agents(&target)
-                                    }
-                                    crate::machine_picker::SidebarTarget::Agent { .. } => false,
                                 }
-                            } else {
-                                false
-                            };
-                            if changed {
-                                self.reconcile(view, port, now);
-                                after_layout(view, port)?;
-                            } else if project {
-                                mode(ModeRequest::BracketedPaste(
-                                    view.machines.sidebar_navigation_active(),
-                                ))?;
+                                #[cfg(not(windows))]
+                                InteractionTarget::Tab(tab) => {
+                                    let probe = port.pointer_probe();
+                                    if let Some(index) = probe.tab_index(&tab)
+                                        && let Ok(position) =
+                                            u8::try_from(probe.tabs[index].position)
+                                        && let Some(disposition) = port
+                                            .apply_client_action(ClientAction::SelectTab(position))
+                                    {
+                                        view.commit_pointer(disposition);
+                                        if disposition == SessionActionDisposition::LayoutChanged {
+                                            after_layout(view, port)?;
+                                        }
+                                    }
+                                }
+                                #[cfg(not(windows))]
+                                InteractionTarget::Context(location) => {
+                                    let probe = port.pointer_probe();
+                                    if let Some(index) = probe.context_index(&location)
+                                        && let Some(disposition) = port.apply_client_action(
+                                            ClientAction::SelectContextAt(index),
+                                        )
+                                    {
+                                        view.commit_pointer(disposition);
+                                        if disposition == SessionActionDisposition::LayoutChanged {
+                                            after_layout(view, port)?;
+                                        }
+                                    }
+                                }
+                                #[cfg(windows)]
+                                InteractionTarget::TabCreate(target) => {
+                                    // Creation can replace the input target. A stale
+                                    // exact witness still owns this physical packet.
+                                    self.menu_packet = true;
+                                    if let Some(action) = port.tab_create_action(&target) {
+                                        let transition = view.decide_action(action);
+                                        return self.apply_transition(
+                                            view,
+                                            port,
+                                            now,
+                                            transition,
+                                            None,
+                                            after_layout,
+                                            mode,
+                                        );
+                                    }
+                                }
+                                #[cfg(windows)]
+                                InteractionTarget::Sidebar(drawn) => {
+                                    use crate::machine_picker::SidebarActivation;
+
+                                    let changed = match view.machines.sidebar_activation(&drawn) {
+                                        Some(SidebarActivation::ToggleProject(target)) => {
+                                            view.machines.toggle_sidebar_project(&target)
+                                        }
+                                        Some(SidebarActivation::ToggleContext(target)) => {
+                                            view.machines.toggle_sidebar_context_agents(&target)
+                                        }
+                                        Some(SidebarActivation::Activate(selection)) => {
+                                            let changed = view
+                                                .machines
+                                                .activate_sidebar_selection(&selection);
+                                            if changed {
+                                                view.machines.leave_sidebar_navigation();
+                                                view.dismiss_overlay();
+                                                self.machine_packet = true;
+                                            }
+                                            changed
+                                        }
+                                        None => false,
+                                    };
+                                    if changed {
+                                        self.reconcile(view, port, now);
+                                        after_layout(view, port)?;
+                                    }
+                                }
+                                #[cfg(windows)]
+                                InteractionTarget::SidebarFixed(drawn) => {
+                                    use crate::machine_picker::SidebarFixedActivation;
+
+                                    match view.machines.sidebar_fixed_activation(&drawn) {
+                                        Some(SidebarFixedActivation::NewWorkspace) => {
+                                            let transition = view
+                                                .decide_action(ClientAction::RequestQuickWorkspace);
+                                            return self.apply_transition(
+                                                view,
+                                                port,
+                                                now,
+                                                transition,
+                                                None,
+                                                after_layout,
+                                                mode,
+                                            );
+                                        }
+                                        Some(SidebarFixedActivation::Search) => {
+                                            view.machines.leave_sidebar_navigation();
+                                            view.dismiss_overlay();
+                                            view.machines.show_agent_search();
+                                            self.machine_packet = true;
+                                            self.reconcile(view, port, now);
+                                            after_layout(view, port)?;
+                                        }
+                                        Some(SidebarFixedActivation::Settings) => {
+                                            let transition =
+                                                view.decide_action(ClientAction::OpenSettings);
+                                            return self.apply_transition(
+                                                view,
+                                                port,
+                                                now,
+                                                transition,
+                                                None,
+                                                after_layout,
+                                                mode,
+                                            );
+                                        }
+                                        Some(SidebarFixedActivation::Browse) => {
+                                            view.machines.show_workspaces();
+                                            self.machine_packet = true;
+                                            self.reconcile(view, port, now);
+                                            after_layout(view, port)?;
+                                        }
+                                        None => {}
+                                    }
+                                }
+                                _ => {}
                             }
                         }
+                    }
+                    PointerOutcome::InteractionEnded => {
+                        self.pointer_packet = true;
+                        self.keys.capture_pending();
                     }
                     outcome => {
                         if after_layout(view, port)? {
@@ -1187,15 +1821,15 @@ impl InputDispatcher {
                             self.pointer.invalidate_map_with_port(port);
                         }
                         #[cfg(windows)]
-                        if outcome == PointerOutcome::MachineNavigation {
-                            self.machine_packet = true;
-                            self.pointer.invalidate_map_with_port(port);
-                        }
-                        #[cfg(windows)]
                         if outcome == PointerOutcome::TabGestureEnded {
                             self.menu_packet = true;
                             self.keys.capture_pending();
                             self.pointer.invalidate_map_with_port(port);
+                        }
+                        #[cfg(windows)]
+                        if outcome == PointerOutcome::ChromeGestureEnded {
+                            self.pointer_packet = true;
+                            self.keys.capture_pending();
                         }
                         #[cfg(windows)]
                         if let PointerOutcome::MenuRequested {
@@ -1210,7 +1844,6 @@ impl InputDispatcher {
                                 Some(*anchor),
                                 view.pointer_released(),
                             ) {
-                                self.menu_owned = true;
                                 self.menu_packet = true;
                                 self.menu_release = Some(*button);
                                 self.keys.capture_pending();
@@ -1233,16 +1866,6 @@ impl InputDispatcher {
             }
             DecodedKind::Ignored | DecodedKind::RejectedPaste => {
                 // Rejected protocol input never becomes keys or pending pane bytes.
-            }
-            _ if port.agent_board_input() => {
-                // The painted Agent board owns keyboard input between the
-                // armed prefix and the pane: keys feed its capture
-                // handler, paste and non-decision items are swallowed —
-                // nothing typed here ever reaches the pane.
-                self.flush_pending(view, port);
-                if let DecodedKind::Key(event) = item.kind {
-                    let _captured = port.capture_agent_board_key(event);
-                }
             }
             // A non-Live focus pane owns its history navigation keys
             // locally: the port scrolls or exits without encoding
@@ -1322,6 +1945,8 @@ impl InputDispatcher {
             action,
             Some(
                 ClientAction::RequestRenameTab
+                    | ClientAction::OpenSettings
+                    | ClientAction::ToggleAgentBoard
                     | ClientAction::RequestWorkspaceCreate
                     | ClientAction::RequestQuickWorkspace
                     | ClientAction::RequestProjectQuickWorkspace(_)
@@ -1344,7 +1969,6 @@ impl InputDispatcher {
                     ClientAction::RequestWorktreeCreate
                         | ClientAction::RequestWorktreeOpen
                         | ClientAction::OpenActionMenu
-                        | ClientAction::OpenSettings
                         | ClientAction::FocusBusinessSidebar
                 )
             );
@@ -1364,10 +1988,8 @@ impl InputDispatcher {
             if action == ClientAction::OpenActionMenu {
                 if self.pointer.can_open_action_menu()
                     && !view.resize_mode()
-                    && !view.machines.open
-                    && !port.popup_captured()
                     && !port.copy_mode_active()
-                    && !port.agent_board_input()
+                    && Self::projected_capture(view, port).is_none()
                     && port.open_action_menu(
                         crate::action_menu::MenuTarget::Global,
                         None,
@@ -1420,9 +2042,14 @@ impl InputDispatcher {
             // The client-local release entry: the mode write must succeed
             // before the settled flag mirrors it, exactly like the modal
             // leases above.
-            let next = !self.pointer.capture_enabled();
+            let next = if self.pointer.capture_enabled() {
+                PointerCaptureRequest::Release
+            } else {
+                self.admitted_pointer_capture()
+            };
             mode(ModeRequest::PointerCapture(next))?;
-            self.set_pointer_capture(view, port, next);
+            self.settle_pointer_capture(view, port, next);
+            self.begin_pointer_admission(now, mode)?;
         }
         if applied.is_none()
             && let Some(action) = action.as_ref().and_then(ClientAction::backend_action)
@@ -1430,13 +2057,11 @@ impl InputDispatcher {
             view.report_backend_unavailable(action);
         }
         self.reconcile(view, port, now);
-        let capture_admitted = self.epoch.is_some();
+        let capture_admitted =
+            self.epoch.is_some() || Self::projected_capture(view, port).is_some();
         #[cfg(windows)]
         let capture_admitted = capture_admitted
             || view.navigator_active()
-            || port.copy_mode_active()
-            || port.action_menu_active()
-            || port.settings_active()
             || view.machines.sidebar_navigation_active();
         if (requests_modal || requests_copy || requests_navigator || item.is_none())
             && !capture_admitted
@@ -1491,45 +2116,115 @@ impl InputDispatcher {
         self.pointer.invalidate_map_with_port(port);
     }
 
+    fn capture_help_mouse(
+        &mut self,
+        view: &mut ClientView,
+        port: &mut (impl TerminalInputPort + ?Sized),
+        event: super::MouseEvent,
+    ) -> bool {
+        let outcome = self.pointer.help_event(view, event);
+        if outcome == PointerOutcome::Ignored {
+            return false;
+        }
+        if event.action == super::MouseAction::Press && event.button == super::MouseButton::Left {
+            self.modal_release = Some(event.button);
+            self.pointer_packet = true;
+            self.keys.capture_pending();
+        }
+        match outcome {
+            PointerOutcome::Interaction {
+                target: InteractionTarget::Help(target),
+                contract: PrimaryContract::ActivateOnRelease,
+            } => {
+                self.modal_release = None;
+                self.pointer_packet = true;
+                self.keys.capture_pending();
+                if view.activate_drawn_help(&target) {
+                    self.pointer.invalidate_map_with_port(port);
+                }
+            }
+            PointerOutcome::Interaction { .. } | PointerOutcome::InteractionEnded => {
+                // A stale or mismatched release is still owned by the painted
+                // Help control. Consume its packet without re-hitting another surface.
+                self.modal_release = None;
+                self.pointer_packet = true;
+                self.keys.capture_pending();
+            }
+            PointerOutcome::RegionsChanged => {
+                self.pointer_packet = true;
+                self.keys.capture_pending();
+            }
+            PointerOutcome::Handled | PointerOutcome::IdleMotion { .. } => {}
+            PointerOutcome::Ignored => unreachable!("ignored Help input returned above"),
+            #[cfg(windows)]
+            PointerOutcome::TabGestureEnded
+            | PointerOutcome::SidebarWidthEnded
+            | PointerOutcome::MenuRequested { .. }
+            | PointerOutcome::ChromeGestureEnded => {
+                unreachable!("Help routing cannot produce a Windows chrome outcome")
+            }
+        }
+        true
+    }
+
     fn reconcile(
         &mut self,
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
         now: Instant,
     ) -> bool {
-        self.settle_board_edge(port);
+        use crate::terminal_session::NativeCaptureContext;
 
+        let capture_changed = self.settle_capture_edge(view, port);
+        let projected = Self::projected_capture(view, port);
+        let native_owner = match projected {
+            Some(CaptureOwner::Native(owner)) => Some(owner),
+            #[cfg(windows)]
+            Some(CaptureOwner::Machine | CaptureOwner::Copy | CaptureOwner::Resize) => None,
+            None => None,
+        };
         #[cfg(windows)]
-        if port.popup_captured()
-            || view.machines.open
-            || port.agent_board_input()
-            || port.settings_active()
-        {
+        let higher_exclusive = matches!(
+            projected,
+            Some(CaptureOwner::Machine | CaptureOwner::Native(_))
+        );
+        let context = native_owner.and_then(|owner| port.native_capture_context(owner));
+        let setup = match context.as_ref() {
+            Some(NativeCaptureContext::Setup(context)) => Some(*context),
+            _ => None,
+        };
+        #[cfg(windows)]
+        let worktree = match context.as_ref() {
+            Some(NativeCaptureContext::Worktree(context)) => Some(*context),
+            _ => None,
+        };
+        let current = match context.as_ref() {
+            Some(NativeCaptureContext::Setup(context)) => Some(ModalEpoch::Setup(context.token)),
+            Some(NativeCaptureContext::Rename(context)) => Some(ModalEpoch::Rename(context.token)),
+            #[cfg(windows)]
+            Some(NativeCaptureContext::Worktree(context)) => {
+                Some(ModalEpoch::Worktree(context.token))
+            }
+            _ => None,
+        };
+        #[cfg(windows)]
+        if higher_exclusive {
             view.exit_resize_mode();
-            view.machines.leave_sidebar_navigation();
             port.cancel_copy_mode();
         }
-        let setup = port.setup_input_context();
-        let current = setup
-            .as_ref()
-            .map(|context| ModalEpoch::Setup(context.token()))
-            .or_else(|| {
-                port.rename_input_context()
-                    .map(|context| ModalEpoch::Rename(context.token()))
-            });
         #[cfg(windows)]
-        let current = port
-            .worktree_input_context()
-            .map(|c| ModalEpoch::Worktree(c.token))
-            .or(current);
+        let capture_retains_sidebar =
+            projected == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu));
         #[cfg(windows)]
-        let navigator_changed = self.reconcile_navigator(view, port, current.is_some());
-        #[cfg(not(windows))]
-        let navigator_changed = false;
+        let capture_blocks_sidebar = projected.is_some() && !capture_retains_sidebar;
         #[cfg(windows)]
-        if current.is_some() || port.copy_mode_active() || view.resize_mode() {
+        if capture_blocks_sidebar {
             view.machines.leave_sidebar_navigation();
         }
+        #[cfg(windows)]
+        let navigator_changed = self.reconcile_navigator(view, port, projected.is_some());
+        #[cfg(not(windows))]
+        let navigator_changed = false;
         #[cfg(windows)]
         let sidebar_changed = {
             let owned = view.machines.sidebar_navigation_active();
@@ -1547,61 +2242,21 @@ impl InputDispatcher {
         };
         #[cfg(not(windows))]
         let sidebar_changed = false;
-        #[cfg(windows)]
-        if current.is_some()
-            || port.popup_captured()
-            || view.machines.open
-            || port.agent_board_input()
-            || port.settings_active()
-        {
-            port.cancel_action_menu();
-        }
-        let settings_changed = {
-            let owned = port.settings_active();
-            let changed = owned != self.settings_owned;
-            if changed {
-                if owned {
-                    self.settings_owned = true;
-                    self.keys.capture_pending();
-                    self.pointer.invalidate_map_with_port(port);
-                } else {
-                    self.settle_settings_closed(port);
-                }
-            }
-            changed
-        };
-        #[cfg(windows)]
-        let menu_changed = {
-            let owned = port.action_menu_active();
-            let changed = owned != self.menu_owned;
-            if changed {
-                if owned {
-                    self.menu_owned = true;
-                    self.keys.capture_pending();
-                    self.pointer.invalidate_map_with_port(port);
-                } else {
-                    self.settle_action_menu_closed(port);
-                }
-            }
-            changed
-        };
-        #[cfg(not(windows))]
-        let menu_changed = false;
-        let choice_keys = setup.as_ref().is_some_and(|context| {
+        let choice_keys = setup.is_some_and(|context| {
             matches!(
-                context.stage(),
+                context.stage,
                 NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
             )
         });
         #[cfg(windows)]
         let choice_keys = choice_keys
-            || port.worktree_input_context().is_some_and(|context| {
+            || worktree.is_some_and(|context| {
                 context.stage == crate::terminal_session::WorktreeStage::Checkout
             });
         self.decoder.choice_keys(choice_keys);
         #[cfg(windows)]
         {
-            if current.is_some() {
+            if higher_exclusive {
                 port.cancel_copy_mode();
             }
             let owned = port.copy_mode_active();
@@ -1616,7 +2271,7 @@ impl InputDispatcher {
             view.settle_copy_mode(owned);
         }
         if current == self.epoch {
-            return menu_changed || settings_changed || sidebar_changed || navigator_changed;
+            return capture_changed || sidebar_changed || navigator_changed;
         }
         if self.epoch.take().is_some() {
             let events = self.decoder.cancel(now);
@@ -1624,7 +2279,7 @@ impl InputDispatcher {
         }
         let capacity = if setup.is_some_and(|context| {
             matches!(
-                context.stage(),
+                context.stage,
                 NativeSetupStage::DirectoryPath | NativeSetupStage::QuickDirectory
             )
         }) {
@@ -1661,9 +2316,11 @@ impl InputDispatcher {
                 continue;
             }
             if let ModalInputEvent::Focus(focused) = event {
+                self.pointer.set_host_focus(focused);
                 if !focused {
                     self.pointer.cancel_list_scroll();
                     self.pointer.cancel_modal_press();
+                    self.pointer.cancel_scrollbar();
                 }
                 port.observe_focus(focused);
                 continue;
@@ -1678,13 +2335,23 @@ impl InputDispatcher {
             ) {
                 if self.pointer.flush_list_scroll(view, port) {
                     self.epoch = match self.epoch {
-                        Some(ModalEpoch::Setup(_)) => port
-                            .setup_input_context()
-                            .map(|context| ModalEpoch::Setup(context.token())),
+                        Some(ModalEpoch::Setup(_)) => {
+                            match port.native_capture_context(NativeCaptureOwner::Setup) {
+                                Some(crate::terminal_session::NativeCaptureContext::Setup(
+                                    context,
+                                )) => Some(ModalEpoch::Setup(context.token)),
+                                _ => None,
+                            }
+                        }
                         #[cfg(windows)]
-                        Some(ModalEpoch::Worktree(_)) => port
-                            .worktree_input_context()
-                            .map(|context| ModalEpoch::Worktree(context.token)),
+                        Some(ModalEpoch::Worktree(_)) => {
+                            match port.native_capture_context(NativeCaptureOwner::Worktree) {
+                                Some(crate::terminal_session::NativeCaptureContext::Worktree(
+                                    context,
+                                )) => Some(ModalEpoch::Worktree(context.token)),
+                                _ => None,
+                            }
+                        }
                         other => other,
                     };
                 }
@@ -1716,13 +2383,23 @@ impl InputDispatcher {
                     // A wheel edit replaces selection authority but retains the
                     // same input owner. It never acknowledges the new token.
                     self.epoch = match epoch {
-                        ModalEpoch::Setup(_) => port
-                            .setup_input_context()
-                            .map(|context| ModalEpoch::Setup(context.token())),
+                        ModalEpoch::Setup(_) => {
+                            match port.native_capture_context(NativeCaptureOwner::Setup) {
+                                Some(crate::terminal_session::NativeCaptureContext::Setup(
+                                    context,
+                                )) => Some(ModalEpoch::Setup(context.token)),
+                                _ => None,
+                            }
+                        }
                         #[cfg(windows)]
-                        ModalEpoch::Worktree(_) => port
-                            .worktree_input_context()
-                            .map(|context| ModalEpoch::Worktree(context.token)),
+                        ModalEpoch::Worktree(_) => {
+                            match port.native_capture_context(NativeCaptureOwner::Worktree) {
+                                Some(crate::terminal_session::NativeCaptureContext::Worktree(
+                                    context,
+                                )) => Some(ModalEpoch::Worktree(context.token)),
+                                _ => None,
+                            }
+                        }
                         ModalEpoch::Rename(_) => Some(epoch),
                     };
                 }
@@ -1783,10 +2460,23 @@ impl InputDispatcher {
         token: crate::terminal_session::WorktreeToken,
         event: ModalInputEvent,
     ) {
-        use crate::terminal_session::{WorktreeEdit as E, WorktreeStage as S};
-        let Some(context) = port.worktree_input_context().filter(|c| c.token == token) else {
+        use crate::terminal_session::{
+            CaptureReadiness, NativeCaptureContext, WorktreeEdit as E, WorktreeStage as S,
+        };
+        let Some(NativeCaptureContext::Worktree(context)) =
+            port.native_capture_context(NativeCaptureOwner::Worktree)
+        else {
             return;
         };
+        if context.token != token {
+            return;
+        }
+        if context.readiness == CaptureReadiness::Recovery {
+            if event == ModalInputEvent::Cancel {
+                port.dismiss_worktree(token);
+            }
+            return;
+        }
         let selecting = matches!(context.stage, S::Checkout);
         // Choice lists own framed reports in the decoder and have no partial
         // text to submit. A mouse/focus CSI must not revoke its own painted token.
@@ -1828,7 +2518,8 @@ impl InputDispatcher {
             | ModalInputEvent::HostReply(_) => return,
         };
         if port.edit_worktree(token, edit)
-            && let Some(context) = port.worktree_input_context()
+            && let Some(NativeCaptureContext::Worktree(context)) =
+                port.native_capture_context(NativeCaptureOwner::Worktree)
         {
             self.epoch = Some(ModalEpoch::Worktree(context.token));
         }
@@ -1840,19 +2531,29 @@ impl InputDispatcher {
         token: NativeSetupToken,
         event: ModalInputEvent,
     ) {
-        let Some(context) = port
-            .setup_input_context()
-            .filter(|context| context.token() == token)
+        use crate::terminal_session::{CaptureReadiness, NativeCaptureContext};
+
+        let Some(NativeCaptureContext::Setup(context)) =
+            port.native_capture_context(NativeCaptureOwner::Setup)
         else {
             return;
         };
+        if context.token != token {
+            return;
+        }
+        if context.readiness == CaptureReadiness::Recovery {
+            if event == ModalInputEvent::Cancel {
+                port.cancel_setup_draft(token);
+            }
+            return;
+        }
         let edit = match event {
             ModalInputEvent::NextField => NativeSetupEdit::NextField,
             ModalInputEvent::PreviousChoice => NativeSetupEdit::SelectPreviousProject,
             ModalInputEvent::NextChoice => NativeSetupEdit::SelectNextProject,
             ModalInputEvent::Append(ref text)
                 if matches!(
-                    context.stage(),
+                    context.stage,
                     NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
                 ) =>
             {
@@ -1895,9 +2596,10 @@ impl InputDispatcher {
         );
         if port.edit_setup_draft(token, edit)
             && selecting
-            && let Some(context) = port.setup_input_context()
+            && let Some(NativeCaptureContext::Setup(context)) =
+                port.native_capture_context(NativeCaptureOwner::Setup)
             && matches!(
-                context.stage(),
+                context.stage,
                 NativeSetupStage::ChooseWorkspaceProject
                     | NativeSetupStage::QuickProject
                     | NativeSetupStage::QuickName
@@ -1905,9 +2607,9 @@ impl InputDispatcher {
             )
         {
             // Selection changes draw authority, while this decoder still owns the same picker.
-            self.epoch = Some(ModalEpoch::Setup(context.token()));
+            self.epoch = Some(ModalEpoch::Setup(context.token));
             self.decoder
-                .set_capacity(if context.stage() == NativeSetupStage::QuickDirectory {
+                .set_capacity(if context.stage == NativeSetupStage::QuickDirectory {
                     ModalCapacity::Bytes4096
                 } else {
                     ModalCapacity::Scalars512
@@ -1921,8 +2623,18 @@ impl InputDispatcher {
                 event.button == button || event.button == super::MouseButton::None
             })
         {
+            match self.pointer.modal_release_ownership() {
+                ReleaseOwnership::Active | ReleaseOwnership::Cleanup => {
+                    // Active controls run first. Cleanup tombstones are
+                    // settled by the earlier cancelled-owner passes without
+                    // consulting the current surface.
+                    return false;
+                }
+                ReleaseOwnership::None => {}
+            }
             self.modal_release = None;
-            self.pointer.cancel_modal_press();
+            self.pointer_packet = true;
+            self.keys.capture_pending();
             return true;
         }
         if event.action == super::MouseAction::Press
@@ -1937,5 +2649,25 @@ impl InputDispatcher {
             self.modal_release = None;
         }
         false
+    }
+
+    fn capture_confirmation_mouse<Port: TerminalInputPort + ?Sized>(
+        &mut self,
+        port: &mut Port,
+        event: super::MouseEvent,
+    ) {
+        let decision = self.pointer.confirmation_event(port, event);
+        self.capture_modal_release(event);
+        if decision == Some(false)
+            && event.action == super::MouseAction::Press
+            && matches!(
+                event.button,
+                super::MouseButton::Left | super::MouseButton::Right | super::MouseButton::Middle
+            )
+        {
+            self.modal_release = Some(event.button);
+        }
+        self.confirm_packet = true;
+        self.keys.capture_pending();
     }
 }

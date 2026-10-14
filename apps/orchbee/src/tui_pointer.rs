@@ -8,6 +8,9 @@
 //!   frame's regions — never a predicted layout — and regions carry stable
 //!   identities, re-resolved to positions at click time via the port's
 //!   `PointerProbe`.
+//! - The **interaction projection** explicitly attached to successfully
+//!   painted controls: hover and armed presentation stay transient, while a
+//!   matching release emits only the feature-declared semantic intent.
 //! - The **gesture lifecycle**: idle → pane / pending-focus, with the
 //!   bounded pending queue that holds a pane press while its focus switch
 //!   installs. A press and its release resolve against the press's region;
@@ -27,21 +30,30 @@ use ratatui::layout::Rect;
 use orchbee_terminal_protocol::MouseTracking;
 use orchbee_workbench_protocol::WorkbenchTabId;
 
+pub(crate) use crate::client_view::help::HelpControl;
 use crate::client_view::{ClientAction, ClientView, Modifiers};
 use crate::terminal_input::{
-    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PointerFrameFacts,
-    PointerOwner, PointerProbe, PointerSelectionAdmission, PointerSelectionCell,
+    MouseAction, MouseButton, MouseEvent, PaneEncode, PaneMouseEvent, PanePointerRoute,
+    PointerFrameFacts, PointerProbe, PointerSelectionAdmission, PointerSelectionCell,
     PointerSelectionIntent, TerminalInputPort, encode_cursor_arrows, encode_pane_report,
-    forward_or_report, pane_owns_pointer,
+    forward_or_report, route_pane_pointer,
 };
 use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::state::PaneRef;
 
 #[cfg(windows)]
+mod chrome;
+#[cfg(windows)]
 mod copy_mode;
+mod interaction;
+pub(crate) use interaction::{
+    InteractionAvailability, InteractionSpec, InteractionTarget, MotionObservability,
+    PointerProjection, PrimaryContract, ProjectedPointer, ReleaseOwnership,
+};
 mod list_scroll;
 mod modal;
 pub(crate) use list_scroll::Target as ListScrollTarget;
+pub(crate) use modal::CancelledModalEvent;
 mod scrollbar;
 #[cfg(windows)]
 mod tabs;
@@ -141,6 +153,8 @@ pub(crate) enum HitTarget {
     NavigatorRow(crate::client_view::navigator::Row),
     #[cfg(windows)]
     NavigatorClose(u64),
+    #[cfg(windows)]
+    MachinePicker(crate::machine_picker::DrawnPickerTarget),
     SettingsRow {
         token: crate::native_settings::Token,
         row: crate::native_settings::Row,
@@ -150,10 +164,7 @@ pub(crate) enum HitTarget {
         control: crate::native_settings::Control,
     },
     ListScroll(ListScrollTarget),
-    AgentBoardControl {
-        token: crate::terminal_session::AgentBoardToken,
-        control: crate::terminal_session::AgentBoardControl,
-    },
+    AgentBoardControl(crate::terminal_session::AgentBoardControlTarget),
     #[cfg(windows)]
     SettingsButton,
     #[cfg(windows)]
@@ -187,7 +198,7 @@ pub(crate) enum HitTarget {
         content: Rect,
     },
     #[cfg(windows)]
-    PopupClose(orchbee_workbench_protocol::WorkbenchRequestId),
+    PopupClose(crate::terminal_session::DrawnPopupClose),
     /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
     #[cfg(windows)]
@@ -215,10 +226,7 @@ pub(crate) enum HitTarget {
         source: crate::terminal_scrollbar::ScrollbarSnapshot,
     },
     /// Exact painted incarnation and stable destination within that Panel.
-    Presentation {
-        pane: PaneRef,
-        presentation: orchbee_workbench_protocol::TerminalPresentationId,
-    },
+    Presentation(crate::terminal_session::DrawnPresentationTarget),
     /// Empty members carry exact structural identity and no runtime incarnation.
     Unbound {
         selected: crate::terminal_input::PointerUnboundPane,
@@ -227,9 +235,9 @@ pub(crate) enum HitTarget {
     /// Painted overlay body with no action — swallows the click so it
     /// cannot reach the layer beneath.
     OverlaySurface,
-    /// An Agent board row — carries the row's stable session identity so
-    /// a later click resolves against current rows, never a position.
-    AgentBoardRow(orchbee_agent_observation_protocol::AgentSessionId),
+    /// An Agent board row from one exact successfully presented Board view.
+    /// Press-time selection validates this complete witness with the owner.
+    AgentBoardRow(crate::terminal_session::AgentBoardRowTarget),
     #[cfg(windows)]
     MachineProjectRow {
         target: crate::machine_picker::SidebarTarget,
@@ -257,6 +265,15 @@ pub(crate) enum HitTarget {
     SearchButton,
 }
 
+/// Stable Client-owned actions painted in the root chrome. Their live
+/// availability is still revalidated by the dispatcher on release.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum GlobalChromeAction {
+    OpenMenu,
+    RestoreSidebar,
+}
+
 /// Finite controls shared by the two capturing pickers. A row index has meaning
 /// only together with its immutable painted token.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -267,13 +284,6 @@ pub(crate) enum ModalControl {
     Submit,
     Cancel,
     Surface,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum HelpControl {
-    Close,
-    Previous,
-    Next,
 }
 
 #[cfg(windows)]
@@ -317,6 +327,7 @@ struct HitRegion {
     layer: HitLayer,
     rect: Rect,
     target: HitTarget,
+    interaction: Option<interaction::PaintedInteraction>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -326,6 +337,13 @@ enum HitResolution<'a> {
     /// outside click: dismiss, never fall through.
     OverlayBackdrop,
     /// Nothing claimed the cell.
+    Dead,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum HitRegionResolution<'a> {
+    Region(&'a HitRegion),
+    OverlayBackdrop,
     Dead,
 }
 
@@ -344,6 +362,14 @@ fn contains(rect: Rect, column: u16, row: u16) -> bool {
 pub(crate) struct FrameHitMap {
     overlay_active: bool,
     regions: Vec<HitRegion>,
+    projection_revision: u64,
+    modal_projection: modal::Projection,
+    modal_controls: Vec<modal::Fingerprint>,
+    #[cfg(windows)]
+    chrome_projection: chrome::Projection,
+    #[cfg(windows)]
+    chrome_controls: Vec<chrome::Fingerprint>,
+    help_draw_source: Option<crate::client_view::help::HelpDrawSource>,
     #[cfg(windows)]
     link_sources: Vec<(Rect, crate::terminal_link_activation::PaintedLinkSource)>,
     #[cfg(windows)]
@@ -352,20 +378,21 @@ pub(crate) struct FrameHitMap {
     navigator: Option<crate::client_view::navigator::Paint>,
 }
 
-#[cfg(windows)]
-pub(crate) enum NavigatorHit<'a> {
-    Row(&'a crate::client_view::navigator::Row),
-    Close(u64),
-    Surface,
-    Backdrop,
-}
-
 impl FrameHitMap {
+    pub(crate) fn help_draw_source(&self) -> Option<&crate::client_view::help::HelpDrawSource> {
+        self.help_draw_source.as_ref()
+    }
+
     #[cfg(windows)]
     pub(crate) fn navigator_paint(&self) -> Option<&crate::client_view::navigator::Paint> {
         self.navigator.as_ref()
     }
-    fn hit(&self, column: u16, row: u16) -> HitResolution<'_> {
+    fn hit_region_with<'a>(
+        &'a self,
+        candidate: Option<&'a HitRegion>,
+        column: u16,
+        row: u16,
+    ) -> HitRegionResolution<'a> {
         if self.overlay_active {
             // A capturing overlay owns the press domain end to end: only
             // its own rows and painted surface resolve, controls before
@@ -377,13 +404,13 @@ impl FrameHitMap {
                 HitLayer::Status,
                 HitLayer::OverlaySurface,
             ] {
-                for region in &self.regions {
+                for region in self.regions.iter().chain(candidate) {
                     if region.layer == layer && contains(region.rect, column, row) {
-                        return HitResolution::Region(&region.target);
+                        return HitRegionResolution::Region(region);
                     }
                 }
             }
-            return HitResolution::OverlayBackdrop;
+            return HitRegionResolution::OverlayBackdrop;
         }
         for layer in [
             HitLayer::Status,
@@ -393,13 +420,180 @@ impl FrameHitMap {
             HitLayer::ChromeSurface,
             HitLayer::Foreground,
         ] {
-            for region in &self.regions {
+            for region in self.regions.iter().chain(candidate) {
                 if region.layer == layer && contains(region.rect, column, row) {
-                    return HitResolution::Region(&region.target);
+                    return HitRegionResolution::Region(region);
                 }
             }
         }
-        HitResolution::Dead
+        HitRegionResolution::Dead
+    }
+
+    fn hit_region(&self, column: u16, row: u16) -> HitRegionResolution<'_> {
+        self.hit_region_with(None, column, row)
+    }
+
+    fn hit(&self, column: u16, row: u16) -> HitResolution<'_> {
+        match self.hit_region(column, row) {
+            HitRegionResolution::Region(region) => HitResolution::Region(&region.target),
+            HitRegionResolution::OverlayBackdrop => HitResolution::OverlayBackdrop,
+            HitRegionResolution::Dead => HitResolution::Dead,
+        }
+    }
+
+    fn interaction_at(&self, column: u16, row: u16) -> Option<interaction::Fingerprint> {
+        let HitRegionResolution::Region(region) = self.hit_region(column, row) else {
+            return None;
+        };
+        let painted = region.interaction.as_ref()?;
+        Some(painted.fingerprint(
+            region.layer,
+            region.rect,
+            self.exposure_signature(painted.paint_rect(), None),
+        ))
+    }
+
+    fn modal_fingerprint_for_region(&self, region: &HitRegion) -> Option<modal::Fingerprint> {
+        let enabled = modal::Fingerprint::from_hit(
+            region.layer,
+            region.rect,
+            &region.target,
+            InteractionAvailability::Enabled,
+        )?;
+        self.modal_controls
+            .iter()
+            .find(|fingerprint| fingerprint.same_control(&enabled))
+            .cloned()
+    }
+
+    fn modal_fingerprint_at(&self, column: u16, row: u16) -> Option<modal::Fingerprint> {
+        let HitRegionResolution::Region(region) = self.hit_region(column, row) else {
+            return None;
+        };
+        self.modal_fingerprint_for_region(region)
+    }
+
+    #[cfg(windows)]
+    fn chrome_fingerprint_at(&self, column: u16, row: u16) -> Option<chrome::Fingerprint> {
+        let HitRegionResolution::Region(region) = self.hit_region(column, row) else {
+            return None;
+        };
+        self.chrome_controls
+            .iter()
+            .find(|fingerprint| {
+                fingerprint.matches_region(region.layer, region.rect, &region.target)
+            })
+            .cloned()
+    }
+
+    fn interaction_fingerprint(
+        &self,
+        region: &HitRegion,
+        candidate: Option<&HitRegion>,
+    ) -> Option<interaction::Fingerprint> {
+        let painted = region.interaction.as_ref()?;
+        Some(painted.fingerprint(
+            region.layer,
+            region.rect,
+            self.exposure_signature(painted.paint_rect(), candidate),
+        ))
+    }
+
+    fn exposure_winner(
+        &self,
+        candidate: Option<&HitRegion>,
+        column: u16,
+        row: u16,
+    ) -> interaction::ExposureWinner {
+        match self.hit_region_with(candidate, column, row) {
+            HitRegionResolution::Region(region) => interaction::ExposureWinner::region(
+                region.layer,
+                region.target.clone(),
+                region.interaction.clone(),
+            ),
+            HitRegionResolution::OverlayBackdrop => interaction::ExposureWinner::OverlayBackdrop,
+            HitRegionResolution::Dead => interaction::ExposureWinner::Dead,
+        }
+    }
+
+    /// Canonicalizes the effective frontmost ownership only inside one
+    /// interaction's painted extent. Region edges partition that bounded
+    /// area; adjacent tiles with the same semantic winner merge again so a
+    /// hidden region cannot perturb the signature merely by adding an edge.
+    fn exposure_signature(
+        &self,
+        paint_rect: Rect,
+        candidate: Option<&HitRegion>,
+    ) -> interaction::ExposureSignature {
+        if paint_rect.is_empty() {
+            return interaction::ExposureSignature::default();
+        }
+        let mut x_edges = vec![paint_rect.x, paint_rect.right()];
+        let mut y_edges = vec![paint_rect.y, paint_rect.bottom()];
+        for region in self.regions.iter().chain(candidate) {
+            let intersection = region.rect.intersection(paint_rect);
+            if intersection.is_empty() {
+                continue;
+            }
+            x_edges.extend([intersection.x, intersection.right()]);
+            y_edges.extend([intersection.y, intersection.bottom()]);
+        }
+        x_edges.sort_unstable();
+        x_edges.dedup();
+        y_edges.sort_unstable();
+        y_edges.dedup();
+
+        let mut patches: Vec<interaction::ExposurePatch> = Vec::new();
+        let mut previous: Vec<(u16, u16, interaction::ExposureWinner, usize)> = Vec::new();
+        for y_pair in y_edges.windows(2) {
+            let y = y_pair[0];
+            let height = y_pair[1].saturating_sub(y);
+            if height == 0 {
+                continue;
+            }
+            let mut runs: Vec<(u16, u16, interaction::ExposureWinner)> = Vec::new();
+            for x_pair in x_edges.windows(2) {
+                let x = x_pair[0];
+                let width = x_pair[1].saturating_sub(x);
+                if width == 0 {
+                    continue;
+                }
+                let winner = self.exposure_winner(candidate, x, y);
+                if let Some((run_x, run_width, run_winner)) = runs.last_mut()
+                    && *run_winner == winner
+                    && run_x.saturating_add(*run_width) == x
+                {
+                    *run_width = run_width.saturating_add(width);
+                } else {
+                    runs.push((x, width, winner));
+                }
+            }
+
+            let mut next = Vec::with_capacity(runs.len());
+            for (x, width, winner) in runs {
+                if let Some((_, _, _, patch_index)) = previous.iter().find(
+                    |(previous_x, previous_width, previous_winner, patch_index)| {
+                        *previous_x == x
+                            && *previous_width == width
+                            && *previous_winner == winner
+                            && patches[*patch_index].rect.bottom() == y
+                    },
+                ) {
+                    patches[*patch_index].rect.height =
+                        patches[*patch_index].rect.height.saturating_add(height);
+                    next.push((x, width, winner, *patch_index));
+                } else {
+                    let patch_index = patches.len();
+                    patches.push(interaction::ExposurePatch {
+                        rect: Rect::new(x, y, width, height),
+                        winner: winner.clone(),
+                    });
+                    next.push((x, width, winner, patch_index));
+                }
+            }
+            previous = next;
+        }
+        interaction::ExposureSignature(patches)
     }
 
     #[cfg(windows)]
@@ -432,6 +626,7 @@ impl FrameHitMap {
 #[derive(Default)]
 pub(crate) struct HitMapBuilder {
     map: FrameHitMap,
+    projection: PointerProjection,
 }
 
 impl HitMapBuilder {
@@ -449,6 +644,7 @@ impl HitMapBuilder {
             self.map.navigator = None;
         }
         self.map.overlay_active = true;
+        self.map.help_draw_source = None;
         self.map
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
@@ -459,6 +655,7 @@ impl HitMapBuilder {
             self.map.navigator = None;
         }
         self.map.overlay_active = true;
+        self.map.help_draw_source = None;
         self.map
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
@@ -474,6 +671,7 @@ impl HitMapBuilder {
     pub(crate) fn start_action_menu(&mut self) {
         self.map.navigator = None;
         self.map.overlay_active = true;
+        self.map.help_draw_source = None;
         self.map
             .regions
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
@@ -483,6 +681,14 @@ impl HitMapBuilder {
             map: FrameHitMap {
                 overlay_active: false,
                 regions: Vec::new(),
+                projection_revision: 0,
+                modal_projection: modal::Projection::empty(),
+                modal_controls: Vec::new(),
+                #[cfg(windows)]
+                chrome_projection: chrome::Projection::empty(),
+                #[cfg(windows)]
+                chrome_controls: Vec::new(),
+                help_draw_source: None,
                 #[cfg(windows)]
                 link_sources: Vec::new(),
                 #[cfg(windows)]
@@ -490,7 +696,29 @@ impl HitMapBuilder {
                 #[cfg(windows)]
                 navigator: None,
             },
+            projection: PointerProjection::empty(),
         }
+    }
+
+    /// Starts a candidate frame with an immutable snapshot of the last
+    /// authoritative transient pointer presentation.
+    pub(crate) fn with_pointer(projection: PointerProjection) -> Self {
+        let mut builder = Self::new();
+        builder.map.projection_revision = projection.revision();
+        builder.map.modal_projection = projection.modal().clone();
+        #[cfg(windows)]
+        {
+            builder.map.chrome_projection = projection.chrome().clone();
+        }
+        builder.projection = projection;
+        builder
+    }
+
+    /// Discards a rejected candidate frame without discarding the immutable
+    /// pointer presentation captured for this draw attempt.
+    pub(crate) fn reset_candidate(&mut self) {
+        let projection = self.projection.clone();
+        *self = Self::with_pointer(projection);
     }
 
     /// A capturing overlay is open this frame: an unresolved press is an
@@ -502,14 +730,24 @@ impl HitMapBuilder {
     #[cfg(windows)]
     pub(crate) fn start_navigator(
         &mut self,
+        source: Option<crate::client_view::navigator::DrawSource>,
         focus: Option<crate::client_view::navigator::Target>,
         page_rows: usize,
     ) {
+        self.map.help_draw_source = None;
         self.map.navigator = Some(crate::client_view::navigator::Paint {
+            source,
             focus,
             page_rows,
             rows: Vec::new(),
         });
+    }
+
+    /// Publishes the exact Help episode and page actually painted by this
+    /// candidate frame. Refused fallback surfaces carry their own source and
+    /// never inherit paging authority from an older successful frame.
+    pub(crate) fn record_help_draw(&mut self, source: crate::client_view::help::HelpDrawSource) {
+        self.map.help_draw_source = Some(source);
     }
 
     /// Only the row painter can publish a complete row's activation proof.
@@ -522,9 +760,19 @@ impl HitMapBuilder {
         if rect.height != 1 || rect.width == 0 {
             return;
         }
-        if let Some(paint) = &mut self.map.navigator {
+        if let Some(paint) = &mut self.map.navigator
+            && paint.source.as_ref().is_some_and(|source| {
+                source.episode() == row.episode && source.source() == &row.source
+            })
+        {
             paint.rows.push(row.clone());
-            self.record(HitLayer::Overlay, rect, HitTarget::NavigatorRow(row));
+            self.record_interaction(
+                HitLayer::Overlay,
+                rect,
+                rect,
+                InteractionTarget::NavigatorRow(row),
+                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+            );
         }
     }
 
@@ -536,7 +784,176 @@ impl HitMapBuilder {
             layer,
             rect,
             target,
+            interaction: None,
         });
+    }
+
+    /// Records one specialized modal control after its complete exact extent
+    /// was painted. The ordinary `HitTarget` continues to drive the existing
+    /// owner effect; availability is retained only for input admission and
+    /// immutable hover/pressed projection.
+    pub(crate) fn record_modal_control(
+        &mut self,
+        layer: HitLayer,
+        rect: Rect,
+        target: HitTarget,
+        availability: InteractionAvailability,
+    ) {
+        if rect.is_empty() {
+            return;
+        }
+        let Some(fingerprint) = modal::Fingerprint::from_hit(layer, rect, &target, availability)
+        else {
+            return;
+        };
+        self.map.regions.push(HitRegion {
+            layer,
+            rect,
+            target,
+            interaction: None,
+        });
+        self.map.modal_controls.push(fingerprint);
+    }
+
+    /// Projects the pointer axis for an exact specialized modal target. This
+    /// never publishes a generic interaction or changes the target's existing
+    /// press/release effect owner.
+    pub(crate) fn projected_modal_pointer(
+        &self,
+        layer: HitLayer,
+        rect: Rect,
+        target: &HitTarget,
+        availability: InteractionAvailability,
+    ) -> ProjectedPointer {
+        if rect.is_empty() {
+            return ProjectedPointer::Rest;
+        }
+        modal::Fingerprint::from_hit(layer, rect, target, availability)
+            .map_or(ProjectedPointer::Rest, |fingerprint| {
+                self.projection.project_modal(&fingerprint)
+            })
+    }
+
+    /// Projects the pointer axis for one exact canonical divider. Drag
+    /// ownership remains with the divider gesture state machine.
+    #[cfg(windows)]
+    pub(crate) fn projected_divider_pointer(
+        &self,
+        target: &crate::tui_layout::DrawnDivider,
+    ) -> ProjectedPointer {
+        self.projection
+            .project_chrome(&chrome::Fingerprint::divider(target))
+    }
+
+    /// Records the exact divider after its complete cells were painted.
+    #[cfg(windows)]
+    pub(crate) fn record_divider(&mut self, target: crate::tui_layout::DrawnDivider) {
+        let fingerprint = chrome::Fingerprint::divider(&target);
+        self.map.regions.push(HitRegion {
+            layer: HitLayer::Foreground,
+            rect: target.divider,
+            target: HitTarget::Divider(target),
+            interaction: None,
+        });
+        self.map.chrome_controls.push(fingerprint);
+    }
+
+    /// Projects one exact tab or group token from the same workbench source
+    /// snapshot that painted the strip. Selection and drag effects remain in
+    /// the specialized tab gesture owner.
+    #[cfg(windows)]
+    pub(crate) fn projected_tab_pointer(
+        &self,
+        source: &crate::action_menu::DrawnTabCreate,
+        target: &HitTarget,
+        rect: Rect,
+    ) -> ProjectedPointer {
+        chrome::Fingerprint::tab(source, target, rect)
+            .map_or(ProjectedPointer::Rest, |fingerprint| {
+                self.projection.project_chrome(&fingerprint)
+            })
+    }
+
+    /// Records a successfully painted exact tab/group token. Other targets
+    /// are rejected instead of gaining a broad specialized projection path.
+    #[cfg(windows)]
+    pub(crate) fn record_tab_target(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        rect: Rect,
+        target: HitTarget,
+    ) {
+        let Some(fingerprint) = chrome::Fingerprint::tab(source, &target, rect) else {
+            return;
+        };
+        self.map.regions.push(HitRegion {
+            layer: HitLayer::Foreground,
+            rect,
+            target,
+            interaction: None,
+        });
+        self.map.chrome_controls.push(fingerprint);
+    }
+
+    /// Records one feature-declared interaction from the exact geometry its
+    /// renderer successfully painted. `hit_rect` may be a child fragment of
+    /// a complete row-sized `paint_rect`; frontmost children record first.
+    pub(crate) fn record_interaction(
+        &mut self,
+        layer: HitLayer,
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: InteractionTarget,
+        spec: InteractionSpec,
+    ) {
+        if hit_rect.is_empty()
+            || paint_rect.is_empty()
+            || hit_rect.intersection(paint_rect) != hit_rect
+        {
+            return;
+        }
+        let hit_target = target.hit_target();
+        self.map.regions.push(HitRegion {
+            layer,
+            rect: hit_rect,
+            target: hit_target,
+            interaction: Some(interaction::PaintedInteraction::new(
+                target, paint_rect, spec,
+            )),
+        });
+    }
+
+    /// Projects only the transient pointer axis for an exact typed target and
+    /// painted extent. The feature retains every persistent component fact.
+    pub(crate) fn projected_pointer(
+        &self,
+        layer: HitLayer,
+        hit_rect: Rect,
+        paint_rect: Rect,
+        target: &InteractionTarget,
+        spec: InteractionSpec,
+    ) -> ProjectedPointer {
+        if hit_rect.is_empty()
+            || paint_rect.is_empty()
+            || hit_rect.intersection(paint_rect) != hit_rect
+        {
+            return ProjectedPointer::Rest;
+        }
+        let candidate = HitRegion {
+            layer,
+            rect: hit_rect,
+            target: target.hit_target(),
+            interaction: Some(interaction::PaintedInteraction::new(
+                target.clone(),
+                paint_rect,
+                spec,
+            )),
+        };
+        self.map
+            .interaction_fingerprint(&candidate, Some(&candidate))
+            .map_or(ProjectedPointer::Rest, |fingerprint| {
+                self.projection.project(&fingerprint)
+            })
     }
 
     /// Record the link source from the same terminal paint and pane geometry
@@ -907,11 +1324,17 @@ enum Gesture {
     SidebarWidth(crate::tui_layout::SidebarWidthDrag),
     #[cfg(windows)]
     Link(LinkGesture),
-    #[cfg(windows)]
-    TabCreate {
-        target: crate::action_menu::DrawnTabCreate,
-        area: Rect,
-    },
+}
+
+/// Minimal cleanup ownership retained after an accepted Windows chrome
+/// gesture loses focus, capture, or painted authority. Domain payload and
+/// geometry are deliberately absent: the debt may only consume the matching
+/// primary release once and can never replay the retired effect.
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CancelledChromeRelease {
+    Divider,
+    SidebarWidth,
 }
 
 /// What one host report did to the pointer state — the dispatcher maps it
@@ -921,34 +1344,38 @@ pub(crate) enum PointerOutcome {
     #[cfg(windows)]
     TabGestureEnded,
     #[cfg(windows)]
-    TabCreateRequested(crate::action_menu::DrawnTabCreate),
-    #[cfg(windows)]
     SidebarWidthEnded,
-    #[cfg(windows)]
-    SidebarFocusRequested,
-    SettingsRequested,
-    #[cfg(windows)]
-    NewWorkspaceRequested,
-    #[cfg(windows)]
-    SidebarDisclosureRequested(crate::machine_picker::SidebarTarget),
     #[cfg(windows)]
     MenuRequested {
         target: crate::action_menu::MenuTarget,
         anchor: (u16, u16),
         button: MouseButton,
     },
+    /// A feature-declared generic interaction crossed its commit boundary.
+    /// The dispatcher maps this typed target to the owning semantic action.
+    Interaction {
+        target: InteractionTarget,
+        contract: PrimaryContract,
+    },
+    /// A previously accepted generic press ended without release activation.
+    /// Its physical release packet remains Client-owned, but no target is re-hit.
+    InteractionEnded,
+    /// A cancelled specialized chrome press consumed its matching release.
+    #[cfg(windows)]
+    ChromeGestureEnded,
+    /// A button-free movement changed, or did not change, transient pointer
+    /// presentation without any feature or pane effect.
+    IdleMotion { changed: bool },
     /// Not ours or swallowed — the packet moves on untouched.
     Ignored,
-    /// Consumed without repainting regions: pane-bound bytes, a queued
-    /// event, a wheel notch. The recorded map stays authoritative.
+    /// Consumed without changing structural regions: pane-bound bytes, a
+    /// queued event, a wheel notch, or transient pressed presentation. The
+    /// recorded map stays authoritative.
     Handled,
     /// Consumed and painted regions may differ (navigation applied, an
     /// overlay dismissed): the map is stale until the next draw. The
     /// gesture the event belongs to survives — release/motion follow it.
     RegionsChanged,
-    /// A sidebar navigation owns the remainder of its host input packet.
-    #[cfg(windows)]
-    MachineNavigation,
 }
 
 #[cfg(test)]
@@ -977,8 +1404,16 @@ enum PendingStatus {
 #[derive(Default)]
 pub(crate) struct PointerState {
     capture: bool,
+    host_unfocused: bool,
+    motion_observability: MotionObservability,
     map: Option<FrameHitMap>,
+    interactions: interaction::State,
+    modal_projection: modal::ProjectionState,
+    #[cfg(windows)]
+    chrome_projection: chrome::ProjectionState,
     gesture: Gesture,
+    #[cfg(windows)]
+    cancelled_chrome_release: Option<CancelledChromeRelease>,
     click: Option<SelectionClick>,
     close_press: Option<modal::PaintedPress>,
     modal_press: Option<modal::PaintedPress>,
@@ -995,52 +1430,202 @@ pub(crate) struct PointerState {
 }
 
 impl PointerState {
-    pub(crate) fn help_event(&mut self, view: &mut ClientView, event: MouseEvent) -> bool {
-        if !self.capture || view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp) {
-            return false;
-        }
-        if self.queue_list_scroll(event) {
-            return true;
-        }
-        if !plain_primary_press(event) {
-            return true;
-        }
-        self.cancel_list_scroll();
-        let Some(map) = &self.map else {
-            return true;
-        };
-        match map.hit(event.column, event.row) {
-            HitResolution::Region(HitTarget::Help { page, action })
-                if *page == view.help_page() =>
-            {
-                match action {
-                    HelpControl::Close => view.dismiss_overlay(),
-                    HelpControl::Previous => view.settle_help_page(page.saturating_sub(1)),
-                    HelpControl::Next => view.settle_help_page(page.saturating_add(1)),
-                }
-                self.stale_map();
-            }
-            HitResolution::OverlayBackdrop => {
-                view.dismiss_overlay();
-                self.stale_map();
-            }
-            _ => {}
-        }
-        true
+    /// Immutable transient facts used throughout one candidate render.
+    pub(crate) fn projection(&self) -> PointerProjection {
+        let projection = self
+            .interactions
+            .projection()
+            .with_modal(self.modal_projection());
+        #[cfg(windows)]
+        let projection = projection.with_chrome(self.chrome_projection());
+        projection
     }
 
-    pub(crate) fn settings_event<Port: TerminalInputPort + ?Sized>(
+    /// Applies the settled outer-transport motion level. Downgrade clears
+    /// position and click authority before later input can be admitted.
+    pub(crate) fn set_motion_observability(&mut self, observability: MotionObservability) {
+        if self.motion_observability == observability {
+            return;
+        }
+        self.motion_observability = observability;
+        if observability == MotionObservability::ButtonOnly {
+            self.interactions.clear_transport();
+            self.cancel_modal_press();
+            self.clear_modal_transport();
+            #[cfg(windows)]
+            self.clear_chrome_transport();
+        }
+    }
+
+    /// Focus restoration never reconstructs hover from an old position.
+    pub(crate) fn set_host_focus(&mut self, focused: bool) {
+        self.host_unfocused = !focused;
+        if !focused {
+            self.interactions.clear_transport();
+            self.cancel_modal_press();
+            self.clear_modal_transport();
+            #[cfg(windows)]
+            self.clear_chrome_transport();
+            #[cfg(windows)]
+            {
+                self.cancel_divider();
+                self.cancel_sidebar_width();
+                self.cancel_tab_drag();
+            }
+        }
+    }
+
+    pub(crate) fn take_projection_redraw(&mut self) -> bool {
+        let interaction = self.interactions.take_redraw_after_publish();
+        let modal = self.take_modal_projection_redraw();
+        #[cfg(windows)]
+        let chrome = self.chrome_projection.take_redraw_after_publish();
+        #[cfg(not(windows))]
+        let chrome = false;
+        interaction || modal || chrome
+    }
+
+    pub(crate) fn help_event(
         &mut self,
-        port: &mut Port,
+        view: &mut ClientView,
         event: MouseEvent,
-    ) -> bool {
-        if self.queue_list_scroll(event) {
-            return false;
+    ) -> PointerOutcome {
+        if view.overlay() != Some(crate::client_view::Overlay::ShortcutHelp) {
+            return PointerOutcome::Ignored;
         }
         if plain_primary_press(event) {
             self.cancel_list_scroll();
         }
-        self.settings_control_event(port, event)
+        let interaction = self.modal_interaction_event(event, InteractionTarget::is_help);
+        if interaction != PointerOutcome::Ignored {
+            return interaction;
+        }
+        if self.queue_list_scroll(event) {
+            return PointerOutcome::Handled;
+        }
+        if !self.capture || self.host_unfocused || !plain_primary_press(event) {
+            return PointerOutcome::Handled;
+        }
+        let Some(map) = &self.map else {
+            return PointerOutcome::Handled;
+        };
+        if !matches!(
+            map.hit(event.column, event.row),
+            HitResolution::OverlayBackdrop
+        ) {
+            return PointerOutcome::Handled;
+        }
+        let Some(source) = map.help_draw_source().cloned() else {
+            return PointerOutcome::Handled;
+        };
+        let close = crate::client_view::help::DrawnHelpControl::new(source, HelpControl::Close);
+        if view.activate_drawn_help(&close) {
+            self.stale_map();
+            PointerOutcome::RegionsChanged
+        } else {
+            PointerOutcome::Handled
+        }
+    }
+
+    pub(crate) fn settings_event(&mut self, event: MouseEvent) -> PointerOutcome {
+        if plain_primary_press(event) {
+            self.cancel_list_scroll();
+        }
+        let interaction = self.modal_interaction_event(event, InteractionTarget::is_settings);
+        if interaction != PointerOutcome::Ignored {
+            return interaction;
+        }
+        if self.queue_list_scroll(event) {
+            return PointerOutcome::Handled;
+        }
+        PointerOutcome::Ignored
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn navigator_event(&mut self, event: MouseEvent) -> PointerOutcome {
+        if plain_primary_press(event) {
+            self.cancel_list_scroll();
+        }
+        let interaction = self.modal_interaction_event(event, InteractionTarget::is_navigator);
+        if interaction != PointerOutcome::Ignored {
+            return interaction;
+        }
+        if self.queue_list_scroll(event) {
+            return PointerOutcome::Handled;
+        }
+        PointerOutcome::Ignored
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn machine_picker_event(&mut self, event: MouseEvent) -> PointerOutcome {
+        if plain_primary_press(event) {
+            self.cancel_list_scroll();
+        }
+        let interaction = self.modal_interaction_event(event, InteractionTarget::is_machine_picker);
+        if interaction != PointerOutcome::Ignored {
+            return interaction;
+        }
+        if self.queue_list_scroll(event) {
+            return PointerOutcome::Handled;
+        }
+        PointerOutcome::Ignored
+    }
+
+    fn can_admit_interaction(&self) -> bool {
+        if !matches!(self.gesture, Gesture::Idle) {
+            return false;
+        }
+        if self.close_press.is_some() || self.modal_press.is_some() {
+            return false;
+        }
+        #[cfg(windows)]
+        if self.popup_gesture.is_some() {
+            return false;
+        }
+        true
+    }
+
+    fn modal_interaction_event(
+        &mut self,
+        event: MouseEvent,
+        accepts: fn(&InteractionTarget) -> bool,
+    ) -> PointerOutcome {
+        if !self.capture || self.host_unfocused {
+            return match self.interactions.cleanup_event(event) {
+                interaction::Event::Ended => PointerOutcome::InteractionEnded,
+                interaction::Event::Ignored
+                | interaction::Event::Captured
+                | interaction::Event::Intent { .. } => PointerOutcome::Ignored,
+            };
+        }
+        let idle_motion = event.action == MouseAction::Motion && event.button == MouseButton::None;
+        let interaction_revision = self.interactions.revision();
+        let hover_changed = !self.host_unfocused
+            && self.interactions.observe_motion(
+                self.map.as_ref(),
+                self.motion_observability,
+                event,
+                accepts,
+            );
+        let admit_new = self.can_admit_interaction();
+        match self
+            .interactions
+            .event(self.map.as_ref(), event, admit_new, accepts)
+        {
+            interaction::Event::Captured if idle_motion => PointerOutcome::IdleMotion {
+                changed: interaction_revision != self.interactions.revision(),
+            },
+            interaction::Event::Captured => PointerOutcome::Handled,
+            interaction::Event::Ended => PointerOutcome::InteractionEnded,
+            interaction::Event::Intent { target, contract } => PointerOutcome::Interaction {
+                target: *target,
+                contract,
+            },
+            interaction::Event::Ignored if idle_motion => PointerOutcome::IdleMotion {
+                changed: hover_changed,
+            },
+            interaction::Event::Ignored => PointerOutcome::Ignored,
+        }
     }
     /// A menu cannot take over a press, pending focus or queued wheel burst.
     #[cfg(windows)]
@@ -1095,36 +1680,22 @@ impl PointerState {
         &mut self,
         port: &mut Port,
         event: MouseEvent,
-    ) -> bool {
-        if self.queue_list_scroll(event) {
-            return false;
-        }
+    ) -> PointerOutcome {
         if plain_primary_press(event) {
             self.cancel_list_scroll();
         }
-        if self.menu_control_event(port, event) {
-            return true;
+        let interaction = self.modal_interaction_event(event, InteractionTarget::is_action_menu);
+        if interaction != PointerOutcome::Ignored {
+            return interaction;
+        }
+        if self.queue_list_scroll(event) {
+            return PointerOutcome::Handled;
         }
         if event.mods != crate::client_view::Modifiers::NONE {
-            return false;
-        }
-        if event.action == MouseAction::Motion
-            && event.button == MouseButton::None
-            && !self
-                .modal_press
-                .as_ref()
-                .is_some_and(modal::PaintedPress::active)
-        {
-            if let Some(map) = &self.map
-                && let HitResolution::Region(HitTarget::ActionMenuRow { token, row }) =
-                    map.hit(event.column, event.row)
-            {
-                port.hover_action_menu(*token, *row);
-            }
-            return false;
+            return PointerOutcome::Ignored;
         }
         if event.action != MouseAction::Press {
-            return false;
+            return PointerOutcome::Ignored;
         }
         match event.button {
             MouseButton::WheelUp | MouseButton::WheelDown => {
@@ -1138,17 +1709,74 @@ impl PointerState {
                     )
                 {
                     port.cancel_action_menu();
-                    return true;
+                    return PointerOutcome::RegionsChanged;
                 }
             }
             MouseButton::Right => {
                 port.cancel_action_menu();
-                return true;
+                return PointerOutcome::RegionsChanged;
             }
             _ => {}
         }
-        false
+        PointerOutcome::Ignored
     }
+
+    #[cfg(windows)]
+    fn chrome_pressed_fingerprint(&self) -> Option<chrome::Fingerprint> {
+        match &self.gesture {
+            Gesture::Divider(drag) => Some(chrome::Fingerprint::divider(&drag.target)),
+            Gesture::Tab(drag) => drag.projection_fingerprint(),
+            _ => None,
+        }
+    }
+
+    #[cfg(windows)]
+    fn suppress_chrome_hover(&self, pressed: bool) -> bool {
+        pressed
+            || !matches!(self.gesture, Gesture::Idle)
+            || self.cancelled_chrome_release.is_some()
+            || self.popup_gesture.is_some()
+            || self.modal_release_ownership() != ReleaseOwnership::None
+    }
+
+    #[cfg(windows)]
+    fn chrome_projection(&self) -> chrome::Projection {
+        let pressed = self.chrome_pressed_fingerprint();
+        let suppress_hover = self.suppress_chrome_hover(pressed.is_some());
+        self.chrome_projection.snapshot(pressed, suppress_hover)
+    }
+
+    #[cfg(windows)]
+    fn observe_chrome_motion(&mut self, event: MouseEvent) -> bool {
+        if !self.capture || self.host_unfocused {
+            return false;
+        }
+        let suppress = self.suppress_chrome_hover(false);
+        self.chrome_projection.observe_motion(
+            self.map.as_ref(),
+            self.motion_observability,
+            event,
+            suppress,
+        )
+    }
+
+    #[cfg(windows)]
+    fn publish_chrome_projection(&mut self, map: &FrameHitMap) -> bool {
+        let pressed = self.chrome_pressed_fingerprint();
+        let suppress_hover = self.suppress_chrome_hover(pressed.is_some());
+        self.chrome_projection.publish(map, pressed, suppress_hover)
+    }
+
+    #[cfg(windows)]
+    fn invalidate_chrome_projection(&mut self) {
+        self.chrome_projection.invalidate_map();
+    }
+
+    #[cfg(windows)]
+    fn clear_chrome_transport(&mut self) {
+        self.chrome_projection.clear_transport();
+    }
+
     /// Current reversible geometry, never a source of authoritative terminal dimensions.
     #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
@@ -1163,10 +1791,82 @@ impl PointerState {
     pub(crate) fn cancel_divider(&mut self) -> bool {
         if matches!(self.gesture, Gesture::Divider(_)) {
             self.gesture = Gesture::Idle;
+            self.cancelled_chrome_release
+                .get_or_insert(CancelledChromeRelease::Divider);
             true
         } else {
             false
         }
+    }
+
+    /// Retires only lower-shell Chrome gestures covered by a newly acquired
+    /// compositor owner. Their exact late primary release remains cleanup-only;
+    /// pane selection, generic interactions and modal controls keep ownership.
+    #[cfg(windows)]
+    pub(crate) fn retire_covered_chrome_gesture(&mut self) -> bool {
+        if matches!(&self.gesture, Gesture::Divider(_)) {
+            return self.cancel_divider();
+        }
+        if matches!(&self.gesture, Gesture::SidebarWidth(_)) {
+            return self.cancel_sidebar_width();
+        }
+        if matches!(&self.gesture, Gesture::Tab(_)) {
+            return self.cancel_tab_drag();
+        }
+        false
+    }
+
+    /// Resolves only the primary-release cleanup retained by an accepted
+    /// Windows chrome press. It runs before capture/focus guards so a report
+    /// already queued by the host cannot leak after transport teardown.
+    #[cfg(windows)]
+    fn cancelled_chrome_event(&mut self, event: MouseEvent) -> Option<PointerOutcome> {
+        let pending = self.cancelled_chrome_release.is_some()
+            || matches!(self.gesture, Gesture::TabCancelled);
+        let fresh_press = event.action == MouseAction::Press
+            && !matches!(
+                event.button,
+                MouseButton::WheelUp
+                    | MouseButton::WheelDown
+                    | MouseButton::WheelLeft
+                    | MouseButton::WheelRight
+            );
+        if fresh_press {
+            self.cancelled_chrome_release = None;
+            if matches!(self.gesture, Gesture::TabCancelled) {
+                self.gesture = Gesture::Idle;
+            }
+            return None;
+        }
+        if event.action != MouseAction::Release
+            || !matches!(event.button, MouseButton::Left | MouseButton::None)
+        {
+            return pending.then_some(PointerOutcome::Handled);
+        }
+        if self.cancelled_chrome_release.take().is_some() {
+            return Some(PointerOutcome::ChromeGestureEnded);
+        }
+        if matches!(self.gesture, Gesture::TabCancelled) {
+            self.gesture = Gesture::Idle;
+            return Some(PointerOutcome::TabGestureEnded);
+        }
+        None
+    }
+
+    /// Settles a cancelled Client UI press without consulting current hit
+    /// geometry or replaying its effect. Callers that receive an ended result
+    /// own the rest of the physical input packet.
+    pub(crate) fn cancelled_ui_event(&mut self, event: MouseEvent) -> PointerOutcome {
+        match self.interactions.cleanup_event(event) {
+            interaction::Event::Ended => return PointerOutcome::InteractionEnded,
+            interaction::Event::Captured => return PointerOutcome::Handled,
+            interaction::Event::Ignored | interaction::Event::Intent { .. } => {}
+        }
+        #[cfg(windows)]
+        if let Some(outcome) = self.cancelled_chrome_event(event) {
+            return outcome;
+        }
+        PointerOutcome::Ignored
     }
 
     #[cfg(windows)]
@@ -1174,12 +1874,21 @@ impl PointerState {
         &mut self,
         port: &mut (impl TerminalInputPort + ?Sized),
         event: MouseEvent,
-    ) {
-        if !self.capture || event.mods.shift {
-            return;
+    ) -> PointerOutcome {
+        // An accepted program-body gesture keeps its exact RequestId/content
+        // owner. Otherwise the typed Client close interaction gets first
+        // refusal before a fresh body report can start a gesture.
+        if self.popup_gesture.is_none() {
+            let interaction = self.modal_interaction_event(event, InteractionTarget::is_popup);
+            if interaction != PointerOutcome::Ignored {
+                return interaction;
+            }
+        }
+        if !self.capture || self.host_unfocused || event.mods.shift {
+            return PointerOutcome::Ignored;
         }
         let Some(map) = &self.map else {
-            return;
+            return PointerOutcome::Handled;
         };
         if let Some((id, content, button)) = &self.popup_gesture {
             let alive = map.regions.iter().any(|region| {
@@ -1190,11 +1899,11 @@ impl PointerState {
                 && matches!(event.action, MouseAction::Motion | MouseAction::Release)
                 && (event.button == *button || event.button == MouseButton::None)
             {
-                port.popup_mouse(id, *content, event, false);
+                port.popup_mouse(id, *content, event);
                 if event.action == MouseAction::Release {
                     self.popup_gesture = None;
                 }
-                return;
+                return PointerOutcome::Handled;
             }
             if !alive {
                 self.popup_gesture = None;
@@ -1205,9 +1914,9 @@ impl PointerState {
                 if event.action == MouseAction::Release
                     || event.action == MouseAction::Motion && event.button != MouseButton::None
                 {
-                    return;
+                    return PointerOutcome::Handled;
                 }
-                port.popup_mouse(id, *content, event, false);
+                port.popup_mouse(id, *content, event);
                 if event.action == MouseAction::Press
                     && matches!(
                         event.button,
@@ -1220,11 +1929,10 @@ impl PointerState {
                     self.popup_gesture = Some((id.clone(), *content, event.button));
                 }
             }
-            HitResolution::Region(HitTarget::PopupClose(id)) => {
-                port.popup_mouse(id, Rect::default(), event, true)
-            }
+            HitResolution::Region(HitTarget::PopupClose(_)) => {}
             _ => {}
         }
+        PointerOutcome::Handled
     }
 
     pub(crate) const fn capture_enabled(&self) -> bool {
@@ -1324,12 +2032,12 @@ impl PointerState {
             expected,
             content: viewport,
         } = target;
-        match pane_owns_pointer(
+        match route_pane_pointer(
             frame.tracking,
             &event,
             frame.alternate_screen && frame.alternate_scroll,
         ) {
-            PointerOwner::Pane => {
+            PanePointerRoute::ProgramReport => {
                 if probe.viewport_non_live {
                     return PointerOutcome::Handled;
                 }
@@ -1350,13 +2058,15 @@ impl PointerState {
                 gesture.forward(view, port, &frame, event);
                 PointerOutcome::Handled
             }
-            PointerOwner::Client if plain_primary_press(event) => {
+            PanePointerRoute::Client if plain_primary_press(event) => {
                 if probe.selection_ready {
                     let _admitted = self.begin_selection(port, expected, viewport, at, event);
                 }
                 PointerOutcome::Handled
             }
-            PointerOwner::Client | PointerOwner::Host => PointerOutcome::Ignored,
+            PanePointerRoute::AlternateScroll
+            | PanePointerRoute::Client
+            | PanePointerRoute::Host => PointerOutcome::Ignored,
         }
     }
 
@@ -1412,6 +2122,10 @@ impl PointerState {
         if !enabled {
             self.cancel_list_scroll();
             self.cancel_modal_press();
+            self.interactions.clear_transport();
+            self.clear_modal_transport();
+            #[cfg(windows)]
+            self.clear_chrome_transport();
         }
         if self.capture == enabled {
             return;
@@ -1419,14 +2133,18 @@ impl PointerState {
         self.capture = enabled;
         if !enabled {
             #[cfg(windows)]
-            self.cancel_sidebar_width();
+            {
+                self.cancel_divider();
+                self.cancel_sidebar_width();
+                self.cancel_tab_drag();
+            }
             #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 // Keep a cancelled tombstone until the matching release so
                 // re-arming capture cannot reinterpret that release as a
                 // fresh pane event.
                 link.cancelled = true;
-            } else {
+            } else if !matches!(self.gesture, Gesture::TabCancelled) {
                 self.gesture = Gesture::Idle;
             }
             #[cfg(not(windows))]
@@ -1511,14 +2229,10 @@ impl PointerState {
             // replaced source can no longer hand off an external effect.
             link.cancelled = true;
         }
+        self.interactions.publish(&map);
+        self.publish_modal_projection(&map);
         #[cfg(windows)]
-        if let Gesture::TabCreate { target, area } = &self.gesture
-            && !map.regions.iter().any(|region| region.rect == *area
-                && region.target == HitTarget::TabCreate(target.clone())
-                && matches!(map.hit(area.x, area.y), HitResolution::Region(HitTarget::TabCreate(actual)) if actual == target))
-        {
-            self.gesture = Gesture::Idle;
-        }
+        self.publish_chrome_projection(&map);
         self.map = Some(map);
     }
 
@@ -1528,18 +2242,10 @@ impl PointerState {
     }
 
     #[cfg(windows)]
-    pub(crate) fn navigator_hit(&self, column: u16, row: u16) -> Option<NavigatorHit<'_>> {
-        let map = self.map.as_ref()?;
-        let paint = map.navigator_paint()?;
-        Some(match map.hit(column, row) {
-            HitResolution::Region(HitTarget::NavigatorRow(row)) if paint.rows.contains(row) => {
-                NavigatorHit::Row(row)
-            }
-            HitResolution::Region(HitTarget::NavigatorClose(episode)) => {
-                NavigatorHit::Close(*episode)
-            }
-            HitResolution::OverlayBackdrop => NavigatorHit::Backdrop,
-            _ => NavigatorHit::Surface,
+    pub(crate) fn navigator_backdrop_at(&self, column: u16, row: u16) -> bool {
+        self.map.as_ref().is_some_and(|map| {
+            map.navigator_paint().is_some()
+                && matches!(map.hit(column, row), HitResolution::OverlayBackdrop)
         })
     }
 
@@ -1548,17 +2254,26 @@ impl PointerState {
     /// regions no longer describe the screen, an in-flight gesture holds
     /// press-time geometry that no longer matches, and the wheel stream
     /// holds the old viewport bound. All three cancel; between now and
-    /// the next publish every pointer event drops.
+    /// the next publish no new gesture is admitted, while the exact release
+    /// of an already accepted Client UI press may still settle cleanup once.
     pub(crate) fn invalidate_map(&mut self) {
         self.cancel_list_scroll();
         self.cancel_modal_press();
+        self.interactions.invalidate_map();
+        self.invalidate_modal_projection();
+        #[cfg(windows)]
+        self.invalidate_chrome_projection();
         self.map = None;
         #[cfg(windows)]
         {
             self.popup_gesture = None;
         }
         #[cfg(windows)]
-        self.cancel_tab_drag();
+        {
+            self.cancel_divider();
+            self.cancel_sidebar_width();
+            self.cancel_tab_drag();
+        }
         #[cfg(windows)]
         if let Gesture::Link(link) = &mut self.gesture {
             link.cancelled = true;
@@ -1582,13 +2297,19 @@ impl PointerState {
         self.invalidate_map();
     }
 
-    /// A handled pointer event repainted regions (navigation applied or
-    /// an overlay dismissed): the map stales until the next draw, but the
-    /// gesture the event belongs to keeps owning release/motion — a
-    /// release is never dropped mid-gesture. The dispatcher calls this on
-    /// `RegionsChanged`; the map itself never decides.
+    /// A handled pointer event changed structural regions (navigation
+    /// applied or an overlay dismissed): the map stales until the next draw.
+    /// Dedicated gesture owners retain cleanup authority; a generic click
+    /// arm cancels because its painted interaction authority is gone and
+    /// retains only matching-release cleanup. The
+    /// dispatcher calls this on `RegionsChanged`; the map itself never
+    /// decides.
     pub(crate) fn stale_map(&mut self) {
         self.cancel_modal_press();
+        self.interactions.invalidate_map();
+        self.invalidate_modal_projection();
+        #[cfg(windows)]
+        self.invalidate_chrome_projection();
         self.map = None;
     }
 
@@ -1603,16 +2324,32 @@ impl PointerState {
         now: Instant,
         event: MouseEvent,
     ) -> PointerOutcome {
-        if !self.capture {
-            return PointerOutcome::Ignored;
+        if !self.capture || self.host_unfocused {
+            return self.cancelled_ui_event(event);
         }
+        let cancelled = self.cancelled_ui_event(event);
+        if cancelled != PointerOutcome::Ignored {
+            return cancelled;
+        }
+        let idle_motion = event.action == MouseAction::Motion && event.button == MouseButton::None;
         let probe = port.pointer_probe();
         if probe.input_captured {
             // A modal draft or an armed confirmation owns input: pointer
             // events are swallowed without producing gestures.
+            self.interactions.clear_transport();
+            #[cfg(windows)]
+            self.clear_chrome_transport();
             self.cancel_selection(port);
             #[cfg(windows)]
-            self.cancel_sidebar_width();
+            {
+                self.cancel_divider();
+                self.cancel_sidebar_width();
+                self.cancel_tab_drag();
+            }
+            let cancelled = self.cancelled_ui_event(event);
+            if cancelled != PointerOutcome::Ignored {
+                return cancelled;
+            }
             #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 link.cancelled = true;
@@ -1631,7 +2368,39 @@ impl PointerState {
             view.machines.cancel_sidebar_scroll();
             return PointerOutcome::Ignored;
         }
-        match self.gesture {
+        let interaction_revision = self.interactions.revision();
+        let hover_changed = !self.host_unfocused
+            && self.interactions.observe_motion(
+                self.map.as_ref(),
+                self.motion_observability,
+                event,
+                InteractionTarget::is_global_chrome,
+            );
+        #[cfg(windows)]
+        let hover_changed = hover_changed | self.observe_chrome_motion(event);
+        let admit_new = self.can_admit_interaction();
+        match self.interactions.event(
+            self.map.as_ref(),
+            event,
+            admit_new,
+            InteractionTarget::is_global_chrome,
+        ) {
+            interaction::Event::Captured if idle_motion => {
+                return PointerOutcome::IdleMotion {
+                    changed: interaction_revision != self.interactions.revision(),
+                };
+            }
+            interaction::Event::Captured => return PointerOutcome::Handled,
+            interaction::Event::Ended => return PointerOutcome::InteractionEnded,
+            interaction::Event::Intent { target, contract } => {
+                return PointerOutcome::Interaction {
+                    target: *target,
+                    contract,
+                };
+            }
+            interaction::Event::Ignored => {}
+        }
+        let outcome = match self.gesture {
             #[cfg(windows)]
             Gesture::Tab(_) | Gesture::TabCancelled => self.tab_event(view, port, now, event),
             Gesture::Pending(_) => self.pending_event(view, port, &probe, now, event),
@@ -1644,9 +2413,14 @@ impl PointerState {
             Gesture::SidebarWidth(_) => self.sidebar_width_event(view, event),
             #[cfg(windows)]
             Gesture::Link(_) => self.link_event(port, &probe, event),
-            #[cfg(windows)]
-            Gesture::TabCreate { .. } => self.tab_create_event(view, event),
             Gesture::Idle => self.fresh_event(view, port, &probe, now, event),
+        };
+        if idle_motion && outcome == PointerOutcome::Ignored {
+            PointerOutcome::IdleMotion {
+                changed: hover_changed,
+            }
+        } else {
+            outcome
         }
     }
 
@@ -1676,14 +2450,22 @@ impl PointerState {
                 Gesture::Link(link) => !link.cancelled,
                 _ => true,
             };
-            let changed = gesture_changed || self.wheel.pending != 0;
+            let interaction_revision = self.interactions.revision();
+            self.interactions.clear_transport();
+            let changed = gesture_changed
+                || self.wheel.pending != 0
+                || interaction_revision != self.interactions.revision();
             self.cancel_selection(port);
             #[cfg(windows)]
-            self.cancel_sidebar_width();
+            {
+                self.cancel_divider();
+                self.cancel_sidebar_width();
+                self.cancel_tab_drag();
+            }
             #[cfg(windows)]
             if let Gesture::Link(link) = &mut self.gesture {
                 link.cancelled = true;
-            } else {
+            } else if !matches!(self.gesture, Gesture::TabCancelled) {
                 self.gesture = Gesture::Idle;
             }
             #[cfg(not(windows))]
@@ -1809,11 +2591,6 @@ impl PointerState {
             && self.can_open_action_menu()
         {
             let target = match map.hit(event.column, event.row) {
-                HitResolution::Region(HitTarget::MenuButton)
-                    if event.button == MouseButton::Left =>
-                {
-                    Some(crate::action_menu::MenuTarget::Global)
-                }
                 HitResolution::Region(HitTarget::CreateMenu(target))
                     if event.button == MouseButton::Left =>
                 {
@@ -1925,26 +2702,8 @@ impl PointerState {
         }
         match map.hit(event.column, event.row) {
             #[cfg(windows)]
-            HitResolution::Region(
-                target @ (HitTarget::SettingsButton | HitTarget::NewWorkspaceButton),
-            ) => {
-                if plain_primary_press(event)
-                    && matches!(
-                        view.overlay(),
-                        None | Some(crate::client_view::Overlay::BusinessSidebar)
-                    )
-                    && !view.machines.open
-                    && !view.resize_mode()
-                    && self.can_open_action_menu()
-                {
-                    if *target == HitTarget::SettingsButton {
-                        PointerOutcome::SettingsRequested
-                    } else {
-                        PointerOutcome::NewWorkspaceRequested
-                    }
-                } else {
-                    PointerOutcome::Ignored
-                }
+            HitResolution::Region(HitTarget::SettingsButton | HitTarget::NewWorkspaceButton) => {
+                PointerOutcome::Ignored
             }
             HitResolution::Region(HitTarget::Scrollbar {
                 pane,
@@ -1955,40 +2714,6 @@ impl PointerState {
                 self.begin_scrollbar(view, port, probe, event, pane, content, source)
             }
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::TabCreate(target)) => {
-                if plain_primary_press(event)
-                    && view.overlay().is_none()
-                    && !view.resize_mode()
-                    && !view.machines.open
-                    && self.can_open_action_menu()
-                    && let Some(region) = map
-                        .regions
-                        .iter()
-                        .find(|region| region.target == HitTarget::TabCreate(target.clone()))
-                {
-                    self.gesture = Gesture::TabCreate {
-                        target: target.clone(),
-                        area: region.rect,
-                    };
-                    self.click = None;
-                }
-                PointerOutcome::Handled
-            }
-            #[cfg(windows)]
-            HitResolution::Region(HitTarget::SidebarRestoreButton) => {
-                if event.action == MouseAction::Press
-                    && event.button == MouseButton::Left
-                    && event.mods == crate::client_view::Modifiers::NONE
-                    && view.overlay().is_none()
-                    && !view.machines.open
-                    && !view.resize_mode()
-                {
-                    PointerOutcome::SidebarFocusRequested
-                } else {
-                    PointerOutcome::Ignored
-                }
-            }
-            #[cfg(windows)]
             HitResolution::Region(HitTarget::SidebarResize(target)) => {
                 let target = *target;
                 self.begin_sidebar_width(view, target, event)
@@ -1996,13 +2721,18 @@ impl PointerState {
             #[cfg(windows)]
             HitResolution::Region(
                 HitTarget::CreateMenu(_)
+                | HitTarget::MenuButton
+                | HitTarget::SidebarRestoreButton
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::Worktree { .. }
                 | HitTarget::NavigatorRow(_)
                 | HitTarget::NavigatorClose(_)
+                | HitTarget::MachinePicker(_)
+                | HitTarget::TabCreate(_)
                 | HitTarget::Resize(_)
                 | HitTarget::CopyControl { .. }
-                | HitTarget::CopySurface { .. },
+                | HitTarget::CopySurface { .. }
+                | HitTarget::Presentation(_),
             ) => PointerOutcome::Ignored,
             HitResolution::Region(HitTarget::SettingsRow { .. }) => PointerOutcome::Ignored,
             #[cfg(windows)]
@@ -2061,18 +2791,17 @@ impl PointerState {
                 | HitTarget::PanelClose { .. }
                 | HitTarget::Rename { .. }
                 | HitTarget::SettingsControl { .. }
-                | HitTarget::AgentBoardControl { .. }
+                | HitTarget::AgentBoardControl(_)
+                | HitTarget::AgentBoardRow(_)
                 | HitTarget::ListScroll(_)
                 | HitTarget::Help { .. },
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(
-                HitTarget::SidebarMenu(_)
-                | HitTarget::MenuButton
-                | HitTarget::ActionMenuControl { .. },
+                HitTarget::SidebarMenu(_) | HitTarget::ActionMenuControl { .. },
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::MachineProjectRow { target, window }) => {
+            HitResolution::Region(HitTarget::MachineProjectRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
                 {
@@ -2084,37 +2813,15 @@ impl PointerState {
                             .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
                         PointerOutcome::Handled
                     }
-                    MouseButton::Left => PointerOutcome::SidebarDisclosureRequested(target.clone()),
                     _ => PointerOutcome::Ignored,
                 }
             }
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::SidebarDisclosure(target)) => {
-                if event.action == MouseAction::Press
-                    && event.button == MouseButton::Left
-                    && event.mods == crate::client_view::Modifiers::NONE
-                {
-                    PointerOutcome::SidebarDisclosureRequested(target.clone())
-                } else {
-                    PointerOutcome::Ignored
-                }
-            }
+            HitResolution::Region(HitTarget::SidebarDisclosure(_)) => PointerOutcome::Ignored,
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::OpenMachineWorkspaces) => {
-                if event.action == MouseAction::Press
-                    && event.button == MouseButton::Left
-                    && event.mods == crate::client_view::Modifiers::NONE
-                    && view.machines.available
-                {
-                    view.dismiss_overlay();
-                    view.machines.show_workspaces();
-                    PointerOutcome::MachineNavigation
-                } else {
-                    PointerOutcome::Ignored
-                }
-            }
+            HitResolution::Region(HitTarget::OpenMachineWorkspaces) => PointerOutcome::Ignored,
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::MachineWorkspaceRow { selected, window }) => {
+            HitResolution::Region(HitTarget::MachineWorkspaceRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
                 {
@@ -2125,11 +2832,6 @@ impl PointerState {
                         view.machines
                             .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
                         PointerOutcome::Handled
-                    }
-                    MouseButton::Left if view.machines.activate_sidebar_workspace(selected) => {
-                        view.machines.leave_sidebar_navigation();
-                        view.dismiss_overlay();
-                        PointerOutcome::MachineNavigation
                     }
                     _ => PointerOutcome::Ignored,
                 }
@@ -2148,21 +2850,9 @@ impl PointerState {
                 }
             }
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::SearchButton) => {
-                if event.action == MouseAction::Press
-                    && event.button == MouseButton::Left
-                    && event.mods == crate::client_view::Modifiers::NONE
-                    && view.machines.available
-                {
-                    view.dismiss_overlay();
-                    view.machines.show_agent_search();
-                    PointerOutcome::MachineNavigation
-                } else {
-                    PointerOutcome::Ignored
-                }
-            }
+            HitResolution::Region(HitTarget::SearchButton) => PointerOutcome::Ignored,
             #[cfg(windows)]
-            HitResolution::Region(HitTarget::MachineAgentRow { selected, window }) => {
+            HitResolution::Region(HitTarget::MachineAgentRow { window, .. }) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
                 {
@@ -2174,19 +2864,8 @@ impl PointerState {
                             .queue_space_scroll(*window, event.button == MouseButton::WheelUp);
                         PointerOutcome::Handled
                     }
-                    MouseButton::Left if view.machines.activate_sidebar_agent(selected) => {
-                        view.dismiss_overlay();
-                        PointerOutcome::MachineNavigation
-                    }
                     _ => PointerOutcome::Ignored,
                 }
-            }
-            HitResolution::Region(HitTarget::AgentBoardRow(session)) => {
-                if !plain_primary_press(event) {
-                    return PointerOutcome::Ignored;
-                }
-                let _selected = port.agent_board_select(session);
-                PointerOutcome::Handled
             }
             #[cfg(windows)]
             HitResolution::Region(target @ HitTarget::TabGroup { .. }) => {
@@ -2276,38 +2955,13 @@ impl PointerState {
                         .as_ref()
                         .is_none_or(|desired| desired.anchor() != selected.key.anchor())
                     || !probe.unbound.contains(selected)
+                    || presentation.is_some()
                 {
                     return PointerOutcome::Ignored;
                 }
-                let action = match presentation {
-                    Some(id) => ClientAction::SelectPresentation {
-                        panel: selected.key.panel().clone(),
-                        presentation: id.clone(),
-                    },
-                    None => ClientAction::FocusPanel(selected.key.panel().clone()),
-                };
-                if let Some(disposition) = port.apply_client_action(action) {
-                    view.commit_pointer(disposition);
-                }
-                PointerOutcome::RegionsChanged
-            }
-            HitResolution::Region(HitTarget::Presentation { pane, presentation }) => {
-                if event.action != MouseAction::Press
-                    || event.button != MouseButton::Left
-                    || event.mods != crate::client_view::Modifiers::NONE
-                    || probe
-                        .desired
-                        .as_ref()
-                        .is_none_or(|desired| desired.anchor() != pane.pane().anchor())
-                    || !probe.panes.iter().any(|live| &live.record == pane)
+                if let Some(disposition) =
+                    port.apply_client_action(ClientAction::FocusPanel(selected.key.panel().clone()))
                 {
-                    return PointerOutcome::Ignored;
-                }
-                let disposition = port.apply_client_action(ClientAction::SelectPresentation {
-                    panel: pane.pane().panel().clone(),
-                    presentation: presentation.clone(),
-                });
-                if let Some(disposition) = disposition {
                     view.commit_pointer(disposition);
                 }
                 PointerOutcome::RegionsChanged
@@ -2352,30 +3006,6 @@ impl PointerState {
     }
 
     #[cfg(windows)]
-    fn tab_create_event(&mut self, view: &ClientView, event: MouseEvent) -> PointerOutcome {
-        let Gesture::TabCreate { target, area } = &self.gesture else {
-            return PointerOutcome::Ignored;
-        };
-        if event.action != MouseAction::Release
-            || !matches!(event.button, MouseButton::Left | MouseButton::None)
-        {
-            return PointerOutcome::Handled;
-        }
-        let target = target.clone();
-        let activate = event.mods == crate::client_view::Modifiers::NONE
-            && contains(*area, event.column, event.row)
-            && view.overlay().is_none() && !view.resize_mode() && !view.machines.open
-            && self.map.as_ref().is_some_and(|map|
-                matches!(map.hit(event.column, event.row), HitResolution::Region(HitTarget::TabCreate(actual)) if actual == &target));
-        self.gesture = Gesture::Idle;
-        if activate {
-            PointerOutcome::TabCreateRequested(target)
-        } else {
-            PointerOutcome::Handled
-        }
-    }
-
-    #[cfg(windows)]
     fn divider_event<Port: TerminalInputPort + ?Sized>(
         &mut self,
         view: &mut ClientView,
@@ -2387,7 +3017,9 @@ impl PointerState {
         };
         if event.mods.shift {
             self.cancel_divider();
-            return PointerOutcome::Ignored;
+            return self
+                .cancelled_chrome_event(event)
+                .unwrap_or(PointerOutcome::Ignored);
         }
         if self
             .map
@@ -2395,12 +3027,16 @@ impl PointerState {
             .is_none_or(|map| !map.exposes_divider(&drag.target))
         {
             self.cancel_divider();
-            return PointerOutcome::Handled;
+            return self
+                .cancelled_chrome_event(event)
+                .unwrap_or(PointerOutcome::Handled);
         }
         if let Err(notice) = port.pointer_divider_ready(&drag.target) {
             self.cancel_divider();
             view.configuration_notice(notice);
-            return PointerOutcome::Handled;
+            return self
+                .cancelled_chrome_event(event)
+                .unwrap_or(PointerOutcome::Handled);
         }
         match event.action {
             MouseAction::Motion if event.button == MouseButton::Left => {
@@ -2416,6 +3052,7 @@ impl PointerState {
                 if drag.ratio != drag.target.ratio {
                     port.pointer_divider_resize(&drag.target, drag.ratio);
                 }
+                return PointerOutcome::ChromeGestureEnded;
             }
             _ => {}
         }
@@ -2505,14 +3142,20 @@ impl PointerState {
             return PointerOutcome::Ignored;
         }
         if matches!(event.action, MouseAction::Press)
-            && matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
+            && matches!(
+                event.button,
+                MouseButton::WheelUp
+                    | MouseButton::WheelDown
+                    | MouseButton::WheelLeft
+                    | MouseButton::WheelRight
+            )
         {
             return self.wheel_on_pane(view, port, probe, event, &PaneTarget { expected, content });
         }
         if event.action != MouseAction::Press {
             // A non-Live focus owns every non-wheel pointer event locally:
             // motion and release inside its content die here just like the
-            // press did — they mint no gesture and encode no bytes.
+            // press did: they mint no gesture and encode no bytes.
             if probe.focus.as_ref() == Some(&expected)
                 && probe.viewport_non_live
                 && probe.frame.is_some()
@@ -2520,7 +3163,38 @@ impl PointerState {
             {
                 return PointerOutcome::Handled;
             }
-            return PointerOutcome::Ignored;
+            // A fresh motion/release cannot inherit a pane gesture: held
+            // motion and release never retarget when their press began
+            // elsewhere. Any tracking is the sole stateless exception,
+            // reporting button-free motion to the exact already-focused,
+            // live, controlling pane recorded by the painted region.
+            if event.action != MouseAction::Motion
+                || event.button != MouseButton::None
+                || !contains(content, event.column, event.row)
+                || !pane_input_ready(probe, &expected)
+            {
+                return PointerOutcome::Ignored;
+            }
+            let Some(frame) = probe.frame else {
+                return PointerOutcome::Ignored;
+            };
+            if route_pane_pointer(
+                frame.tracking,
+                &event,
+                frame.alternate_screen && frame.alternate_scroll,
+            ) != PanePointerRoute::ProgramReport
+            {
+                return PointerOutcome::Ignored;
+            }
+            let mut reporter = PaneGesture {
+                button: MouseButton::None,
+                expected,
+                viewport: content,
+                pressed: false,
+                last_cell: None,
+            };
+            reporter.forward(view, port, &frame, event);
+            return PointerOutcome::Handled;
         }
         let Some(tab_index) = probe.tab_index(expected.anchor().tab_id()) else {
             return PointerOutcome::Ignored;
@@ -2678,10 +3352,14 @@ impl PointerState {
                 PointerOutcome::Ignored
             };
         }
+        let vertical = matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown);
         // A non-Live focus core owns the wheel before any frame contract:
         // each notch scrolls its retained window locally, three rows per
         // notch, and nothing encodes to the pane.
         if probe.viewport_non_live {
+            if !vertical {
+                return PointerOutcome::Ignored;
+            }
             // A non-Live focus owns the wheel outright: local scroll when
             // the core accepts it, silent consumption otherwise — never an
             // encoded byte, never an overlay dismissal.
@@ -2691,12 +3369,12 @@ impl PointerState {
         let Some(frame) = probe.frame else {
             return PointerOutcome::Ignored;
         };
-        match pane_owns_pointer(
+        match route_pane_pointer(
             frame.tracking,
             &event,
             frame.alternate_screen && frame.alternate_scroll,
         ) {
-            PointerOwner::Pane if frame.tracking != MouseTracking::None => {
+            PanePointerRoute::ProgramReport => {
                 let mut gesture = PaneGesture {
                     button: event.button,
                     expected: target.expected.clone(),
@@ -2707,7 +3385,7 @@ impl PointerState {
                 gesture.forward(view, port, &frame, event);
                 PointerOutcome::Handled
             }
-            PointerOwner::Pane => {
+            PanePointerRoute::AlternateScroll => {
                 self.wheel.accumulate(
                     event.button == MouseButton::WheelUp,
                     usize::from(target.content.height),
@@ -2719,11 +3397,11 @@ impl PointerState {
                     PointerOutcome::Ignored
                 }
             }
-            PointerOwner::Client if !frame.alternate_screen => {
+            PanePointerRoute::Client if !frame.alternate_screen && vertical => {
                 port.history_wheel(&target.expected, event.button == MouseButton::WheelUp);
                 PointerOutcome::Handled
             }
-            PointerOwner::Client | PointerOwner::Host => PointerOutcome::Ignored,
+            PanePointerRoute::Client | PanePointerRoute::Host => PointerOutcome::Ignored,
         }
     }
 
@@ -2765,6 +3443,9 @@ impl PointerState {
             self.gesture = Gesture::Idle;
             return PointerOutcome::Ignored;
         };
+        // The press-time owner retains every accepted event. Encoding may
+        // be silent after a tracking-mode change, but the matching release
+        // still clears this gesture instead of becoming fresh Client input.
         gesture.forward(view, port, &frame, event);
         if event.action == MouseAction::Release {
             self.gesture = Gesture::Idle;
@@ -2956,12 +3637,12 @@ impl PointerState {
         let Some(press) = queued.next() else {
             return true;
         };
-        match pane_owns_pointer(
+        match route_pane_pointer(
             frame.tracking,
             &press,
             frame.alternate_screen && frame.alternate_scroll,
         ) {
-            PointerOwner::Pane => {
+            PanePointerRoute::ProgramReport => {
                 if probe.viewport_non_live {
                     return true;
                 }
@@ -2991,7 +3672,7 @@ impl PointerState {
                     self.gesture = Gesture::Pane(forwarder);
                 }
             }
-            PointerOwner::Client if plain_primary_press(press) && probe.selection_ready => {
+            PanePointerRoute::Client if plain_primary_press(press) && probe.selection_ready => {
                 if self.begin_selection(
                     port,
                     pending.expected,
@@ -3007,7 +3688,9 @@ impl PointerState {
                     }
                 }
             }
-            PointerOwner::Client | PointerOwner::Host => {}
+            PanePointerRoute::AlternateScroll
+            | PanePointerRoute::Client
+            | PanePointerRoute::Host => {}
         }
         true
     }

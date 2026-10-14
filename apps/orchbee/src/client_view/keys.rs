@@ -191,11 +191,61 @@ impl LabelStyle {
     }
 }
 
+/// The display vocabulary available to a rendered key label. Callers choose
+/// this from their already-resolved glyph policy; formatting stays independent
+/// from a terminal, renderer, or theme instance.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum KeyLabelGlyphs {
+    Unicode,
+    #[cfg(test)]
+    Ascii,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LetterPresentation {
+    EffectiveGesture,
+    #[cfg(any(windows, test))]
+    ConfigurationReport,
+}
+
 /// Renders a binding as the key column of help/status text. The named aliases
 /// keep their display names: canonical `Ctrl+M` shows `Enter`, `Ctrl+I` shows
 /// `Tab`, and bare space shows `Space`; extra modifiers stay explicit
-/// (`Shift+Enter`, `Ctrl+Alt+M`-style classification never forks).
+/// (`Shift+Enter`, `Alt+Tab`-style classification never forks).
 pub(crate) fn format_binding(binding: &Binding, style: LabelStyle) -> String {
+    format_binding_with_glyphs(binding, style, KeyLabelGlyphs::Unicode)
+}
+
+/// Renders one canonical binding with an explicit glyph vocabulary. ASCII
+/// fallback also spells Apple modifiers so the result contains no private
+/// platform or arrow glyphs.
+pub(crate) fn format_binding_with_glyphs(
+    binding: &Binding,
+    style: LabelStyle,
+    glyphs: KeyLabelGlyphs,
+) -> String {
+    format_binding_with_presentation(binding, style, glyphs, LetterPresentation::EffectiveGesture)
+}
+
+/// Renders the stable, platform-independent key vocabulary used by the public
+/// Windows configuration report. Interactive labels remain free to describe
+/// the effective gesture with explicit Shift and lowercase unshifted letters.
+#[cfg(any(windows, test))]
+pub(crate) fn format_configuration_binding(binding: &Binding) -> String {
+    format_binding_with_presentation(
+        binding,
+        LabelStyle::Other,
+        KeyLabelGlyphs::Unicode,
+        LetterPresentation::ConfigurationReport,
+    )
+}
+
+fn format_binding_with_presentation(
+    binding: &Binding,
+    style: LabelStyle,
+    glyphs: KeyLabelGlyphs,
+    letters: LetterPresentation,
+) -> String {
     let mut mods = binding.mods;
     let name = match binding.code {
         KeyCode::Char('m') if mods.ctrl => {
@@ -208,7 +258,12 @@ pub(crate) fn format_binding(binding: &Binding, style: LabelStyle) -> String {
         }
         KeyCode::Char(' ') if mods == Modifiers::NONE => "Space".to_owned(),
         KeyCode::Char(c) => {
-            if mods != Modifiers::NONE && c.is_ascii_alphabetic() {
+            let uppercase = match letters {
+                LetterPresentation::EffectiveGesture => mods.shift,
+                #[cfg(any(windows, test))]
+                LetterPresentation::ConfigurationReport => mods != Modifiers::NONE,
+            };
+            if uppercase && c.is_ascii_alphabetic() {
                 c.to_ascii_uppercase().to_string()
             } else {
                 c.to_string()
@@ -222,10 +277,30 @@ pub(crate) fn format_binding(binding: &Binding, style: LabelStyle) -> String {
         KeyCode::End => "End".to_owned(),
         KeyCode::PageUp => "PageUp".to_owned(),
         KeyCode::PageDown => "PageDown".to_owned(),
-        KeyCode::Up => "↑".to_owned(),
-        KeyCode::Down => "↓".to_owned(),
-        KeyCode::Left => "←".to_owned(),
-        KeyCode::Right => "→".to_owned(),
+        KeyCode::Up => match glyphs {
+            KeyLabelGlyphs::Unicode => "↑",
+            #[cfg(test)]
+            KeyLabelGlyphs::Ascii => "Up",
+        }
+        .to_owned(),
+        KeyCode::Down => match glyphs {
+            KeyLabelGlyphs::Unicode => "↓",
+            #[cfg(test)]
+            KeyLabelGlyphs::Ascii => "Down",
+        }
+        .to_owned(),
+        KeyCode::Left => match glyphs {
+            KeyLabelGlyphs::Unicode => "←",
+            #[cfg(test)]
+            KeyLabelGlyphs::Ascii => "Left",
+        }
+        .to_owned(),
+        KeyCode::Right => match glyphs {
+            KeyLabelGlyphs::Unicode => "→",
+            #[cfg(test)]
+            KeyLabelGlyphs::Ascii => "Right",
+        }
+        .to_owned(),
         KeyCode::F(n) => format!("F{n}"),
         // Aliases are canonicalized away in Binding::new; unreachable in
         // practice but keep the formatter total.
@@ -233,39 +308,36 @@ pub(crate) fn format_binding(binding: &Binding, style: LabelStyle) -> String {
         KeyCode::Tab => "Tab".to_owned(),
         KeyCode::Space => "Space".to_owned(),
     };
-    match style {
-        LabelStyle::Apple => {
-            let mut label = String::new();
-            if mods.ctrl {
-                label.push('⌃');
-            }
-            if mods.alt {
-                label.push('⌥');
-            }
-            if mods.shift {
-                label.push('⇧');
-            }
-            if mods.super_ {
-                label.push('⌘');
-            }
-            label.push_str(&name);
-            label
+    if style == LabelStyle::Apple && glyphs == KeyLabelGlyphs::Unicode {
+        let mut label = String::new();
+        if mods.ctrl {
+            label.push('⌃');
         }
-        LabelStyle::Other => {
-            let mut label = String::new();
-            for (set, name) in [
-                (mods.ctrl, "Ctrl+"),
-                (mods.alt, "Alt+"),
-                (mods.shift, "Shift+"),
-                (mods.super_, "Super+"),
-            ] {
-                if set {
-                    label.push_str(name);
-                }
-            }
-            label.push_str(&name);
-            label
+        if mods.alt {
+            label.push('⌥');
         }
+        if mods.shift {
+            label.push('⇧');
+        }
+        if mods.super_ {
+            label.push('⌘');
+        }
+        label.push_str(&name);
+        label
+    } else {
+        let mut label = String::new();
+        for (set, name) in [
+            (mods.ctrl, "Ctrl+"),
+            (mods.alt, "Alt+"),
+            (mods.shift, "Shift+"),
+            (mods.super_, "Super+"),
+        ] {
+            if set {
+                label.push_str(name);
+            }
+        }
+        label.push_str(&name);
+        label
     }
 }
 

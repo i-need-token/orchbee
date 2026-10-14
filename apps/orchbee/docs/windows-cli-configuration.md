@@ -320,6 +320,13 @@ configured commands rather than executing a partial or unvalidated command. Navi
 ordinal Agent/indexed Workspace keys and other unsupported actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
 
+The registry's display projection formats the normalized binding independently of accepted
+configuration spelling. Help rows and live hints keep ASCII letters lowercase unless the binding
+contains Shift; shifted letters display uppercase. Unicode glyph mode uses arrow glyphs and, on
+Apple hosts, Apple modifier symbols. Simplified glyph mode spells `Up`, `Down`, `Left`, `Right` and
+`Ctrl`, `Alt`, `Shift`, `Super`, including on Apple hosts. A prefix and its member are separated by
+one space. These display rules do not change TOML spelling, normalization, matching or dispatch.
+
 Supported action fields are `help`, `menu`, `new_worktree`, `open_worktree`, `new_workspace`, `rename_workspace`, `workspace_picker`,
 `detach`, `previous_workspace`, `next_workspace`, `previous_agent`, `next_agent`, `focus_agent`, `new_tab`, `rename_tab`, `previous_tab`,
 `next_tab`, `move_tab_previous`, `move_tab_next`, `switch_tab`, `close_tab`,
@@ -341,9 +348,11 @@ zoom = ""
 ```
 
 Windows `config check` v13 retains `keyPrefix` and `keyOverrides` and adds the bounded warning record;
-historical key configuration failure v3 remains closed for older cohorts. The example lets new Tab
-replace the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to
-the main TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape;
+historical key configuration failure v3 remains closed for older cohorts. The machine `keyPrefix`
+field keeps its stable platform-independent report spelling (`Ctrl+A` for this example), while TUI
+shortcut discovery shows the actual unshifted gesture (`Ctrl+a`). The example lets new Tab replace
+the default next-Tab chord; empty `zoom` disables its shortcut. Bindings currently apply to the main
+TUI. CLI terminal-stream attach deliberately keeps its independent Ctrl+B/q escape;
 pinned Herdr `e0507237` also uses a fixed escape in `src/client/attach.rs`, so configurable attach
 is not a parity requirement. Complete keymap import remains a separate slice.
 

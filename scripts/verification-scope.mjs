@@ -24,6 +24,7 @@ const foreignDependencies = [
 ];
 const foreignPaths = [
 	['apps/desktop/resources/', 'apps/orchbee'],
+	['packages/design-tokens/src/tokens.css', 'apps/orchbee'],
 	[
 		'packages/tab-strip/src/tab-strip/model/__tests__/fixtures/tab-close-targets.json',
 		'apps/orchbee',

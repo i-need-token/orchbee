@@ -2,12 +2,107 @@ use ratatui::{
     Terminal,
     backend::TestBackend,
     layout::Rect,
-    style::{Color, Modifier},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{BorderType, Paragraph},
 };
 
-use super::{ColorLevel, GlyphSet, Polarity, Role, Theme, quantize_color};
+use super::{ColorLevel, GlyphMode, GlyphSet, Polarity, Role, Theme, quantize_color};
+
+const DESIGN_TOKENS_CSS: &str = include_str!("../../../../packages/design-tokens/src/tokens.css");
+
+fn css_block<'a>(source: &'a str, selector: &str) -> &'a str {
+    let marker = format!("{selector} {{");
+    let (_, body) = source
+        .split_once(&marker)
+        .unwrap_or_else(|| panic!("missing CSS selector {selector}"));
+    body.split_once('}')
+        .unwrap_or_else(|| panic!("unterminated CSS selector {selector}"))
+        .0
+}
+
+fn css_value(block: &str, property: &str) -> String {
+    let marker = format!("{property}:");
+    let (_, value) = block
+        .split_once(&marker)
+        .unwrap_or_else(|| panic!("missing CSS property {property}"));
+    value
+        .split_once(';')
+        .unwrap_or_else(|| panic!("unterminated CSS property {property}"))
+        .0
+        .split_ascii_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn parse_hex_rgb(value: &str) -> [u8; 3] {
+    let value = value
+        .strip_prefix('#')
+        .filter(|value| value.len() == 6)
+        .unwrap_or_else(|| panic!("expected six-digit hex color, got {value}"));
+    [
+        u8::from_str_radix(&value[0..2], 16).expect("red hex channel"),
+        u8::from_str_radix(&value[2..4], 16).expect("green hex channel"),
+        u8::from_str_radix(&value[4..6], 16).expect("blue hex channel"),
+    ]
+}
+
+fn parse_neutral_oklch(value: &str) -> u8 {
+    let mut parts = value
+        .strip_prefix("oklch(")
+        .and_then(|value| value.strip_suffix(')'))
+        .unwrap_or_else(|| panic!("expected oklch color, got {value}"))
+        .split_ascii_whitespace();
+    let lightness = parts
+        .next()
+        .and_then(|value| value.strip_suffix('%'))
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or_else(|| panic!("missing OKLCH lightness in {value}"));
+    assert_eq!(parts.next(), Some("0"), "expected an achromatic token");
+    assert_eq!(parts.next(), Some("none"), "expected an achromatic hue");
+    assert_eq!(parts.next(), None, "unexpected OKLCH component");
+    let linear = (lightness / 100.0).powi(3);
+    let srgb = if linear <= 0.003_130_8 {
+        12.92 * linear
+    } else {
+        1.055 * linear.powf(1.0 / 2.4) - 0.055
+    };
+    (srgb * 255.0).round() as u8
+}
+
+fn rgb_channels(color: Color) -> [u8; 3] {
+    let Color::Rgb(red, green, blue) = color else {
+        panic!("expected RGB color, got {color:?}")
+    };
+    [red, green, blue]
+}
+
+fn relative_luminance(color: Color) -> f64 {
+    let [red, green, blue] = rgb_channels(color);
+    let linear = |value: u8| {
+        let value = f64::from(value) / 255.0;
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+}
+
+fn contrast_ratio(foreground: Color, background: Color) -> f64 {
+    let foreground = relative_luminance(foreground);
+    let background = relative_luminance(background);
+    (foreground.max(background) + 0.05) / (foreground.min(background) + 0.05)
+}
+
+fn composite_rgb(foreground: [u8; 3], background: [u8; 3], opacity: u16) -> [u8; 3] {
+    std::array::from_fn(|index| {
+        let foreground = u16::from(foreground[index]);
+        let background = u16::from(background[index]);
+        ((foreground * opacity + background * (100 - opacity) + 50) / 100) as u8
+    })
+}
 
 #[test]
 fn host_color_precedence_unknown_and_disabled_levels_are_explicit() {
@@ -142,28 +237,146 @@ fn windows_terminal_color_capability_respects_explicit_descriptors_and_multiplex
 }
 
 #[test]
+fn named_interaction_roles_conform_to_the_public_design_token_contract() {
+    let references = css_block(DESIGN_TOKENS_CSS, ":root");
+    let light = css_block(DESIGN_TOKENS_CSS, "[data-theme='light']");
+    let dark = css_block(DESIGN_TOKENS_CSS, "[data-theme='dark']");
+
+    let accent = css_value(references, "--ob-ref-color-orchbee-accent");
+    let light_text = css_value(references, "--ob-ref-color-orchbee-light-text");
+    let neutral_100 = css_value(references, "--ob-ref-color-neutral-100");
+    let neutral_700 = css_value(references, "--ob-ref-color-neutral-700");
+    let neutral_800 = css_value(references, "--ob-ref-color-neutral-800");
+    assert_eq!(accent, "#2778c1");
+    assert_eq!(light_text, "#141414");
+    assert_eq!(neutral_100, "oklch(97% 0 none)");
+    assert_eq!(neutral_700, "oklch(37.1% 0 none)");
+    assert_eq!(neutral_800, "oklch(26.9% 0 none)");
+
+    assert_eq!(
+        css_value(light, "--ob-sys-color-action-primary"),
+        "var(--ob-ref-color-orchbee-accent)"
+    );
+    assert_eq!(
+        css_value(light, "--ob-sys-color-surface-hovered"),
+        "color-mix( in srgb, var(--ob-ref-color-orchbee-light-text) 8%, transparent )"
+    );
+    assert_eq!(
+        css_value(light, "--ob-sys-color-surface-pressed"),
+        "color-mix( in srgb, var(--ob-ref-color-orchbee-light-text) 12%, transparent )"
+    );
+    assert_eq!(
+        css_value(dark, "--ob-sys-color-action-primary"),
+        "var(--ob-ref-color-neutral-100)"
+    );
+    assert_eq!(
+        css_value(dark, "--ob-sys-color-surface-hovered"),
+        "var(--ob-ref-color-neutral-800)"
+    );
+    assert_eq!(
+        css_value(dark, "--ob-sys-color-surface-pressed"),
+        "var(--ob-ref-color-neutral-700)"
+    );
+
+    let theme = Theme::one_light();
+    assert_eq!(
+        rgb_channels(theme.color(Role::AccentAction)),
+        parse_hex_rgb(&accent)
+    );
+    let chrome = rgb_channels(theme.color(Role::SurfaceChrome));
+    let interaction_foreground = parse_hex_rgb(&light_text);
+    assert_eq!(
+        rgb_channels(theme.color(Role::SurfaceHover)),
+        composite_rgb(interaction_foreground, chrome, 8)
+    );
+    assert_eq!(
+        rgb_channels(theme.color(Role::SurfacePressed)),
+        composite_rgb(interaction_foreground, chrome, 12)
+    );
+
+    let theme = Theme::one_dark();
+    let neutral = |value| [parse_neutral_oklch(value); 3];
+    assert_eq!(
+        rgb_channels(theme.color(Role::AccentAction)),
+        neutral(&neutral_100)
+    );
+    assert_eq!(
+        rgb_channels(theme.color(Role::SurfaceHover)),
+        neutral(&neutral_800)
+    );
+    assert_eq!(
+        rgb_channels(theme.color(Role::SurfacePressed)),
+        neutral(&neutral_700)
+    );
+}
+
+#[test]
+fn named_secondary_adjustments_are_the_minimum_readable_steps() {
+    let light = Theme::one_light();
+    let light_secondary = light.color(Role::TextSecondary);
+    assert_eq!(rgb_channels(light_secondary), [90, 93, 105]);
+    assert!(contrast_ratio(light_secondary, light.color(Role::SurfacePressed)) >= 4.5);
+    assert!(contrast_ratio(Color::Rgb(91, 94, 106), light.color(Role::SurfacePressed)) < 4.5);
+
+    let dark = Theme::one_dark();
+    let dark_secondary = dark.color(Role::TextSecondary);
+    assert_eq!(rgb_channels(dark_secondary), [170, 177, 189]);
+    assert!(contrast_ratio(dark_secondary, dark.color(Role::SurfaceSelection)) >= 4.5);
+    for nearer in [
+        Color::Rgb(169, 177, 189),
+        Color::Rgb(170, 176, 189),
+        Color::Rgb(170, 177, 188),
+    ] {
+        assert!(
+            contrast_ratio(nearer, dark.color(Role::SurfaceSelection)) < 4.5,
+            "{nearer:?} is not the componentwise boundary"
+        );
+    }
+
+    for theme in [light, dark] {
+        assert_eq!(
+            theme.style(Role::HintLabel).fg,
+            theme.style(Role::TextSecondary).fg
+        );
+        assert_eq!(
+            theme.style(Role::StatusPending).fg,
+            theme.style(Role::TextSecondary).fg
+        );
+        assert!(
+            theme
+                .style(Role::StatusPending)
+                .add_modifier
+                .contains(Modifier::DIM)
+        );
+        for surface in [
+            Role::SurfaceCanvas,
+            Role::SurfaceChrome,
+            Role::SurfaceOverlay,
+            Role::SurfaceHover,
+            Role::SurfacePressed,
+            Role::SurfaceSelection,
+            Role::SurfaceCurrent,
+            Role::SurfaceInactive,
+        ] {
+            assert!(
+                contrast_ratio(theme.color(Role::TextPrimary), theme.color(surface))
+                    > contrast_ratio(theme.color(Role::TextSecondary), theme.color(surface)),
+                "{} hierarchy on {surface:?}",
+                theme.name
+            );
+        }
+    }
+}
+
+#[test]
 fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
-    let luminance = |color| {
-        let Color::Rgb(r, g, b) = color else {
-            panic!("shipped RGB palette")
-        };
-        let linear = |value: u8| {
-            let value = f64::from(value) / 255.0;
-            if value <= 0.04045 {
-                value / 12.92
-            } else {
-                ((value + 0.055) / 1.055).powf(2.4)
-            }
-        };
-        0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
-    };
     for (theme, name, polarity) in [
         (Theme::one_light(), "one-light", Polarity::Light),
         (Theme::one_dark(), "one-dark", Polarity::Dark),
     ] {
         assert_eq!(theme.name, name);
         assert_eq!(theme.polarity, Some(polarity));
-        let background = luminance(theme.color(Role::SurfaceCanvas));
+        let background = relative_luminance(theme.color(Role::SurfaceCanvas));
         assert_eq!(background > 0.5, polarity == Polarity::Light);
         for role in Role::ALL {
             let style = theme.style(role);
@@ -174,58 +387,69 @@ fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
                     .intersects(Modifier::REVERSED | Modifier::SLOW_BLINK | Modifier::RAPID_BLINK)
             );
         }
-        for surface in [
+        let surfaces = [
             Role::SurfaceCanvas,
             Role::SurfaceChrome,
             Role::SurfaceOverlay,
-        ] {
-            let background = luminance(theme.color(surface));
-            for role in [Role::TextPrimary, Role::TextSecondary, Role::HintLabel] {
-                let text = luminance(theme.color(role));
-                let contrast = (background.max(text) + 0.05) / (background.min(text) + 0.05);
-                assert!(contrast >= 4.5, "{name} {role:?}/{surface:?}: {contrast}");
-            }
-        }
-        for (foreground, background) in [
-            (Role::TextPrimary, Role::SurfaceOverlay),
-            (Role::TextPrimary, Role::SurfaceSelection),
-            (Role::TextPrimary, Role::SurfaceCurrent),
-            (Role::TextSecondary, Role::SurfaceCurrent),
-            (Role::TextSecondary, Role::SurfaceOverlay),
-            (Role::TextInverse, Role::AccentFocus),
-        ] {
-            let (text, surface) = (
-                luminance(theme.color(foreground)),
-                luminance(theme.color(background)),
-            );
-            let contrast = (surface.max(text) + 0.05) / (surface.min(text) + 0.05);
-            assert!(
-                contrast >= 4.5,
-                "{name} {foreground:?}/{background:?}: {contrast}"
-            );
-        }
-        for surface in [
-            Role::SurfaceChrome,
-            Role::SurfaceOverlay,
+            Role::SurfaceHover,
+            Role::SurfacePressed,
             Role::SurfaceSelection,
             Role::SurfaceCurrent,
-        ] {
+            Role::SurfaceInactive,
+        ];
+        for surface in surfaces {
+            for role in [Role::TextPrimary, Role::TextSecondary, Role::HintLabel] {
+                let contrast = contrast_ratio(theme.color(role), theme.color(surface));
+                assert!(contrast >= 4.5, "{name} {role:?}/{surface:?}: {contrast}");
+            }
+            let action_contrast =
+                contrast_ratio(theme.color(Role::AccentAction), theme.color(surface));
+            assert!(
+                action_contrast >= 3.0,
+                "{name} accent-action/{surface:?}: {action_contrast}"
+            );
             for role in [
-                Role::StatusWorking,
-                Role::StatusWarning,
                 Role::StatusSuccess,
+                Role::StatusWarning,
                 Role::StatusError,
+                Role::StatusInfo,
+                Role::StatusPending,
+                Role::StatusWorking,
                 Role::StatusUnread,
             ] {
-                let (foreground, background) = (
-                    luminance(theme.color(role)),
-                    luminance(theme.color(surface)),
-                );
-                let contrast =
-                    (foreground.max(background) + 0.05) / (foreground.min(background) + 0.05);
+                let contrast = contrast_ratio(theme.color(role), theme.color(surface));
                 assert!(contrast >= 3.0, "{name} {role:?}/{surface:?}: {contrast}");
             }
         }
+        assert!(
+            !theme
+                .style(Role::AccentAction)
+                .add_modifier
+                .intersects(Modifier::BOLD | Modifier::REVERSED),
+            "{name} accent-action must remain an at-rest accent"
+        );
+        let interaction_surfaces = [
+            theme.color(Role::SurfaceHover),
+            theme.color(Role::SurfacePressed),
+        ];
+        assert_ne!(interaction_surfaces[0], interaction_surfaces[1], "{name}");
+        for interaction in interaction_surfaces {
+            for stable in [
+                Role::SurfaceCanvas,
+                Role::SurfaceChrome,
+                Role::SurfaceOverlay,
+                Role::SurfaceSelection,
+                Role::SurfaceCurrent,
+                Role::SurfaceInactive,
+            ] {
+                assert_ne!(interaction, theme.color(stable), "{name} {stable:?}");
+            }
+        }
+        let inverse_contrast = contrast_ratio(
+            theme.color(Role::TextInverse),
+            theme.color(Role::AccentFocus),
+        );
+        assert!(inverse_contrast >= 4.5, "{name} text-inverse/accent-focus");
     }
 }
 
@@ -242,6 +466,58 @@ fn shipped_disabled_text_keeps_its_muted_color_without_faint_inversion() {
                 "{} {level:?}: faint can darken muted text back to primary on a light surface",
                 theme.name
             );
+        }
+    }
+}
+
+fn assert_interaction_fills_or_fallback(theme: Theme, level: ColorLevel) {
+    let theme = theme.quantize(level);
+    let hover = theme.style(Role::SurfaceHover);
+    let pressed = theme.style(Role::SurfacePressed);
+    if hover.add_modifier.contains(Modifier::REVERSED)
+        || pressed.add_modifier.contains(Modifier::REVERSED)
+    {
+        assert!(hover.add_modifier.contains(Modifier::REVERSED));
+        assert!(pressed.add_modifier.contains(Modifier::REVERSED));
+        assert_eq!(hover.bg, None, "{} {level:?} hover", theme.name);
+        assert_eq!(pressed.bg, None, "{} {level:?} pressed", theme.name);
+    } else {
+        assert_ne!(hover.bg, None, "{} {level:?} hover", theme.name);
+        assert_ne!(pressed.bg, None, "{} {level:?} pressed", theme.name);
+        assert_ne!(
+            hover.bg, pressed.bg,
+            "{} {level:?} interaction states",
+            theme.name
+        );
+        for stable in [
+            Role::SurfaceCanvas,
+            Role::SurfaceChrome,
+            Role::SurfaceOverlay,
+            Role::SurfaceSelection,
+            Role::SurfaceCurrent,
+            Role::SurfaceInactive,
+        ] {
+            assert_ne!(
+                hover.bg,
+                theme.style(stable).bg,
+                "{} {level:?} hover",
+                theme.name
+            );
+            assert_ne!(
+                pressed.bg,
+                theme.style(stable).bg,
+                "{} {level:?} pressed",
+                theme.name
+            );
+        }
+    }
+}
+
+#[test]
+fn reduced_color_interaction_roles_keep_distinct_fills_or_the_declared_fallback() {
+    for theme in [Theme::one_light(), Theme::one_dark()] {
+        for level in [ColorLevel::Ansi256, ColorLevel::Ansi16] {
+            assert_interaction_fills_or_fallback(theme, level);
         }
     }
 }
@@ -287,6 +563,13 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
                 assert_ne!(style.fg, Some(Color::DarkGray), "{} {role:?}", theme.name);
             }
         }
+        assert!(
+            !low.style(Role::AccentAction)
+                .add_modifier
+                .intersects(Modifier::BOLD | Modifier::REVERSED),
+            "{} accent-action must not look focused or pressed at rest",
+            theme.name
+        );
         let mono = theme.quantize(ColorLevel::Monochrome);
         assert_eq!(mono.current_context_marker(), theme.glyphs.active_marker);
         for role in Role::ALL {
@@ -326,6 +609,21 @@ fn shipped_low_color_and_monochrome_preserve_readable_hierarchy() {
             mono.style(Role::AccentSelection)
                 .add_modifier
                 .contains(Modifier::BOLD)
+        );
+        for role in [Role::SurfaceHover, Role::SurfacePressed] {
+            assert!(
+                mono.style(role).add_modifier.contains(Modifier::REVERSED),
+                "{} {role:?}",
+                theme.name
+            );
+        }
+        assert!(
+            !mono
+                .style(Role::AccentAction)
+                .add_modifier
+                .intersects(Modifier::BOLD | Modifier::REVERSED),
+            "{} accent-action must keep at-rest modifier semantics",
+            theme.name
         );
     }
 }
@@ -476,6 +774,19 @@ fn terminal_native_text_and_surface_safety() {
     );
     assert_eq!(theme.style(Role::SurfaceChrome).bg, Some(Color::Reset));
     assert_eq!(theme.style(Role::SurfaceOverlay).bg, Some(Color::Reset));
+    assert_eq!(theme.style(Role::AccentAction).fg, Some(Color::Cyan));
+    assert!(
+        !theme
+            .style(Role::AccentAction)
+            .add_modifier
+            .intersects(Modifier::BOLD | Modifier::REVERSED)
+    );
+    for role in [Role::SurfaceHover, Role::SurfacePressed] {
+        let interaction = theme.style(role);
+        assert_eq!((interaction.fg, interaction.bg), (None, None));
+        assert!(interaction.add_modifier.contains(Modifier::REVERSED));
+        assert!(!interaction.add_modifier.contains(Modifier::BOLD));
+    }
     for role in [Role::TextPrimary, Role::TextSecondary, Role::HintLabel] {
         let current = theme.current_context_style(theme.style(role));
         assert_eq!(current.fg, theme.style(Role::SurfaceCurrent).fg);
@@ -506,6 +817,196 @@ fn terminal_native_text_and_surface_safety() {
 }
 
 #[test]
+fn content_on_surface_preserves_named_theme_hierarchy_and_explicit_status() {
+    for theme in [Theme::one_light(), Theme::one_dark()] {
+        for (base, interaction) in [
+            (Role::SurfaceCanvas, None),
+            (Role::SurfaceChrome, None),
+            (Role::SurfaceOverlay, None),
+            (Role::SurfaceOverlay, Some(Role::SurfaceSelection)),
+            (Role::SurfaceOverlay, Some(Role::SurfaceCurrent)),
+        ] {
+            let secondary = theme.content_on_surface(
+                base,
+                interaction,
+                Some(Role::TextSecondary),
+                theme.style(Role::TextSecondary),
+            );
+            assert_eq!(secondary.fg, theme.style(Role::TextSecondary).fg);
+            assert_eq!(
+                secondary.bg,
+                interaction
+                    .and_then(|role| theme.style(role).bg)
+                    .or(theme.style(base).bg)
+            );
+
+            let warning = theme.content_on_surface(
+                base,
+                interaction,
+                Some(Role::StatusWarning),
+                theme.style(Role::StatusWarning),
+            );
+            assert_eq!(warning.fg, theme.style(Role::StatusWarning).fg);
+            assert_eq!(warning.bg, secondary.bg);
+
+            let explicit = Style::new()
+                .fg(Color::LightCyan)
+                .add_modifier(Modifier::BOLD | Modifier::DIM);
+            let explicit = theme.content_on_surface(base, interaction, None, explicit);
+            assert_eq!(explicit.fg, Some(Color::LightCyan));
+            assert!(
+                explicit
+                    .add_modifier
+                    .contains(Modifier::BOLD | Modifier::DIM)
+            );
+            assert_eq!(explicit.bg, secondary.bg);
+        }
+    }
+}
+
+#[test]
+fn terminal_native_surface_pairs_only_ordinary_semantic_text() {
+    let theme = Theme::terminal_native();
+    let current = theme.content_on_surface(
+        Role::SurfaceOverlay,
+        Some(Role::SurfaceCurrent),
+        Some(Role::TextSecondary),
+        theme.style(Role::TextSecondary),
+    );
+    assert_eq!(current.fg, theme.style(Role::SurfaceCurrent).fg);
+    assert_eq!(current.bg, theme.style(Role::SurfaceCurrent).bg);
+    assert!(!current.add_modifier.contains(Modifier::DIM));
+
+    let disabled = theme.content_on_surface(
+        Role::SurfaceOverlay,
+        Some(Role::SurfaceCurrent),
+        Some(Role::TextDisabled),
+        theme.style(Role::TextDisabled),
+    );
+    assert_eq!(disabled.fg, theme.style(Role::SurfaceCurrent).fg);
+    assert!(disabled.add_modifier.contains(Modifier::DIM));
+
+    let selected = theme.content_on_surface(
+        Role::SurfaceOverlay,
+        Some(Role::SurfaceSelection),
+        Some(Role::TextSecondary),
+        theme.style(Role::TextSecondary),
+    );
+    assert_eq!(selected.fg, theme.style(Role::AccentSelection).fg);
+    assert_eq!(selected.bg, theme.style(Role::SurfaceSelection).bg);
+    assert!(!selected.add_modifier.contains(Modifier::DIM));
+
+    for role in [Role::StatusWarning, Role::StatusPending] {
+        let status = theme.content_on_surface(
+            Role::SurfaceOverlay,
+            Some(Role::SurfaceCurrent),
+            Some(role),
+            theme.style(role),
+        );
+        assert_eq!(status.fg, theme.style(role).fg);
+        assert_eq!(status.bg, theme.style(Role::SurfaceCurrent).bg);
+        assert_eq!(
+            status.add_modifier.contains(Modifier::DIM),
+            theme.style(role).add_modifier.contains(Modifier::DIM)
+        );
+    }
+
+    let explicit = Style::new()
+        .fg(Color::Green)
+        .add_modifier(Modifier::BOLD | Modifier::DIM);
+    let explicit = theme.content_on_surface(
+        Role::SurfaceOverlay,
+        Some(Role::SurfaceSelection),
+        None,
+        explicit,
+    );
+    assert_eq!(explicit.fg, Some(Color::Green));
+    assert!(
+        explicit
+            .add_modifier
+            .contains(Modifier::BOLD | Modifier::DIM)
+    );
+
+    let key = theme.content_on_surface(
+        Role::SurfaceOverlay,
+        Some(Role::SurfaceCurrent),
+        Some(Role::HintKey),
+        theme.style(Role::HintKey),
+    );
+    assert!(key.add_modifier.contains(Modifier::BOLD));
+}
+
+#[test]
+fn checked_pair_and_low_color_interaction_layer_over_the_base_surface() {
+    let native = Theme::terminal_native();
+    for interaction in [
+        None,
+        Some(Role::SurfaceCurrent),
+        Some(Role::SurfaceSelection),
+        Some(Role::SurfaceHover),
+        Some(Role::SurfacePressed),
+    ] {
+        let checked = native.content_on_surface(
+            Role::SurfaceOverlay,
+            interaction,
+            Some(Role::AccentSelection),
+            native.style(Role::AccentSelection),
+        );
+        assert_eq!(checked.fg, native.style(Role::AccentSelection).fg);
+        let expected_bg = interaction
+            .and_then(|role| native.style(role).bg)
+            .or(native.style(Role::AccentSelection).bg)
+            .or(native.style(Role::SurfaceOverlay).bg);
+        assert_eq!(checked.bg, expected_bg, "interaction={interaction:?}");
+        assert_eq!(
+            checked.add_modifier.contains(Modifier::REVERSED),
+            interaction.is_some_and(|role| {
+                native.style(role).add_modifier.contains(Modifier::REVERSED)
+            }),
+            "interaction={interaction:?}"
+        );
+    }
+
+    for theme in [
+        Theme::one_light().quantize(ColorLevel::Ansi16),
+        Theme::one_dark().quantize(ColorLevel::Ansi16),
+        Theme::one_dark().quantize(ColorLevel::Monochrome),
+    ] {
+        for interaction in [Role::SurfaceHover, Role::SurfacePressed] {
+            let composed = theme.content_on_surface(
+                Role::SurfaceOverlay,
+                Some(interaction),
+                Some(Role::TextSecondary),
+                theme.style(Role::TextSecondary),
+            );
+            assert_eq!(
+                composed.bg,
+                theme
+                    .style(interaction)
+                    .bg
+                    .or(theme.style(Role::SurfaceOverlay).bg),
+                "theme={theme:?}, interaction={interaction:?}"
+            );
+            assert_eq!(composed.fg, theme.style(Role::TextSecondary).fg);
+            assert!(
+                composed
+                    .add_modifier
+                    .contains(theme.style(interaction).add_modifier)
+            );
+        }
+    }
+
+    let monochrome = Theme::terminal_native().quantize(ColorLevel::Monochrome);
+    let pending = monochrome.content_on_surface(
+        Role::SurfaceOverlay,
+        Some(Role::SurfaceCurrent),
+        Some(Role::StatusPending),
+        monochrome.style(Role::StatusPending),
+    );
+    assert!(pending.add_modifier.contains(Modifier::DIM));
+}
+
+#[test]
 fn terminal_native_quantize_is_identity() {
     for level in [
         ColorLevel::Truecolor,
@@ -516,11 +1017,7 @@ fn terminal_native_quantize_is_identity() {
         for role in Role::ALL {
             let before = Theme::terminal_native().style(role);
             let after = quantized.style(role);
-            assert_eq!(
-                (before.fg, before.bg),
-                (after.fg, after.bg),
-                "{role:?} changed at {level:?}"
-            );
+            assert_eq!(before, after, "{role:?} changed at {level:?}");
         }
     }
 }
@@ -599,11 +1096,16 @@ fn themes_carry_uniform_corners_and_resolved_glyphs() {
     assert!(!GlyphSet::UTF8.ellipsis.is_ascii());
     assert!(!GlyphSet::UTF8.middle_dot.is_ascii());
     assert!(!GlyphSet::UTF8.status_bullet.is_ascii());
+    assert_eq!(GlyphSet::UTF8.mode(), GlyphMode::Unicode);
+    assert_eq!(GlyphSet::ASCII.mode(), GlyphMode::Simplified);
+    assert_eq!(GlyphSet::UTF8.navigation_marker, "›");
+    assert_eq!(GlyphSet::ASCII.navigation_marker, ">");
     for value in [
         GlyphSet::ASCII.ellipsis,
         GlyphSet::ASCII.middle_dot,
         GlyphSet::ASCII.status_bullet,
         GlyphSet::ASCII.active_marker,
+        GlyphSet::ASCII.navigation_marker,
         GlyphSet::ASCII.disclosure_open,
         GlyphSet::ASCII.disclosure_closed,
     ] {

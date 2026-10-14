@@ -37,16 +37,24 @@ at its bottom-left cell. This initial-position projection is adopted from local 
 `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `src/client/shell/copy_mode.rs`; this is not a complete
 Herdr compatibility claim. Normalize movement to complete displayed glyphs.
 
-Copy mode paints the served content rows. Its mouse toolbar replaces the Tab strip, or overlays the first row in Minimal layout without changing content coordinates. It omits the ordinary history badge and bottom line
-inside the pane; the outer status area shows the persistent mode indicator, hints and search
-draft. Within the width left by the indicator, search draft and notice, the hint shows the widest
-complete localized action set that fits — full, then short — and otherwise keeps only the
-persistent exit hint; a hint segment is never partially drawn. The cursor, selection, read
-coordinates and painter use the same content geometry.
+Copy mode paints the served content rows. Its mouse toolbar replaces the Tab strip, or overlays
+the first row in Minimal layout without changing content coordinates. It omits the ordinary
+history badge and bottom line inside the pane; the outer status area shows the persistent mode
+indicator, search draft or notice, and owner-ordered keyboard hints. Dispatch, footer keys and
+labels derive from the same local binding definitions. The footer keeps the longest ordered prefix
+of complete key-and-label items that fits, with the local exit route first; it never clips an item
+or paints a key without its localized action. The cursor, selection, read coordinates and painter
+use the same content geometry.
 
 ## Mouse controls
 
-The pane action menu opens the same copy episode. Copy, Select/Clear, Search, previous/next search and X operate on that episode; a wider toolbar also exposes Help. Search offers Find, Back and a direction toggle. Controls act only on a matching plain-left release with the same painted token and rectangle. Keyboard input, focus loss, capture release, new content or geometry revokes a pending click. The decision packet and late release cannot become pane input.
+The pane action menu opens the same copy episode. The toolbar uses the shared action grammar for
+Copy, Search and Help, a stable Boolean value for `[ ]` Select / `[x]` Select, and fixed three-cell
+previous, next and close actions. A search draft exposes Find and Back, then a static direction
+value beside the labeled Reverse action. Controls keep their geometry while disabled, suppress
+activation, and act only on a matching plain-left release with the same painted token and
+rectangle. Keyboard input, focus loss, capture release, new content or geometry revokes a pending
+click. The decision packet and late release cannot become pane input.
 
 Plain left press on served content anchors selection at the normalized glyph; while selecting, presses and drags extend the existing selection. Clear ends that selection before a new anchor. Drag motion coalesces through the existing Host selection acknowledgement; releasing retains selection for an explicit Copy action. The original episode and exact screen, generation, revision and row window fence every coordinate. No separate clipboard writer or terminal-input path is introduced.
 
@@ -75,17 +83,20 @@ The pane task and output polling continue.
 | F1                | Show this mode's registry-derived help                                    |
 | `q`, Esc          | Cancel and return to ordinary input; Esc also exits from the search draft |
 
-While editing a search, printable characters including `q` edit the query. Enter submits it; Ctrl+G returns to copy navigation without leaving the mode.
+While editing a search, printable characters including `q` edit the query. Enter submits it;
+Ctrl+G returns to copy navigation without leaving the mode, and Ctrl+R reverses the draft's current
+search direction without submitting it.
 The draft uses the existing inline editing conventions, whole-grapheme deletion and atomic
 paste, with a 512-Unicode-scalar bound and a visible refusal on overflow. Queries containing
 uppercase characters are case-sensitive; others are case-insensitive. Empty search performs no
 content read. Search results wrap through the existing `terminal_copy::search` policy.
 
 Search command classification uses the existing canonical key identity: a raw carriage return
-and named Enter both submit; Ctrl+H and Backspace delete a whole grapheme. Printable insertion
-retains the original Unicode scalar and case. A refused paste or edit keeps its draft and caret
-and shows a warning beside the exit hint. Repeated `n` follows the last submitted `/` or `?`
-direction; repeated `N` always follows its reverse without changing that remembered direction.
+and named Enter both submit, Ctrl+G returns, and Ctrl+R reverses direction; Ctrl+H and Backspace
+delete a whole grapheme. Printable insertion retains the original Unicode scalar and case. A
+refused paste or edit keeps its draft and caret and shows a warning beside the exit hint. Repeated
+`n` follows the last submitted `/` or `?` direction; repeated `N` always follows its reverse
+without changing that remembered direction.
 
 During a query, export or clipboard flight, incompatible new actions report Busy and are not
 queued or replayed. Cursor movement while a viewport or selection update settles is represented
@@ -186,6 +197,10 @@ arbitrary Win32 call finishes within a deadline.
 
 The owning implementation tests cover input packet ownership, admitted geometry, stale query/effect rejection, final movement before release, effect ordering, at-most-once submission and matching success exit.
 
-Maintain the concrete witnesses in `src/terminal_copy_mode/tests.rs`, `src/terminal_session/terminal_selection/tests.rs`, `src/tui_render/copy_mode/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+Maintain the concrete witnesses in `src/terminal_copy_mode/tests.rs`,
+`src/terminal_session/terminal_selection/tests.rs`,
+`src/terminal_session/ui/copy_mode/tests/mouse.rs`, `src/tui_render/copy_mode/tests.rs` and the
+adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and
+generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

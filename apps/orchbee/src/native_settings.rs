@@ -1,23 +1,84 @@
 //! A bounded settings draft. Storage, transport and live application remain separate owners.
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
+use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{
     NativeSettingsOperation, NativeSettingsSource, PreferenceKey, UserPreferencesPatch,
     UserPreferencesSnapshot, UserPreferencesValues,
 };
 mod input;
+mod metadata;
 mod rows;
 #[cfg(test)]
 mod tests;
 mod values;
-pub(crate) use input::key_edit;
+pub(crate) use input::{SettingsHintLabel, footer_bindings, key_edit};
+#[cfg(test)]
+pub(crate) use metadata::SETTINGS;
+#[cfg(test)]
+use metadata::SettingEffect;
+pub(crate) use metadata::{
+    SettingAvailability, SettingCategory, SettingControl, SettingUnit, setting, setting_for_row,
+};
 pub(crate) use rows::{Page, Row};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Token(u64);
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SettingsInputReadiness {
+    Recovery,
+    Interactive,
+}
+/// Current Settings capture intent projected by the feature owner.
+///
+/// Pending and suspended surfaces retain recovery capture without claiming
+/// ordinary controls. Interactive capture additionally requires proof that
+/// the current whole surface completed a paint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SettingsInputContext {
+    pub(crate) token: Token,
+    pub(crate) phase: PresentationPhase,
+    pub(crate) readiness: SettingsInputReadiness,
+    pub(crate) remaining_text_bytes: usize,
+}
+/// Geometry evidence returned by the Settings renderer for one completed frame.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SettingsDraw {
+    token: Token,
+    rows: Option<(usize, usize)>,
+}
+impl SettingsDraw {
+    pub(crate) const fn surface(token: Token) -> Self {
+        Self { token, rows: None }
+    }
+    pub(crate) const fn token(self) -> Token {
+        self.token
+    }
+    pub(crate) const fn first_visible(self) -> Option<usize> {
+        match self.rows {
+            Some((first, _)) => Some(first),
+            None => None,
+        }
+    }
+    pub(crate) const fn visible_rows(self) -> Option<usize> {
+        match self.rows {
+            Some((_, visible)) => Some(visible),
+            None => None,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Adjustment {
+    pub(crate) backward: bool,
+    pub(crate) forward: bool,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AdjustmentStep {
+    Small,
+    Large,
+}
 /// Painted settings controls retain the same draft authority as keyboard edits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Control {
-    Row(Row),
     Adjust { row: Row, forward: bool },
     Accept,
     Back,
@@ -31,6 +92,7 @@ pub(crate) enum Edit {
     #[cfg(test)]
     Select(Row),
     Adjust(bool),
+    AdjustLarge(bool),
     Activate,
     Cancel,
     Insert(char),
@@ -58,20 +120,209 @@ pub(crate) enum Observation {
     Refreshed,
     Conflict,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Reconciliation {
+    SourceChanged,
+    OutcomeUnknown,
+}
 #[derive(Clone, Copy)]
 pub(crate) struct DraftView<'a> {
     pub(crate) token: Token,
     pub(crate) values: &'a UserPreferencesValues,
+    pub(crate) basis_values: &'a UserPreferencesValues,
+    #[cfg(test)]
+    pub(crate) basis_source: &'a str,
+    #[cfg(test)]
+    pub(crate) effective_values: &'a UserPreferencesValues,
+    #[cfg(test)]
+    pub(crate) effective_source: &'a str,
     pub(crate) selected: Row,
     pub(crate) dirty: bool,
+    pub(crate) conflict: bool,
+    pub(crate) reconciliation: Option<Reconciliation>,
     pub(crate) page: Page,
+    /// Requested first row. Renderers clamp it for their concrete visible height.
+    pub(crate) viewport: usize,
+    /// Keyboard navigation reveals the anchor; manual scrolling preserves the requested viewport.
+    pub(crate) follow_selection: bool,
     pub(crate) profile: usize,
     pub(crate) argument: usize,
     pub(crate) text: Option<(&'a str, usize)>,
     pub(crate) invalid: bool,
     pub(crate) confirmation: Option<Confirmation>,
+    reset_all: bool,
+    reset_profiles: bool,
 }
 impl DraftView<'_> {
+    pub(crate) fn first_visible(self, visible: usize) -> usize {
+        let rows = self.page.rows();
+        let visible = visible.max(1);
+        let maximum = rows.len().saturating_sub(visible);
+        let requested = self.viewport.min(maximum);
+        if !self.follow_selection {
+            return requested;
+        }
+        let selected = rows
+            .iter()
+            .position(|row| *row == self.selected)
+            .unwrap_or(0);
+        if selected < requested {
+            selected
+        } else if selected >= requested.saturating_add(visible) {
+            selected.saturating_add(1).saturating_sub(visible)
+        } else {
+            requested
+        }
+    }
+
+    pub(crate) fn presentation(self, visible: usize) -> SettingsDraw {
+        let visible = visible.max(1).min(self.page.rows().len());
+        SettingsDraw {
+            token: self.token,
+            rows: Some((self.first_visible(visible), visible)),
+        }
+    }
+
+    pub(crate) fn adjustment(self, row: Row) -> Option<Adjustment> {
+        let available = |index: usize, len: usize| Adjustment {
+            backward: len > 1 && index < len,
+            forward: len > 1 && index < len,
+        };
+        match row {
+            Row::CompletionThreshold => {
+                let SettingControl::BoundedInteger {
+                    minimum, maximum, ..
+                } = setting(PreferenceKey::CompletionReminderMinimumSeconds).control
+                else {
+                    unreachable!("integer preference metadata")
+                };
+                let current = u64::from(self.values.completion_reminder_minimum_seconds);
+                Some(Adjustment {
+                    backward: current > minimum,
+                    forward: current < maximum,
+                })
+            }
+            Row::Scrollback => {
+                let SettingControl::BoundedInteger {
+                    minimum, maximum, ..
+                } = setting(PreferenceKey::ScrollbackBytes).control
+                else {
+                    unreachable!("integer preference metadata")
+                };
+                let current = u64::from(self.values.scrollback_bytes);
+                Some(Adjustment {
+                    backward: current > minimum,
+                    forward: current < maximum,
+                })
+            }
+            Row::Profile => Some(available(
+                self.profile,
+                self.values.launch_profiles.profiles.len(),
+            )),
+            Row::Argument => {
+                let arguments = match &self.values.launch_profiles.profiles[self.profile].command {
+                    orchbee_workbench_protocol::UserLaunchCommand::CustomExecutable {
+                        arguments,
+                        ..
+                    } => arguments,
+                    orchbee_workbench_protocol::UserLaunchCommand::SystemShell { .. } => {
+                        return Some(Adjustment {
+                            backward: false,
+                            forward: false,
+                        });
+                    }
+                };
+                Some(available(self.argument, arguments.len()))
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn checked(self, row: Row) -> Option<bool> {
+        match row {
+            Row::CopyOnSelect => Some(self.values.copy_on_select),
+            Row::TrimAgents => Some(self.values.trim_trailing_blank_rows_for_agents),
+            Row::Sound => Some(self.values.sound_enabled),
+            Row::Login => match &self.values.launch_profiles.profiles[self.profile].command {
+                orchbee_workbench_protocol::UserLaunchCommand::SystemShell { login } => {
+                    Some(*login)
+                }
+                orchbee_workbench_protocol::UserLaunchCommand::CustomExecutable { .. } => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub(crate) fn changed(self, row: Row) -> bool {
+        let key = setting_for_row(row)
+            .map(|metadata| metadata.key)
+            .or_else(|| {
+                matches!(
+                    row,
+                    Row::Profile
+                        | Row::ProfileName
+                        | Row::CommandType
+                        | Row::Login
+                        | Row::Executable
+                        | Row::Argument
+                        | Row::ArgumentValue
+                        | Row::AddArgument
+                        | Row::DeleteArgument
+                        | Row::SetDefault
+                        | Row::AddProfile
+                        | Row::DeleteProfile
+                )
+                .then_some(PreferenceKey::LaunchProfiles)
+            });
+        let Some(key) = key else {
+            return false;
+        };
+        if self.reset_all || self.reset_profiles && key == PreferenceKey::LaunchProfiles {
+            return true;
+        }
+        match key {
+            PreferenceKey::Locale => self.values.locale != self.basis_values.locale,
+            PreferenceKey::ApplicationTheme => {
+                self.values.application_theme != self.basis_values.application_theme
+            }
+            PreferenceKey::TerminalDisplayTheme => {
+                self.values.terminal_display_theme != self.basis_values.terminal_display_theme
+            }
+            PreferenceKey::CustomForeground => {
+                self.values.custom_foreground != self.basis_values.custom_foreground
+            }
+            PreferenceKey::CustomBackground => {
+                self.values.custom_background != self.basis_values.custom_background
+            }
+            PreferenceKey::CopyOnSelect => {
+                self.values.copy_on_select != self.basis_values.copy_on_select
+            }
+            PreferenceKey::TrimTrailingBlankRowsForAgents => {
+                self.values.trim_trailing_blank_rows_for_agents
+                    != self.basis_values.trim_trailing_blank_rows_for_agents
+            }
+            PreferenceKey::AgentNotificationMode => {
+                self.values.agent_notification_mode != self.basis_values.agent_notification_mode
+            }
+            PreferenceKey::CompletionReminderMode => {
+                self.values.completion_reminder_mode != self.basis_values.completion_reminder_mode
+            }
+            PreferenceKey::CompletionReminderMinimumSeconds => {
+                self.values.completion_reminder_minimum_seconds
+                    != self.basis_values.completion_reminder_minimum_seconds
+            }
+            PreferenceKey::SoundEnabled => {
+                self.values.sound_enabled != self.basis_values.sound_enabled
+            }
+            PreferenceKey::ScrollbackBytes => {
+                self.values.scrollback_bytes != self.basis_values.scrollback_bytes
+            }
+            PreferenceKey::LaunchProfiles => {
+                self.values.launch_profiles != self.basis_values.launch_profiles
+            }
+        }
+    }
+
     pub(crate) fn enabled(self, row: Row) -> bool {
         use orchbee_workbench_protocol::UserLaunchCommand;
         let catalog = &self.values.launch_profiles;
@@ -81,8 +332,11 @@ impl DraftView<'_> {
             _ => None,
         };
         match row {
-            Row::Save => self.dirty,
-            Row::Foreground | Row::Background => {
+            Row::Save => self.dirty && !self.conflict && self.reconciliation.is_none(),
+            row if setting_for_row(row).is_some_and(|metadata| {
+                metadata.availability == SettingAvailability::TerminalDisplayThemeCustom
+            }) =>
+            {
                 self.values.terminal_display_theme
                     == orchbee_workbench_protocol::TerminalDisplayAppearance::Custom
             }
@@ -119,9 +373,15 @@ impl View<'_> {
 struct Draft {
     token: Token,
     basis: Basis,
+    effective: Basis,
     values: UserPreferencesValues,
     row: Row,
     page: Page,
+    viewport: usize,
+    visible_rows: usize,
+    follow_selection: bool,
+    activation_ready: bool,
+    parent: Option<Navigation>,
     profile: usize,
     argument: usize,
     text: Option<LineEditor>,
@@ -129,9 +389,56 @@ struct Draft {
     reset_all: bool,
     reset_profiles: bool,
     confirmation: Option<Confirmation>,
+    reconciliation: Option<Reconciliation>,
     drawn: bool,
 }
+#[derive(Clone, Copy)]
+struct Navigation {
+    row: Row,
+    viewport: usize,
+    follow_selection: bool,
+}
 impl Draft {
+    fn dirty(&self) -> bool {
+        self.reset_all || self.reset_profiles || self.values != self.basis.values
+    }
+
+    fn has_active_task(&self) -> bool {
+        self.dirty()
+            || self.text.is_some()
+            || self.confirmation.is_some()
+            || self.page == Page::Profiles
+            || self.reconciliation.is_some()
+    }
+
+    fn enter_profiles(&mut self) {
+        self.parent = Some(Navigation {
+            row: self.row,
+            viewport: self.viewport,
+            follow_selection: self.follow_selection,
+        });
+        self.page = Page::Profiles;
+        self.row = Row::Profile;
+        self.viewport = 0;
+        self.visible_rows = 0;
+        self.follow_selection = true;
+        self.activation_ready = false;
+    }
+
+    fn return_from_profiles(&mut self) {
+        let navigation = self.parent.take().unwrap_or(Navigation {
+            row: Row::LaunchProfiles,
+            viewport: 0,
+            follow_selection: true,
+        });
+        self.page = Page::General;
+        self.row = navigation.row;
+        self.viewport = navigation.viewport;
+        self.visible_rows = 0;
+        self.follow_selection = navigation.follow_selection;
+        self.activation_ready = false;
+    }
+
     fn patch(&self) -> UserPreferencesPatch {
         if self.reset_all {
             UserPreferencesPatch::reset(PreferenceKey::ALL).with_overrides(
@@ -150,14 +457,28 @@ impl Draft {
         DraftView {
             token: self.token,
             values: &self.values,
+            basis_values: &self.basis.values,
+            #[cfg(test)]
+            basis_source: &self.basis.source,
+            #[cfg(test)]
+            effective_values: &self.effective.values,
+            #[cfg(test)]
+            effective_source: &self.effective.source,
             selected: self.row,
-            dirty: self.reset_all || self.reset_profiles || self.values != self.basis.values,
+            dirty: self.dirty(),
+            conflict: self.basis.source != self.effective.source
+                || self.basis.values != self.effective.values,
+            reconciliation: self.reconciliation,
             page: self.page,
+            viewport: self.viewport,
+            follow_selection: self.follow_selection,
             profile: self.profile,
             argument: self.argument,
             text: self.text.as_ref().map(|text| (text.text(), text.cursor())),
             invalid: self.invalid,
             confirmation: self.confirmation,
+            reset_all: self.reset_all,
+            reset_profiles: self.reset_profiles,
         }
     }
 }
@@ -179,6 +500,8 @@ enum State {
 pub(crate) struct Editor {
     next: u64,
     state: State,
+    presentation: PresentationPhase,
+    surface_presented: bool,
 }
 impl Editor {
     fn allocate(&mut self) -> Option<Token> {
@@ -190,6 +513,8 @@ impl Editor {
             return None;
         }
         let token = self.allocate()?;
+        self.presentation = PresentationPhase::Pending;
+        self.surface_presented = false;
         self.state = State::Loading {
             token,
             visible: true,
@@ -202,8 +527,10 @@ impl Editor {
         }
         if matches!(self.state, State::Loading { visible: false, .. }) {
             self.state = State::Closed;
+            self.surface_presented = false;
             return false;
         }
+        self.surface_presented = false;
         let Some(token) = self.allocate() else {
             self.state = State::Closed;
             return false;
@@ -211,9 +538,15 @@ impl Editor {
         self.state = State::Draft(Box::new(Draft {
             token,
             values: basis.values.clone(),
+            effective: basis.clone(),
             basis,
             row: Row::Language,
             page: Page::General,
+            viewport: 0,
+            visible_rows: 0,
+            follow_selection: true,
+            activation_ready: false,
+            parent: None,
             profile: 0,
             argument: 0,
             text: None,
@@ -221,23 +554,34 @@ impl Editor {
             reset_all: false,
             reset_profiles: false,
             confirmation: None,
+            reconciliation: None,
             drawn: false,
         }));
         true
     }
-    /// Clean views follow confirmed storage; active edits keep their original CAS basis.
-    pub(crate) fn observe(&mut self, basis: &Basis) -> Observation {
-        let State::Draft(draft) = &mut self.state else {
-            return Observation::Unchanged;
+    /// Clean views follow confirmed storage; active tasks retain their original CAS basis while
+    /// projecting the newest confirmed values independently.
+    pub(crate) fn observe(&mut self, effective: &Basis) -> Observation {
+        let draft = match &mut self.state {
+            State::Draft(draft) => draft,
+            State::Saving { draft, .. } => {
+                if draft.effective.source != effective.source {
+                    draft.effective = effective.clone();
+                }
+                return Observation::Unchanged;
+            }
+            _ => return Observation::Unchanged,
         };
-        if draft.basis.source == basis.source {
+        if draft.effective.source == effective.source {
             return Observation::Unchanged;
         }
-        if draft.project().dirty || draft.text.is_some() || draft.confirmation.is_some() {
+        draft.effective = effective.clone();
+        if draft.has_active_task() {
+            self.redraw();
             return Observation::Conflict;
         }
         let selected = &draft.values.launch_profiles.profiles[draft.profile].id;
-        draft.profile = basis
+        draft.profile = effective
             .values
             .launch_profiles
             .profiles
@@ -245,8 +589,8 @@ impl Editor {
             .position(|profile| &profile.id == selected)
             .unwrap_or(0);
         draft.argument = 0;
-        draft.values = basis.values.clone();
-        draft.basis = basis.clone();
+        draft.values = effective.values.clone();
+        draft.basis = effective.clone();
         draft.invalid = false;
         self.redraw();
         Observation::Refreshed
@@ -259,16 +603,22 @@ impl Editor {
         };
         if matches {
             self.state = State::Closed;
+            self.surface_presented = false;
         }
         matches
     }
-    /// Failed or unconfirmed saves retain the exact draft and original CAS basis.
-    pub(crate) fn failed(&mut self, token: Token) -> bool {
+    /// Failed or unconfirmed saves retain the exact draft and original CAS basis. An explicit
+    /// reconciliation reason blocks another Save until a matched explicit Open completes.
+    pub(crate) fn failed(&mut self, token: Token, reconciliation: Option<Reconciliation>) -> bool {
         if matches!(&self.state, State::Saving { draft, .. } if draft.token == token)
             && let State::Saving { mut draft, visible } = std::mem::take(&mut self.state)
         {
+            self.surface_presented = false;
             if visible {
                 draft.drawn = false;
+                draft.activation_ready = false;
+                draft.visible_rows = 0;
+                draft.reconciliation = reconciliation;
                 self.state = State::Draft(draft);
                 self.redraw();
             }
@@ -279,11 +629,33 @@ impl Editor {
     pub(crate) fn visible(&self) -> bool {
         self.view().is_some()
     }
+    pub(crate) const fn presentation(&self) -> PresentationPhase {
+        self.presentation
+    }
+    pub(crate) fn input_context(&self) -> Option<SettingsInputContext> {
+        let token = self.view()?.token();
+        let readiness = if self.presentation.interactive() && self.surface_presented {
+            SettingsInputReadiness::Interactive
+        } else {
+            SettingsInputReadiness::Recovery
+        };
+        Some(SettingsInputContext {
+            token,
+            phase: self.presentation,
+            readiness,
+            remaining_text_bytes: if readiness == SettingsInputReadiness::Interactive {
+                self.remaining_text_bytes()
+            } else {
+                0
+            },
+        })
+    }
     pub(crate) fn saving(&self) -> bool {
         matches!(self.state, State::Saving { .. })
     }
     pub(crate) fn retire(&mut self) {
         self.state = State::Closed;
+        self.surface_presented = false;
     }
     pub(crate) fn view(&self) -> Option<View<'_>> {
         match &self.state {
@@ -299,20 +671,76 @@ impl Editor {
             _ => None,
         }
     }
+    #[cfg(test)]
     pub(crate) fn draw(&mut self, token: Token) {
-        if let State::Draft(draft) = &mut self.state
-            && draft.token == token
-        {
+        if self.view().is_none_or(|view| view.token() != token) {
+            return;
+        }
+        self.presentation.presented();
+        self.surface_presented = true;
+        if let State::Draft(draft) = &mut self.state {
             draft.drawn = true;
+            // Compatibility for unit and dispatcher fixtures. A following selection is guaranteed
+            // to be revealed; manually scrolled views require concrete SettingsDraw evidence.
+            draft.activation_ready = draft.follow_selection;
+        }
+    }
+    pub(crate) fn presented(&mut self, draw: SettingsDraw) {
+        if self.view().is_none_or(|view| view.token() != draw.token()) {
+            return;
+        }
+        self.presentation.presented();
+        self.surface_presented = true;
+        if let State::Draft(draft) = &mut self.state {
+            draft.drawn = true;
+            let rows = draft.page.rows();
+            let selected = rows.iter().position(|row| *row == draft.row).unwrap_or(0);
+            if let Some((first, visible)) = draw.rows {
+                draft.viewport = first;
+                draft.visible_rows = visible;
+                draft.activation_ready = (first..first.saturating_add(visible)).contains(&selected);
+            } else {
+                draft.visible_rows = 0;
+                draft.activation_ready = false;
+            }
         }
     }
     pub(crate) fn not_presented(&mut self) {
+        self.surface_presented = false;
         if let State::Draft(draft) = &mut self.state {
             draft.drawn = false;
+            draft.activation_ready = false;
+            draft.visible_rows = 0;
         }
     }
+    /// Settles an evaluated geometry block for this Settings incarnation.
+    ///
+    /// A first blocked frame refuses the surface without cancelling accepted
+    /// read/save work. Once a frame has been admitted, the same block only
+    /// suspends interaction and retains the complete local draft.
+    pub(crate) fn geometry_blocked(&mut self) -> Option<GeometrySettlement> {
+        self.view()?;
+        self.not_presented();
+        let settlement = self.presentation.geometry_blocked();
+        if settlement == GeometrySettlement::Refused {
+            self.state = match std::mem::take(&mut self.state) {
+                State::Loading { token, .. } => State::Loading {
+                    token,
+                    visible: false,
+                },
+                State::Saving { draft, .. } => State::Saving {
+                    draft,
+                    visible: false,
+                },
+                State::Draft(_) => State::Closed,
+                State::Closed => unreachable!("visible settings state"),
+            };
+        }
+        Some(settlement)
+    }
     pub(crate) fn paste(&mut self, text: &str) {
-        if let State::Draft(draft) = &mut self.state
+        if self.surface_presented
+            && let State::Draft(draft) = &mut self.state
             && let Some(editor) = &mut draft.text
         {
             draft.invalid = text.contains('\0') || editor.insert(text).is_err();
@@ -320,7 +748,8 @@ impl Editor {
         }
     }
     pub(crate) fn reject_paste(&mut self) {
-        if let State::Draft(draft) = &mut self.state
+        if self.surface_presented
+            && let State::Draft(draft) = &mut self.state
             && draft.text.is_some()
         {
             draft.invalid = true;
@@ -342,15 +771,18 @@ impl Editor {
     fn redraw(&mut self) {
         let Some(token) = self.allocate() else {
             self.state = State::Closed;
+            self.surface_presented = false;
             return;
         };
         if let State::Draft(draft) = &mut self.state {
             draft.token = token;
             draft.drawn = false;
+            draft.activation_ready = draft.follow_selection && self.surface_presented;
         }
     }
     pub(crate) fn edit(&mut self, edit: Edit) -> Option<Submission> {
         if matches!(edit, Edit::Cancel) {
+            let mut closes_surface = false;
             match &mut self.state {
                 State::Draft(draft) if draft.text.is_some() => {
                     draft.text = None;
@@ -362,18 +794,33 @@ impl Editor {
                     self.redraw();
                 }
                 State::Draft(draft) if draft.page == Page::Profiles => {
-                    draft.page = Page::General;
-                    draft.row = Row::LaunchProfiles;
+                    draft.return_from_profiles();
                     self.redraw();
                 }
-                State::Loading { visible, .. } | State::Saving { visible, .. } => *visible = false,
-                _ => self.state = State::Closed,
+                State::Loading { visible, .. } | State::Saving { visible, .. } => {
+                    *visible = false;
+                    closes_surface = true;
+                }
+                _ => {
+                    self.state = State::Closed;
+                    closes_surface = true;
+                }
+            }
+            if closes_surface {
+                self.surface_presented = false;
             }
             return None;
         }
         let State::Draft(draft) = &mut self.state else {
             return None;
         };
+        #[cfg(test)]
+        let fixture_selection = matches!(edit, Edit::Select(_));
+        #[cfg(not(test))]
+        let fixture_selection = false;
+        if !self.surface_presented && !fixture_selection {
+            return None;
+        }
         if draft.text.is_some() {
             values::edit_text(draft, edit);
             self.redraw();
@@ -391,6 +838,7 @@ impl Editor {
                         token,
                         visible: true,
                     };
+                    self.surface_presented = false;
                     return Some(Submission {
                         token,
                         operation: NativeSettingsOperation::Open {},
@@ -413,7 +861,32 @@ impl Editor {
             self.redraw();
             return None;
         }
-        if matches!(edit, Edit::Activate | Edit::Adjust(_)) && !draft.project().enabled(draft.row) {
+        if matches!(
+            edit,
+            Edit::Activate | Edit::Adjust(_) | Edit::AdjustLarge(_)
+        ) && !draft.activation_ready
+        {
+            return None;
+        }
+        if matches!(
+            edit,
+            Edit::Activate | Edit::Adjust(_) | Edit::AdjustLarge(_)
+        ) && !draft.project().enabled(draft.row)
+        {
+            return None;
+        }
+        let direction = match edit {
+            Edit::Adjust(forward) | Edit::AdjustLarge(forward) => Some(forward),
+            _ => None,
+        };
+        if let Some(forward) = direction
+            && let Some(adjustment) = draft.project().adjustment(draft.row)
+            && !(if forward {
+                adjustment.forward
+            } else {
+                adjustment.backward
+            })
+        {
             return None;
         }
         if matches!(edit, Edit::Activate) && draft.row == Row::Save {
@@ -434,6 +907,7 @@ impl Editor {
                     visible: true,
                 };
             }
+            self.surface_presented = false;
             return Some(Submission {
                 token,
                 operation: NativeSettingsOperation::Save { source, changes },
@@ -443,13 +917,29 @@ impl Editor {
         let index = rows.iter().position(|row| *row == draft.row).unwrap_or(0);
         draft.invalid = false;
         match edit {
-            Edit::Next => draft.row = rows[(index + 1) % rows.len()],
-            Edit::Previous => draft.row = rows[(index + rows.len() - 1) % rows.len()],
-            Edit::Home => draft.row = rows[0],
-            Edit::End => draft.row = rows[rows.len() - 1],
+            Edit::Next => {
+                draft.row = rows[(index + 1) % rows.len()];
+                draft.follow_selection = true;
+            }
+            Edit::Previous => {
+                draft.row = rows[(index + rows.len() - 1) % rows.len()];
+                draft.follow_selection = true;
+            }
+            Edit::Home => {
+                draft.row = rows[0];
+                draft.follow_selection = true;
+            }
+            Edit::End => {
+                draft.row = rows[rows.len() - 1];
+                draft.follow_selection = true;
+            }
             #[cfg(test)]
-            Edit::Select(row) if rows.contains(&row) => draft.row = row,
-            Edit::Adjust(forward) => values::adjust(draft, forward),
+            Edit::Select(row) if rows.contains(&row) => {
+                draft.row = row;
+                draft.follow_selection = true;
+            }
+            Edit::Adjust(forward) => values::adjust(draft, forward, AdjustmentStep::Small),
+            Edit::AdjustLarge(forward) => values::adjust(draft, forward, AdjustmentStep::Large),
             Edit::Activate => {
                 if let Some(limit) = draft.row.text_limit() {
                     if let Some(value) = values::text(draft) {
@@ -475,28 +965,40 @@ impl Editor {
         {
             return None;
         }
-        let rows = draft.page.rows();
-        let index = rows.iter().position(|row| *row == draft.row)?;
         let next = if up {
-            index.saturating_sub(lines)
+            draft.viewport.saturating_sub(lines)
         } else {
-            index.saturating_add(lines).min(rows.len() - 1)
+            draft.viewport.saturating_add(lines).min(
+                draft
+                    .page
+                    .rows()
+                    .len()
+                    .saturating_sub(draft.visible_rows.max(1)),
+            )
         };
-        if next == index {
+        if next == draft.viewport {
             return Some(token);
         }
-        draft.row = rows[next];
+        draft.viewport = next;
+        draft.follow_selection = false;
+        draft.activation_ready = false;
         self.redraw();
         self.view().map(|view| view.token())
     }
 
     pub(crate) fn click(&mut self, token: Token, row: Row) -> Option<Submission> {
-        if !matches!(&self.state, State::Draft(draft) if draft.token == token && draft.drawn && draft.text.is_none() && draft.confirmation.is_none())
+        if !matches!(&self.state, State::Draft(draft) if draft.token == token
+            && draft.drawn
+            && draft.text.is_none()
+            && draft.confirmation.is_none()
+            && draft.page.rows().contains(&row))
         {
             return None;
         }
         if let State::Draft(draft) = &mut self.state {
             draft.row = row;
+            draft.follow_selection = false;
+            draft.activation_ready = true;
         }
         self.edit(Edit::Activate)
     }
@@ -510,6 +1012,7 @@ impl Editor {
                 State::Loading { visible, .. } | State::Saving { visible, .. } => *visible = false,
                 _ => self.state = State::Closed,
             }
+            self.surface_presented = false;
             return None;
         }
         let State::Draft(draft) = &mut self.state else {
@@ -519,14 +1022,22 @@ impl Editor {
             return None;
         }
         match control {
-            Control::Row(row) => self.click(token, row),
             Control::Adjust { row, forward }
                 if draft.text.is_none()
                     && draft.confirmation.is_none()
                     && draft.page.rows().contains(&row)
-                    && draft.project().enabled(row) =>
+                    && draft.project().enabled(row)
+                    && draft.project().adjustment(row).is_some_and(|adjustment| {
+                        if forward {
+                            adjustment.forward
+                        } else {
+                            adjustment.backward
+                        }
+                    }) =>
             {
                 draft.row = row;
+                draft.follow_selection = false;
+                draft.activation_ready = true;
                 self.edit(Edit::Adjust(forward))
             }
             Control::Accept if draft.text.is_some() || draft.confirmation.is_some() => {
