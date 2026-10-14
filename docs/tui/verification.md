@@ -36,6 +36,10 @@ hit targets, degradation, and effect ownership. Review common GUI/TUI semantics 
 [`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md). Keep this decision with the existing owning
 reference, types, or tests, not a separate task catalog.
 
+Inspect the existing interface in a running terminal before choosing a presentation or interaction
+change. If the intended experience is unclear, use the relevant flow in the selected reference
+product to establish observable goals for hierarchy, discoverability, feedback and task completion.
+
 A standards-only change is accepted through semantic, bilingual, link, and applicable repository
 checks. It does not establish runtime conformance. Each affected implementation must supply the
 evidence below before claiming adoption. When using a reference product, distinguish observed
@@ -64,8 +68,9 @@ between the installed product and source are not evidence that they implement th
 
 ## Whole-screen visual review
 
-Presentation changes also require review of the final composed screen as an image or terminal
-capture, starting with the default theme. Compare equivalent geometry, locale, data and input
+Presentation and interaction changes require using the running Client in a real terminal emulator
+and reviewing actual window screenshots, starting with the default theme. Compare equivalent
+geometry, locale, data and input
 ownership; review changed regions together with surrounding navigation, content and status.
 Check current-context recognition, focus distinction, text hierarchy, duplicate labels and actions,
 empty states, grouping, and the space available to primary content. Include the affected ordinary,
@@ -73,15 +78,32 @@ navigation and split/zoom states; a component render alone does not establish wh
 Review at-rest action affordance, hover without focus movement, stable label tracks, complete
 primary and exit hints at narrow geometry, and the identity of the operation's target.
 
+- Capture the full composed screen before and after the change; retain surrounding navigation,
+  content and status when inspecting a changed region.
+- Capture the applicable states needed to judge the change, including hover, pressed, focus,
+  selection, expansion, overlays and narrow geometry. A static resting image does not establish
+  those states or their transitions.
+- Complete the affected primary task and its cancel or return path with the relevant pointer and
+  keyboard inputs. Record the observed result alongside the screenshots; images alone do not prove
+  input routing, focus restoration or responsiveness.
+- Review the result from the user's task perspective, repair visible or interaction defects, then
+  repeat the affected flow and capture the final result.
+
 The application owns its accepted screen composition and observable visual invariants. Later
 feature work must preserve those outcomes or explicitly revisit the owning decision. Tests protect
 mechanically checkable outcomes; updating expected rows or passing role assertions alone does not
 accept a visual regression. Record the comparison and judgment in the active review, not a new
 tracked task report.
 
-Identify the image source. A rendered buffer preview can establish composition, but cannot establish
-a physical host's palette, font, contrast or glyph rendering. Claims about those properties require
-a real-host capture with the host evidence below; report them as unverified when unavailable.
+Identify each image's source and the executing build or revision, and record the host information
+required below. Rendered buffers and PTY/ConPTY replays are supplemental composition and protocol
+evidence; they do not replace real-window screenshots or observed use. They cannot establish a
+physical host's palette, font, contrast or glyph rendering.
+
+Real-host review is a human or agent review requirement, not an automated root-gate result. When
+the running interface cannot be exercised or captured, report implementation and automated checks
+separately and leave experience acceptance pending. Do not declare a presentation or interaction
+change complete solely because its tests, role assertions or rendered previews pass.
 
 ## Input evidence
 
@@ -132,7 +154,9 @@ encoding, appearance reports, and multiplexer interception.
 - Exercise it through a pseudo-terminal harness that drives the Client binary and asserts on the
   bytes it writes, or through a documented manual run.
 - Record the emulator name and version, the multiplexer if any, the operating system, geometry,
-  locale, theme, and negotiated capabilities with the evidence. A PTY or ConPTY byte replay proves
+  locale, theme, and negotiated capabilities with the evidence. For visual review, also record the
+  font, font size and display scale; identify unavailable metadata rather than inferring it.
+  A PTY or ConPTY byte replay proves
   protocol behavior and cell composition; it does not prove physical host palette or font quality.
 - Host evidence supplements unit evidence; it never replaces the classes above.
 
