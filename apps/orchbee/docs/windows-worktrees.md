@@ -4,6 +4,8 @@ This record owns native CLI Worktree creation, opening, removal and recovery. Gi
 
 ## Commands and defaults
 
+Git checkout creation suppresses progress. Bounded stderr retains the final 2048 bytes so the failure cause survives large diagnostics. A failed partial Create resumes by observing its original path, never by replaying `git worktree add`. If that observation proves the checkout absent, the operation becomes nonresumable. Inspect the retained branch and Git error, then submit a new Create after correcting the cause; the CLI does not delete the branch or silently retry effects.
+
 ```powershell
 orchbee worktree create --project demo --cwd C:/code/demo --branch feature/example
 orchbee worktree open --project demo --cwd C:/code/demo --branch feature/example

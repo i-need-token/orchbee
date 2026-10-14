@@ -10,7 +10,7 @@
 			"const": "orchbee.agent.doctor"
 		},
 		"version": {
-			"enum": [1, 2, 3]
+			"enum": [1, 2, 3, 4]
 		},
 		"source": {
 			"type": "object",
@@ -32,7 +32,7 @@
 				},
 				"providers": {
 					"type": "array",
-					"maxItems": 14,
+					"maxItems": 20,
 					"items": {
 						"$ref": "#/$defs/providerRow"
 					}
@@ -514,6 +514,26 @@
 										}
 									}
 								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [1, 2, 3]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"properties": {
+							"providers": {
+								"maxItems": 14
 							}
 						}
 					}

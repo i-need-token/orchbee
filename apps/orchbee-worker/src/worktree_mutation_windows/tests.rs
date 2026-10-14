@@ -12,6 +12,26 @@ use std::{
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
 
+#[test]
+fn git_diagnostics_keep_the_error_after_excessive_progress() {
+    let fixture = Fixture::new();
+    let cancel = AtomicBool::new(false);
+    let mut context = Context {
+        cancel: &cancel,
+        deadline: Instant::now() + Duration::from_secs(10),
+        trust: false,
+        changed: false,
+        stage: Stage::Probe,
+    };
+    let output = context.git(fixture.source.as_str(), &[
+        "-c", "alias.diagnostic=!printf '%05000d' 0 >&2; printf 'fatal: fixture checkout failed\\n' >&2; exit 128",
+        "diagnostic",
+    ], Stage::Probe, false).unwrap_or_else(|_| panic!("settled Git fixture"));
+    assert_eq!(output.status.code(), Some(128));
+    assert_eq!(output.stderr.len(), 2048);
+    assert!(output.stderr.ends_with(b"fatal: fixture checkout failed\n"));
+}
+
 struct Fixture {
     root: PathBuf,
     source: AbsoluteCwd,

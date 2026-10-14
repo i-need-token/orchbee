@@ -141,6 +141,13 @@ impl Locale {
             Self::EnUs => ("Directory policy", "Directory source", "Directory"),
             Self::ZhCn => ("目录策略", "目录来源", "目录"),
         };
+        if result["action"] == "tab.create"
+            && let Some(hint) = result["label"]
+                .as_str()
+                .and_then(|label| self.cli_label_target_hint(label))
+        {
+            text.push_str(hint);
+        }
         for (name, key) in [
             (directory_policy, "policy"),
             (directory_source, "source"),

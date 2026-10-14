@@ -31,8 +31,10 @@ source dimensions separately. The stream is a screen projection, not raw PTY byt
 Every JSON record names `orchbee.terminal.stream` version 2 and its kind. Frame bytes use base64;
 sequence/generation/revision identities are decimal strings. Both format selections emit NDJSON.
 
-Windows stdout is mediated by an invocation-owned, hidden system PowerShell process running a
-fixed script with profiles disabled. One bounded record is in flight; the child acknowledges only
+Windows stdout is mediated by an invocation-owned system PowerShell process running a fixed
+script with profiles disabled. Redirected output uses a hidden child and preserves exact bytes.
+Native console output retains the existing console in a separate Ctrl+C process group and decodes
+UTF-8 records for Unicode console writes; it does not create a window or alter console modes. One bounded record is in flight; the child acknowledges only
 after writing and flushing it. The parent polls nonblocking pipes with cancellation/deadlines.
 No payload is interpolated into a command. Child stdin uses a synchronous pipe handle; merely
 switching an overlapped IPC handle to blocking mode is insufficient for standard child readers. On stalled output or any exit, the owner stops and joins

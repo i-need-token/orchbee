@@ -144,9 +144,9 @@ impl Locale {
                     "Agent 提供方保存的会话路径。",
                 ),
                 "--amount" => (
-                    "<cells>",
-                    "Number of terminal cells to resize.",
-                    "调整的终端单元格数量。",
+                    "<step>",
+                    "Split ratio step; default: 0.05, absolute value capped at 0.5.",
+                    "分隔比例的调整步长；默认 0.05，绝对值最大为 0.5。",
                 ),
                 "--anchor" => (
                     "<ROW:COL>",
@@ -376,8 +376,8 @@ impl Locale {
                 ),
                 "--label" => (
                     "<text>",
-                    "Human-readable name for this resource.",
-                    "此资源的可读名称。",
+                    "Display name. If it resembles an ID or @kind:selector, address the resource by its real ID.",
+                    "显示名称。如果名称形似 ID 或 @kind:选择器，请用资源的实际 ID 作为目标。",
                 ),
                 "--limit" => (
                     "<n>",

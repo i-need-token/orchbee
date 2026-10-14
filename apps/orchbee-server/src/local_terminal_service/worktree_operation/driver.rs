@@ -44,7 +44,15 @@ pub(super) fn run(
                         | Failure::SiteStopping {}
                         | Failure::Internal {}
                         | Failure::SourceChanged {}
-                );
+                )
+                // A partial create is resumed by observation, never by replaying
+                // `git worktree add`. Proven absence cannot advance that intent.
+                && !(matches!(driver.plan.intent, WorktreeIntent::Create { .. })
+                    && driver.plan.phase == Phase::Opening
+                    && matches!(reason, Failure::Git {
+                        error: orchbee_workbench_protocol::WorktreeGitError::CheckoutNotFound,
+                        ..
+                    }));
             Status::Failed {
                 reason,
                 progress: driver.plan.progress.clone(),

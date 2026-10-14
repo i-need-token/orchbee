@@ -78,6 +78,12 @@ impl Locale {
             }
         }
         let value = |key| crate::cli::escape::escape(document[key].as_str().unwrap_or("—"));
+        if let Some(hint) = document["workspace"]["result"]["label"]
+            .as_str()
+            .and_then(|label| self.cli_label_target_hint(label))
+        {
+            text.push_str(hint);
+        }
         let stage = value("stage");
         let outcome = value("outcome");
         match self {

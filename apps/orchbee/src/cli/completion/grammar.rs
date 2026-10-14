@@ -72,7 +72,14 @@ pub(super) fn build() -> serde_json::Value {
         } else {
             global_flags
         });
-        command["format"] = json!(words != json!(["tui"]) && words != json!(["session", "attach"]));
+        command["format"] = json!(accepts_format(
+            &words
+                .as_array()
+                .expect("command words")
+                .iter()
+                .map(|word| word.as_str().expect("word"))
+                .collect::<Vec<_>>()
+        ));
         command["cwdValues"] = json!(if words == json!(["tab", "create"])
             || words == json!(["panel", "split"])
             || words == json!(["panel", "create-terminal"])
@@ -113,4 +120,9 @@ pub(super) fn build() -> serde_json::Value {
             .all(|flag| *flag == "--mouse" || BUSINESS_FLAGS.contains(flag))
     }));
     grammar
+}
+
+/// Offline output-format scope shared by help and every shell adapter.
+pub(super) fn accepts_format(words: &[&str]) -> bool {
+    !matches!(words, ["tui"] | ["session", "attach"])
 }

@@ -160,6 +160,15 @@ impl Locale {
                 "orchbee worktree resume {id} --generation {attempt} --confirm\n"
             ));
         }
+        if status["resumable"] == false
+            && status["reason"]["error"] == "checkout-not-found"
+            && status["progress"]["workspace"]["kind"] == "unassociated"
+        {
+            text.push_str(match self {
+                Self::EnUs => "The original checkout is absent; this operation cannot resume. Inspect `git worktree list` and the retained branch, fix the Git error, then issue a new `orchbee worktree create` request.\n",
+                Self::ZhCn => "原 checkout 已不存在，此操作无法恢复。请检查 `git worktree list` 和保留的分支，解决 Git 错误后重新运行 `orchbee worktree create`。\n",
+            });
+        }
         if let Some(post) = result.get("postOpen") {
             text.push_str(match (self, post["outcome"].as_str()) {
                 (Self::EnUs, Some("completed")) => "TUI focus completed.\n",

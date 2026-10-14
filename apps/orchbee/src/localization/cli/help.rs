@@ -20,6 +20,13 @@ impl HelpDetails {
 }
 
 impl Locale {
+    pub(crate) fn cli_label_target_hint(self, label: &str) -> Option<&'static str> {
+        crate::invocation::label_requires_id(label).then_some(match self {
+            Self::EnUs => "This display name uses target syntax. Address this resource with its actual ID shown above.\n",
+            Self::ZhCn => "此显示名称与目标语法相同，请使用上方返回的资源实际 ID 作为目标。\n",
+        })
+    }
+
     /// Explain the purpose of one help topic without exposing its implementation.
     pub(crate) fn cli_help_summary(self, topic: HelpTopic) -> &'static str {
         let (english, chinese) = match topic {

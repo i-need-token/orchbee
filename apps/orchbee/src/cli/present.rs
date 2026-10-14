@@ -1195,6 +1195,9 @@ pub(super) fn receipt(
         }
         out.push("\n")?;
     }
+    if let Some(hint) = receipt.target_hint(locale) {
+        out.push(hint)?;
+    }
     Ok(())
 }
 

@@ -152,7 +152,7 @@
           if (and (eq $flag --arg) (not (has-value $seen --exec)) (not-eq $path agent:start)) { continue }
           if (not (conflicts $command $flag $seen)) { set offered = [$@offered $flag] }
         }
-        if (and (== (count $seen) 0) (<= $n $width)) { set candidates = [$@candidates --help] }
+        set candidates = [$@candidates --help]
       }
       var joined = ''
       if (and (eq $pending '') (str:has-prefix $prefix --) (str:contains $prefix =)) {

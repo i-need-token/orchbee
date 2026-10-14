@@ -21,6 +21,40 @@ fn agent_start_preserves_the_caller_context_usage_hint() {
     }
 }
 
+#[test]
+fn missing_agent_panel_reports_the_target_and_discovery_command() {
+    let failure = crate::cli::Failure::new(crate::cli::FailureKind::NotFound)
+        .failure_schema("orchbee.cli.failure.agent-start")
+        .details(serde_json::Map::from_iter([
+            ("reason".into(), serde_json::json!("startup-failed")),
+            ("cause".into(), serde_json::json!({"kind":"not-found"})),
+        ]));
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let message = locale.cli_failure(&failure);
+        assert!(
+            message.contains("orchbee panel list") && message.contains("--panel"),
+            "{message}"
+        );
+    }
+}
+
+#[test]
+fn display_name_hints_follow_target_syntax_in_both_locales() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for label in [
+            "00000000000000000000000000000002",
+            "@workspace:abcd",
+            "@tab:invalid",
+            "@project:",
+        ] {
+            assert!(locale.cli_label_target_hint(label).is_some(), "{label}");
+        }
+        for label in ["example", "中文 workspace", "@unknown:abc", "123"] {
+            assert!(locale.cli_label_target_hint(label).is_none(), "{label}");
+        }
+    }
+}
+
 #[cfg(unix)]
 mod location_labels;
 

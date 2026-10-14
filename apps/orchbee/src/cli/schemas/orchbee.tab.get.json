@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.tab.get",
 	"title": "orchbee tab get envelope",
-	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
+	"$comment": "Version 5 retains its closed Agent state vocabulary. Versions 5 and 6 retain trees without split ratios; version 7 admits the canonical optional ratio.",
 	"oneOf": [
 		{
 			"type": "object",
@@ -261,6 +261,206 @@
 								},
 								"root": {
 									"$ref": "#/$defs/panelNode"
+								},
+								"number": {
+									"type": "integer",
+									"minimum": 1
+								},
+								"panelCount": {
+									"type": "integer",
+									"minimum": 0
+								},
+								"focused": {
+									"type": "boolean"
+								},
+								"agentSessionIds": {
+									"type": "array",
+									"maxItems": 512,
+									"uniqueItems": true,
+									"items": {
+										"$ref": "#/$defs/agentOpaqueId"
+									}
+								},
+								"agentStatus": {
+									"enum": [null, "blocked", "done", "error", "working", "idle", "unknown"]
+								}
+							}
+						},
+						"client": {
+							"$ref": "#/$defs/queryClient"
+						},
+						"agents": {
+							"$ref": "#/$defs/workbenchAgents"
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"required": ["client"],
+								"type": "object"
+							},
+							"then": {
+								"properties": {
+									"tab": {
+										"required": ["focused"],
+										"type": "object"
+									}
+								},
+								"type": "object"
+							},
+							"else": {
+								"properties": {
+									"tab": {
+										"not": {
+											"anyOf": [
+												{
+													"required": ["focused"],
+													"type": "object"
+												}
+											]
+										},
+										"type": "object"
+									}
+								},
+								"type": "object"
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["agents"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"tab": {
+										"type": "object",
+										"required": ["agentStatus", "agentSessionIds"]
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"tab": {
+										"type": "object",
+										"not": {
+											"anyOf": [
+												{
+													"required": ["agentStatus"]
+												},
+												{
+													"required": ["agentSessionIds"]
+												}
+											]
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"type": "object",
+								"required": ["client"]
+							},
+							"then": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"required": ["client"]
+												}
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"type": "object",
+								"properties": {
+									"agents": {
+										"type": "object",
+										"properties": {
+											"sessions": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"not": {
+														"required": ["client"]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.tab.get"
+				},
+				"version": {
+					"const": 7
+				},
+				"source": {
+					"$ref": "#/$defs/snapshotSource"
+				},
+				"result": {
+					"type": "object",
+					"required": ["tab"],
+					"additionalProperties": false,
+					"properties": {
+						"tab": {
+							"type": "object",
+							"required": [
+								"tabId",
+								"label",
+								"pinned",
+								"groupId",
+								"context",
+								"root",
+								"number",
+								"panelCount"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"tabId": {
+									"$ref": "#/$defs/id"
+								},
+								"label": {
+									"type": "string"
+								},
+								"pinned": {
+									"type": "boolean"
+								},
+								"groupId": {
+									"anyOf": [
+										{
+											"$ref": "#/$defs/id"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"context": {
+									"$ref": "#/$defs/context"
+								},
+								"root": {
+									"$ref": "#/$defs/panelNodeV7"
 								},
 								"number": {
 									"type": "integer",
@@ -1242,6 +1442,74 @@
 					}
 				}
 			}
+		},
+		"panelNodeV7": {
+			"type": "object",
+			"required": ["kind"],
+			"oneOf": [
+				{
+					"properties": {
+						"kind": {
+							"const": "panel"
+						},
+						"rightClick": {
+							"enum": ["orchbee", "panel"]
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"primaryPresentation": {
+							"$ref": "#/$defs/presentation"
+						},
+						"childPresentations": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/presentation"
+							}
+						}
+					},
+					"required": ["panelId", "primaryPresentation", "childPresentations"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": {
+							"const": "split"
+						},
+						"splitId": {
+							"$ref": "#/$defs/id"
+						},
+						"orientation": {
+							"enum": ["horizontal", "vertical"]
+						},
+						"children": {
+							"type": "array",
+							"minItems": 2,
+							"maxItems": 2,
+							"items": {
+								"type": "object",
+								"required": ["slotId", "node"],
+								"additionalProperties": false,
+								"properties": {
+									"slotId": {
+										"$ref": "#/$defs/id"
+									},
+									"node": {
+										"$ref": "#/$defs/panelNodeV7"
+									}
+								}
+							}
+						},
+						"ratio": {
+							"type": "number",
+							"minimum": 0.1,
+							"maximum": 0.9
+						}
+					},
+					"required": ["splitId", "orientation", "children"],
+					"additionalProperties": false
+				}
+			]
 		}
 	}
 }

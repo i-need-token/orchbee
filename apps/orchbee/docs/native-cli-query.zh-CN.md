@@ -26,7 +26,7 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 
 ## 独立 Agent 状态的 Schema 版本
 
-当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 145。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
+当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 146。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
 
 | 命令                                        | 版本        | 适用变体                                       |
 | ------------------------------------------- | ----------- | ---------------------------------------------- |
@@ -39,10 +39,18 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 | `panel report-agent; panel report-metadata` | 3/4         | 主项／显式成员                                 |
 | `panel current`                             | 9           | Windows 当前成员                               |
 | `panel get; panel list`                     | 10/11       | Linux／Windows                                 |
-| `tab get; tab list`                         | 6/5         | Get／List                                      |
+| `tab get; tab list`                         | 7/5         | Get／List                                      |
 | `workspace get; workspace list`             | 8           | 规范 Agent 聚合                                |
 
 ## 当前 CLI 发现与平台契约
+
+补全将本地 `--session` 选择与 Agent 会话选择器分开。Windows POSIX Shell 适配器使用与 PowerShell、Elvish 相同的静态语法筛选远端 `--machine` 路径，覆盖嵌套命令族和根级数据命令。输入已知选项与操作数后，仍可发现后缀 `--help`；不支持的路由、重复选项及已终止的选项不会重新获得候选项。
+
+Snapshot v7 与 Tab Get v7 接纳规范的可选分隔比例 `ratio`（0.1–0.9）；省略表示 0.5。Snapshot v6 与 Tab Get v5/v6 保留原来的封闭树。Windows Agent Doctor v4 覆盖全部 20 个提供方；v1–v3 保留 14 行上限。
+
+目标帮助明确 ID／选择器优先级：显示名称形似 ID 或已识别的 `@kind:` 选择器时，应使用资源的实际 ID 作为目标。创建和重命名保留字面显示名称。`panel resize --amount` 表示分隔比例的调整步长（默认 0.05，绝对值最大 0.5）。
+
+Agent 启动帮助说明 `--kind antigravity` 对应集成／诊断的 `--provider antigravity-cli`。启动目标 Panel 不存在时，提示明确指出目标错误并引导运行 `orchbee panel list`。本地发布清单读取失败时，提示检查 `ORCHBEE_UPDATE_MANIFEST` 中的路径和读取权限；机器原因仍为 manifest 阶段的 `download`。
 
 Launch Profile list/get 现输出 v2，接纳 wire 契约中的 POSIX、驱动器绝对路径和 verbatim
 驱动器可执行路径；v1 保留仅 POSIX 的模式。Windows 诊断输出 v3，覆盖默认与命名 Session
@@ -1430,7 +1438,7 @@ Project 查询遵循 `navigation.projects` 顺序。Workspace 查询遵循 `work
 terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresentations`。不新增排序；
 过滤后的列表与 `ambiguous` 候选都保持该次序。
 
-快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v8（其他平台保持 v3），`orchbee.api.snapshot` 因全局导航及可空 Workspace 分组为 v6。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。目录版本及文档数量见上文：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
+快照与单效果命令封套使用 `{schema, version, source, result}`；分阶段流程有自己的内嵌 schema。每份 schema 定义发出的版本及严格形状。Workbench 查询版本见上文；`orchbee.panel.current` 在 Windows 为 v9（其他平台保持 v3），`orchbee.api.snapshot` 因全局导航、可空 Workspace 分组及可选分隔比例为 v7。`orchbee.terminal.get` 因保留实际启动程序／参数为 v4。`orchbee.terminal.read/history` 带 `--unwrap` 或 `--lines` 时为 v2，`orchbee.terminal.wait-output` 携带正则匹配细节时为 v2；三者不带这些 flag 时仍为 v1。各命令与失败的完整版本契约见 `api schema <id>`。目录版本及文档数量见上文：注册 ID 会改变闭合字典形状，与业务文档版本独立。来源保留各所有者的含义：
 
 - `source.kind="workbench-snapshot"`：带同一份已验证快照的 `siteId` 与十进制字符串
   `revision`——仅在完整有效读取之后出现。

@@ -18,7 +18,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::WorkspaceFocus => &["work"],
         CommandPath::TabFocus => &["main"],
         CommandPath::PanelFocus => &["--current"],
-        CommandPath::PanelResize => &["--current", "--direction", "right", "--amount", "5"],
+        CommandPath::PanelResize => &["--current", "--direction", "right", "--amount", "0.05"],
         CommandPath::LayoutSetSplitRatio => &["--current", "--path", "root", "--ratio", "0.5"],
         #[cfg(windows)]
         CommandPath::LayoutExport => &["--current"],

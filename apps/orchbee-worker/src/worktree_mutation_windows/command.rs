@@ -153,8 +153,20 @@ fn drain(
                 if reject_overflow && retained.len() + count > cap {
                     return Err(Error::TooLarge);
                 }
-                let keep = count.min(cap.saturating_sub(retained.len()));
-                retained.extend_from_slice(&buffer[..keep]);
+                // Git's final error follows its progress output. Keep the bounded
+                // tail of stderr so progress cannot hide the cause of failure.
+                if !reject_overflow && retained.len() + count > cap {
+                    let overflow = retained.len() + count - cap;
+                    if overflow >= retained.len() {
+                        retained.clear();
+                        retained.extend_from_slice(&buffer[count - cap..count]);
+                    } else {
+                        retained.drain(..overflow);
+                        retained.extend_from_slice(&buffer[..count]);
+                    }
+                } else {
+                    retained.extend_from_slice(&buffer[..count]);
+                }
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 if settled {

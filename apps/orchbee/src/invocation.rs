@@ -2312,6 +2312,15 @@ fn valid_typed_id(value: &str) -> bool {
     value.len() == 32 && lowercase_hex(value.as_bytes())
 }
 
+/// Display labels remain literal, but these spellings claim target syntax.
+pub(crate) fn label_requires_id(value: &str) -> bool {
+    valid_typed_id(value)
+        || value
+            .strip_prefix('@')
+            .and_then(|rest| rest.split_once(':'))
+            .is_some_and(|(kind, _)| Resource::selector_token(kind).is_some())
+}
+
 /// A selector suffix is one to thirty-one lowercase hex characters — a tail
 /// of a member's typed identifier, never the full 32-character id shape.
 fn valid_selector_suffix(suffix: &str) -> bool {

@@ -2873,11 +2873,11 @@ impl Locale {
             (Self::ZhCn, CommandPath::AgentList) => HELP_AGENT_LIST_ZH,
             (Self::EnUs, CommandPath::AgentStart) => crate::localization::HelpDetails::new(
                 "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]",
-                "Windows: start an interactive Agent in an idle terminal, then bind its name after verified readiness.\nThe default target is the caller Panel. Timeout: 3001–300000 ms, default 30000.\nUse --arg=<value> repeatedly as an alternative to trailing arguments. Input is submitted once.\nCancellation or timeout releases the name when confirmed; it never kills the Agent.\nProvider hooks must report readiness. Use agent integration and agent doctor to check setup.",
+                "Windows: start an interactive Agent in an idle terminal, then bind its name after verified readiness.\nThe default target is the caller Panel. Timeout: 3001–300000 ms, default 30000.\nUse --arg=<value> repeatedly as an alternative to trailing arguments. Input is submitted once.\nCancellation or timeout releases the name when confirmed; it never kills the Agent.\nProvider hooks must report readiness. Use agent integration and agent doctor to check setup.\nFor Antigravity, use --kind antigravity here and --provider antigravity-cli in integration/doctor.",
             ),
             (Self::ZhCn, CommandPath::AgentStart) => crate::localization::HelpDetails::new(
                 "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]",
-                "Windows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止 Agent。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。",
+                "Windows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止 Agent。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nAntigravity 在此使用 --kind antigravity，在 integration/doctor 中使用 --provider antigravity-cli。",
             ),
             (Self::EnUs, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
@@ -3170,12 +3170,12 @@ const HELP_SITE_DIAGNOSE_ZH: crate::localization::HelpDetails =
 const HELP_AGENT_DOCTOR_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]",
-        "Explain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, declared\nasset roots, the observation endpoint, and the environment override.\n'--provider' selects canonical provider ids (repeatable); '--asset-root'\ndeclares absolute capsule roots to inspect (repeatable, at most 4).\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope (Windows v3, Linux v1). Windows\nreports endpoint delivery as uninspected, separately from installation.",
+        "Explain, from bounded filesystem facts alone, why Agent observations may\nnot arrive: each provider's executable and managed-hook state, declared\nasset roots, the observation endpoint, and the environment override.\n'--provider' selects canonical provider ids (repeatable); '--asset-root'\ndeclares absolute capsule roots to inspect (repeatable, at most 4).\nNothing is executed, connected, written, or repaired. '--format json'\nemits the orchbee.agent.doctor envelope (Windows v4, Linux v1). Windows\nreports endpoint delivery as uninspected, separately from installation.",
     );
 const HELP_AGENT_DOCTOR_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent doctor [--provider <id>]... [--asset-root <path>]... [--format text|json]",
-        "仅凭有界文件系统事实解释 Agent 观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择规范 provider ID（可重复）；'--asset-root' 声明要检查的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（Windows v3、Linux v1）。Windows 单独报告尚未检查的端点投递，不会把安装状态当成链路可用。",
+        "仅凭有界文件系统事实解释 Agent 观察为何可能未到达：各 provider 的可执行文件与托管 hook 状态、声明的 asset root、观察端点以及环境覆盖。\n'--provider' 选择规范 provider ID（可重复）；'--asset-root' 声明要检查的绝对 capsule root（可重复，至多 4 个）。不执行、不连接、不写入、不修复任何内容。'--format json' 输出 orchbee.agent.doctor 封套（Windows v4、Linux v1）。Windows 单独报告尚未检查的端点投递，不会把安装状态当成链路可用。",
     );
 
 const HELP_AGENT_INTEGRATION_LIST_EN: crate::localization::HelpDetails =
@@ -4186,6 +4186,18 @@ impl Locale {
                 .and_then(|value| value.as_str())
                 .unwrap_or("")
         };
+        if field("reason") == "startup-failed"
+            && let Some(cause) = failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("cause"))
+            && cause["kind"] == "not-found"
+        {
+            return match self {
+                Self::EnUs => "The target panel was not found. Run `orchbee panel list`, then pass an existing panel ID to --panel.\n",
+                Self::ZhCn => "未找到目标 Panel。请运行 `orchbee panel list`，再将现有 Panel ID 传给 --panel。\n",
+            }.to_owned();
+        }
         let message = match (self, field("reason")) {
             (Self::EnUs, "terminal-not-idle") => {
                 "The target must be an idle cmd, PowerShell or pwsh terminal with no other running command."

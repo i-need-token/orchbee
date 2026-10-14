@@ -29,7 +29,7 @@ does not make the Electron Desktop runtime a consumer of the native Session serv
 
 ## Schema versions for independent Agent status
 
-Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 145. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
+Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 146. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
 
 | Command                                     | Version     | Variant                                                             |
 | ------------------------------------------- | ----------- | ------------------------------------------------------------------- |
@@ -42,10 +42,18 @@ Current outputs separate actual Agent status from Client read acknowledgement. E
 | `panel report-agent; panel report-metadata` | 3/4         | Primary / explicit member                                           |
 | `panel current`                             | 9           | Windows current member                                              |
 | `panel get; panel list`                     | 10/11       | Linux / Windows                                                     |
-| `tab get; tab list`                         | 6/5         | Get / List                                                          |
+| `tab get; tab list`                         | 7/5         | Get / List                                                          |
 | `workspace get; workspace list`             | 8           | Canonical Agent aggregate                                           |
 
 ## Current CLI discovery and platform contracts
+
+Completion keeps local `--session` selection separate from Agent session selectors. Windows POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
+
+Snapshot v7 and Tab Get v7 admit the canonical optional split `ratio` (0.1–0.9); omitted means 0.5. Snapshot v6 and Tab Get v5/v6 retain their closed trees. Windows Agent Doctor v4 covers all 20 providers; v1–v3 retain the 14-row bound.
+
+Target help states ID/selector precedence: a display label shaped like an ID or a recognized `@kind:` selector is addressed through the resource’s real ID. Creation and rename keep the literal display label. `panel resize --amount` is a split-ratio step (default 0.05, absolute value capped at 0.5).
+
+Agent startup help maps `--kind antigravity` to integration/doctor `--provider antigravity-cli`. A missing startup Panel identifies the target failure and directs users to `orchbee panel list`. A local manifest read failure directs users to the path and read permissions configured by `ORCHBEE_UPDATE_MANIFEST`; its machine reason remains `download` at the manifest phase.
 
 Launch Profile list/get now emit v2, admitting the wire contract's POSIX, drive-absolute
 and verbatim drive executable paths; v1 retains its POSIX-only pattern. Windows diagnosis
@@ -1749,7 +1757,7 @@ falling back to global `navigation.workspaces` order when absent or empty. Other
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v8 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v6 with global navigation and nullable Workspace grouping. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The catalog version and document count are listed above: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v9 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v7 with global navigation, nullable Workspace grouping and optional split ratios. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The catalog version and document count are listed above: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.

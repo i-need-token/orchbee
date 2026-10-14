@@ -1,7 +1,7 @@
 //! A bounded, acknowledged stdout relay. Fixed system script; payload is only pipe data.
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader};
 use std::{
-    io::{self, Read, Write},
+    io::{self, IsTerminal, Read, Write},
     os::windows::process::CommandExt,
     path::PathBuf,
     process::{Child, Command, Stdio},
@@ -11,6 +11,8 @@ use std::{
 
 const SCRIPT: &str = r#"$ErrorActionPreference='Stop'; try {
 $i=[Console]::OpenStandardInput(); $o=[Console]::OpenStandardOutput(); $a=[Console]::OpenStandardError()
+$console=-not [Console]::IsOutputRedirected; $utf8=[Text.UTF8Encoding]::new($false,$true)
+if ($console) { [Console]::OutputEncoding=[Text.Encoding]::Unicode }
 $header=[byte[]]::new(4)
 while ($true) {
   $pos=0
@@ -18,7 +20,9 @@ while ($true) {
   $size=[BitConverter]::ToUInt32($header,0); if ($size -eq 0 -or $size -gt 8388608) { exit 1 }
   $body=[byte[]]::new($size); $pos=0
   while ($pos -lt $size) { $n=$i.Read($body,$pos,$size-$pos); if ($n -eq 0) { exit 1 }; $pos+=$n }
-  $o.Write($body,0,$body.Length); $o.Flush(); $a.WriteByte(1); $a.Flush()
+  if ($console) { [Console]::Write($utf8.GetString($body)); [Console]::Out.Flush() }
+  else { $o.Write($body,0,$body.Length); $o.Flush() }
+  $a.WriteByte(1); $a.Flush()
 }
 } catch { exit 1 }"#;
 
@@ -30,9 +34,13 @@ pub(in crate::cli) struct Relay {
 }
 impl Relay {
     pub(in crate::cli) fn start() -> io::Result<Self> {
-        Self::with_output(Stdio::inherit())
+        Self::spawn(Stdio::inherit(), io::stdout().is_terminal())
     }
+    #[cfg(test)]
     pub(super) fn with_output(output: Stdio) -> io::Result<Self> {
+        Self::spawn(output, false)
+    }
+    fn spawn(output: Stdio, console: bool) -> io::Result<Self> {
         let executable = PathBuf::from(winsafe::GetSystemDirectory().map_err(io::Error::other)?)
             .join("WindowsPowerShell/v1.0/powershell.exe");
         let (input, child_input) = ChildInputWriter::pipe()?;
@@ -49,7 +57,10 @@ impl Relay {
             .stdin(child_input)
             .stdout(output)
             .stderr(child_ack)
-            .creation_flags(0x0800_0000);
+            // A detached helper silently discards inherited console output. Retain
+            // that console, but isolate Ctrl+C so the owner can finish its record
+            // and reap the helper. Redirected output needs no console at all.
+            .creation_flags(if console { 0x0000_0200 } else { 0x0800_0000 });
         let child = command.spawn()?;
         drop(command);
         Ok(Self {

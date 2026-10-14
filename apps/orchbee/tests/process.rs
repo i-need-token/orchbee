@@ -440,6 +440,48 @@ check --default-config 1 orchbee --d
 check --format 0 orchbee --default-config --f
 check --default-config 0 orchbee --session work --d
 check --default-config 0 orchbee --machine work --d
+check events 1 orchbee e
+check events 1 orchbee --session audit e
+check events 1 orchbee --format json e
+check attach 1 orchbee --mouse off session a
+check --mouse=off 1 orchbee session attach audit --mouse=
+check off 1 orchbee session attach audit --mouse ''
+check --help 1 orchbee session attach audit --mouse off --h
+check --format 0 orchbee session attach audit --f
+check attach 0 orchbee --format json session a
+check --format 0 orchbee session attach audit --format json --f
+check enable 0 orchbee agent integration --provider codex --provider gemini e
+check --format 0 orchbee agent integration enable --provider codex --provider gemini --f
+check doctor 1 orchbee --provider codex --provider gemini agent d
+check --format 1 orchbee --session work workspace create --label example --f
+check --help 1 orchbee workspace create --session work --label example --h
+check --session 1 orchbee workspace create --s
+check --session 0 orchbee --session work workspace create --s
+check --format 0 orchbee --session work --session other workspace list --f
+check --format 0 orchbee --session .. workspace list --f
+check --session 0 orchbee config import-herdr --s
+check --format 0 orchbee --session work config import-herdr --f
+check --format 0 orchbee --session work session attach other --f
+check --format 1 orchbee update --f
+check client 0 orchbee update c
+check server 0 orchbee update s
+check --spec 1 orchbee panel graphics set panel --s
+check --client 1 orchbee panel graphics info panel --c
+check --format 1 orchbee terminal title set title --f
+check --format 1 orchbee agent view set --f
+check --format 1 orchbee plugin action list --f
+check --format 1 orchbee plugin log list --f
+check --format 1 orchbee plugin pane open --f
+check list 1 orchbee --machine work workspace l
+check list 1 orchbee --machine=work workspace l
+check --session 0 orchbee --machine work workspace list --s
+check --machine 0 orchbee workspace --m
+check attach 0 orchbee --machine work terminal a
+check client 0 orchbee --machine work status c
+check server 1 orchbee --machine work status s
+check tui 0 orchbee --machine work tu
+check --format 0 orchbee --machine work --session local workspace list --f
+check --help 1 orchbee workspace get target --h
 check report-metadata 1 orchbee workspace report-m
 check workspace 1 orchbee --source=hook:agent work
 check terminal 0 orchbee --source=hook:agent ter

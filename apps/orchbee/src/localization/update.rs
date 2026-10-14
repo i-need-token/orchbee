@@ -20,6 +20,10 @@ impl Locale {
                 "请将 ORCHBEE_UPDATE_MANIFEST 设置为 Orchbee HTTPS 发布清单或本地清单的绝对路径，再重试 orchbee update。",
             ),
             "source-invalid" => ("Invalid release source.", "发布源无效。"),
+            "local-manifest-read" => (
+                "Cannot read the local release manifest. Check the file path and permissions in ORCHBEE_UPDATE_MANIFEST, then retry orchbee update.",
+                "无法读取本地发布清单。请检查 ORCHBEE_UPDATE_MANIFEST 中的文件路径和读取权限，再重试 orchbee update。",
+            ),
             "manifest-invalid" => (
                 "Release manifest is invalid, incomplete, or for another channel/platform.",
                 "发布清单无效、不完整，或频道/平台不匹配。",

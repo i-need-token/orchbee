@@ -1482,7 +1482,7 @@ fn emit(run: DoctorRun, format: OutputFormat, locale: Locale) -> Output {
         OutputFormat::Json => {
             let document = json!({
                 "schema": "orchbee.agent.doctor",
-                "version": if cfg!(windows) { 3 } else { 1 },
+                "version": if cfg!(windows) { 4 } else { 1 },
                 "source": local_runtime_source(),
                 "result": result,
             });

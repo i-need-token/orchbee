@@ -106,7 +106,7 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
                 3
             }
         }
-        QueryCommand::ApiSnapshot => 6,
+        QueryCommand::ApiSnapshot => 7,
         QueryCommand::PanelList { .. } => {
             if cfg!(windows) {
                 11
@@ -114,7 +114,7 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
                 10
             }
         }
-        QueryCommand::TabGet(_) => 6,
+        QueryCommand::TabGet(_) => 7,
         QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_) => 8,
         QueryCommand::ProjectList
         | QueryCommand::ProjectGet(_)

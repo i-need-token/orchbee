@@ -270,6 +270,81 @@ fn checkout(dirty: bool) -> Completion {
         .unwrap(),
     )
 }
+
+#[test]
+fn absent_checkout_ends_partial_create_recovery_without_replaying_add() {
+    let mut fixture = Fixture::new();
+    fixture.start(WorktreeIntent::Create {
+        source: WorktreeSource::Workspace {
+            workspace_id: fixture.workspace.clone(),
+        },
+        branch: Some(orchbee_workbench_protocol::WorktreeReference::parse("topic").unwrap()),
+        base: None,
+        path: Some(WorkbenchDirectoryPath::parse("C:/new-checkout").unwrap()),
+        label: None,
+        geometry: WorkbenchTerminalGeometry::new(80, 24, 8, 16).unwrap(),
+        trust_repository: false,
+    });
+    fixture.finish_job(checkout(false));
+    let create = fixture.finish_job(Completion::Failed(
+        WorktreeMutationFailure::new(
+            WorktreeMutationStage::Mutate,
+            WorktreeMutationEffect::MayHaveChanged,
+            WorktreeMutationError::GitFailed(Some(128)),
+            b"fatal: checkout failed".to_vec(),
+        )
+        .unwrap(),
+    ));
+    assert!(
+        matches!(create.action, WorktreeMutationJobAction::Start(intent)
+        if matches!(intent.mutation(), WorktreeMutation::Create { .. }))
+    );
+    assert!(matches!(
+        fixture.settled(),
+        Status::Failed {
+            resumable: true,
+            ..
+        }
+    ));
+    assert!(matches!(
+        fixture.apply(Action::Resume {
+            operation_id: id(40),
+            expected_attempt: 1
+        }),
+        Outcome::Available { attempt: 2, .. }
+    ));
+    let observe = fixture.finish_job(Completion::Failed(
+        WorktreeMutationFailure::new(
+            WorktreeMutationStage::Select,
+            WorktreeMutationEffect::None,
+            WorktreeMutationError::CheckoutNotFound,
+            vec![],
+        )
+        .unwrap(),
+    ));
+    assert!(
+        matches!(observe.action, WorktreeMutationJobAction::Start(intent)
+        if matches!(intent.mutation(), WorktreeMutation::Open(_)))
+    );
+    assert!(matches!(
+        fixture.settled(),
+        Status::Failed {
+            resumable: false,
+            reason: Failure::Git {
+                error: WorktreeGitError::CheckoutNotFound,
+                ..
+            },
+            ..
+        }
+    ));
+    assert!(matches!(
+        fixture.apply(Action::Resume {
+            operation_id: id(40),
+            expected_attempt: 2
+        }),
+        Outcome::Available { attempt: 2, .. }
+    ));
+}
 #[test]
 fn detached_open_reuses_and_renames_workspace_without_terminal_launch_or_locks_across_ipc() {
     let mut fixture = Fixture::new();

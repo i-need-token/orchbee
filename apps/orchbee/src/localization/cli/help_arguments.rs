@@ -267,10 +267,10 @@ impl Locale {
         };
         roles.iter().map(|role| {
             let (label, english, chinese) = match *role {
-                Argument::Project => ("<target>", "Project ID, @project:<suffix>, or exact label.", "项目 ID、@project:<suffix> 或精确名称。"),
-                Argument::Workspace => ("<target>", "Workspace ID, @workspace:<suffix>, or exact label.", "工作区 ID、@workspace:<suffix> 或精确名称。"),
+                Argument::Project => ("<target>", "Project ID, @project:<suffix>, or exact label; ID/selector syntax takes priority. Use the real ID for labels with that syntax.", "项目 ID、@project:<suffix> 或精确名称；优先解析 ID 和选择器。名称形似 ID 或选择器时，请使用实际 ID。"),
+                Argument::Workspace => ("<target>", "Workspace ID, @workspace:<suffix>, or exact label; ID/selector syntax takes priority. Use the real ID for labels with that syntax.", "工作区 ID、@workspace:<suffix> 或精确名称；优先解析 ID 和选择器。名称形似 ID 或选择器时，请使用实际 ID。"),
                 Argument::Workspaces => ("<target> ...", "One or more workspaces in the desired order; use IDs, @workspace:<suffix>, or exact labels.", "按期望顺序列出一个或多个工作区；使用 ID、@workspace:<suffix> 或精确名称。"),
-                Argument::Tab => ("<target>", "Tab ID, @tab:<suffix>, or exact label.", "标签页 ID、@tab:<suffix> 或精确名称。"),
+                Argument::Tab => ("<target>", "Tab ID, @tab:<suffix>, or exact label; ID/selector syntax takes priority. Use the real ID for labels with that syntax.", "标签页 ID、@tab:<suffix> 或精确名称；优先解析 ID 和选择器。名称形似 ID 或选择器时，请使用实际 ID。"),
                 Argument::Panel => ("<panel>", "Panel ID or @panel:<suffix>; list panels with orchbee panel list.", "面板 ID 或 @panel:<suffix>；使用 orchbee panel list 列出面板。"),
                 Argument::Terminal => ("<terminal>", "Terminal ID or @terminal:<suffix>; list terminals with orchbee terminal list.", "终端 ID 或 @terminal:<suffix>；使用 orchbee terminal list 列出终端。"),
                 Argument::Agent => ("<target>", "Agent session ID, saved name, or panel target. Choose exactly one positional target or supported selector flag.", "Agent 会话 ID、保存的名称或面板目标。位置参数和受支持的选择器选项中只能选择一种。"),

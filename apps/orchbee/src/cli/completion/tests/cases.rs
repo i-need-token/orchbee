@@ -2,6 +2,31 @@
 
 pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     #[cfg(windows)]
+    (
+        "orchbee session attach audit --mouse off --h",
+        "--help",
+        true,
+    ),
+    #[cfg(windows)]
+    ("orchbee session attach audit --f", "--format", false),
+    (
+        "orchbee agent integration --provider codex --provider gemini e",
+        "enable",
+        false,
+    ),
+    (
+        "orchbee workspace create --label example --h",
+        "--help",
+        true,
+    ),
+    ("orchbee workspace get target --h", "--help", true),
+    #[cfg(windows)]
+    (
+        "orchbee --session work workspace create --label example --h",
+        "--help",
+        true,
+    ),
+    #[cfg(windows)]
     ("orchbee config im", "import-herdr", true),
     #[cfg(windows)]
     ("orchbee help config im", "import-herdr", true),

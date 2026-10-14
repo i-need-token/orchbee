@@ -169,7 +169,7 @@ __ORCHBEE_GRAMMAR__
                 }
                 if (-not $conflict) { $offeredFlags.Add($flag) }
             }
-            if ($businessSeen.Count -eq 0 -and $positionals.Count -le $command.words.Count) { $candidates.Add('--help') }
+            $candidates.Add('--help')
         }
         $joinedPrefix = ''
         if ($pending.Length -eq 0 -and $wordToComplete -cmatch '^(--[^=]+)=') {

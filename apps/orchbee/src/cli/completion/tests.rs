@@ -29,6 +29,14 @@ fn scripts_cover_the_implemented_surface() {
             assert!(script.contains(word), "{shell:?} lacks {word}");
         }
         for (family, verbs) in FAMILY_VERBS {
+            assert!(
+                ROOT_WORDS.contains(family),
+                "root completion lacks {family}"
+            );
+            assert!(
+                super::FORMAT_ROOT_WORDS.contains(family),
+                "formatted root completion lacks {family}"
+            );
             for verb in *verbs {
                 assert!(script.contains(verb), "{shell:?} lacks {family} {verb}");
             }

@@ -2,6 +2,49 @@ use super::super::{Budget, fs, probes};
 use std::{ffi::OsStr, path::Path};
 
 #[test]
+fn all_windows_provider_rows_fit_v4_without_widening_v3() {
+    use serde_json::{Value, json};
+    let run = super::super::DoctorRun {
+        providers: probes::PROVIDERS
+            .iter()
+            .map(|provider| {
+                json!({
+                    "id": provider.id, "executable":{"state":"absent"},
+                    "runtime":{"node":{"state":"absent"}},
+                    "hook":{"state":"unknown","reason":"unreadable","detail":{}}
+                })
+            })
+            .collect(),
+        roots: vec![],
+        endpoint: json!({"socket":{"state":"not-inspected","reason":"windows-endpoint-not-inspected"}}),
+        environment: json!({"observationSocketEnv":{"state":"unset"}}),
+        complete: true,
+    };
+    assert_eq!(run.providers.len(), 20);
+    let output = super::super::emit(
+        run,
+        crate::invocation::OutputFormat::Json,
+        crate::localization::Locale::EnUs,
+    );
+    let mut document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let definition: Value =
+        serde_json::from_str(include_str!("../../cli/schemas/orchbee.agent.doctor.json")).unwrap();
+    let validator = jsonschema::validator_for(&definition).unwrap();
+    validator.validate(&document).unwrap();
+    document["version"] = 3.into();
+    assert!(!validator.is_valid(&document));
+    document["result"]["providers"]
+        .as_array_mut()
+        .unwrap()
+        .truncate(14);
+    validator.validate(&document).unwrap();
+    document["version"] = 4.into();
+    let row = document["result"]["providers"][0].clone();
+    document["result"]["providers"] = json!(vec![row; 21]);
+    assert!(!validator.is_valid(&document));
+}
+
+#[test]
 fn windows_paths_admit_drive_and_unc_but_refuse_devices_and_relative_names() {
     for path in [
         r"C:\Users\中文 user\config.toml",

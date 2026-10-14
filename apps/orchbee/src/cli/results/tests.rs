@@ -107,6 +107,53 @@ fn failure(command: &QueryCommand) -> Failure {
 }
 
 #[test]
+fn split_ratio_projections_validate_without_widening_legacy_documents() {
+    let mut state = snapshot();
+    let PanelNode::Split { ratio, .. } = &mut state.terminal_contexts[1].tabs[0].root else {
+        panic!("split fixture")
+    };
+    *ratio = orchbee_workbench_protocol::WorkbenchSplitRatio::new(0.9).unwrap();
+    for (command, definition) in [
+        (
+            QueryCommand::ApiSnapshot,
+            include_str!("../schemas/orchbee.api.snapshot.json"),
+        ),
+        (
+            QueryCommand::TabGet(Target::Id(hex(0x52))),
+            include_str!("../schemas/orchbee.tab.get.json"),
+        ),
+    ] {
+        let source = json!({"kind":"workbench-snapshot","siteId":hex(0xaa),"revision":"9"});
+        let mut document = json!({"schema":schema_id(&command),"version":schema_version(&command),
+            "source":source,"result":project(&command, &state).unwrap().result()});
+        let definition: Value = serde_json::from_str(definition).unwrap();
+        let validator = jsonschema::validator_for(&definition).unwrap();
+        validator.validate(&document).unwrap();
+        document["version"] = 6.into();
+        assert!(
+            !validator.is_valid(&document),
+            "legacy schema must reject ratio"
+        );
+        let mut legacy = document.clone();
+        let legacy_root = if matches!(command, QueryCommand::ApiSnapshot) {
+            &mut legacy["result"]["snapshot"]["terminalContexts"][1]["tabs"][0]["root"]
+        } else {
+            &mut legacy["result"]["tab"]["root"]
+        };
+        legacy_root.as_object_mut().unwrap().remove("ratio");
+        validator.validate(&legacy).unwrap();
+        document["version"] = 7.into();
+        let root = if matches!(command, QueryCommand::ApiSnapshot) {
+            &mut document["result"]["snapshot"]["terminalContexts"][1]["tabs"][0]["root"]
+        } else {
+            &mut document["result"]["tab"]["root"]
+        };
+        root["ratio"] = 0.91.into();
+        assert!(!validator.is_valid(&document));
+    }
+}
+
+#[test]
 fn automatic_tab_queries_use_context_position_and_numeric_name_collisions_stay_ambiguous() {
     let mut state = snapshot();
     for context in &mut state.terminal_contexts {

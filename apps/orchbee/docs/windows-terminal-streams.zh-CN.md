@@ -29,8 +29,10 @@
 每条 JSON 记录声明 `orchbee.terminal.stream` 版本 2 及 kind。帧字节使用 base64，
 sequence／generation／revision 身份使用十进制字符串。两种 format 选择均输出 NDJSON。
 
-Windows stdout 通过本次调用拥有的隐藏系统 PowerShell 进程转发，运行固定脚本并禁用
-profile。至多一条有界记录在途，子进程写入并刷新后才确认。父进程使用可取消、有截止
+Windows stdout 通过本次调用拥有的系统 PowerShell 进程转发，运行固定脚本并禁用
+profile。重定向输出使用隐藏子进程并保留原始字节；原生控制台输出则保留现有控制台，
+使用独立 Ctrl+C 进程组，将 UTF-8 记录解码后写入 Unicode 控制台，不新建窗口、不修改控制台模式。
+至多一条有界记录在途，子进程写入并刷新后才确认。父进程使用可取消、有截止
 时间的非阻塞管道轮询，不将载荷插入命令。子进程 stdin 使用同步管道句柄；仅把 overlapped IPC 句柄
 切换为阻塞模式，无法满足标准子进程读取器的要求。输出停滞或任意退出时，所有者停止并 join
 子进程；这无法撤回已经交付下游的字节。

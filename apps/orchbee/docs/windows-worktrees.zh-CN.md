@@ -4,6 +4,8 @@
 
 ## 命令与默认值
 
+Git checkout 创建抑制进度输出。有界 stderr 保留最后 2048 字节，避免大量诊断挤掉最终失败原因。部分失败的 Create 通过观察原路径恢复，绝不重放 `git worktree add`。若观察证明 checkout 已不存在，该操作变为不可恢复。请检查保留的分支与 Git 错误，解决原因后提交新的 Create；CLI 不会删除分支或静默重试影响。
+
 ```powershell
 orchbee worktree create --project demo --cwd C:/code/demo --branch feature/example
 orchbee worktree open --project demo --cwd C:/code/demo --branch feature/example

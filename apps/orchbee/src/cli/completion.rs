@@ -1,106 +1,18 @@
-//! Static completion scripts for the implemented grammar. The POSIX shells
-//! run the same state machine — a faithful projection of `invocation::scan`/
-//! `resolve` — and emit only the candidates the parser could still accept.
-//! The scripts are emitted to stdout only; nothing is installed, no user
-//! files are read or written, and no resource or Site state is ever
-//! enumerated.
+//! Static shell projections of the implemented invocation grammar.
 //!
-//! Walker state (per completed word):
-//! - `state` — positional position: verb | sub | deep | after | operand | help |
-//!   completion (`deep` covers `agent integration` and `terminal session`)
-//! - `done` — the argv can no longer produce a legal request (invalid or
-//!   terminal): no candidates
-//! - `ended` — `--` was seen: option termination, and `--` is never consumed
-//!   as a flag value (checked before value ownership)
-//! - `value` — a declared flag owns the next word: `format` | `mouse` |
-//!   `direction` | `key` (`terminal send --key`) | `filter` (every other
-//!   value-owning flag)
-//! - `seen_*` — one consumed bit per `--format`, per `--mouse`, and per
-//!   business flag; duplicates are usage except for the grammar's
-//!   declared repeatable flags
-//! - `seen_flags` — the consumed business flags as a list, so a command's
-//!   admission check is its own declared scope instead of an enumeration
-//!   of every flag it rejects
-//! - `seen_provider2` — a second `--provider` stands: legal only toward
-//!   `agent doctor`, so it retires `agent integration` from the viable
-//!   words and is a dead prefix once that family is committed
-//!
-//! Walk precedence per completed word (mirrors `format_envelope` + `scan`):
-//! 1. `--` → ended, always (the parser never takes it as a value)
-//! 2. done | ended → ignore (nothing more is legal)
-//! 3. value set → the word is the flag's value; a `--format` value outside
-//!    {text,json} or a `--mouse` value outside {off,on} makes the parse fail
-//! 4. `--format*` → legal only where options may still appear
-//!    (verb/sub/after/operand, bare `status`); a second selector or an
-//!    invalid value is usage
-//! 5. `--mouse`/`--mouse=off|on` → the TUI/attach option: legal at verb
-//!    (only `tui` stays viable afterward) or on the `tui` leaf; a second
-//!    `--mouse` or an invalid value — joined or separate — is usage
-//! 6. business flags → legal iff a command reachable here admits the flag:
-//!    verb records it (checked when the command lands), sub requires the
-//!    flag's owning family, deep admits its nested family's union scope,
-//!    after/operand require membership in the resolved command's flag scope
-//!    (`--workspace`/`--standalone` stay exclusive); operand-taking paths
-//!    consume one positional first; leaf/help/completion reject all options
-//!    - joined `--flag=value` → the flag part drives the same admission and
-//!      bookkeeping as the separate spelling for the grammar's declared
-//!      value flags; the inline value never claims the next word, and a
-//!      boolean or unknown name in that shape is usage
-//! 7. `--help`/`--version`/`--skill` (plus Windows `--default-config`) → terminal flags:
-//!    nothing may follow → done
-//! 8. unknown `-x` → usage → done
-//! 9. other word → positional dispatch:
-//!    - verb: family→sub | `status`→leaf (optional client/server child; fails if a business flag or
-//!      `--mouse` was seen) | `tui`→leaf (fails if a business flag or
-//!      `--format` was seen) | `help`→help / `completion`→completion (both
-//!      fail if any option was seen); only agent/terminal families admit `--mouse`
-//!    - sub: family:verb → after, or a nested family → deep; the verb's
-//!      declared flag scope must cover everything already seen
-//!    - deep: nested family plus verb → after under its declared scope
-//!    - after: operand-taking paths → operand; anything else → done
-//!    - operand/leaf/completion → done
-//!    - help: HELP_TOPICS / HELP_CHILDREN / HELP_LEVEL3 walk
-//!
-//! Candidate precedence at the cursor (same order as the parser's legality):
-//! - dead consumed prefix → nothing: when the already-typed words leave no
-//!   legal root word (verb) or no legal verb (sub), every candidate is
-//!   suppressed before the pending-value, `--format=` override, and offer
-//!   arms below — `--workspace x --standalone` and `--project x terminal`
-//!   complete nothing
-//! - done | ended → nothing
-//! - value == format → text json
-//! - value == mouse → off on
-//! - value == direction → the resolved command's direction words
-//! - value == key → the closed `terminal send --key` vocabulary
-//! - value == provider → the closed `agent integration` provider vocabulary
-//! - value == filter → nothing (no resource enumeration)
-//! - cur == `--format=*` → `--format=text`/`--format=json` only where a
-//!   format option is legal and none was consumed — never after
-//!   done/ended/invalid/help/completion/tui or inside a pending flag value
-//! - cur == `--enum=<prefix>` → that flag's own closed vocabulary with the
-//!   `--flag=` spelling preserved, only where the flag could still be
-//!   admitted (`--mouse=` under a viable TUI or attach; `--direction=` once the
-//!   command resolves; `--key=`/`--until=`/`--provider=` inside their
-//!   owning scopes); a freeform flag's value is never guessed
-//! - verb → root words still viable under the seen business flags + format
-//!   flags + `--help`/`--version` only when nothing was consumed
-//! - sub → verbs whose flag scope covers the seen flags + format flags
-//! - deep → `agent integration` verbs while the seen flags stay inside the
-//!   union scope + format flags
-//! - leaf → `status`: format flags + `--help` when nothing was seen; `tui`:
-//!   `--help` and `--mouse` only while `--mouse` is unconsumed — a consumed
-//!   `--mouse` leaves no further options on the TUI leaf
-//! - after → format flags + the command's unused business flags + `--help`
-//!   on every command path with no option seen; the operand-taking `get`/
-//!   `api schema`/mutation paths take a legal suffix help before their
-//!   operand
-//! - operand → format flags + the command's unused business flags
-//! - help → help topics / children
-//! - completion → shells + `--help`
+//! The POSIX walkers track command depth, pending values, consumed flags,
+//! operands and terminal actions. Nested family landing, narrowing and leaf
+//! admission all use HELP_LEVEL3 and COMMAND_FLAGS. Session selection is
+//! orthogonal to command-scoped Agent selectors. Completed invalid prefixes,
+//! repeated one-shot flags and option terminators never regain candidates.
+//! Help remains available after legal options and operands. Closed values are
+//! offered statically; paths, resources and runtime state are never probed.
 
 mod elvish;
 mod grammar;
 mod powershell;
+mod routing;
+mod scope;
 
 use crate::invocation::CompletionShell;
 
@@ -112,6 +24,8 @@ const GLOBAL_FLAGS: &[&str] = &[
 
 /// Top-level words the grammar accepts before any option.
 const ROOT_WORDS: &[&str] = &[
+    #[cfg(windows)]
+    "events",
     #[cfg(windows)]
     "command",
     #[cfg(windows)]
@@ -150,6 +64,8 @@ const ROOT_WORDS: &[&str] = &[
 /// every data command family accepts it; `help`/`completion`/`tui`/`--version`
 /// reject it.
 const FORMAT_ROOT_WORDS: &[&str] = &[
+    #[cfg(windows)]
+    "events",
     #[cfg(windows)]
     "command",
     #[cfg(windows)]
@@ -1847,9 +1763,18 @@ const DEFAULT_CONFIG_CANDIDATE: &str = "";
 
 pub(crate) fn render(shell: CompletionShell) -> String {
     match shell {
-        CompletionShell::Bash => bash(),
-        CompletionShell::Zsh => zsh(),
-        CompletionShell::Fish => fish(),
+        CompletionShell::Bash => scope::expand(
+            routing::expand(bash(), CompletionShell::Bash),
+            CompletionShell::Bash,
+        ),
+        CompletionShell::Zsh => scope::expand(
+            routing::expand(zsh(), CompletionShell::Zsh),
+            CompletionShell::Zsh,
+        ),
+        CompletionShell::Fish => scope::expand(
+            routing::expand(fish(), CompletionShell::Fish),
+            CompletionShell::Fish,
+        ),
         CompletionShell::PowerShell => powershell::render(),
         CompletionShell::Elvish => elvish::render(),
     }
@@ -2062,9 +1987,8 @@ pub(super) fn help_flags(path: crate::invocation::CommandPath) -> Vec<&'static s
     if path != CommandPath::ConfigImportHerdr {
         flags.extend(GLOBAL_FLAGS);
     }
-    let accepts_format = path != CommandPath::Tui;
-    #[cfg(windows)]
-    let accepts_format = accepts_format && path != CommandPath::SessionAttach;
+    let accepts_format =
+        grammar::accepts_format(&path.as_str().split_whitespace().collect::<Vec<_>>());
     if accepts_format {
         flags.push("--format");
     }
@@ -2132,6 +2056,34 @@ fn deep_verb_patterns() -> String {
         .flat_map(|(path, verbs)| verbs.iter().map(move |verb| format!("{path}:{verb}")))
         .collect::<Vec<_>>()
         .join("|")
+}
+
+/// Nested families share the same table for landing, narrowing and flag scope.
+fn reachable_flags(path: &str) -> Vec<&'static str> {
+    if let Some((_, verbs)) = HELP_LEVEL3.iter().find(|(parent, _)| *parent == path) {
+        verbs
+            .iter()
+            .flat_map(|verb| command_flags(&format!("{path}:{verb}")).iter().copied())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    } else {
+        command_flags(path).to_vec()
+    }
+}
+
+fn deep_landing_bash() -> String {
+    HELP_LEVEL3.iter().map(|(path, _)| {
+        let (_, child) = path.split_once(':').expect("nested family");
+        format!("                            {path}) sub={child}; state=deep; admit '{}' \"${{seen_flags[@]}}\" || done=1 ;;", reachable_flags(path).join(" "))
+    }).collect::<Vec<_>>().join("\n")
+}
+
+fn deep_landing_fish() -> String {
+    HELP_LEVEL3.iter().map(|(path, _)| {
+        let (_, child) = path.split_once(':').expect("nested family");
+        format!("                            case '{path}'; set sub {child}; set state deep; __orchbee_admit '{}' $seen_flags; or set done 1", reachable_flags(path).join(" "))
+    }).collect::<Vec<_>>().join("\n")
 }
 
 /// bash/zsh `help <topic> <child> <TAB>` offers.
@@ -2393,7 +2345,7 @@ fn after_flag_cases_bash() -> String {
 /// rejects. `admit` is the same consumed-list check fish runs.
 fn scope_cases_bash() -> String {
     FAMILY_VERBS
-        .iter()
+        .iter().chain(HELP_LEVEL3.iter())
         .flat_map(|(family, verbs)| {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
@@ -2441,14 +2393,14 @@ fn scope_cases_bash() -> String {
 /// third level's union scope.
 fn verb_cases_bash() -> String {
     FAMILY_VERBS
-        .iter()
+        .iter().chain(HELP_LEVEL3.iter())
         .map(|(family, verbs)| {
             let mut lines = verbs
                 .iter()
                 .enumerate()
                 .map(|(index, verb)| {
                     let command = format!("{family}:{verb}");
-                    let allowed = command_flags(&command).join(" ");
+                    let allowed = reachable_flags(&command).join(" ");
                     let guard = if command == "worktree:list" {
                         " && ((!seen_workspace || !seen_cwd)) && ((!seen_project && !seen_directory || !seen_workspace && !seen_cwd && !seen_trust_repository))"
                     } else if command == "worktree:open" {
@@ -2469,6 +2421,7 @@ fn verb_cases_bash() -> String {
                         ""
                     };
                     let mut guard = guard.to_owned();
+                    if !grammar::accepts_format(&command.split(':').collect::<Vec<_>>()) { guard.push_str(" && ((!seen_format))"); }
                     for (flag, conflict) in command_conflict_pairs(&command) {
                         guard.push_str(&format!(" && ((!{} || !{}))", flag_bit(flag), flag_bit(conflict)));
                     }
@@ -2717,11 +2670,13 @@ fn direction_cases_bash() -> String {
         .join("\n")
 }
 
-/// The bash/zsh "no option was consumed" condition that keeps `--help`
-/// offers legal: the consumed-flag list is empty and neither orthogonal
-/// option bit stands.
+/// Root information actions are available only before scoped options.
 fn no_options_bash() -> &'static str {
-    "!seen_format && !seen_mouse && !${#seen_flags[@]}"
+    if cfg!(windows) {
+        "!seen_machine && !seen_local_session && !seen_format && !seen_mouse && !${#seen_flags[@]}"
+    } else {
+        "!seen_format && !seen_mouse && !${#seen_flags[@]}"
+    }
 }
 
 fn bash() -> String {
@@ -2734,6 +2689,7 @@ fn bash() -> String {
             "    local flag_name=\"\" cur_name=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
+            "__ORCHBEE_ROUTING_DECLARATIONS__",
             "    local -a seen_flags\n",
             "    local metadata_source_only=0 ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word\n",
@@ -2766,18 +2722,21 @@ fn bash() -> String {
             "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
             "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then metadata_source_only=1; [[ $word =~ ^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$ ]] || done=1; fi\n",
             "            if [[ $value == right_click && $word != orchbee && $word != panel ]]; then done=1; fi\n",
+            "__ORCHBEE_ROUTING_VALUE__",
             "            value=\"\"\n",
             "            continue\n",
             "        fi\n",
+            "        if [[ $family == session && $state == after && $word != -* ]]; then session_target=$word; [[ $word =~ ^[A-Za-z0-9._-]{{1,64}}$ && $word != . && $word != .. ]] || done=1; fi\n",
             "        if [[ $family:$sub == agent:attach ]]; then\n",
             "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
             "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel)); then done=1; fi\n",
             "        fi\n",
             "        case \"$word\" in\n",
+            "__ORCHBEE_ROUTING_PARSE__",
             "            --format|--format=*)\n",
             "                case \"$state\" in\n",
             "                    verb|sub|deep|after|operand|operand2) ;;\n",
-            "                    leaf) [[ $leaf == status ]] || done=1 ;;\n",
+            "                    leaf) [[ $leaf == status || $leaf == update ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
             "                if ((!done)); then\n",
@@ -2797,8 +2756,8 @@ fn bash() -> String {
             "                # stays inside the closed {{off,on}} vocabulary.\n",
             "                case \"$state\" in\n",
             "                    verb) ;;\n",
-            "                    sub) [[ $family == terminal || $family == agent ]] || done=1 ;;\n",
-            "                    after|operand|operand2) [[ $family:$sub == terminal:attach || $family:$sub == agent:attach ]] || done=1 ;;\n",
+            "                    sub) [[ __ORCHBEE_MOUSE_FAMILY_GUARD__ ]] || done=1 ;;\n",
+            "                    after|operand|operand2) [[ __ORCHBEE_MOUSE_PATH_GUARD__ ]] || done=1 ;;\n",
             "                    leaf) [[ $leaf == tui ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
@@ -2880,23 +2839,19 @@ fn bash() -> String {
             "                case \"$state\" in\n",
             "                    verb)\n",
             "                        case \"$word\" in\n",
+            "{update_landing}",
             "                            status)\n",
             "                                if ((${{#seen_flags[@]}} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
             "                            tui)\n",
             "                                if ((seen_format)) || ! admit '--mouse' \"${{seen_flags[@]}}\"; then done=1; else leaf=tui; state=leaf; fi ;;\n",
             "                            help|completion)\n",
             "                                if ((seen_format || ${{#seen_flags[@]}} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
-            "                            {families}) if ((seen_mouse)) && [[ $word != terminal && $word != agent ]]; then done=1; else family=$word; state=sub; fi ;;\n",
+            "                            {families}) if ((seen_mouse)) && ! [[ __ORCHBEE_MOUSE_WORD_GUARD__ ]]; then done=1; else family=$word; state=sub; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
-            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout --takeover' \"${{seen_flags[@]}}\" || done=1 ;;\n",
-            "                            agent:integration)\n",
-            "                                sub=integration; state=deep\n",
-            "                                # The sub-family's union scope must cover\n",
-            "                                # every flag already recorded.\n",
-            "                                (({integration_bad})) && done=1 ;;\n",
+            "{deep_landing}\n",
             "                            {paths})\n",
             "                                sub=$word; state=after\n",
             "                                # The chosen verb's flag scope must cover\n",
@@ -2912,7 +2867,9 @@ fn bash() -> String {
             "                                sub=\"$sub:$word\"; state=after\n",
             "                                # Every `agent integration` verb shares the\n",
             "                                # same flag scope — the union check.\n",
-            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; elif [[ $sub == session:observe ]] && ((seen_takeover)); then done=1; fi ;;\n",
+            "                                case \"$family:$sub\" in\n",
+            "{scope_cases}\n",
+            "                                esac ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -2944,6 +2901,8 @@ fn bash() -> String {
             "                esac ;;\n",
             "        esac\n",
             "    done\n",
+            "__ORCHBEE_ROUTING_ADMISSION__",
+            "__ORCHBEE_OPTION_SCOPE__",
             "    # A consumed prefix that left no legal root word (verb) or no legal\n",
             "    # verb (sub, deep) is dead: every candidate is suppressed before\n",
             "    # pending values, the --format= override, or any offer can resurrect\n",
@@ -2953,7 +2912,7 @@ fn bash() -> String {
             "        possible=\"{roots}\"\n",
             "{narrow_lines}\n",
             "        ((metadata_source_only)) && narrow \"workspace\"\n",
-            "        ((seen_mouse)) && narrow \"tui agent terminal\"\n",
+            "        ((seen_mouse)) && narrow \"__ORCHBEE_MOUSE_ROOTS__\"\n",
             "        ((seen_format)) && narrow \"{format_roots}\"\n",
             "        [[ -z $possible ]] && dead=1\n",
             "    elif [[ $state == sub ]]; then\n",
@@ -2962,7 +2921,9 @@ fn bash() -> String {
             "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    elif [[ $state == deep ]]; then\n",
-            "        if [[ $family == terminal ]]; then verbs=control; ((seen_takeover == 0)) && verbs=\"$verbs observe\"; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
+            "        case \"$family:$sub\" in\n",
+            "{verb_cases}\n",
+            "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
@@ -2981,11 +2942,11 @@ fn bash() -> String {
             "    elif [[ $value == copy_motion ]]; then [[ $family:$sub == terminal:copy-motion ]] && candidates=\"{copy_motion_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
-            "        if ((!seen_format)); then\n",
+            "        if ((!seen_format && accepts_format)); then\n",
             "            case \"$state\" in\n",
             "                verb) candidates=\"--format=text --format=json\" ;;\n",
             "                sub|deep|after|operand|operand2) candidates=\"--format=text --format=json\" ;;\n",
-            "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
+            "                leaf) [[ $leaf == status || $leaf == update ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
             "    elif [[ $cur == --*=* ]]; then\n",
@@ -2998,9 +2959,9 @@ fn bash() -> String {
             "            --mouse)\n",
             "                if ((!seen_mouse)); then\n",
             "                    case \"$state\" in\n",
-            "                        verb) [[ \" $possible \" == *\" tui \"* || \" $possible \" == *\" agent \"* || \" $possible \" == *\" terminal \"* ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
-            "                        sub) [[ $family == terminal || $family == agent ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
-            "                        after|operand|operand2) [[ $family:$sub == terminal:attach || $family:$sub == agent:attach ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        verb) [[ __ORCHBEE_MOUSE_POSSIBLE_GUARD__ ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        sub) [[ __ORCHBEE_MOUSE_FAMILY_GUARD__ ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        after|operand|operand2) [[ __ORCHBEE_MOUSE_PATH_GUARD__ ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
             "                        leaf) [[ $leaf == tui ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
             "                    esac\n",
             "                fi ;;\n",
@@ -3008,30 +2969,30 @@ fn bash() -> String {
             "        esac\n",
             "    elif [[ $state == verb ]]; then\n",
             "        candidates=\"$possible\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
-            "        [[ \" $possible \" == *\" tui \"* || \" $possible \" == *\" agent \"* || \" $possible \" == *\" terminal \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        [[ __ORCHBEE_MOUSE_POSSIBLE_GUARD__ ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
             "            candidates=\"$candidates --help --version --skill{default_config_candidate}\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == deep ]]; then\n",
             "        candidates=\"$verbs\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
             "        [[ $leaf == status ]] && candidates=\"client server\"\n",
             "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
-            "        elif ((!seen_format)); then candidates=\"$candidates --format --format= --help\"; fi\n",
+            "        elif ((!seen_format && accepts_format)); then candidates=\"$candidates --format --format= --help\"; fi\n",
             "    elif [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
-            "        ((seen_format)) || candidates=\"--format --format=\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"--format --format=\"\n",
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
             "        # Suffix `--help` is legal on every command path — including the\n",
-            "        # operand-owed `get`/`api schema`/mutation paths — while no\n",
-            "        # option was seen and the operand is still owed.\n",
-            "        if [[ $state == after ]] && (({no_options})); then\n",
+            "        # operand-owed `get`/`api schema`/mutation paths — after legal\n",
+            "        # options and operands as well.\n",
+            "        if [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
             "            candidates=\"$candidates --help\"\n",
             "        fi\n",
             "        [[ -n $extras ]] && candidates=\"$candidates $extras\"\n",
@@ -3048,6 +3009,7 @@ fn bash() -> String {
             "            esac\n",
             "        fi\n",
             "    fi\n",
+            "__ORCHBEE_ROUTING_CANDIDATES__",
             "    COMPREPLY=()\n",
             "    # shellcheck disable=SC2207\n",
             "    if [[ -n $candidates ]]; then COMPREPLY=($(compgen -W \"$candidates\" -- \"$cur\")); fi\n",
@@ -3086,8 +3048,12 @@ fn bash() -> String {
         sub_flag_cases = sub_flag_cases_bash(),
         deep_flag_patterns = deep_flag_patterns(),
         deep_verb_patterns = deep_verb_patterns(),
-        integration_bad = integration_bad_bits(),
-        integration_verb_words = INTEGRATION_VERBS.join(" "),
+        deep_landing = deep_landing_bash(),
+        update_landing = if cfg!(windows) {
+            "                            update) if ((${#seen_flags[@]} || seen_mouse)); then done=1; else leaf=update; state=leaf; fi ;;\n"
+        } else {
+            ""
+        },
         after_flag_cases = after_flag_cases_bash(),
         seen_cases = seen_cases_bash(false),
         value_flag_patterns = value_business_flags().collect::<Vec<_>>().join("|"),
@@ -3121,6 +3087,7 @@ fn zsh() -> String {
             "    local candidates=\"\" extras=\"\" verbs=\"\" possible=\"\"\n",
             "    local state=verb help_a=\"\" help_b=\"\" help_c=\"\" family=\"\" sub=\"\" leaf=\"\"\n",
             "    local seen_format=0 seen_mouse=0 {seen_decls} seen_provider2=0\n",
+            "__ORCHBEE_ROUTING_DECLARATIONS__",
             "    local -a seen_flags\n",
             "    local metadata_source_only=0 ended=0 done=0 dead=0 value=\"\"\n",
             "    local i word cur flag_name=\"\" cur_name=\"\"\n",
@@ -3149,18 +3116,21 @@ fn zsh() -> String {
             "            if [[ $value == mouse && $word != off && $word != on ]]; then done=1; fi\n",
             "            if [[ $value == output_source && $word != visible && $word != recent && $word != recent-unwrapped && $word != detection ]]; then metadata_source_only=1; [[ $word =~ ^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$ ]] || done=1; fi\n",
             "            if [[ $value == right_click && $word != orchbee && $word != panel ]]; then done=1; fi\n",
+            "__ORCHBEE_ROUTING_VALUE__",
             "            value=\"\"\n",
             "            continue\n",
             "        fi\n",
+            "        if [[ $family == session && $state == after && $word != -* ]]; then session_target=$word; [[ $word =~ ^[A-Za-z0-9._-]{{1,64}}$ && $word != . && $word != .. ]] || done=1; fi\n",
             "        if [[ $family:$sub == agent:attach ]]; then\n",
             "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
             "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel)); then done=1; fi\n",
             "        fi\n",
             "        case \"$word\" in\n",
+            "__ORCHBEE_ROUTING_PARSE__",
             "            --format|--format=*)\n",
             "                case \"$state\" in\n",
             "                    verb|sub|deep|after|operand|operand2) ;;\n",
-            "                    leaf) [[ $leaf == status ]] || done=1 ;;\n",
+            "                    leaf) [[ $leaf == status || $leaf == update ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
             "                if ((!done)); then\n",
@@ -3180,8 +3150,8 @@ fn zsh() -> String {
             "                # stays inside the closed {{off,on}} vocabulary.\n",
             "                case \"$state\" in\n",
             "                    verb) ;;\n",
-            "                    sub) [[ $family == terminal || $family == agent ]] || done=1 ;;\n",
-            "                    after|operand|operand2) [[ $family:$sub == terminal:attach || $family:$sub == agent:attach ]] || done=1 ;;\n",
+            "                    sub) [[ __ORCHBEE_MOUSE_FAMILY_GUARD__ ]] || done=1 ;;\n",
+            "                    after|operand|operand2) [[ __ORCHBEE_MOUSE_PATH_GUARD__ ]] || done=1 ;;\n",
             "                    leaf) [[ $leaf == tui ]] || done=1 ;;\n",
             "                    *) done=1 ;;\n",
             "                esac\n",
@@ -3263,21 +3233,19 @@ fn zsh() -> String {
             "                case \"$state\" in\n",
             "                    verb)\n",
             "                        case \"$word\" in\n",
+            "{update_landing}",
             "                            status)\n",
             "                                if ((${{#seen_flags[@]}} || seen_mouse)); then done=1; else leaf=status; state=leaf; fi ;;\n",
             "                            tui)\n",
             "                                if ((seen_format)) || ! admit '--mouse' \"${{seen_flags[@]}}\"; then done=1; else leaf=tui; state=leaf; fi ;;\n",
             "                            help|completion)\n",
             "                                if ((seen_format || ${{#seen_flags[@]}} || seen_mouse)); then done=1; else state=$word; fi ;;\n",
-            "                            {families}) if ((seen_mouse)) && [[ $word != terminal && $word != agent ]]; then done=1; else family=$word; state=sub; fi ;;\n",
+            "                            {families}) if ((seen_mouse)) && ! [[ __ORCHBEE_MOUSE_WORD_GUARD__ ]]; then done=1; else family=$word; state=sub; fi ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    sub)\n",
             "                        case \"$family:$word\" in\n",
-            "                            terminal:session) sub=session; state=deep; admit '--cols --rows --timeout --takeover' \"${{seen_flags[@]}}\" || done=1 ;;\n",
-            "                            agent:integration)\n",
-            "                                sub=integration; state=deep\n",
-            "                                (({integration_bad})) && done=1 ;;\n",
+            "{deep_landing}\n",
             "                            {paths})\n",
             "                                sub=$word; state=after\n",
             "                                case \"$family:$sub\" in\n",
@@ -3289,7 +3257,9 @@ fn zsh() -> String {
             "                        case \"$family:$sub:$word\" in\n",
             "                            {deep_verb_patterns})\n",
             "                                sub=\"$sub:$word\"; state=after\n",
-            "                                if [[ $family == agent ]]; then (({integration_bad})) && done=1; elif [[ $sub == session:observe ]] && ((seen_takeover)); then done=1; fi ;;\n",
+            "                                case \"$family:$sub\" in\n",
+            "{scope_cases}\n",
+            "                                esac ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
             "                    after)\n",
@@ -3321,12 +3291,14 @@ fn zsh() -> String {
             "                esac ;;\n",
             "        esac\n",
             "    done\n",
+            "__ORCHBEE_ROUTING_ADMISSION__",
+            "__ORCHBEE_OPTION_SCOPE__",
             "    if ((metadata_source_only)) && [[ $state != verb && $family != workspace ]]; then done=1; fi\n",
             "    if [[ $state == verb ]]; then\n",
             "        possible=\"{roots}\"\n",
             "{narrow_lines}\n",
             "        ((metadata_source_only)) && narrow \"workspace\"\n",
-            "        ((seen_mouse)) && narrow \"tui agent terminal\"\n",
+            "        ((seen_mouse)) && narrow \"__ORCHBEE_MOUSE_ROOTS__\"\n",
             "        ((seen_format)) && narrow \"{format_roots}\"\n",
             "        [[ -z $possible ]] && dead=1\n",
             "    elif [[ $state == sub ]]; then\n",
@@ -3335,7 +3307,9 @@ fn zsh() -> String {
             "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    elif [[ $state == deep ]]; then\n",
-            "        if [[ $family == terminal ]]; then verbs=control; ((seen_takeover == 0)) && verbs=\"$verbs observe\"; else (({integration_bad})) || verbs=\"{integration_verb_words}\"; fi\n",
+            "        case \"$family:$sub\" in\n",
+            "{verb_cases}\n",
+            "        esac\n",
             "        [[ -z $verbs ]] && dead=1\n",
             "    fi\n",
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
@@ -3354,11 +3328,11 @@ fn zsh() -> String {
             "    elif [[ $value == copy_motion ]]; then [[ $family:$sub == terminal:copy-motion ]] && candidates=\"{copy_motion_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
-            "        if ((!seen_format)); then\n",
+            "        if ((!seen_format && accepts_format)); then\n",
             "            case \"$state\" in\n",
             "                verb) candidates=\"--format=text --format=json\" ;;\n",
             "                sub|deep|after|operand|operand2) candidates=\"--format=text --format=json\" ;;\n",
-            "                leaf) [[ $leaf == status ]] && candidates=\"--format=text --format=json\" ;;\n",
+            "                leaf) [[ $leaf == status || $leaf == update ]] && candidates=\"--format=text --format=json\" ;;\n",
             "            esac\n",
             "        fi\n",
             "    elif [[ $cur == --*=* ]]; then\n",
@@ -3371,9 +3345,9 @@ fn zsh() -> String {
             "            --mouse)\n",
             "                if ((!seen_mouse)); then\n",
             "                    case \"$state\" in\n",
-            "                        verb) [[ \" $possible \" == *\" tui \"* || \" $possible \" == *\" agent \"* || \" $possible \" == *\" terminal \"* ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
-            "                        sub) [[ $family == terminal || $family == agent ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
-            "                        after|operand|operand2) [[ $family:$sub == terminal:attach || $family:$sub == agent:attach ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        verb) [[ __ORCHBEE_MOUSE_POSSIBLE_GUARD__ ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        sub) [[ __ORCHBEE_MOUSE_FAMILY_GUARD__ ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
+            "                        after|operand|operand2) [[ __ORCHBEE_MOUSE_PATH_GUARD__ ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
             "                        leaf) [[ $leaf == tui ]] && candidates=\"--mouse=off --mouse=on\" ;;\n",
             "                    esac\n",
             "                fi ;;\n",
@@ -3381,27 +3355,27 @@ fn zsh() -> String {
             "        esac\n",
             "    elif [[ $state == verb ]]; then\n",
             "        candidates=\"$possible\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
-            "        [[ \" $possible \" == *\" tui \"* || \" $possible \" == *\" agent \"* || \" $possible \" == *\" terminal \"* ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        [[ __ORCHBEE_MOUSE_POSSIBLE_GUARD__ ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
             "            candidates=\"$candidates --help --version --skill{default_config_candidate}\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == deep ]]; then\n",
             "        candidates=\"$verbs\"\n",
-            "        ((seen_format)) || candidates=\"$candidates --format --format=\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
             "    elif [[ $state == leaf ]]; then\n",
             "        [[ $leaf == status ]] && candidates=\"client server\"\n",
             "        if [[ $leaf == tui ]]; then ((!seen_mouse)) && candidates=\"--help --mouse\"\n",
-            "        elif ((!seen_format)); then candidates=\"$candidates --format --format= --help\"; fi\n",
+            "        elif ((!seen_format && accepts_format)); then candidates=\"$candidates --format --format= --help\"; fi\n",
             "    elif [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
-            "        ((seen_format)) || candidates=\"--format --format=\"\n",
+            "        ((seen_format || !accepts_format)) || candidates=\"--format --format=\"\n",
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
-            "        if [[ $state == after ]] && (({no_options})); then\n",
+            "        if [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
             "            candidates=\"$candidates --help\"\n",
             "        fi\n",
             "        [[ -n $extras ]] && candidates=\"$candidates $extras\"\n",
@@ -3418,6 +3392,7 @@ fn zsh() -> String {
             "            esac\n",
             "        fi\n",
             "    fi\n",
+            "__ORCHBEE_ROUTING_CANDIDATES__",
             "    [[ -n $candidates ]] && compadd -- ${{=candidates}}\n",
             "    return 0\n",
             "}}\n",
@@ -3455,8 +3430,12 @@ fn zsh() -> String {
         sub_flag_cases = sub_flag_cases_bash(),
         deep_flag_patterns = deep_flag_patterns(),
         deep_verb_patterns = deep_verb_patterns(),
-        integration_bad = integration_bad_bits(),
-        integration_verb_words = INTEGRATION_VERBS.join(" "),
+        deep_landing = deep_landing_bash(),
+        update_landing = if cfg!(windows) {
+            "                            update) if ((${#seen_flags[@]} || seen_mouse)); then done=1; else leaf=update; state=leaf; fi ;;\n"
+        } else {
+            ""
+        },
         after_flag_cases = after_flag_cases_bash(),
         seen_cases = seen_cases_bash(false),
         value_flag_patterns = value_business_flags().collect::<Vec<_>>().join("|"),
@@ -3615,7 +3594,7 @@ fn after_flag_cases_fish() -> String {
 /// consumed set — no per-command enumeration of the flags it rejects.
 fn scope_cases_fish() -> String {
     let arms = FAMILY_VERBS
-        .iter()
+        .iter().chain(HELP_LEVEL3.iter())
         .flat_map(|(family, verbs)| {
             verbs.iter().map(move |verb| {
                 let command = format!("{family}:{verb}");
@@ -3655,13 +3634,13 @@ fn scope_cases_fish() -> String {
 /// `integration` under the third level's union scope.
 fn verb_cases_fish() -> String {
     FAMILY_VERBS
-        .iter()
+        .iter().chain(HELP_LEVEL3.iter())
         .map(|(family, verbs)| {
             let mut lines = verbs
                 .iter()
                 .map(|verb| {
                     let command = format!("{family}:{verb}");
-                    let allowed = command_flags(&command).join(" ");
+                    let allowed = reachable_flags(&command).join(" ");
                     // The exclusive pair must not both be seen for a tab verb
                     // to remain viable; `send` dies once `--key` stands next
                     // to a text payload bit.
@@ -3683,6 +3662,7 @@ fn verb_cases_fish() -> String {
                         format!("                if __orchbee_admit '{allowed}' $seen_flags; set -a verbs {verb}; end")
                     };
                     let mut conflicts = Vec::new();
+                    if !grammar::accepts_format(&command.split(':').collect::<Vec<_>>()) { conflicts.push("test $seen_format -eq 0".to_owned()); }
                     for (flag, conflict) in command_conflict_pairs(&command) {
                         conflicts.push(format!("test ${} -eq 0 -o ${} -eq 0", flag_bit(flag), flag_bit(conflict)));
                     }
@@ -3935,10 +3915,13 @@ fn joined_offer_cases_fish() -> String {
     )
 }
 
-/// The fish "no option was consumed" condition: the business list is empty
-/// and neither orthogonal option bit stands.
+/// Root information actions require an untouched scoped option set.
 fn no_options_fish() -> &'static str {
-    "(count $seen_flags) -eq 0 -a $seen_format -eq 0 -a $seen_mouse -eq 0"
+    if cfg!(windows) {
+        "$seen_machine -eq 0 -a $seen_local_session -eq 0 -a (count $seen_flags) -eq 0 -a $seen_format -eq 0 -a $seen_mouse -eq 0"
+    } else {
+        "(count $seen_flags) -eq 0 -a $seen_format -eq 0 -a $seen_mouse -eq 0"
+    }
 }
 
 fn fish() -> String {
@@ -3969,6 +3952,7 @@ fn fish() -> String {
             "    set -l state verb; set -l help_a \"\"; set -l help_b \"\"; set -l help_c \"\"\n",
             "    set -l family \"\"; set -l sub \"\"; set -l leaf \"\"\n",
             "    set -l seen_format 0; set -l seen_mouse 0; {seen_decls}; set -l seen_provider2 0; set -l seen_flags\n",
+            "__ORCHBEE_ROUTING_DECLARATIONS__",
             "    set -l metadata_source_only 0; set -l ended 0; set -l done 0; set -l value \"\"\n",
             "    for word in $words\n",
             "        if string match -q -- \"--\" \"$word\"; set ended 1; continue; end\n",
@@ -3981,18 +3965,21 @@ fn fish() -> String {
             "            if test \"$value\" = mouse; and test \"$word\" != off; and test \"$word\" != on; set done 1; end\n",
             "            if test \"$value\" = output_source; and not contains -- \"$word\" visible recent recent-unwrapped detection; set metadata_source_only 1; if not string match -rq \"^[[:space:]]*[A-Za-z0-9:._-]{{1,80}}[[:space:]]*$\" -- \"$word\"; set done 1; end; end\n",
             "            if test \"$value\" = right_click; and not contains -- \"$word\" orchbee panel; set done 1; end\n",
+            "__ORCHBEE_ROUTING_VALUE__",
             "            set value \"\"\n",
             "            continue\n",
             "        end\n",
+            "        if test \"$family\" = session; and test \"$state\" = after; and not string match -q -- '-*' $word; set session_target $word; if not string match -rq '^[A-Za-z0-9._-]{{1,64}}$' -- $word; or contains -- $word . ..; set done 1; end; end\n",
             "        if test \"$family:$sub\" = agent:attach\n",
             "            if test \"$state\" = operand; and contains -- (string split -m1 '=' -- $word)[1] --name --agent-session --panel; set done 1; end\n",
             "            if test \"$state\" = after; and not string match -q -- '-*' $word; and test (math \"$seen_name + $seen_session + $seen_panel\") -gt 0; set done 1; end\n",
             "        end\n",
             "        switch \"$word\"\n",
+            "__ORCHBEE_ROUTING_PARSE__",
             "            case '--format' '--format=*'\n",
             "                switch \"$state\"\n",
             "                    case verb sub deep after operand operand2\n",
-            "                    case leaf; if test \"$leaf\" != status; set done 1; end\n",
+            "                    case leaf; if not contains -- \"$leaf\" status update; set done 1; end\n",
             "                    case '*'; set done 1\n",
             "                end\n",
             "                if test $done -eq 0\n",
@@ -4010,8 +3997,8 @@ fn fish() -> String {
             "                # stays inside the closed {{off,on}} vocabulary.\n",
             "                switch \"$state\"\n",
             "                    case verb\n",
-            "                    case sub; if not contains -- $family terminal agent; set done 1; end\n",
-            "                    case after operand operand2; if not contains -- \"$family:$sub\" terminal:attach agent:attach; set done 1; end\n",
+            "                    case sub; if not contains -- $family __ORCHBEE_MOUSE_FAMILIES__; set done 1; end\n",
+            "                    case after operand operand2; if not contains -- \"$family:$sub\" __ORCHBEE_MOUSE_PATHS__; set done 1; end\n",
             "                    case leaf; if test \"$leaf\" != tui; set done 1; end\n",
             "                    case '*'; set done 1\n",
             "                end\n",
@@ -4095,6 +4082,7 @@ fn fish() -> String {
             "                switch \"$state\"\n",
             "                    case verb\n",
             "                        switch \"$word\"\n",
+            "{update_landing}",
             "                            case status\n",
             "                                if test (count $seen_flags) -gt 0 -o $seen_mouse -eq 1\n",
             "                                    set done 1\n",
@@ -4107,16 +4095,12 @@ fn fish() -> String {
             "                                if test $seen_format -eq 1 -o (count $seen_flags) -gt 0 -o $seen_mouse -eq 1\n",
             "                                    set done 1\n",
             "                                else; set state $word; end\n",
-            "                            case {families}; if test $seen_mouse -eq 1; and not contains -- $word terminal agent; set done 1; else; set family $word; set state sub; end\n",
+            "                            case {families}; if test $seen_mouse -eq 1; and not contains -- $word __ORCHBEE_MOUSE_FAMILIES__; set done 1; else; set family $word; set state sub; end\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case sub\n",
             "                        switch \"$family:$word\"\n",
-            "                            case 'terminal:session'\n",
-            "                                set sub session; set state deep; __orchbee_admit '--cols --rows --timeout --takeover' $seen_flags; or set done 1\n",
-            "                            case 'agent:integration'\n",
-            "                                set sub integration; set state deep\n",
-            "                                if test $family = agent; and begin; test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; end; set done 1; end\n",
+            "{deep_landing}\n",
             "                            case {paths}\n",
             "                                set sub $word; set state after\n",
             "                                switch \"$family:$sub\"\n",
@@ -4128,7 +4112,9 @@ fn fish() -> String {
             "                        switch \"$family:$sub:$word\"\n",
             "                            case {deep_verb_cases}\n",
             "                                set sub \"$sub:$word\"; set state after\n",
-            "                                if test $family = agent; if test $seen_provider2 -eq 1; or not __orchbee_admit '{integration_allowed}' $seen_flags; set done 1; end; else if test $sub = session:observe; and test $seen_takeover -eq 1; set done 1; end\n",
+            "                                switch \"$family:$sub\"\n",
+            "{scope_cases}\n",
+            "                                end\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
             "                    case after\n",
@@ -4161,13 +4147,15 @@ fn fish() -> String {
             "                end\n",
             "        end\n",
             "    end\n",
+            "__ORCHBEE_ROUTING_ADMISSION__",
+            "__ORCHBEE_OPTION_SCOPE__",
             "    if test $metadata_source_only -eq 1; and test \"$state\" != verb; and test \"$family\" != workspace; set done 1; end\n",
             "    set -l possible; set -l verbs; set -l dead 0\n",
             "    if test \"$state\" = verb\n",
             "        set possible {roots}\n",
             "{narrow_lines}\n",
             "        if test $metadata_source_only -eq 1; set possible (__orchbee_narrow workspace $possible); end\n",
-            "        if test $seen_mouse -eq 1; set possible (__orchbee_narrow \"tui agent terminal\" $possible); end\n",
+            "        if test $seen_mouse -eq 1; set possible (__orchbee_narrow \"__ORCHBEE_MOUSE_ROOTS__\" $possible); end\n",
             "        if test $seen_format -eq 1; set possible (__orchbee_narrow \"{format_roots}\" $possible); end\n",
             "        if test (count $possible) -eq 0; set dead 1; end\n",
             "    else if test \"$state\" = sub\n",
@@ -4176,7 +4164,9 @@ fn fish() -> String {
             "        end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    else if test \"$state\" = deep\n",
-            "        if test $family = terminal; set verbs control; if test $seen_takeover -eq 0; set -a verbs observe; end; else if test $seen_provider2 -eq 0; and __orchbee_admit '{integration_allowed}' $seen_flags; set verbs {integration_verb_words}; end\n",
+            "        switch \"$family:$sub\"\n",
+            "{verb_cases}\n",
+            "        end\n",
             "        if test (count $verbs) -eq 0; set dead 1; end\n",
             "    end\n",
             "    set -l candidates\n",
@@ -4200,7 +4190,7 @@ fn fish() -> String {
             "            switch \"$state\"\n",
             "                case verb; set candidates --format=text --format=json\n",
             "                case sub deep after operand operand2; set candidates --format=text --format=json\n",
-            "                case leaf; if test \"$leaf\" = status; set candidates --format=text --format=json; end\n",
+            "                case leaf; if contains -- \"$leaf\" status update; set candidates --format=text --format=json; end\n",
             "            end\n",
             "        end\n",
             "    else if string match -q -- '--*=*' $cur\n",
@@ -4213,9 +4203,9 @@ fn fish() -> String {
             "            case '--mouse'\n",
             "                if test $seen_mouse -eq 0\n",
             "                    switch \"$state\"\n",
-            "                        case verb; if begin; contains -- tui $possible; or contains -- agent $possible; or contains -- terminal $possible; end; set candidates --mouse=off --mouse=on; end\n",
-            "                        case sub; if contains -- $family terminal agent; set candidates --mouse=off --mouse=on; end\n",
-            "                        case after operand operand2; if contains -- \"$family:$sub\" terminal:attach agent:attach; set candidates --mouse=off --mouse=on; end\n",
+            "                        case verb; if begin; __ORCHBEE_MOUSE_POSSIBLE_GUARD__; end; set candidates --mouse=off --mouse=on; end\n",
+            "                        case sub; if contains -- $family __ORCHBEE_MOUSE_FAMILIES__; set candidates --mouse=off --mouse=on; end\n",
+            "                        case after operand operand2; if contains -- \"$family:$sub\" __ORCHBEE_MOUSE_PATHS__; set candidates --mouse=off --mouse=on; end\n",
             "                        case leaf; if test \"$leaf\" = tui; set candidates --mouse=off --mouse=on; end\n",
             "                    end\n",
             "                end\n",
@@ -4223,27 +4213,27 @@ fn fish() -> String {
             "        end\n",
             "    else if test \"$state\" = verb\n",
             "        set candidates $possible\n",
-            "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
-            "        if begin; contains -- tui $possible; or contains -- agent $possible; or contains -- terminal $possible; end; and test $seen_mouse -eq 0; set -a candidates --mouse; end\n",
+            "        if test $seen_format -eq 0 -a $accepts_format -eq 1; set -a candidates --format --format=; end\n",
+            "        if begin; __ORCHBEE_MOUSE_POSSIBLE_GUARD__; end; and test $seen_mouse -eq 0; set -a candidates --mouse; end\n",
             "        if {no_options}\n",
             "            set -a candidates --help --version --skill{default_config_candidate}\n",
             "        end\n",
             "    else if test \"$state\" = sub\n",
             "        set candidates $verbs\n",
-            "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
+            "        if test $seen_format -eq 0 -a $accepts_format -eq 1; set -a candidates --format --format=; end\n",
             "    else if test \"$state\" = deep\n",
             "        set candidates $verbs\n",
-            "        if test $seen_format -eq 0; set -a candidates --format --format=; end\n",
+            "        if test $seen_format -eq 0 -a $accepts_format -eq 1; set -a candidates --format --format=; end\n",
             "    else if test \"$state\" = leaf\n",
             "        if test \"$leaf\" = status; set candidates client server; end\n",
             "        if test \"$leaf\" = tui -a $seen_mouse -eq 0; set candidates --help --mouse\n",
-            "        else if test $seen_format -eq 0; set -a candidates --format --format= --help; end\n",
+            "        else if test $seen_format -eq 0 -a $accepts_format -eq 1; set -a candidates --format --format= --help; end\n",
             "    else if test \"$state\" = after -o \"$state\" = operand\n",
-            "        if test $seen_format -eq 0; set candidates --format --format=; end\n",
+            "        if test $seen_format -eq 0 -a $accepts_format -eq 1; set candidates --format --format=; end\n",
             "        switch \"$family:$sub\"\n",
             "{extras_cases}\n",
             "        end\n",
-            "        if test \"$state\" = after; and {no_options}\n",
+            "        if contains -- \"$state\" after operand operand2\n",
             "            set -a candidates --help\n",
             "        end\n",
             "    else if test $state = completion; set candidates {shells} --help\n",
@@ -4259,6 +4249,7 @@ fn fish() -> String {
             "            end\n",
             "        end\n",
             "    end\n",
+            "__ORCHBEE_ROUTING_CANDIDATES__",
             "    printf '%s\\n' $candidates\n",
             "end\n",
             "complete -c orchbee -f -a '(__orchbee_candidates)'\n"
@@ -4297,8 +4288,12 @@ fn fish() -> String {
         sub_flag_cases = sub_flag_cases_fish(),
         deep_flag_cases = deep_flag_cases_fish(),
         deep_verb_cases = deep_verb_cases_fish(),
-        integration_allowed = INTEGRATION_COMMAND_FLAGS.join(" "),
-        integration_verb_words = INTEGRATION_VERBS.join(" "),
+        deep_landing = deep_landing_fish(),
+        update_landing = if cfg!(windows) {
+            "                            case update; if test (count $seen_flags) -gt 0 -o $seen_mouse -eq 1; set done 1; else; set leaf update; set state leaf; end\n"
+        } else {
+            ""
+        },
         after_flag_cases = after_flag_cases_fish(),
         seen_cases = seen_cases_fish(false),
         value_flag_cases = value_business_flags()

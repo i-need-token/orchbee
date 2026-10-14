@@ -342,6 +342,19 @@ impl Receipt {
         }
         rows
     }
+
+    pub(super) fn target_hint(&self, locale: Locale) -> Option<&'static str> {
+        if self.action.starts_with("project.")
+            || self.action.starts_with("workspace.")
+            || self.action.starts_with("tab.")
+        {
+            self.label
+                .as_deref()
+                .and_then(|label| locale.cli_label_target_hint(label))
+        } else {
+            None
+        }
+    }
 }
 
 /// The terminal half of a create/split answer: pending while the Server

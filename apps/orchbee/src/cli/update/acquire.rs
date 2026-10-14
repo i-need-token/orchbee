@@ -68,14 +68,14 @@ impl Source {
                     .share_mode(1)
                     .custom_flags(0x0020_0000)
                     .open(path)
-                    .map_err(|_| Error::Download)?;
-                let metadata = file.metadata().map_err(|_| Error::Download)?;
+                    .map_err(|_| Error::LocalManifestRead)?;
+                let metadata = file.metadata().map_err(|_| Error::LocalManifestRead)?;
                 if !metadata.is_file() || metadata.file_attributes() & 0x400 != 0 {
                     return Err(Error::SourceInvalid);
                 }
                 file.take(manifest::MANIFEST_LIMIT as u64 + 1)
                     .read_to_end(&mut bytes)
-                    .map_err(|_| Error::Download)?;
+                    .map_err(|_| Error::LocalManifestRead)?;
                 if bytes.len() > manifest::MANIFEST_LIMIT {
                     return Err(Error::ManifestInvalid);
                 }

@@ -93,10 +93,18 @@ fn execute(
                 false,
             )?;
             let args = match exists.status.code() {
-                Some(0) => vec!["worktree", "add", "--", path.as_str(), branch.as_str()],
+                Some(0) => vec![
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    "--",
+                    path.as_str(),
+                    branch.as_str(),
+                ],
                 Some(1) => vec![
                     "worktree",
                     "add",
+                    "--quiet",
                     "-b",
                     branch.as_str(),
                     "--",

@@ -27,6 +27,7 @@ enum Error {
     SourceInvalid,
     ManifestInvalid,
     Download,
+    LocalManifestRead,
     DownloadUnavailable,
     Checksum,
     Storage,
@@ -48,7 +49,7 @@ impl Error {
             Self::SourceUnconfigured => "source-unconfigured",
             Self::SourceInvalid => "source-invalid",
             Self::ManifestInvalid => "manifest-invalid",
-            Self::Download => "download",
+            Self::Download | Self::LocalManifestRead => "download",
             Self::DownloadUnavailable => "download-unavailable",
             Self::Checksum => "checksum",
             Self::Storage => "storage",
@@ -222,7 +223,13 @@ pub(crate) fn run(
                 text.push_str(locale.cli_update_message("channel-saved"));
                 text.push('\n');
             }
-            text.push_str(locale.cli_update_message(error.map_or("complete", Error::code)));
+            text.push_str(locale.cli_update_message(error.map_or(
+                "complete",
+                |error| match error {
+                    Error::LocalManifestRead => "local-manifest-read",
+                    _ => error.code(),
+                },
+            )));
             text.push('\n');
             if let Some(path) = &report.published {
                 text.push_str(&super::escape::escape(
