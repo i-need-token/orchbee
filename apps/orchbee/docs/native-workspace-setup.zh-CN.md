@@ -12,6 +12,10 @@ Workspace，不要求先建 Project、填写名称表单或再次确认。默认
 在明确的 Project 行上新建工作区，则使用该 Project，包括空项目和非当前项目。
 创建 Workspace 不会自动启动 AI 提供商。
 
+Windows TUI 接受创建后，立即显示待创建侧栏项和当前顶部 Tab，不等待目录准备或终端启动完成。
+本地化的“新建工作区”名称在准备完成后替换为默认名称，进度在内容区显示，不打开模态框。
+此反馈改进限定于 Windows TUI。GUI 保留既有激活所有者，并沿用相同的规范创建语义。
+
 普通 Workspace 与基于 worktree 的 Workspace 同级。每个 Workspace 可以包含多个 Agent，并直接在其下列出。
 [Worktree 启动](native-worktrees.zh-CN.md)拥有检出目录的创建和打开；
 [Workspace 关闭](native-workspace-close.zh-CN.md)拥有终端释放。
@@ -38,6 +42,18 @@ Worker 验证字面目录并启动配置的默认 shell。准入失败不发布�
 只有匹配终端达到已接受的首帧 Ready 且原始返回权限仍有效，才隐藏紧凑侧边栏。
 宽屏、已隐藏或其他浮层场景消费该权限而不改变布局。取消和后续导航不会重新授予权限。
 屏幕发布、偏好持久化与终端就绪分属不同职责。
+
+临时显示不伪造资源 ID 或资源动作。校验交接完成前，保留规范选择及源终端。动作获准时就在下一输入事件前
+使旧指针映射失效；临时内容为当前视图时，实时面板探测、选择和历史滚动准入均拒绝隐藏的源终端。
+键入无法到达它，手势取消仍可清理原有的所有者。更新的焦点或界面意图，即使发生在准备期间，也会让创建继续在后台运行，
+并永久撤销自动进入权限。明确拒绝会移除临时显示。结果未知或已提交但尚未完成对账时，沿用已有的请求／资源
+恢复事实，不重放，也不创建替代品。
+传输通道退役时立即隐藏创建反馈，同时保留这些恢复事实。
+
+已知的 Workspace ID 会替换临时行。仅供创建衔接的规范投影填补侧栏观察器的延迟；同一 Session 的完整
+检查点达到或超过提交修订号后即取代它，包括该检查点已经移除 Workspace 的情况。折叠的 Project 仅在检查点
+仍将该确切 Workspace 归属于它时显示当前标记。名称从不用于合并创建项，
+先前回执也不能为后一次启动提供身份。
 
 ## 可选 Project 组织
 
@@ -114,6 +130,8 @@ Empty 工作台引导把目录保留为本地化事实，并且仅在没有输�
 非当前工作区移动、解散、终端绑定和选择保持、迟到完成以及不重放恢复。
 归属套件包括 `state/workspace_setup`、`state/tests/workspace_setup`、
 `connection/native/tests/quick_workspace` 和 `terminal_input/dispatcher/tests/workspace_setup`。
+`ui/tests/workspace_setup/responsive` 控制准备、启动、焦点、拒绝及恢复的完成顺序；
+`tui_render/workspace_sidebar/tests/creation` 检查基于确切身份的观察器交接。这些本地实现轨迹不提供穷尽 TLC 保证。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features` 及适用根门禁。
 此工作流没有独立 TLA 模型。实现轨迹与进程测试不能替代真实终端的鼠标／键盘、视口、首帧与交互评审。

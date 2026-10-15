@@ -218,7 +218,7 @@ fn sidebar_scroll_is_cadence_bounded_and_never_forwards_mouse_to_a_pane() {
             PointerOutcome::Handled
         );
     }
-    assert!(pointer.tick(&mut view, &mut port, Instant::now()));
+    assert!(pointer.tick(&mut view, &mut port, Instant::now(), None));
     let after_map = render_sidebar_map(&view);
     let after = after_map
         .regions
@@ -232,9 +232,9 @@ fn sidebar_scroll_is_cadence_bounded_and_never_forwards_mouse_to_a_pane() {
     assert!(pointer.map.is_none());
     assert!(view.machines.request.is_none() && port.bytes().is_empty());
     pointer.set_capture(false);
-    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now(), None));
     pointer.set_capture(true);
-    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now(), None));
     let stable = render_sidebar_map(&view)
         .regions
         .iter()
@@ -840,8 +840,8 @@ fn modal_capture_cancels_a_link_once_without_a_redraw_loop() {
     pointer.event(&mut view, &mut port, now(), down);
 
     port.probe.input_captured = true;
-    assert!(pointer.tick(&mut view, &mut port, now()));
-    assert!(!pointer.tick(&mut view, &mut port, now()));
+    assert!(pointer.tick(&mut view, &mut port, now(), None));
+    assert!(!pointer.tick(&mut view, &mut port, now(), None));
 
     pointer.wheel.accumulate(true, 4, false);
     assert_eq!(
@@ -861,7 +861,7 @@ fn modal_capture_cancels_a_link_once_without_a_redraw_loop() {
     assert!(port.links.is_empty());
     assert_eq!(pointer.wheel.pending, 0);
     assert!(pointer.wheel.up.is_none());
-    assert!(!pointer.tick(&mut view, &mut port, now()));
+    assert!(!pointer.tick(&mut view, &mut port, now(), None));
 }
 
 #[cfg(windows)]
@@ -1303,7 +1303,8 @@ fn pane_press_may_read_focus_an_unsettled_pane_without_input_and_wait_is_bounded
     assert!(pointer.tick(
         &mut view,
         &mut port,
-        now() + PENDING_FOCUS_TIMEOUT + Duration::from_millis(1)
+        now() + PENDING_FOCUS_TIMEOUT + Duration::from_millis(1),
+        None,
     ));
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert_eq!(
@@ -1383,7 +1384,7 @@ fn pane_press_waits_for_first_frame_then_flushes_queued_input() {
         pane_leaf(1, 1, 2, 0, true, Some(true), true),
     );
     port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, true));
-    assert!(pointer.tick(&mut view, &mut port, now()));
+    assert!(pointer.tick(&mut view, &mut port, now(), None));
     assert_eq!(port.bytes(), b"\x1b[<0;3;2M".to_vec());
     assert!(matches!(pointer.gesture, Gesture::Pane(_)));
 }
@@ -1415,7 +1416,7 @@ fn pending_focus_orphans_when_incarnation_is_reminted() {
     );
     port.probe.focus = Some(pane_ref(1, 1, 2, 1));
     port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, true));
-    pointer.tick(&mut view, &mut port, now());
+    pointer.tick(&mut view, &mut port, now(), None);
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert!(port.forwarded.is_empty());
 }
@@ -1441,7 +1442,7 @@ fn pending_focus_orphans_when_pane_record_vanishes() {
     port.probe
         .panes
         .retain(|pane| pane.record.pane().panel() != &panel_id(2));
-    pointer.tick(&mut view, &mut port, now());
+    pointer.tick(&mut view, &mut port, now(), None);
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert!(port.forwarded.is_empty());
 }
@@ -1473,7 +1474,7 @@ fn pending_focus_orphans_when_focus_settles_elsewhere() {
         pane_leaf(1, 1, 2, 0, true, Some(true), true),
     );
     port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, true));
-    pointer.tick(&mut view, &mut port, now());
+    pointer.tick(&mut view, &mut port, now(), None);
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert!(port.forwarded.is_empty());
 }
@@ -1502,7 +1503,7 @@ fn pending_focus_waits_for_an_unarrived_controller_mode() {
     set_leaf(&mut port.probe, pane_leaf(1, 1, 2, 0, true, None, true));
     port.probe.input_ready = false;
     port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, true));
-    assert!(!pointer.tick(&mut view, &mut port, now()));
+    assert!(!pointer.tick(&mut view, &mut port, now(), None));
     assert!(matches!(pointer.gesture, Gesture::Pending(_)));
     assert!(port.forwarded.is_empty());
     assert_eq!(view.notice(), None);
@@ -1512,7 +1513,7 @@ fn pending_focus_waits_for_an_unarrived_controller_mode() {
         pane_leaf(1, 1, 2, 0, true, Some(true), true),
     );
     port.probe.input_ready = true;
-    assert!(pointer.tick(&mut view, &mut port, now()));
+    assert!(pointer.tick(&mut view, &mut port, now(), None));
     assert_eq!(port.bytes(), b"\x1b[<0;3;2M".to_vec());
 }
 
@@ -1542,7 +1543,7 @@ fn pending_focus_on_a_settled_read_only_verdict_drops_with_notice() {
         pane_leaf(1, 1, 2, 0, true, Some(false), true),
     );
     port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, true));
-    assert!(pointer.tick(&mut view, &mut port, now()));
+    assert!(pointer.tick(&mut view, &mut port, now(), None));
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert!(port.forwarded.is_empty());
     assert_eq!(
@@ -1922,7 +1923,7 @@ fn pending_wheel_arrows_stop_when_the_latest_frame_revokes_alternate_scroll() {
             2 => frame.tracking = MouseTracking::Normal,
             _ => port.probe.viewport_non_live = true,
         }
-        pointer.tick(&mut view, &mut port, now());
+        pointer.tick(&mut view, &mut port, now(), None);
         assert_eq!(port.bytes(), b"\x1b[B".repeat(5));
         assert_eq!(pointer.wheel.pending, 0);
         if revoked == 0 {
@@ -1973,9 +1974,9 @@ fn alternate_screen_wheel_becomes_bounded_cursor_arrows() {
     // rows) — the bounded remainder applies on later passes.
     assert_eq!(port.bytes().len(), 5 * 3);
     assert_eq!(port.bytes(), b"\x1b[B".repeat(5));
-    pointer.tick(&mut view, &mut port, now());
-    pointer.tick(&mut view, &mut port, now());
-    pointer.tick(&mut view, &mut port, now());
+    pointer.tick(&mut view, &mut port, now(), None);
+    pointer.tick(&mut view, &mut port, now(), None);
+    pointer.tick(&mut view, &mut port, now(), None);
     assert_eq!(port.bytes().len(), 12 * 3);
     // Both first notches survive an immediate direction reversal.
     pointer.event(
@@ -2044,7 +2045,7 @@ fn wheel_reversal_replaces_old_backlog_without_losing_its_first_notch() {
         [b"\x1b[B".repeat(2), b"\x1bOA".repeat(2)].concat()
     );
     for _ in 0..40 {
-        pointer.tick(&mut view, &mut port, now());
+        pointer.tick(&mut view, &mut port, now(), None);
     }
     assert_eq!(
         port.bytes(),
@@ -2119,7 +2120,7 @@ fn pending_focus_overflow_and_timeout_report() {
     pointer.event(&mut view, &mut port, now(), press(2, 2));
     assert!(matches!(pointer.gesture, Gesture::Pending(_)));
     let later = now() + PENDING_FOCUS_TIMEOUT + Duration::from_millis(1);
-    assert!(pointer.tick(&mut view, &mut port, later));
+    assert!(pointer.tick(&mut view, &mut port, later, None));
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert_eq!(
         view.notice(),
@@ -2496,7 +2497,7 @@ fn non_live_pending_settlement_consumes_queue() {
         pane_leaf(1, 1, 2, 0, true, Some(true), true),
     );
     port.probe.frame = Some(frame_facts(MouseTracking::Button, MouseFormat::Sgr, false));
-    pointer.tick(&mut view, &mut port, now());
+    pointer.tick(&mut view, &mut port, now(), None);
     assert!(matches!(pointer.gesture, Gesture::Idle));
     assert!(port.forwarded.is_empty(), "the queued press never replays");
 }
@@ -2623,7 +2624,7 @@ fn queued_right_press_rechecks_policy_before_any_bytes_and_stops_at_its_release(
                 event(MouseAction::Press, MouseButton::Right, 3, 4),
             ]),
         });
-        pointer.tick(&mut view, &mut port, now());
+        pointer.tick(&mut view, &mut port, now(), None);
         assert_eq!(
             port.forwarded.len(),
             if policy == PanelRightClickTarget::Panel {
@@ -3024,7 +3025,7 @@ fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remainin
             PointerOutcome::Handled
         );
     }
-    assert!(pointer.tick(&mut view, &mut port, Instant::now()));
+    assert!(pointer.tick(&mut view, &mut port, Instant::now(), None));
     let spaces = render_sidebar_map(&view)
         .regions
         .iter()
@@ -3043,9 +3044,9 @@ fn workspace_sidebar_wheel_advances_only_its_window_and_capture_cancels_remainin
     );
     assert!(pointer.map.is_none());
     pointer.set_capture(false);
-    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now(), None));
     pointer.set_capture(true);
-    assert!(!pointer.tick(&mut view, &mut port, Instant::now()));
+    assert!(!pointer.tick(&mut view, &mut port, Instant::now(), None));
     let stable = render_sidebar_map(&view)
         .regions
         .iter()
@@ -3206,8 +3207,8 @@ fn selection_survives_output_repaint_and_structural_edges_cancel_exactly_once() 
         press(5, 4),
     );
     port.probe.input_captured = true;
-    pointer.tick(&mut view, &mut port, at + Duration::from_millis(6));
-    pointer.tick(&mut view, &mut port, at + Duration::from_millis(7));
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(6), None);
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(7), None);
     assert_eq!(
         port.selections
             .iter()
@@ -3536,7 +3537,7 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
         pane_leaf(1, 1, 2, 0, true, Some(true), true),
     );
     port.probe.frame = Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, false));
-    pointer.tick(&mut view, &mut port, at + Duration::from_millis(3));
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(3), None);
     assert_eq!(
         port.selections,
         [
@@ -3593,7 +3594,7 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
         pane_leaf(1, 1, 2, 0, true, Some(true), true),
     );
     port.probe.frame = Some(frame_facts(MouseTracking::None, MouseFormat::Sgr, false));
-    pointer.tick(&mut view, &mut port, at + Duration::from_millis(3));
+    pointer.tick(&mut view, &mut port, at + Duration::from_millis(3), None);
     assert_eq!(
         port.selections,
         [(
@@ -3675,6 +3676,7 @@ fn pending_selection_starts_before_replay_and_prestart_failures_emit_nothing() {
             } else {
                 at + Duration::from_millis(1)
             },
+            None,
         );
         assert!(port.selections.is_empty(), "scenario {scenario}");
     }

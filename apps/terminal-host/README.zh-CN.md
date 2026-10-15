@@ -222,7 +222,9 @@ ConPTY bundle 和固定 Ghostty parser 运行受控的 pointer-admission 见证�
 测试二进制通过其继承 console、原生 reader、input decoder 和 terminal-mode guard 进入。Host 注入
 语义化的无按键 motion：button-event tracking 必须不发出任何内容；mode 1003 的 reset report 必须
 先于 DA1 sentinel，从而准入 any-motion tracking；之后同一个语义 motion 必须作为 typed no-button
-mouse event 到达。完整 pointer release 必须再次抑制 motion，子进程退出必须恢复原始原生 console
+mouse event 到达。在该全局探测前，子进程还会请求菜单范围策略（先 `1002h` 再 `1003h`），
+不依靠能力回复通过继承 reader 接收语义移动；返回 button-only 后再次抑制空闲移动。
+完整 pointer release 必须再次抑制 motion，子进程退出必须恢复原始原生 console
 mode、primary screen 和 cursor。该证据只适用于固定的 Windows x64 harness，不覆盖完整 UI input
 dispatcher，也不证明物理 mouse record、其他 terminal emulator 的 query 行为、palette 或 font
 质量，也不证明交互 latency。

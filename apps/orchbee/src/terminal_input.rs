@@ -50,6 +50,9 @@ pub(crate) enum PointerCaptureRequest {
     Release,
     ButtonOnly,
     AnyMotion,
+    /// A capturing menu requests idle motion while retaining the button-only fallback.
+    #[cfg(windows)]
+    MenuMotion,
 }
 
 /// One terminal-control write the dispatcher or surface asks the shell to
@@ -334,6 +337,15 @@ pub(crate) trait TerminalInputPort {
         &mut self,
         _expected: crate::action_menu::MenuInputContext,
         _event: crate::client_view::KeyEvent,
+    ) -> bool {
+        false
+    }
+    #[cfg(windows)]
+    fn hover_action_menu_row(
+        &mut self,
+        _source: &crate::action_menu::MenuTarget,
+        _token: crate::action_menu::MenuToken,
+        _row: usize,
     ) -> bool {
         false
     }

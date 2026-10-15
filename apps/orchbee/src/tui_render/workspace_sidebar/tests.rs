@@ -8,6 +8,7 @@ use crate::{
 };
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};
+mod creation;
 mod overflow;
 fn id(n: u64) -> String {
     format!("{n:032x}")
@@ -773,6 +774,7 @@ fn paint_navigation_buffers_with_pointer(
                 frame,
                 Rect::new(0, 0, width, height),
                 RenderContext {
+                    creation: None,
                     view,
                     locale,
                     theme,

@@ -96,13 +96,21 @@ generic non-decision input，并保留 raw passthrough。若一个 run 在回复
 保持字面值，绝不在其中检查这些回复。
 
 准入结果通过先关闭旧 level、再启用新 level，从 `1002` 切换到 `1003`。unknown 与
-unavailable 保持 `1002`，因此 click、drag、wheel 可用，而 idle hover 如实缺席。任一时刻
-恰好只有一个 tracking level 生效；`1006` 仍是其编码。捕获释放与重新 arm 复用端点已经
+unavailable 保持 `1002`，因此 click、drag、wheel 可用，而下述菜单范围策略之外的 idle hover
+如实缺席。全局捕获只选择一个 tracking level；`1006` 仍是其编码。捕获释放与重新 arm 复用端点已经
 settle 的结果，不再发出查询。
 只有完整 mode 写入成功后，已准入的切换才发布到指针交互状态。切换失败不发布 hover
 权限，运行中的输入循环也绝不重试；致命路径直接进入完整生命周期清理。全局准入后的
-any-motion 服务所有已绘制 chrome 控件，包括 action menu。不存在 menu-scoped `1003`
-租约；因此 ButtonOnly fallback 具有 click、drag、wheel，但不会在任何位置宣称 idle hover。
+any-motion 服务所有已绘制 chrome 控件，包括 action menu。菜单之外的 ButtonOnly fallback
+具有 click、drag、wheel，但没有 idle hover。
+
+捕获已启用的动作菜单在全局 any-motion 尚未准入时，还拥有菜单范围的 `MenuMotion` 请求。
+它先写 `1002h`，再写 `1003h`，保留 `1006`：忽略 `1003` 的宿主仍保留按钮回退；只有实际
+收到移动报告才出现反馈。此请求不改变一次性探测结果，也不假定物理送达。菜单退出时先恢复
+`1003l`，再写 `1002h`；独立获准的全局升级取代菜单请求，退出后继续启用。捕获已释放时，
+键盘打开菜单不写入模式。模式副作用完成后 dispatcher 才发布本地报告准入；写入失败为致命
+错误且绝不重试，生命周期清理会清除所有自有模式。已有原生 ConPTY 见证覆盖该请求、通过继承
+reader 的语义移动、返回无空闲移动的 button-only、全局准入及完整恢复；物理终端审阅另行完成。
 
 tracking level 与编码共用一个 `ModeLease`；除非 `tui --mouse off` 拒绝，否则在启动时 arm。
 每次原生或 VT 变更开始前都先登记待恢复义务。因此部分 enable 或 level switch 会进入

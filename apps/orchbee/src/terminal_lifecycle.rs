@@ -83,15 +83,17 @@ impl crossterm::Command for BracketedPaste {
 }
 
 /// The one outer-terminal tracking level selected inside the pointer lease.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum PointerTrackingLevel {
     ButtonOnly,
     AnyMotion,
+    #[cfg(windows)]
+    MenuMotion,
 }
 
-/// Capture selects one tracking level and SGR cells. Every enable first
-/// disables the other level so inherited or partially restored state cannot
-/// leave both levels active. Release clears every level owned by the Client.
+/// Capture selects one tracking policy and SGR cells. Global levels disable
+/// the other level first. The scoped menu policy retains button reporting
+/// when a host ignores its any-motion request. Release clears every owned level.
 struct PointerCapture {
     enabled: bool,
     level: PointerTrackingLevel,
@@ -111,6 +113,8 @@ impl crossterm::Command for PointerCapture {
         let sequence = match (self.enabled, self.level) {
             (true, PointerTrackingLevel::ButtonOnly) => "\x1b[?1003l\x1b[?1002h\x1b[?1006h",
             (true, PointerTrackingLevel::AnyMotion) => "\x1b[?1002l\x1b[?1003h\x1b[?1006h",
+            #[cfg(windows)]
+            (true, PointerTrackingLevel::MenuMotion) => "\x1b[?1002h\x1b[?1003h\x1b[?1006h",
             (false, _) => "\x1b[?1003l\x1b[?1006l\x1b[?1002l",
         };
         output.write_str(sequence)
@@ -138,6 +142,19 @@ impl crossterm::Command for PointerTrackingTransition {
             }
             (PointerTrackingLevel::AnyMotion, PointerTrackingLevel::ButtonOnly) => {
                 "\x1b[?1003l\x1b[?1002h"
+            }
+            #[cfg(windows)]
+            (PointerTrackingLevel::MenuMotion, PointerTrackingLevel::ButtonOnly) => {
+                "\x1b[?1003l\x1b[?1002h"
+            }
+            #[cfg(windows)]
+            (
+                PointerTrackingLevel::ButtonOnly | PointerTrackingLevel::AnyMotion,
+                PointerTrackingLevel::MenuMotion,
+            ) => "\x1b[?1002h\x1b[?1003h",
+            #[cfg(windows)]
+            (PointerTrackingLevel::MenuMotion, PointerTrackingLevel::AnyMotion) => {
+                "\x1b[?1002l\x1b[?1003h"
             }
             _ => "",
         };
@@ -587,7 +604,7 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         self.set_pointer_capture_level(enabled.then_some(PointerTrackingLevel::ButtonOnly))
     }
 
-    /// Arms the requested admitted level, or releases every owned pointer
+    /// Arms the requested tracking policy, or releases every owned pointer
     /// mode. Callers retain the endpoint capability decision; this owner only
     /// publishes a level after the complete command succeeded.
     pub(crate) fn set_pointer_capture_level(
@@ -627,9 +644,9 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
         }
     }
 
-    /// Switches inside an existing lease. The old level is disabled before
-    /// the new one is enabled; an unknown partial write fences later runtime
-    /// switches until the full release sequence settles cleanup.
+    /// Switches inside an existing lease. Global levels disable the old level first;
+    /// menu motion retains button fallback. An unknown partial write fences later
+    /// runtime switches until the full release sequence settles cleanup.
     pub(crate) fn set_pointer_tracking(&mut self, level: PointerTrackingLevel) -> io::Result<()> {
         if !self.pointer_capture_enabled {
             return Err(io::Error::other("pointer tracking requires active capture"));

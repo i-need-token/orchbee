@@ -22,7 +22,14 @@ authority for current capture and pointer behavior.
   while its interface is active. This is the admitted level for hover on Orchbee-painted chrome
   and overlays. When any-motion reporting is unavailable or has not been admitted, use
   button-event tracking (`1002`) with `1006`; click, drag, and wheel remain available, while hover
-  is honestly absent. Exactly one of `1002` and `1003` is active at a time.
+  is honestly absent outside the scoped menu policy below. Global capture selects one of `1002`
+  and `1003` at a time.
+- While an action menu exclusively owns input and capture is already armed, it may request idle
+  motion with button fallback by enabling `1002` before `1003`, retaining `1006`. A host that
+  ignores `1003` keeps button reporting; feedback still requires a real received motion report.
+  This does not promote the global capability result. Menu exit restores `1003l`, then `1002h`,
+  unless global any-motion is independently admitted. Released capture stays released, and a
+  failed or uncertain mode write goes through full lifecycle cleanup without publishing or retrying.
 - Any-motion reporting is an outer-Client transport, not ownership of a pane program's input.
   Orchbee consumes movement over its chrome and forwards events inside a pane viewport only under
   [Passthrough](#passthrough). Unrequested movement never reaches the pane program.
@@ -52,9 +59,10 @@ Pointer interaction preserves these separate facts:
 | Armed gesture         | A press or drag in progress, tied to one stable target identity and its interaction revision                |
 | Activation            | A semantic intent dispatched after its gesture satisfies the owner's commit rule; it is an event, not focus |
 
-- Movement may change hover styling or reveal a local affordance. It never moves keyboard focus or
-  provisional selection, activates an action, commits data, mutates shared domain state, or writes
-  terminal input.
+- Movement may change hover styling or reveal a local affordance. An open action menu may update
+  its provisional candidate through its owner on an enabled painted row; other collections retain
+  provisional selection. Movement never moves keyboard focus, activates an action, commits data,
+  mutates shared domain state, or writes terminal input.
 - A press may move focus or selection only when the owning component declares that step. Immediate
   action rows, selection-first pickers, disclosures, and editable value rows are distinct
   interaction contracts; a renderer never gives every row one invented click rule.
@@ -204,7 +212,7 @@ must still be reachable from the keyboard.
 | Change                     | Required check                                                                                                                                                                                                                         |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capture policy change      | Byte traces prove preferred `1003` and fallback `1002` enable, exact release and restoration, `Shift` non-binding, hover clearing, and the released-state indicator                                                                    |
-| Hover behavior             | Tests prove enter, move, leave, occlusion, same-target coalescing, no focus or selection movement, no activation, and honest absence without any-motion reporting                                                                      |
+| Hover behavior             | Tests prove enter, move, leave, occlusion, same-target coalescing, retained focus and committed selection, the declared menu candidate exception, no activation, and honest absence without any-motion reporting                       |
 | Region addition            | Tests resolve every edge and the exterior against the last successfully presented frame; visual-only repaint preserves authority, while stale, unpainted, occluded, resized, and unknown structural writes cannot authorize activation |
 | Gesture mapping change     | A table-driven test maps each gesture to one intent, preserves an arm across visual-only and unrelated repaints, cancels it on interaction-revision changes, exercises its commit boundary, and proves an equivalent keyboard route    |
 | Passthrough change         | Tests cover each requested event class, unrequested outer motion, pane-local translation, reporting off on primary and alternate screens, DEC `1007`, and chrome or boundary input                                                     |

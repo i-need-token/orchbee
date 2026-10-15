@@ -534,6 +534,11 @@ fn pointer_capture_requests_map_to_exact_lifecycle_levels() {
         super::pointer_tracking_level(PointerCaptureRequest::AnyMotion),
         Some(PointerTrackingLevel::AnyMotion)
     );
+    #[cfg(windows)]
+    assert_eq!(
+        super::pointer_tracking_level(PointerCaptureRequest::MenuMotion),
+        Some(PointerTrackingLevel::MenuMotion)
+    );
 }
 
 #[test]

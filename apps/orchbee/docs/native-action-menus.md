@@ -58,9 +58,13 @@ it accepts confirmation.
 
 Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the
 selected action. Keyboard selection reveals its row with the smallest viewport movement. Once the
-host and native adapter have admitted any-motion observability, unmodified, button-free motion
-paints transient hover feedback over a drawn row without changing the keyboard selection, viewport
-or action token; leaving removes that feedback. Button-only capture presents no idle-hover state. A left click on a
+host and native adapter receive idle motion under global admission or the scoped menu request,
+unmodified, button-free motion
+moves the provisional menu candidate to an enabled drawn row, using the full-row selection fill
+and navigation marker. It never executes, changes the active Workspace or Tab, or automatically
+opens a submenu. Leaving retains the candidate; subsequent arrows continue from it. Disabled rows
+and separators do not move the candidate. Hover preserves the viewport and action token; Enter
+requires a successful draw of the current candidate. Without received idle reports there is no hover feedback. A left click on a
 drawn row executes it only after a matching release on the same typed source, token, row and painted
 rectangle. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a
 pending click. The header X closes the menu; a submenu's Back action returns to its parent. Right
@@ -228,7 +232,7 @@ opening a menu; a menu may still open the navigator through its ordinary action.
 | Cancel / execution timeout / unavailable         | Revoke the unhanded intent; accepted navigation is not rolled back, and no action executes                                                                              |
 | Source / configuration / covering capture change | Revoke the unhanded episode; a foreign navigation retains its own semantics and cannot complete the menu intent. Resize follows the retained presentation states above. |
 
-Presentation tokens bind the episode, exact semantic target, selection and viewport revision. The
+Presentation tokens bind the episode, exact semantic target, keyboard selection and viewport revision. The
 whole-surface lease separately proves that this owner occupied the latest frame; the successful
 receipt additionally records the exact painted window. `Recovery` accepts only local Esc, including
 Esc returning from a retained child. `Continuation` admits repeated navigation while a normal
@@ -242,22 +246,32 @@ The renderer completes geometry, row and required-exit-hint admission before mut
 buffer or hit map. `NotPresented` paints nothing and publishes neither menu targets nor a modal
 pointer backdrop.
 
-Hover is transient renderer projection. It never changes selection, viewport, token, availability,
-navigation or an execution deadline. Only an exact typed row from the last published frame may
-project hover or an armed press; matching release emits that typed intent, and the coordinator
-revalidates source plus token before activation. Keyboard selection and availability changes mint a
-new token and require a new draw. No hover queue or timer is owned.
+Hover updates only the Client-local provisional menu candidate. Only an exact enabled typed row
+from the last published frame may do so; the coordinator revalidates source plus token before
+delegating to the menu owner. The exact painted row-window proof remains available for successive
+motion reports in one packet, while keyboard confirmation requires its selected row to match the
+current candidate. Hover preserves viewport, token, availability, native navigation and execution
+deadline; stationary-pointer reconciliation never moves the candidate. Matching release emits the
+typed activation intent and revalidates its source and token. Keyboard selection and availability
+changes mint a new token and require a new draw. No hover queue or timer is owned.
+Pane reconciliation cancels underlying gestures while preserving the top ActionMenu owner's
+painted hover and press across idle and draw boundaries. A matching release still requires the
+same target, token, exposure and geometry; a covering owner or invalidated hit map revokes it.
 
-Pointer capture is a session capability, not a menu lease. After the lifecycle completely establishes
+Global pointer capability remains Session-owned. After the lifecycle completely establishes
 global `ButtonOnly` (`1003l`, then `1002h` and `1006h`), the endpoint performs one ordered
 `DECRQM ?1003$p` probe with a DA1 sentinel. Only an exact Reset reply (`DECRPM ?1003;2$y`) before
 the deadline admits `AnyMotion`; Set, unavailable, DA1-first, a 300 ms timeout, late and duplicate
-outcomes never publish idle hover and never trigger a second probe. `Unknown` and `Unavailable` remain
+outcomes never publish global admission and never trigger a second probe. `Unknown` and `Unavailable` remain
 globally `ButtonOnly`, where click, drag and wheel continue and idle hover is absent. An admitted
 upgrade writes `1002l` before `1003h` and publishes `AnyMotion` only after the complete mode write
 succeeds. Release and restoration clear `1003`, `1006` and `1002`; re-arm reuses the settled
-capability. Action menus consume the global settled mode and never request a menu-scoped `1003`
-lease. Released capture stays released even when the keyboard opens a menu. Menu capture swallows
+capability. While capture is already armed, an action menu without global admission requests
+`MenuMotion`: `1002h`, then `1003h`, retaining the button fallback and `1006`. The request admits
+actual received motion only for the capturing menu and does not change the global probe result.
+Every close, handoff or source invalidation restores `1003l`, then `1002h`; an independently admitted
+global upgrade instead remains active. Failed mode writes publish no lease and require full
+lifecycle cleanup. Released capture stays released even when the keyboard opens a menu. Menu capture swallows
 motion and decision tails instead of sending them to an embedded program; pane tracking and any
 pre-existing gesture retain their original ownership outside it.
 
@@ -293,7 +307,9 @@ closes the episode under the existing rules.
 The owning implementation tests cover shared menu/help identity, opaque configured-command IDs,
 effective binding discovery, hidden unsupported actions, draw authority, packet tails, generated
 event replay, cancellation, source/target/focus drift, exact draft capture, at-most-once handoff,
-known-commit retention and execution deadlines independent of browsing time.
+known-commit retention and execution deadlines independent of browsing time. Candidate-hover
+witnesses cover successive pre-paint motions, keyboard continuation, disabled and unpainted rows,
+source and token refusal, viewport retention, pointer leave, and no implicit submenu or action.
 
 Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_session/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

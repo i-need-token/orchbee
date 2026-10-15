@@ -75,6 +75,8 @@ mod terminal_tail;
 pub(crate) mod terminal_viewport;
 mod ui;
 pub(crate) use ui::settings::Notice as SettingsNotice;
+#[cfg(windows)]
+pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 mod wakeup;
 mod workbench_projection;
 pub(crate) use wakeup::UiWakeup;
@@ -1029,6 +1031,17 @@ impl TerminalInputPort for TerminalSession {
         self.backend
             .native_mut()
             .is_some_and(|native| native.capture_action_menu_key_for(expected, event))
+    }
+    #[cfg(windows)]
+    fn hover_action_menu_row(
+        &mut self,
+        source: &crate::action_menu::MenuTarget,
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    ) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.hover_action_menu_row(source, token, row))
     }
     #[cfg(windows)]
     fn activate_action_menu_row(

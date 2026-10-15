@@ -3,7 +3,7 @@ use super::*;
 use crate::{localization::Locale, terminal_session::ModalPresentation, tui_theme::Theme};
 
 #[test]
-fn hover_does_not_retarget_keyboard_selection_and_one_click_activates_the_painted_row() {
+fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row() {
     for repaint in [0, 1, 2] {
         let mut port = Port::new(MenuAction::Detach);
         port.actions = vec![MenuAction::Detach, MenuAction::Help];
@@ -19,7 +19,8 @@ fn hover_does_not_retarget_keyboard_selection_and_one_click_activates_the_painte
             &mut port,
             format!("\x1b[<35;{x};{y}M").as_bytes(),
         );
-        assert_eq!(port.menu.view().unwrap().selected, 0);
+        assert_eq!(port.menu.view().unwrap().selected, 1);
+        assert!(port.calls.borrow().is_empty(), "hover cannot execute");
         if repaint == 1 {
             paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
         }
@@ -33,6 +34,11 @@ fn hover_does_not_retarget_keyboard_selection_and_one_click_activates_the_painte
         if repaint == 2 {
             paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
         }
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+                Ok::<_, ()>(())
+            })
+            .unwrap();
         dispatch_all(
             &mut dispatcher,
             &mut view,
@@ -46,6 +52,220 @@ fn hover_does_not_retarget_keyboard_selection_and_one_click_activates_the_painte
             [Call::Action(ClientAction::OpenShortcutHelp)]
         );
     }
+}
+
+#[test]
+fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
+    let mut port = Port::new(MenuAction::Detach);
+    port.actions = vec![MenuAction::Detach, MenuAction::Help, MenuAction::Reload];
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(50);
+    dispatcher.set_pointer_capture(&mut view, &mut port, false);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
+    let motion = |code, row| format!("\x1b[<{code};{x};{row}M");
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        motion(35, y + 1).as_bytes(),
+    );
+    assert_eq!(
+        port.menu.view().unwrap().selected,
+        0,
+        "keyboard menu does not re-arm released capture"
+    );
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<_, ()>(())
+        })
+        .unwrap();
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::MenuMotion
+    );
+    paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
+    for code in [39, 43, 51, 32] {
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            motion(code, y + 1).as_bytes(),
+        );
+        assert_eq!(
+            port.menu.view().unwrap().selected,
+            0,
+            "modified or held motion is inert"
+        );
+    }
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        format!("{}{}", motion(35, y + 1), motion(35, y + 2)).as_bytes(),
+    );
+    assert_eq!(
+        port.menu.view().unwrap().selected,
+        2,
+        "last pre-paint motion wins"
+    );
+    assert!(port.calls.borrow().is_empty());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<35;1;1M");
+    assert_eq!(
+        port.menu.view().unwrap().selected,
+        2,
+        "leaving retains the candidate"
+    );
+    paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[A");
+    assert_eq!(
+        port.menu.view().unwrap().selected,
+        1,
+        "arrows resume from hover"
+    );
+    assert!(port.calls.borrow().is_empty());
+    paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+    assert!(!port.menu.active());
+    assert!(
+        port.calls.borrow().is_empty(),
+        "cancellation retains the underlying session"
+    );
+}
+
+#[test]
+fn captured_menu_press_loses_authority_on_owner_source_geometry_or_transport_retirement() {
+    #[derive(Debug)]
+    enum Retirement {
+        CoveringOwner,
+        Source,
+        Geometry,
+        Capture,
+        Focus,
+    }
+    for retirement in [
+        Retirement::CoveringOwner,
+        Retirement::Source,
+        Retirement::Geometry,
+        Retirement::Capture,
+        Retirement::Focus,
+    ] {
+        let mut port = Port::new(MenuAction::Help);
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(50);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+        let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            format!("\x1b[<0;{x};{y}M").as_bytes(),
+        );
+        paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        match retirement {
+            Retirement::CoveringOwner => {
+                port.settings_capture = true;
+                dispatcher
+                    .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+                        Ok::<_, ()>(())
+                    })
+                    .unwrap();
+                port.settings_capture = false;
+            }
+            Retirement::Source => {
+                port.menu.cancel();
+                assert!(port.menu.open_for(
+                    MenuTarget::Create(None),
+                    String::new(),
+                    vec![MenuAction::Help],
+                    None,
+                ));
+            }
+            Retirement::Geometry => dispatcher.invalidate_hit_map(&mut port),
+            Retirement::Capture => dispatcher.set_pointer_capture(&mut view, &mut port, false),
+            Retirement::Focus => {
+                dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
+            }
+        }
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+                Ok::<_, ()>(())
+            })
+            .unwrap();
+        if port.menu.active() {
+            paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        } else {
+            dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+        }
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            format!("\x1b[<0;{x};{y}mtail").as_bytes(),
+        );
+        assert_eq!(
+            port.menu.active(),
+            !matches!(retirement, Retirement::Capture),
+            "{retirement:?} cannot activate an old press"
+        );
+        assert!(
+            port.calls.borrow().is_empty(),
+            "{retirement:?} retains its packet"
+        );
+    }
+}
+
+#[test]
+fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute() {
+    let mut port = Port::new(MenuAction::Help);
+    port.actions = vec![MenuAction::Detach, MenuAction::Reload, MenuAction::Help];
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(50);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        format!("\x1b[<35;{x};{}M\r", y + 2).as_bytes(),
+    );
+    assert_eq!(port.menu.view().unwrap().selected, 2);
+    assert_eq!(port.menu.confirmed(), None);
+    assert!(
+        port.calls.borrow().is_empty(),
+        "Enter cannot accept an unpainted hover"
+    );
+
+    paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        format!("\x1b[<35;{x};{}M\x1b[B\r", y + 1).as_bytes(),
+    );
+    assert_eq!(
+        port.menu.view().unwrap().selected,
+        2,
+        "arrows follow the hover in the same packet"
+    );
+    assert_eq!(port.menu.confirmed(), None);
+    assert!(
+        port.calls.borrow().is_empty(),
+        "keyboard navigation still requires its new draw"
+    );
+
+    paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
+    assert!(!port.menu.active());
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+    assert_eq!(
+        *port.calls.borrow(),
+        [Call::Action(ClientAction::OpenShortcutHelp)]
+    );
 }
 
 fn paint(

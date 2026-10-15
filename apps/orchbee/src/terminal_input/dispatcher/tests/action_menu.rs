@@ -23,6 +23,7 @@ struct Port {
     tab_create_available: bool,
     drag: Option<crate::tui_pointer::TabDragSource>,
     arrangements: Vec<orchbee_workbench_protocol::TabConfiguration>,
+    settings_capture: bool,
 }
 
 fn sidebar_context() -> crate::terminal_session::NativeContextTarget {
@@ -423,9 +424,12 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
                     .all(|mode| !matches!(mode, ModeRequest::BracketedPaste(_))),
                 "the child menu returns to the same Sidebar paste lease without reacquiring or releasing it"
             );
-            assert!(
-                modes.is_empty(),
-                "returning to the same Sidebar owner does not churn global terminal modes"
+            assert_eq!(
+                modes,
+                [ModeRequest::PointerCapture(
+                    PointerCaptureRequest::ButtonOnly
+                )],
+                "returning to Sidebar releases only the menu's scoped motion policy"
             );
         }
     }
@@ -558,6 +562,7 @@ impl Port {
             tab_create_available: false,
             drag: None,
             arrangements: Vec::new(),
+            settings_capture: false,
         }
     }
     fn arm(&mut self) {
@@ -576,6 +581,7 @@ impl Port {
 impl TerminalInputPort for Port {
     fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
         crate::tui_composition::NativeCaptureClaims::default()
+            .with_settings(self.settings_capture)
             .with_action_menu(self.menu.input_context().is_some())
     }
     fn native_capture_context(
@@ -653,6 +659,17 @@ impl TerminalInputPort for Port {
     ) -> Option<crate::action_menu::MenuToken> {
         self.menu.scroll(token, up, lines)
     }
+    fn hover_action_menu_row(
+        &mut self,
+        source: &MenuTarget,
+        token: crate::action_menu::MenuToken,
+        row: usize,
+    ) -> bool {
+        self.menu
+            .view()
+            .is_some_and(|view| view.source == source && view.token == token)
+            && self.menu.hover(token, row)
+    }
     fn activate_action_menu_row(
         &mut self,
         source: &MenuTarget,
@@ -686,7 +703,9 @@ impl TerminalInputPort for Port {
         self.menu.take().map(MenuAction::client_action)
     }
     fn pointer_probe(&mut self) -> PointerProbe {
-        self.probe.clone()
+        let mut probe = self.probe.clone();
+        probe.input_captured |= self.menu.active() || self.settings_capture;
+        probe
     }
     fn pointer_selection(
         &mut self,
@@ -771,7 +790,7 @@ fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding()
     for bytes in [b"\x1b[<35;12;".as_slice(), b"7M\x1b[<35;12;8M"] {
         dispatch_all(&mut dispatcher, &mut view, &mut port, bytes);
     }
-    assert_eq!(port.menu.view().unwrap().selected, 0);
+    assert_eq!(port.menu.view().unwrap().selected, 1);
     assert_eq!(port.menu.confirmed(), None);
     for bytes in [
         b"\x1b[<39;12;6M".as_slice(), // Shift bypass
@@ -781,7 +800,7 @@ fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding()
         b"\x1b[<35;1;1M",             // outside
     ] {
         dispatch_all(&mut dispatcher, &mut view, &mut port, bytes);
-        assert_eq!(port.menu.view().unwrap().selected, 0);
+        assert_eq!(port.menu.view().unwrap().selected, 1);
         assert_eq!(port.menu.confirmed(), None);
     }
     paint_menu(&mut dispatcher, &mut port);
@@ -815,13 +834,18 @@ fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding()
 }
 
 #[test]
-fn menu_open_and_close_never_churns_the_global_pointer_tracking_level() {
-    for capture in [false, true] {
+fn menu_motion_is_scoped_and_never_rearms_released_or_replaces_admitted_global_capture() {
+    for tracking in [
+        PointerCaptureRequest::Release,
+        PointerCaptureRequest::ButtonOnly,
+        PointerCaptureRequest::AnyMotion,
+    ] {
+        let capture = tracking != PointerCaptureRequest::Release;
         for closing in ["escape", "outside", "invalidate", "handoff", "release"] {
             let mut port = Port::new(MenuAction::Help);
             let mut dispatcher = InputDispatcher::default();
             let mut view = ClientView::new(120);
-            dispatcher.set_pointer_capture(&mut view, &mut port, capture);
+            dispatcher.settle_pointer_capture(&mut view, &mut port, tracking);
             let mut modes = Vec::new();
             dispatcher
                 .dispatch(
@@ -836,10 +860,16 @@ fn menu_open_and_close_never_churns_the_global_pointer_tracking_level() {
                     },
                 )
                 .unwrap();
-            assert!(modes.iter().all(|mode| !matches!(
-                mode,
-                ModeRequest::PointerCapture(_) | ModeRequest::PointerAdmissionQuery(_)
-            )));
+            let mut expected = if tracking == PointerCaptureRequest::ButtonOnly {
+                vec![PointerCaptureRequest::MenuMotion]
+            } else {
+                Vec::new()
+            };
+            assert!(
+                !modes
+                    .iter()
+                    .any(|mode| matches!(mode, ModeRequest::PointerAdmissionQuery(_)))
+            );
             paint_menu(&mut dispatcher, &mut port);
             let bytes: &[u8] = match closing {
                 "outside" if capture => b"\x1b[<0;1;1Mtail",
@@ -869,13 +899,164 @@ fn menu_open_and_close_never_churns_the_global_pointer_tracking_level() {
                 )
                 .unwrap();
             assert!(!port.menu.active(), "{capture} {closing}");
-            assert!(modes.iter().all(|mode| !matches!(
-                mode,
-                ModeRequest::PointerCapture(_) | ModeRequest::PointerAdmissionQuery(_)
-            )));
+            if tracking == PointerCaptureRequest::ButtonOnly && closing != "release" {
+                expected.push(PointerCaptureRequest::ButtonOnly);
+            }
+            let actual = modes
+                .iter()
+                .filter_map(|mode| match mode {
+                    ModeRequest::PointerCapture(request) => Some(*request),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "{tracking:?} {closing}");
+            assert!(
+                !modes
+                    .iter()
+                    .any(|mode| matches!(mode, ModeRequest::PointerAdmissionQuery(_)))
+            );
             assert!(forwarded_bytes(&port.calls).is_empty());
         }
     }
+}
+
+#[test]
+fn covered_menu_returns_its_motion_lease_until_it_owns_input_again() {
+    for cover in ["settings", "machine"] {
+        let mut port = Port::new(MenuAction::Help);
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        assert!(port.menu.open(String::new(), port.actions.clone(), None));
+        let mut requests = Vec::new();
+        let mut mode = |mode| {
+            if let ModeRequest::PointerCapture(request) = mode {
+                requests.push(request);
+            }
+            Ok::<_, ()>(())
+        };
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut mode)
+            .unwrap();
+        port.settings_capture = cover == "settings";
+        view.machines.open = cover == "machine";
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut mode)
+            .unwrap();
+        assert!(port.menu.active(), "a covered menu remains retained");
+        assert_eq!(
+            dispatcher.pointer_capture,
+            PointerCaptureRequest::ButtonOnly
+        );
+        port.settings_capture = false;
+        view.machines.open = false;
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut mode)
+            .unwrap();
+        port.menu.cancel();
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut mode)
+            .unwrap();
+        assert_eq!(
+            requests,
+            [
+                PointerCaptureRequest::MenuMotion,
+                PointerCaptureRequest::ButtonOnly,
+                PointerCaptureRequest::MenuMotion,
+                PointerCaptureRequest::ButtonOnly,
+            ],
+            "{cover}"
+        );
+        assert!(port.calls.borrow().is_empty());
+    }
+}
+
+#[test]
+fn failed_menu_motion_write_never_publishes_or_retries_the_lease() {
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let result = dispatcher.dispatch(
+        &mut view,
+        b"\x02\x1bOQ",
+        &mut port,
+        Instant::now(),
+        |_, _| Ok::<_, ()>(false),
+        &mut |mode| {
+            if mode == ModeRequest::PointerCapture(PointerCaptureRequest::MenuMotion) {
+                Err(())
+            } else {
+                Ok(())
+            }
+        },
+    );
+    assert_eq!(result, Err(()));
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::ButtonOnly
+    );
+    assert!(dispatcher.pointer_transition_failed);
+    let mut retries = 0;
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |mode| {
+            if matches!(mode, ModeRequest::PointerCapture(_)) {
+                retries += 1;
+            }
+            Ok::<_, ()>(())
+        })
+        .unwrap();
+    assert_eq!(retries, 0, "failed mode effects require lifecycle teardown");
+}
+
+#[test]
+fn a_late_successful_global_probe_supersedes_the_menu_lease_and_survives_menu_exit() {
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    let now = Instant::now();
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .begin_pointer_admission(now, &mut |_| Ok::<_, ()>(()))
+        .unwrap();
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x02\x1bOQ",
+            &mut port,
+            now,
+            |_, _| Ok::<_, ()>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::MenuMotion
+    );
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x1b[?1003;2$y",
+            &mut port,
+            now + Duration::from_millis(1),
+            |_, _| Ok::<_, ()>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(dispatcher.pointer_capture, PointerCaptureRequest::AnyMotion);
+    paint_menu(&mut dispatcher, &mut port);
+    dispatcher
+        .dispatch(
+            &mut view,
+            b"\x1b[27u",
+            &mut port,
+            now + Duration::from_millis(2),
+            |_, _| Ok::<_, ()>(false),
+            &mut |_| Ok(()),
+        )
+        .unwrap();
+    assert!(!port.menu.active());
+    assert_eq!(dispatcher.pointer_capture, PointerCaptureRequest::AnyMotion);
 }
 
 #[test]

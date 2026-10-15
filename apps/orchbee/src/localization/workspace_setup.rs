@@ -4,6 +4,22 @@ use crate::terminal_session::{
 };
 
 impl Locale {
+    /// Localized progress for the Client-local Workspace creation projection.
+    #[cfg(windows)]
+    pub(crate) const fn workspace_creation_progress(
+        self,
+        phase: crate::terminal_session::WorkspaceCreationPhase,
+    ) -> &'static str {
+        use crate::terminal_session::WorkspaceCreationPhase;
+        match (self, phase) {
+            (Self::EnUs, WorkspaceCreationPhase::Preparing) => "Creating workspace…",
+            (Self::ZhCn, WorkspaceCreationPhase::Preparing) => "正在创建工作区…",
+            (Self::EnUs, WorkspaceCreationPhase::Starting) => "Starting terminal…",
+            (Self::ZhCn, WorkspaceCreationPhase::Starting) => "正在启动终端…",
+            (Self::EnUs, WorkspaceCreationPhase::Committed) => "Workspace created",
+            (Self::ZhCn, WorkspaceCreationPhase::Committed) => "工作区已创建",
+        }
+    }
     pub(crate) fn cli_default_workspace_label(self) -> &'static str {
         match self {
             Self::EnUs => "Workspace",

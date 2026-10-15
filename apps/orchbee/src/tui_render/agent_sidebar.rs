@@ -56,6 +56,7 @@ pub(super) struct RenderContext<'a> {
     pub(super) backend_status: SiteStatus<'a>,
     pub(super) theme: &'a Theme,
     pub(super) input: SidebarInput,
+    pub(super) creation: Option<crate::terminal_session::WorkspaceCreationPreview<'a>>,
 }
 
 struct ActionsContext<'a> {
@@ -252,6 +253,7 @@ pub(super) fn render(
         backend_status,
         theme,
         input,
+        creation,
     } = context;
     let owns_keyboard = input == SidebarInput::Navigation;
     if sidebar.layer == SidebarLayer::Overlay {
@@ -320,7 +322,7 @@ pub(super) fn render(
         format!("  {}", text.projects),
         format!("  {}", text.workspaces),
     ];
-    let prefix = if rows.is_empty() {
+    let prefix = if rows.is_empty() && creation.is_none() {
         if inner.height >= 16 { 7 } else { 2 }
     } else {
         0
@@ -415,6 +417,7 @@ pub(super) fn render(
             sidebar_width: sidebar.area.width,
             owns_keyboard,
             source: &source,
+            creation,
         },
         &rows,
         hits,

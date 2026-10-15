@@ -39,16 +39,16 @@ and observable host path provide the evidence required by this standard.
 Every mode the Client enables has one paired restore step. Restore runs in reverse order of
 enabling.
 
-| Mode                       | Enable                                                                           | Restore                              | When                                                  |
-| -------------------------- | -------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------- |
-| Raw input                  | Platform adapter disables echo and canonical or processed input                  | Restore the saved attributes         | Always                                                |
-| Alternate screen           | DEC `1049`                                                                       | Leave and restore the primary screen | Full-screen Clients                                   |
-| Bracketed paste            | DEC `2004`                                                                       | Disable                              | Always                                                |
-| Keyboard enhancement       | One owned push of the flags in [`keyboard-input.md`](keyboard-input.md#decoding) | One paired pop                       | After the capability is admitted                      |
-| Pointer reporting          | Exactly one of DEC `1003` or `1002`, with `1006`; `1016` on demand               | Disable all owned pointer modes      | Per [`mouse-input.md`](mouse-input.md#capture-policy) |
-| Focus reporting            | DEC `1004`                                                                       | Disable                              | When a surface changes behavior on focus loss         |
-| Synchronized output        | DEC `2026` around each frame                                                     | End the update                       | Every frame; harmless when unsupported                |
-| Color-scheme notifications | DEC `2031`                                                                       | Disable                              | When the host answers the appearance query            |
+| Mode                       | Enable                                                                                      | Restore                              | When                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------- |
+| Raw input                  | Platform adapter disables echo and canonical or processed input                             | Restore the saved attributes         | Always                                                |
+| Alternate screen           | DEC `1049`                                                                                  | Leave and restore the primary screen | Full-screen Clients                                   |
+| Bracketed paste            | DEC `2004`                                                                                  | Disable                              | Always                                                |
+| Keyboard enhancement       | One owned push of the flags in [`keyboard-input.md`](keyboard-input.md#decoding)            | One paired pop                       | After the capability is admitted                      |
+| Pointer reporting          | Global DEC `1003` or `1002`, with `1006`; scoped menu fallback per policy; `1016` on demand | Disable all owned pointer modes      | Per [`mouse-input.md`](mouse-input.md#capture-policy) |
+| Focus reporting            | DEC `1004`                                                                                  | Disable                              | When a surface changes behavior on focus loss         |
+| Synchronized output        | DEC `2026` around each frame                                                                | End the update                       | Every frame; harmless when unsupported                |
+| Color-scheme notifications | DEC `2031`                                                                                  | Disable                              | When the host answers the appearance query            |
 
 - Emit mode changes as explicit command sequences owned by the terminal lifecycle module, with a
   recorded restoration step for each. No other module writes mode sequences.
@@ -66,7 +66,8 @@ enabling.
   most once and is never replayed; it runs before leaving the alternate screen so a host that ties
   the flag stack to the screen does not retain the flags. A duplicate or late capability reply
   cannot push another frame onto the host stack.
-- A pointer tracking-level switch disables the old level before enabling the new one. `1006` is the
+- A global pointer tracking-level switch disables the old level before enabling the new one; the
+  scoped menu request preserves button fallback under [`mouse-input.md`](mouse-input.md#capture-policy). `1006` is the
   encoding used with the selected tracking level; `1016` is an orthogonal, on-demand coordinate
   mode. Releasing capture disables all owned pointer modes. Release or a downgrade from `1003`
   clears hover and armed or pressed presentation, cancels the active pointer gesture, and consumes
@@ -110,7 +111,7 @@ enabling.
 | Default colors       | OSC `10` and `11` queries with a bounded reply deadline                                                                                                   | Appearance unknown; the `terminal-native` theme |
 | Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                     | No live theme switching                         |
 | Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                      | Legacy decoding only                            |
-| Pointer any-motion   | Explicit host or adapter capability result, a product-owned platform contract with maintained conformance evidence, or an explicit supported user choice  | DEC `1002` + `1006`; no chrome hover            |
+| Pointer any-motion   | Explicit host or adapter capability result, a product-owned platform contract with maintained conformance evidence, or an explicit supported user choice  | DEC `1002` + `1006` outside scoped menus        |
 | UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                           | ASCII glyph fallbacks                           |
 | Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                      | Not inside a multiplexer                        |
 | Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                       | No vendor-specific workaround applied           |
@@ -126,9 +127,11 @@ enabling.
   inherited outer-host indicator never overrides an explicit descriptor or multiplexer.
 - Unknown is a real state. It never defaults to the dark or light polarity, to truecolor, or to
   enhanced keyboard support. Pointer any-motion has three outcomes: admitted, unavailable, and
-  unknown. Both unavailable and unknown use `1002` with `1006` and expose no hover behavior.
+  unknown. Both unavailable and unknown use `1002` with `1006` outside the scoped capturing-menu
+  request in [`mouse-input.md`](mouse-input.md#capture-policy); that request does not promote the
+  global capability and never re-arms released capture.
 - There is no assumed universal query for DEC `1003`. A successful write, lack of an immediate
-  error, terminal name, multiplexer name, or vendor environment variable does not admit any-motion.
+  error, terminal name, multiplexer name, or vendor environment variable does not admit global any-motion.
   If the evidence that admitted it is withdrawn, the lifecycle performs the serialized downgrade
   and state clearing defined above.
 - Vendor-specific workarounds are keyed on the detected name, documented with the observed defect,

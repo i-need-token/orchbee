@@ -12,6 +12,7 @@ const child_name = "orchbee-conpty-pointer-child.exe";
 
 const PointerMode = enum {
     button,
+    menu,
     any,
     released,
 };
@@ -42,12 +43,12 @@ fn expectPointerMode(runtime: *TerminalRuntime, expected: PointerMode) !void {
     state.terminal_mutex.lock();
     defer state.terminal_mutex.unlock();
 
-    const button = expected == .button;
-    const any = expected == .any;
+    const button = expected == .button or expected == .menu;
+    const any = expected == .any or expected == .menu;
     const sgr = expected != .released;
     const expected_event: @TypeOf(state.terminal.flags.mouse_event) = switch (expected) {
         .button => .button,
-        .any => .any,
+        .menu, .any => .any,
         .released => .none,
     };
     const expected_format: @TypeOf(state.terminal.flags.mouse_format) = if (sgr) .sgr else .x10;
@@ -122,21 +123,34 @@ test "bundled Windows ConPTY carries admitted Orchbee pointer motion" {
     try expectSilentHover(runtime);
     try std.testing.expectEqual(@as(usize, 1), try runtime.enqueueTextInput("b"));
 
-    var any = try captureWhenPhaseCommitted(runtime, "OBPW:ANY|", 2);
+    var menu = try captureWhenPhaseCommitted(runtime, "OBPW:MENU|", 2);
+    defer menu.deinit();
+    try std.testing.expectEqual(.alternate, menu.screen);
+    try expectPointerMode(runtime, .menu);
+    try std.testing.expect(try runtime.mouseInputWouldEmit(hoverInput()));
+    try std.testing.expect((try runtime.enqueueMouseInput(hoverInput())) > 0);
+
+    var button_return = try captureWhenPhaseCommitted(runtime, "OBPW:BUTTON-RETURN|", 3);
+    defer button_return.deinit();
+    try expectPointerMode(runtime, .button);
+    try expectSilentHover(runtime);
+    try std.testing.expectEqual(@as(usize, 1), try runtime.enqueueTextInput("r"));
+
+    var any = try captureWhenPhaseCommitted(runtime, "OBPW:ANY|", 4);
     defer any.deinit();
     try std.testing.expectEqual(.alternate, any.screen);
     try expectPointerMode(runtime, .any);
     try std.testing.expect(try runtime.mouseInputWouldEmit(hoverInput()));
     try std.testing.expect((try runtime.enqueueMouseInput(hoverInput())) > 0);
 
-    var released = try captureWhenPhaseCommitted(runtime, "OBPW:RELEASED|", 3);
+    var released = try captureWhenPhaseCommitted(runtime, "OBPW:RELEASED|", 5);
     defer released.deinit();
     try std.testing.expectEqual(.alternate, released.screen);
     try expectPointerMode(runtime, .released);
     try expectSilentHover(runtime);
     try std.testing.expectEqual(@as(usize, 1), try runtime.enqueueTextInput("q"));
 
-    var restored = try captureWhenPhaseCommitted(runtime, "OBPW:RESTORED|", 4);
+    var restored = try captureWhenPhaseCommitted(runtime, "OBPW:RESTORED|", 6);
     defer restored.deinit();
     try std.testing.expectEqual(.primary, restored.screen);
     try expectPointerMode(runtime, .released);

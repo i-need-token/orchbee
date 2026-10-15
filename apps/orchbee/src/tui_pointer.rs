@@ -1721,6 +1721,22 @@ impl PointerState {
             self.cancel_list_scroll();
         }
         let interaction = self.modal_interaction_event(event, InteractionTarget::is_action_menu);
+        if let PointerOutcome::IdleMotion { changed } = interaction {
+            let candidate_changed = if event.mods == Modifiers::NONE
+                && self.motion_observability == MotionObservability::AnyMotion
+                && self.modal_release_ownership() == ReleaseOwnership::None
+                && self.can_admit_interaction()
+                && let Some(InteractionTarget::ActionMenuRow { source, token, row }) =
+                    self.interactions.hovered_target()
+            {
+                port.hover_action_menu_row(source, *token, *row)
+            } else {
+                false
+            };
+            return PointerOutcome::IdleMotion {
+                changed: changed || candidate_changed,
+            };
+        }
         if interaction != PointerOutcome::Ignored {
             return interaction;
         }
@@ -2489,6 +2505,7 @@ impl PointerState {
         view: &mut ClientView,
         port: &mut Port,
         now: Instant,
+        _capture: Option<crate::tui_composition::CaptureOwner>,
     ) -> bool {
         let probe = port.pointer_probe();
         #[cfg(windows)]
@@ -2508,7 +2525,21 @@ impl PointerState {
                 _ => true,
             };
             let interaction_revision = self.interactions.revision();
-            self.interactions.clear_transport();
+            // Native capture blocks pane gestures, but a menu's own painted click remains
+            // owned across idle and draw boundaries. The dispatcher supplies the current
+            // composition winner; map publication still checks its exact fingerprint.
+            #[cfg(windows)]
+            let menu_owns_interaction = matches!(
+                _capture,
+                Some(crate::tui_composition::CaptureOwner::Native(
+                    crate::tui_composition::NativeCaptureOwner::ActionMenu
+                ))
+            );
+            #[cfg(not(windows))]
+            let menu_owns_interaction = false;
+            if !menu_owns_interaction {
+                self.interactions.clear_transport();
+            }
             let changed = gesture_changed
                 || self.wheel.pending != 0
                 || interaction_revision != self.interactions.revision();

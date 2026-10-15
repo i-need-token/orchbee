@@ -11,6 +11,84 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 #[test]
+fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_packet() {
+    use crate::terminal_input::{
+        PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,
+    };
+
+    for same_packet in [true, false] {
+        for history in [false, true] {
+            let (mut ui, mailbox, _, _) = controlling_ui();
+            let key = install_projection(&mut ui, Some((1000, false, 24)), 0);
+            if history {
+                ui.enter_history();
+                assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+                settle_viewing(&mut ui, &mailbox, &key, 1);
+                recv_viewports(&mailbox);
+            }
+            let source = ui.view().pane_scrollbar(key.pane().panel()).unwrap();
+            let content = Rect::new(0, 0, 80, 24);
+            let mut view = ClientView::new(120);
+            let mut dispatcher = InputDispatcher::default();
+            dispatcher.set_pointer_capture(&mut view, &mut NativePort(&mut ui), true);
+            let mut hits = HitMapBuilder::new();
+            hits.record(
+                crate::tui_pointer::HitLayer::Foreground,
+                content,
+                HitTarget::Pane {
+                    pane: key.clone(),
+                    content,
+                },
+            );
+            dispatcher.publish_hit_map(hits.finish());
+            assert!(ui.pointer_probe().selection_ready);
+            // Ctrl+B a admits creation. No preview is drawn before this old-map
+            // click, drag, release and wheel sequence is decoded.
+            let mouse = b"\x1b[<0;2;2M\x1b[<32;3;3M\x1b[<0;3;3m\x1b[<64;2;2M";
+            if same_packet {
+                let mut packet = b"\x02a".to_vec();
+                packet.extend_from_slice(mouse);
+                dispatch(&mut dispatcher, &mut view, &mut ui, &packet);
+            } else {
+                dispatch(&mut dispatcher, &mut view, &mut ui, b"\x02a");
+                dispatch(&mut dispatcher, &mut view, &mut ui, mouse);
+            }
+            assert!(ui.workspace_creation_replaces_content());
+            let probe = ui.pointer_probe();
+            assert!(!probe.input_captured, "sidebar navigation stays available");
+            assert!(!probe.selection_ready && !probe.input_ready);
+            assert!(probe.focus.is_none() && probe.panes.is_empty() && probe.frame.is_none());
+            assert_eq!(
+                ui.pointer_selection(
+                    &key,
+                    PointerSelectionIntent::Start {
+                        click_count: 1,
+                        cell: PointerSelectionCell { column: 1, row: 1 },
+                    },
+                ),
+                PointerSelectionAdmission::Rejected,
+            );
+            assert!(!ui.history_wheel(&key, true));
+            assert!(!ui.history_key(&KeyEvent::press(KeyCode::PageUp, Modifiers::NONE)));
+            assert!(!ui.scrollbar_scroll(&key, source, 0));
+            let lease = mailbox.try_recv().unwrap().unwrap();
+            assert!(matches!(lease.record(), QueuedCommand::Refresh(_)));
+            mailbox.finish_lease(lease).unwrap();
+            assert!(
+                mailbox.try_recv().unwrap().is_none(),
+                "no hidden-pane commands"
+            );
+            // Retiring a gesture must still be able to clean up its old owner.
+            assert_eq!(
+                ui.pointer_selection(&key, PointerSelectionIntent::Cancel),
+                PointerSelectionAdmission::Admitted,
+            );
+            mailbox.close(CarrierFailure::WorkerExited);
+        }
+    }
+}
+
+#[test]
 fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {

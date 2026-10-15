@@ -22,7 +22,7 @@ enum Operation {
     EnablePaste,
     DisablePointer,
     EnablePointer,
-    PointerTracking(bool),
+    PointerTracking(PointerTrackingLevel),
     DisableFocus,
     EnableFocus,
     DisableRaw,
@@ -150,10 +150,7 @@ impl TerminalModes for FakeTerminalModes {
         _from: PointerTrackingLevel,
         to: PointerTrackingLevel,
     ) -> io::Result<()> {
-        self.perform(Operation::PointerTracking(matches!(
-            to,
-            PointerTrackingLevel::AnyMotion
-        )))
+        self.perform(Operation::PointerTracking(to))
     }
 
     fn disable_raw_mode(&self) -> io::Result<()> {
@@ -183,6 +180,42 @@ impl TerminalModes for FakeTerminalModes {
     fn show_cursor(&self) -> io::Result<()> {
         self.perform(Operation::ShowCursor)
     }
+}
+
+#[cfg(windows)]
+#[test]
+fn menu_motion_keeps_button_fallback_and_returns_every_owned_mode() {
+    use PointerTrackingLevel::{AnyMotion, ButtonOnly, MenuMotion};
+    use crossterm::Command;
+    for (from, to, expected) in [
+        (ButtonOnly, MenuMotion, "\x1b[?1002h\x1b[?1003h"),
+        (AnyMotion, MenuMotion, "\x1b[?1002h\x1b[?1003h"),
+        (MenuMotion, ButtonOnly, "\x1b[?1003l\x1b[?1002h"),
+        (MenuMotion, AnyMotion, "\x1b[?1002l\x1b[?1003h"),
+    ] {
+        let mut wire = String::new();
+        super::PointerTrackingTransition { from, to }
+            .write_ansi(&mut wire)
+            .unwrap();
+        assert_eq!(wire, expected, "{from:?} -> {to:?}");
+    }
+    let mut wire = String::new();
+    super::PointerCapture {
+        enabled: true,
+        level: PointerTrackingLevel::MenuMotion,
+    }
+    .write_ansi(&mut wire)
+    .unwrap();
+    super::PointerCapture {
+        enabled: false,
+        level: PointerTrackingLevel::MenuMotion,
+    }
+    .write_ansi(&mut wire)
+    .unwrap();
+    assert_eq!(
+        wire,
+        "\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b[?1003l\x1b[?1006l\x1b[?1002l"
+    );
 }
 
 #[cfg(windows)]
@@ -263,12 +296,12 @@ fn tracking_switches_only_inside_capture_and_release_clears_all_owned_modes() {
         pointer,
         [
             Operation::EnablePointer,
-            Operation::PointerTracking(true),
-            Operation::PointerTracking(false),
-            Operation::PointerTracking(true),
+            Operation::PointerTracking(PointerTrackingLevel::AnyMotion),
+            Operation::PointerTracking(PointerTrackingLevel::ButtonOnly),
+            Operation::PointerTracking(PointerTrackingLevel::AnyMotion),
             Operation::DisablePointer,
             Operation::EnablePointer,
-            Operation::PointerTracking(true),
+            Operation::PointerTracking(PointerTrackingLevel::AnyMotion),
             Operation::DisablePointer
         ]
     );
@@ -277,20 +310,19 @@ fn tracking_switches_only_inside_capture_and_release_clears_all_owned_modes() {
 #[cfg(windows)]
 #[test]
 fn failed_tracking_switch_is_not_retried_and_keeps_capture_cleanup_obligations() {
-    for enabled in [true, false] {
-        let control = FakeTerminalModes::with_failures([(Operation::PointerTracking(enabled), 1)]);
+    use PointerTrackingLevel::{AnyMotion, ButtonOnly, MenuMotion};
+    for (from, level) in [
+        (ButtonOnly, AnyMotion),
+        (AnyMotion, ButtonOnly),
+        (ButtonOnly, MenuMotion),
+        (MenuMotion, ButtonOnly),
+        (MenuMotion, AnyMotion),
+        (AnyMotion, MenuMotion),
+    ] {
+        let control = FakeTerminalModes::with_failures([(Operation::PointerTracking(level), 1)]);
         let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
         guard.set_pointer_capture(true).unwrap();
-        if !enabled {
-            guard
-                .set_pointer_tracking(PointerTrackingLevel::AnyMotion)
-                .unwrap();
-        }
-        let level = if enabled {
-            PointerTrackingLevel::AnyMotion
-        } else {
-            PointerTrackingLevel::ButtonOnly
-        };
+        guard.set_pointer_tracking(from).unwrap();
         assert!(guard.set_pointer_tracking(level).is_err());
         assert!(guard.set_pointer_tracking(level).is_err());
         guard.restore().unwrap();
@@ -298,7 +330,7 @@ fn failed_tracking_switch_is_not_retried_and_keeps_capture_cleanup_obligations()
         assert_eq!(
             operations
                 .iter()
-                .filter(|op| **op == Operation::PointerTracking(enabled))
+                .filter(|op| **op == Operation::PointerTracking(level))
                 .count(),
             1
         );
@@ -345,7 +377,10 @@ fn failed_typed_pointer_enable_is_not_retried_before_full_cleanup() -> io::Resul
 
 #[test]
 fn failed_typed_tracking_switch_is_fenced_until_release_settles() -> io::Result<()> {
-    let control = FakeTerminalModes::with_failures([(Operation::PointerTracking(true), 1)]);
+    let control = FakeTerminalModes::with_failures([(
+        Operation::PointerTracking(PointerTrackingLevel::AnyMotion),
+        1,
+    )]);
     let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone())?;
     guard.set_pointer_capture_level(Some(PointerTrackingLevel::ButtonOnly))?;
 
@@ -379,7 +414,7 @@ fn failed_typed_tracking_switch_is_fenced_until_release_settles() -> io::Result<
         pointer,
         [
             Operation::EnablePointer,
-            Operation::PointerTracking(true),
+            Operation::PointerTracking(PointerTrackingLevel::AnyMotion),
             Operation::DisablePointer,
             Operation::EnablePointer,
             Operation::DisablePointer,
@@ -668,9 +703,13 @@ fn process_singleton_restores_an_actual_panic_without_clobbering_a_later_hook() 
     let _ = super::process_panic_registry();
     let later_hook_calls = Arc::new(AtomicUsize::new(0));
     let calls_for_hook = Arc::clone(&later_hook_calls);
+    let observed_thread = thread::current().id();
     let singleton_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
-        calls_for_hook.fetch_add(1, Ordering::Relaxed);
+        // Concurrent catch_unwind witnesses also invoke this process-wide hook.
+        if thread::current().id() == observed_thread {
+            calls_for_hook.fetch_add(1, Ordering::Relaxed);
+        }
         singleton_hook(panic_info);
     }));
 

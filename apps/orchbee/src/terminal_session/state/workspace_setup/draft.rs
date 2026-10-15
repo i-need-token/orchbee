@@ -161,6 +161,11 @@ impl<'a> NativeSetupProjectView<'a> {
     }
 }
 impl<'a> NativeSetupDraftView<'a> {
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn background(&self) -> bool {
+        self.draft.stage == NativeSetupStage::PreparingWorkspace
+            || self.draft.quick.is_some() && self.draft.continuation.is_some()
+    }
     pub(crate) const fn interactive(&self) -> bool {
         self.draft.shown && self.presentation.interactive()
     }

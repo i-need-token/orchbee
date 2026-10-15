@@ -578,6 +578,113 @@ pub(super) struct RenderContext<'a> {
     pub(super) sidebar_width: u16,
     pub(super) owns_keyboard: bool,
     pub(super) source: &'a SidebarSource,
+    pub(super) creation: Option<crate::terminal_session::WorkspaceCreationPreview<'a>>,
+}
+
+fn creation_target_matches(
+    view: &ClientView,
+    row: &SidebarRow<'_>,
+    preview: crate::terminal_session::WorkspaceCreationPreview<'_>,
+) -> bool {
+    let Some((workspace, _)) = preview.committed else {
+        return false;
+    };
+    let target = row.target();
+    target.machine() == &view.machines.current
+        && target.site_id() == preview.site
+        && match target {
+            SidebarTarget::Context { target, .. } => matches!(&target.location,
+                crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } if workspace_id == workspace),
+            SidebarTarget::Project { project_id, .. } => {
+                preview.project_id == Some(&project_id)
+                    && view
+                        .machines
+                        .workspace_checkpoint_project(preview.site, workspace)
+                        == Some(&project_id)
+                    && !view.machines.sidebar_project_expanded(&row.target())
+            }
+            SidebarTarget::Agent { .. } => false,
+        }
+}
+
+fn render_creation(
+    frame: &mut Frame<'_>,
+    row: Rect,
+    sidebar_width: u16,
+    preview: crate::terminal_session::WorkspaceCreationPreview<'_>,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let Some(tracks) = layout::Tracks::resolve_for_width(
+        row,
+        0,
+        0,
+        sidebar_width,
+        layout::AuxiliaryActions::default(),
+        layout::RowKind::Owner,
+    ) else {
+        return;
+    };
+    let name = super::workspace_creation::label(preview, locale);
+    let name = preview
+        .project
+        .map_or_else(|| name.to_owned(), |project| format!("{project} / {name}"));
+    let pending = preview.phase != crate::terminal_session::WorkspaceCreationPhase::Committed;
+    let mut lines = vec![fit(
+        Line::from(vec![
+            Span::styled(display_label(&name), theme.style(Role::TextPrimary)),
+            Span::styled(
+                if pending {
+                    format!(" · {}", locale.workspace_creation_progress(preview.phase))
+                } else {
+                    String::new()
+                },
+                theme.style(Role::TextSecondary),
+            ),
+        ]),
+        usize::from(tracks.primary.width),
+        theme.glyphs.ellipsis,
+    )];
+    let state = InteractionState::new(
+        FocusState::Unfocused,
+        PointerPresentation::Rest,
+        NavigationState::None,
+        if preview.current {
+            CurrentState::Current
+        } else {
+            CurrentState::NotCurrent
+        },
+        CheckedState::Unchecked,
+        Availability::Enabled,
+        if pending {
+            OperationState::Pending
+        } else {
+            OperationState::Idle
+        },
+    );
+    let _ = paint_row_interaction(
+        frame,
+        row,
+        RowTracks::new(RowFocusCue::EnclosingFrame, tracks.primary).with_status(tracks.state),
+        &[RowContentBand::explicit(tracks.current)],
+        ControlSurface::Chrome,
+        state,
+        theme,
+    );
+    compose_lines(
+        &mut lines,
+        PointerPresentation::Rest,
+        false,
+        preview.current,
+        theme,
+    );
+    frame.render_widget(Paragraph::new(lines), tracks.primary);
+    if preview.current && !theme.current_context_marker().trim().is_empty() {
+        frame.render_widget(
+            Paragraph::new(theme.glyphs.active_marker).style(theme.style(Role::TextPrimary)),
+            tracks.current,
+        );
+    }
 }
 
 fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
@@ -898,11 +1005,22 @@ pub(super) fn render(
         sidebar_width,
         owns_keyboard,
         source,
+        creation,
     } = context;
     if area.is_empty() {
         return;
     }
-    let count = view.machines.sidebar_workspace_count();
+    let extra_creation = creation.filter(|preview| {
+        !rows
+            .iter()
+            .any(|row| creation_target_matches(view, row, *preview))
+            && preview.committed.is_none_or(|(_, revision)| {
+                !view
+                    .machines
+                    .workspace_checkpoint_covers(preview.site, revision)
+            })
+    });
+    let count = view.machines.sidebar_workspace_count() + usize::from(extra_creation.is_some());
     let header = Rect::new(area.x, area.y, area.width, 1);
     sidebar_text::section_heading(
         frame,
@@ -923,12 +1041,24 @@ pub(super) fn render(
     } else {
         1
     };
-    let body = Rect::new(
+    let mut body = Rect::new(
         area.x,
         area.y + header_rows,
         area.width,
         area.height - header_rows - 1,
     );
+    if let Some(preview) = extra_creation {
+        render_creation(
+            frame,
+            Rect::new(body.x, body.y, body.width, 1),
+            sidebar_width,
+            preview,
+            locale,
+            theme,
+        );
+        body.y += 1;
+        body.height = body.height.saturating_sub(1);
+    }
     let annotations = annotations(view, rows, locale);
     let measure = EntryMeasureContext {
         view,
@@ -1020,7 +1150,11 @@ pub(super) fn render(
             break;
         };
         let focused = owns_keyboard && view.machines.sidebar_focused_target() == Some(&target);
-        let current = current_row(view, row, &target);
+        let current = if let Some(preview) = creation.filter(|preview| preview.current) {
+            extra_creation.is_none() && creation_target_matches(view, row, preview)
+        } else {
+            current_row(view, row, &target)
+        };
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
 
         let suffix = &annotations[index];

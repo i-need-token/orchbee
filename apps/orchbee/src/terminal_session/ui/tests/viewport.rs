@@ -753,6 +753,14 @@ impl TerminalInputPort for NativePort<'_> {
         self.0.pointer_probe()
     }
 
+    fn pointer_selection(
+        &mut self,
+        pane: &PaneRef,
+        intent: crate::terminal_input::PointerSelectionIntent,
+    ) -> crate::terminal_input::PointerSelectionAdmission {
+        self.0.pointer_selection(pane, intent)
+    }
+
     fn scrollbar_scroll(
         &mut self,
         key: &PaneRef,

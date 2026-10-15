@@ -507,7 +507,12 @@ fn forced_catalog_fallback_cancels_once_through_the_old_surface_before_replace()
             .unwrap()
             .frame_available = true;
     }
-    pointer.tick(&mut view, surface.active(), at + Duration::from_millis(1));
+    pointer.tick(
+        &mut view,
+        surface.active(),
+        at + Duration::from_millis(1),
+        None,
+    );
     assert!(
         log.borrow()
             .iter()

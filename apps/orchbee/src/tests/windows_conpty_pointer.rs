@@ -248,6 +248,15 @@ fn inherited_terminal_pointer_admission() -> Result<(), Box<dyn Error>> {
         "button-only phase acknowledgement",
     )?;
 
+    // A capturing menu can request motion without a useful DECRQM reply, retaining button
+    // tracking for a host that ignores mode 1003. This phase uses no admission reply.
+    guard.set_pointer_tracking(PointerTrackingLevel::MenuMotion)?;
+    commit_phase(&terminal, &guard, "OBPW:MENU|")?;
+    expect_no_button_motion(&mut input, &terminal)?;
+    guard.set_pointer_tracking(PointerTrackingLevel::ButtonOnly)?;
+    commit_phase(&terminal, &guard, "OBPW:BUTTON-RETURN|")?;
+    expect_key(&mut input, &terminal, 'r', "menu return acknowledgement")?;
+
     admit_any_motion(&mut input, &terminal, &guard)?;
     guard.set_pointer_capture_level(Some(PointerTrackingLevel::AnyMotion))?;
     commit_phase(&terminal, &guard, "OBPW:ANY|")?;

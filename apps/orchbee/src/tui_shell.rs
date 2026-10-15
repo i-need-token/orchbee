@@ -45,6 +45,8 @@ fn pointer_tracking_level(request: PointerCaptureRequest) -> Option<PointerTrack
         PointerCaptureRequest::Release => None,
         PointerCaptureRequest::ButtonOnly => Some(PointerTrackingLevel::ButtonOnly),
         PointerCaptureRequest::AnyMotion => Some(PointerTrackingLevel::AnyMotion),
+        #[cfg(windows)]
+        PointerCaptureRequest::MenuMotion => Some(PointerTrackingLevel::MenuMotion),
     }
 }
 

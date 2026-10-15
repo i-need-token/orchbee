@@ -192,7 +192,7 @@ fn divider_release_submits_once_without_program_input_or_preview_layout_effects(
     assert!(pointer.divider_preview().is_none());
     assert_eq!(view.notice(), Some(crate::client_view::Notice::ResizeBusy));
     port.busy = false;
-    pointer.tick(&mut view, &mut port, Instant::now());
+    pointer.tick(&mut view, &mut port, Instant::now(), None);
     assert_eq!(port.submissions.len(), 1, "busy press is never replayed");
 }
 
@@ -205,7 +205,7 @@ fn divider_idle_lane_failure_and_busy_are_visible_without_waiting_for_another_mo
         assert!(pointer.divider_preview().is_some());
         port.failed = failed;
         port.busy = !failed;
-        assert!(pointer.tick(&mut view, &mut port, Instant::now()));
+        assert!(pointer.tick(&mut view, &mut port, Instant::now(), None));
         assert!(pointer.divider_preview().is_none());
         assert_eq!(
             view.notice(),
@@ -297,16 +297,16 @@ fn divider_cancellation_never_commits_or_revives_on_late_release() {
             }
             4 => {
                 port.captured = true;
-                pointer.tick(&mut view, &mut port, Instant::now());
+                pointer.tick(&mut view, &mut port, Instant::now(), None);
             }
             5 => {
                 port.target.viewport.width += 1;
-                pointer.tick(&mut view, &mut port, Instant::now());
+                pointer.tick(&mut view, &mut port, Instant::now(), None);
             }
             6 => {
                 view.dismiss_overlay();
                 commit_overlay(&mut view);
-                pointer.tick(&mut view, &mut port, Instant::now());
+                pointer.tick(&mut view, &mut port, Instant::now(), None);
             }
             _ => {
                 port.target.source.revision = WorkbenchRevision::new(2);
@@ -508,7 +508,7 @@ fn replay(actions: &[[u16; 3]]) -> Result<u16, String> {
             }
             _ => return Err("unknown action".to_owned()),
         }
-        pointer.tick(&mut view, &mut port, Instant::now());
+        pointer.tick(&mut view, &mut port, Instant::now(), None);
         if pointer.divider_preview().is_some() != alive || port.submissions.len() != expected {
             return Err(format!(
                 "step {kind}: alive={alive}, expected={expected}, actual={}",

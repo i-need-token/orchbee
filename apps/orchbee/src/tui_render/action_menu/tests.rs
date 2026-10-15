@@ -7,6 +7,67 @@ use crate::{
 use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
 
+#[test]
+fn hovered_candidate_uses_the_full_row_selection_and_marker_in_every_usable_tier() {
+    for (width, height) in [(120, 40), (80, 24), (65, 16), (40, 10)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
+                let client = ClientView::new(width);
+                let mut menu = ActionMenu::default();
+                menu.open(
+                    "Actions".into(),
+                    vec![MenuAction::Help, MenuAction::Reload],
+                    None,
+                );
+                let paint = |menu: &mut ActionMenu| {
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    let mut draw = ModalPresentation::NotPresented;
+                    let buffer = terminal
+                        .draw(|frame| {
+                            draw = render(
+                                frame,
+                                frame.area(),
+                                menu.view().unwrap(),
+                                client.bindings(),
+                                locale,
+                                &theme,
+                                &mut hits,
+                            );
+                        })
+                        .unwrap()
+                        .buffer
+                        .clone();
+                    let ModalPresentation::Presented(draw) = draw else {
+                        panic!("menu fits the tier")
+                    };
+                    assert!(menu.presented(draw));
+                    (buffer, hits.finish(), draw.token)
+                };
+                let (before, map, token) = paint(&mut menu);
+                let first = action_row_rect(&map, before.area, token);
+                assert!(menu.hover(token, 1));
+                let (after, _, _) = paint(&mut menu);
+                assert_text_at(&after, first.x, first.y + 1, theme.glyphs.navigation_marker);
+                assert_eq!(after[(first.x, first.y)].symbol(), " ");
+                for x in first.x..first.right() {
+                    assert_eq!(
+                        after[(x, first.y + 1)].bg,
+                        theme.color(Role::SurfaceSelection)
+                    );
+                    assert_ne!(after[(x, first.y)].bg, theme.color(Role::SurfaceSelection));
+                }
+                assert_eq!(menu.confirmed(), None);
+                assert_eq!(menu.view().unwrap().first, 0);
+            }
+        }
+    }
+}
+
 fn render_machines_row(
     width: u16,
     height: u16,

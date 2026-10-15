@@ -118,13 +118,25 @@ payloads stay literal and are never inspected for these replies.
 
 An admitted result switches from `1002` to `1003` by disabling the old level before enabling the
 new one. Unknown and unavailable results retain `1002`, so click, drag, and wheel work while idle
-hover remains honestly absent. Exactly one tracking level is active; `1006` remains its encoding.
+hover remains absent outside the scoped menu policy below. Global capture selects one tracking
+level; `1006` remains its encoding.
 Capture release and re-arm reuse the endpoint's settled result rather than issuing another query.
 An admitted switch is published to pointer interaction state only after the complete mode write
 succeeds. A failed switch publishes no hover authority and is never retried by the running input
 loop; the fatal path proceeds to full lifecycle cleanup. Global admitted any-motion serves every
-painted chrome control, including action menus. There is no menu-scoped `1003` lease; ButtonOnly
-fallback therefore has click, drag, and wheel but no claimed idle hover anywhere.
+painted chrome control, including action menus. Outside menus, ButtonOnly fallback has click, drag,
+and wheel without idle hover.
+
+An action menu with already armed capture additionally owns a scoped `MenuMotion` request when
+global any-motion is not admitted. It writes `1002h`, then `1003h`, retaining `1006`: a host ignoring
+`1003` keeps the button fallback, and actual motion reports are required before feedback appears.
+This request neither changes the one-shot probe result nor assumes physical delivery. Menu exit
+restores `1003l`, then `1002h`; an independently admitted global upgrade supersedes the menu request
+and remains active on exit. Keyboard opening while capture is released performs no mode write.
+Mode effects complete before the dispatcher publishes this local report admission; a failed write
+is fatal and never retried, and lifecycle teardown clears every owned mode. The existing native
+ConPTY witness covers the request, semantic motion through the inherited reader, return to silent
+button-only motion, global admission and full restoration; physical terminal review remains separate.
 
 The tracking level and encoding share one `ModeLease`, armed at startup unless `tui --mouse off`
 declined it. A pending restoration obligation is registered before every native or VT mutation.

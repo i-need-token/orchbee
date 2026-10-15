@@ -416,7 +416,7 @@ fn cancellation_traces_never_commit_or_reinterpret_release() {
             }
             2 => {
                 port.source.drawn.source.revision = WorkbenchRevision::new(2);
-                pointer.tick(&mut view, &mut port, Instant::now());
+                pointer.tick(&mut view, &mut port, Instant::now(), None);
             }
             3 => {
                 map.overlay_active = true;

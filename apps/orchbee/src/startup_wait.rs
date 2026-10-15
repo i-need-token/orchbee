@@ -101,6 +101,8 @@ impl<M: TerminalModes> WaitModeGuard for TerminalModeGuard<M> {
                 PointerCaptureRequest::Release => None,
                 PointerCaptureRequest::ButtonOnly => Some(PointerTrackingLevel::ButtonOnly),
                 PointerCaptureRequest::AnyMotion => Some(PointerTrackingLevel::AnyMotion),
+                #[cfg(windows)]
+                PointerCaptureRequest::MenuMotion => Some(PointerTrackingLevel::MenuMotion),
             },
         )
     }

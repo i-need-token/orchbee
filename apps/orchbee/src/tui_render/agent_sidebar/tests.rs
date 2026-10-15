@@ -976,6 +976,7 @@ fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_
                             frame,
                             sidebar,
                             RenderContext {
+                                creation: None,
                                 view: &view,
                                 locale,
                                 backend_status: SiteStatus {
@@ -1076,6 +1077,7 @@ fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forget
                     frame,
                     sidebar,
                     RenderContext {
+                        creation: None,
                         view: &view,
                         locale: Locale::EnUs,
                         backend_status: SiteStatus {

@@ -12,6 +12,44 @@ pub(crate) struct SidebarAgentCounts {
 }
 
 impl Picker {
+    /// A complete same-Session checkpoint at this revision supersedes a creation-only projection.
+    pub(crate) fn workspace_checkpoint_covers(
+        &self,
+        site: &orchbee_workbench_protocol::SiteId,
+        revision: orchbee_workbench_protocol::WorkbenchRevision,
+    ) -> bool {
+        self.space_observations
+            .iter()
+            .any(|(machine, observation)| {
+                machine == &self.current
+                    && matches!(observation,
+                crate::machine_spaces::Observation::Ready(checkpoint)
+                    if &checkpoint.site_id == site && checkpoint.revision >= revision)
+            })
+    }
+    /// Current canonical membership keeps a collapsed Project marker from outliving its Workspace.
+    pub(crate) fn workspace_checkpoint_project(
+        &self,
+        site: &orchbee_workbench_protocol::SiteId,
+        workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+    ) -> Option<&orchbee_workbench_protocol::WorkbenchProjectId> {
+        self.space_observations
+            .iter()
+            .find_map(|(machine, observation)| match observation {
+                crate::machine_spaces::Observation::Ready(checkpoint)
+                    if machine == &self.current && &checkpoint.site_id == site =>
+                {
+                    checkpoint.rows.iter().find_map(|row| {
+                        matches!(&row.target.location,
+                            crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. }
+                                if workspace_id == workspace)
+                        .then_some(row.project_id.as_ref())
+                        .flatten()
+                    })
+                }
+                _ => None,
+            })
+    }
     /// Count canonical Workspaces, including those hidden by a collapsed Project.
     pub(crate) fn sidebar_workspace_count(&self) -> usize {
         self.workspace_rows

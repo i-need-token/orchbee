@@ -85,8 +85,8 @@ combinations instead of compressing them into one `selected` flag.
 | --------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Information hierarchy | heading, primary, secondary   | Describes reading priority only; interaction never promotes metadata into primary content                           |
 | Keyboard ownership    | unfocused, focused            | Focus identifies the event owner and remains visible without relying on a background fill                           |
-| Pointer               | rest, hovered, pressed        | Hover and press are transient feedback and never change a model value or keyboard cursor                            |
-| Navigation            | none, provisional             | Provisional is the reversible row or value under keyboard navigation before acceptance                              |
+| Pointer               | rest, hovered, pressed        | Hover and press never commit a model value; an action menu may move its provisional candidate through its owner     |
+| Navigation            | none, provisional             | Provisional is the reversible row or value under navigation before acceptance                                       |
 | Identity and value    | current, checked              | Current identifies active context; checked identifies a chosen option in the control's declared value model         |
 | Availability          | enabled, disabled with reason | Disabled blocks activation but preserves identity and discoverability                                               |
 | Operation             | idle, pending, outcome        | Pending describes work after activation; success, failure, cancellation, and unknown are outcomes, not availability |
@@ -113,8 +113,12 @@ provisional cursor. It never proves persistence by itself. When that projected v
 the confirmed or effective basis, the owner supplies a visible changed-draft cue that remains
 distinct from focus, provisional navigation, validation, and pending state.
 
-Pointer hover never moves keyboard focus, the provisional cursor, current context, or a checked
-value. Pressing arms one enabled target; leaving that target removes the pressed treatment. The
+Pointer hover never moves keyboard focus, current context, or a checked value. An open action menu
+updates its provisional candidate on real unmodified, button-free movement over an enabled painted
+row, using the same full-row selection fill and navigation marker as keyboard navigation. This
+does not execute an action or open a submenu. Leaving retains the candidate; arrows continue from
+it. Disabled rows and separators do not become pointer candidates. Other collections retain their
+provisional cursor on hover. Pressing arms one enabled target; leaving that target removes the pressed treatment. The
 pointer policy determines activation on release. A disabled target never acquires hover or pressed
 treatment.
 
@@ -223,8 +227,8 @@ padding and continuation rows retain their declared owner.
   existing context-menu and keyboard routes available, and retain a revealed trigger while its
   own control is hovered or pressed. Revealing it never shifts identity or cancels an armed row.
 - `surface-current` identifies the active entity after focus moves elsewhere. `surface-selection`
-  identifies the provisional keyboard cursor. Pointer hover uses `surface-hover` and does not move
-  either fact. A checked glyph identifies the chosen multi-selection at its declared value boundary,
+  identifies the provisional cursor. Ordinary collection hover uses `surface-hover` and does not move
+  either fact; action menus follow the candidate contract above. A checked glyph identifies the chosen multi-selection at its declared value boundary,
   independently of all three.
 - A current, checked, or provisional marker survives truncation and reduced-color rendering.
   Optional metadata never becomes the only indication of identity or state.
@@ -367,7 +371,7 @@ renders only inside the returned content slot.
 | Change                             | Required evidence                                                                                                                                                                                                                                                |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Component addition or state change | Render rest, hover, pressed, focused, disabled, pending, and outcome; include current + focus, current + hover, checked + provisional, disabled + current, disabled + checked, disabled + outcome, and pending + focus while secondary hierarchy stays secondary |
-| Action family change               | Keyboard and pointer produce the same typed intent; hover does not move focus or selection; press-drag-out does not activate; disabled and pending policies are covered                                                                                          |
+| Action family change               | Keyboard and pointer produce the same typed intent; hover preserves focus and committed selection, with only the declared menu candidate exception; press-drag-out does not activate; disabled and pending policies are covered                                  |
 | Value control change               | Off/on and admitted mixed values, checked draft versus confirmed basis, provisional radio navigation and ASCII fallback, bounded endpoints, editor and picker rest affordance, whole-target pointer and keyboard parity                                          |
 | List or tree change                | Stable columns with and without children, status, metadata, and auxiliary actions; full-height interaction bands; identity-preserving filter and collapse cases                                                                                                  |
 | Editor or picker change            | Draft and cursor restoration, retention of accepted results after return, rollback of unaccepted previews, distinct loading/empty/no-match/error states, acceptance, parent commit, cancellation, and wide character input                                       |

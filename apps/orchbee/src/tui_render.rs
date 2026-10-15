@@ -127,6 +127,8 @@ mod terminal_cells;
 pub(crate) mod test_capture;
 mod viewport;
 mod workspace_close;
+#[cfg(windows)]
+mod workspace_creation;
 mod workspace_setup;
 #[cfg(windows)]
 mod workspace_sidebar;
@@ -495,6 +497,12 @@ pub(crate) fn render_terminal_shell(
                     agent_sidebar::RenderContext {
                         view,
                         locale,
+                        creation: match session.as_ref() {
+                            Some(TerminalSessionView::Native(native)) => {
+                                native.workspace_creation_preview()
+                            }
+                            _ => None,
+                        },
                         backend_status: site_status,
                         theme,
                         input: if captured
@@ -1361,6 +1369,14 @@ fn render_native_workbench(
     #[cfg(windows)] graphics_uncovered: bool,
     #[cfg(windows)] graphics_draws: &mut Vec<crate::terminal_session::PaneGraphicsDraw>,
 ) {
+    #[cfg(windows)]
+    if let Some(preview) = native
+        .workspace_creation_preview()
+        .filter(|preview| preview.replaces_content())
+    {
+        workspace_creation::render(frame, areas, preview, locale, theme);
+        return;
+    }
     let bound_text = locale.shell().bind(client_view);
     let text = bound_text.text();
     let pane_focused = !native.capture_claims().exclusive_any();

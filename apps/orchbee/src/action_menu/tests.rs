@@ -1,5 +1,7 @@
 use super::*;
 
+mod hover;
+
 fn menu() -> ActionMenu {
     let mut menu = ActionMenu::default();
     assert!(menu.open(

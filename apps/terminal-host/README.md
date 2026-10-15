@@ -333,7 +333,10 @@ witness against the same manifest-verified ConPTY bundle and the pinned Ghostty 
 Orchbee Rust test binary enters through its inherited console, native reader, input decoder and
 terminal-mode guard. The Host injects semantic button-free motion: button-event tracking must emit
 nothing, an ordered reset report for mode 1003 before the DA1 sentinel admits any-motion tracking,
-and the same semantic motion must then arrive as a typed no-button mouse event. Full pointer release
+and the same semantic motion must then arrive as a typed no-button mouse event. Before that global
+probe, the child also requests the scoped menu policy (`1002h`, then `1003h`) and receives semantic
+motion through its inherited reader without a capability reply; returning to button-only suppresses
+idle motion again. Full pointer release
 must suppress another motion, and child exit must restore the original native console modes,
 primary screen and cursor. This is evidence for the pinned Windows x64 harness. It does not prove
 the full UI input dispatcher, physical mouse records, another terminal emulator's query behavior,

@@ -772,24 +772,49 @@ impl ActionMenu {
         true
     }
 
-    pub(crate) fn click(&mut self, token: MenuToken, row: usize) -> bool {
-        let Some(menu) = &mut self.menu else {
+    fn drawn_enabled_row(&self, token: MenuToken, row: usize) -> bool {
+        let Some(menu) = &self.menu else {
             return false;
         };
         let Some(draw) = menu.drawn else {
             return false;
         };
-        if self.confirmed.is_some()
-            || !self.presentation.interactive()
-            || draw.token != token
-            || menu.token != token
-            || row >= menu.actions.len()
-            || row < draw.first
-            || row >= draw.first.saturating_add(draw.visible_rows)
-            || menu.unavailable[row].is_some()
-        {
+        self.confirmed.is_none()
+            && self.presentation.interactive()
+            && draw.token == token
+            && menu.token == token
+            && row < menu.actions.len()
+            && row >= draw.first
+            && row < draw.first.saturating_add(draw.visible_rows)
+            && menu.unavailable[row].is_none()
+    }
+
+    /// Movement changes only the provisional menu candidate, never confirms an action.
+    /// The painted window remains anchored until explicit keyboard navigation resumes.
+    pub(crate) fn hover(&mut self, token: MenuToken, row: usize) -> bool {
+        if !self.drawn_enabled_row(token, row) {
             return false;
         }
+        let Some(menu) = &mut self.menu else {
+            return false;
+        };
+        if menu.selected == row {
+            return false;
+        }
+        menu.selected = row;
+        menu.follow_selection = false;
+        // Hover preserves the exact row window so every motion in a packet can update the
+        // candidate. Enter still requires a draw whose selected row matches this candidate.
+        true
+    }
+
+    pub(crate) fn click(&mut self, token: MenuToken, row: usize) -> bool {
+        if !self.drawn_enabled_row(token, row) {
+            return false;
+        }
+        let Some(menu) = &mut self.menu else {
+            return false;
+        };
         menu.selected = row;
         self.confirmed = Some(menu.actions[row]);
         true

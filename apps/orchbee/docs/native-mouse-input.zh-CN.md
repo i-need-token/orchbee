@@ -191,12 +191,15 @@ map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`�
 颜色、位置或宽泛的整行目标推断；子 action 必须先于包含它的整行记录。
 
 `PointerState` 只把 `Rest`、`Hovered` 或 `Pressed` 投影到下一个候选 frame；它不写键盘焦点、
-临时选择、current 或 checked 状态、availability、pending 状态或任何领域模型。`Hovered` 要求
-在明确 settle 为 `AnyMotion` 可观测之后收到真实的无键移动报告。button-only 可观测性、释放
-捕获、宿主失焦及可观测性降级都会清掉保留位置，因此恢复不能合成 hover。dispatcher 只有在能力
-准入和类型化模式切换都成功完成后，才发布 `AnyMotion`。不确定的部分切换会通过恢复边界退出，
+current 或 checked 状态、availability、pending 状态或任何领域模型。动作菜单的指针适配器
+还会把真实可用行移动报告给所有者，由其只更新[临时菜单候选](native-action-menus.md#interaction)。
+其他集合保留临时选择。`Hovered` 要求在全局 `AnyMotion` 准入或完成菜单范围的 `MenuMotion`
+请求之后收到真实的无键移动报告。button-only 可观测性、释放捕获、宿主失焦及可观测性降级
+都会清掉保留位置，因此恢复不能合成 hover。dispatcher 只有在能力准入和类型化模式切换都成功
+完成后，才发布全局 `AnyMotion`；菜单范围可观测性则要求其自身的切换完成。不确定的部分切换会通过恢复边界退出，
 而不发布回退状态。捕获释放期间收到的回复只结算准入；下一次捕获使用该结果，不再查询。迟到及
-重复回复不能重新开启已结算准入。动作菜单共享这份全局可观测性，不持有独立的 `1003` 租约。
+重复回复不能重新开启已结算准入。全局尚未准入时，动作菜单保留带按钮回退的菜单范围请求；
+退出后恢复全局级别，绝不隐式重新启用已释放捕获。
 模式支持准入与语义交付证据仍是两个维度；[终端环境参考](native-terminal-environment.zh-CN.md)
 拥有探测与宿主见证。
 
@@ -456,14 +459,14 @@ control/attach 字节实测覆盖。
 | 编码与归属              | `route_pane_pointer` 的 fresh 事件矩阵，加上 `encode_pane_report` 对每个 tracking × format 单元、已捕获清理、release 结尾、去重、夹取、legacy 上界与 SGR cell 降级的覆盖                                                                                                                         |
 | Hit map                 | `tui_pointer/tests` 层序、边缘/外侧 cell、overlay 捕获与 backdrop 关闭——包括落在未遮盖 tab 条与 pane 上的外点 press 既不选择也不转发、stale-map 丢弃                                                                                                                                             |
 | 交互 projection         | `tui_pointer/tests/interaction` 覆盖 hover 进入／重复／离开、disabled 与 specialized 目标、press/release、移出后永久取消、重绘连续性、fingerprint／遮挡变化、transport 丢失、子项优先级及一次有界静止位置后续重绘                                                                                |
-| 通用接入                | Renderer/dispatcher 测试覆盖 Settings、菜单、侧边栏、Board、Help、Navigator、Machine Picker、Presentation、Tab 创建及全局 chrome：精确来源／几何、禁用消费、陈旧拒绝、与模型无关的 hover、释放取消及禁止改投                                                                                     |
+| 通用接入                | Renderer/dispatcher 测试覆盖 Settings、菜单、侧边栏、Board、Help、Navigator、Machine Picker、Presentation、Tab 创建及全局 chrome：精确来源／几何、禁用消费、陈旧拒绝、hover 与已提交选择隔离、菜单候选更新、释放取消及禁止改投                                                                   |
 | 手势与 pending focus    | `tui_pointer/tests` press/release 顺序、队列上界与溢出取消、超时、orphan、只读、目标移动拒绝、settled 无帧等待与按事实准入                                                                                                                                                                       |
 | dispatcher 端口写       | `terminal_input/dispatcher/tests`——畸形 SGR/X10 与中止/超时鼠标运行产生零转发字节，而普通按键、粘贴与无关未知 CSI 按序透传；连续无键 motion 不能让到期 Escape 饥饿，且只有全部不变 motion 的 packet 才跳过重绘                                                                                   |
 | 滚轮流                  | `tui_pointer/tests` 每 notch 三次、每次一屏上限、反转清零、排空后关闭                                                                                                                                                                                                                            |
 | 捕获生命周期            | `terminal_lifecycle/tests` 租约配对与恢复；dispatcher `Ctrl+B m` 切换测试；状态指示                                                                                                                                                                                                              |
 | 链接点击                | recording pointer port 覆盖精确修饰键、同 cell 释放、取消、既有手势 owner 与忙碌准入；共享 OSC 8 宽字符和折行 HTTP(S) 解析器保留其 CLI 集成 fixture；路由测试用 recording browser port 覆盖优先级、受理后不明、确定无 handler fallback 与单效果；受控 Windows 集成覆盖新鲜 viewer 和原生插件传输 |
 | CLI                     | `invocation/tests` `tui --mouse` 值准入、裸调用/其他族拒绝、`--format` 拒绝；`cli/completion` 脚本                                                                                                                                                                                               |
-| 受控 Windows Host       | `apps/terminal-host` 的 `test-conpty-orchbee-pointer` 通过固定 ConPTY/Ghostty 启动 Orchbee child，覆盖真实 inherited Reader、reply decoder、一次性模式准入、语义 hover 区分及模式恢复；不证明物理指针／字体／配色行为                                                                            |
+| 受控 Windows Host       | `apps/terminal-host` 的 `test-conpty-orchbee-pointer` 通过固定 ConPTY/Ghostty 启动 Orchbee child，覆盖真实 inherited Reader、reply decoder、一次性模式准入、无能力回复的菜单 motion lease、返回按钮策略、语义 hover 区分及模式恢复；不证明物理指针／字体／配色行为                               |
 | 真实 PTY（Legacy 接缝） | `tui_shell/tests/connected::real_tui_routes_pointer_reports_to_the_reporting_pane_and_restores_modes`——记录的 pane-local SGR 字节、pane-local 平移、只读丢弃、SGR cell 降级、滚轮转方向键、捕获切换、模式恢复                                                                                    |
 | 真实 PTY（公开 Native） | `tests/local_startup_process/native_pointer.rs`——真实 PTY 上 spawn 的 `orchbee` 二进制：捕获 arm、X10 与 SGR pane-local 报告、未聚焦 pane 点击聚焦与排队放行、只读拒绝、滚轮转方向键、`Ctrl+B m`、`--mouse off`、退出恢复，以及零像素宿主几何下 cell 寻址报告仍可用、`?1016` 使用 SGR cell 降级  |
 

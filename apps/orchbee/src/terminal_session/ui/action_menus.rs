@@ -921,6 +921,16 @@ impl NativeUi {
         }
     }
 
+    pub(in crate::terminal_session) fn hover_action_menu_row(
+        &mut self,
+        source: &MenuTarget,
+        token: MenuToken,
+        row: usize,
+    ) -> bool {
+        self.drive_action_menu();
+        self.action_menu_source_matches(source, token) && self.menus.menu.hover(token, row)
+    }
+
     pub(in crate::terminal_session) fn activate_action_menu_row(
         &mut self,
         source: &MenuTarget,

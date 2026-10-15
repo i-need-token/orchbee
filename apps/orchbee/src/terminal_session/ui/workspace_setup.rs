@@ -7,6 +7,10 @@ pub(crate) use crate::terminal_session::state::workspace_setup::{
 use crate::terminal_session::state::workspace_setup::{
     NativeSetupIntent, SetupOperation, SetupResult, SetupWorkerEvidence,
 };
+#[cfg(windows)]
+pub(crate) use crate::terminal_session::state::workspace_setup::{
+    WorkspaceCreationPhase, WorkspaceCreationPreview,
+};
 use crate::terminal_session::{
     mailbox::{CommandMailbox, MoveAdmissionError, MutationResult, RefreshSettlement, UiReply},
     state::{CarrierFailure, OperationDeadlines},
@@ -35,6 +39,14 @@ impl NativeSetupInputContext {
     }
 }
 impl<'a> NativeSessionView<'a> {
+    /// Creation feedback never exposes a retired or ambiguous operation as a live target.
+    #[cfg(windows)]
+    pub(crate) fn workspace_creation_preview(&self) -> Option<WorkspaceCreationPreview<'a>> {
+        if self.retirement_requested || self.retirement.is_some() {
+            return None;
+        }
+        self.state.as_ref()?.workspace_creation_preview()
+    }
     pub(crate) fn quick_workspace_recovery(
         &self,
     ) -> Option<super::super::state::workspace_setup::quick::QuickRecovery<'a>> {
@@ -44,10 +56,17 @@ impl<'a> NativeSessionView<'a> {
         self.state.as_ref()?.setup_draft()
     }
     pub(crate) fn setup_capture_claim(&self) -> bool {
-        self.setup_draft().is_some()
+        let draft = self.setup_draft();
+        #[cfg(windows)]
+        let draft = draft.filter(|draft| !draft.background());
+        draft.is_some()
     }
     pub(crate) fn setup_input_context(&self) -> Option<NativeSetupInputContext> {
         let draft = self.setup_draft()?;
+        #[cfg(windows)]
+        if draft.background() {
+            return None;
+        }
         draft.interactive().then_some(NativeSetupInputContext {
             token: draft.token(),
             stage: draft.stage(),
@@ -68,6 +87,21 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 impl NativeUi {
+    /// The foreground creation projection has no live terminal target. Keep
+    /// this admission fact independent of modal capture so navigation remains usable.
+    pub(super) fn workspace_creation_replaces_content(&self) -> bool {
+        #[cfg(windows)]
+        {
+            self.view()
+                .workspace_creation_preview()
+                .is_some_and(WorkspaceCreationPreview::replaces_content)
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+
     pub(in crate::terminal_session) fn choose_setup_project(
         &mut self,
         token: NativeSetupToken,

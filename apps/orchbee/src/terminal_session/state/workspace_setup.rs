@@ -5,7 +5,11 @@ pub(crate) use organization::WorkspaceOrganizationRequest;
 mod navigation_configuration;
 mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
+#[cfg(windows)]
+mod preview;
 mod projection;
+#[cfg(windows)]
+pub(crate) use preview::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 pub(in crate::terminal_session) mod quick;
 use super::{
     NativeContextTabs, NativeSessionState, NavigatorRefreshStatus, OperationDeadlines,
@@ -403,6 +407,10 @@ impl NativeSessionState {
                     matches!(
                         operation.command.action,
                         WorkbenchAction::WorkspaceLaunch { .. }
+                    ) && matches!(
+                        self.setup.project_quick_entry,
+                        Some(quick::ProjectQuickEntry::Preparing(token))
+                            if self.setup.draft.as_ref().is_some_and(|draft| draft.token == token)
                     )
                 })
                 .map(|_| quick::ProjectQuickEntry::Submitted(operation.generation));

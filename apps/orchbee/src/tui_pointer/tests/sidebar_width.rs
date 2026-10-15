@@ -149,7 +149,7 @@ fn sidebar_width_cancellation_cannot_replay_a_late_release() {
                 view.machines.open = true;
             }
         }
-        pointer.tick(&mut view, &mut port, Instant::now());
+        pointer.tick(&mut view, &mut port, Instant::now(), None);
         assert!(
             pointer.sidebar_width_preview().is_none(),
             "cancellation {cancellation}"
@@ -282,7 +282,7 @@ fn replay(commands: &[[u16; 2]]) -> Result<(), String> {
         if was_alive && !alive {
             painted = None;
         }
-        pointer.tick(&mut view, &mut port, Instant::now());
+        pointer.tick(&mut view, &mut port, Instant::now(), None);
         if view.machines.sidebar_width().columns() != preferred
             || pointer.sidebar_width_preview().is_some() != alive
             || view.machines.request.is_some()

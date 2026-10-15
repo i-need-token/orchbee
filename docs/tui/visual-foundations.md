@@ -121,7 +121,7 @@ Hierarchy describes information priority, not interaction state.
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Focused region        | `frame-focused` border; an unframed region uses `accent-focus` on its title or a dedicated marker                                |
 | Unfocused pane        | `frame-unfocused` border; `surface-inactive` may mask its content only when the owner documents it                               |
-| Pointer hover         | `surface-hover` across the effective hit rectangle; it never moves keyboard focus or the provisional cursor                      |
+| Pointer hover         | `surface-hover` across the effective hit rectangle; action menus may move the provisional candidate and use its selection fill   |
 | Pointer pressed       | `surface-pressed` plus `BOLD` on the primary action label while the primary button remains held on the armed target              |
 | Provisional selection | `surface-selection` across the complete row plus the shared `accent-selection` navigation marker when the component provides one |
 | Selected range        | `surface-selection` across the selected cells; endpoints or the active edge use `accent-selection` when they are drawn           |

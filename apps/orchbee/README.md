@@ -345,6 +345,8 @@ a default name, resolved directory and first shell. A Project-menu creation expl
 that Project. Rename and organization are available afterwards; directory acceptance never starts
 a terminal. Known partial results remain inspectable with `orchbee workspace list`; unknown
 outcomes never replay, and late completion cannot override a newer selection.
+The Windows TUI displays the new sidebar item and active top Tab immediately, while directory
+preparation and terminal startup continue asynchronously with in-place progress.
 `Ctrl+B W` creates a Git checkout with a generated branch and default base after source discovery;
 `Ctrl+B O` selects an existing checkout by exact path. [Worktree launch](docs/native-worktrees.md)
 adds a peer Workspace, reuses the source's current Project or atomically groups an ungrouped source

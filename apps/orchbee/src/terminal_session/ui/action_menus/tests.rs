@@ -207,6 +207,90 @@ fn typed_menu_pointer_activation_requires_the_exact_source_and_token() {
 }
 
 #[test]
+fn typed_menu_hover_requires_a_drawn_source_and_never_enters_a_submenu_or_action() {
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    assert!(ui.open_action_menu(MenuTarget::Global, Some((7, 4)), false));
+    let token = ui.view().action_menu().unwrap().token;
+    let row = action_row(&ui, MenuAction::TabCreation);
+    assert!(!ui.hover_action_menu_row(&MenuTarget::Global, token, row));
+    arm(&mut ui);
+    let other = action_row(&ui, MenuAction::Help);
+    assert!(ui.hover_action_menu_row(&MenuTarget::Global, token, other));
+    assert!(!ui.hover_action_menu_row(&MenuTarget::Create(None), token, row));
+    assert!(ui.hover_action_menu_row(&MenuTarget::Global, token, row));
+    assert_eq!(ui.view().action_menu().unwrap().selected, row);
+    assert_eq!(ui.view().action_menu().unwrap().source, &MenuTarget::Global);
+    assert_eq!(ui.view().action_menu().unwrap().anchor, Some((7, 4)));
+    assert!(ui.menus.parents.is_empty(), "hover cannot open a submenu");
+    assert_eq!(ui.menus.menu.confirmed(), None);
+    assert_eq!(ui.take_action_menu_action(false), None);
+    assert!(matches!(
+        ui.menus.intent.as_ref().unwrap().stage,
+        Stage::Open
+    ));
+    ui.cancel_action_menu();
+    assert!(!ui.hover_action_menu_row(&MenuTarget::Global, token, row));
+}
+
+#[test]
+fn hovering_menu_families_keeps_the_active_workspace_tab_and_selection() {
+    let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
+    let state = ui.state.as_ref().unwrap();
+    let tab = state.cache().tabs()[1].tab_id().clone();
+    let workspace = state.cache().navigation()[1].location.clone();
+    let pane = state.focus_pane_ref().unwrap();
+    let project = tests::context_selection::snapshot(false)
+        .navigation
+        .projects[0]
+        .project_id
+        .clone();
+    let create = ui.view().tab_create_target().unwrap();
+    let origin = Origin::capture(ui.state.as_ref());
+    for target in [
+        MenuTarget::Global,
+        MenuTarget::Create(None),
+        MenuTarget::Create(Some(project.clone())),
+        MenuTarget::Project(project),
+        MenuTarget::Workspace(workspace),
+        MenuTarget::Tab(tab.clone()),
+        MenuTarget::Pane(pane),
+        MenuTarget::TabCreate(create),
+        MenuTarget::TabTools(tab.clone()),
+        MenuTarget::TabGroupChoices(tab),
+    ] {
+        assert!(ui.open_action_menu(target.clone(), Some((7, 4)), false));
+        let token = arm(&mut ui);
+        let (source, enabled) = {
+            let view = ui.view();
+            let menu = view.action_menu().unwrap();
+            (
+                menu.source.clone(),
+                menu.unavailable
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(row, reason)| reason.is_none().then_some(row))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        assert!(!enabled.is_empty(), "{target:?}");
+        for row in enabled {
+            let previous = ui.view().action_menu().unwrap().selected;
+            assert_eq!(
+                ui.hover_action_menu_row(&source, token, row),
+                row != previous,
+                "{target:?} row {row}"
+            );
+            assert_eq!(ui.view().action_menu().unwrap().selected, row);
+            assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+            assert_eq!(ui.menus.menu.confirmed(), None);
+            assert_eq!(ui.take_action_menu_action(false), None);
+            assert!(mailbox.try_recv().unwrap().is_none());
+        }
+        ui.cancel_action_menu();
+    }
+}
+
+#[test]
 fn notifications_follow_the_real_pending_admitted_and_released_menu_capture() {
     use crate::tui_presentation::PresentationPhase;
 

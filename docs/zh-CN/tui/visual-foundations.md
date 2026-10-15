@@ -103,7 +103,7 @@ Client 中编写或审查渲染代码前先阅读本标准。
 | ----------- | ---------------------------------------------------------------------------------------- |
 | 聚焦区域    | `frame-focused` 边框；无框架区域用标题或专用标记上的 `accent-focus` 表达焦点             |
 | 未聚焦 pane | `frame-unfocused` 边框；只有所有者明确记录时，`surface-inactive` 才可遮罩其内容          |
-| 指针悬停    | `surface-hover` 覆盖有效命中矩形；绝不移动键盘焦点或临时游标                             |
+| 指针悬停    | `surface-hover` 覆盖有效命中矩形；动作菜单可移动临时候选，并使用其选中背景               |
 | 指针按下    | 主按钮仍在已武装目标上按住时使用 `surface-pressed`，并给动作主要标签加 `BOLD`            |
 | 临时选择    | `surface-selection` 覆盖完整行；组件提供指示器时再使用共享的 `accent-selection` 导航标记 |
 | 范围选择    | `surface-selection` 覆盖已选单元格；绘制端点或活动边缘时使用 `accent-selection`          |

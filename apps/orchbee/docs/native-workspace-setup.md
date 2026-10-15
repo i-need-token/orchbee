@@ -13,6 +13,12 @@ Workspace with its first default shell. They require no Project, name form or se
 The default result is ungrouped. New Workspace on an exact Project row uses that Project, including
 empty and noncurrent Projects. Creating a Workspace never starts an AI provider automatically.
 
+Accepted Windows TUI creation immediately displays a pending sidebar item and current top Tab,
+before directory preparation or terminal startup finishes. A localized New workspace label gives
+way to the prepared default name; progress appears in the content region without a modal.
+This feedback improvement is scoped to the Windows TUI. GUI creation retains its existing
+activation owner and the same canonical creation semantics.
+
 Ordinary and worktree-backed Workspaces are peers. Each can contain multiple Agents, listed directly
 under the Workspace. [Worktree launch](native-worktrees.md) owns checkout creation and opening;
 [Workspace Close](native-workspace-close.md) owns terminal disposal.
@@ -46,6 +52,22 @@ The compact sidebar is hidden only after the matching terminal reaches accepted 
 and the original return permission still holds. Wide, hidden and other-overlay cases consume that
 permission without changing layout. Cancellation and later navigation never rearm it. Screen
 publication and preference persistence remain separate from terminal readiness.
+
+The provisional display invents no resource IDs or resource actions. Canonical selection and the
+source terminal remain retained until validated handoff. Admission invalidates the old pointer map
+before the next input event; live pane probes, selection and history admission reject the hidden
+source while the provisional content is current. Typing cannot reach it, and gesture cancellation
+still cleans up its original owner. Newer focus or surface intent, including during
+preparation, lets creation continue in the background and permanently revokes automatic landing.
+Definite refusal removes the provisional display. Unknown or committed-but-unreconciled outcomes
+retain their existing request/resource recovery facts without replay or replacement.
+Carrier retirement immediately hides creation feedback while preserving those recovery facts.
+
+The known Workspace ID replaces the provisional row. A creation-only canonical projection bridges
+sidebar observer lag; a complete same-Session checkpoint at or beyond the commit revision supersedes
+it, including when that checkpoint removed the Workspace. A collapsed Project shows the current
+marker only while the checkpoint still places that exact Workspace in it. Labels never deduplicate creations, and
+a prior receipt never supplies a newer launch's identity.
 
 ## Optional Project organization
 
@@ -136,6 +158,9 @@ ungrouped and Project-targeted creation, atomic new-Project membership, noncurre
 dissolution, unchanged terminal bindings and selection, late completion and non-replay recovery.
 The owning suites include `state/workspace_setup`, `state/tests/workspace_setup`,
 `connection/native/tests/quick_workspace` and `terminal_input/dispatcher/tests/workspace_setup`.
+`ui/tests/workspace_setup/responsive` controls preparation, launch, focus, refusal and recovery order;
+`tui_render/workspace_sidebar/tests/creation` checks exact-identity observer handoff. These local
+implementation traces do not provide exhaustive TLC assurance.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
 This workflow has no separate TLA model. Implementation traces and process tests do not replace

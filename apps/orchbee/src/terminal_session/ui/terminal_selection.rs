@@ -42,7 +42,8 @@ impl NativeUi {
         else {
             return false;
         };
-        if self.retirement_failure.is_some()
+        if self.workspace_creation_replaces_content() && !matches!(effect, SelectionEffect::Cancel)
+            || self.retirement_failure.is_some()
             || self.state.as_ref().is_none_or(|state| {
                 state.ready().is_none()
                     || state.focus_pane_ref().as_ref() != Some(key)
@@ -147,7 +148,8 @@ impl NativeUi {
             self.admit_selections(&mailbox);
             return PointerSelectionAdmission::Admitted;
         }
-        if self.retirement_failure.is_some()
+        if self.workspace_creation_replaces_content()
+            || self.retirement_failure.is_some()
             || self.state.as_ref().is_none_or(|state| {
                 state.ready().is_none()
                     || state.focus_pane_ref().as_ref() != Some(key)

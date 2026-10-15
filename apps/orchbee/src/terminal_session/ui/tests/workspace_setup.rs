@@ -9,6 +9,8 @@ use orchbee_workbench_protocol::{
     Workspace,
 };
 use std::sync::atomic::AtomicU64;
+#[cfg(windows)]
+mod responsive;
 fn project() -> Project {
     Project {
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 270)).unwrap(),

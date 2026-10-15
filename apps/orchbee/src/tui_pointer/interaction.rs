@@ -544,6 +544,11 @@ pub(super) struct State {
 }
 
 impl State {
+    #[cfg(windows)]
+    pub(super) fn hovered_target(&self) -> Option<&InteractionTarget> {
+        self.hovered.as_ref().map(|fingerprint| &fingerprint.target)
+    }
+
     pub(super) const fn revision(&self) -> u64 {
         self.revision
     }

@@ -10,6 +10,7 @@ use std::time::Instant;
 /// One accepted launch's local return; neither status nor a later visit can rearm it.
 #[cfg(any(windows, test))]
 pub(super) enum ProjectQuickEntry {
+    Preparing(NativeSetupToken),
     Submitted(u64),
     Entering {
         generation: u64,
@@ -382,6 +383,10 @@ impl NativeSessionState {
         self.setup.status = None;
         self.setup.presentation = crate::tui_presentation::PresentationPhase::Pending;
         self.setup.preparation = Some(preparation.clone());
+        #[cfg(any(windows, test))]
+        {
+            self.setup.project_quick_entry = Some(ProjectQuickEntry::Preparing(token));
+        }
         self.setup.draft = Some(SetupDraft {
             organization: None,
             tab_configuration: None,
@@ -390,7 +395,10 @@ impl NativeSessionState {
             baseline: self.cache.clone(),
             stage: NativeSetupStage::PreparingWorkspace,
             selected: 0,
-            project: None,
+            project: preparation
+                .target
+                .as_ref()
+                .map(|target| target.project.project_id.clone()),
             editor: LineEditor::new(String::new(), LengthLimit::Scalars(512)),
             shown: false,
             complete: true,
@@ -460,6 +468,12 @@ impl NativeSessionState {
             _ => None,
         };
         self.setup.last_token = next;
+        #[cfg(any(windows, test))]
+        if matches!(self.setup.project_quick_entry, Some(ProjectQuickEntry::Preparing(token)) if token == preparation.token)
+        {
+            self.setup.project_quick_entry =
+                Some(ProjectQuickEntry::Preparing(NativeSetupToken(next)));
+        }
         self.setup.draft = Some(SetupDraft {
             organization: None,
             tab_configuration: None,

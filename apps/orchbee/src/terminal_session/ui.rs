@@ -85,6 +85,8 @@ pub(crate) use workspace_setup::{
     NativeSetupStage, NativeSetupStatus, NativeSetupToken,
 };
 #[cfg(windows)]
+pub(crate) use workspace_setup::{WorkspaceCreationPhase, WorkspaceCreationPreview};
+#[cfg(windows)]
 pub(crate) use worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
@@ -338,6 +340,8 @@ pub(crate) struct NativeSessionView<'a> {
     focus: Option<&'a WorkbenchPanelId>,
     projection_status: NativeProjectionStatus,
     retirement: Option<NativeDisplayRetirement>,
+    #[cfg(windows)]
+    retirement_requested: bool,
     board: Option<NativeAgentBoardView<'a>>,
     #[cfg(windows)]
     worktree: Option<&'a crate::terminal_session::state::worktree_launch::Launcher>,
@@ -868,6 +872,7 @@ impl<'a> NativeSessionView<'a> {
             focus: None,
             projection_status: NativeProjectionStatus::Empty,
             retirement: None,
+            retirement_requested: false,
             board: None,
             board_summary: None,
             copy_mode: None,
@@ -903,6 +908,8 @@ impl<'a> NativeSessionView<'a> {
             focus: state.focus_panel_id(),
             projection_status,
             retirement: None,
+            #[cfg(windows)]
+            retirement_requested: false,
             board: None,
             board_summary: None,
             #[cfg(windows)]
@@ -1211,6 +1218,8 @@ impl NativeUi {
             focus,
             projection_status: focus_status,
             retirement: self.retirement,
+            #[cfg(windows)]
+            retirement_requested: self.retirement_failure.is_some(),
             board: self.agent_board_view(),
             board_summary: self.board.summary(),
             #[cfg(windows)]
@@ -1824,6 +1833,9 @@ impl NativeUi {
         let Some(state) = self.state.as_ref() else {
             return false;
         };
+        if self.workspace_creation_replaces_content() {
+            return false;
+        }
         if !state.takeover_input_ready() {
             return false;
         }
@@ -1911,6 +1923,9 @@ impl NativeUi {
     /// Keyboard entry uses a page; pointer entry supplies its line count.
     /// Both share the same admission, incarnation and demand ownership.
     fn enter_history_rows(&mut self, rows_before: Option<u32>) -> SessionActionDisposition {
+        if self.workspace_creation_replaces_content() {
+            return SessionActionDisposition::KeepNavigator;
+        }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return SessionActionDisposition::KeepNavigator;
         };
@@ -2011,6 +2026,9 @@ impl NativeUi {
     /// first). Live panes always report `false` — their passthrough is
     /// untouched.
     pub(super) fn history_key(&mut self, event: &crate::client_view::KeyEvent) -> bool {
+        if self.workspace_creation_replaces_content() {
+            return false;
+        }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
             return false;
         };
@@ -2059,6 +2077,9 @@ impl NativeUi {
     /// core by three rows. Recheck focus identity at this mutation boundary;
     /// the pointer layer owns content hit testing and Shift exclusion.
     pub(super) fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
+        if self.workspace_creation_replaces_content() {
+            return false;
+        }
         if self
             .state
             .as_ref()
@@ -2304,6 +2325,9 @@ impl NativeUi {
                 || view.workspace_close_confirmation().is_some(),
             ..PointerProbe::default()
         };
+        if self.workspace_creation_replaces_content() {
+            return probe;
+        }
         let Some(state) = self.state.as_ref() else {
             return probe;
         };
@@ -2430,13 +2454,18 @@ impl NativeUi {
             #[cfg(windows)]
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace | ClientAction::RequestWorkspaceCreate => {
-                self.request_quick_workspace();
-                SessionActionDisposition::KeepNavigator
+                if self.request_quick_workspace() && self.workspace_creation_replaces_content() {
+                    SessionActionDisposition::LayoutChanged
+                } else {
+                    SessionActionDisposition::KeepNavigator
+                }
             }
             ClientAction::RequestProjectQuickWorkspace(request) => {
-                if !self.request_quick_workspace_for(Some(*request))
-                    && let Some(state) = self.state.as_mut()
-                {
+                if self.request_quick_workspace_for(Some(*request)) {
+                    if self.workspace_creation_replaces_content() {
+                        return SessionActionDisposition::LayoutChanged;
+                    }
+                } else if let Some(state) = self.state.as_mut() {
                     state.set_notice(super::state::SessionNotice::DraftCancelled);
                 }
                 SessionActionDisposition::KeepNavigator

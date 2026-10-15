@@ -155,7 +155,7 @@ fn scrollbar_drag_cancels_on_capture_resize_switch_close_overlay_and_reminted_id
             }
             _ => unreachable!(),
         }
-        pointer.tick(&mut view, &mut port, now());
+        pointer.tick(&mut view, &mut port, now(), None);
         pointer.event(
             &mut view,
             &mut port,

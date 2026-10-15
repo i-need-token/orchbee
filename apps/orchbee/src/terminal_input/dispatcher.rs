@@ -299,27 +299,51 @@ impl InputDispatcher {
         }
     }
 
-    /// Applies a settled admission only while capture is active. The mode
-    /// effect precedes publication, so a partial/failed transition cannot
-    /// create hover authority in the dispatcher.
-    fn synchronize_pointer_admission<Error>(
+    /// Global motion follows capability admission. An already armed capturing menu may also
+    /// request motion with button fallback; a released pointer is never implicitly re-armed.
+    /// Every mode effect precedes publication, including menu exit and late probe settlement.
+    fn synchronize_pointer_admission<Port: TerminalInputPort + ?Sized, Error>(
         &mut self,
+        view: &ClientView,
+        port: &Port,
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        if !self.pointer_transition_failed
-            && self.pointer_capture == PointerCaptureRequest::ButtonOnly
-            && self.pointer_admission.any_motion_admitted()
+        if self.pointer_transition_failed
+            || matches!(
+                self.pointer_capture,
+                PointerCaptureRequest::Release | PointerCaptureRequest::AnyMotion
+            )
         {
-            if let Err(error) = mode(ModeRequest::PointerCapture(
-                PointerCaptureRequest::AnyMotion,
-            )) {
-                self.pointer_transition_failed = true;
-                return Err(error);
-            }
-            self.pointer_capture = PointerCaptureRequest::AnyMotion;
-            self.pointer
-                .set_motion_observability(MotionObservability::AnyMotion);
+            return Ok(());
         }
+        let request = self.admitted_pointer_capture();
+        #[cfg(windows)]
+        let request = if request == PointerCaptureRequest::ButtonOnly
+            && Self::projected_capture(view, port)
+                == Some(CaptureOwner::Native(NativeCaptureOwner::ActionMenu))
+        {
+            PointerCaptureRequest::MenuMotion
+        } else {
+            request
+        };
+        #[cfg(not(windows))]
+        let _ = (view, port);
+        if self.pointer_capture == request {
+            return Ok(());
+        }
+        if let Err(error) = mode(ModeRequest::PointerCapture(request)) {
+            self.pointer_transition_failed = true;
+            return Err(error);
+        }
+        self.pointer_capture = request;
+        self.pointer.set_motion_observability(match request {
+            PointerCaptureRequest::AnyMotion => MotionObservability::AnyMotion,
+            #[cfg(windows)]
+            PointerCaptureRequest::MenuMotion => MotionObservability::AnyMotion,
+            PointerCaptureRequest::Release | PointerCaptureRequest::ButtonOnly => {
+                MotionObservability::ButtonOnly
+            }
+        });
         Ok(())
     }
     #[cfg(windows)]
@@ -371,6 +395,8 @@ impl InputDispatcher {
         }
         self.pointer.set_motion_observability(match request {
             PointerCaptureRequest::AnyMotion => MotionObservability::AnyMotion,
+            #[cfg(windows)]
+            PointerCaptureRequest::MenuMotion => MotionObservability::AnyMotion,
             PointerCaptureRequest::Release | PointerCaptureRequest::ButtonOnly => {
                 MotionObservability::ButtonOnly
             }
@@ -587,7 +613,7 @@ impl InputDispatcher {
     ) -> Result<bool, Error> {
         self.graphics.tick(now);
         self.pointer_admission.tick(now);
-        self.synchronize_pointer_admission(mode)?;
+        self.synchronize_pointer_admission(view, port, mode)?;
         // Compare the settled owner from the preceding boundary with the
         // post-reconcile projection below. An asynchronously installed owner
         // is already visible to the pure projector here, but it has not yet
@@ -606,7 +632,7 @@ impl InputDispatcher {
             let events = self.decoder.tick(now);
             changed |= !events.is_empty();
             self.apply_events(view, port, events, now);
-            self.synchronize_pointer_admission(mode)?;
+            self.synchronize_pointer_admission(view, port, mode)?;
         }
         self.confirm_packet = false;
         self.pointer_packet = false;
@@ -630,7 +656,8 @@ impl InputDispatcher {
         if idle {
             changed |= self.pointer.flush_list_scroll(view, port);
         }
-        changed |= self.pointer.tick(view, port, now);
+        let pointer_owner = Self::projected_capture(view, port);
+        changed |= self.pointer.tick(view, port, now, pointer_owner);
         changed |= self.reconcile(view, port, now);
         let capturing = self.decoder.owns_input() || Self::projected_capture(view, port).is_some();
         #[cfg(windows)]
@@ -642,6 +669,7 @@ impl InputDispatcher {
             // A later wizard step can arrive after the previous decoder released its lease.
             mode(ModeRequest::BracketedPaste(true))?;
         }
+        self.synchronize_pointer_admission(view, port, mode)?;
         Ok(changed)
     }
 
@@ -687,7 +715,7 @@ impl InputDispatcher {
                 only_idle_motion = false;
                 self.flush_pending(view, port);
                 self.apply_events(view, port, events, now);
-                self.synchronize_pointer_admission(mode)?;
+                self.synchronize_pointer_admission(view, port, mode)?;
                 redraw |= self.reconcile(view, port, now);
                 if captured {
                     continue;
@@ -714,6 +742,7 @@ impl InputDispatcher {
                     self.flush_pending(view, port);
                     return Ok(DispatchOutcome::Exit);
                 }
+                self.synchronize_pointer_admission(view, port, mode)?;
                 match self.item_idle_motion.take() {
                     Some(changed) => redraw |= changed,
                     None => {
@@ -727,7 +756,8 @@ impl InputDispatcher {
         // Queued pointer gestures and the wheel stream advance at the same
         // packet boundary the modal leases do.
         redraw |= self.pointer.flush_list_scroll(view, port);
-        redraw |= self.pointer.tick(view, port, now);
+        let pointer_owner = Self::projected_capture(view, port);
+        redraw |= self.pointer.tick(view, port, now, pointer_owner);
         // The final pointer report may retire an input owner without a
         // following byte. Settle that edge before a frame can be published.
         redraw |= self.reconcile(view, port, now);
@@ -741,6 +771,7 @@ impl InputDispatcher {
                 return Ok(DispatchOutcome::Exit);
             }
         }
+        self.synchronize_pointer_admission(view, port, mode)?;
         self.dispatch_redraw = redraw || !saw_item || !only_idle_motion;
         Ok(DispatchOutcome::Continue)
     }
@@ -1214,7 +1245,7 @@ impl InputDispatcher {
         if let DecodedKind::HostReply(reply) = item.kind {
             self.flush_pending(view, port);
             self.host_reply(reply, now);
-            self.synchronize_pointer_admission(mode)?;
+            self.synchronize_pointer_admission(view, port, mode)?;
             return Ok(DispatchOutcome::Continue);
         }
         if let DecodedKind::Focus(focused) = item.kind {

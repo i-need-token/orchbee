@@ -89,8 +89,11 @@ fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
     assert!(mailbox.try_recv().unwrap().is_none());
     assert_eq!(
         ui.apply_client_action(action),
-        SessionActionDisposition::KeepNavigator
+        SessionActionDisposition::LayoutChanged
     );
+    let preview = ui.view().workspace_creation_preview().unwrap();
+    assert!(preview.current && preview.replaces_content());
+    assert_eq!(preview.project_id, Some(&project.project_id));
     let clock = ui.clock.clone();
     crate::terminal_session::ui::tests::workspace_setup::finish_preparation(
         &mut ui, &mailbox, &clock, &snapshot, false,
