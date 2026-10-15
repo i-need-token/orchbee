@@ -310,8 +310,8 @@
 			"zhCnSha256": "ecfd691e59e5b7e10c6f73501a4268a81147946e5f3e5d5637cc8ed790c3daef"
 		},
 		"apps/orchbee/docs/native-themes.md": {
-			"englishSha256": "eeae0b9a5b483a6df37b3a8a4bca660e3bd59d254e5bd8c6e4ca06e7c0e68b5a",
-			"zhCnSha256": "95ffa528e3fba44b4f356c9b5018b8ae13c0a6964dfcee987ba4a75fbb43d69b"
+			"englishSha256": "2193c9f2003bf06a3eb4d14405a3cded038111ed85fd2ebabf5acc294eb738fb",
+			"zhCnSha256": "59df01f745355cc92e21947a34263c101845170a017be7d9a4c0ec44424fd494"
 		},
 		"apps/orchbee/docs/native-workspace-close.md": {
 			"englishSha256": "9b8127c4c9b046815ae576a70720b41043e0148b29761c56062d13ee9d714f20",
@@ -326,8 +326,8 @@
 			"zhCnSha256": "b5fb5cbc3d28d340b472ea7731593c42e853679facdd29d31f982b02a9e45510"
 		},
 		"apps/orchbee/docs/tui-shell-layout.md": {
-			"englishSha256": "becaf7c200dfac65ab9fa487e241789fd3f863a564da09afbaeafd9c0ee58b99",
-			"zhCnSha256": "4c1afbb93eb7d5e11f3349ad176c2873ac0c4cd91f876e56745603951be847c1"
+			"englishSha256": "93ec57e953b475b19ca6498f25d27bf74772a1cb88d47642571e953562825d5c",
+			"zhCnSha256": "f3d838269f3ea086f1d332b28df9aa50bde133a1857e41ba6280a9dc27bb172f"
 		},
 		"apps/orchbee/docs/windows-agent-integrations.md": {
 			"englishSha256": "7eda870ed69796c0e789f8ec54cf1dbb3d1939211b06bc7e79d760180cca9683",

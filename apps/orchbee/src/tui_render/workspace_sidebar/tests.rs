@@ -267,8 +267,10 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                         0,
                         depth(&view, &project),
                         auxiliary_actions(&view.machines.sidebar_source(), &project),
+                        layout::RowKind::for_target(&project),
                     )
                     .unwrap();
+                    assert_eq!(project_tracks.primary.x, 4);
                     assert_eq!(
                         buffer[(1, project_y)].symbol(),
                         theme.glyphs.disclosure_open
@@ -301,6 +303,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     0,
                     depth(&view, &focused),
                     auxiliary_actions(&view.machines.sidebar_source(), &focused),
+                    layout::RowKind::for_target(&focused),
                 )
                 .unwrap();
                 assert_eq!(buffer[(agent_tracks.ordinal.x, agent_y)].symbol(), "1");
@@ -397,6 +400,7 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                     1,
                     30,
                     auxiliary_actions(&view.machines.sidebar_source(), target),
+                    layout::RowKind::for_target(target),
                 )
                 .unwrap();
                 let expected = truncate_display(
@@ -817,6 +821,7 @@ fn sidebar_auxiliary_actions_remain_visible_at_rest_while_focus_moves_independen
                 0,
                 0,
                 auxiliary_actions(&view.machines.sidebar_source(), &project),
+                layout::RowKind::for_target(&project),
             )
             .unwrap();
             assert_eq!(
@@ -898,6 +903,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     0,
                     0,
                     auxiliary_actions(&view.machines.sidebar_source(), &project),
+                    layout::RowKind::for_target(&project),
                 )
                 .unwrap();
                 for y in &project_rows {
@@ -930,6 +936,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     0,
                     1,
                     auxiliary_actions(&view.machines.sidebar_source(), &focused),
+                    layout::RowKind::for_target(&focused),
                 )
                 .unwrap();
                 for y in &focused_rows {
@@ -1140,6 +1147,7 @@ fn collapsed_rows_keep_localized_agent_counts_waiting_and_current_context() {
                         0,
                         depth,
                         auxiliary_actions(&view.machines.sidebar_source(), target),
+                        layout::RowKind::for_target(target),
                     )
                     .unwrap();
                     for full in [
@@ -1509,6 +1517,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
                 0,
                 depth(&view, target),
                 auxiliary_actions(&view.machines.sidebar_source(), target),
+                layout::RowKind::for_target(target),
             )
             .unwrap();
             assert_eq!(candidate[(tracks.navigation.x, y)].symbol(), " ");
@@ -1571,6 +1580,7 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
         0,
         depth(&view, &active),
         auxiliary_actions(&view.machines.sidebar_source(), &active),
+        layout::RowKind::for_target(&active),
     )
     .unwrap();
     assert_eq!(

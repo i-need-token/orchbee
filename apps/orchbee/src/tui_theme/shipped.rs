@@ -114,7 +114,7 @@ impl Theme {
             hover_surface: [222, 224, 227],
             pressed_surface: [214, 215, 218],
             selection: [205, 219, 248],
-            current: [235, 238, 243],
+            current: [224, 228, 235],
         })
     }
     pub(crate) fn one_dark() -> Self {

@@ -80,6 +80,12 @@ ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly und
 each Workspace, with independent lists expanded by default. Standalone owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
 
+Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
+blank cells after the button. A hint that cannot fit in full is omitted; its cells are outside
+the button's pointer target. At host heights of at least 24 rows, when the remaining sidebar area
+has at least four rows, a one-row divider separates Settings from the scrolling list. Shorter
+layouts omit the divider and retain the one-row Settings footer.
+
 Hosts shorter than 24 rows omit the spacer after the actions; sections shorter than 10 rows
 omit heading padding before clipping entries. The unified window fits
 complete rows where possible and clips an oversized row to the available body. Keyboard
@@ -97,9 +103,13 @@ collapsed descendants, and excludes Standalone. A blank row separates the headin
 body when the section can fit it. Footer rows carry only overflow ranges; fully visible lists
 leave them blank.
 
-Every navigation row reserves fixed tracks in this order: a one-cell navigation marker,
-two-cell-per-level indentation, two-cell disclosure, two-cell Agent ordinal, one-cell current marker,
-one-cell operational state, one-cell unread state, the primary identity, and a right-aligned auxiliary area. Grouped Workspaces indent two cells,
+Navigation rows keep a one-cell navigation marker, two-cell-per-level indentation, two-cell
+disclosure, and one-cell operational state before the primary identity. Only Agent rows reserve
+the two-cell ordinal between disclosure and state; Project, Workspace and Standalone rows do not
+reserve unused Agent columns. Root owner labels start four cells from the list's left edge.
+After the primary identity, a one-cell gap precedes the independent one-cell current and unread
+markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
+their markers are blank, so changing state never moves the label. Grouped Workspaces indent two cells,
 and Agents indent two cells from their own Workspace or Standalone parent. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;

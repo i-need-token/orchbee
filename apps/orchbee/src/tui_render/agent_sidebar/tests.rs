@@ -884,6 +884,57 @@ fn settings_stays_at_the_sidebar_bottom_as_an_exact_discoverable_action() {
                 hits.hit_target_at(*exact.last().unwrap() + 1, 39),
                 Some(HitTarget::SettingsButton)
             ));
+            let hint_byte = footer.find(&configured_hint).unwrap();
+            let hint_x = display_width(&footer[..hint_byte]);
+            assert_eq!(hint_x + display_width(&configured_hint), 28);
+            assert!(hint_x >= usize::from(*exact.last().unwrap()) + 3);
+            for x in hint_x..hint_x + display_width(&configured_hint) {
+                assert!(!matches!(
+                    hits.hit_target_at(x as u16, 39),
+                    Some(HitTarget::SettingsButton)
+                ));
+            }
+            assert!(rows[38].starts_with('─'));
+            assert!((0..28).all(|x| !matches!(
+                hits.hit_target_at(x, 38),
+                Some(HitTarget::MachineAgentRow { .. } | HitTarget::MachineWorkspaceRow { .. })
+            )));
+        }
+    }
+}
+
+#[test]
+fn settings_footer_omits_whole_hints_at_narrow_width_and_saves_a_row_on_short_hosts() {
+    use crate::tui_layout::SidebarWidth;
+
+    for (width, height, preferred, english_hint, chinese_hint) in [
+        (120, 40, 26, true, true),
+        (120, 40, 24, false, true),
+        (80, 24, 30, true, true),
+        (60, 12, 30, true, true),
+    ] {
+        let mut view = view(width, height, 0);
+        view.machines
+            .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(preferred).unwrap());
+        for (locale, visible_hint) in [(Locale::EnUs, english_hint), (Locale::ZhCn, chinese_hint)] {
+            let (rows, hits) = paint(&view, locale, &Theme::terminal_native(), width, height);
+            let footer = &rows[usize::from(height - 1)];
+            let hint = view
+                .bindings()
+                .action_labels_with_glyphs(
+                    PrefixAction::Client(ClientAction::OpenSettings),
+                    key_label_glyphs(&Theme::terminal_native()),
+                )
+                .into_iter()
+                .next()
+                .unwrap();
+            assert!(footer.contains(locale.settings_title()), "{footer:?}");
+            assert_eq!(footer.contains(&hint), visible_hint, "{footer:?}");
+            assert_eq!(rows[usize::from(height - 2)].starts_with('─'), height >= 24);
+            assert!((0..preferred).any(|x| matches!(
+                hits.hit_target_at(x, height - 1),
+                Some(HitTarget::SettingsButton)
+            )));
         }
     }
 }
@@ -1113,8 +1164,8 @@ fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
     let joined = rows.join("\n");
     let bullet =
         Theme::rgb_test_dark().agent_glyph(orchbee_workbench_protocol::MetadataState::Working);
-    assert!(joined.contains(&format!("1  {bullet}")) && joined.contains(&format!("2  {bullet}")));
-    assert!(!joined.contains(&format!("3  {bullet}")));
+    assert!(joined.contains(&format!("1 {bullet}")) && joined.contains(&format!("2 {bullet}")));
+    assert!(!joined.contains(&format!("3 {bullet}")));
     assert!(!joined.contains("3 remote"));
     let selected = (0..40)
         .find_map(|y| match hits.hit_target_at(2, y) {
@@ -1258,7 +1309,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             let marker_x = (0..30)
                 .find(|x| terminal.backend().buffer()[(*x, y)].symbol() == marker)
                 .unwrap();
-            assert_eq!(marker_x, ordinal_x + 2);
+            assert_eq!(marker_x, 26);
         }
         assert_eq!(
             view.machines

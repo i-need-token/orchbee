@@ -41,12 +41,14 @@ Pressed and provisional-selection fills are included. The shared secondary tripl
 `text-disabled`, `hint-label` and `status-pending`, so those projections change with it; the pending
 modifier remains independent. Primary text retains higher contrast on every surface and neither
 adjustment uses bold. This is the readability adjustment required by the new interaction matrix;
-all independently valued existing named-theme roles remain unchanged.
+the remaining roles keep their existing semantic ownership.
 
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
-both named themes use a low-contrast neutral fill against chrome and retain their primary/secondary
-text colors. This fill remains quieter than keyboard selection and preserves readable text contrast. Current names
+both named themes use a neutral fill against chrome and retain their primary/secondary
+text colors. One Light uses `[224, 228, 235]` against `[240, 242, 245]` chrome so the persistent
+row remains visible while input belongs to a terminal. This fill remains quieter than keyboard
+selection and preserves readable text contrast. Current names
 are bold; status glyphs and explicit token colors remain semantic. Rows reserve separate tracks for
 provisional navigation, current identity, operational state and unread state. A current row shows `*`
 in its current track when quantization collapses its fill onto chrome or when an identity token
@@ -70,6 +72,11 @@ or `STY` prevents this outer-host fallback. Explicit descriptors, including unkn
 ones, retain their existing decisions; malformed session indicators remain unknown
 and use 16 colors. Values are not logged. This is a color capability decision,
 not an appearance or background-polarity decision.
+
+Real-host comparisons record these descriptors alongside the image. An automation-launched preview
+can inherit tool-only `NO_COLOR=1` or `TERM=dumb`; clear only those preview-local overrides when
+reviewing ordinary color capability, and keep intentional monochrome runs as separate evidence.
+Never change the user's persistent environment to prepare a preview.
 
 Windows Terminal sets its [plain session GUID](https://github.com/microsoft/terminal/blob/main/src/cascadia/TerminalConnection/ConptyConnection.cpp)
 when launching a connection. A host without that indicator retains the conservative

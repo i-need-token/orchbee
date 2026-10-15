@@ -425,6 +425,7 @@ fn entry_width(
         depth(view, &target),
         sidebar_width,
         auxiliary_actions(source, &target),
+        layout::RowKind::for_target(&target),
     )
     .map_or(1, |tracks| usize::from(tracks.primary.width))
 }
@@ -880,6 +881,7 @@ pub(super) fn render(
             depth(view, &target),
             sidebar_width,
             actions,
+            layout::RowKind::for_target(&target),
         ) else {
             break;
         };
@@ -966,11 +968,13 @@ pub(super) fn render(
         };
         let mut bands = vec![
             RowContentBand::explicit(tracks.disclosure),
-            RowContentBand::explicit(tracks.ordinal),
             RowContentBand::explicit(tracks.current),
             RowContentBand::explicit(tracks.state),
             RowContentBand::explicit(tracks.unread),
         ];
+        if !tracks.ordinal.is_empty() {
+            bands.push(RowContentBand::explicit(tracks.ordinal));
+        }
         if !tracks.auxiliary.is_empty() {
             bands.push(RowContentBand::explicit(tracks.auxiliary));
         }

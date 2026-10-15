@@ -118,8 +118,10 @@ fn render_fixed_action(
     }
     if let Some(hint) = hint {
         let hint_width = u16::try_from(display_width(hint)).unwrap_or(u16::MAX);
-        let hint_x = rect.right().saturating_add(1);
-        if hint_width > 0 && hint_x.saturating_add(hint_width) <= area.right() {
+        if let Some(hint_x) = area.right().checked_sub(hint_width)
+            && hint_width > 0
+            && hint_x >= rect.right().saturating_add(2)
+        {
             frame.render_widget(
                 Paragraph::new(hint).style(theme.style(if enabled {
                     Role::HintKey
@@ -302,7 +304,21 @@ pub(super) fn render(
     if area.is_empty() {
         return;
     }
+    let footer_rows = if frame.area().height >= 24 && area.height >= 4 {
+        2
+    } else {
+        1
+    };
     let settings = Rect::new(area.x, area.bottom() - 1, area.width, 1);
+    if footer_rows == 2 {
+        frame.render_widget(
+            Block::new()
+                .borders(Borders::TOP)
+                .border_style(theme.style(Role::FrameDivider))
+                .style(theme.style(Role::SurfaceChrome)),
+            Rect::new(area.x, settings.y - 1, area.width, 1),
+        );
+    }
     let settings_hint = view
         .bindings()
         .action_labels_with_glyphs(
@@ -329,7 +345,7 @@ pub(super) fn render(
             layer,
             hits.as_deref_mut(),
         );
-    area.height = area.height.saturating_sub(1);
+    area.height = area.height.saturating_sub(footer_rows);
     super::workspace_sidebar::render(
         frame,
         area,
