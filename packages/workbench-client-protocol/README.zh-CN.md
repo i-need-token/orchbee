@@ -6,10 +6,11 @@
 `projectId` 与 `primaryDirectoryId` 必须存在且可为 null，Workspace／Terminal Context 身份稳定。
 身份数组始终按 ID 排序，独立于显示顺序。Navigation 校验引用、唯一 Context 所有权、65,536 个
 全局 Directory、每个 Project 最多 256 个 Workspace 与全局最多 1,023 个 Workspace。非空
-`workspaceOrder` 必须是完整排列；省略／空值使用规范 Workspace ID 顺序。
+`projectOrder` 和 `workspaceOrder` 必须分别是对应注册表的完整排列；省略／空值使用规范 ID 顺序。
 
 [Rust 组织契约](../../crates/workbench-protocol/README.zh-CN.md#project-组织与稳定-workspace-身份)
-管理 `workspace.set-project`、原子的 `workspace.create-project`、`project.dissolve` 和四种
+管理原子的 `navigation.configure` 成员／顺序变化、`workspace.set-project`、原子的
+`workspace.create-project`、`project.dissolve` 和四种
 `workspace.launch` 放置的共享语义。Launch 必须提供绝对 cwd，使用 96 KiB 启动类别；回执必须携带
 可空 Project 成员关系。重新分组和解散保留物理资源与显示顺序。稳定 Workspace 的 rename／Close／
 primary-directory 命令及全部 Close 身份省略 Project。Close 读取结果的精确上限为 1,000,007 字节。

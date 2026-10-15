@@ -423,6 +423,7 @@ fn maximum_context_snapshot() -> Result<Snapshot, Box<dyn Error>> {
 
     Ok(Snapshot {
         navigation: Navigation {
+            project_order: Vec::new(),
             workspace_order: all_workspaces
                 .iter()
                 .map(|workspace| workspace.workspace_id.clone())

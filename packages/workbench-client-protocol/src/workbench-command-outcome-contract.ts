@@ -48,6 +48,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'tab-move-order-conflict',
 	'workspace-move-index-out-of-bounds',
 	'workspace-move-target-in-block',
+	'invalid-navigation-configuration',
 	'panel-unavailable',
 	'split-unavailable',
 	'panel-not-leaf',
@@ -85,6 +86,9 @@ const WorkbenchPanelTransferSchema = z
 	.readonly();
 
 export const WorkbenchCommandOutcomeSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({ kind: z.literal('navigation-configured'), revision: WorkbenchRevisionSchema })
+		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('tabs-configured'),

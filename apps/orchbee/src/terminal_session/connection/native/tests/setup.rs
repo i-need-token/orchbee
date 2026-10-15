@@ -2442,6 +2442,7 @@ pub(super) fn blocked_record(revision: u64) -> TestResult<Vec<u8>> {
 pub(super) fn snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),

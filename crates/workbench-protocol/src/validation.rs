@@ -209,7 +209,7 @@ pub fn apply_workbench_publication(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct ValidationError;
+pub(crate) struct ValidationError;
 
 #[derive(Default)]
 struct SnapshotIdentities {
@@ -297,7 +297,9 @@ pub(crate) fn validate_delta_structure(delta: &Delta) -> Result<(), ContractErro
     Ok(())
 }
 
-fn validate_navigation_structure(navigation: &Navigation) -> Result<(), ValidationError> {
+pub(crate) fn validate_navigation_structure(
+    navigation: &Navigation,
+) -> Result<(), ValidationError> {
     if navigation.projects.len() > MAXIMUM_PROJECTS
         || navigation.directories.len() > MAXIMUM_DIRECTORIES
         || navigation.workspaces.len() >= MAXIMUM_TERMINAL_CONTEXTS
@@ -312,6 +314,7 @@ fn validate_navigation_structure(navigation: &Navigation) -> Result<(), Validati
             .ordered_workspaces()
             .map_err(|_| ValidationError)?;
     }
+    navigation.ordered_projects().map_err(|_| ValidationError)?;
     for project in &navigation.projects {
         validate_label(&project.label)?;
     }

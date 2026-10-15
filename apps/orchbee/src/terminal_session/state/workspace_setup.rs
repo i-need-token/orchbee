@@ -2,6 +2,7 @@ mod draft;
 mod labels;
 mod organization;
 pub(crate) use organization::WorkspaceOrganizationRequest;
+mod navigation_configuration;
 mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
 mod projection;
@@ -85,7 +86,12 @@ impl SetupOperation {
         &self,
         commit: WorkbenchSetupCommit,
     ) -> Option<SetupKnownCommit> {
-        let unchanged = if matches!(self.command.action, WorkbenchAction::TabsConfigure { .. }) {
+        let unchanged = if matches!(
+            self.command.action,
+            WorkbenchAction::NavigationConfigure { .. }
+        ) {
+            self.validate_navigation_receipt(&commit)?
+        } else if matches!(self.command.action, WorkbenchAction::TabsConfigure { .. }) {
             self.validate_configuration_receipt(&commit)?
         } else if self.location_label_target().is_some() {
             self.validate_label_receipt(&commit)?
@@ -562,6 +568,9 @@ impl NativeSessionState {
             WorkbenchSetupCommit::WorkspaceLaunched(_) => NativeSetupStatus::WorkspaceCreated,
             WorkbenchSetupCommit::WorkspaceOrder { .. } => return None,
             WorkbenchSetupCommit::TabsConfigured { .. } => NativeSetupStatus::TabsConfigured,
+            WorkbenchSetupCommit::NavigationConfigured { .. } => {
+                NativeSetupStatus::NavigationConfigured
+            }
             WorkbenchSetupCommit::ProjectRenamed { unchanged, .. }
             | WorkbenchSetupCommit::WorkspaceRenamed { unchanged, .. } => known.operation.status(
                 if *unchanged {

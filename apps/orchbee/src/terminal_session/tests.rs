@@ -258,6 +258,7 @@ fn available_snapshot(binding: Option<PresentationBinding>) -> WorkbenchSnapshot
     WorkbenchSnapshotOutcome::Available {
         snapshot: Snapshot {
             navigation: Navigation {
+                project_order: Vec::new(),
                 directories: Vec::new(),
                 workspaces: Vec::new(),
                 workspace_order: Vec::new(),

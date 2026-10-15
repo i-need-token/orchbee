@@ -1,5 +1,82 @@
 use super::*;
 
+#[test]
+fn project_order_round_trips_in_version_seven_and_version_six_keeps_implicit_order() {
+    use orchbee_workbench_protocol::NavigationConfiguration;
+    let mut owner = fixture();
+    let first = owner.snapshot().navigation.projects[0].project_id.clone();
+    let WorkbenchCommandOutcome::ProjectCreated {
+        project_id: second, ..
+    } = command(
+        &mut owner,
+        WorkbenchAction::ProjectCreate {
+            label: WorkbenchLabel::parse("Second").unwrap(),
+        },
+    )
+    else {
+        panic!("create Project")
+    };
+    assert!(matches!(
+        command(
+            &mut owner,
+            WorkbenchAction::NavigationConfigure {
+                operation: NavigationConfiguration::MoveProject {
+                    project_id: second.clone(),
+                    before_project_id: Some(first.clone())
+                }
+            }
+        ),
+        WorkbenchCommandOutcome::NavigationConfigured { .. }
+    ));
+    let bytes = owner.checkpoint(&worker(200)).unwrap();
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["version"], 7);
+    assert_eq!(value["navigation"]["projectOrder"], json!([second, first]));
+    let restored = restore(&bytes).unwrap();
+    assert_eq!(
+        restored.snapshot().navigation.project_order,
+        owner.snapshot().navigation.project_order
+    );
+    assert_eq!(
+        restored.snapshot().navigation.projects,
+        owner.snapshot().navigation.projects
+    );
+    let again: Value = serde_json::from_slice(&restored.checkpoint(&worker(400)).unwrap()).unwrap();
+    assert_eq!(
+        again["navigation"]["projectOrder"],
+        value["navigation"]["projectOrder"]
+    );
+    for order in [
+        json!([first.clone()]),
+        json!([first.clone(), first.clone()]),
+        json!([first.clone(), identity(999)]),
+    ] {
+        let mut invalid = value.clone();
+        invalid["navigation"]["projectOrder"] = order;
+        assert!(WorkbenchCheckpoint::parse(&serde_json::to_vec(&invalid).unwrap()).is_err());
+    }
+    let mut legacy = value.clone();
+    legacy["version"] = json!(6);
+    assert!(WorkbenchCheckpoint::parse(&serde_json::to_vec(&legacy).unwrap()).is_err());
+    legacy["navigation"]
+        .as_object_mut()
+        .unwrap()
+        .remove("projectOrder");
+    let restored = restore(&serde_json::to_vec(&legacy).unwrap()).unwrap();
+    assert!(restored.snapshot().navigation.project_order.is_empty());
+    assert_eq!(
+        restored
+            .snapshot()
+            .navigation
+            .ordered_projects()
+            .unwrap()
+            .into_iter()
+            .map(|project| project.project_id.clone())
+            .collect::<Vec<_>>(),
+        [first, second]
+    );
+}
+
 fn historical_at_wire_limit(version: u32) -> Value {
     let directories: Vec<_> = (0..256)
         .map(|index| {
@@ -237,7 +314,7 @@ fn versions_one_through_five_normalize_interleaved_ids_and_preserve_restart_inte
             .unwrap();
         assert_eq!(owner.snapshot(), &before, "capture is pure");
         let value: Value = serde_json::from_slice(&upgraded).unwrap();
-        assert_eq!(value["version"], 6);
+        assert_eq!(value["version"], 7);
         assert!(
             value["navigation"]["projects"][0]
                 .get("workspaces")
@@ -306,18 +383,19 @@ fn historical_validation_rejects_cross_project_references_and_unsorted_arrays_be
 
 #[test]
 fn navigation_versions_duplicates_and_high_water_never_fall_back_to_empty_success() {
-    for version in 1..=6 {
+    for version in 1..=7 {
         for fault in 0..6 {
-            let mut value = if version == 6 {
+            let mut value = if version >= 6 {
                 serde_json::from_slice(&checkpoint()).unwrap()
             } else {
                 historical(version)
             };
+            value["version"] = json!(version);
             match fault {
-                0 => value["version"] = json!(if version == 6 { 5 } else { 6 }),
+                0 => value["version"] = json!(if version >= 6 { 5 } else { 6 }),
                 1 => value["lastIdentity"] = json!(identity(2)),
                 2 => {
-                    let workspaces = if version == 6 {
+                    let workspaces = if version >= 6 {
                         &mut value["navigation"]["workspaces"]
                     } else {
                         &mut value["navigation"]["projects"][0]["workspaces"]
@@ -326,7 +404,7 @@ fn navigation_versions_duplicates_and_high_water_never_fall_back_to_empty_succes
                     workspaces.as_array_mut().unwrap().push(duplicate);
                 }
                 3 => {
-                    if version == 6 {
+                    if version >= 6 {
                         value["navigation"]["workspaces"][0]
                             .as_object_mut()
                             .unwrap()
@@ -350,7 +428,7 @@ fn navigation_versions_duplicates_and_high_water_never_fall_back_to_empty_succes
 }
 
 #[test]
-fn version_six_requires_an_explicit_complete_workspace_order() {
+fn normalized_navigation_requires_an_explicit_complete_workspace_order() {
     let bytes = checkpoint();
     let value: Value = serde_json::from_slice(&bytes).unwrap();
     let workspace = value["navigation"]["workspaces"][0]["workspaceId"].clone();
@@ -367,7 +445,7 @@ fn version_six_requires_an_explicit_complete_workspace_order() {
         }
         assert!(
             WorkbenchCheckpoint::parse(&serde_json::to_vec(&invalid).unwrap()).is_err(),
-            "version 6 must reject {} order for a retained Workspace",
+            "normalized navigation must reject {} order for a retained Workspace",
             if omit { "omitted" } else { "empty" }
         );
     }
@@ -451,7 +529,7 @@ fn current_checkpoint_preserves_nullable_organization_and_shared_directories_aft
     ));
     let bytes = owner.checkpoint(&worker(200)).unwrap();
     let value: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(value["version"], 6);
+    assert_eq!(value["version"], 7);
     assert!(
         value["navigation"]["workspaces"][0]
             .get("projectId")

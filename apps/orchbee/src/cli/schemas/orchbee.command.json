@@ -2507,6 +2507,7 @@
 				"terminal-context-unavailable",
 				"tab-unavailable",
 				"panel-unavailable",
+				"split-unavailable",
 				"panel-not-leaf",
 				"last-panel-in-tab",
 				"same-tab",
@@ -2517,7 +2518,9 @@
 				"tab-move-index-out-of-bounds",
 				"tab-move-order-conflict",
 				"workspace-move-index-out-of-bounds",
-				"workspace-move-target-in-block"
+				"workspace-move-target-in-block",
+				"tab-group-unavailable",
+				"invalid-navigation-configuration"
 			]
 		},
 		"wc_commandUnavailableReason": {

@@ -29,15 +29,6 @@ fn event(column: u16, row: u16, action: MouseAction) -> MouseEvent {
     }
 }
 
-fn has_menu(
-    hits: &crate::tui_pointer::FrameHitMap,
-    width: u16,
-    y: u16,
-    target: &SidebarTarget,
-) -> bool {
-    (0..width).any(|x| matches!(hits.hit_target_at(x,y), Some(HitTarget::SidebarMenu(actual)) if actual == target))
-}
-
 fn active_view() -> ClientView {
     let mut view = view(120, 40);
     let SidebarTarget::Context {
@@ -52,23 +43,185 @@ fn active_view() -> ClientView {
 }
 
 #[test]
+fn row_and_child_hover_share_the_whole_row_surface_without_an_overflow_slot() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for width in [24, 30, 60] {
+            let mut view = active_view();
+            let target = view
+                .machines
+                .sidebar_parent(&view.machines.space_rows()[0].sidebar_target().unwrap())
+                .unwrap();
+            let theme = Theme::one_light();
+            let mut pointer = PointerState::default();
+            pointer.set_capture(true);
+            pointer.set_motion_observability(MotionObservability::AnyMotion);
+            let (_, _, map) = paint_navigation_buffers_with_pointer(
+                &view,
+                locale,
+                &theme,
+                width,
+                12,
+                pointer.projection(),
+            );
+            let y = sidebar_target_rows(&map, width, 12, &target)[0];
+            let disclosure_x = (0..width)
+                .find(|x| {
+                    map.hit_target_at(*x, y) == Some(&HitTarget::SidebarDisclosure(target.clone()))
+                })
+                .unwrap();
+            assert_eq!(
+                map.hit_target_at(width - 1, y),
+                Some(&HitTarget::CreateMenu(Some(target.clone())))
+            );
+            pointer.publish(map);
+            let before = view.machines.sidebar_focused_target().cloned();
+            for x in [2, disclosure_x, width - 2] {
+                let _ = pointer.event(
+                    &mut view,
+                    &mut NoInput,
+                    Instant::now(),
+                    event(x, y, MouseAction::Motion),
+                );
+                for _ in 0..3 {
+                    let (candidate, _, map) = paint_navigation_buffers_with_pointer(
+                        &view,
+                        locale,
+                        &theme,
+                        width,
+                        12,
+                        pointer.projection(),
+                    );
+                    assert!(
+                        (0..width)
+                            .all(|column| candidate[(column, y)].bg
+                                == theme.color(Role::SurfaceHover))
+                    );
+                    assert!((0..12).all(|row| (0..width).all(|column| !matches!(
+                        map.hit_target_at(column, row),
+                        Some(HitTarget::SidebarMenu(_))
+                    ))));
+                    assert_eq!(
+                        map.hit_target_at(width - 1, y),
+                        Some(&HitTarget::CreateMenu(Some(target.clone())))
+                    );
+                    pointer.publish(map);
+                }
+            }
+            let _ = pointer.event(
+                &mut view,
+                &mut NoInput,
+                Instant::now(),
+                event(disclosure_x, y, MouseAction::Motion),
+            );
+            let _ = pointer.event(
+                &mut view,
+                &mut NoInput,
+                Instant::now(),
+                event(disclosure_x, y, MouseAction::Press),
+            );
+            for _ in 0..3 {
+                let (candidate, _, map) = paint_navigation_buffers_with_pointer(
+                    &view,
+                    locale,
+                    &theme,
+                    width,
+                    12,
+                    pointer.projection(),
+                );
+                for x in 0..width {
+                    assert_eq!(
+                        candidate[(x, y)].bg,
+                        theme.color(if x == disclosure_x {
+                            Role::SurfacePressed
+                        } else {
+                            Role::SurfaceHover
+                        })
+                    );
+                }
+                pointer.publish(map);
+            }
+            let outcome = pointer.event(
+                &mut view,
+                &mut NoInput,
+                Instant::now(),
+                event(disclosure_x, y, MouseAction::Release),
+            );
+            assert!(
+                matches!(outcome, PointerOutcome::Interaction { target: InteractionTarget::Sidebar(ref drawn), contract: PrimaryContract::ActivateOnRelease } if drawn.target() == &target && drawn.part() == SidebarPart::Disclosure)
+            );
+            let _ = pointer.event(
+                &mut view,
+                &mut NoInput,
+                Instant::now(),
+                event(width + 1, y, MouseAction::Motion),
+            );
+            let (candidate, _, _) = paint_navigation_buffers_with_pointer(
+                &view,
+                locale,
+                &theme,
+                width,
+                12,
+                pointer.projection(),
+            );
+            assert!((0..width).all(|x| candidate[(x, y)].bg == theme.color(Role::SurfaceChrome)));
+            assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
+            assert!(!view.machines.sidebar_navigation_active());
+            assert!(view.machines.request.is_none());
+        }
+    }
+}
+
+fn project_gap_view(label: &str) -> ClientView {
+    let mut view = active_view();
+    let rows = view
+        .machines
+        .space_rows()
+        .iter()
+        .map(|row| view.machines.space_checkpoint_row(row).unwrap().clone())
+        .collect::<Vec<_>>();
+    view.machines.observe_spaces(vec![(
+        Choice::Local,
+        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+            crate::machine_spaces::Checkpoint {
+                site_id: SiteId::parse(&id(1)).unwrap(),
+                revision: WorkbenchRevision::new(3),
+                metadata_revision: WorkbenchRevision::new(2),
+                git_requested: true,
+                rows: rows.into(),
+                projects: vec![
+                    crate::machine_spaces::ProjectSummary {
+                        project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
+                        label: "First group".into(),
+                    },
+                    crate::machine_spaces::ProjectSummary {
+                        project_id: WorkbenchProjectId::parse(&id(71)).unwrap(),
+                        label: label.into(),
+                    },
+                ]
+                .into(),
+            },
+        )),
+    )]);
+    view
+}
+
+#[test]
 fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_cell() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::one_light(), Theme::one_dark()] {
             for width in [24, 30, 60] {
                 for label in ["Orchbee", "项目😀e\u{301} long identity that must truncate"] {
-                    let mut view = ungrouped_view(label);
+                    let mut view = project_gap_view(label);
                     configure(
                         &mut view,
                         serde_json::json!([[token("workspace")], [token("branch")]]),
                         2,
                     );
-                    let target = view
-                        .machines
-                        .sidebar_navigation_rows()
-                        .last()
-                        .unwrap()
-                        .target();
+                    let target = SidebarTarget::Project {
+                        machine: Choice::Local,
+                        site_id: SiteId::parse(&id(1)).unwrap(),
+                        project_id: WorkbenchProjectId::parse(&id(71)).unwrap(),
+                    };
                     let mut pointer = PointerState::default();
                     pointer.set_capture(true);
                     pointer.set_motion_observability(MotionObservability::AnyMotion);
@@ -118,7 +271,7 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                         .collect::<Vec<_>>();
                     assert_eq!(disclosure_cells, [(disclosure_x, project_y)]);
                     pointer.publish(map);
-                    for (x, y, menu_visible) in [
+                    for (x, y, on_row) in [
                         (2, project_y, true),
                         (disclosure_x, project_y, true),
                         (disclosure_x, project_y - 1, false),
@@ -139,7 +292,16 @@ fn project_group_gap_stays_inert_while_hover_targets_only_the_inline_disclosure_
                                 24,
                                 pointer.projection(),
                             );
-                            assert_eq!(has_menu(&map, width, project_y, &target), menu_visible);
+                            assert!((0..24).all(|row| (0..width).all(|column| !matches!(
+                                map.hit_target_at(column, row),
+                                Some(HitTarget::SidebarMenu(_))
+                            ))));
+                            assert!((0..width).all(|column| candidate[(column, project_y)].bg
+                                == theme.color(if on_row {
+                                    Role::SurfaceHover
+                                } else {
+                                    Role::SurfaceChrome
+                                })));
                             assert_eq!(
                                 candidate[(disclosure_x, project_y)].symbol(),
                                 theme.glyphs.disclosure_open
@@ -237,263 +399,5 @@ fn multirow_workspace_disclosure_has_no_hit_on_padding_or_continuations() {
                 ));
             }
         }
-    }
-}
-
-#[test]
-fn row_and_child_hover_reveal_menu_without_repaint_flicker_or_focus_changes() {
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for width in [26, 40, 60] {
-            let mut view = active_view();
-            let target = view
-                .machines
-                .sidebar_parent(&view.machines.space_rows()[0].sidebar_target().unwrap())
-                .unwrap();
-            let theme = Theme::one_light();
-            let mut pointer = PointerState::default();
-            pointer.set_capture(true);
-            pointer.set_motion_observability(MotionObservability::AnyMotion);
-            let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                &view,
-                locale,
-                &theme,
-                width,
-                12,
-                pointer.projection(),
-            );
-            let y = sidebar_target_rows(&hits, width, 12, &target)[0];
-            assert!(!has_menu(&hits, width, y, &target));
-            let disclosure_x = (0..width)
-                .find(|x| {
-                    hits.hit_target_at(*x, y) == Some(&HitTarget::SidebarDisclosure(target.clone()))
-                })
-                .expect("painted disclosure after the Project identity");
-            pointer.publish(hits);
-            let before = view.machines.sidebar_focused_target().cloned();
-            for x in [2, disclosure_x, width - 2] {
-                assert!(matches!(
-                    pointer.event(
-                        &mut view,
-                        &mut NoInput,
-                        Instant::now(),
-                        event(x, y, MouseAction::Motion)
-                    ),
-                    PointerOutcome::IdleMotion { .. }
-                ));
-                for _ in 0..4 {
-                    let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                        &view,
-                        locale,
-                        &theme,
-                        width,
-                        12,
-                        pointer.projection(),
-                    );
-                    assert!(
-                        has_menu(&hits, width, y, &target),
-                        "{locale:?} width={width} x={x}"
-                    );
-                    pointer.publish(hits);
-                }
-            }
-            assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
-            assert!(!view.machines.sidebar_navigation_active());
-            assert!(view.machines.request.is_none());
-            let _ = pointer.event(
-                &mut view,
-                &mut NoInput,
-                Instant::now(),
-                event(width + 1, y, MouseAction::Motion),
-            );
-            let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                &view,
-                locale,
-                &theme,
-                width,
-                12,
-                pointer.projection(),
-            );
-            assert!(
-                !has_menu(&hits, width, y, &target),
-                "leaving the row hides its menu"
-            );
-            pointer.publish(hits);
-            let _ = pointer.event(
-                &mut view,
-                &mut NoInput,
-                Instant::now(),
-                event(2, y, MouseAction::Motion),
-            );
-            let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                &view,
-                locale,
-                &theme,
-                width,
-                12,
-                pointer.projection(),
-            );
-            assert!(has_menu(&hits, width, y, &target));
-            pointer.publish(hits);
-            pointer.set_host_focus(false);
-            let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                &view,
-                locale,
-                &theme,
-                width,
-                12,
-                pointer.projection(),
-            );
-            assert!(!has_menu(&hits, width, y, &target));
-            pointer.set_host_focus(true);
-            pointer.publish(hits);
-            let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                &view,
-                locale,
-                &theme,
-                width,
-                12,
-                pointer.projection(),
-            );
-            assert!(
-                !has_menu(&hits, width, y, &target),
-                "focus restoration cannot synthesize hover"
-            );
-        }
-    }
-}
-
-#[test]
-fn an_occluding_owner_suppresses_row_hover_reveal() {
-    let mut view = active_view();
-    let target = view
-        .machines
-        .sidebar_parent(&view.machines.space_rows()[0].sidebar_target().unwrap())
-        .unwrap();
-    let theme = Theme::one_light();
-    let mut pointer = PointerState::default();
-    pointer.set_capture(true);
-    pointer.set_motion_observability(MotionObservability::AnyMotion);
-    let (_, _, map) = paint_navigation_buffers_with_pointer(
-        &view,
-        Locale::EnUs,
-        &theme,
-        40,
-        12,
-        pointer.projection(),
-    );
-    let y = sidebar_target_rows(&map, 40, 12, &target)[0];
-    pointer.publish(map);
-    let _ = pointer.event(
-        &mut view,
-        &mut NoInput,
-        Instant::now(),
-        event(2, y, MouseAction::Motion),
-    );
-    let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
-    let mut hits = HitMapBuilder::with_pointer(pointer.projection());
-    hits.record(
-        HitLayer::Status,
-        Rect::new(2, y, 1, 1),
-        HitTarget::SettingsButton,
-    );
-    let rows = view.machines.sidebar_navigation_rows();
-    let source = view.machines.sidebar_source();
-    terminal
-        .draw(|frame| {
-            render(
-                frame,
-                frame.area(),
-                RenderContext {
-                    view: &view,
-                    locale: Locale::EnUs,
-                    theme: &theme,
-                    layer: HitLayer::Chrome,
-                    sidebar_width: 40,
-                    owns_keyboard: false,
-                    source: &source,
-                },
-                &rows,
-                Some(&mut hits),
-            )
-        })
-        .unwrap();
-    let hits = hits.finish();
-    assert!(!has_menu(&hits, 40, y, &target));
-    assert!((37..40).all(|x| terminal.backend().buffer()[(x, y)].symbol() == " "));
-}
-
-#[test]
-fn revealing_a_menu_never_changes_an_armed_rows_exposure() {
-    for hovered in [false, true] {
-        let mut view = active_view();
-        let target = view
-            .machines
-            .sidebar_parent(&view.machines.space_rows()[0].sidebar_target().unwrap())
-            .unwrap();
-        let theme = Theme::one_light();
-        let mut pointer = PointerState::default();
-        pointer.set_capture(true);
-        pointer.set_motion_observability(MotionObservability::AnyMotion);
-        let (_, _, hits) = paint_navigation_buffers_with_pointer(
-            &view,
-            Locale::EnUs,
-            &theme,
-            40,
-            12,
-            pointer.projection(),
-        );
-        let y = sidebar_target_rows(&hits, 40, 12, &target)[0];
-        pointer.publish(hits);
-        if hovered {
-            let _ = pointer.event(
-                &mut view,
-                &mut NoInput,
-                Instant::now(),
-                event(2, y, MouseAction::Motion),
-            );
-            let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                &view,
-                Locale::EnUs,
-                &theme,
-                40,
-                12,
-                pointer.projection(),
-            );
-            assert!(has_menu(&hits, 40, y, &target));
-            pointer.publish(hits);
-        }
-        assert_eq!(
-            pointer.event(
-                &mut view,
-                &mut NoInput,
-                Instant::now(),
-                event(2, y, MouseAction::Press)
-            ),
-            PointerOutcome::Handled
-        );
-        for _ in 0..3 {
-            let (_, _, hits) = paint_navigation_buffers_with_pointer(
-                &view,
-                Locale::EnUs,
-                &theme,
-                40,
-                12,
-                pointer.projection(),
-            );
-            assert_eq!(has_menu(&hits, 40, y, &target), hovered);
-            pointer.publish(hits);
-        }
-        assert!(matches!(
-            pointer.event(
-                &mut view,
-                &mut NoInput,
-                Instant::now(),
-                event(2, y, MouseAction::Release)
-            ),
-            PointerOutcome::Interaction {
-                target: InteractionTarget::Sidebar(_),
-                contract: PrimaryContract::ActivateOnRelease
-            }
-        ));
     }
 }

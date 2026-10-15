@@ -1419,6 +1419,21 @@ impl TerminalInputPort for TerminalSession {
     }
 
     #[cfg(windows)]
+    fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
+        self.backend.native_mut()?.sidebar_reorder_source()
+    }
+    #[cfg(windows)]
+    fn commit_sidebar_reorder(
+        &mut self,
+        source: &crate::tui_pointer::SidebarReorderSource,
+        operation: orchbee_workbench_protocol::NavigationConfiguration,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.commit_sidebar_reorder(source, operation);
+        }
+    }
+
+    #[cfg(windows)]
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.backend.native_mut()?.tab_drag_source()
     }

@@ -1086,6 +1086,54 @@
 					}
 				}
 			]
+		},
+		"snapshot-explicit-project-order": {
+			"kind": "workbench.snapshot",
+			"navigation": {
+				"projects": [
+					{
+						"label": "Orchbee",
+						"projectId": "44444444444444444444444444444444"
+					},
+					{
+						"projectId": "abababababababababababababababab",
+						"label": "Empty Project"
+					}
+				],
+				"standaloneTerminalContextId": "33333333333333333333333333333333",
+				"directories": [
+					{
+						"directoryId": "22222222222222222222222222222222",
+						"path": "/work/orchbee",
+						"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+					}
+				],
+				"workspaces": [
+					{
+						"label": "Main",
+						"primaryDirectoryId": "22222222222222222222222222222222",
+						"terminalContextId": "66666666666666666666666666666666",
+						"workspaceId": "55555555555555555555555555555555",
+						"projectId": "44444444444444444444444444444444"
+					}
+				],
+				"projectOrder": ["abababababababababababababababab", "44444444444444444444444444444444"]
+			},
+			"protocolVersion": 1,
+			"revision": "2",
+			"siteId": "11111111111111111111111111111111",
+			"terminalContexts": [
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "33333333333333333333333333333333"
+				},
+				{
+					"groups": [],
+					"tabs": [],
+					"terminalContextId": "66666666666666666666666666666666"
+				}
+			]
 		}
 	},
 	"validDocuments": [
@@ -1115,7 +1163,8 @@
 		"snapshot-ungrouped-r2",
 		"snapshot-independent-display-order",
 		"snapshot-dissolved-r3",
-		"delta-dissolve-project"
+		"delta-dissolve-project",
+		"snapshot-explicit-project-order"
 	],
 	"invalidDocuments": [
 		{
@@ -2676,6 +2725,162 @@
 						"tabs": [],
 						"terminalContextId": "00000000000000000000000000000009"
 					},
+					{
+						"groups": [],
+						"tabs": [],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [],
+						"tabs": [],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "schema",
+			"name": "project-order-duplicate",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						},
+						{
+							"projectId": "abababababababababababababababab",
+							"label": "Empty Project"
+						}
+					],
+					"standaloneTerminalContextId": "33333333333333333333333333333333",
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"projectOrder": ["44444444444444444444444444444444", "44444444444444444444444444444444"]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [],
+						"tabs": [],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
+			"name": "project-order-unknown",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						},
+						{
+							"projectId": "abababababababababababababababab",
+							"label": "Empty Project"
+						}
+					],
+					"standaloneTerminalContextId": "33333333333333333333333333333333",
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"projectOrder": ["44444444444444444444444444444444", "ffffffffffffffffffffffffffffffff"]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
+					{
+						"groups": [],
+						"tabs": [],
+						"terminalContextId": "33333333333333333333333333333333"
+					},
+					{
+						"groups": [],
+						"tabs": [],
+						"terminalContextId": "66666666666666666666666666666666"
+					}
+				]
+			}
+		},
+		{
+			"boundary": "semantic",
+			"name": "project-order-incomplete",
+			"value": {
+				"kind": "workbench.snapshot",
+				"navigation": {
+					"projects": [
+						{
+							"label": "Orchbee",
+							"projectId": "44444444444444444444444444444444"
+						},
+						{
+							"projectId": "abababababababababababababababab",
+							"label": "Empty Project"
+						}
+					],
+					"standaloneTerminalContextId": "33333333333333333333333333333333",
+					"directories": [
+						{
+							"directoryId": "22222222222222222222222222222222",
+							"path": "/work/orchbee",
+							"workerId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+						}
+					],
+					"workspaces": [
+						{
+							"label": "Main",
+							"primaryDirectoryId": "22222222222222222222222222222222",
+							"terminalContextId": "66666666666666666666666666666666",
+							"workspaceId": "55555555555555555555555555555555",
+							"projectId": "44444444444444444444444444444444"
+						}
+					],
+					"projectOrder": ["44444444444444444444444444444444"]
+				},
+				"protocolVersion": 1,
+				"revision": "2",
+				"siteId": "11111111111111111111111111111111",
+				"terminalContexts": [
 					{
 						"groups": [],
 						"tabs": [],

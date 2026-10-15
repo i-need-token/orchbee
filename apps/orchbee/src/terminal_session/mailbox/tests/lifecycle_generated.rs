@@ -4864,6 +4864,7 @@ impl Authority {
     fn snapshot(&self) -> Snapshot {
         Snapshot {
             navigation: Navigation {
+                project_order: Vec::new(),
                 directories: Vec::new(),
                 workspaces: Vec::new(),
                 workspace_order: Vec::new(),

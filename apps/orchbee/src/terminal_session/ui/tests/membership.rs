@@ -744,6 +744,7 @@ pub(in crate::terminal_session) fn snapshot(count: usize, revision: u64) -> Snap
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 2)).unwrap();
     Snapshot {
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),

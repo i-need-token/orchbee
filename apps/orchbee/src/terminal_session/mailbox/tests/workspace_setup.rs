@@ -21,6 +21,7 @@ fn project_rename_fixture(
         site_id: SiteId::parse(&id(2)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             standalone_terminal_context_id: context.clone(),

@@ -143,6 +143,7 @@ impl TryFrom<WorkbenchCommand> for WorkbenchSetupRequest {
                 | WorkbenchAction::ProjectDissolve { .. }
                 | WorkbenchAction::WorkspaceSetProject { .. }
                 | WorkbenchAction::WorkspaceCreateProject { .. }
+                | WorkbenchAction::NavigationConfigure { .. }
                 | WorkbenchAction::TabsConfigure { .. }
                 | WorkbenchAction::ProjectRename { .. }
                 | WorkbenchAction::WorkspaceRename { .. }
@@ -285,6 +286,10 @@ impl std::error::Error for WorkbenchSetupOutcomeUnknownReason {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WorkbenchSetupCommit {
+    NavigationConfigured {
+        revision: WorkbenchRevision,
+        unchanged: bool,
+    },
     WorkspaceProjectChanged {
         revision: WorkbenchRevision,
         workspace_id: WorkbenchWorkspaceId,
@@ -341,6 +346,7 @@ impl WorkbenchSetupCommit {
             Self::WorkspaceOrder { revision, .. }
             | Self::WorkspaceProjectChanged { revision, .. }
             | Self::ProjectDissolved { revision, .. }
+            | Self::NavigationConfigured { revision, .. }
             | Self::TabsConfigured { revision, .. }
             | Self::ProjectCreated { revision, .. }
             | Self::ProjectRenamed { revision, .. }

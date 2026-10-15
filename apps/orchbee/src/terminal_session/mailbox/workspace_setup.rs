@@ -164,6 +164,22 @@ impl CommandMailbox {
             },
         )
     }
+    pub(in crate::terminal_session) fn try_enqueue_navigation_configuration_for(
+        &self,
+        canonical: &mut NativeSessionState,
+        operation: orchbee_workbench_protocol::NavigationConfiguration,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+    ) -> Result<(), MoveAdmissionError<()>> {
+        self.enqueue_setup(
+            canonical,
+            deadlines,
+            clock,
+            |state, request_id, generation| {
+                state.plan_navigation_configuration(operation, request_id, generation, deadlines)
+            },
+        )
+    }
     fn enqueue_setup(
         &self,
         canonical: &mut NativeSessionState,

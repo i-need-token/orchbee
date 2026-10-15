@@ -312,6 +312,7 @@ impl WorkbenchAuthority {
             revision: WorkbenchRevision::new(0),
             site_id,
             navigation: Navigation {
+                project_order: Vec::new(),
                 directories: Vec::new(),
                 workspaces: Vec::new(),
                 workspace_order: Vec::new(),
@@ -754,6 +755,9 @@ impl WorkbenchAuthority {
                     let project_id = WorkbenchProjectId::parse(&identity(last_identity))
                         .map_err(|_error| PlanFailure::Internal)?;
                     let revision = self.next_revision()?;
+                    if !candidate.navigation.project_order.is_empty() {
+                        candidate.navigation.project_order.push(project_id.clone());
+                    }
                     candidate.navigation.projects.push(Project {
                         project_id: project_id.clone(),
                         label: label.as_str().to_owned(),
@@ -916,6 +920,10 @@ impl WorkbenchAuthority {
                         .navigation
                         .projects
                         .retain(|project| project.project_id != project_id);
+                    candidate
+                        .navigation
+                        .project_order
+                        .retain(|id| id != &project_id);
                     for workspace in &mut candidate.navigation.workspaces {
                         if workspace.project_id.as_ref() == Some(&project_id) {
                             workspace.project_id = None;
@@ -969,6 +977,30 @@ impl WorkbenchAuthority {
                     tab.automatic_label = false;
                     candidate.revision = revision;
                     WorkbenchCommandOutcome::Renamed { revision }
+                }
+                PureWorkbenchAction::NavigationConfigure { operation } => {
+                    if let orchbee_workbench_protocol::NavigationConfiguration::MoveWorkspace {
+                        workspace_id,
+                        ..
+                    } = &operation
+                        && self.workspace_organization_busy(workspace_id)
+                    {
+                        return Ok(self.settled(unavailable(
+                            WorkbenchCommandUnavailableReason::TerminalBusy,
+                        )));
+                    }
+                    let Some(navigation) = orchbee_workbench_protocol::configure_navigation(
+                        &candidate.navigation,
+                        &operation,
+                    )
+                    .map_err(PlanFailure::Rejected)?
+                    else {
+                        return Ok(self.unchanged());
+                    };
+                    candidate.navigation = navigation;
+                    let revision = self.next_revision()?;
+                    candidate.revision = revision;
+                    WorkbenchCommandOutcome::NavigationConfigured { revision }
                 }
                 PureWorkbenchAction::TabsConfigure {
                     terminal_context_id,
@@ -1276,6 +1308,9 @@ enum PlanFailure {
 }
 
 enum PureWorkbenchAction {
+    NavigationConfigure {
+        operation: orchbee_workbench_protocol::NavigationConfiguration,
+    },
     TabsConfigure {
         terminal_context_id: WorkbenchTerminalContextId,
         operation: orchbee_workbench_protocol::TabConfiguration,
@@ -1356,6 +1391,9 @@ enum PureWorkbenchAction {
 impl PureWorkbenchAction {
     fn from_action(action: &WorkbenchAction) -> Option<Self> {
         Some(match action {
+            WorkbenchAction::NavigationConfigure { operation } => Self::NavigationConfigure {
+                operation: operation.clone(),
+            },
             WorkbenchAction::TabsConfigure {
                 terminal_context_id,
                 operation,

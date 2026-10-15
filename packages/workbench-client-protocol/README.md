@@ -6,11 +6,12 @@ The matched-cohort projection uses global Directory, Project and Workspace regis
 only an optional group: Workspace has required-nullable `projectId` and `primaryDirectoryId`, with
 stable Workspace/Terminal Context identity. Identity arrays stay sorted independently of display
 order. Navigation validates references, unique Context ownership, 65,536 global Directories,
-256 Workspaces per Project and 1,023 globally. A nonempty `workspaceOrder` is an exact permutation;
-omission/empty uses canonical Workspace ID order.
+256 Workspaces per Project and 1,023 globally. Nonempty `projectOrder` and `workspaceOrder` are exact
+permutations of their respective registries; omission/empty uses canonical ID order.
 
 The [Rust organization contract](../../crates/workbench-protocol/README.md#project-organization-and-stable-workspace-identity)
-owns the shared semantic rules for `workspace.set-project`, atomic `workspace.create-project`,
+owns the shared semantic rules for atomic `navigation.configure` membership/order changes,
+`workspace.set-project`, atomic `workspace.create-project`,
 `project.dissolve` and the four `workspace.launch` placements. Launch requires an absolute cwd and
 uses the 96 KiB launch class; receipts require nullable Project membership. Regrouping and dissolution
 preserve physical resources and display order. Stable Workspace rename/Close/primary-directory

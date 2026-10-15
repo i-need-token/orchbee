@@ -20,6 +20,7 @@ fn fixture() -> (Snapshot, Source, PaneGraphicsLayer) {
         site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
         revision: WorkbenchRevision::new(5),
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             projects: vec![],

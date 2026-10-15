@@ -1,4 +1,5 @@
 use super::*;
+mod navigation_configuration;
 mod tab_configuration;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::terminal_session::state::workspace_setup::{

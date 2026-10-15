@@ -400,9 +400,17 @@
 					"items": {
 						"$ref": "#/$defs/workspace"
 					}
+				},
+				"projectOrder": {
+					"type": "array",
+					"maxItems": 256,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/projectId"
+					}
 				}
 			},
-			"$comment": "Global identity-sorted registries. Bindings also enforce unique Context ownership, resolving nullable Project/Directory references, 256 Workspaces per Project and an exact nonempty workspaceOrder permutation; omitted/empty order uses Workspace ID order. Encoded projection budget remains independent of collection limits."
+			"$comment": "Global identity-sorted registries. Bindings enforce unique Context ownership, resolving nullable Project/Directory references, 256 Workspaces per Project, and exact nonempty workspaceOrder and projectOrder permutations. Omitted or empty ordering uses canonical ID order. Encoded projection budget remains independent of collection limits."
 		},
 		"snapshotReadIntent": {
 			"type": "object",

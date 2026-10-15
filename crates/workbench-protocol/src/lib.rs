@@ -76,8 +76,11 @@ mod tab_creation;
 pub use tab_creation::{
     NewTerminalTab, TabCreationPlacement, create_terminal_tab, validate_tab_creation,
 };
+mod navigation_configuration;
+mod project_order;
 mod validation;
 mod workspace_order;
+pub use navigation_configuration::{NavigationConfiguration, configure_navigation};
 pub use workspace_order::{
     MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES, MAXIMUM_WORKSPACE_ORDER_LENGTH,
     WorkbenchWorkspaceInsertIndex, WorkbenchWorkspaceList,

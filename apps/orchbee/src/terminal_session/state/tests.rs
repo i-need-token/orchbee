@@ -2218,6 +2218,7 @@ pub(super) fn snapshot(tab_count: usize, revision: u64, created_label: Option<&s
     }
     Snapshot {
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),

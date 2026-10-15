@@ -34,6 +34,7 @@ fn projected(tab_count: usize, revision: u64) -> NativeContextTabs {
 fn snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),

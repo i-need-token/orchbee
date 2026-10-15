@@ -201,6 +201,7 @@ impl InputDispatcher {
                 | PointerOutcome::RegionsChanged => {}
                 #[cfg(windows)]
                 PointerOutcome::TabGestureEnded
+                | PointerOutcome::SidebarReorderEnded
                 | PointerOutcome::SidebarWidthEnded
                 | PointerOutcome::MenuRequested { .. }
                 | PointerOutcome::ChromeGestureEnded => {

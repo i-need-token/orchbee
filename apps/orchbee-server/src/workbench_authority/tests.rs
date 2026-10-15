@@ -6,6 +6,7 @@ use orchbee_workbench_protocol::{
 
 mod launch_profile;
 mod layout_create;
+mod navigation_configuration;
 mod panel_input;
 mod panel_labels;
 mod split_ratios;
@@ -722,6 +723,7 @@ fn publication_read_replays_committed_history_under_the_read_grant() {
     let base = Snapshot {
         revision: WorkbenchRevision::new(0),
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),

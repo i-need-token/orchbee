@@ -276,10 +276,36 @@ export const WorkbenchWorkspacePlacementSchema = z.discriminatedUnion('kind', [
 
 export type WorkbenchWorkspacePlacement = z.infer<typeof WorkbenchWorkspacePlacementSchema>;
 
+function validateDisplayOrder(
+	order: readonly string[] | undefined,
+	members: readonly string[],
+	entity: string,
+	context: z.RefinementCtx,
+): void {
+	if (order === undefined || order.length === 0) return;
+	const identities = new Set(members);
+	if (
+		order.length !== members.length ||
+		identities.size !== members.length ||
+		new Set(order).size !== order.length ||
+		order.some((id) => !identities.has(id))
+	) {
+		context.addIssue({
+			code: 'custom',
+			message: `${entity} display order must be an exact permutation of navigation membership`,
+		});
+	}
+}
+
 export const WorkbenchNavigationSchema = z
 	.strictObject({
 		directories: z.array(WorkbenchDirectorySchema).max(WORKBENCH_MAXIMUM_DIRECTORIES).readonly(),
 		projects: z.array(WorkbenchProjectSchema).max(WORKBENCH_MAXIMUM_PROJECTS).readonly(),
+		projectOrder: z
+			.array(WorkbenchProjectIdSchema)
+			.max(WORKBENCH_MAXIMUM_PROJECTS)
+			.readonly()
+			.optional(),
 		workspaces: z
 			.array(WorkbenchWorkspaceSchema)
 			.max(WORKBENCH_MAXIMUM_TERMINAL_CONTEXTS - 1)
@@ -339,21 +365,18 @@ export const WorkbenchNavigationSchema = z
 				});
 			}
 		}
-		const order = navigation.workspaceOrder;
-		if (order === undefined || order.length === 0) return;
-		const members = navigation.workspaces.map((workspace) => workspace.workspaceId);
-		const identities = new Set(members);
-		if (
-			order.length !== members.length ||
-			identities.size !== members.length ||
-			new Set(order).size !== order.length ||
-			order.some((id) => !identities.has(id))
-		) {
-			context.addIssue({
-				code: 'custom',
-				message: 'Workspace display order must be an exact permutation of navigation membership',
-			});
-		}
+		validateDisplayOrder(
+			navigation.projectOrder,
+			navigation.projects.map((project) => project.projectId),
+			'Project',
+			context,
+		);
+		validateDisplayOrder(
+			navigation.workspaceOrder,
+			navigation.workspaces.map((workspace) => workspace.workspaceId),
+			'Workspace',
+			context,
+		);
 	})
 	.readonly();
 

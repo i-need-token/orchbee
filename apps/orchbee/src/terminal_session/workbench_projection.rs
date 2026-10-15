@@ -144,6 +144,10 @@ impl NativeContextTabs {
     pub(super) fn canonical_context(&self) -> &orchbee_workbench_protocol::TerminalContext {
         &self.canonical.terminal_contexts[self.canonical_context]
     }
+    #[cfg(windows)]
+    pub(super) fn shared_canonical_snapshot(&self) -> std::sync::Arc<Snapshot> {
+        std::sync::Arc::clone(&self.canonical)
+    }
     pub(super) fn canonical_snapshot(&self) -> &Snapshot {
         &self.canonical
     }
@@ -863,7 +867,14 @@ pub(super) fn project_native_context_tabs(
         tabs,
         location: location.clone(),
         navigation: navigation.into(),
-        projects: snapshot.navigation.projects.clone().into(),
+        projects: snapshot
+            .navigation
+            .ordered_projects()
+            .map_err(|_| NativeProjectionError)?
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .into(),
     })
 }
 

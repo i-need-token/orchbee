@@ -813,7 +813,7 @@ fn hidden_by_candidate_wide_glyph(candidate: &ratatui::buffer::Buffer, x: u16, y
 }
 
 #[test]
-fn sidebar_menus_hide_at_rest_and_reveal_only_for_the_keyboard_owned_row() {
+fn sidebar_context_menus_have_no_overflow_trigger_and_create_stays_right_aligned() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for width in [26, 40] {
             let mut view = view(120, 40);
@@ -857,30 +857,22 @@ fn sidebar_menus_hide_at_rest_and_reveal_only_for_the_keyboard_owned_row() {
                 layout::RowKind::for_target(&project),
             )
             .unwrap();
-            assert_eq!(
-                ordinary_buffer[(project_tracks.menu.x, project_y)].symbol(),
-                " "
-            );
-            if project_tracks.density().direct_create() {
-                let create = project_tracks.create.unwrap();
-                assert_eq!(ordinary_buffer[(create.x, project_y)].symbol(), "[");
-                assert!((create.x..create.right()).all(|x| {
-                    ordinary.hit_target_at(x, project_y)
-                        == Some(&HitTarget::CreateMenu(Some(project.clone())))
-                }));
-            } else {
-                assert!((0..width).all(|x| !matches!(
-                    ordinary.hit_target_at(x, project_y),
-                    Some(HitTarget::CreateMenu(Some(_)))
-                )));
-            }
+            let create = project_tracks
+                .create
+                .expect("Project create remains visible at every admitted width");
+            assert_eq!(create.right(), width);
+            assert_eq!(ordinary_buffer[(create.x, project_y)].symbol(), "[");
+            assert!((create.x..create.right()).all(|x| {
+                ordinary.hit_target_at(x, project_y)
+                    == Some(&HitTarget::CreateMenu(Some(project.clone())))
+            }));
 
             assert!(view.machines.focus_sidebar_target(&other));
             let (focused_buffer, focused_hits) = paint_navigation(&view, locale, &theme, width, 10);
             let other_rows = sidebar_target_rows(&focused_hits, width, 10, &other);
-            assert!((0..width).any(|x| matches!(
+            assert!((0..width).all(|x| !matches!(
                 focused_hits.hit_target_at(x, other_rows[0]),
-                Some(HitTarget::SidebarMenu(actual)) if actual == &other
+                Some(HitTarget::SidebarMenu(_))
             )));
             assert_eq!(
                 focused_buffer[(1, other_rows[0])].symbol(),
@@ -967,32 +959,15 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
 
                 let focused_rows = sidebar_target_rows(&hits, width, 10, &focused);
                 assert_eq!(focused_rows.len(), 2);
-                let focused_tracks = layout::Tracks::resolve(
-                    Rect::new(0, focused_rows[0], width, focused_rows.len() as u16),
-                    0,
-                    1,
-                    auxiliary_actions(&view.machines.sidebar_source(), &focused),
-                    layout::RowKind::for_target(&focused),
-                )
-                .unwrap();
                 for y in &focused_rows {
                     for x in 0..width {
-                        if *y == focused_tracks.content_y
-                            && x >= focused_tracks.menu.x
-                            && x < focused_tracks.menu.right()
-                        {
-                            assert_eq!(
-                                hits.hit_target_at(x, *y),
-                                Some(&HitTarget::SidebarMenu(focused.clone()))
-                            );
-                        } else {
-                            assert!(matches!(
-                                hits.hit_target_at(x, *y),
-                                Some(HitTarget::MachineWorkspaceRow { selected, .. })
-                                    if selected == &view.machines.space_rows()[1].selection()
-                            ));
-                        }
+                        assert!(matches!(
+                            hits.hit_target_at(x, *y),
+                            Some(HitTarget::MachineWorkspaceRow { selected, .. })
+                                if selected == &view.machines.space_rows()[1].selection()
+                        ));
                     }
+
                     for x in 0..width {
                         assert_eq!(candidate[(x, *y)].bg, theme.color(Role::SurfaceSelection));
                     }
@@ -1259,19 +1234,19 @@ fn ungrouped_view(label: &str) -> ClientView {
 }
 
 #[test]
-fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
+fn projects_precede_ungrouped_workspaces_and_create_has_no_overflow_slot() {
     let mut view = ungrouped_view("Empty group");
     let tree = view.machines.sidebar_navigation_rows();
-    assert!(matches!(tree[0], SidebarRow::Context { .. }));
+    assert!(matches!(tree[0], SidebarRow::Project { .. }));
     assert!(matches!(tree[1], SidebarRow::Context { .. }));
-    assert!(matches!(tree[2], SidebarRow::Project { .. }));
-    let workspace = tree[0].target();
-    let project = tree[2].target();
+    assert!(matches!(tree[2], SidebarRow::Context { .. }));
+    let workspace = tree[1].target();
+    let project = tree[0].target();
     assert!(view.machines.sidebar_parent(&workspace).is_none());
     assert!(view.machines.focus_sidebar_target(&project));
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (buffer, hits) = paint_navigation(&view, locale, &Theme::terminal_native(), 40, 20);
-        let last_workspace = (0..20)
+        let first_workspace = (0..20)
             .filter(|y| {
                 (0..40).any(|x| {
                     matches!(
@@ -1280,7 +1255,7 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
                     )
                 })
             })
-            .max()
+            .min()
             .unwrap();
         let project_start = (0..20)
             .find(|y| {
@@ -1289,19 +1264,19 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
                 })
             })
             .unwrap();
-        assert_eq!(project_start, last_workspace + 2);
+        assert_eq!(first_workspace, project_start + 2);
         assert_eq!(
             buffer[(1, project_start)].symbol(),
             Theme::terminal_native().glyphs.navigation_marker
         );
         for x in 0..40 {
-            assert_eq!(buffer[(x, project_start - 1)].symbol(), " ");
+            assert_eq!(buffer[(x, first_workspace - 1)].symbol(), " ");
             assert_eq!(
-                buffer[(x, project_start - 1)].bg,
+                buffer[(x, first_workspace - 1)].bg,
                 Theme::terminal_native().color(Role::SurfaceChrome)
             );
             assert!(matches!(
-                hits.hit_target_at(x, project_start - 1),
+                hits.hit_target_at(x, first_workspace - 1),
                 Some(HitTarget::MachineWorkspaceSurface(_))
             ));
             assert!(matches!(
@@ -1314,11 +1289,9 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
                 ) if target == &project
             ));
         }
-        assert!(
-            (0..20).any(|y| (0..40).any(
-                |x| hits.hit_target_at(x, y) == Some(&HitTarget::SidebarMenu(project.clone()))
-            ))
-        );
+        assert!((0..20).all(|y| {
+            (0..40).all(|x| !matches!(hits.hit_target_at(x, y), Some(HitTarget::SidebarMenu(_))))
+        }));
         assert!((0..20).any(|y| (0..40).any(
             |x| hits.hit_target_at(x, y) == Some(&HitTarget::CreateMenu(Some(project.clone())))
         )));
@@ -1624,8 +1597,8 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
     let rows = sidebar_target_rows(&hits, 26, 10, &active);
     assert_eq!(
         rows.len(),
-        2,
-        "the inline disclosure budget moves the duplicate-identity suffix to a continuation"
+        1,
+        "removing the overflow slot leaves room for the inline disclosure and identity suffix"
     );
     let y = rows[0];
     let tracks = layout::Tracks::resolve(
@@ -1684,7 +1657,6 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
             0,
         );
         let active = view.machines.space_rows()[0].sidebar_target().unwrap();
-        let focused = view.machines.space_rows()[1].sidebar_target().unwrap();
         let active_selection = view.machines.space_rows()[0].selection();
         let focused_selection = view.machines.space_rows()[1].selection();
         let SidebarTarget::Context { target, .. } = &active else {
@@ -1737,10 +1709,9 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
             Some(HitTarget::MachineAgentRow { selected, .. })
                 if matches!(&selected.context, Some(crate::terminal_session::NativeStartupTarget::Agent(target)) if target.as_ref() == &agent_selection)
         ))));
-        assert!((0..height).any(|y| (0..width).any(|x| matches!(
-            hits.hit_target_at(x, y),
-            Some(HitTarget::SidebarMenu(target)) if target == &focused
-        ))));
+        assert!((0..height).all(|y| {
+            (0..width).all(|x| !matches!(hits.hit_target_at(x, y), Some(HitTarget::SidebarMenu(_))))
+        }));
         crate::tui_render::test_capture::capture_screen(&mut terminal, name, locale, &theme);
     }
 }

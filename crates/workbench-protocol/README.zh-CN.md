@@ -9,8 +9,8 @@
 ## Project 组织与稳定 Workspace 身份
 
 Navigation 持有全局按身份排序的 `directories`、`projects` 和 `workspaces`，以及
-`standaloneTerminalContextId` 与独立的 `workspaceOrder`。非空顺序必须是完整排列；省略或空顺序
-使用规范 Workspace ID 顺序。Project 只包含 `projectId` 与 `label`。Workspace 的 `projectId` 和
+`standaloneTerminalContextId` 与独立的 `projectOrder`、`workspaceOrder`。每个非空顺序必须是其
+注册表的完整排列；省略或空顺序使用规范 ID 顺序。Project 只包含 `projectId` 与 `label`。Workspace 的 `projectId` 和
 `primaryDirectoryId` 必须存在且可为 null；其 ID、Terminal Context 与物理 Directory 独立于分组。
 引用必须能解析，每个 Terminal Context 恰有一个导航所有者。容量为 256 个 Project、65,536 个
 全局 Directory、每个 Project 最多 256 个 Workspace、全局最多 1,023 个 Workspace。现有 1 MiB
@@ -21,6 +21,14 @@ Workspace 的成员关系；`workspace.create-project` 原子创建 Project 并�
 `project.dissolve` 仅移除组，使其 Workspace 成为未分组状态。结果使用带必填可空 `projectId` 的
 `workspace-project-changed` 或 `project-dissolved`。重新分组保留 Workspace ID、目录、终端身份
 及显示顺序。权威成员准入、revision CAS 与原子发布仍由 Server 负责。
+
+`navigation.configure` 携带封闭的 `NavigationConfiguration`：`move-project` 要求 Project ID 和
+可空 `beforeProjectId`；`move-workspace` 要求 Workspace ID、可空 `projectId` 和可空
+`beforeWorkspaceId`。null 锚点表示追加到目标分组末尾；非空 Workspace 锚点必须已属于该组。
+`configure_navigation` 为权威规划与原生回执验证共享同一确定性转换。它保留按身份排序的注册表、
+全部物理资源及其他分组的相对顺序，原子改变成员关系和显示顺序。身份缺失、锚点无效或分组已满
+时拒绝整个候选。无变化返回 `unchanged`，不增加 revision；变化返回 `navigation-configured`。
+原生手势契约由[侧栏布局](../../apps/orchbee/docs/tui-shell-layout.zh-CN.md)管理。
 
 `workspace.launch` 的 `placement` 为 `ungrouped`、`project { projectId }`、`new-project { label }`
 或 `alongside { workspaceId, projectLabel }`。Alongside 在权威提交时解析源的当前分组。未分组的

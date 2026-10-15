@@ -17,24 +17,18 @@ pub(crate) enum IconActionGlyph {
     Down,
     Help,
     Add,
-    #[cfg(any(windows, test))]
-    More,
 }
 
 impl IconActionGlyph {
-    fn label(self, theme: &Theme) -> &'static str {
-        match (self, theme.glyphs.ellipsis.is_ascii()) {
-            (Self::Close, _) => "[x]",
-            (Self::Previous, _) => "[<]",
-            (Self::Next, _) => "[>]",
-            (Self::Up, _) => "[^]",
-            (Self::Down, _) => "[v]",
-            (Self::Help, _) => "[?]",
-            (Self::Add, _) => "[+]",
-            #[cfg(any(windows, test))]
-            (Self::More, true) => "[.]",
-            #[cfg(any(windows, test))]
-            (Self::More, false) => "[…]",
+    fn label(self) -> &'static str {
+        match self {
+            Self::Close => "[x]",
+            Self::Previous => "[<]",
+            Self::Next => "[>]",
+            Self::Up => "[^]",
+            Self::Down => "[v]",
+            Self::Help => "[?]",
+            Self::Add => "[+]",
         }
     }
 }
@@ -108,7 +102,7 @@ pub(crate) fn render_icon_action(
         Some(role),
         theme.style(role),
     );
-    frame.render_widget(Paragraph::new(spec.glyph.label(theme)), rect);
+    frame.render_widget(Paragraph::new(spec.glyph.label()), rect);
     for x in rect.x..rect.right() {
         frame.buffer_mut()[(x, rect.y)]
             .set_style(Style::reset())

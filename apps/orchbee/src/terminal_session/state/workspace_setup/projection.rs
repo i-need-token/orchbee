@@ -34,6 +34,22 @@ impl SetupKnownCommit {
         }
         if matches!(
             self.operation.command.action,
+            WorkbenchAction::NavigationConfigure { .. }
+        ) {
+            let navigation = self.operation.configured_navigation(&self.commit)?;
+            if snapshot.revision == self.commit.revision() {
+                let mut exact = baseline.canonical_snapshot().clone();
+                exact.revision = self.commit.revision();
+                exact.navigation = navigation;
+                if snapshot != &exact {
+                    return None;
+                }
+            }
+            return validate_canonical_refresh(baseline, baseline.project_snapshot(snapshot).ok()?)
+                .ok();
+        }
+        if matches!(
+            self.operation.command.action,
             WorkbenchAction::TabsConfigure { .. }
         ) {
             let expected = self.operation.configured_context(&self.commit)?;
@@ -86,6 +102,9 @@ impl SetupKnownCommit {
                 },
             ) => {
                 self.operation.organization_receipt(&self.commit)?;
+                if !navigation.project_order.is_empty() {
+                    navigation.project_order.push(project_id.clone());
+                }
                 navigation
                     .projects
                     .push(orchbee_workbench_protocol::Project {
@@ -106,6 +125,7 @@ impl SetupKnownCommit {
                 navigation
                     .projects
                     .retain(|project| &project.project_id != project_id);
+                navigation.project_order.retain(|id| id != project_id);
                 for workspace in &mut navigation.workspaces {
                     if workspace.project_id.as_ref() == Some(project_id) {
                         workspace.project_id = None;
@@ -120,6 +140,9 @@ impl SetupKnownCommit {
                     return None;
                 }
                 snapshot.navigation.project(project_id)?;
+                if !navigation.project_order.is_empty() {
+                    navigation.project_order.push(project_id.clone());
+                }
                 navigation
                     .projects
                     .push(orchbee_workbench_protocol::Project {
@@ -330,6 +353,9 @@ impl SetupKnownCommit {
                 let project_id = commit.project_id.as_ref()?;
                 if navigation.project(project_id).is_some() {
                     return None;
+                }
+                if !navigation.project_order.is_empty() {
+                    navigation.project_order.push(project_id.clone());
                 }
                 navigation
                     .projects

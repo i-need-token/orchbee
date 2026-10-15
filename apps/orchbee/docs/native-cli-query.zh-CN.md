@@ -67,6 +67,9 @@ scope；v2 保留原 native scope。集成列表输出 v3，或在带 `--outdate
 
 ## Workspace 与可选 Project
 
+Project 列表遵循 Navigation 独立的 `projectOrder`，省略或空值时使用规范 ID 顺序。ID／名称
+查找始终独立于显示位置；Workspace 列表继续使用其独立的 `workspaceOrder`。
+
 Navigation 的 `directories` 和 `workspaces` 为全局数组；`projects` 只含 ID/名称。Workspace 的 `projectId` 必填可空。Project list/get v2 由成员 Workspace 派生目录；Workspace list/get v7 全局解析并明确显示未分组。`api snapshot` v6、Worktree query/list v2、Workspace close-status v2 和目录 v143 发布这些形状。语义事件 stream/wait 封装为 v2：Workspace 数据仅在嵌套 Workspace 上携带分组，Worktree 操作元数据可空。
 
 `workspace set-project <workspace> --project <project>` 移动分组；`workspace create-project <workspace> --label <label>` 原子创建 Project 并移入；`workspace ungroup <workspace>` 取消分组；`project dissolve <project>` 取消全部成员分组并删除 Project。它们只改变组织元数据，保留精确 ID、cwd、PTY、目录和顺序。`workspace move`/`move-block` 继续单独重排。Project 可组织多个仓库。普通关闭只影响选中 Workspace；批量关闭使用下文显式 Project 命令。

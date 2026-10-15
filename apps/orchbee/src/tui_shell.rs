@@ -900,6 +900,11 @@ fn draw_surface<B: Backend + ResizableBackend>(
         .is_none()
         .then(|| dispatcher.tab_drag_preview())
         .flatten();
+    #[cfg(windows)]
+    let sidebar_reorder = capture_owner
+        .is_none()
+        .then(|| dispatcher.sidebar_reorder_preview())
+        .flatten();
     let drawn = terminal.draw(|frame| {
         #[cfg(windows)]
         {
@@ -941,6 +946,18 @@ fn draw_surface<B: Backend + ResizableBackend>(
             &mut hits,
         );
         #[cfg(windows)]
+        if let Some(preview) = sidebar_reorder
+            .as_ref()
+            .and_then(|preview| hits.resolve_sidebar_reorder_preview(preview))
+        {
+            crate::tui_render::render_sidebar_reorder_preview(
+                frame,
+                &preview,
+                chrome.locale,
+                chrome.theme,
+            );
+        }
+        #[cfg(windows)]
         if let Some(preview) = &tab_drag {
             crate::tui_render::render_tab_drag_preview(frame, preview, chrome.locale, chrome.theme);
         }
@@ -950,7 +967,8 @@ fn draw_surface<B: Backend + ResizableBackend>(
                 receipt.graphics_draws(),
                 preview_painted
                     || capture_owner == Some(crate::tui_composition::CaptureOwner::Machine)
-                    || notification_painted,
+                    || notification_painted
+                    || sidebar_reorder.is_some(),
             );
         }
     });

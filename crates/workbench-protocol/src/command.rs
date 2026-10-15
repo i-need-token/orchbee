@@ -624,6 +624,11 @@ pub enum WorkbenchAction {
         tab_id: WorkbenchTabId,
         label: WorkbenchLabel,
     },
+    /// Atomic sidebar membership and display order; terminals and resource identities stay intact.
+    #[serde(rename = "navigation.configure")]
+    NavigationConfigure {
+        operation: crate::NavigationConfiguration,
+    },
     /// Atomic metadata/order configuration; terminal and presentation identities are preserved.
     #[serde(rename = "tabs.configure")]
     TabsConfigure {
@@ -1035,6 +1040,7 @@ pub enum WorkbenchRejectionReason {
     WorkspaceUnavailable,
     WorkspaceMoveIndexOutOfBounds,
     WorkspaceMoveTargetInBlock,
+    InvalidNavigationConfiguration,
     WorkspaceGroupCloseRequired,
     WorkspaceDirectoryUnavailable,
     WorkspaceDirectoryConflict,
@@ -1114,6 +1120,9 @@ pub enum WorkbenchTerminalOutcome {
     deny_unknown_fields
 )]
 pub enum WorkbenchCommandOutcome {
+    NavigationConfigured {
+        revision: WorkbenchRevision,
+    },
     /// A committed configuration, with a new identity only for group creation.
     TabsConfigured {
         revision: WorkbenchRevision,

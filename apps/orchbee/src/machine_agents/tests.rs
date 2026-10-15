@@ -69,6 +69,7 @@ pub(crate) fn fixture() -> Snapshot {
         site_id: SiteId::parse(&id(1)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             projects: Vec::new(),

@@ -92,7 +92,36 @@ fn rendered_sidebar_map(view: &ClientView) -> crate::tui_pointer::FrameHitMap {
             );
         })
         .unwrap();
+    hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {
+        site: sidebar_context().site_id,
+        revision: orchbee_workbench_protocol::WorkbenchRevision::new(1),
+    }));
     hits.finish()
+}
+
+fn sidebar_primary_cell(
+    map: &crate::tui_pointer::FrameHitMap,
+    target: &crate::machine_picker::SidebarTarget,
+) -> (u16, u16) {
+    for y in 0..40 {
+        for x in 0..30 {
+            let matches = match (map.hit_target_at(x, y), target) {
+                (Some(HitTarget::MachineProjectRow { target: row, .. }), _) => row == target,
+                (
+                    Some(HitTarget::MachineWorkspaceRow { selected, .. }),
+                    crate::machine_picker::SidebarTarget::Context { machine, target },
+                ) => {
+                    &selected.machine == machine
+                        && matches!(&selected.context, Some(crate::terminal_session::NativeStartupTarget::Context(row)) if row == target)
+                }
+                _ => false,
+            };
+            if matches {
+                return (x, y);
+            }
+        }
+    }
+    panic!("rendered primary sidebar row");
 }
 
 fn disclosure_packet(rect: Rect, twice: bool) -> Vec<u8> {
@@ -325,11 +354,7 @@ fn sidebar_mode_owns_only_explicit_navigation_and_fences_exit_packets() {
 #[test]
 fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navigation() {
     for project in [false, true] {
-        for entry in [
-            b"\x1bOQtail".as_slice(),
-            b"\x1b[<0;21;3Mtail",
-            b"\x1b[<2;21;3Mtail",
-        ] {
+        for keyboard in [false, true] {
             let mut view = sidebar_view();
             let mut port = Port::new(MenuAction::Help);
             let mut dispatcher = InputDispatcher::default();
@@ -344,9 +369,16 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
                 }
             };
             assert!(view.machines.focus_sidebar_target(&target));
-            dispatcher.publish_hit_map(sidebar_target_map(target.clone()));
+            let map = rendered_sidebar_map(&view);
+            let (x, y) = sidebar_primary_cell(&map, &target);
+            dispatcher.publish_hit_map(map);
             let before = view.machines.sidebar_focused_target().cloned();
-            dispatch_all(&mut dispatcher, &mut view, &mut port, entry);
+            let entry = if keyboard {
+                b"\x1bOQtail".to_vec()
+            } else {
+                format!("\x1b[<2;{};{}Mtail", x + 1, y + 1).into_bytes()
+            };
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &entry);
             assert!(port.menu.active());
             assert_eq!(
                 port.target,
@@ -396,6 +428,32 @@ fn sidebar_keyboard_and_row_menu_share_drawn_identity_and_cancel_returns_to_navi
                 "returning to the same Sidebar owner does not churn global terminal modes"
             );
         }
+    }
+}
+
+#[test]
+fn sidebar_primary_click_keeps_row_activation_separate_from_context_menus() {
+    for project in [false, true] {
+        let mut view = sidebar_view();
+        let mut port = Port::new(MenuAction::Help);
+        let mut dispatcher = InputDispatcher::default();
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        let target = if project {
+            sidebar_project_target()
+        } else {
+            crate::machine_picker::SidebarTarget::Context {
+                machine: crate::machine_picker::Choice::Local,
+                target: sidebar_context(),
+            }
+        };
+        let map = rendered_sidebar_map(&view);
+        let (x, y) = sidebar_primary_cell(&map, &target);
+        dispatcher.publish_hit_map(map);
+        let input = format!("\x1b[<0;{x};{y}M\x1b[<0;{x};{y}m", x = x + 1, y = y + 1,);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, input.as_bytes());
+        assert!(!port.menu.active());
+        assert!(port.target.is_none());
+        assert!(forwarded_bytes(&port.calls).is_empty());
     }
 }
 

@@ -1,5 +1,40 @@
 use super::Locale;
 impl Locale {
+    #[cfg(windows)]
+    pub(crate) const fn sidebar_drop_zone(self, workspace: bool) -> &'static str {
+        match (self, workspace) {
+            (Self::EnUs, true) => "No project",
+            (Self::ZhCn, true) => "不属于项目",
+            (Self::EnUs, false) => "End of projects",
+            (Self::ZhCn, false) => "项目列表末尾",
+        }
+    }
+    #[cfg(windows)]
+    pub(crate) fn sidebar_reorder_hint(
+        self,
+        destination: Option<(crate::tui_pointer::SidebarDropPlacement, &str)>,
+    ) -> String {
+        use crate::tui_pointer::SidebarDropPlacement::*;
+        let Some((placement, label)) = destination else {
+            return match self {
+                Self::EnUs => "Drag to a row or the bottom drop area · Esc cancel".to_owned(),
+                Self::ZhCn => "拖到目标行或底部放置区 · Esc 取消".to_owned(),
+            };
+        };
+        match (self, placement) {
+            (Self::EnUs, Before) => format!("Release to place before {label} · Esc cancel"),
+            (Self::EnUs, After) => format!("Release to place after {label} · Esc cancel"),
+            (Self::EnUs, Into) => format!("Release to move into {label} · Esc cancel"),
+            (Self::EnUs, Ungrouped) => "Release to move out of Project · Esc cancel".to_owned(),
+            (Self::EnUs, End) => "Release to place at end of Projects · Esc cancel".to_owned(),
+            (Self::ZhCn, Before) => format!("释放后放到「{label}」前面 · Esc 取消"),
+            (Self::ZhCn, After) => format!("释放后放到「{label}」后面 · Esc 取消"),
+            (Self::ZhCn, Into) => format!("释放后移入「{label}」 · Esc 取消"),
+            (Self::ZhCn, Ungrouped) => "释放后移出项目 · Esc 取消".to_owned(),
+            (Self::ZhCn, End) => "释放后放到项目列表末尾 · Esc 取消".to_owned(),
+        }
+    }
+
     pub(crate) const fn sidebar_browse_hint(self) -> &'static str {
         match self {
             Self::EnUs => "Browse",
@@ -35,6 +70,10 @@ impl Locale {
             (Self::ZhCn, SidebarCommand::NewWorkspace) => "新建工作区",
             (Self::EnUs, SidebarCommand::Search) => "Search",
             (Self::ZhCn, SidebarCommand::Search) => "搜索",
+            (Self::EnUs, SidebarCommand::MoveUp) => "Move row up",
+            (Self::ZhCn, SidebarCommand::MoveUp) => "上移当前项",
+            (Self::EnUs, SidebarCommand::MoveDown) => "Move row down",
+            (Self::ZhCn, SidebarCommand::MoveDown) => "下移当前项",
             (Self::EnUs, SidebarCommand::Previous) => "Previous row",
             (Self::ZhCn, SidebarCommand::Previous) => "上一行",
             (Self::EnUs, SidebarCommand::Next) => "Next row",
@@ -117,8 +156,6 @@ impl Locale {
             (Self::ZhCn, "workspace-sidebar-open") => "浏览",
             (Self::EnUs, "sidebar-create") => "Create",
             (Self::ZhCn, "sidebar-create") => "新建",
-            (Self::EnUs, "sidebar-menu") => "Menu",
-            (Self::ZhCn, "sidebar-menu") => "菜单",
             (Self::EnUs, "agent-sidebar-open") => "Filter",
             (Self::ZhCn, "agent-sidebar-open") => "筛选",
             (Self::EnUs, "no-agents") => "No agents",

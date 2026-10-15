@@ -74,6 +74,10 @@ full IDs remain available for copying; JSON projections are unchanged by text la
 
 ## Workspaces and optional Projects
 
+Project listing follows the independent Navigation `projectOrder`, with canonical ID order when
+omitted or empty. ID/name lookup stays independent of display position; Workspace listing keeps
+using its independent `workspaceOrder`.
+
 Navigation has global `directories` and `workspaces` arrays; `projects` contain only ID/label. Workspace `projectId` is required-nullable. Project list/get v2 derive directories from member Workspaces; Workspace list/get v7 resolve globally and display ungrouped membership. `api snapshot` v6, Worktree query/list v2, Workspace close-status v2 and catalog v143 publish these shapes. Semantic event stream/wait envelopes are v2: Workspace data carries grouping only on the nested Workspace, and Worktree operation metadata is nullable.
 
 `workspace set-project <workspace> --project <project>` changes grouping; `workspace create-project <workspace> --label <label>` atomically creates a Project and moves the Workspace; `workspace ungroup <workspace>` removes grouping; `project dissolve <project>` ungroups all members and removes the Project. These change organization metadata only, retaining exact IDs, cwd, PTYs, directories and order. `workspace move`/`move-block` remain separate reorder commands. Projects can organize multiple repositories. Ordinary close affects only the selected Workspace; batch closure uses the explicit Project commands below.

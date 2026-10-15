@@ -2821,27 +2821,30 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
     };
     use orchbee_workbench_protocol::*;
     let (mut view, _) = sidebar_fixture(10);
-    view.machines.observe_local(
-        (0..count)
-            .map(|n| Context {
-                target: NativeContextTarget {
-                    site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
-                    location: NativeContextLocation::Workspace {
-                        workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 100 + n))
-                            .unwrap(),
-                        terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
-                            "{:032x}",
-                            200 + n
-                        ))
+    let contexts = (0..count)
+        .map(|n| Context {
+            target: NativeContextTarget {
+                site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+                location: NativeContextLocation::Workspace {
+                    workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 100 + n))
                         .unwrap(),
-                    },
+                    terminal_context_id: WorkbenchTerminalContextId::parse(&format!(
+                        "{:032x}",
+                        200 + n
+                    ))
+                    .unwrap(),
                 },
-                project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 50)).unwrap()),
-                project: Some("Repo".into()),
-                workspace: Some("same label".into()),
-            })
-            .collect(),
-    );
+            },
+            project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 50)).unwrap()),
+            project: Some("Repo".into()),
+            workspace: Some("same label".into()),
+        })
+        .collect::<Vec<_>>();
+    let current = contexts.first().map(|context| context.target.clone());
+    view.machines.observe_local(contexts);
+    // The native endpoint and its focused context admit the same row capabilities.
+    view.machines
+        .observe_focus(crate::machine_picker::Choice::Local, current, None);
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal

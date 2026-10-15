@@ -59,6 +59,7 @@ fn split_root() -> PanelNode {
 fn panel_snapshot(revision: u64, root: PanelNode) -> Snapshot {
     Snapshot {
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),

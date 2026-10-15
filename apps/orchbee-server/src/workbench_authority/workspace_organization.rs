@@ -47,6 +47,9 @@ impl PreparedPlacement {
                 *last_identity = allocate(*last_identity, 1)?;
                 let project_id = WorkbenchProjectId::parse(&identity(*last_identity))
                     .map_err(|_| PlanFailure::Internal)?;
+                if !navigation.project_order.is_empty() {
+                    navigation.project_order.push(project_id.clone());
+                }
                 navigation.projects.push(Project {
                     project_id: project_id.clone(),
                     label: label.as_str().to_owned(),

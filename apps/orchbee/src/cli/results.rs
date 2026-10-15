@@ -2097,8 +2097,9 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         QueryCommand::ProjectList => Ok(Projection::ProjectList(
             snapshot
                 .navigation
-                .projects
-                .iter()
+                .ordered_projects()
+                .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+                .into_iter()
                 .map(|project| project_row(snapshot, project))
                 .collect(),
         )),

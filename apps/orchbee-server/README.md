@@ -72,7 +72,7 @@ English remains canonical.
 
 `WorkbenchAuthority` owns one in-memory Site navigation document and a bounded request/result
 ledger. Navigation stores global, identity-sorted `directories`, `projects` and `workspaces` arrays
-and an explicit `workspaceOrder` permutation. A Project contains only its identity and label;
+and independent `projectOrder` and `workspaceOrder` permutations. A Project contains only its identity and label;
 each Workspace has a required nullable `projectId`, so ungrouped Workspaces are ordinary members
 of the same document. Directories are global resources independent of Project membership.
 The graph admits at most 65,536 Directories, 1,023 Workspaces and 256 Workspaces per Project,
@@ -107,6 +107,12 @@ same gate as writes; response I/O occurs after the gate is released.
 changing terminal bindings or taking the Worker registry lock. Both can complete while a launch is
 pending; exact Move replay retains its original order-change result and revision. The native Move
 interaction remains a separate Client integration boundary.
+
+`navigation.configure` atomically reorders Projects or moves one Workspace within/between Project
+and ungrouped lists. The protocol's pure `configure_navigation` validates stable-ID anchors,
+capacity and no-op behavior; the authority owns revision CAS, exact replay, one aggregate publication
+and retained checkpoint order. It allocates no identity, accesses no filesystem and starts no terminal.
+Project creation appends to explicit Project order and dissolution removes only that order member.
 
 `tabs.configure` atomically changes group/pin metadata and order through the same authority gate.
 It allocates only a new group identity, rejects unfinished context Close operations, and has no

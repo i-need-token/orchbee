@@ -42,6 +42,7 @@ fn snapshot(empty: bool) -> Snapshot {
         site_id: SiteId::parse(&id(6)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspace_order: vec![WorkbenchWorkspaceId::parse(&id(8)).unwrap()],
             standalone_terminal_context_id: standalone.clone(),

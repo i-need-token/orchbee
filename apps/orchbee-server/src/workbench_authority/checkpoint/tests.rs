@@ -24,10 +24,10 @@ fn admission_validates_the_complete_graph_before_runtime_reconstruction() {
         changed(|value| value["terminalContexts"][1]["terminalContextId"] = json!(identity(900)));
     assert!(WorkbenchCheckpoint::parse(&invalid_graph).is_err());
     assert!(WorkbenchCheckpoint::parse(b"{}").is_err());
-    let unsupported = changed(|value| value["version"] = json!(7));
+    let unsupported = changed(|value| value["version"] = json!(8));
     assert!(matches!(
         WorkbenchCheckpoint::parse(&unsupported),
-        Err(WorkbenchCheckpointError::UnsupportedVersion(7))
+        Err(WorkbenchCheckpointError::UnsupportedVersion(8))
     ));
 }
 
@@ -403,12 +403,12 @@ fn rejects_missing_unknown_duplicate_and_unsupported_fields() {
     assert!(restore(&changed(|value| value["siteId"] = json!(identity(100)))).is_err());
     assert!(restore(&changed(|value| value["schema"] = json!("another.schema"))).is_err());
     assert_eq!(
-        restore(&changed(|value| value["version"] = json!(7))).err(),
-        Some(WorkbenchCheckpointError::UnsupportedVersion(7))
+        restore(&changed(|value| value["version"] = json!(8))).err(),
+        Some(WorkbenchCheckpointError::UnsupportedVersion(8))
     );
     let encoded = String::from_utf8(checkpoint()).unwrap();
     for (needle, replacement) in [
-        ("\"version\":6", "\"version\":6,\"version\":6"),
+        ("\"version\":7", "\"version\":7,\"version\":7"),
         ("\"binding\":null", "\"binding\":null,\"binding\":null"),
         (
             "\"name\":\"same name\"",

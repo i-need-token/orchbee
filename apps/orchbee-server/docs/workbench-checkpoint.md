@@ -25,7 +25,7 @@ never authorizes replay of a terminal command or Git operation.
 | Operation              | Preconditions                                                                                                                        | Result and invariant                                                                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capture                | Authority is not retired; committed graph is valid; every Directory and bound Presentation belongs to the supplied local Worker.     | One bounded checkpoint; source authority is unchanged; process bindings and Worker identities are removed.                                                     |
-| Decode                 | Strict version 1–6 document, bounded bytes, version-matched navigation, valid configuration graph, counters and provider references. | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
+| Decode                 | Strict version 1–7 document, bounded bytes, version-matched navigation, valid configuration graph, counters and provider references. | Complete retained configuration or a typed rejection; never partial or empty fallback.                                                                         |
 | Reconstruct            | Caller supplies a fresh boot Site identity and its admitted local Worker.                                                            | Retained structural IDs and local paths, fresh directory ownership, unbound Presentations, fresh profile Site prefixes, revision 0 and empty transient owners. |
 | Allocate after restore | Restored high-water counter permits advancement.                                                                                     | IDs remain above all previously allocated counters; exhaustion keeps the ordinary typed rejection.                                                             |
 
@@ -38,8 +38,8 @@ Names need not be unique; their existing ambiguous-selector semantics remain unc
 
 ### Normalized navigation and historical migration
 
-The writer emits `orchbee.workbench.checkpoint` with numeric `version: 6`.
-`checkpoint/navigation.rs` owns separate current and historical navigation DTOs. Version 6 stores
+The writer emits `orchbee.workbench.checkpoint` with numeric `version: 7`.
+`checkpoint/navigation.rs` owns separate current and historical navigation DTOs. Versions 6 and 7 store
 global, identity-sorted `directories`, `projects` and `workspaces` arrays. Project rows contain only
 `projectId` and `label`; every Workspace requires a nullable `projectId`. Local Directory rows
 contain only `directoryId` and `path`, with fresh Worker ownership supplied during reconstruction.
@@ -47,6 +47,12 @@ The explicit `workspaceOrder` is a permutation of every Workspace identity. Ungr
 empty Projects, shared Directory references and unused Directories survive capture and restart.
 The normalized graph permits at most 65,536 Directories, 1,023 Workspaces and 256 Workspaces in each
 Project, also subject to the encoded bounds below.
+
+Version 7 adds independent `projectOrder`: a nonempty value must be an exact permutation of every
+Project identity. Omission or empty uses canonical ID order. Version 6 remains readable without
+Project order; a nonempty Project order labeled version 6 rejects. Older cohorts reject version 7
+explicitly and retain committed files; no automatic downgrade or order-dropping conversion exists.
+Workspace and Project order survive capture/restart while the identity registries stay sorted.
 
 Versions 1–5 must use the historical shape: each Project owns its `directories` and `workspaces`,
 and historical Workspace rows have no `projectId`. Migration first validates the original
@@ -58,7 +64,7 @@ historical display order is retained; omitted or empty order becomes the histori
 traversal order, which may differ from global Workspace identity order.
 
 Navigation shape must match its declared version. Injected current fields into historical rows,
-historical navigation labeled version 6, unknown or duplicate fields, duplicate identities, missing
+historical navigation labeled version 6 or 7, unknown or duplicate fields, duplicate identities, missing
 references and a high-water counter below a retained identity reject the entire document. The
 codec never converts malformed input into an empty Workbench. The storage consumer's explicit
 all-copies-invalid notice below is a separate recovery decision.
@@ -70,8 +76,8 @@ it does not admit an oversized graph, discard retained content or increase eithe
 DTOs still reject unknown and duplicate fields before normalization. There is no automatic
 downgrade or conversion.
 
-Versions 2–6 require `agentSessions`, versions 3–6 require `terminalDirectories`, and versions 4–6
-require `managedNames`; earlier versions reject those fields. Versions 5–6 retain canonical split
+Versions 2–7 require `agentSessions`, versions 3–7 require `terminalDirectories`, and versions 4–7
+require `managedNames`; earlier versions reject those fields. Versions 5–7 retain canonical split
 ratios; versions 1–4 restore equal ratios and reject injected nondefault weights. See
 [shared ratios](shared-split-ratios.md). Each of at most 512 unique name/Presentation claims carries
 only `presentationId`, `name` and `providerId`, and requires a matching admitted official provider
@@ -131,7 +137,7 @@ payload from three slots. Invalid copies are retained and produce a visible rest
 copies are invalid, startup explicitly reports an empty restoration. Missing data means a new Workbench.
 Private-path or filesystem admission failure still aborts startup. See the
 [Windows checkpoint storage contract](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.md).
-Default and named activation publish catalog v5 before checkpoint-v6 storage use; the catalog reader
+Default and named activation publish catalog v5 before checkpoint-v7 storage use; the catalog reader
 accepts v1–v5. Earlier readers limited to v4 refuse the new record, including after clean stop.
 The Server retains the admitted durable generation before opening its store, so a direct Server
 entry also rejects an unsupported catalog before pending-file cleanup.
@@ -199,7 +205,7 @@ ownership, corruption, duplicate/unknown fields, binding injection, graph failur
 Historical fixtures remain in versions 1–5's nested shape. Migration witnesses include interleaved
 global identities, explicit and implicit historical display order, unused Directories, cross-Project
 primary-directory rejection before flattening, per-Project limits, duplicate identities, high-water
-failures and version/field mismatches. Version 6 capture/restart preserves ungrouped membership,
+failures and version/field mismatches. Version 6/7 capture/restart preserves ungrouped membership,
 directory references and available Agent, cwd and managed-name restart intent.
 Constructed version 1–5 fixtures compare a historical Snapshot at exactly 1 MiB with its normalized
 over-limit form and an exact-limit fitting control. Native storage and Server-load witnesses cover

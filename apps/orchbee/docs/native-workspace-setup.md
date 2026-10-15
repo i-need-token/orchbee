@@ -54,10 +54,19 @@ New Project. New Project asks only for its name; `WorkspaceCreateProject` create
 moves the existing Workspace in one canonical commit. Duplicate labels are permitted; captured IDs
 determine the target. Project can contain Workspaces from multiple repositories.
 
-Moving or ungrouping changes only `workspace.projectId`. It preserves Workspace, context, Tab,
+The grouping chooser changes only `workspace.projectId`. It preserves Workspace, context, Tab,
 Panel, Presentation, Directory and terminal identities, cwd, Git files, Agents and the initiating
 Client's selection. Acting on a noncurrent Workspace does not enter it. Project Rename likewise
 targets the exact row without selecting a child.
+
+Sidebar drag and keyboard sorting instead submit one `navigation.configure` through the same
+nonmodal setup lane. The source captures Site, revision and complete Navigation; release or keyboard
+admission rechecks that source and requires the painted grouping and display order to match it; the
+authority rechecks CAS. The shared pure transition supplies
+the exact expected membership and order for receipt verification; a same-revision partial or
+unrelated edit is divergent. A known receipt is retained before refresh, and subsequent recovery
+never repeats the move. Sorting changes no terminal selection or physical resource. The
+[sidebar layout contract](tui-shell-layout.md) owns drop feedback, cancellation and local bindings.
 
 Dissolve Project removes organization and leaves its Workspaces ungrouped. Close all Workspaces is
 a separate explicit Project action with its own destructive confirmation and retained member set.

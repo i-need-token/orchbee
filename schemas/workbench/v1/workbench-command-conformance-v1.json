@@ -7076,6 +7076,97 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "navigation-configure-0",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-project",
+						"projectId": "00000000000000000000000000000002",
+						"beforeProjectId": "00000000000000000000000000000001"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-1",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-project",
+						"projectId": "00000000000000000000000000000001",
+						"beforeProjectId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-2",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"workspaceId": "00000000000000000000000000000003",
+						"projectId": "00000000000000000000000000000002",
+						"beforeWorkspaceId": "00000000000000000000000000000004"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-3",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"workspaceId": "00000000000000000000000000000003",
+						"projectId": null,
+						"beforeWorkspaceId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configured",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "navigation-configured",
+					"revision": "3"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -22632,6 +22723,301 @@
 						"kind": "move-tabs-by-drag",
 						"tabIds": ["00000000000000000000000000000003", "00000000000000000000000000000004"],
 						"insertIndex": 256
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-project-missing-kind-514",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"projectId": "00000000000000000000000000000002",
+						"beforeProjectId": "00000000000000000000000000000001"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-project-missing-projectId-515",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-project",
+						"beforeProjectId": "00000000000000000000000000000001"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-project-missing-beforeProjectId-516",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-project",
+						"projectId": "00000000000000000000000000000002"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-project-missing-kind-517",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"projectId": "00000000000000000000000000000001",
+						"beforeProjectId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-project-missing-projectId-518",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-project",
+						"beforeProjectId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-project-missing-beforeProjectId-519",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-project",
+						"projectId": "00000000000000000000000000000001"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-kind-520",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"workspaceId": "00000000000000000000000000000003",
+						"projectId": "00000000000000000000000000000002",
+						"beforeWorkspaceId": "00000000000000000000000000000004"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-workspaceId-521",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"projectId": "00000000000000000000000000000002",
+						"beforeWorkspaceId": "00000000000000000000000000000004"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-projectId-522",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"workspaceId": "00000000000000000000000000000003",
+						"beforeWorkspaceId": "00000000000000000000000000000004"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-beforeWorkspaceId-523",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"workspaceId": "00000000000000000000000000000003",
+						"projectId": "00000000000000000000000000000002"
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-kind-524",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"workspaceId": "00000000000000000000000000000003",
+						"projectId": null,
+						"beforeWorkspaceId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-workspaceId-525",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"projectId": null,
+						"beforeWorkspaceId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-projectId-526",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"workspaceId": "00000000000000000000000000000003",
+						"beforeWorkspaceId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-move-workspace-missing-beforeWorkspaceId-527",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-workspace",
+						"workspaceId": "00000000000000000000000000000003",
+						"projectId": null
+					}
+				}
+			}
+		},
+		{
+			"name": "navigation-configure-unknown-field",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "navigation.configure",
+					"operation": {
+						"kind": "move-project",
+						"projectId": "00000000000000000000000000000002",
+						"beforeProjectId": "00000000000000000000000000000001",
+						"extra": true
 					}
 				}
 			}

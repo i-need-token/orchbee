@@ -116,7 +116,7 @@ fn v1_remains_readable_but_v2_records_are_required_and_strict() {
     });
     let upgraded = restore(&legacy).unwrap().checkpoint(&worker(400)).unwrap();
     let upgraded: Value = serde_json::from_slice(&upgraded).unwrap();
-    assert_eq!(upgraded["version"], 6);
+    assert_eq!(upgraded["version"], 7);
     assert_eq!(upgraded["agentSessions"], json!([]));
     for fault in 0..10 {
         let bytes = changed(|v| {

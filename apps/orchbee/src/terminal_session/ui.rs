@@ -5,6 +5,8 @@ mod agent_attention;
 mod pane_graphics;
 pub(in crate::terminal_session) mod settings;
 #[cfg(windows)]
+mod sidebar_reorder;
+#[cfg(windows)]
 mod tab_duplication;
 #[cfg(windows)]
 mod tab_groups;

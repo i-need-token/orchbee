@@ -734,6 +734,7 @@ fn presentation_snapshot() -> Snapshot {
     let presentation = TerminalPresentationId::parse(&hex(42)).unwrap();
     Snapshot {
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),

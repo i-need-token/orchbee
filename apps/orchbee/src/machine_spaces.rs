@@ -236,8 +236,9 @@ impl Reader<'_> {
             projects: self
                 .before
                 .navigation
-                .projects
-                .iter()
+                .ordered_projects()
+                .map_err(|_| ())?
+                .into_iter()
                 .map(|project| ProjectSummary {
                     project_id: project.project_id.clone(),
                     label: project.label.clone(),

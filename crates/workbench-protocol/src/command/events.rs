@@ -192,6 +192,7 @@ impl SemanticEvent {
                         workspaces: Vec::new(),
                         standalone_terminal_context_id: terminal_context_id.clone(),
                         workspace_order: Vec::new(),
+                        project_order: Vec::new(),
                     },
                     terminal_contexts: vec![crate::TerminalContext {
                         terminal_context_id: terminal_context_id.clone(),

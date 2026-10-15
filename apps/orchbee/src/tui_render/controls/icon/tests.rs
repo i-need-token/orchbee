@@ -75,7 +75,6 @@ fn icon_grammar_is_fixed_and_rest_uses_secondary_content() {
         (IconActionGlyph::Down, "[v]"),
         (IconActionGlyph::Help, "[?]"),
         (IconActionGlyph::Add, "[+]"),
-        (IconActionGlyph::More, "[…]"),
     ] {
         let mut terminal = Terminal::new(TestBackend::new(3, 1)).unwrap();
         let mut painted = None;
@@ -104,44 +103,6 @@ fn icon_grammar_is_fixed_and_rest_uses_secondary_content() {
         );
         for x in 0..3 {
             assert_eq!(terminal.backend().buffer()[(x, 0)].style(), expected);
-        }
-    }
-}
-
-#[test]
-fn more_action_keeps_three_cells_with_the_simplified_menu_glyph() {
-    for (theme, expected) in [
-        (Theme::one_light(), "[…]"),
-        (
-            Theme::one_light().with_glyphs(crate::tui_theme::GlyphSet::ASCII),
-            "[.]",
-        ),
-    ] {
-        for pointer in [
-            PointerPresentation::Rest,
-            PointerPresentation::Hovered,
-            PointerPresentation::Pressed,
-        ] {
-            let mut terminal = Terminal::new(TestBackend::new(4, 1)).unwrap();
-            terminal
-                .draw(|frame| {
-                    assert_eq!(
-                        render_icon_action(
-                            frame,
-                            Rect::new(0, 0, 3, 1),
-                            IconActionSpec::new(
-                                IconActionGlyph::More,
-                                ControlSurface::Chrome,
-                                Availability::Enabled,
-                                pointer
-                            ),
-                            &theme,
-                        ),
-                        Some(Rect::new(0, 0, 3, 1))
-                    );
-                })
-                .unwrap();
-            assert_eq!(symbols(&terminal, 4), format!("{expected} "));
         }
     }
 }

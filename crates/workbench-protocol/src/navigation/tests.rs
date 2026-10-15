@@ -16,6 +16,7 @@ fn snapshot() -> Snapshot {
             directories: vec![],
             workspaces: vec![],
             workspace_order: vec![],
+            project_order: Vec::new(),
             standalone_terminal_context_id: context.clone(),
         },
         terminal_contexts: vec![TerminalContext {

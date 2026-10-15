@@ -60,7 +60,8 @@ impl SidebarTarget {
     }
 }
 
-/// The independently actionable part of one painted Sidebar tree row.
+/// An action associated with a painted Sidebar row; Menu is a secondary-button
+/// and keyboard capability, without a separate visible control extent.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarPart {
     Primary,
@@ -113,6 +114,115 @@ impl SidebarCatalog {
 pub(crate) struct SidebarSource(Arc<SidebarCatalog>);
 
 impl SidebarSource {
+    /// The sidebar and native snapshot arrive through separate read lanes. A current
+    /// native revision alone cannot authorize a drag against older grouping/order.
+    pub(crate) fn matches_navigation(
+        &self,
+        machine: &Choice,
+        site: &SiteId,
+        navigation: &orchbee_workbench_protocol::Navigation,
+    ) -> bool {
+        let rows = self
+            .0
+            .rows
+            .iter()
+            .filter(|row| row.target.machine() == machine && row.target.site_id() == site)
+            .collect::<Vec<_>>();
+        let projects = rows
+            .iter()
+            .filter_map(|row| match &row.target {
+                SidebarTarget::Project { project_id, .. } => Some(project_id),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let Ok(ordered) = navigation.ordered_projects() else {
+            return false;
+        };
+        if projects
+            != ordered
+                .iter()
+                .map(|project| &project.project_id)
+                .collect::<Vec<_>>()
+        {
+            return false;
+        }
+        let workspaces = navigation
+            .workspaces
+            .iter()
+            .map(|workspace| (&workspace.workspace_id, workspace))
+            .collect::<std::collections::HashMap<_, _>>();
+        let mut shown = std::collections::HashMap::<
+            Option<&WorkbenchProjectId>,
+            Vec<&orchbee_workbench_protocol::WorkbenchWorkspaceId>,
+        >::new();
+        for row in &rows {
+            if let SidebarTarget::Context { target, .. } = &row.target
+                && let NativeContextLocation::Workspace { workspace_id, .. } = &target.location
+            {
+                let Some(workspace) = workspaces.get(workspace_id) else {
+                    return false;
+                };
+                shown
+                    .entry(workspace.project_id.as_ref())
+                    .or_default()
+                    .push(workspace_id);
+            }
+        }
+        let visible = shown
+            .values()
+            .flatten()
+            .copied()
+            .collect::<std::collections::HashSet<_>>();
+        let Ok(ordered) = navigation.ordered_workspaces() else {
+            return false;
+        };
+        let mut expected = std::collections::HashMap::<
+            Option<&WorkbenchProjectId>,
+            Vec<&orchbee_workbench_protocol::WorkbenchWorkspaceId>,
+        >::new();
+        for (_, workspace) in ordered {
+            if visible.contains(&workspace.workspace_id) {
+                expected
+                    .entry(workspace.project_id.as_ref())
+                    .or_default()
+                    .push(&workspace.workspace_id);
+            }
+        }
+        if shown != expected {
+            return false;
+        }
+        rows.into_iter().all(|row| match &row.target {
+            SidebarTarget::Context { target, .. } => match &target.location {
+                NativeContextLocation::Standalone(id) => {
+                    id == &navigation.standalone_terminal_context_id && row.parent.is_none()
+                }
+                NativeContextLocation::Workspace {
+                    workspace_id,
+                    terminal_context_id,
+                } => workspaces.get(workspace_id).is_some_and(|workspace| {
+                    &workspace.terminal_context_id == terminal_context_id
+                        && match (&row.parent, &workspace.project_id) {
+                            (None, None) => true,
+                            (
+                                Some(SidebarTarget::Project {
+                                    machine: parent_machine,
+                                    site_id: parent_site,
+                                    project_id: parent,
+                                }),
+                                Some(project),
+                            ) => {
+                                parent_machine == machine
+                                    && parent_site == site
+                                    && parent == project
+                            }
+                            _ => false,
+                        }
+                }),
+            },
+            SidebarTarget::Project { .. } | SidebarTarget::Agent { .. } => true,
+        })
+    }
+
     /// Returns whether this exact semantic catalog contains one row part.
     ///
     /// Layout preflight and painting use the same answer so rows reserve
@@ -246,6 +356,8 @@ impl SidebarRow<'_> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SidebarCommand {
+    MoveUp,
+    MoveDown,
     NewWorkspace,
     Search,
     Previous,
@@ -264,6 +376,14 @@ pub(crate) enum SidebarCommand {
 }
 
 pub(crate) const SIDEBAR_BINDINGS: &[(Binding, SidebarCommand)] = &[
+    (
+        Binding::new(KeyCode::Up, Modifiers::CTRL),
+        SidebarCommand::MoveUp,
+    ),
+    (
+        Binding::new(KeyCode::Down, Modifiers::CTRL),
+        SidebarCommand::MoveDown,
+    ),
     (
         Binding::new(KeyCode::Char('n'), Modifiers::NONE.with_shift()),
         SidebarCommand::NewWorkspace,
@@ -343,6 +463,7 @@ pub(crate) enum SidebarIntent {
     Search,
     Activate(Selection),
     OpenMenu(SidebarTarget),
+    Reorder { target: SidebarTarget, up: bool },
     Resize(SidebarWidthChange),
     Help,
 }
@@ -505,6 +626,7 @@ impl Picker {
         let mut entries = Vec::new();
         for machine in self.rows.iter().filter(|machine| machine.enabled) {
             let mut projects = Vec::new();
+            let mut ungrouped = Vec::new();
             let mut known = std::collections::BTreeSet::new();
             let mut children = std::collections::BTreeMap::new();
             if let Some((_, crate::machine_spaces::Observation::Ready(checkpoint))) = self
@@ -531,7 +653,16 @@ impl Picker {
                     continue;
                 };
                 match &context.project_id {
-                    None => append_context(&self.navigation, &agent_children, &mut entries, row),
+                    None => {
+                        if matches!(
+                            context.target.location,
+                            NativeContextLocation::Standalone(_)
+                        ) {
+                            append_context(&self.navigation, &agent_children, &mut entries, row);
+                        } else {
+                            ungrouped.push(row);
+                        }
+                    }
                     Some(project_id) => {
                         let key = (context.target.site_id.as_str(), project_id.as_str());
                         children.entry(key).or_insert_with(Vec::new).push(row);
@@ -571,6 +702,9 @@ impl Picker {
                         append_context(&self.navigation, &agent_children, &mut entries, row);
                     }
                 }
+            }
+            for row in ungrouped {
+                append_context(&self.navigation, &agent_children, &mut entries, row);
             }
         }
         entries
@@ -987,6 +1121,14 @@ impl Picker {
             return SidebarIntent::None;
         };
         match command {
+            SidebarCommand::MoveUp | SidebarCommand::MoveDown => {
+                if key.kind == KeyKind::Press {
+                    return SidebarIntent::Reorder {
+                        target: focus.target,
+                        up: *command == SidebarCommand::MoveUp,
+                    };
+                }
+            }
             SidebarCommand::Previous => {
                 self.focus_sidebar_position(focus.position.saturating_sub(1))
             }

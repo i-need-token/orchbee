@@ -2008,6 +2008,7 @@ mod linux {
             // Swap is a declared canonical-plus-focus workflow, never an ordinary mutation.
             WorkbenchAction::PanelSwap { .. }
             | WorkbenchAction::TabsConfigure { .. }
+            | WorkbenchAction::NavigationConfigure { .. }
             | WorkbenchAction::PanelCreateTerminal { .. }
             | WorkbenchAction::TabCreateLayout { .. } => {
                 Err(Failure::new(FailureKind::InternalFailure))
@@ -2350,6 +2351,10 @@ mod linux {
 
     fn rejection_reason(reason: WorkbenchRejectionReason) -> &'static str {
         match reason {
+            WorkbenchRejectionReason::InvalidNavigationConfiguration => {
+                "invalid-navigation-configuration"
+            }
+
             WorkbenchRejectionReason::SiteMismatch => "site-mismatch",
             WorkbenchRejectionReason::RevisionMismatch => "revision-mismatch",
             WorkbenchRejectionReason::ProjectUnavailable => "project-unavailable",

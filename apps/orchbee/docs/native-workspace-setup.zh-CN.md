@@ -45,9 +45,16 @@ Worker 验证字面目录并启动配置的默认 shell。准入失败不发布�
 新建 Project 只询问名称；`WorkspaceCreateProject` 在一次规范提交中创建 Project 并移入已有 Workspace。
 允许重复标签，捕获的 ID 决定目标。Project 可以包含多个仓库的 Workspace。
 
-移动或移出项目只改变 `workspace.projectId`，保留 Workspace、上下文、Tab、Panel、Presentation、
+分组选择器只改变 `workspace.projectId`，保留 Workspace、上下文、Tab、Panel、Presentation、
 Directory 和终端身份，以及 cwd、Git 文件、Agent 和发起 Client 的选择。
 操作非当前 Workspace 不会进入它。Project 重命名同样针对确切行，不选择子 Workspace。
+
+侧栏拖拽及键盘排序改为经同一非模态 setup 通道提交一次 `navigation.configure`。源捕获 Site、
+revision 和完整 Navigation；释放或键盘准入复核该源，并要求已绘制的分组和显示顺序与其一致；
+权威层再次检查 CAS。共享纯转换为回执验证
+提供精确的预期成员关系与顺序；相同 revision 下的部分变化或无关修改均判为分歧。读取刷新前保留
+已知回执，后续恢复绝不重复移动。排序不改变终端选择或物理资源。
+[侧栏布局契约](tui-shell-layout.zh-CN.md) 管理落点反馈、取消及局部绑定。
 
 解散 Project 会移除组织关系，并让其 Workspace 保持未分组。关闭全部工作区是单独的显式 Project 操作，
 拥有破坏性确认与保留的成员集合。普通 Workspace 关闭不会扩展为 Git 家族或整个 Project。

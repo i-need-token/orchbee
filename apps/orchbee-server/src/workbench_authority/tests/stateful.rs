@@ -426,7 +426,8 @@ fn run(steps: &[Step]) -> Result<(), String> {
                     );
                 }
                 WorkbenchAction::WorkspaceMove { .. }
-                | WorkbenchAction::WorkspaceMoveBlock { .. } => {
+                | WorkbenchAction::WorkspaceMoveBlock { .. }
+                | WorkbenchAction::NavigationConfigure { .. } => {
                     return Err(
                         "workspace order belongs to the dedicated ordering trace".to_owned()
                     );

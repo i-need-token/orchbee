@@ -1,6 +1,31 @@
 use super::*;
 
 #[test]
+fn project_listing_uses_display_order_while_identity_lookup_stays_stable() {
+    let mut state = snapshot();
+    let before = project(&QueryCommand::ProjectList, &state)
+        .unwrap()
+        .result();
+    state.navigation.project_order = state
+        .navigation
+        .projects
+        .iter()
+        .rev()
+        .map(|project| project.project_id.clone())
+        .collect();
+    let after = project(&QueryCommand::ProjectList, &state)
+        .unwrap()
+        .result();
+    assert_eq!(after["projects"][0], before["projects"][1]);
+    assert_eq!(after["projects"][1], before["projects"][0]);
+    let id = state.navigation.projects[0].project_id.as_str().to_owned();
+    let fetched = project(&QueryCommand::ProjectGet(Target::Id(id.clone())), &state)
+        .unwrap()
+        .result();
+    assert_eq!(fetched["project"]["projectId"], id);
+}
+
+#[test]
 fn workspace_numbers_survive_filtering_and_counts_exclude_child_presentations() {
     let mut state = snapshot();
     state.navigation.workspace_order = vec![

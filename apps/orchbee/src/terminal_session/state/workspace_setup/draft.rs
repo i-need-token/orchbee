@@ -32,6 +32,7 @@ pub(crate) enum NativeSetupStatus {
     WorkspaceOrganized,
     ProjectDissolved,
     TabsConfigured,
+    NavigationConfigured,
     TabsNotApplied,
     TabsCommittedNeedRefresh,
     TabsOutcomeUnknown,

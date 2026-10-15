@@ -58,7 +58,7 @@ installer 或 service manager 消费。
 ## Workbench projection store
 
 `WorkbenchAuthority` 拥有一份内存 Site 导航文档及有界 request/result ledger。导航保存按身份排序的
-全局 `directories`、`projects`、`workspaces` 数组，以及显式 `workspaceOrder` 排列。
+全局 `directories`、`projects`、`workspaces` 数组，以及独立的 `projectOrder` 与 `workspaceOrder` 排列。
 Project 仅含身份和标签；每个 Workspace 都必须包含可为 null 的 `projectId`，未分组 Workspace
 也是同一文档的普通成员。Directory 是独立于 Project 成员关系的全局资源。
 对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个 Workspace，
@@ -88,6 +88,11 @@ carrier 向该目录的属主 Worker 派发一个 fencing OBCN 发现 job；应�
 `tab.rename` 修改共享 Tab 标签。`tab.move` 在 standalone 或 Workspace 上下文内置换完整简单 Tab，不改变终端 binding，也不获取
 Worker 注册表锁。二者均可在启动仍待完成时结算；精确 Move 重放保留原排序结果及修订。
 原生 Move 交互仍是独立的 Client 集成边界。
+
+`navigation.configure` 原子调整 Project 顺序，或在 Project 与未分组列表内／之间移动一个
+Workspace。协议的纯 `configure_navigation` 校验稳定 ID 锚点、容量和无变化语义；权威层拥有
+revision CAS、精确重放、一次聚合发布及检查点顺序保留。它不分配身份、不访问文件系统、不启动
+终端。创建 Project 时追加到显式项目顺序，解散时只移除对应顺序成员。
 
 `tabs.configure` 通过同一权威门原子改变分组／固定元数据与顺序，仅分配新分组身份，
 拒绝 context 内尚未结束的 Close 操作，且不产生 Worker 副作用。

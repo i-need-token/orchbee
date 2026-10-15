@@ -75,7 +75,8 @@ The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
-remain outside the scrolling navigation tree. An ungrouped Workspace is a root entry; optional Projects group
+remain outside the scrolling navigation tree. Standalone stays first, followed by Projects in their
+canonical display order and their children, then ungrouped Workspaces. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. Standalone owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
@@ -117,19 +118,15 @@ their markers are blank, so changing state never moves the label. Grouped Worksp
 and Agents indent two cells from their own Workspace or Standalone parent. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;
-Workspace names use primary text and descriptive metadata uses secondary text. Eligible row menus and
-Project create controls stay right-aligned. Create remains quietly recognizable at rest. Row menus
-are hidden at rest and appear for row/child hover or active keyboard row focus. Their fixed tracks
-remain reserved, hidden menus publish no hit target, and pointer or press on a revealed menu keeps
-it visible. A direct press on a previously unhovered row does not introduce a child into that armed
-row's exposure. Their labels degrade
-from localized Create/Menu controls at 52 columns, to compact glyph controls at 28 columns, to one menu
-control below 28 columns; these thresholds use the actual painted sidebar width. Right-click menus and
-existing keyboard routes remain available. Auxiliary controls use the shared secondary-hierarchy
-action component for localized labels and fixed three-cell icon actions (`[+]`, `[…]`, with `[.]`
-as the simplified-glyph menu fallback). Only the complete painted first-line action is clickable;
-its reserved trailing or continuation cells retain the row's primary target. Ineligible controls
-publish no hit regions. Agent ordinals use
+Workspace names use primary text and descriptive metadata uses secondary text. Eligible Project
+create controls stay visible and right-aligned, with no overflow-menu slot after them. At 52 columns
+and above they use a localized Create action; narrower sidebars use the fixed three-cell `[+]` icon
+action. Project and Workspace rows never paint or publish an ellipsis button, including during
+hover or keyboard navigation. Secondary click and the existing keyboard menu route open their exact
+context menu. Ineligible create controls reserve no space and publish no hit regions.
+Hover or press on a disclosure or Create control also keeps its complete parent row hovered; the
+control retains its own local pressed feedback. Internal row padding and external group separators
+keep their existing owners. Agent ordinals use
 two cells, and default title and provider/state lines align on the fixed primary track. Default provider labels appear only when they
 fit completely alongside the state, rather than leaving truncated fragments. Project groups reserve at least one blank row
 after preceding items; configured gaps can widen it. This external separator retains the chrome
@@ -153,6 +150,29 @@ these two cells before truncation, using display width for wide glyphs. Identity
 only the painted glyph cell publishes a disclosure target, excluding leading gaps and continuations.
 If the identity area cannot fit text, a separator and the glyph, disclosure is omitted and its
 existing keyboard route remains available.
+Project and Workspace primary rows support primary-button dragging; disclosure and Create remain
+independent controls. Movement of two columns or one row latches a drag, even if the pointer returns
+to its origin. Dropping a Workspace on a Project appends it to that Project. Dropping on a Workspace
+places it before that row when moving upward, or after it when moving downward; grouping follows
+the destination Workspace. Projects reorder on other Project headers as complete groups. A bottom
+footer drop area appears only during dragging: No Project moves a Workspace out of its group;
+End of Projects appends a Project. The highlighted destination and localized status describe the
+actual before/after/into result. Invalid and unchanged destinations publish no move. Holding at the
+list edge scrolls at most once every 120 ms through the existing bounded list-scroll owner; wheel remains local.
+
+Dragging is preview-only until matching plain primary release. Escape, loss of focus/capture,
+resize, an occluding overlay, or changed canonical source cancels it. Cleanup consumes the late
+release without selecting another row or entering a terminal. Successful scroll redraws preserve
+the gesture while retaining the same source identities. Preview geometry resolves from the candidate
+frame being painted, so a scroll cannot display a stale insertion target. One `navigation.configure` changes
+membership/order through the existing serialized setup and known-receipt recovery lane; current
+terminal and keyboard focus remain unchanged. No operation is automatically rebased or resubmitted.
+
+In sidebar keyboard navigation, Ctrl+Up and Ctrl+Down move the focused Project, or move a Workspace
+within its current Project/ungrouped list. The existing row-menu binding retains grouping commands
+and shares the same stable target proof as secondary click. These local bindings appear in sidebar
+help from the binding registry; the gesture does not add a separate shortcut system.
+
 The top strip keeps the context breadcrumb available when sidebar rows scroll out of view. When
 the full location equals the active Tab label, that Tab already identifies the location and the
 additional breadcrumb is omitted. Project paths and distinct custom Tab labels retain it. Active
@@ -335,7 +355,7 @@ unread state and keyboard navigation remain in separate tracks.
 
 Project/Context disclosure glyphs, identity text and row menus have disjoint painted extents.
 The primary row target covers every continuation, internal configured leading space and all cells
-beneath frontmost disclosure/Create/Menu targets. External Project group gaps remain inert. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
+beneath frontmost disclosure/Create targets. External Project group gaps remain inert. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
 dispatcher owns capture precedence, stale-paint rejection and packet-tail fencing;
 the menu owner retains capability checks and execution. Project menus never choose
 a child Workspace. Mouse and keyboard disclosure share Picker transitions; navigation

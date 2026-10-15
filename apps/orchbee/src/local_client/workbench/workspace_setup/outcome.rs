@@ -13,6 +13,20 @@ pub(super) fn classify_outcome(
 ) -> Result<WorkbenchSetupSubmission, WorkbenchSetupOutcomeUnknownReason> {
     let commit = match (action, outcome) {
         (
+            WorkbenchAction::NavigationConfigure { .. },
+            WorkbenchCommandOutcome::NavigationConfigured { revision },
+        ) => WorkbenchSetupCommit::NavigationConfigured {
+            revision,
+            unchanged: false,
+        },
+        (
+            WorkbenchAction::NavigationConfigure { .. },
+            WorkbenchCommandOutcome::Unchanged { revision },
+        ) => WorkbenchSetupCommit::NavigationConfigured {
+            revision,
+            unchanged: true,
+        },
+        (
             WorkbenchAction::WorkspaceSetProject {
                 workspace_id,
                 project_id,
@@ -189,6 +203,9 @@ pub(super) fn classify_outcome(
         WorkbenchSetupCommit::WorkspaceProjectChanged {
             unchanged: true,
             ..
+        } | WorkbenchSetupCommit::NavigationConfigured {
+            unchanged: true,
+            ..
         } | WorkbenchSetupCommit::TabsConfigured {
             unchanged: true,
             ..
@@ -273,9 +290,13 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
                 | WorkbenchAction::WorkspaceCreate { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
         ),
+        WorkbenchRejectionReason::InvalidNavigationConfiguration => {
+            matches!(action, WorkbenchAction::NavigationConfigure { .. })
+        }
         WorkbenchRejectionReason::ProjectUnavailable => matches!(
             action,
             WorkbenchAction::WorkspaceCreate { .. }
+                | WorkbenchAction::NavigationConfigure { .. }
                 | WorkbenchAction::WorkspaceSetProject { .. }
                 | WorkbenchAction::ProjectDissolve { .. }
                 | WorkbenchAction::ProjectRename { .. }
@@ -291,6 +312,7 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         WorkbenchRejectionReason::WorkspaceUnavailable => matches!(
             action,
             WorkbenchAction::WorkspaceRename { .. }
+                | WorkbenchAction::NavigationConfigure { .. }
                 | WorkbenchAction::WorkspaceSetProject { .. }
                 | WorkbenchAction::WorkspaceCreateProject { .. }
                 | WorkbenchAction::WorkspaceMove { .. }
@@ -335,6 +357,7 @@ fn compatible_unavailable(
             matches!(
                 action,
                 WorkbenchAction::TabsConfigure { .. }
+                    | WorkbenchAction::NavigationConfigure { .. }
                     | WorkbenchAction::WorkspaceSetProject { .. }
                     | WorkbenchAction::WorkspaceCreateProject { .. }
                     | WorkbenchAction::ProjectDissolve { .. }

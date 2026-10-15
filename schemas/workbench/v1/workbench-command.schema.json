@@ -1309,6 +1309,19 @@
 							}
 						}
 					}
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "navigation.configure"
+						},
+						"operation": {
+							"$ref": "#/$defs/navigationConfiguration"
+						}
+					},
+					"required": ["kind", "operation"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -1364,7 +1377,8 @@
 				"tab-move-order-conflict",
 				"workspace-move-index-out-of-bounds",
 				"workspace-move-target-in-block",
-				"tab-group-unavailable"
+				"tab-group-unavailable",
+				"invalid-navigation-configuration"
 			]
 		},
 		"commandUnavailableReason": {
@@ -2327,6 +2341,19 @@
 							"$ref": "#/$defs/terminalOutcome"
 						}
 					}
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "navigation-configured"
+						},
+						"revision": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/revision"
+						}
+					},
+					"required": ["kind", "revision"],
+					"additionalProperties": false
 				}
 			]
 		},
@@ -4160,6 +4187,66 @@
 			},
 			"required": ["kind", "protocolVersion", "requestId", "outcome"],
 			"additionalProperties": false
+		},
+		"navigationConfiguration": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "move-project"
+						},
+						"projectId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+						},
+						"beforeProjectId": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "projectId", "beforeProjectId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "move-workspace"
+						},
+						"workspaceId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+						},
+						"projectId": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"beforeWorkspaceId": {
+							"oneOf": [
+								{
+									"$ref": "urn:orchbee:schema:workbench:v1#/$defs/identity"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"required": ["kind", "workspaceId", "projectId", "beforeWorkspaceId"],
+					"additionalProperties": false
+				}
+			]
 		}
 	}
 }

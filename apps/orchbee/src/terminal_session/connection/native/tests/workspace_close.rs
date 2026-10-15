@@ -109,6 +109,7 @@ fn snapshot() -> Snapshot {
         site_id: SiteId::parse(&id(1)).unwrap(),
         revision: WorkbenchRevision::new(1),
         navigation: Navigation {
+            project_order: Vec::new(),
             directories: vec![Directory {
                 directory_id,
                 worker_id: WorkerId::parse(&id(261)).unwrap(),

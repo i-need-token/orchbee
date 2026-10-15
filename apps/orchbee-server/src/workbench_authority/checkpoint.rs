@@ -259,7 +259,7 @@ impl WorkbenchAuthority {
         let navigation = StoredNavigation::capture(snapshot.navigation, local_worker)?;
         let checkpoint = Checkpoint {
             schema: Schema::Workbench,
-            version: 6,
+            version: 7,
             last_identity,
             navigation,
             terminal_contexts: snapshot.terminal_contexts,
@@ -299,7 +299,7 @@ impl WorkbenchCheckpoint {
         enforce_encoded_limit(encoded)?;
         let checkpoint: Checkpoint = serde_json::from_slice(encoded)
             .map_err(|_error| WorkbenchCheckpointError::InvalidDocument)?;
-        if !matches!(checkpoint.version, 1..=6) {
+        if !matches!(checkpoint.version, 1..=7) {
             return Err(WorkbenchCheckpointError::UnsupportedVersion(
                 checkpoint.version,
             ));

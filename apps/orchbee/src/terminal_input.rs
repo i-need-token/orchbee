@@ -426,6 +426,18 @@ pub(crate) trait TerminalInputPort {
     }
 
     #[cfg(windows)]
+    fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
+        None
+    }
+    #[cfg(windows)]
+    fn commit_sidebar_reorder(
+        &mut self,
+        _source: &crate::tui_pointer::SidebarReorderSource,
+        _operation: orchbee_workbench_protocol::NavigationConfiguration,
+    ) {
+    }
+
+    #[cfg(windows)]
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         None
     }

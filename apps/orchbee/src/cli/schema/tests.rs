@@ -73,6 +73,14 @@ fn notification_configuration_failure_v9_admits_current_details_and_keeps_older_
 #[test]
 fn configured_catalog_and_receipts_publish_closed_native_schema() {
     let schema: Value = serde_json::from_str(super::document("orchbee.command").unwrap()).unwrap();
+    let command_schema: Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-command.schema.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        schema["$defs"]["wc_rejectionReason"], command_schema["$defs"]["rejectionReason"],
+        "the embedded configured receipt keeps the complete canonical rejection vocabulary"
+    );
     let validator = jsonschema::validator_for(&schema).unwrap();
     let corpus: Value = serde_json::from_str(include_str!(
         "../../../../../schemas/workbench/v1/workbench-configured-command-conformance-v1.json"

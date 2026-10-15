@@ -10,8 +10,8 @@ The JSON schema and cross-language corpus live under `schemas/workbench/v1`.
 ## Project organization and stable Workspace identity
 
 Navigation owns global identity-sorted `directories`, `projects` and `workspaces`, plus
-`standaloneTerminalContextId` and independent `workspaceOrder`. A nonempty order is an exact
-permutation; omission or an empty order uses canonical Workspace ID order. Project contains only
+`standaloneTerminalContextId` and independent `projectOrder` and `workspaceOrder`. Each nonempty
+order is an exact permutation of its registry; omission or an empty order uses canonical ID order. Project contains only
 `projectId` and `label`. Workspace carries required-nullable `projectId` and `primaryDirectoryId`;
 its ID, Terminal Context and physical Directory are independent of grouping. References must
 resolve, and each Terminal Context has exactly one navigation owner. Capacity is 256 Projects,
@@ -24,6 +24,16 @@ Workspace atomically; `project.dissolve` removes only the group and leaves its W
 Results use `workspace-project-changed` with required-nullable `projectId`, or `project-dissolved`.
 Regrouping preserves Workspace IDs, directories, terminal identities and display order. Authoritative
 membership admission, revision CAS and atomic publication remain Server responsibilities.
+
+`navigation.configure` carries one closed `NavigationConfiguration`: `move-project` requires a
+Project ID and nullable `beforeProjectId`; `move-workspace` requires a Workspace ID, nullable
+`projectId` and nullable `beforeWorkspaceId`. A null anchor appends within that destination group.
+A non-null Workspace anchor must already belong to the destination. `configure_navigation` shares
+one deterministic transition between authority planning and native receipt verification. It preserves
+identity-sorted registries and every physical resource, preserves other groups' relative order, and
+changes membership and display order atomically. Missing identities, invalid anchors and full groups
+refuse the whole candidate. No-op returns `unchanged` without a new revision; a change returns
+`navigation-configured`. The native gesture contract belongs to [sidebar layout](../../apps/orchbee/docs/tui-shell-layout.md).
 
 `workspace.launch` carries `placement`: `ungrouped`, `project { projectId }`, `new-project { label }`,
 or `alongside { workspaceId, projectLabel }`. Alongside resolves the source's current grouping at

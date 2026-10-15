@@ -12,6 +12,7 @@ fn near_limit_snapshot() -> Snapshot {
             directories: Vec::new(),
             workspaces: Vec::new(),
             workspace_order: Vec::new(),
+            project_order: Vec::new(),
             projects: Vec::new(),
             standalone_terminal_context_id: standalone.clone(),
         },

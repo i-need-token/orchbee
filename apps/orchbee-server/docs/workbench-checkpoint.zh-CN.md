@@ -20,7 +20,7 @@
 | 操作       | 前提                                                                                         | 结果与不变式                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | 捕获       | 权威未退役；已提交对象图有效；每个 Directory 和已绑定 Presentation 都属于传入的本地 Worker。 | 一个有界检查点；源权威不变；移除进程绑定和 Worker 身份。                                                       |
-| 解码       | 严格 version 1–6 文档、字节有界、导航与版本匹配、配置图、计数器及 provider 引用有效。        | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
+| 解码       | 严格 version 1–7 文档、字节有界、导航与版本匹配、配置图、计数器及 provider 引用有效。        | 完整保留配置或类型化拒绝；不返回部分结果或空成功。                                                             |
 | 重建       | 调用者传入新启动的 Site 身份及其已准入本地 Worker。                                          | 保留结构 ID 和本地路径，使用新目录所有者、无绑定 Presentation、新 Profile Site 前缀、revision 0 和空临时状态。 |
 | 恢复后分配 | 恢复的高水位允许递增。                                                                       | 新 ID 高于所有已分配计数器；耗尽时保留既有类型化拒绝。                                                         |
 
@@ -32,14 +32,19 @@
 
 ### 规范化导航与历史迁移
 
-写入器输出标识为 `orchbee.workbench.checkpoint`、数字版本为 `version: 6` 的文档。
-`checkpoint/navigation.rs` 分别拥有当前与历史导航 DTO。版本 6 保存按身份排序的全局
+写入器输出标识为 `orchbee.workbench.checkpoint`、数字版本为 `version: 7` 的文档。
+`checkpoint/navigation.rs` 分别拥有当前与历史导航 DTO。版本 6 和 7 保存按身份排序的全局
 `directories`、`projects`、`workspaces` 数组。Project 记录仅含 `projectId` 和 `label`；
 每个 Workspace 必须包含可为 null 的 `projectId`。本地 Directory 记录仅含 `directoryId`
 和 `path`，重建时赋予新的 Worker 所有权。显式 `workspaceOrder` 是全部 Workspace 身份的排列。
 未分组 Workspace、空 Project、共享 Directory 引用及未使用 Directory 均在捕获和重启后保留。
 规范化对象图最多容纳 65,536 个 Directory、1,023 个 Workspace，每个 Project 最多 256 个
 Workspace，同时受下述编码上限约束。
+
+版本 7 增加独立的 `projectOrder`：非空值必须是全部 Project 身份的完整排列，省略或空值使用规范
+ID 顺序。版本 6 在不含项目顺序时仍可读取；将非空 Project 顺序标为版本 6 会拒绝。旧 cohort
+显式拒绝版本 7 并保留已提交文件，不提供自动降级或丢弃顺序的转换。Workspace 和 Project 顺序在
+捕获／重启后保留，身份注册表继续按 ID 排序。
 
 版本 1–5 必须采用历史形状：每个 Project 拥有自己的 `directories` 和 `workspaces`，历史
 Workspace 记录不含 `projectId`。迁移先校验原始各 Project 数组的排序、256 个 Directory
@@ -48,7 +53,7 @@ Workspace 记录不含 `projectId`。迁移先校验原始各 Project 数组的�
 对全局数组排序，再执行完整对象图及身份／高水位校验。显式历史显示顺序保持不变；省略或空
 顺序转换为历史 Project／Workspace 遍历顺序，可能不同于全局 Workspace 身份顺序。
 
-导航形状必须与声明版本匹配。向历史记录注入当前字段、将历史导航标为版本 6、未知或重复
+导航形状必须与声明版本匹配。向历史记录注入当前字段、将历史导航标为版本 6 或 7、未知或重复
 字段、重复身份、缺失引用，以及低于保留身份的高水位，都会拒绝整份文档。编解码器从不将
 畸形输入转换为空 Workbench。下述存储消费者的全部副本无效显式提醒属于独立的恢复决定。
 
@@ -57,8 +62,8 @@ Workspace 记录不含 `projectId`。迁移先校验原始各 Project 数组的�
 会显式拒绝这种迁移；它不准入超限对象图、不丢弃保留内容，也不提高任一上限。源 DTO 仍在
 规范化前拒绝未知或重复字段。不提供自动降级或转换。
 
-版本 2–6 要求 `agentSessions`，版本 3–6 要求 `terminalDirectories`，版本 4–6 要求
-`managedNames`；更早版本拒绝这些字段。版本 5–6 保留规范分割比例；版本 1–4 恢复等比例，
+版本 2–7 要求 `agentSessions`，版本 3–7 要求 `terminalDirectories`，版本 4–7 要求
+`managedNames`；更早版本拒绝这些字段。版本 5–7 保留规范分割比例；版本 1–4 恢复等比例，
 并拒绝注入的非默认权重。见[共享比例](shared-split-ratios.zh-CN.md)。最多 512 个唯一名称／
 Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必须有匹配的已接纳
 官方 provider 引用。见[托管名称](agent-canonical-model.zh-CN.md#托管名称重启)。
@@ -111,7 +116,7 @@ Presentation 声明仅携带 `presentationId`、`name`、`providerId`，且必�
 副本。存储 owner 从三个槽位选择最新且完整验证的 payload。无效副本保留并产生可见恢复提醒；
 全部副本无效时明确报告空恢复。数据缺失表示新 Workbench；私有路径或文件系统准入失败仍中止启动。
 详见 [Windows checkpoint 存储契约](../../../crates/local-site-runtime/docs/windows-checkpoint-storage.zh-CN.md)。
-默认和命名 Site 激活均在使用 checkpoint v6 存储前发布 catalog v5；catalog reader 接受 v1–v5。
+默认和命名 Site 激活均在使用 checkpoint v7 存储前发布 catalog v5；catalog reader 接受 v1–v5。
 最多支持 v4 的旧 reader 会拒绝新记录，包括正常停止后的记录。Server 在打开 store 前保留已准入
 的 durable generation，因此直接 Server 入口也会在清理 pending 文件前拒绝不支持的 catalog。
 
@@ -163,7 +168,7 @@ resume 引用。payload 不包含终端屏幕、历史、Agent 对话或活跃�
 删除身份后的分配、外部所有权、损坏、重复／未知字段、绑定注入、对象图错误和大小限制。
 历史夹具保持版本 1–5 的嵌套形状。迁移证据覆盖交错的全局身份、显式与隐式历史显示顺序、
 未使用 Directory、扁平化前拒绝跨 Project 主目录、各 Project 上限、重复身份、高水位错误，
-以及版本／字段不匹配。版本 6 捕获／重启保留未分组成员关系、目录引用和适用版本中的
+以及版本／字段不匹配。版本 6/7 捕获／重启保留未分组成员关系、目录引用和适用版本中的
 Agent、cwd 及托管名称重启意图。
 构造的版本 1–5 夹具对比恰好 1 MiB 的历史 Snapshot、规范化后的超限形式，以及恰好符合上限的
 对照。原生存储与 Server 加载证据覆盖存在更旧／更新可用副本或没有回退副本时的致命拒绝、

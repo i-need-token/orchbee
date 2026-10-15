@@ -262,6 +262,8 @@ impl Locale {
                 "Project dissolved · Workspaces retained"
             }
             (Self::ZhCn, NativeSetupStatus::ProjectDissolved) => "项目已解散 · 工作区已保留",
+            (Self::EnUs, NativeSetupStatus::NavigationConfigured) => "Sidebar organization updated",
+            (Self::ZhCn, NativeSetupStatus::NavigationConfigured) => "侧栏排序和分组已更新",
             (Self::EnUs, NativeSetupStatus::TabsConfigured) => "Tabs updated",
             (Self::ZhCn, NativeSetupStatus::TabsConfigured) => "标签页已更新",
             (Self::EnUs, NativeSetupStatus::TabsNotApplied) => {

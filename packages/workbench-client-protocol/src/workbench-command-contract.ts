@@ -335,6 +335,28 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('navigation.configure'),
+			operation: z.discriminatedUnion('kind', [
+				z
+					.strictObject({
+						kind: z.literal('move-project'),
+						projectId: WorkbenchProjectIdSchema,
+						beforeProjectId: WorkbenchProjectIdSchema.nullable(),
+					})
+					.readonly(),
+				z
+					.strictObject({
+						kind: z.literal('move-workspace'),
+						workspaceId: WorkbenchWorkspaceIdSchema,
+						projectId: WorkbenchProjectIdSchema.nullable(),
+						beforeWorkspaceId: WorkbenchWorkspaceIdSchema.nullable(),
+					})
+					.readonly(),
+			]),
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('tabs.configure'),
 			terminalContextId: WorkbenchTerminalContextIdSchema,
 			operation: z.discriminatedUnion('kind', [

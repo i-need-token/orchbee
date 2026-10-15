@@ -277,6 +277,7 @@ fn canonical_move_a_settlement_then_b_queued_preserves_exact_a_commit_at_retirem
                 revision: commit.revision,
                 site_id: first.baseline().site_id().clone(),
                 navigation: Navigation {
+                    project_order: Vec::new(),
                     directories: Vec::new(),
                     workspaces: Vec::new(),
                     workspace_order: Vec::new(),

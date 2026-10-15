@@ -20,6 +20,8 @@ pub(super) enum StoredNavigation {
 pub(super) struct CurrentNavigation {
     standalone_terminal_context_id: WorkbenchTerminalContextId,
     projects: Vec<Project>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    project_order: Vec<WorkbenchProjectId>,
     directories: Vec<StoredDirectory>,
     workspaces: Vec<Workspace>,
     workspace_order: Vec<WorkbenchWorkspaceId>,
@@ -107,6 +109,7 @@ impl StoredNavigation {
         Ok(Self::Current(CurrentNavigation {
             standalone_terminal_context_id: navigation.standalone_terminal_context_id,
             projects: navigation.projects,
+            project_order: navigation.project_order,
             directories,
             workspaces: navigation.workspaces,
             workspace_order: navigation.workspace_order,
@@ -119,10 +122,12 @@ impl StoredNavigation {
         worker: &WorkerId,
     ) -> Result<Navigation, WorkbenchCheckpointError> {
         match (self, version) {
-            (Self::Current(stored), 6)
-                if stored.workspace_order.len() == stored.workspaces.len() =>
+            (Self::Current(stored), 6 | 7)
+                if stored.workspace_order.len() == stored.workspaces.len()
+                    && (version == 7 || stored.project_order.is_empty()) =>
             {
                 Ok(Navigation {
+                    project_order: stored.project_order.clone(),
                     standalone_terminal_context_id: stored.standalone_terminal_context_id.clone(),
                     projects: stored.projects.clone(),
                     directories: stored
@@ -143,6 +148,7 @@ impl StoredNavigation {
 impl HistoricalNavigation {
     fn restore(&self, worker: &WorkerId) -> Result<Navigation, WorkbenchCheckpointError> {
         let mut navigation = Navigation {
+            project_order: Vec::new(),
             standalone_terminal_context_id: self.standalone_terminal_context_id.clone(),
             projects: Vec::new(),
             directories: Vec::new(),

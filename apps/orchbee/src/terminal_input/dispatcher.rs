@@ -444,7 +444,15 @@ impl InputDispatcher {
             self.pointer.cancel_divider();
             self.pointer.cancel_sidebar_width();
             self.pointer.cancel_tab_drag();
+            self.pointer.cancel_sidebar_reorder();
         }
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn sidebar_reorder_preview(
+        &self,
+    ) -> Option<crate::tui_pointer::SidebarReorderPreview> {
+        self.pointer.sidebar_reorder_preview()
     }
 
     /// Immutable preview supplied by the gesture owner for one paint pass.
@@ -782,6 +790,7 @@ impl InputDispatcher {
                         | PointerOutcome::Handled
                         | PointerOutcome::IdleMotion { .. } => {}
                         PointerOutcome::TabGestureEnded
+                        | PointerOutcome::SidebarReorderEnded
                         | PointerOutcome::SidebarWidthEnded
                         | PointerOutcome::MenuRequested { .. }
                         | PointerOutcome::ChromeGestureEnded => {
@@ -1057,6 +1066,7 @@ impl InputDispatcher {
                         | PointerOutcome::Handled
                         | PointerOutcome::RegionsChanged
                         | PointerOutcome::TabGestureEnded
+                        | PointerOutcome::SidebarReorderEnded
                         | PointerOutcome::SidebarWidthEnded
                         | PointerOutcome::ChromeGestureEnded
                         | PointerOutcome::MenuRequested { .. } => {}
@@ -1211,7 +1221,8 @@ impl InputDispatcher {
             #[cfg(windows)]
             // Preserve the active-drag edge before focus teardown installs its
             // cleanup tombstone; that edge owns the rest of this host packet.
-            let tab_drag_cancelled = !focused && self.pointer.cancel_tab_drag();
+            let tab_drag_cancelled = !focused
+                && (self.pointer.cancel_tab_drag() | self.pointer.cancel_sidebar_reorder());
             self.pointer.set_host_focus(focused);
             if !focused {
                 self.pointer.cancel_list_scroll();
@@ -1280,7 +1291,7 @@ impl InputDispatcher {
                     return Ok(DispatchOutcome::Continue);
                 }
                 #[cfg(windows)]
-                PointerOutcome::TabGestureEnded => {
+                PointerOutcome::TabGestureEnded | PointerOutcome::SidebarReorderEnded => {
                     self.menu_packet = true;
                     self.keys.capture_pending();
                     self.pointer.invalidate_map_with_port(port);
@@ -1457,12 +1468,15 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         #[cfg(windows)]
-        if self.pointer.tab_drag_captured() && !matches!(item.kind, DecodedKind::Mouse(_)) {
+        if (self.pointer.tab_drag_captured() || self.pointer.sidebar_reorder_captured())
+            && !matches!(item.kind, DecodedKind::Mouse(_))
+        {
             self.flush_pending(view, port);
             if matches!(item.kind, DecodedKind::Key(event) if event.kind != KeyKind::Release
                 && event.code == crate::client_view::KeyCode::Esc && event.mods == crate::client_view::Modifiers::NONE)
             {
                 self.pointer.cancel_tab_drag();
+                self.pointer.cancel_sidebar_reorder();
                 self.menu_packet = true;
             }
             self.keys.capture_pending();
@@ -1561,6 +1575,23 @@ impl InputDispatcher {
                         self.keys.capture_pending();
                         self.pointer.invalidate_map_with_port(port);
                         after_layout(view, port)?;
+                    }
+                    crate::machine_picker::SidebarIntent::Reorder { target, up } => {
+                        if target.machine() == &view.machines.current
+                            && let Some(crate::action_menu::MenuTarget::Drawn {
+                                source: painted,
+                                ..
+                            }) = self.pointer.sidebar_menu_target(view, &target)
+                            && let Some(source) = port.sidebar_reorder_source()
+                            && source.matches_menu_source(&painted)
+                            && source.matches_sidebar(
+                                &view.machines.sidebar_source(),
+                                &view.machines.current,
+                            )
+                            && let Some(operation) = source.step(&target, up)
+                        {
+                            port.commit_sidebar_reorder(&source, operation);
+                        }
                     }
                     crate::machine_picker::SidebarIntent::OpenMenu(target) => {
                         if let Some(target) = self.pointer.sidebar_menu_target(view, &target) {
@@ -1821,7 +1852,10 @@ impl InputDispatcher {
                             self.pointer.invalidate_map_with_port(port);
                         }
                         #[cfg(windows)]
-                        if outcome == PointerOutcome::TabGestureEnded {
+                        if matches!(
+                            outcome,
+                            PointerOutcome::TabGestureEnded | PointerOutcome::SidebarReorderEnded
+                        ) {
                             self.menu_packet = true;
                             self.keys.capture_pending();
                             self.pointer.invalidate_map_with_port(port);
@@ -2158,6 +2192,7 @@ impl InputDispatcher {
             PointerOutcome::Ignored => unreachable!("ignored Help input returned above"),
             #[cfg(windows)]
             PointerOutcome::TabGestureEnded
+            | PointerOutcome::SidebarReorderEnded
             | PointerOutcome::SidebarWidthEnded
             | PointerOutcome::MenuRequested { .. }
             | PointerOutcome::ChromeGestureEnded => {

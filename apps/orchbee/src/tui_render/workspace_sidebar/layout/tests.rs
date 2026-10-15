@@ -3,11 +3,11 @@ use super::*;
 #[test]
 fn fixed_tracks_keep_each_depth_stable_across_width_modes() {
     for (width, density, auxiliary) in [
-        (60, Density::Comfortable, 21),
-        (30, Density::Compact, 7),
+        (60, Density::Comfortable, 11),
+        (30, Density::Compact, 3),
         (24, Density::Narrow, 3),
     ] {
-        let actions = AuxiliaryActions::new(true, true);
+        let actions = AuxiliaryActions::new(true);
         let root =
             Tracks::resolve(Rect::new(3, 4, width, 3), 1, 0, actions, RowKind::Owner).unwrap();
         let child =
@@ -46,7 +46,7 @@ fn disclosure_follows_displayed_identity_and_only_owns_its_first_line_cell() {
                 Rect::new(3, 4, width, 4),
                 1,
                 depth,
-                AuxiliaryActions::new(true, true),
+                AuxiliaryActions::new(true),
                 RowKind::Owner,
             )
             .unwrap();
@@ -97,56 +97,36 @@ fn density_uses_the_complete_sidebar_surface_not_the_padded_tree_band() {
         0,
         0,
         52,
-        AuxiliaryActions::new(true, true),
+        AuxiliaryActions::new(true),
         RowKind::Owner,
     )
     .unwrap();
     assert_eq!(tracks.density(), Density::Comfortable);
-    assert_eq!(tracks.auxiliary.width, 21);
+    assert_eq!(tracks.auxiliary.width, 11);
 }
 
 #[test]
-fn primary_uses_cells_not_owned_by_semantically_absent_controls() {
-    let band = Rect::new(0, 0, 30, 1);
-    let none = Tracks::resolve(
-        band,
-        0,
-        2,
-        AuxiliaryActions::new(false, false),
-        RowKind::Owner,
-    )
-    .unwrap();
-    let menu = Tracks::resolve(
-        band,
-        0,
-        2,
-        AuxiliaryActions::new(true, false),
-        RowKind::Owner,
-    )
-    .unwrap();
-    let both = Tracks::resolve(
-        band,
-        0,
-        2,
-        AuxiliaryActions::new(true, true),
-        RowKind::Owner,
-    )
-    .unwrap();
-
-    assert_eq!(none.auxiliary.width, 0);
-    assert_eq!(menu.auxiliary.width, 3);
-    assert_eq!(both.auxiliary.width, 7);
-    assert_eq!(none.primary.width, menu.primary.width + 3);
-    assert_eq!(menu.primary.width, both.primary.width + 4);
-    assert_eq!(none.primary.x, menu.primary.x);
-    assert_eq!(menu.primary.x, both.primary.x);
-    for tracks in [none, menu, both] {
-        assert_eq!(tracks.primary.right() + METADATA_GAP, tracks.state.x);
-        assert_eq!(tracks.state.right(), tracks.current.x);
-        assert_eq!(tracks.current.right(), tracks.unread.x);
-        assert_eq!(tracks.unread.right(), tracks.auxiliary.x);
+fn only_visible_create_controls_reserve_a_trailing_extent() {
+    for width in [24, 30, 60] {
+        let band = Rect::new(0, 0, width, 1);
+        let none =
+            Tracks::resolve(band, 0, 0, AuxiliaryActions::new(false), RowKind::Owner).unwrap();
+        let create =
+            Tracks::resolve(band, 0, 0, AuxiliaryActions::new(true), RowKind::Owner).unwrap();
+        assert!(none.auxiliary.is_empty());
+        assert_eq!(none.primary.x, create.primary.x);
+        assert_eq!(
+            none.primary.width,
+            create.primary.width + create.auxiliary.width
+        );
+        assert_eq!(create.create, Some(create.auxiliary));
+        assert_eq!(create.auxiliary.right(), band.right());
+        assert_eq!(create.auxiliary.width, if width >= 52 { 11 } else { 3 });
+        for tracks in [none, create] {
+            assert_eq!(tracks.primary.right() + METADATA_GAP, tracks.state.x);
+            assert_eq!(tracks.state.right(), tracks.current.x);
+            assert_eq!(tracks.current.right(), tracks.unread.x);
+            assert_eq!(tracks.unread.right(), tracks.auxiliary.x);
+        }
     }
-    assert_eq!(menu.menu, menu.auxiliary);
-    assert!(both.create.is_some());
-    assert_eq!(both.create.unwrap().right() + 1, both.menu.x);
 }

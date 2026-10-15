@@ -56,22 +56,10 @@ impl Density {
         }
     }
 
-    pub(super) const fn direct_create(self) -> bool {
-        !matches!(self, Self::Narrow)
-    }
-
-    const fn menu_width(self) -> u16 {
-        match self {
-            Self::Comfortable => 9,
-            Self::Compact | Self::Narrow => 3,
-        }
-    }
-
     const fn create_width(self) -> u16 {
         match self {
             Self::Comfortable => 11,
-            Self::Compact => 3,
-            Self::Narrow => 0,
+            Self::Compact | Self::Narrow => 3,
         }
     }
 }
@@ -79,48 +67,31 @@ impl Density {
 /// Auxiliary controls owned by the exact Sidebar source for one row.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct AuxiliaryActions {
-    menu: bool,
     create: bool,
 }
 
 impl AuxiliaryActions {
-    pub(super) const fn new(menu: bool, create: bool) -> Self {
-        Self {
-            menu,
-            create: menu && create,
-        }
+    pub(super) const fn new(create: bool) -> Self {
+        Self { create }
     }
 
     fn width(self, density: Density) -> u16 {
-        if !self.menu {
-            return 0;
+        if self.create {
+            density.create_width()
+        } else {
+            0
         }
-        density.menu_width()
-            + if self.create && density.create_width() > 0 {
-                density.create_width() + 1
-            } else {
-                0
-            }
     }
 
     fn create(self, density: Density, auxiliary: Rect) -> Option<Rect> {
-        let width = density.create_width();
-        if !self.create || width == 0 {
-            return None;
-        }
-        Some(Rect::new(auxiliary.x, auxiliary.y, width, auxiliary.height))
-    }
-
-    fn menu(self, density: Density, auxiliary: Rect) -> Rect {
-        if !self.menu {
-            return Rect::new(auxiliary.right(), auxiliary.y, 0, auxiliary.height);
-        }
-        Rect::new(
-            auxiliary.right() - density.menu_width(),
-            auxiliary.y,
-            density.menu_width(),
-            auxiliary.height,
-        )
+        self.create.then(|| {
+            Rect::new(
+                auxiliary.x,
+                auxiliary.y,
+                density.create_width(),
+                auxiliary.height,
+            )
+        })
     }
 }
 
@@ -138,7 +109,6 @@ pub(super) struct Tracks {
     pub(super) primary: Rect,
     pub(super) auxiliary: Rect,
     pub(super) create: Option<Rect>,
-    pub(super) menu: Rect,
 }
 
 impl Tracks {
@@ -200,7 +170,6 @@ impl Tracks {
         let primary = Rect::new(primary_x, band.y, primary_right - primary_x, band.height);
         let disclosure = Rect::new(primary.right(), content_y, 0, 0);
         let create = actions.create(density, auxiliary);
-        let menu = actions.menu(density, auxiliary);
         Some(Self {
             density,
             band,
@@ -214,7 +183,6 @@ impl Tracks {
             primary,
             auxiliary,
             create,
-            menu,
         })
     }
 

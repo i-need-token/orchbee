@@ -481,6 +481,75 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "pane-rejection-invalid-navigation-configuration",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pane",
+					"commandId": "cmd_profile_0",
+					"result": {
+						"protocolVersion": 1,
+						"requestId": "00000000000000000000000000000001",
+						"outcome": {
+							"kind": "rejected",
+							"revision": "9",
+							"reason": "invalid-navigation-configuration"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "pane-rejection-tab-group-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pane",
+					"commandId": "cmd_profile_0",
+					"result": {
+						"protocolVersion": 1,
+						"requestId": "00000000000000000000000000000001",
+						"outcome": {
+							"kind": "rejected",
+							"revision": "9",
+							"reason": "tab-group-unavailable"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "pane-rejection-split-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pane",
+					"commandId": "cmd_profile_0",
+					"result": {
+						"protocolVersion": 1,
+						"requestId": "00000000000000000000000000000001",
+						"outcome": {
+							"kind": "rejected",
+							"revision": "9",
+							"reason": "split-unavailable"
+						}
+					}
+				}
+			}
 		}
 	],
 	"invalid": [

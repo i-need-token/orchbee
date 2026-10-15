@@ -38,6 +38,33 @@ fn picker() -> Picker {
     picker
 }
 
+#[test]
+fn sorting_bindings_emit_the_focused_identity_without_navigation_or_repeat() {
+    let mut picker = picker();
+    assert!(picker.enter_sidebar_navigation());
+    let target = picker
+        .sidebar_navigation_rows()
+        .into_iter()
+        .find(|row| matches!(row, SidebarRow::Project { .. }))
+        .unwrap()
+        .target();
+    assert!(picker.focus_sidebar_target(&target));
+    for (code, up) in [(KeyCode::Up, true), (KeyCode::Down, false)] {
+        assert_eq!(
+            picker.sidebar_key(KeyEvent::press(code, Modifiers::CTRL)),
+            SidebarIntent::Reorder {
+                target: target.clone(),
+                up
+            }
+        );
+        assert_eq!(picker.sidebar_focused_target(), Some(&target));
+        let mut repeat = KeyEvent::press(code, Modifiers::CTRL);
+        repeat.kind = KeyKind::Repeat;
+        assert_eq!(picker.sidebar_key(repeat), SidebarIntent::None);
+        assert!(picker.request.is_none());
+    }
+}
+
 fn key(picker: &mut Picker, code: KeyCode) -> SidebarIntent {
     picker.sidebar_key(KeyEvent::press(code, Modifiers::NONE))
 }

@@ -213,6 +213,8 @@ pub struct Navigation {
     pub standalone_terminal_context_id: WorkbenchTerminalContextId,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub workspace_order: Vec<WorkbenchWorkspaceId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub project_order: Vec<WorkbenchProjectId>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -298,6 +298,10 @@ pub(super) struct PaintedInteraction {
 }
 
 impl PaintedInteraction {
+    #[cfg(windows)]
+    pub(super) const fn target(&self) -> &InteractionTarget {
+        &self.target
+    }
     pub(super) const fn new(
         target: InteractionTarget,
         paint_rect: Rect,
@@ -401,6 +405,13 @@ pub(crate) struct PointerProjection {
 }
 
 impl PointerProjection {
+    #[cfg(windows)]
+    pub(super) fn with_specialized_owner(mut self, pressed: Option<Fingerprint>) -> Self {
+        self.pressed = pressed;
+        self.hovered = None;
+        self
+    }
+
     pub(super) const fn empty() -> Self {
         Self {
             revision: 0,
@@ -462,17 +473,6 @@ impl PointerProjection {
         } else {
             ProjectedPointer::Rest
         }
-    }
-
-    #[cfg(windows)]
-    pub(super) fn has_target(&self, target: &InteractionTarget) -> bool {
-        self.hovered
-            .as_ref()
-            .is_some_and(|fingerprint| &fingerprint.target == target)
-            || self
-                .pressed
-                .as_ref()
-                .is_some_and(|fingerprint| &fingerprint.target == target)
     }
 }
 

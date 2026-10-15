@@ -111,6 +111,10 @@ pub(crate) use agent_sidebar::render_width_preview;
 pub(crate) use divider_resize::render_divider_preview;
 #[cfg(windows)]
 pub(crate) use tabs::render_tab_drag_preview;
+#[cfg(windows)]
+mod sidebar_reorder;
+#[cfg(windows)]
+pub(crate) use sidebar_reorder::render_sidebar_reorder_preview;
 mod scrollbar;
 #[cfg(windows)]
 mod sidebar_text;
