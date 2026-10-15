@@ -1,8 +1,8 @@
 //! Paints the existing merged Agent projection; never reads or acknowledges terminals.
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
-    InteractionState, NavigationState, OperationState, PointerPresentation, action_rect,
-    render_action,
+    InteractionState, KeyHint, NavigationState, OperationState, PointerPresentation, action_rect,
+    render_action, render_key_hints,
 };
 use super::sidebar_text::machine_label;
 use super::{
@@ -43,12 +43,19 @@ struct FixedAction<'a> {
     target: InteractionTarget,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum SidebarInput {
+    Suppressed,
+    Terminal,
+    Navigation,
+}
+
 pub(super) struct RenderContext<'a> {
     pub(super) view: &'a ClientView,
     pub(super) locale: Locale,
     pub(super) backend_status: SiteStatus<'a>,
     pub(super) theme: &'a Theme,
-    pub(super) owns_keyboard: bool,
+    pub(super) input: SidebarInput,
 }
 
 struct ActionsContext<'a> {
@@ -191,6 +198,48 @@ fn render_actions(
     }
 }
 
+fn render_navigation_hint(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    view: &ClientView,
+    locale: Locale,
+    input: SidebarInput,
+    theme: &Theme,
+) {
+    use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
+    let glyphs = key_label_glyphs(theme);
+    let hints = match input {
+        SidebarInput::Suppressed => return,
+        SidebarInput::Terminal => view
+            .bindings()
+            .action_labels_with_glyphs(
+                PrefixAction::Client(ClientAction::FocusBusinessSidebar),
+                glyphs,
+            )
+            .into_iter()
+            .take(1)
+            .map(|key| (key, locale.sidebar_browse_hint()))
+            .collect::<Vec<_>>(),
+        SidebarInput::Navigation => [
+            (SidebarCommand::Exit, locale.sidebar_back_hint()),
+            (
+                SidebarCommand::Help,
+                locale.sidebar_navigation_action(SidebarCommand::Help),
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(command, label)| {
+            sidebar_binding_label(command, glyphs).map(|key| (key, label))
+        })
+        .collect(),
+    };
+    let hints = hints
+        .iter()
+        .map(|(key, label)| KeyHint::new(key, label))
+        .collect::<Vec<_>>();
+    let _ = render_key_hints(frame, area, &hints, theme);
+}
+
 pub(super) fn render(
     frame: &mut Frame<'_>,
     sidebar: SidebarArea,
@@ -202,8 +251,9 @@ pub(super) fn render(
         locale,
         backend_status,
         theme,
-        owns_keyboard,
+        input,
     } = context;
+    let owns_keyboard = input == SidebarInput::Navigation;
     if sidebar.layer == SidebarLayer::Overlay {
         frame.render_widget(Clear, sidebar.area);
     }
@@ -304,19 +354,27 @@ pub(super) fn render(
     if area.is_empty() {
         return;
     }
-    let footer_rows = if frame.area().height >= 24 && area.height >= 4 {
-        2
+    let footer_rows = if frame.area().height >= 24 && area.height >= 5 {
+        3
     } else {
         1
     };
     let settings = Rect::new(area.x, area.bottom() - 1, area.width, 1);
-    if footer_rows == 2 {
+    if footer_rows == 3 {
         frame.render_widget(
             Block::new()
                 .borders(Borders::TOP)
                 .border_style(theme.style(Role::FrameDivider))
                 .style(theme.style(Role::SurfaceChrome)),
-            Rect::new(area.x, settings.y - 1, area.width, 1),
+            Rect::new(area.x, settings.y - 2, area.width, 1),
+        );
+        render_navigation_hint(
+            frame,
+            Rect::new(area.x + 1, settings.y - 1, area.width.saturating_sub(1), 1),
+            view,
+            locale,
+            input,
+            theme,
         );
     }
     let settings_hint = view

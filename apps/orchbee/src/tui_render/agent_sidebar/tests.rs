@@ -894,11 +894,24 @@ fn settings_stays_at_the_sidebar_bottom_as_an_exact_discoverable_action() {
                     Some(HitTarget::SettingsButton)
                 ));
             }
-            assert!(rows[38].starts_with('─'));
-            assert!((0..28).all(|x| !matches!(
-                hits.hit_target_at(x, 38),
-                Some(HitTarget::MachineAgentRow { .. } | HitTarget::MachineWorkspaceRow { .. })
-            )));
+            let browse_binding = view
+                .bindings()
+                .action_labels_with_glyphs(
+                    PrefixAction::Client(ClientAction::FocusBusinessSidebar),
+                    key_label_glyphs(&Theme::terminal_native()),
+                )
+                .into_iter()
+                .next()
+                .unwrap();
+            assert!(rows[38].contains(&browse_binding), "{:?}", rows[38]);
+            assert!(rows[38].contains(locale.sidebar_browse_hint()));
+            assert!(rows[37].starts_with('─'));
+            for y in [37, 38] {
+                assert!((0..28).all(|x| !matches!(
+                    hits.hit_target_at(x, y),
+                    Some(HitTarget::MachineAgentRow { .. } | HitTarget::MachineWorkspaceRow { .. })
+                )));
+            }
         }
     }
 }
@@ -930,11 +943,92 @@ fn settings_footer_omits_whole_hints_at_narrow_width_and_saves_a_row_on_short_ho
                 .unwrap();
             assert!(footer.contains(locale.settings_title()), "{footer:?}");
             assert_eq!(footer.contains(&hint), visible_hint, "{footer:?}");
-            assert_eq!(rows[usize::from(height - 2)].starts_with('─'), height >= 24);
+            assert_eq!(rows[usize::from(height - 3)].starts_with('─'), height >= 24);
             assert!((0..preferred).any(|x| matches!(
                 hits.hit_target_at(x, height - 1),
                 Some(HitTarget::SettingsButton)
             )));
+        }
+    }
+}
+
+#[test]
+fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_hint_hits() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::one_light()] {
+            for input in [
+                SidebarInput::Terminal,
+                SidebarInput::Navigation,
+                SidebarInput::Suppressed,
+            ] {
+                let mut view = view(120, 40, 1);
+                if input != SidebarInput::Terminal {
+                    assert!(view.machines.enter_sidebar_navigation());
+                }
+                let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+                let mut hits = HitMapBuilder::new();
+                terminal
+                    .draw(|frame| {
+                        let sidebar = project_shell_areas(frame.area(), view.sidebar_surface())
+                            .sidebar
+                            .unwrap();
+                        render(
+                            frame,
+                            sidebar,
+                            RenderContext {
+                                view: &view,
+                                locale,
+                                backend_status: SiteStatus {
+                                    text: "Ready",
+                                    role: Role::StatusSuccess,
+                                },
+                                theme: &theme,
+                                input,
+                            },
+                            Some(&mut hits),
+                        );
+                    })
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                let mut hint = String::new();
+                let mut x = 0;
+                while x < 28 {
+                    let symbol = buffer[(x, 38)].symbol();
+                    hint.push_str(symbol);
+                    x += u16::try_from(display_width(symbol).max(1)).unwrap();
+                }
+                match input {
+                    SidebarInput::Terminal => {
+                        assert!(hint.contains(locale.sidebar_browse_hint()), "{hint}")
+                    }
+                    SidebarInput::Navigation => {
+                        assert!(hint.contains(locale.sidebar_back_hint()), "{hint}");
+                        assert!(
+                            hint.contains(locale.sidebar_navigation_action(
+                                crate::machine_picker::SidebarCommand::Help
+                            )),
+                            "{hint}"
+                        );
+                        assert!(!hint.contains(locale.sidebar_browse_hint()));
+                    }
+                    SidebarInput::Suppressed => assert!(hint.trim().is_empty(), "{hint}"),
+                }
+                let hits = hits.finish();
+                assert!(
+                    (0..28).any(|x| matches!(
+                        hits.hit_target_at(x, 39),
+                        Some(HitTarget::SettingsButton)
+                    ))
+                );
+                assert!((0..28).all(|x| !matches!(
+                    hits.hit_target_at(x, 38),
+                    Some(
+                        HitTarget::SettingsButton
+                            | HitTarget::SidebarMenu(_)
+                            | HitTarget::MachineWorkspaceRow { .. }
+                    )
+                )));
+            }
         }
     }
 }
@@ -989,7 +1083,11 @@ fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forget
                             role: Role::StatusSuccess,
                         },
                         theme: &theme,
-                        owns_keyboard,
+                        input: if owns_keyboard {
+                            SidebarInput::Navigation
+                        } else {
+                            SidebarInput::Suppressed
+                        },
                     },
                     None,
                 );
@@ -1164,8 +1262,19 @@ fn sidebar_shares_source_order_numbering_and_never_numbers_unavailable_rows() {
     let joined = rows.join("\n");
     let bullet =
         Theme::rgb_test_dark().agent_glyph(orchbee_workbench_protocol::MetadataState::Working);
-    assert!(joined.contains(&format!("1 {bullet}")) && joined.contains(&format!("2 {bullet}")));
-    assert!(!joined.contains(&format!("3 {bullet}")));
+    for ordinal in [1, 2] {
+        assert!(
+            rows.iter()
+                .any(|line| line.trim_start().starts_with(&format!("{ordinal} "))
+                    && line.contains(bullet)),
+            "{joined}"
+        );
+    }
+    assert!(
+        !rows
+            .iter()
+            .any(|line| line.trim_start().starts_with("3 ") && line.contains(bullet))
+    );
     assert!(!joined.contains("3 remote"));
     let selected = (0..40)
         .find_map(|y| match hits.hit_target_at(2, y) {

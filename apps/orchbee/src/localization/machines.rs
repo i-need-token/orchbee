@@ -1,5 +1,17 @@
 use super::Locale;
 impl Locale {
+    pub(crate) const fn sidebar_browse_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Browse",
+            Self::ZhCn => "浏览",
+        }
+    }
+    pub(crate) const fn sidebar_back_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Back",
+            Self::ZhCn => "返回",
+        }
+    }
     /// Collapsed navigation keeps the complete Agent and waiting counts discoverable.
     pub(crate) fn sidebar_agent_count(self, total: usize) -> String {
         match self {

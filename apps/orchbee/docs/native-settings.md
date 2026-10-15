@@ -36,6 +36,14 @@ multiple. Left/Right and painted minus/plus controls use the small step;
 Shift+Left/Right uses the large step outside a text child. Enter retains the exact
 bounded editor for direct values.
 
+Settings centers horizontally and vertically in the full host viewport above the transient status
+row, including the sidebar and top strip. Its preferred extent is 92 columns by 26 rows, clamped
+to that viewport; sidebar visibility or width does not shift it. Existing minimum-content admission,
+refusal and suspension preserve drafts and keep the status row uncovered. Placement does not resize
+PTYs. Root-compositor cases cover both locales, 120x40, 120x30, 100x24 and 80x24, hidden/visible
+sidebars and 24/30/60-column preferences; these are render/input-map checks rather than physical
+host gesture evidence.
+
 The renderer projects typed shared actions, rows and value controls. Header Close,
 footer actions, rows and minus/plus controls publish the same generic
 activate-on-release interaction, including visible typed disabled targets that

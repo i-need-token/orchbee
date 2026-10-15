@@ -24,6 +24,20 @@ pub(crate) enum ActionKind {
     Primary,
     /// A secondary or cancelling action.
     Secondary,
+    /// A quiet auxiliary action within navigation chrome.
+    #[cfg(any(windows, test))]
+    Auxiliary,
+}
+
+impl ActionKind {
+    pub(crate) const fn content_role(self) -> Role {
+        match self {
+            Self::Primary => Role::AccentAction,
+            Self::Secondary => Role::TextPrimary,
+            #[cfg(any(windows, test))]
+            Self::Auxiliary => Role::TextSecondary,
+        }
+    }
 }
 
 /// Owner-supplied action copy and visual state; semantic intent remains with the caller.
@@ -98,10 +112,7 @@ pub(crate) fn render_action(
     let interaction = state.interaction_role();
     let enabled = state.availability == Availability::Enabled;
     let action_role = if enabled {
-        match spec.kind {
-            ActionKind::Primary => Role::AccentAction,
-            ActionKind::Secondary => Role::TextPrimary,
-        }
+        spec.kind.content_role()
     } else {
         Role::TextDisabled
     };

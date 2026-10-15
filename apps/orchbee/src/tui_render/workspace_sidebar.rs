@@ -1,9 +1,9 @@
 //! Workspace token rows over complete canonical checkpoints and attention-projected Agent states.
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
-    InteractionState, NavigationState, OperationState, PointerPresentation, RowContentBand,
-    RowFocusCue, RowTracks, action_rect, paint_pointer_target, paint_row_interaction,
-    render_action,
+    IconActionGlyph, IconActionSpec, InteractionState, NavigationState, OperationState,
+    PointerPresentation, RowContentBand, RowFocusCue, RowTracks, action_rect, icon_action_rect,
+    paint_pointer_target, paint_row_interaction, render_action, render_icon_action,
 };
 use super::{
     Block, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Modifier, Paragraph, Rect,
@@ -427,7 +427,9 @@ fn entry_width(
         auxiliary_actions(source, &target),
         layout::RowKind::for_target(&target),
     )
-    .map_or(1, |tracks| usize::from(tracks.primary.width))
+    .map_or(1, |tracks| {
+        usize::from(tracks.text_width(source.has_part(&target, SidebarPart::Disclosure)))
+    })
 }
 
 fn suffix_rows(suffix: &str, width: usize) -> usize {
@@ -739,16 +741,96 @@ fn prepare_child(
     pointer
 }
 
-fn padded_action(label: &str, shortcut: Option<&str>, width: usize) -> String {
-    let action = format!("[ {label} ]");
-    let full = shortcut.map_or_else(|| action.clone(), |shortcut| format!("{action} {shortcut}"));
-    let mut result = if display_width(&full) <= width {
-        full
-    } else {
-        action
-    };
-    result.push_str(&" ".repeat(width.saturating_sub(display_width(&result))));
-    result
+struct AuxiliaryAction<'a> {
+    rect: Rect,
+    density: layout::Density,
+    label: &'a str,
+    glyph: IconActionGlyph,
+}
+
+impl<'a> AuxiliaryAction<'a> {
+    fn resolve(
+        bounds: Rect,
+        area: Rect,
+        density: layout::Density,
+        label: &'a str,
+        glyph: IconActionGlyph,
+        theme: &Theme,
+    ) -> Option<Self> {
+        let mut rect = if density == layout::Density::Comfortable {
+            action_rect(
+                bounds,
+                area,
+                Self::spec(label, PointerPresentation::Rest),
+                theme,
+            )
+        } else {
+            icon_action_rect(bounds, area)
+        }?;
+        rect.x = area.right().checked_sub(rect.width)?;
+        if bounds.intersection(rect) != rect {
+            return None;
+        }
+        Some(Self {
+            rect,
+            density,
+            label,
+            glyph,
+        })
+    }
+
+    fn spec(label: &str, pointer: PointerPresentation) -> ActionSpec<'_> {
+        ActionSpec::new(
+            label,
+            ActionKind::Auxiliary,
+            ControlSurface::Chrome,
+            InteractionState::new(
+                FocusState::Unfocused,
+                pointer,
+                NavigationState::None,
+                CurrentState::NotCurrent,
+                CheckedState::Unchecked,
+                Availability::Enabled,
+                OperationState::Idle,
+            ),
+        )
+    }
+
+    fn render(
+        &self,
+        frame: &mut Frame<'_>,
+        pointer: PointerPresentation,
+        parent_surface: Option<Role>,
+        theme: &Theme,
+    ) {
+        let painted = if self.density == layout::Density::Comfortable {
+            render_action(frame, self.rect, Self::spec(self.label, pointer), theme)
+        } else {
+            render_icon_action(
+                frame,
+                self.rect,
+                IconActionSpec::new(
+                    self.glyph,
+                    ControlSurface::Chrome,
+                    Availability::Enabled,
+                    pointer,
+                ),
+                theme,
+            )
+        };
+        debug_assert_eq!(painted, Some(self.rect));
+        if pointer == PointerPresentation::Rest && parent_surface.is_some() {
+            for x in self.rect.x..self.rect.right() {
+                let cell = &mut frame.buffer_mut()[(x, self.rect.y)];
+                cell.set_style(theme.content_on_surface(
+                    Role::SurfaceChrome,
+                    parent_surface,
+                    Some(Role::TextSecondary),
+                    cell.style(),
+                ));
+            }
+        }
+    }
 }
 
 fn current_row(view: &ClientView, row: &SidebarRow<'_>, target: &SidebarTarget) -> bool {
@@ -867,17 +949,34 @@ pub(super) fn render(
         if content_height == 0 {
             break;
         }
+        // Project separation is outside its row: it never paints or activates as that Project.
+        let group_gap = if matches!(row, SidebarRow::Project { .. }) {
+            leading_gap
+        } else {
+            0
+        };
+        if group_gap > 0 {
+            let gap = Rect::new(body.x, y, body.width, group_gap);
+            frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), gap);
+            if let Some(hits) = hits.as_deref_mut() {
+                hits.record(
+                    layer,
+                    gap,
+                    crate::tui_pointer::HitTarget::MachineWorkspaceSurface(window),
+                );
+            }
+        }
         let band = Rect::new(
             body.x,
-            y,
+            y + group_gap,
             body.width,
-            leading_gap.saturating_add(content_height),
+            leading_gap - group_gap + content_height,
         );
         let target = row.target();
         let actions = auxiliary_actions(source, &target);
         let Some(tracks) = layout::Tracks::resolve_for_width(
             band,
-            leading_gap,
+            leading_gap - group_gap,
             depth(view, &target),
             sidebar_width,
             actions,
@@ -889,108 +988,9 @@ pub(super) fn render(
         let current = current_row(view, row, &target);
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
 
-        let disclosure_drawn = source.drawn(target.clone(), SidebarPart::Disclosure, window);
-        let menu_drawn = source.drawn(target.clone(), SidebarPart::Menu, window);
-        let create_drawn = tracks
-            .density()
-            .direct_create()
-            .then(|| source.drawn(target.clone(), SidebarPart::Create, window))
-            .flatten();
-
-        let disclosure_target = disclosure_drawn.map(InteractionTarget::Sidebar);
-        let menu_target = menu_drawn.map(InteractionTarget::Sidebar);
-        let create_target = create_drawn.map(InteractionTarget::Sidebar);
-        let disclosure_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
-        let auxiliary_spec = interaction_spec(PrimaryContract::Specialized, true);
-
-        let disclosure_pointer =
-            if let (Some(hits), Some(target)) = (hits.as_deref_mut(), disclosure_target.as_ref()) {
-                prepare_child(
-                    frame,
-                    hits,
-                    ChildInteraction {
-                        layer,
-                        rect: tracks.disclosure,
-                        target,
-                        spec: disclosure_spec,
-                        role: Role::TextSecondary,
-                    },
-                    theme,
-                )
-            } else {
-                PointerPresentation::Rest
-            };
-        let create_pointer = if let (Some(hits), Some(target), Some(rect)) =
-            (hits.as_deref_mut(), create_target.as_ref(), tracks.create)
-        {
-            prepare_child(
-                frame,
-                hits,
-                ChildInteraction {
-                    layer,
-                    rect,
-                    target,
-                    spec: auxiliary_spec,
-                    role: Role::AccentAction,
-                },
-                theme,
-            )
-        } else {
-            PointerPresentation::Rest
-        };
-        let menu_pointer =
-            if let (Some(hits), Some(target)) = (hits.as_deref_mut(), menu_target.as_ref()) {
-                prepare_child(
-                    frame,
-                    hits,
-                    ChildInteraction {
-                        layer,
-                        rect: tracks.menu,
-                        target,
-                        spec: auxiliary_spec,
-                        role: Role::AccentAction,
-                    },
-                    theme,
-                )
-            } else {
-                PointerPresentation::Rest
-            };
-
-        let row_target = source
-            .drawn(target.clone(), SidebarPart::Primary, window)
-            .map(InteractionTarget::Sidebar);
-        let row_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
-        let row_pointer = if let (Some(hits), Some(target)) = (hits.as_deref(), row_target.as_ref())
-        {
-            pointer_presentation(hits.projected_pointer(layer, band, band, target, row_spec))
-        } else {
-            PointerPresentation::Rest
-        };
-        let mut bands = vec![
-            RowContentBand::explicit(tracks.disclosure),
-            RowContentBand::explicit(tracks.current),
-            RowContentBand::explicit(tracks.state),
-            RowContentBand::explicit(tracks.unread),
-        ];
-        if !tracks.ordinal.is_empty() {
-            bands.push(RowContentBand::explicit(tracks.ordinal));
-        }
-        if !tracks.auxiliary.is_empty() {
-            bands.push(RowContentBand::explicit(tracks.auxiliary));
-        }
-        let painted = paint_row_interaction(
-            frame,
-            band,
-            RowTracks::new(RowFocusCue::EnclosingFrame, tracks.primary)
-                .with_provisional(tracks.navigation),
-            &bands,
-            ControlSurface::Chrome,
-            row_state(owns_keyboard, focused, current, row_pointer),
-            theme,
-        );
-        let interaction = winning_surface(row_pointer, focused, current);
         let suffix = &annotations[index];
-        let text_width = usize::from(tracks.primary.width);
+        let has_disclosure = source.has_part(&target, SidebarPart::Disclosure);
+        let text_width = usize::from(tracks.text_width(has_disclosure));
         let inline = if suffix_rows(suffix, text_width) == 0 {
             suffix.as_str()
         } else {
@@ -1061,6 +1061,177 @@ pub(super) fn render(
         for line in &mut row_lines {
             *line = fit(std::mem::take(line), text_width, theme.glyphs.ellipsis);
         }
+        let tracks = if has_disclosure {
+            tracks.with_disclosure_after(row_lines.first().map_or(0, Line::width))
+        } else {
+            tracks
+        };
+
+        let disclosure_drawn = (!tracks.disclosure.is_empty())
+            .then(|| source.drawn(target.clone(), SidebarPart::Disclosure, window))
+            .flatten();
+        let menu_drawn = source.drawn(target.clone(), SidebarPart::Menu, window);
+        let create_drawn = tracks
+            .density()
+            .direct_create()
+            .then(|| source.drawn(target.clone(), SidebarPart::Create, window))
+            .flatten();
+
+        let disclosure_target = disclosure_drawn.map(InteractionTarget::Sidebar);
+        let menu_target = menu_drawn.map(InteractionTarget::Sidebar);
+        let create_target = create_drawn.map(InteractionTarget::Sidebar);
+        let create_action = tracks.create.and_then(|rect| {
+            AuxiliaryAction::resolve(
+                frame.area(),
+                tracks.first_line(rect),
+                tracks.density(),
+                locale.machine_picker_text("sidebar-create"),
+                IconActionGlyph::Add,
+                theme,
+            )
+        });
+        let menu_action = AuxiliaryAction::resolve(
+            frame.area(),
+            tracks.first_line(tracks.menu),
+            tracks.density(),
+            locale.machine_picker_text("sidebar-menu"),
+            IconActionGlyph::More,
+            theme,
+        );
+        let disclosure_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
+        let auxiliary_spec = interaction_spec(PrimaryContract::Specialized, true);
+
+        let disclosure_pointer =
+            if let (Some(hits), Some(target)) = (hits.as_deref_mut(), disclosure_target.as_ref()) {
+                prepare_child(
+                    frame,
+                    hits,
+                    ChildInteraction {
+                        layer,
+                        rect: tracks.disclosure,
+                        target,
+                        spec: disclosure_spec,
+                        role: Role::TextSecondary,
+                    },
+                    theme,
+                )
+            } else {
+                PointerPresentation::Rest
+            };
+        let create_pointer = if let (Some(hits), Some(target), Some(action)) = (
+            hits.as_deref_mut(),
+            create_target.as_ref(),
+            create_action.as_ref(),
+        ) {
+            prepare_child(
+                frame,
+                hits,
+                ChildInteraction {
+                    layer,
+                    rect: action.rect,
+                    target,
+                    spec: auxiliary_spec,
+                    role: Role::TextSecondary,
+                },
+                theme,
+            )
+        } else {
+            PointerPresentation::Rest
+        };
+        let row_target = source
+            .drawn(target.clone(), SidebarPart::Primary, window)
+            .map(InteractionTarget::Sidebar);
+        let row_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
+        let row_pointer = if let (Some(hits), Some(target)) = (hits.as_deref(), row_target.as_ref())
+        {
+            pointer_presentation(hits.projected_pointer(layer, band, band, target, row_spec))
+        } else {
+            PointerPresentation::Rest
+        };
+        let menu_pointer = hits
+            .as_deref()
+            .zip(menu_target.as_ref())
+            .zip(menu_action.as_ref())
+            .map_or(PointerPresentation::Rest, |((hits, target), action)| {
+                pointer_presentation(hits.projected_pointer(
+                    layer,
+                    action.rect,
+                    action.rect,
+                    target,
+                    auxiliary_spec,
+                ))
+            });
+        let row_with_menu = hits
+            .as_deref()
+            .zip(row_target.as_ref())
+            .zip(menu_target.as_ref())
+            .zip(menu_action.as_ref())
+            .map_or(
+                PointerPresentation::Rest,
+                |(((hits, row_target), menu_target), action)| {
+                    pointer_presentation(hits.projected_pointer_with_child(
+                        layer,
+                        (band, row_target, row_spec),
+                        (action.rect, menu_target, auxiliary_spec),
+                    ))
+                },
+            );
+        // Revealing a child changes its parent's exposure. Preserve an already
+        // visible child through a press, but never introduce one into an armed row.
+        let menu_visible = focused
+            || row_pointer == PointerPresentation::Hovered
+            || row_with_menu != PointerPresentation::Rest
+            || disclosure_pointer != PointerPresentation::Rest
+            || create_pointer != PointerPresentation::Rest
+            || menu_pointer != PointerPresentation::Rest;
+        let menu_target = menu_target.filter(|_| menu_visible);
+        let menu_pointer = if let (Some(hits), Some(target), Some(action)) = (
+            hits.as_deref_mut(),
+            menu_target.as_ref(),
+            menu_action.as_ref(),
+        ) {
+            prepare_child(
+                frame,
+                hits,
+                ChildInteraction {
+                    layer,
+                    rect: action.rect,
+                    target,
+                    spec: auxiliary_spec,
+                    role: Role::TextSecondary,
+                },
+                theme,
+            )
+        } else {
+            PointerPresentation::Rest
+        };
+        let row_pointer = if row_with_menu != PointerPresentation::Rest {
+            row_with_menu
+        } else {
+            row_pointer
+        };
+        let mut bands = vec![
+            RowContentBand::explicit(tracks.current),
+            RowContentBand::explicit(tracks.state),
+            RowContentBand::explicit(tracks.unread),
+        ];
+        if !tracks.ordinal.is_empty() {
+            bands.push(RowContentBand::explicit(tracks.ordinal));
+        }
+        if !tracks.auxiliary.is_empty() {
+            bands.push(RowContentBand::explicit(tracks.auxiliary));
+        }
+        let painted = paint_row_interaction(
+            frame,
+            band,
+            RowTracks::new(RowFocusCue::EnclosingFrame, tracks.primary)
+                .with_provisional(tracks.navigation),
+            &bands,
+            ControlSurface::Chrome,
+            row_state(owns_keyboard, focused, current, row_pointer),
+            theme,
+        );
+        let interaction = winning_surface(row_pointer, focused, current);
         compose_lines(&mut row_lines, row_pointer, focused, current, theme);
         frame.render_widget(
             Paragraph::new(row_lines),
@@ -1181,73 +1352,15 @@ pub(super) fn render(
             );
         }
 
-        let density = tracks.density();
-        if let (Some(target), Some(create)) = (create_target.as_ref(), tracks.create) {
-            let label = if density == layout::Density::Comfortable {
-                locale.machine_picker_text("sidebar-create")
-            } else {
-                "+"
-            };
-            frame.render_widget(
-                Paragraph::new(padded_action(label, None, usize::from(create.width))).style(
-                    theme.content_on_surface(
-                        Role::SurfaceChrome,
-                        interaction,
-                        Some(Role::HintLabel),
-                        theme.style(Role::HintLabel),
-                    ),
-                ),
-                tracks.first_line(create),
-            );
-            let _ = paint_pointer_target(
-                frame,
-                create,
-                ControlSurface::Chrome,
-                create_pointer,
-                Role::AccentAction,
-                Availability::Enabled,
-                theme,
-            );
-            let _ = target;
+        if create_target.is_some()
+            && let Some(action) = create_action.as_ref()
+        {
+            action.render(frame, create_pointer, interaction, theme);
         }
-        if let Some(target) = menu_target.as_ref() {
-            let label = if density == layout::Density::Comfortable {
-                locale.machine_picker_text("sidebar-menu")
-            } else {
-                theme.glyphs.ellipsis
-            };
-            let shortcut = (density == layout::Density::Comfortable && owns_keyboard)
-                .then(|| {
-                    crate::machine_picker::sidebar_binding_label(
-                        crate::machine_picker::SidebarCommand::OpenMenu,
-                        super::agent_sidebar::key_label_glyphs(theme),
-                    )
-                })
-                .flatten();
-            frame.render_widget(
-                Paragraph::new(padded_action(
-                    label,
-                    shortcut.as_deref(),
-                    usize::from(tracks.menu.width),
-                ))
-                .style(theme.content_on_surface(
-                    Role::SurfaceChrome,
-                    interaction,
-                    Some(Role::HintLabel),
-                    theme.style(Role::HintLabel),
-                )),
-                tracks.first_line(tracks.menu),
-            );
-            let _ = paint_pointer_target(
-                frame,
-                tracks.menu,
-                ControlSurface::Chrome,
-                menu_pointer,
-                Role::AccentAction,
-                Availability::Enabled,
-                theme,
-            );
-            let _ = target;
+        if menu_target.is_some()
+            && let Some(action) = menu_action.as_ref()
+        {
+            action.render(frame, menu_pointer, interaction, theme);
         }
 
         restore_interaction_background(frame, band, interaction, theme);
@@ -1263,25 +1376,27 @@ pub(super) fn render(
             );
         }
         if create_target.is_some()
-            && let Some(create) = tracks.create
+            && let Some(action) = create_action.as_ref()
         {
             let _ = paint_pointer_target(
                 frame,
-                create,
+                action.rect,
                 ControlSurface::Chrome,
                 create_pointer,
-                Role::AccentAction,
+                Role::TextSecondary,
                 Availability::Enabled,
                 theme,
             );
         }
-        if menu_target.is_some() {
+        if menu_target.is_some()
+            && let Some(action) = menu_action.as_ref()
+        {
             let _ = paint_pointer_target(
                 frame,
-                tracks.menu,
+                action.rect,
                 ControlSurface::Chrome,
                 menu_pointer,
-                Role::AccentAction,
+                Role::TextSecondary,
                 Availability::Enabled,
                 theme,
             );

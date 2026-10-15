@@ -74,7 +74,7 @@ pub(in crate::tui_render) fn render<C, P, R>(
                     label: format!(
                         " {}{} {} ({count}){} ",
                         if item.collapsed && active {
-                            theme.glyphs.active_marker
+                            theme.current_context_marker()
                         } else {
                             " "
                         },

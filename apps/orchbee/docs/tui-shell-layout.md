@@ -83,8 +83,12 @@ children in the same window. Configuration still owns item row height, gap and t
 Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
 blank cells after the button. A hint that cannot fit in full is omitted; its cells are outside
 the button's pointer target. At host heights of at least 24 rows, when the remaining sidebar area
-has at least four rows, a one-row divider separates Settings from the scrolling list. Shorter
-layouts omit the divider and retain the one-row Settings footer.
+has at least five rows, a divider and one shortcut-hint row separate Settings from the scrolling
+list. While terminal input owns the keyboard, that hint shows the effective sidebar-focus binding
+and a localized Browse label. Sidebar navigation shows its local Back and Help bindings; an
+occluding input owner suppresses both projections. These complete hints use the shared hint
+component and publish no pointer targets. Shorter layouts omit both rows and retain the one-row
+Settings footer; the existing navigation status overlay continues to own full local help.
 
 Hosts shorter than 24 rows omit the spacer after the actions; sections shorter than 10 rows
 omit heading padding before clipping entries. The unified window fits
@@ -103,24 +107,33 @@ collapsed descendants, and excludes Standalone. A blank row separates the headin
 body when the section can fit it. Footer rows carry only overflow ranges; fully visible lists
 leave them blank.
 
-Navigation rows keep a one-cell navigation marker, two-cell-per-level indentation, two-cell
-disclosure, and one-cell operational state before the primary identity. Only Agent rows reserve
-the two-cell ordinal between disclosure and state; Project, Workspace and Standalone rows do not
-reserve unused Agent columns. Root owner labels start four cells from the list's left edge.
-After the primary identity, a one-cell gap precedes the independent one-cell current and unread
-markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
+Navigation rows keep a one-cell navigation marker and two-cell-per-level indentation before the
+primary identity. Only Agent rows reserve a two-cell ordinal before identity; Project, Workspace
+and Standalone rows do not reserve unused Agent columns. Root owner labels start two cells from
+the list's left edge. Eligible disclosures follow the displayed first-line identity.
+After the primary identity, a one-cell gap precedes independent one-cell operational, current and
+unread markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
 their markers are blank, so changing state never moves the label. Grouped Workspaces indent two cells,
 and Agents indent two cells from their own Workspace or Standalone parent. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;
 Workspace names use primary text and descriptive metadata uses secondary text. Eligible row menus and
-Project create controls remain quietly recognizable at rest and stay right-aligned. Their labels degrade
+Project create controls stay right-aligned. Create remains quietly recognizable at rest. Row menus
+are hidden at rest and appear for row/child hover or active keyboard row focus. Their fixed tracks
+remain reserved, hidden menus publish no hit target, and pointer or press on a revealed menu keeps
+it visible. A direct press on a previously unhovered row does not introduce a child into that armed
+row's exposure. Their labels degrade
 from localized Create/Menu controls at 52 columns, to compact glyph controls at 28 columns, to one menu
 control below 28 columns; these thresholds use the actual painted sidebar width. Right-click menus and
-existing keyboard routes remain available. Ineligible controls publish no hit regions. Agent ordinals use
+existing keyboard routes remain available. Auxiliary controls use the shared secondary-hierarchy
+action component for localized labels and fixed three-cell icon actions (`[+]`, `[…]`, with `[.]`
+as the simplified-glyph menu fallback). Only the complete painted first-line action is clickable;
+its reserved trailing or continuation cells retain the row's primary target. Ineligible controls
+publish no hit regions. Agent ordinals use
 two cells, and default title and provider/state lines align on the fixed primary track. Default provider labels appear only when they
 fit completely alongside the state, rather than leaving truncated fragments. Project groups reserve at least one blank row
-after preceding items; configured gaps can widen it.
+after preceding items; configured gaps can widen it. This external separator retains the chrome
+background and an inert list-surface target; Project hover, press, and navigation never include it.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
 while typing. The same continuous rectangle includes the name, branch, configured metadata,
 collapsed-Agent summaries, identity continuations and the leading configured gap, including their gutters
@@ -134,11 +147,18 @@ and unread markers remain in their own slots. Agent continuations and a collapse
 Project retain the same whole-row surface as their identity. When focus and
 current context coincide, the navigation surface takes precedence while bold identity or the current marker retains
 current-state evidence.
-Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) in their own
-two-cell hit region; gutter, content and menu hits remain disjoint from disclosure.
-The top strip keeps
-the context breadcrumb available when sidebar rows scroll out
-of view and uses padded, filled active Tabs without bracket or asterisk decoration.
+Project and eligible Context disclosure use one glyph (`▾`/`▸`, with `-`/`+` ASCII fallbacks) after
+one blank cell following the displayed first-line identity. Text measurement and painting reserve
+these two cells before truncation, using display width for wide glyphs. Identity starts stay fixed;
+only the painted glyph cell publishes a disclosure target, excluding leading gaps and continuations.
+If the identity area cannot fit text, a separator and the glyph, disclosure is omitted and its
+existing keyboard route remains available.
+The top strip keeps the context breadcrumb available when sidebar rows scroll out of view. When
+the full location equals the active Tab label, that Tab already identifies the location and the
+additional breadcrumb is omitted. Project paths and distinct custom Tab labels retain it. Active
+Tabs use padding, `surface-current` and bold identity; the current marker appears only when reduced
+color makes the current and chrome fills identical. Checked group-member markers remain independent.
+Compact Tabs show their labels without ordinal prefixes; navigation lists retain keyboard positions.
 In split view the shared outer frame has no duplicate generic title. Its base
 style is neutral; the existing boundary segments around the focused leaf use the
 focused frame role, alongside that leaf's accented title. No extra border cells
@@ -313,9 +333,9 @@ Agents use the same neutral surface and bold identity. A dedicated marker preser
 when a collapsed palette needs it or an identity token explicitly disables bold; operational state,
 unread state and keyboard navigation remain in separate tracks.
 
-Project/Context disclosure, row content and row menus have disjoint painted
-rectangles. The primary row target covers every continuation, the leading configured gap and
-all cells beneath frontmost disclosure/Create/Menu targets. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
+Project/Context disclosure glyphs, identity text and row menus have disjoint painted extents.
+The primary row target covers every continuation, internal configured leading space and all cells
+beneath frontmost disclosure/Create/Menu targets. External Project group gaps remain inert. `SIDEBAR_BINDINGS` owns key matching and localized discovery. The
 dispatcher owns capture precedence, stale-paint rejection and packet-tail fencing;
 the menu owner retains capability checks and execution. Project menus never choose
 a child Workspace. Mouse and keyboard disclosure share Picker transitions; navigation
@@ -415,11 +435,13 @@ locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x
 The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor. Shortcut Help
 retains its nonmodal behavior.
 
-Centered overlays use `ShellAreas.panel` minus its final row, leaving space for their transient
-hint. This affects overlay placement only; terminal content still uses that row. `tui_layout` exposes two pure functions for surface
-renderers:
+Content-scoped centered overlays use `ShellAreas.panel` minus its final row, leaving space for their
+transient hint. Application Settings instead uses the full host viewport minus its final row,
+including the sidebar and top strip in its centering reference. Sidebar visibility and width never
+shift that surface. These placement rules leave terminal geometry unchanged. `tui_layout` exposes
+two pure functions for content-scoped surface renderers:
 
-- `overlay_area(&ShellAreas) -> Rect` — the content region every centered overlay uses.
+- `overlay_area(&ShellAreas) -> Rect` — the region for content-scoped centered overlays.
 - `place_overlay(area, preferred_width, preferred_height) -> Option<Rect>` — resolves to
   `min(preferred, area - 4)` by `min(preferred, area - 2)`, centered with the extra cell rounding
   toward the top-left, and returns `None` when the resolved inner area would be below 4x3.

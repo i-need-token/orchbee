@@ -208,12 +208,12 @@ fn checked_and_current_tracks_keep_fixed_member_geometry() {
     assert_eq!(unchecked[(unchecked_x, 0)].symbol(), " ");
     assert_eq!(checked[(checked_x, 0)].symbol(), "*");
     assert_eq!(
-        unchecked[(unchecked_x + 2, 0)].symbol(),
-        theme.glyphs.active_marker
+        unchecked[(unchecked_x + 1, 0)].symbol(),
+        theme.current_context_marker()
     );
     assert_eq!(
-        checked[(checked_x + 2, 0)].symbol(),
-        theme.glyphs.active_marker
+        checked[(checked_x + 1, 0)].symbol(),
+        theme.current_context_marker()
     );
     assert_eq!(
         checked[(checked_x, 0)].fg,
@@ -229,7 +229,7 @@ fn collapsed_group_reserves_the_current_marker_track() {
 
     assert_eq!(inactive_hits, active_hits);
     assert_eq!(inactive[(1, 0)].symbol(), " ");
-    assert_eq!(active[(1, 0)].symbol(), theme.glyphs.active_marker);
+    assert_eq!(active[(1, 0)].symbol(), theme.current_context_marker());
     assert_eq!(inactive[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
     assert_eq!(active[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
 }
@@ -309,8 +309,8 @@ fn pointer_surfaces_preserve_group_color_and_member_checked_current_tracks() {
                 theme.glyphs.active_marker
             );
             assert_eq!(
-                buffer[(target.x + 2, target.y)].symbol(),
-                theme.glyphs.active_marker
+                buffer[(target.x + 1, target.y)].symbol(),
+                theme.current_context_marker()
             );
             assert_eq!(
                 buffer[(target.x, target.y)].fg,

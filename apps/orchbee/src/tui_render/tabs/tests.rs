@@ -199,7 +199,7 @@ fn compact_strip_formats_boundaries_without_assuming_single_digit_positions() {
         if count == 0 {
             assert_eq!(text, format!("{}\n", " ".repeat(80)));
         } else {
-            assert!(text.contains(&format!(" *{count} {count} ")), "{text:?}");
+            assert!(text.contains(&format!(" {count} ")), "{text:?}");
         }
     }
 }
@@ -220,7 +220,7 @@ fn compact_window_starts_at_a_token_boundary_and_keeps_the_active_prefix_visible
 
     let (text, _) = rendered(8, 1, &tabs, Some(15), Surface::Compact);
 
-    assert!(text.starts_with(" *15 15 "), "{text:?}");
+    assert!(text.starts_with(" 15 "), "{text:?}");
     assert!(!text.contains("14"));
 }
 
@@ -246,8 +246,7 @@ fn compact_strip_keeps_duplicates_and_sanitizes_only_the_temporary_rendering() {
 
     let (text, _) = rendered(80, 1, &tabs, Some(3), Surface::Compact);
 
-    assert!(text.contains("  1 same    2 same "), "{text:?}");
-    assert!(text.contains(" *3 same "), "{text:?}");
+    assert!(text.contains(" same   same   same"), "{text:?}");
     assert_eq!(unsafe_label, canonical);
     assert!(!text.trim_end_matches('\n').chars().any(char::is_control));
 }
@@ -262,8 +261,8 @@ fn compact_strip_clips_without_splitting_a_double_width_cell() {
     let (prefix, _) = rendered(4, 1, &tabs, Some(1), Surface::Compact);
     let (clipped, buffer) = rendered(6, 1, &tabs, Some(1), Surface::Compact);
 
-    assert_eq!(prefix, " *1 \n");
-    assert_eq!(clipped, " *1 … \n");
+    assert_eq!(prefix, " …  \n");
+    assert_eq!(clipped, " 界 s… \n");
     assert_eq!(buffer[(5, 0)].symbol(), " ");
 }
 
@@ -278,7 +277,7 @@ fn long_active_label_truncates_with_an_ellipsis_after_its_complete_prefix() {
 
     let (text, _) = rendered(9, 1, &tabs, Some(1), Surface::Compact);
 
-    assert_eq!(text, " *1 e\u{301}界 … \n");
+    assert_eq!(text, " e\u{301}界 界 …  \n");
     assert_eq!(label, canonical);
 }
 
@@ -291,10 +290,10 @@ fn long_chinese_label_truncates_on_display_width_with_an_ellipsis() {
 
     let (text, _) = rendered(12, 1, &tabs, Some(1), Surface::Compact);
 
-    // The padded ordinal and suffix leave room for three CJK glyphs and an ellipsis.
+    // Label padding leaves room for four CJK glyphs and an ellipsis.
     // Wide graphemes occupy a continuation cell that reads back as a space.
-    assert_eq!(text, " *1 项 目 管 … \n");
-    assert!(!text.replace(' ', "").contains("理"));
+    assert_eq!(text, " 项 目 管 理 …  \n");
+    assert!(!text.replace(' ', "").contains("器"));
 }
 
 #[test]
@@ -373,12 +372,34 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
     );
     let theme = crate::tui_theme::Theme::rgb_test_dark();
     let current = theme.current_context_style(theme.style(crate::tui_theme::Role::TextPrimary));
-    assert_eq!(styled[(7, 0)].style().fg, current.fg);
+    let current_x = (0..16).find(|x| styled[(*x, 0)].symbol() == "b").unwrap();
+    assert_eq!(styled[(current_x, 0)].style().fg, current.fg);
     assert_eq!(
-        styled[(7, 0)].bg,
+        styled[(current_x, 0)].bg,
         theme.color(crate::tui_theme::Role::SurfaceCurrent)
     );
-    assert!(styled[(7, 0)].modifier.contains(Modifier::BOLD));
+    assert!(styled[(current_x, 0)].modifier.contains(Modifier::BOLD));
+}
+
+#[test]
+fn compact_numeric_label_is_not_prefixed_again_and_monochrome_keeps_current_identity() {
+    use crate::tui_theme::{ColorLevel, Role, Theme};
+    for theme in [
+        Theme::one_light(),
+        Theme::one_light().quantize(ColorLevel::Monochrome),
+    ] {
+        let tab = TabDisplay {
+            position: 1,
+            active: true,
+            label: "1".into(),
+        };
+        let (label, _) = compact_token(&tab, 20, &theme).unwrap();
+        assert_eq!(label.matches('1').count(), 1);
+        assert_eq!(label, format!("{}1 ", theme.current_context_marker()));
+        if theme.color(Role::SurfaceCurrent) == theme.color(Role::SurfaceChrome) {
+            assert!(label.starts_with(theme.glyphs.active_marker));
+        }
+    }
 }
 
 #[test]
@@ -402,7 +423,7 @@ fn token_formatting_is_usize_safe() {
         .map(|span| span.content.as_ref())
         .collect::<String>();
 
-    assert_eq!(compact, format!(" *{} label ", usize::MAX));
+    assert_eq!(compact, " label ");
     assert_eq!(navigator, format!("  * {} label", usize::MAX));
 }
 
@@ -532,8 +553,8 @@ fn compact_pointer_surface_keeps_current_content_and_exact_token_geometry() {
         let current = recorded[0].1;
         let buffer = terminal.backend().buffer();
         assert_eq!(
-            buffer[(current.x + 1, current.y)].symbol(),
-            theme.glyphs.active_marker
+            buffer[(current.x, current.y)].symbol(),
+            theme.current_context_marker()
         );
         assert_eq!(buffer[(current.x + 1, current.y)].bg, theme.color(role));
         assert!(

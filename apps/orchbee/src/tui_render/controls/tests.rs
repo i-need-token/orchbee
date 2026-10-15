@@ -331,9 +331,43 @@ fn action_pointer_precedence_and_disabled_suppression_are_independent() {
 }
 
 #[test]
+fn action_hierarchy_uses_the_declared_content_role_at_rest() {
+    let theme = Theme::one_light();
+    for (kind, role) in [
+        (ActionKind::Primary, Role::AccentAction),
+        (ActionKind::Secondary, Role::TextPrimary),
+        (ActionKind::Auxiliary, Role::TextSecondary),
+    ] {
+        let mut terminal = Terminal::new(TestBackend::new(7, 1)).unwrap();
+        terminal
+            .draw(|frame| {
+                render_action(
+                    frame,
+                    frame.area(),
+                    ActionSpec::new(
+                        "Go",
+                        kind,
+                        ControlSurface::Chrome,
+                        idle(PointerPresentation::Rest),
+                    ),
+                    &theme,
+                )
+                .unwrap();
+            })
+            .unwrap();
+        assert_eq!(terminal.backend().buffer()[(3, 0)].fg, theme.color(role));
+        assert_eq!(symbols(&terminal, 0, 7), " [ Go ]");
+    }
+}
+
+#[test]
 fn pressed_emphasis_belongs_only_to_the_primary_label() {
     let theme = Theme::rgb_test_dark();
-    for (kind, label_bold) in [(ActionKind::Primary, true), (ActionKind::Secondary, false)] {
+    for (kind, label_bold) in [
+        (ActionKind::Primary, true),
+        (ActionKind::Secondary, false),
+        (ActionKind::Auxiliary, false),
+    ] {
         let mut terminal = Terminal::new(TestBackend::new(7, 1)).unwrap();
         let mut painted = None;
         terminal

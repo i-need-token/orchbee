@@ -1,4 +1,3 @@
-#[cfg(not(windows))]
 use crate::terminal_text::sanitize_terminal_text;
 use ratatui::{
     Frame,
@@ -494,8 +493,17 @@ pub(crate) fn render_terminal_shell(
                         locale,
                         backend_status: site_status,
                         theme,
-                        owns_keyboard: capture_owner.is_none()
-                            && view.machines.sidebar_navigation_active(),
+                        input: if captured
+                            || view
+                                .overlay()
+                                .is_some_and(|overlay| overlay != Overlay::BusinessSidebar)
+                        {
+                            agent_sidebar::SidebarInput::Suppressed
+                        } else if view.machines.sidebar_navigation_active() {
+                            agent_sidebar::SidebarInput::Navigation
+                        } else {
+                            agent_sidebar::SidebarInput::Terminal
+                        },
                     },
                     (!captured).then_some(&mut *hits),
                 );
@@ -1017,7 +1025,7 @@ pub(crate) fn render_terminal_shell(
         } else {
             settings::render(
                 frame,
-                overlay_area(&areas),
+                Rect::new(area.x, area.y, area.width, area.height.saturating_sub(1)),
                 settings,
                 native.settings_pending(),
                 locale,
@@ -1793,6 +1801,15 @@ fn render_tab_strip(
     if tabs_area.is_empty() {
         return;
     }
+    let location = location.filter(|location| {
+        !native
+            .active_position()
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|index| native.tab(index))
+            .is_some_and(|tab| {
+                sanitize_terminal_text(tab.tab_label().as_ref()).as_ref() == *location
+            })
+    });
     let title = location.map_or_else(String::new, |location| {
         format!(
             "{} ",

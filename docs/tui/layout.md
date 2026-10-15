@@ -104,7 +104,8 @@ instead of presenting an incomplete task.
 ## Overlays
 
 - An overlay is positioned relative to the content area, centered horizontally and vertically.
-  Centering rounds toward the top-left cell.
+  Centering rounds toward the top-left cell. An application-wide Settings surface instead centers
+  within the full host viewport above the transient status row, independent of navigation chrome.
 - A pointer-opened context menu instead anchors to the triggering cell in the full viewport above
   the status line, including navigation chrome. Clamp its complete frame to that viewport; never
   move a sidebar trigger into the pane area merely because general overlays use that area.

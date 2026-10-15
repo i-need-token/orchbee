@@ -956,6 +956,37 @@ impl HitMapBuilder {
             })
     }
 
+    /// Probes a parent's exact exposure with one prospective child. Neither target is
+    /// published; the renderer still records only controls it actually paints.
+    #[cfg(windows)]
+    pub(crate) fn projected_pointer_with_child(
+        &self,
+        layer: HitLayer,
+        parent: (Rect, &InteractionTarget, InteractionSpec),
+        child: (Rect, &InteractionTarget, InteractionSpec),
+    ) -> ProjectedPointer {
+        let (parent_rect, parent_target, parent_spec) = parent;
+        let (child_rect, child_target, child_spec) = child;
+        if !self.projection.has_target(parent_target)
+            || child_rect.is_empty()
+            || parent_rect.intersection(child_rect) != child_rect
+        {
+            return ProjectedPointer::Rest;
+        }
+        let mut probe = Self {
+            map: self.map.clone(),
+            projection: self.projection.clone(),
+        };
+        probe.record_interaction(
+            layer,
+            child_rect,
+            child_rect,
+            child_target.clone(),
+            child_spec,
+        );
+        probe.projected_pointer(layer, parent_rect, parent_rect, parent_target, parent_spec)
+    }
+
     /// Record the link source from the same terminal paint and pane geometry
     /// as the foreground hit region. It publishes atomically with this map.
     #[cfg(windows)]

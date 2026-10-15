@@ -5,6 +5,55 @@ use super::*;
 use orchbee_workbench_protocol::{
     PanelNode, Presentation, PresentationBinding, TerminalId, WorkerId,
 };
+
+#[test]
+fn tab_strip_omits_equal_location_but_retains_context_for_a_distinct_tab_label() {
+    use crate::{
+        client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::one_light()] {
+            for repeats_location in [false, true] {
+                let location = locale.shell().standalone;
+                let label = if repeats_location { location } else { "Editor" };
+                let mut source = super::super::tests::membership::snapshot(1, 1);
+                source.terminal_contexts[0].tabs[0].label = label.into();
+                let (ui, _, _, _) =
+                    super::super::tests::move_membership::ready_ui_with_snapshot(source);
+                let mut terminal =
+                    ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+                terminal
+                    .draw(|frame| {
+                        crate::tui_render::render_terminal_shell(
+                            frame,
+                            &ClientView::new(120),
+                            locale,
+                            Some(crate::terminal_session::TerminalSessionView::Native(
+                                ui.view(),
+                            )),
+                            &theme,
+                            &mut HitMapBuilder::new(),
+                        );
+                    })
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                let mut strip = String::new();
+                let mut x = 0;
+                while x < 120 {
+                    let symbol = buffer[(x, 0)].symbol();
+                    strip.push_str(symbol);
+                    x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
+                }
+                assert!(strip.contains(label), "{strip}");
+                assert_eq!(strip.matches(location).count(), 1, "{strip}");
+                if !repeats_location {
+                    assert!(strip.contains("Editor"));
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
     let mut source = super::super::tests::membership::snapshot(2, 1);

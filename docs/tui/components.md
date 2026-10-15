@@ -137,11 +137,13 @@ auxiliary-action slots required by any state that the component can enter.
 
 - A bare noun in ordinary text is not an action affordance. A quiet inline action remains
   recognizable at rest through its action glyph or displayed key and verb; hover is never its only
-  action cue.
+  action cue. Row overflow-menu triggers follow the collection rule below.
 - A button's brackets, inner padding, label, and reserved state slots form one painted and clickable
   extent. The primary button in a decision context uses `accent-action` at rest; secondary buttons
   use `text-primary`. Neither state looks like keyboard focus. Status roles never distinguish
   primary, default, or destructive actions.
+- Buttons in a list's auxiliary-action slot use `text-secondary` at rest and inherit the row's
+  surface. Their own hover and press feedback remains local to the painted action extent.
 - A button group reserves a focus-marker cell for each button. The focused button uses
   `accent-focus` on that marker and its brackets. Pointer hover paints the full button extent with
   `surface-hover`; press uses `surface-pressed` without erasing the focus marker.
@@ -186,14 +188,21 @@ its semantic content and identity. Item renderers paint text and content-specifi
 applies current, hover, provisional, focus, and search overlays afterward so rows cannot invent
 different interaction styling.
 
-Rows use consistent tracks in this order:
+Rows use consistent tracks in this order. A collection may place operational status in a fixed
+trailing metadata slot instead of the leading state slot; its declared placement stays the same
+for every sibling and interaction state. Identity and checked markers retain their own tracks.
+Optional supporting metadata drops before primary content; a relocated state slot stays reserved.
+A tree may place its disclosure immediately after the displayed first-line identity instead of in a
+leading track. Reserve one separator cell and the glyph before fitting text; keep sibling label
+starts stable. Only the painted glyph cell owns disclosure hover, press, and activation; leading
+padding and continuation rows retain their declared owner.
 
 | Track            | Contract                                                                                                                          |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Focus            | Present only for an unframed row focus owner; a framed collection presents focus once on its enclosing frame                      |
 | Navigation       | Shared one-cell provisional cursor (`›`, ASCII `>`); never reused for current, checked, changed, or an ordinal                    |
 | Indent           | One constant step per tree depth within the component                                                                             |
-| Disclosure       | Reserved for every tree row at the same depth; leaves paint a blank slot                                                          |
+| Disclosure       | Leading placement reserves a slot for sibling leaves; inline placement budgets the glyph beside identity                          |
 | State            | Fixed-width identity, checked, or operational glyph slot                                                                          |
 | Primary          | Flexible object label; truncates only after the other required tracks are budgeted                                                |
 | Metadata         | Right-aligned or second-line supporting information; dropped before primary content                                               |
@@ -205,17 +214,20 @@ Rows use consistent tracks in this order:
   `accent-selection` treatment. Feature code supplies provisional identity and fixed geometry, not
   a replacement glyph.
 - The primary row target spans every cell and line owned by the row, including internal breathing
-  space, so there are no dead strips. A separately painted auxiliary action has its own hit region
+  space, so there are no dead strips. External group separators remain outside the row's background
+  and interaction extent. A separately painted auxiliary action has its own hit region
   and wins hit testing inside that region. Its keyboard equivalent remains discoverable.
-- A quiet auxiliary action remains painted and recognizable at rest through its action glyph or
-  formatted key. Focus and hover may strengthen or label it; they never reveal the only evidence
-  that the action exists.
+- A quiet auxiliary action remains recognizable through its action glyph or formatted key when
+  painted. A row overflow-menu trigger may be hidden at rest and revealed by row or child hover,
+  or by the row's active keyboard focus. Reserve its extent, publish no hidden action target, keep
+  existing context-menu and keyboard routes available, and retain a revealed trigger while its
+  own control is hovered or pressed. Revealing it never shifts identity or cancels an armed row.
 - `surface-current` identifies the active entity after focus moves elsewhere. `surface-selection`
   identifies the provisional keyboard cursor. Pointer hover uses `surface-hover` and does not move
   either fact. A checked glyph identifies the chosen multi-selection at its declared value boundary,
   independently of all three.
 - A current, checked, or provisional marker survives truncation and reduced-color rendering.
-  Metadata never becomes the only indication of identity or state.
+  Optional metadata never becomes the only indication of identity or state.
 - A disclosure row toggles its own group. Expanding or collapsing preserves selection by stable
   identity and moves it deterministically only when the selected descendant becomes hidden.
 - A group heading is either static text with no hit region or a complete disclosure row with focus,

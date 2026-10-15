@@ -479,13 +479,12 @@ fn navigator_projection<'a>(
 
 fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {
     let safe_label = sanitize_terminal_text(&tab.label);
-    let marker = if tab.active {
-        theme.glyphs.active_marker
+    let prefix = if tab.active {
+        theme.current_context_marker()
     } else {
         " "
     };
-    let prefix = format!(" {marker}{} ", tab.position);
-    let prefix_width = display_width(&prefix);
+    let prefix_width = display_width(prefix);
     let token = format!("{prefix}{safe_label} ");
     let width = display_width(&token);
     if width <= max_width {
@@ -509,10 +508,7 @@ fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Optio
 
 fn compact_token_width(tab: &TabDisplay<'_>) -> usize {
     let safe_label = sanitize_terminal_text(&tab.label);
-    let prefix_width = tab.position.to_string().len().saturating_add(3);
-    prefix_width
-        .saturating_add(display_width(safe_label.as_ref()))
-        .saturating_add(1)
+    display_width(safe_label.as_ref()).saturating_add(2)
 }
 
 fn navigator_row(tab: &TabDisplay<'_>, layout: NavigatorRowLayout, theme: &Theme) -> Line<'static> {

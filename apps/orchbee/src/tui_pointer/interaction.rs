@@ -463,6 +463,17 @@ impl PointerProjection {
             ProjectedPointer::Rest
         }
     }
+
+    #[cfg(windows)]
+    pub(super) fn has_target(&self, target: &InteractionTarget) -> bool {
+        self.hovered
+            .as_ref()
+            .is_some_and(|fingerprint| &fingerprint.target == target)
+            || self
+                .pressed
+                .as_ref()
+                .is_some_and(|fingerprint| &fingerprint.target == target)
+    }
 }
 
 #[derive(Clone, Debug)]

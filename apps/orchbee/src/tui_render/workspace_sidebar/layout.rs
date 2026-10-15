@@ -4,8 +4,10 @@ use crate::machine_picker::SidebarTarget;
 use ratatui::layout::Rect;
 
 const NAVIGATION_WIDTH: u16 = 1;
+const NAVIGATION_INSET: u16 = 1;
 const INDENT_WIDTH: u16 = 2;
-const DISCLOSURE_WIDTH: u16 = 2;
+const DISCLOSURE_WIDTH: u16 = 1;
+const DISCLOSURE_GAP: u16 = 1;
 const ORDINAL_WIDTH: u16 = 2;
 const CURRENT_WIDTH: u16 = 1;
 const STATE_WIDTH: u16 = 1;
@@ -60,15 +62,15 @@ impl Density {
 
     const fn menu_width(self) -> u16 {
         match self {
-            Self::Comfortable => 17,
-            Self::Compact | Self::Narrow => 6,
+            Self::Comfortable => 9,
+            Self::Compact | Self::Narrow => 3,
         }
     }
 
     const fn create_width(self) -> u16 {
         match self {
-            Self::Comfortable => 10,
-            Self::Compact => 5,
+            Self::Comfortable => 11,
+            Self::Compact => 3,
             Self::Narrow => 0,
         }
     }
@@ -175,28 +177,28 @@ impl Tracks {
         );
         let content_y = band.y.saturating_add(leading_gap);
         let navigation = Rect::new(
-            band.x,
+            band.x.saturating_add(NAVIGATION_INSET),
             band.y,
             NAVIGATION_WIDTH.min(band.width),
             band.height,
         );
         let indent = depth.saturating_mul(INDENT_WIDTH);
-        let disclosure_x = band
-            .x
-            .saturating_add(NAVIGATION_WIDTH)
-            .saturating_add(indent);
-        let disclosure = clipped_track(band, disclosure_x, DISCLOSURE_WIDTH);
-        let ordinal = clipped_track(band, disclosure.right(), kind.ordinal_width());
-        let state = clipped_track(band, ordinal.right(), STATE_WIDTH);
-        let metadata_width = METADATA_GAP + CURRENT_WIDTH + UNREAD_WIDTH;
+        let ordinal = clipped_track(
+            band,
+            navigation.right().saturating_add(indent),
+            kind.ordinal_width(),
+        );
+        let metadata_width = METADATA_GAP + STATE_WIDTH + CURRENT_WIDTH + UNREAD_WIDTH;
         let primary_right = auxiliary.x.checked_sub(metadata_width)?;
-        let primary_x = state.right();
+        let primary_x = ordinal.right();
         if primary_x >= primary_right {
             return None;
         }
-        let current = clipped_track(band, primary_right + METADATA_GAP, CURRENT_WIDTH);
+        let state = clipped_track(band, primary_right + METADATA_GAP, STATE_WIDTH);
+        let current = clipped_track(band, state.right(), CURRENT_WIDTH);
         let unread = clipped_track(band, current.right(), UNREAD_WIDTH);
         let primary = Rect::new(primary_x, band.y, primary_right - primary_x, band.height);
+        let disclosure = Rect::new(primary.right(), content_y, 0, 0);
         let create = actions.create(density, auxiliary);
         let menu = actions.menu(density, auxiliary);
         Some(Self {
@@ -220,6 +222,27 @@ impl Tracks {
         self.density
     }
 
+    pub(super) fn text_width(self, has_disclosure: bool) -> u16 {
+        if has_disclosure && self.primary.width > DISCLOSURE_GAP + DISCLOSURE_WIDTH {
+            self.primary.width - DISCLOSURE_GAP - DISCLOSURE_WIDTH
+        } else {
+            self.primary.width
+        }
+    }
+
+    pub(super) fn with_disclosure_after(mut self, first_line_width: usize) -> Self {
+        if self.primary.width > DISCLOSURE_GAP + DISCLOSURE_WIDTH {
+            let identity_width = first_line_width.min(usize::from(self.text_width(true))) as u16;
+            self.disclosure = Rect::new(
+                self.primary.x + identity_width + DISCLOSURE_GAP,
+                self.content_y,
+                DISCLOSURE_WIDTH,
+                1,
+            );
+        }
+        self
+    }
+
     pub(super) const fn first_line(self, track: Rect) -> Rect {
         Rect::new(track.x, self.content_y, track.width, 1)
     }
@@ -236,102 +259,4 @@ fn clipped_track(band: Rect, x: u16, width: u16) -> Rect {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fixed_tracks_keep_each_depth_stable_across_width_modes() {
-        for (width, density, auxiliary) in [
-            (60, Density::Comfortable, 28),
-            (30, Density::Compact, 12),
-            (24, Density::Narrow, 6),
-        ] {
-            let actions = AuxiliaryActions::new(true, true);
-            let root =
-                Tracks::resolve(Rect::new(3, 4, width, 3), 1, 0, actions, RowKind::Owner).unwrap();
-            let child =
-                Tracks::resolve(Rect::new(3, 4, width, 3), 1, 1, actions, RowKind::Owner).unwrap();
-            let descendant =
-                Tracks::resolve(Rect::new(3, 4, width, 3), 1, 2, actions, RowKind::Owner).unwrap();
-            let agent =
-                Tracks::resolve(Rect::new(3, 4, width, 3), 1, 2, actions, RowKind::Agent).unwrap();
-            assert_eq!(root.density(), density);
-            assert_eq!(root.auxiliary.width, auxiliary);
-            assert_eq!(child.primary.x - root.primary.x, INDENT_WIDTH);
-            assert_eq!(descendant.primary.x - child.primary.x, INDENT_WIDTH);
-            assert_eq!(root.primary.x, root.band.x + 4);
-            assert!(root.ordinal.is_empty());
-            assert_eq!(agent.primary.x - descendant.primary.x, ORDINAL_WIDTH);
-            assert_eq!(agent.ordinal.width, ORDINAL_WIDTH);
-            assert_eq!(root.content_y, 5);
-            assert_eq!(root.navigation, Rect::new(3, 4, 1, 3));
-            assert_eq!(root.state, Rect::new(root.disclosure.right(), 4, 1, 3));
-            assert_eq!(
-                root.current,
-                Rect::new(root.primary.right() + METADATA_GAP, 4, 1, 3)
-            );
-            assert_eq!(root.unread, Rect::new(root.current.right(), 4, 1, 3));
-            assert_eq!(root.unread.right(), root.auxiliary.x);
-        }
-    }
-
-    #[test]
-    fn density_uses_the_complete_sidebar_surface_not_the_padded_tree_band() {
-        let tracks = Tracks::resolve_for_width(
-            Rect::new(1, 2, 50, 1),
-            0,
-            0,
-            52,
-            AuxiliaryActions::new(true, true),
-            RowKind::Owner,
-        )
-        .unwrap();
-        assert_eq!(tracks.density(), Density::Comfortable);
-        assert_eq!(tracks.auxiliary.width, 28);
-    }
-
-    #[test]
-    fn primary_uses_cells_not_owned_by_semantically_absent_controls() {
-        let band = Rect::new(0, 0, 30, 1);
-        let none = Tracks::resolve(
-            band,
-            0,
-            2,
-            AuxiliaryActions::new(false, false),
-            RowKind::Owner,
-        )
-        .unwrap();
-        let menu = Tracks::resolve(
-            band,
-            0,
-            2,
-            AuxiliaryActions::new(true, false),
-            RowKind::Owner,
-        )
-        .unwrap();
-        let both = Tracks::resolve(
-            band,
-            0,
-            2,
-            AuxiliaryActions::new(true, true),
-            RowKind::Owner,
-        )
-        .unwrap();
-
-        assert_eq!(none.auxiliary.width, 0);
-        assert_eq!(menu.auxiliary.width, 6);
-        assert_eq!(both.auxiliary.width, 12);
-        assert_eq!(none.primary.width, menu.primary.width + 6);
-        assert_eq!(menu.primary.width, both.primary.width + 6);
-        assert_eq!(none.primary.x, menu.primary.x);
-        assert_eq!(menu.primary.x, both.primary.x);
-        for tracks in [none, menu, both] {
-            assert_eq!(tracks.primary.right() + METADATA_GAP, tracks.current.x);
-            assert_eq!(tracks.current.right(), tracks.unread.x);
-            assert_eq!(tracks.unread.right(), tracks.auxiliary.x);
-        }
-        assert_eq!(menu.menu, menu.auxiliary);
-        assert!(both.create.is_some());
-        assert_eq!(both.create.unwrap().right() + 1, both.menu.x);
-    }
-}
+mod tests;

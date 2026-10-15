@@ -8,6 +8,7 @@ use crate::{
 };
 use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};
+mod overflow;
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }
@@ -241,6 +242,12 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     .unwrap();
                 let buffer = terminal.backend().buffer();
                 let hits = hits.finish();
+                let sidebar_width =
+                    project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface())
+                        .sidebar
+                        .unwrap()
+                        .area
+                        .width;
                 assert_eq!(
                     buffer[(0, if height >= 24 { 4 } else { 3 })].symbol(),
                     locale
@@ -255,29 +262,34 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     hits.hit_target_at(0, 1),
                     Some(&HitTarget::NewWorkspaceButton)
                 );
-                let project_y = (0..height).find(|y| {
-                    matches!(
-                        hits.hit_target_at(2, *y),
-                        Some(HitTarget::SidebarDisclosure(target)) if target == &project
-                    )
+                let disclosure_cell = (0..height).find_map(|y| {
+                    (0..sidebar_width).find_map(|x| {
+                        matches!(
+                            hits.hit_target_at(x, y),
+                            Some(HitTarget::SidebarDisclosure(target)) if target == &project
+                        )
+                        .then_some((x, y))
+                    })
                 });
-                if let Some(project_y) = project_y {
-                    let project_tracks = layout::Tracks::resolve(
-                        Rect::new(0, project_y, width, 1),
+                if let Some((disclosure_x, project_y)) = disclosure_cell {
+                    let project_tracks = layout::Tracks::resolve_for_width(
+                        Rect::new(0, project_y, sidebar_width - 2, 1),
                         0,
                         depth(&view, &project),
+                        sidebar_width,
                         auxiliary_actions(&view.machines.sidebar_source(), &project),
                         layout::RowKind::for_target(&project),
                     )
                     .unwrap();
-                    assert_eq!(project_tracks.primary.x, 4);
+                    assert_eq!(project_tracks.primary.x, 2);
                     assert_eq!(
-                        buffer[(1, project_y)].symbol(),
+                        buffer[(disclosure_x, project_y)].symbol(),
                         theme.glyphs.disclosure_open
                     );
+                    assert_eq!(disclosure_x, project_tracks.primary.x + 5);
                     assert_eq!(buffer[(project_tracks.primary.x, project_y)].symbol(), "R");
                     assert!(matches!(
-                        hits.hit_target_at(0, project_y),
+                        hits.hit_target_at(1, project_y),
                         Some(HitTarget::MachineProjectRow { target, .. }) if target == &project
                     ));
                 } else {
@@ -295,13 +307,14 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     })
                     .unwrap();
                 assert_eq!(
-                    buffer[(0, agent_y)].symbol(),
+                    buffer[(1, agent_y)].symbol(),
                     theme.glyphs.navigation_marker
                 );
-                let agent_tracks = layout::Tracks::resolve(
-                    Rect::new(0, agent_y, width, 2),
+                let agent_tracks = layout::Tracks::resolve_for_width(
+                    Rect::new(0, agent_y, sidebar_width - 2, 2),
                     0,
                     depth(&view, &focused),
+                    sidebar_width,
                     auxiliary_actions(&view.machines.sidebar_source(), &focused),
                     layout::RowKind::for_target(&focused),
                 )
@@ -593,7 +606,7 @@ fn compact_sidebar_yields_heading_space_before_clipping_current_workspace_or_age
             .observe_focus(Choice::Local, Some(target.clone()), Some(member));
         expand_context_agents(&mut view, target);
         let (_, hits) = paint(&view, locale, &Theme::terminal_native(), 60, 14);
-        assert_eq!((0..14).filter(|y| matches!(hits.hit_target_at(2, *y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 4);
+        assert_eq!((0..14).filter(|y| matches!(hits.hit_target_at(4, *y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 3);
         assert_eq!(
             (0..14)
                 .filter(|y| matches!(
@@ -650,8 +663,8 @@ fn workspace_leading_gaps_belong_to_whole_rows_and_style_patches_preserve_count_
                 )
             })
             .collect();
-        assert_eq!(entry_rows.len(), 5);
-        assert_eq!(entry_rows[4], entry_rows[0] + 4);
+        assert_eq!(entry_rows.len(), 4);
+        assert_eq!(entry_rows[3], entry_rows[0] + 3);
         for y in entry_rows {
             let mut x = 0;
             while x < 28 {
@@ -734,8 +747,23 @@ fn paint_navigation_buffers(
     ratatui::buffer::Buffer,
     crate::tui_pointer::FrameHitMap,
 ) {
+    paint_navigation_buffers_with_pointer(view, locale, theme, width, height, Default::default())
+}
+
+fn paint_navigation_buffers_with_pointer(
+    view: &ClientView,
+    locale: Locale,
+    theme: &Theme,
+    width: u16,
+    height: u16,
+    pointer: crate::tui_pointer::PointerProjection,
+) -> (
+    ratatui::buffer::Buffer,
+    ratatui::buffer::Buffer,
+    crate::tui_pointer::FrameHitMap,
+) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    let mut hits = HitMapBuilder::new();
+    let mut hits = HitMapBuilder::with_pointer(pointer);
     let mut candidate = None;
     let rows = view.machines.sidebar_navigation_rows();
     let source = view.machines.sidebar_source();
@@ -785,7 +813,7 @@ fn hidden_by_candidate_wide_glyph(candidate: &ratatui::buffer::Buffer, x: u16, y
 }
 
 #[test]
-fn sidebar_auxiliary_actions_remain_visible_at_rest_while_focus_moves_independently() {
+fn sidebar_menus_hide_at_rest_and_reveal_only_for_the_keyboard_owned_row() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for width in [26, 40] {
             let mut view = view(120, 40);
@@ -807,10 +835,15 @@ fn sidebar_auxiliary_actions_remain_visible_at_rest_while_focus_moves_independen
             for expected in [&project, &active, &other] {
                 let rows = sidebar_target_rows(&ordinary, width, 10, expected);
                 assert!(!rows.is_empty(), "{expected:?}");
-                for y in rows {
-                    assert!((0..width).any(|x| matches!(
+                let menu_y = rows[0];
+                assert!((0..width).all(|x| !matches!(
+                    ordinary.hit_target_at(x, menu_y),
+                    Some(HitTarget::SidebarMenu(target)) if target == expected
+                )));
+                for y in rows.into_iter().skip(1) {
+                    assert!((0..width).all(|x| !matches!(
                         ordinary.hit_target_at(x, y),
-                        Some(HitTarget::SidebarMenu(target)) if target == expected
+                        Some(HitTarget::SidebarMenu(_))
                     )));
                 }
             }
@@ -826,7 +859,7 @@ fn sidebar_auxiliary_actions_remain_visible_at_rest_while_focus_moves_independen
             .unwrap();
             assert_eq!(
                 ordinary_buffer[(project_tracks.menu.x, project_y)].symbol(),
-                "["
+                " "
             );
             if project_tracks.density().direct_create() {
                 let create = project_tracks.create.unwrap();
@@ -845,12 +878,16 @@ fn sidebar_auxiliary_actions_remain_visible_at_rest_while_focus_moves_independen
             assert!(view.machines.focus_sidebar_target(&other));
             let (focused_buffer, focused_hits) = paint_navigation(&view, locale, &theme, width, 10);
             let other_rows = sidebar_target_rows(&focused_hits, width, 10, &other);
+            assert!((0..width).any(|x| matches!(
+                focused_hits.hit_target_at(x, other_rows[0]),
+                Some(HitTarget::SidebarMenu(actual)) if actual == &other
+            )));
             assert_eq!(
-                focused_buffer[(0, other_rows[0])].symbol(),
+                focused_buffer[(1, other_rows[0])].symbol(),
                 theme.glyphs.navigation_marker
             );
             let active_rows = sidebar_target_rows(&focused_hits, width, 10, &active);
-            assert!((0..width).any(|x| matches!(
+            assert!((0..width).all(|x| !matches!(
                 focused_hits.hit_target_at(x, active_rows[0]),
                 Some(HitTarget::SidebarMenu(actual)) if actual == &active
             )));
@@ -860,8 +897,8 @@ fn sidebar_auxiliary_actions_remain_visible_at_rest_while_focus_moves_independen
             let (restored_buffer, restored_hits) =
                 paint_navigation(&view, locale, &theme, width, 10);
             let restored_other_rows = sidebar_target_rows(&restored_hits, width, 10, &other);
-            assert_eq!(restored_buffer[(0, restored_other_rows[0])].symbol(), " ");
-            assert!((0..width).any(|x| matches!(
+            assert_eq!(restored_buffer[(1, restored_other_rows[0])].symbol(), " ");
+            assert!((0..width).all(|x| !matches!(
                 restored_hits.hit_target_at(x, restored_other_rows[0]),
                 Some(HitTarget::SidebarMenu(actual)) if actual == &other
             )));
@@ -905,20 +942,19 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     auxiliary_actions(&view.machines.sidebar_source(), &project),
                     layout::RowKind::for_target(&project),
                 )
-                .unwrap();
+                .unwrap()
+                .with_disclosure_after(display_width("Repo"));
                 for y in &project_rows {
                     for x in 0..width {
                         let hit = hits.hit_target_at(x, *y);
-                        if x >= project_tracks.disclosure.x && x < project_tracks.disclosure.right()
-                        {
+                        if project_tracks.disclosure.contains((x, *y).into()) {
                             assert_eq!(hit, Some(&HitTarget::SidebarDisclosure(project.clone())));
-                        } else if project_tracks
-                            .create
-                            .is_some_and(|rect| x >= rect.x && x < rect.right())
+                        } else if *y == project_tracks.content_y
+                            && project_tracks
+                                .create
+                                .is_some_and(|rect| x >= rect.x && x < rect.right())
                         {
                             assert_eq!(hit, Some(&HitTarget::CreateMenu(Some(project.clone()))));
-                        } else if x >= project_tracks.menu.x && x < project_tracks.menu.right() {
-                            assert_eq!(hit, Some(&HitTarget::SidebarMenu(project.clone())));
                         } else {
                             assert!(matches!(
                                 hit,
@@ -930,7 +966,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                 }
 
                 let focused_rows = sidebar_target_rows(&hits, width, 10, &focused);
-                assert_eq!(focused_rows.len(), if width < 28 { 3 } else { 2 });
+                assert_eq!(focused_rows.len(), 2);
                 let focused_tracks = layout::Tracks::resolve(
                     Rect::new(0, focused_rows[0], width, focused_rows.len() as u16),
                     0,
@@ -941,7 +977,10 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                 .unwrap();
                 for y in &focused_rows {
                     for x in 0..width {
-                        if x >= focused_tracks.menu.x && x < focused_tracks.menu.right() {
+                        if *y == focused_tracks.content_y
+                            && x >= focused_tracks.menu.x
+                            && x < focused_tracks.menu.right()
+                        {
                             assert_eq!(
                                 hits.hit_target_at(x, *y),
                                 Some(&HitTarget::SidebarMenu(focused.clone()))
@@ -959,7 +998,7 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                     }
                 }
                 assert_eq!(
-                    candidate[(0, focused_rows[0])].symbol(),
+                    candidate[(1, focused_rows[0])].symbol(),
                     theme.glyphs.navigation_marker
                 );
 
@@ -1162,7 +1201,7 @@ fn collapsed_rows_keep_localized_agent_counts_waiting_and_current_context() {
                         assert!(text.contains(&expected), "{text}");
                     }
                     let y = target_rows[0];
-                    assert_eq!(buffer[(0, y)].symbol(), theme.glyphs.navigation_marker);
+                    assert_eq!(buffer[(1, y)].symbol(), theme.glyphs.navigation_marker);
                     assert_eq!(buffer[(0, y)].bg, theme.color(Role::SurfaceSelection));
                     assert!(target_rows.iter().any(|row| (0..width).any(|x| matches!(
                         hits.hit_target_at(x, *row),
@@ -1185,8 +1224,7 @@ fn collapsed_rows_keep_localized_agent_counts_waiting_and_current_context() {
     }
 }
 
-#[test]
-fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
+fn ungrouped_view(label: &str) -> ClientView {
     let mut view = view(120, 40);
     let mut rows = view
         .machines
@@ -1209,7 +1247,7 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
                 rows: rows.into(),
                 projects: vec![crate::machine_spaces::ProjectSummary {
                     project_id: WorkbenchProjectId::parse(&id(70)).unwrap(),
-                    label: "Empty group".into(),
+                    label: label.into(),
                 }]
                 .into(),
             },
@@ -1217,6 +1255,12 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
     )]);
     view.machines
         .observe_focus(Choice::Local, Some(current), None);
+    view
+}
+
+#[test]
+fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
+    let mut view = ungrouped_view("Empty group");
     let tree = view.machines.sidebar_navigation_rows();
     assert!(matches!(tree[0], SidebarRow::Context { .. }));
     assert!(matches!(tree[1], SidebarRow::Context { .. }));
@@ -1241,19 +1285,25 @@ fn ungrouped_workspace_is_a_root_peer_and_empty_project_keeps_menu_hit() {
         let project_start = (0..20)
             .find(|y| {
                 (0..40).any(|x| {
-                    hits.hit_target_at(x, *y) == Some(&HitTarget::SidebarMenu(project.clone()))
+                    matches!(hits.hit_target_at(x, *y), Some(HitTarget::MachineProjectRow { target, .. }) if target == &project)
                 })
             })
             .unwrap();
-        assert_eq!(project_start, last_workspace + 1);
+        assert_eq!(project_start, last_workspace + 2);
         assert_eq!(
-            buffer[(0, project_start)].symbol(),
+            buffer[(1, project_start)].symbol(),
             Theme::terminal_native().glyphs.navigation_marker
         );
         for x in 0..40 {
-            if x > 0 {
-                assert_eq!(buffer[(x, project_start)].symbol(), " ");
-            }
+            assert_eq!(buffer[(x, project_start - 1)].symbol(), " ");
+            assert_eq!(
+                buffer[(x, project_start - 1)].bg,
+                Theme::terminal_native().color(Role::SurfaceChrome)
+            );
+            assert!(matches!(
+                hits.hit_target_at(x, project_start - 1),
+                Some(HitTarget::MachineWorkspaceSurface(_))
+            ));
             assert!(matches!(
                 hits.hit_target_at(x, project_start),
                 Some(
@@ -1307,7 +1357,7 @@ fn shortest_sidebar_keeps_complete_current_context_and_agent_when_both_fit() {
                 .observe_focus(Choice::Local, Some(target.clone()), Some(member));
             expand_context_agents(&mut view, target);
             let (rows, hits) = paint(&view, locale, &theme, 60, 12);
-            assert_eq!((0..12).filter(|y| matches!(hits.hit_target_at(2,*y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 4);
+            assert_eq!((0..12).filter(|y| matches!(hits.hit_target_at(4,*y), Some(HitTarget::MachineWorkspaceRow { selected: actual, .. }) if actual == &selected)).count(), 3);
             assert_eq!(
                 (0..12)
                     .filter(|y| matches!(
@@ -1572,8 +1622,11 @@ fn monochrome_current_context_survives_explicit_plain_text_and_simultaneous_focu
     let theme = Theme::terminal_native().quantize(crate::tui_theme::ColorLevel::Monochrome);
     let (buffer, hits) = paint_navigation(&view, Locale::EnUs, &theme, 26, 10);
     let rows = sidebar_target_rows(&hits, 26, 10, &active);
-    assert_eq!(rows.len(), 2);
-    assert_eq!(rows[1], rows[0] + 1);
+    assert_eq!(
+        rows.len(),
+        2,
+        "the inline disclosure budget moves the duplicate-identity suffix to a continuation"
+    );
     let y = rows[0];
     let tracks = layout::Tracks::resolve(
         Rect::new(0, y, 26, rows.len() as u16),

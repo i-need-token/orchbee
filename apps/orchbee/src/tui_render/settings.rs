@@ -773,10 +773,7 @@ fn render_row_action(
 ) -> Option<RowActionPaint<'static>> {
     let kind = row_action_kind(row)?;
     let label = locale.settings_row_action(row)?;
-    let role = match kind {
-        ActionKind::Primary => Role::AccentAction,
-        ActionKind::Secondary => Role::TextPrimary,
-    };
+    let role = kind.content_role();
     let spec = action_spec(label, kind, enabled, PointerPresentation::Rest);
     let rect = super::controls::action_rect(frame.area(), area, spec, theme)?;
     let painted = super::controls::render_action(frame, area, spec, theme)?;
