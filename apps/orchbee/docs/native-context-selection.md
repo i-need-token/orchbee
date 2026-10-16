@@ -17,7 +17,8 @@ Project preserves selection memory and the live attachment. Entering another loc
 Client's last selected Tab and Panel when those identities still belong there; otherwise it selects
 the first surviving member, or Empty when there are no Tabs. Empty can be
 entered and left without creating a terminal. Existing Tab controls act on the active context;
-explicit `c` uses Server's existing directory admission and never falls back to the home directory.
+explicit `c` in a canonical Workspace uses Server's existing directory admission and never falls
+back to the home directory.
 Windows sidebar Workspace activation on the current machine shares this Session
 selection owner without opening a picker. Exact Session/location identity is checked
 before admission; Busy precedes the exact-current no-op. The machine UI owner
@@ -39,6 +40,13 @@ their existing Tab actions. Emptying this context hides its navigation entry whi
 empty state offers explicit creation. Cycling from that state can enter a surviving Workspace.
 Membership validation remains separate from visibility: explicit compatibility targets still
 validate, the mandatory slot stays unique and disjoint, and its capacity is not reclaimed.
+
+On Windows, `c` in the no-Workspace state instead admits the existing quick Workspace launch.
+Only a freshly accepted redirect returns a typed Workspace-creation disposition to the shell;
+the next control tick preserves that operation's entry intent. Its exact committed Workspace,
+Context, Tab, Panel and Presentation must install and reach Ready, including after a settled
+last-Workspace Close. Newer focus still revokes entry without replaying the launch. A genuine
+empty canonical Workspace continues to create a Tab under its own directory policy.
 
 Workspace creation, optional Project organization and first-directory configuration belong to
 [Workspace setup](native-workspace-setup.md); directory startup owns automatic empty-Session creation.

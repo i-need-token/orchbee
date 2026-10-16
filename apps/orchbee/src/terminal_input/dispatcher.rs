@@ -1722,7 +1722,7 @@ impl InputDispatcher {
                                     let disposition = port.activate_drawn_presentation(&target);
                                     view.commit_pointer(disposition);
                                     self.reconcile(view, port, now);
-                                    if disposition == SessionActionDisposition::LayoutChanged {
+                                    if disposition.changes_layout() {
                                         after_layout(view, port)?;
                                     }
                                 }
@@ -1768,7 +1768,7 @@ impl InputDispatcher {
                                             .apply_client_action(ClientAction::SelectTab(position))
                                     {
                                         view.commit_pointer(disposition);
-                                        if disposition == SessionActionDisposition::LayoutChanged {
+                                        if disposition.changes_layout() {
                                             after_layout(view, port)?;
                                         }
                                     }
@@ -1782,7 +1782,7 @@ impl InputDispatcher {
                                         )
                                     {
                                         view.commit_pointer(disposition);
-                                        if disposition == SessionActionDisposition::LayoutChanged {
+                                        if disposition.changes_layout() {
                                             after_layout(view, port)?;
                                         }
                                     }
@@ -2147,7 +2147,7 @@ impl InputDispatcher {
         {
             mode(ModeRequest::BracketedPaste(false))?;
         }
-        if layout_changed || applied == Some(SessionActionDisposition::LayoutChanged) {
+        if layout_changed || applied.is_some_and(SessionActionDisposition::changes_layout) {
             after_layout(view, port)?;
             // Keyboard-driven layout changes stale the map the same way a
             // pointer navigation does.

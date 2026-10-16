@@ -60,6 +60,271 @@ fn rendered_rows(buffer: &ratatui::buffer::Buffer) -> String {
         .join("\n")
 }
 
+#[cfg(windows)]
+fn after_last_workspace_close() -> (
+    NativeUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Snapshot,
+    u64,
+) {
+    use super::super::tests::{membership, workspace_close};
+    use crate::terminal_session::{WorkspaceCloseStatus, mailbox::EventDeadline};
+    use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchSnapshotOutcome};
+
+    let (mut ui, mailbox, clock, mut snapshot) = empty_ui(membership::canonical_snapshot(0, 1));
+    let removed = snapshot.navigation.workspaces[0].clone();
+    let lease = workspace_close::submit(&mut ui, &mailbox);
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("one last-Workspace Close");
+    };
+    let operation = marker.workspace_close().unwrap().clone();
+    assert_eq!(
+        mailbox
+            .mark_refresh_in_flight(operation.generation)
+            .unwrap(),
+        MutationResult::Applied
+    );
+    assert!(
+        mailbox
+            .retain_workspace_close_result(&operation, workspace_close::receipt(&operation, true))
+    );
+    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot.navigation.workspaces.clear();
+    snapshot.navigation.workspace_order.clear();
+    snapshot
+        .terminal_contexts
+        .retain(|context| context.terminal_context_id != removed.terminal_context_id);
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::WorkspaceCloseResult {
+                evidence: mailbox.workspace_close_worker_loss().unwrap(),
+                outcome: Box::new(WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot.clone(),
+                }),
+            },
+            EventDeadline::PlacementOnly(operation.deadlines.forward_cutoff()),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("last-Workspace removal install");
+    };
+    assert_eq!(
+        settlement.decision(),
+        &RefreshDecision::SettledWithoutAttachment
+    );
+    mailbox.finish_lease(lease).unwrap();
+    let status = ui.view();
+    let status = status.workspace_close_status().unwrap();
+    assert_eq!(status.status(), WorkspaceCloseStatus::Closed);
+    assert_eq!(status.operation_id(), Some(&operation.request_id));
+    assert_eq!(status.workspace_id(), Some(&removed.workspace_id));
+    assert!(ui.view().no_current_workspace());
+    assert!(ui.state.as_ref().unwrap().desired().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+    (ui, mailbox, clock, snapshot, operation.generation)
+}
+
+#[cfg(windows)]
+#[test]
+fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_newer_focus_wins() {
+    use super::super::tests::workspace_setup::{launched, place};
+    use crate::{
+        client_view::ClientView,
+        local_client::workbench::workspace_setup::WorkbenchSetupCommit,
+        localization::Locale,
+        terminal_session::{
+            SessionBackend, TerminalSession, TerminalSessionView,
+            state::workspace_setup::SetupWorkerEvidence,
+            workbench_projection::NativeContextLocation,
+        },
+        tui_pointer::HitMapBuilder,
+        tui_theme::Theme,
+    };
+    use ratatui::{Terminal, backend::TestBackend, layout::Rect};
+
+    for width in [80, 120] {
+        for retained_close in [false, true] {
+            for newer_focus in [false, true] {
+                let (ui, mailbox, clock, snapshot, closed_generation) = if retained_close {
+                    after_last_workspace_close()
+                } else {
+                    let (ui, mailbox, clock, snapshot) = no_workspace();
+                    (ui, mailbox, clock, snapshot, 0)
+                };
+                let source = ui.state.as_ref().unwrap().cache().location().clone();
+                let (shutdown, _peer) = orchbee_local_ipc::LocalStream::pair().unwrap();
+                let mut session = TerminalSession {
+                    position_writer: None,
+                    position_startup: None,
+                    configuration: None,
+                    notifications: None,
+                    window_title: None,
+                    client_control: None,
+                    backend: SessionBackend::Native(Box::new(ui)),
+                    task: None,
+                    shutdown: crate::local_client::tests::server::shutdown_handle(shutdown),
+                    retirement_redraw_pending: false,
+                    origin: None,
+                    recovery_shutdown: None,
+                };
+                let mut view = ClientView::new(width);
+                let transition = view.decide_action(ClientAction::CreateTab);
+                let disposition = session
+                    .backend
+                    .native_mut()
+                    .unwrap()
+                    .apply_client_action(transition.action().unwrap());
+                view.commit(transition, disposition);
+                finish_preparation(
+                    session.backend.native_mut().unwrap(),
+                    &mailbox,
+                    &clock,
+                    &snapshot,
+                    false,
+                );
+                let lease = mailbox.try_recv().unwrap().unwrap();
+                let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+                    panic!("one redirected WorkspaceLaunch, never TerminalOpen or Tab Create");
+                };
+                assert!(marker.0.generation > closed_generation);
+                assert_eq!(marker.0.command.expected_revision, snapshot.revision);
+                assert_eq!(
+                    mailbox.mark_setup_in_flight(&marker.0).unwrap(),
+                    MutationResult::Applied
+                );
+                let (committed, receipt) = launched(&snapshot, &lease);
+                let WorkbenchSetupCommit::WorkspaceLaunched(expected) = &receipt else {
+                    unreachable!();
+                };
+                let expected = expected.clone();
+                let known = marker.0.known_commit(receipt.clone()).unwrap();
+                if newer_focus {
+                    // Even a refused action in the empty location is newer focus intent.
+                    let transition = view.decide_action(ClientAction::SelectNextContext);
+                    let disposition = session
+                        .backend
+                        .native_mut()
+                        .unwrap()
+                        .apply_client_action(transition.action().unwrap());
+                    view.commit(transition, disposition);
+                }
+                session.client_control_tick(&mut view, Rect::new(0, 0, width, 24), Locale::EnUs);
+                let wait = place(&mailbox, &clock, &lease, receipt, committed.clone());
+                session.backend.native_mut().unwrap().tick();
+                let Some(UiReply::Refresh(settlement)) =
+                    mailbox.take_deposited_reply(&wait).unwrap()
+                else {
+                    panic!("accepted launch must settle through the real membership install");
+                };
+                let native = session.backend.native_mut().unwrap();
+                let state = native.state.as_mut().unwrap();
+                assert_eq!(state.cache().canonical_snapshot(), &committed);
+                assert_eq!(committed.navigation.workspaces.len(), 1);
+                assert!(
+                    committed
+                        .terminal_contexts
+                        .iter()
+                        .find(|context| context.terminal_context_id
+                            == committed.navigation.standalone_terminal_context_id)
+                        .unwrap()
+                        .tabs
+                        .is_empty()
+                );
+                if newer_focus {
+                    assert_eq!(settlement.decision(), &RefreshDecision::Continue);
+                    assert_eq!(state.cache().location(), &source);
+                    assert!(state.desired().is_none());
+                    assert!(!view.project_quick_entry_pending());
+                } else {
+                    assert_eq!(
+                        state.cache().location(),
+                        &NativeContextLocation::Workspace {
+                            workspace_id: expected.workspace_id.clone(),
+                            terminal_context_id: expected.terminal_context_id.clone(),
+                        },
+                        "retained Close={retained_close}: membership existence alone is not entry"
+                    );
+                    assert!(matches!(
+                        settlement.decision(),
+                        RefreshDecision::AttachRecovered(_)
+                    ));
+                    let key = state.desired().unwrap().clone();
+                    assert_eq!(key.anchor().tab_id(), &expected.tab_id);
+                    assert_eq!(key.panel(), &expected.panel_id);
+                    assert_eq!(
+                        state
+                            .selected_presentation(state.cache().tabs()[0].panel(0).unwrap())
+                            .presentation_id(),
+                        &expected.presentation_id
+                    );
+                    assert!(
+                        state.attached_key().is_none(),
+                        "no inherited Controller grant"
+                    );
+                    assert!(state.install_projection_t(&key));
+                    assert!(state.record_setup_configuration_t(
+                        &key,
+                        ControllerMode::ReadOnly,
+                        None
+                    ));
+                    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+                    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+                    assert!(state.publish_ready_t(
+                        &key,
+                        FrameIdentity::new(1),
+                        ControllerMode::ReadOnly,
+                        None
+                    ));
+                    assert!(state.workspace_close_status().is_none());
+                    assert!(state.retain_setup_worker(SetupWorkerEvidence::Known(known)));
+                    assert!(view.project_quick_entry_pending());
+                }
+                mailbox.finish_lease(lease).unwrap();
+                session.client_control_tick(&mut view, Rect::new(0, 0, width, 24), Locale::EnUs);
+                assert!(!view.project_quick_entry_pending());
+                let native = session.backend.native_mut().unwrap();
+                assert!(
+                    !native.take_project_quick_terminal_entry(),
+                    "one terminal entry only"
+                );
+                assert!(native.state.as_ref().unwrap().invariant_holds());
+                if !newer_focus {
+                    assert_eq!(native.view().phase(), NativeDisplayPhase::Ready);
+                    let observed = native.control_observation(false).unwrap().1;
+                    let selected = observed.selection.unwrap();
+                    assert_eq!(selected.terminal_context_id, expected.terminal_context_id);
+                    assert_eq!(selected.tab_id, Some(expected.tab_id.clone()));
+                    assert_eq!(selected.panel_id, Some(expected.panel_id.clone()));
+                    let mut terminal = Terminal::new(TestBackend::new(width, 24)).unwrap();
+                    terminal
+                        .draw(|frame| {
+                            crate::tui_render::render_terminal_shell(
+                                frame,
+                                &view,
+                                Locale::EnUs,
+                                Some(TerminalSessionView::Native(native.view())),
+                                &Theme::terminal_native(),
+                                &mut HitMapBuilder::new(),
+                            );
+                        })
+                        .unwrap();
+                    assert!(
+                        !rendered_rows(terminal.backend().buffer())
+                            .contains(Locale::EnUs.no_current_workspace())
+                    );
+                }
+                assert!(
+                    mailbox.try_recv().unwrap().is_none(),
+                    "no replay or automatic extra launch"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn empty_compatibility_create_tab_uses_workspace_launch_and_cancel_never_resurrects_a_terminal() {
     for cancelled in [false, true] {
@@ -219,15 +484,15 @@ fn effective_create_binding_renders_and_invokes_workspace_or_empty_canonical_tab
                 Modifiers::CTRL,
             )));
             view.commit(prefix, SessionActionDisposition::KeepNavigator);
-            let action = view
-                .decide(PrefixInput::Key(KeyEvent::press(
-                    KeyCode::Char('n'),
-                    Modifiers::NONE,
-                )))
-                .action()
-                .unwrap();
+            let transition = view.decide(PrefixInput::Key(KeyEvent::press(
+                KeyCode::Char('n'),
+                Modifiers::NONE,
+            )));
+            let action = transition.action().unwrap();
             assert_eq!(action, ClientAction::CreateTab);
-            ui.apply_client_action(action);
+            let disposition = ui.apply_client_action(action);
+            view.commit(transition, disposition);
+            assert_eq!(view.project_quick_entry_pending(), !canonical);
             if canonical {
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 let QueuedCommand::Create(marker) = lease.record() else {

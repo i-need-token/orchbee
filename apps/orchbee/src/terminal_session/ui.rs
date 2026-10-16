@@ -2711,8 +2711,8 @@ impl NativeUi {
                 }
                 return SessionActionDisposition::KeepNavigator;
             }
-            return if self.request_quick_workspace() && self.workspace_creation_replaces_content() {
-                SessionActionDisposition::LayoutChanged
+            return if self.request_quick_workspace() {
+                SessionActionDisposition::WorkspaceCreationStarted
             } else {
                 SessionActionDisposition::KeepNavigator
             };

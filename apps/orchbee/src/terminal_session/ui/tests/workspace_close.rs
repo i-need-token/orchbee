@@ -115,7 +115,10 @@ pub(in crate::terminal_session) fn submit(
     assert!(ui.capture_confirmation_key(ClientKey::Enter));
     mailbox.try_recv().unwrap().unwrap()
 }
-fn receipt(operation: &WorkspaceCloseOperation, closed: bool) -> WorkspaceCloseResult {
+pub(in crate::terminal_session::ui) fn receipt(
+    operation: &WorkspaceCloseOperation,
+    closed: bool,
+) -> WorkspaceCloseResult {
     let WorkspaceCloseTarget::Workspace {
         workspace_id,
         terminal_context_id,

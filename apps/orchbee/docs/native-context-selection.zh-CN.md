@@ -13,8 +13,8 @@
 Project 归属和标签是展示元数据。移动 Workspace 或解散其 Project 保留选择记忆与存活 attachment。
 进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
 否则选择首个现存成员，没有 Tab 则进入 Empty。
-进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；显式 `c` 使用 Server
-已有的目录准入，绝不回退到 home 目录。
+进入和离开 Empty 都不会创建终端。已有 Tab 控制作用于当前上下文；规范 Workspace 中的显式
+`c` 使用 Server 已有的目录准入，绝不回退到 home 目录。
 Windows 侧栏在当前机器激活 Workspace 时共用此 Session 选择 owner，不打开选择器。
 接纳前核验精确 Session／位置身份；先检查 Busy，再判断精确当前位置无需操作。
 Session 结算已接受工作期间，机器 UI owner 只保留最后一个尚未接纳的目标。
@@ -31,6 +31,12 @@ Windows 裸启动遵循下面的启动偏好；没有偏好时，
 提供本地化说明；历史 Tab 通过既有 Tab 操作关闭。清空该 context 后隐藏其导航条目，当前空
 状态提供显式新建入口。从此状态循环选择可进入存活 Workspace。成员验证与可见性分离：
 显式兼容目标仍验证，必需槽保持唯一且与其他 owner 不重叠，也不回收其容量。
+
+在 Windows 的无工作区状态，`c` 改为接纳既有快速 Workspace 启动。只有本次重定向被成功
+接纳后，才向 shell 返回有类型的工作区创建结果，使下一次控制 tick 保留该操作的进入意图。
+其精确提交的 Workspace、Context、Tab、Panel 和 Presentation 必须完成安装并达到 Ready，
+包括已有最后一个 Workspace 的已结算 Close 回执时。后续焦点意图仍撤销进入许可，不重放
+启动。真正的空规范 Workspace 仍按自身目录策略创建 Tab。
 
 Workspace 创建、可选的 Project 组织和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)；
 目录启动拥有空 Session 自动创建。两者复用这里的上下文安装 owner。

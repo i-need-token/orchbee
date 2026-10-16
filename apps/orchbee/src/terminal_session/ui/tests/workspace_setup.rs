@@ -152,7 +152,10 @@ fn submit_launch(
     lease
 }
 
-fn launched(snapshot: &Snapshot, lease: &CommandLease) -> (Snapshot, WorkbenchSetupCommit) {
+pub(in crate::terminal_session::ui) fn launched(
+    snapshot: &Snapshot,
+    lease: &CommandLease,
+) -> (Snapshot, WorkbenchSetupCommit) {
     use orchbee_workbench_protocol::{
         Directory, PanelNode, WorkbenchDirectoryId, WorkbenchTerminalOutcome,
     };
@@ -177,7 +180,7 @@ fn launched(snapshot: &Snapshot, lease: &CommandLease) -> (Snapshot, WorkbenchSe
         _ => panic!("fixture supports default or targeted launch"),
     };
     let mut snapshot = snapshot.clone();
-    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot.revision = WorkbenchRevision::new(snapshot.revision.value() + 1);
     let mut fresh = super::super::tests::membership::snapshot(2, 1);
     let mut tab = fresh.terminal_contexts[0].tabs.pop().unwrap();
     tab.label = label.as_str().to_owned();

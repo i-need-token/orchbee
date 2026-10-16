@@ -262,6 +262,21 @@ pub(crate) enum SessionActionDisposition {
     /// and invalidates the pointer hit map. The navigator disposition
     /// stays unchanged (kept).
     LayoutChanged,
+    /// Native admission redirected empty compatibility content to one fresh
+    /// Workspace launch. Preserve its shell entry intent across control ticks.
+    #[cfg(windows)]
+    WorkspaceCreationStarted,
+}
+
+impl SessionActionDisposition {
+    pub(crate) fn changes_layout(self) -> bool {
+        match self {
+            Self::LayoutChanged => true,
+            #[cfg(windows)]
+            Self::WorkspaceCreationStarted => true,
+            Self::KeepNavigator | Self::DismissNavigator => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -796,6 +811,15 @@ impl ClientView {
         self.project_quick_entry_eligible.is_some()
     }
 
+    #[cfg(windows)]
+    fn arm_project_quick_entry(&mut self) {
+        self.project_quick_entry_eligible = Some(
+            self.viewport == ViewportClass::Narrow
+                && self.overlay == Some(Overlay::BusinessSidebar),
+        );
+        self.machines.leave_sidebar_navigation();
+    }
+
     /// Row/disclosure presses acquire Picker focus without a ClientAction.
     /// Settle that newer intent before Ready, even if navigation exits later.
     #[cfg(windows)]
@@ -924,6 +948,9 @@ impl ClientView {
         #[cfg(windows)]
         {
             self.project_quick_entry_eligible = None;
+            if disposition == SessionActionDisposition::WorkspaceCreationStarted {
+                self.arm_project_quick_entry();
+            }
         }
         if disposition == SessionActionDisposition::DismissNavigator
             && self.overlay == Some(Overlay::WorkbenchNavigator)
@@ -1083,21 +1110,17 @@ impl ClientView {
     fn apply_action_decision(&mut self, action: ClientAction) -> (ClientAction, ShellCommand) {
         #[cfg(windows)]
         {
-            self.project_quick_entry_eligible = matches!(
+            self.project_quick_entry_eligible = None;
+            if matches!(
                 action,
                 ClientAction::RequestWorkspaceCreate
                     | ClientAction::RequestQuickWorkspace
                     | ClientAction::RequestProjectQuickWorkspace(_)
-            )
-            .then_some(
-                self.viewport == ViewportClass::Narrow
-                    && self.overlay == Some(Overlay::BusinessSidebar),
-            );
-            if self.project_quick_entry_eligible.is_some() {
+            ) {
                 // Creation takes keyboard intent from the sidebar. Preserve the
                 // visible overlay until the exact native Ready receipt returns;
                 // a later sidebar focus will cancel that pending return instead.
-                self.machines.leave_sidebar_navigation();
+                self.arm_project_quick_entry();
             }
         }
         match action {
@@ -1185,6 +1208,12 @@ impl ClientView {
         disposition: SessionActionDisposition,
     ) {
         let mut next = transition.next;
+        #[cfg(windows)]
+        if transition.action == Some(ClientAction::CreateTab)
+            && disposition == SessionActionDisposition::WorkspaceCreationStarted
+        {
+            next.arm_project_quick_entry();
+        }
         if disposition == SessionActionDisposition::DismissNavigator
             && next.overlay == Some(Overlay::WorkbenchNavigator)
         {
