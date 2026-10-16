@@ -38,6 +38,7 @@ use crate::terminal_input::{
     PointerSelectionIntent, TerminalInputPort, encode_cursor_arrows, encode_pane_report,
     forward_or_report, route_pane_pointer,
 };
+#[cfg(any(not(windows), test))]
 use crate::terminal_session::NativeContextLocation;
 use crate::terminal_session::state::PaneRef;
 
