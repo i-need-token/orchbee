@@ -111,6 +111,21 @@ impl WorkbenchAuthority {
                 return WorkbenchProjectDissolveBegin::Ready(self.retire(&command));
             }
         };
+        // A successful plan can itself be a settled preflight refusal (for
+        // example an open Close/group owner). Preserve that exact classification
+        // before consulting runtime evidence; only the actual dissolve plan
+        // requires a complete idle proof.
+        if !matches!(
+            plan.outcome,
+            WorkbenchCommandOutcome::ProjectDissolved { .. }
+        ) {
+            return WorkbenchProjectDissolveBegin::Ready(
+                match self.prepare_command_commit(command, plan) {
+                    Ok(prepared) => prepared.commit(),
+                    Err(result) => *result,
+                },
+            );
+        }
         let contexts: Vec<_> = self
             .snapshot()
             .navigation

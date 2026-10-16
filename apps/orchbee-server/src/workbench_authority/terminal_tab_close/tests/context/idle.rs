@@ -433,3 +433,29 @@ fn a_confirmed_fingerprint_cannot_be_reused_as_a_conditional_action() {
         ));
     }
 }
+
+#[test]
+fn a_busy_project_plan_is_retained_before_any_idle_runtime_proof_is_requested() {
+    let (mut owner, grant) = workspace_fixture(1);
+    let close = workspace_close_command(&owner, 11700, 1, 0);
+    accept_workspace(&mut owner, &grant, close, Instant::now());
+    let before = owner.snapshot().clone();
+    let request = dissolve(&owner, 11701);
+    let WorkbenchProjectDissolveBegin::Ready(result) =
+        owner.begin_project_dissolve_if_idle(Some(&grant), request.clone())
+    else {
+        panic!("settled busy plan must never yield runtime-proof admission")
+    };
+    assert!(matches!(
+        result.outcome,
+        WorkbenchCommandOutcome::Unavailable {
+            reason: WorkbenchCommandUnavailableReason::TerminalBusy
+        }
+    ));
+    assert_eq!(owner.snapshot(), &before);
+    assert!(
+        matches!(owner.begin_project_dissolve_if_idle(Some(&grant), request),
+        WorkbenchProjectDissolveBegin::Ready(replay) if replay == result)
+    );
+    assert!(!owner.retired);
+}

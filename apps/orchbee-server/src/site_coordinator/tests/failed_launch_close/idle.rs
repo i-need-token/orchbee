@@ -114,3 +114,56 @@ fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_
         }
     }
 }
+
+#[test]
+fn busy_project_keeps_preflight_classification_even_when_runtime_authority_becomes_unavailable() {
+    for has_worker in [false, true] {
+        let mut coordinator = site();
+        let context = configure_workspace(&mut coordinator, "C:/workspace");
+        let revision = snapshot(&mut coordinator).revision.value();
+        let create = context_tab_command(&coordinator, 100, revision, context, "live member");
+        let pending = dispatch_tab(&mut coordinator, create, 101);
+        let completion = immediate_completion(pending.command());
+        coordinator
+            .complete_terminal_tab_create(pending, completion, Some(worker(1)))
+            .unwrap();
+        let before = snapshot(&mut coordinator);
+        let close = close_command(
+            &mut coordinator,
+            102,
+            WorkbenchAction::WorkspaceClose {
+                workspace_id: before.navigation.workspaces[0].workspace_id.clone(),
+            },
+        );
+        assert!(matches!(
+            coordinator
+                .execute_workspace_close(close, Some(worker(1)), true, Instant::now())
+                .unwrap()
+                .outcome,
+            WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
+        ));
+        let request = close_command(
+            &mut coordinator,
+            103,
+            WorkbenchAction::ProjectDissolveIfIdle {
+                project_id: before.navigation.projects[0].project_id.clone(),
+            },
+        );
+        let result = coordinator
+            .execute_project_dissolve_if_idle(request.clone(), has_worker.then(|| worker(1)))
+            .unwrap();
+        assert!(matches!(
+            result.outcome,
+            WorkbenchCommandOutcome::Unavailable {
+                reason: WorkbenchCommandUnavailableReason::TerminalBusy
+            }
+        ));
+        assert_eq!(snapshot(&mut coordinator), before);
+        assert_eq!(
+            coordinator
+                .execute_project_dissolve_if_idle(request, None)
+                .unwrap(),
+            result
+        );
+    }
+}
