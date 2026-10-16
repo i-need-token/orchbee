@@ -167,8 +167,14 @@ covered cells. While visible it stays above other overlays. Its segments, from l
 
 ## Pending, completion, and attention
 
-- An operation that has not completed within a documented short delay shows a pending indicator in
-  the affected region or the status line. Before that delay nothing changes.
+- An admitted foreground intent receives local acceptance feedback at its initiating control or
+  intended destination on the next available frame. It does not wait for background preparation,
+  completion, or the progress-indicator delay. The acceptance projection must not invent a canonical
+  resource; admission alone does not establish commitment, readiness, or success.
+- An operation that has not completed within a documented short delay additionally shows a pending
+  indicator in the affected region or the status line. This delay suppresses unnecessary progress
+  animation, not acceptance feedback. Local acceptance, progress, first useful content, and
+  authoritative completion remain separate observations.
 - A pending indicator is a fixed-width glyph sequence plus a localized verb. It never blocks
   drawing or input for other regions.
 - A surface request carries the surface instance, target identity, and request generation. Only a
@@ -196,12 +202,12 @@ covered cells. While visible it stays above other overlays. Its segments, from l
 
 ## Verification
 
-| Change                  | Required check                                                                                                                                                                                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overlay addition        | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence); fixed slots and footer order remain visible; new-size refusal, open-size suspension and resumption, and capture kind are tested                      |
-| Child or dismissal flow | Tests restore focus, selection, query, viewport anchor, draft, and preview; each `Esc` unwinds one layer and leaves running work unchanged                                                                                                        |
-| Preview or commit flow  | Tests distinguish focus, unaccepted reversible preview, validation, activation, immediate commit, staged commit, and cancellation; cancellation reverts only the active unaccepted preview and preserves an accepted parent draft or domain value |
-| Confirmation addition   | Tests prove only the exact key confirms, `Esc` cancels, and the refused-geometry path does not run the effect                                                                                                                                     |
-| Status segment change   | Tests cover every tier and prove the input indicator survives to the smallest tier                                                                                                                                                                |
-| Notice change           | A test with injected time proves expiry schedules a redraw and a persistent error is not replaced                                                                                                                                                 |
-| Asynchronous operation  | Tests prove delayed pending, active-generation completion, stale-result rejection, definite failure, unknown recovery, and that background completion does not focus                                                                              |
+| Change                  | Required check                                                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overlay addition        | Rendered at every required geometry in [`verification.md`](verification.md#render-evidence); fixed slots and footer order remain visible; new-size refusal, open-size suspension and resumption, and capture kind are tested                            |
+| Child or dismissal flow | Tests restore focus, selection, query, viewport anchor, draft, and preview; each `Esc` unwinds one layer and leaves running work unchanged                                                                                                              |
+| Preview or commit flow  | Tests distinguish focus, unaccepted reversible preview, validation, activation, immediate commit, staged commit, and cancellation; cancellation reverts only the active unaccepted preview and preserves an accepted parent draft or domain value       |
+| Confirmation addition   | Tests prove only the exact key confirms, `Esc` cancels, and the refused-geometry path does not run the effect                                                                                                                                           |
+| Status segment change   | Tests cover every tier and prove the input indicator survives to the smallest tier                                                                                                                                                                      |
+| Notice change           | A test with injected time proves expiry schedules a redraw and a persistent error is not replaced                                                                                                                                                       |
+| Asynchronous operation  | Tests prove local acceptance before background completion, delayed progress, active-generation completion, stale-result rejection, cancellation/ownership retirement, definite failure, unknown recovery, and that background completion does not focus |
