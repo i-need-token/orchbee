@@ -118,9 +118,19 @@ fn assert_complete_close_frame(
     hits: &FrameHitMap,
     token: NativeCloseConfirmationToken,
     locale: Locale,
+    view: &ClientView,
 ) {
-    let surface: Vec<_> = (buffer.area.y..buffer.area.bottom())
-        .flat_map(|y| (buffer.area.x..buffer.area.right()).map(move |x| (x, y)))
+    let shell = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
+    let modal_scope = crate::tui_layout::overlay_area(&shell);
+    // OverlaySurface is also the separately owned status-strip blocker. Its
+    // cells are outside this modal's paint scope and cannot define its border.
+    assert!(!shell.status.is_empty());
+    assert!((shell.status.y..shell.status.bottom()).all(|y| {
+        (shell.status.x..shell.status.right())
+            .all(|x| matches!(hits.hit_target_at(x, y), Some(HitTarget::OverlaySurface)))
+    }));
+    let surface: Vec<_> = (modal_scope.y..modal_scope.bottom())
+        .flat_map(|y| (modal_scope.x..modal_scope.right()).map(move |x| (x, y)))
         .filter(|(x, y)| matches!(hits.hit_target_at(*x, *y), Some(HitTarget::OverlaySurface)))
         .collect();
     let left = surface
@@ -132,12 +142,31 @@ fn assert_complete_close_frame(
     let top = surface.iter().map(|(_, y)| *y).min().unwrap();
     let bottom = surface.iter().map(|(_, y)| *y).max().unwrap() + 1;
     let outer = Rect::new(left, top, right - left, bottom - top);
+    assert_eq!(outer.intersection(modal_scope), outer);
+    assert!(outer.intersection(shell.status).is_empty());
     let mut border = Buffer::empty(outer);
     Block::bordered()
         .border_type(crate::tui_theme::Theme::terminal_native().corners)
         .render(outer, &mut border);
     for y in buffer.area.y..buffer.area.bottom() {
         for x in buffer.area.x..buffer.area.right() {
+            let point = (x, y).into();
+            let hit = hits.hit_target_at(x, y);
+            if matches!(hit, Some(HitTarget::OverlaySurface)) {
+                assert!(
+                    outer.contains(point) || shell.status.contains(point),
+                    "no extra surface outside the exact modal and status owners"
+                );
+            }
+            if outer.contains(point) {
+                assert!(
+                    matches!(
+                        hit,
+                        Some(HitTarget::OverlaySurface | HitTarget::TabClose { .. })
+                    ),
+                    "every modal cell keeps its own surface or decision target"
+                );
+            }
             if let Some(HitTarget::TabClose { token: actual, .. }) = hits.hit_target_at(x, y) {
                 assert_eq!(*actual, token);
                 assert!(
@@ -475,7 +504,7 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
             TerminalSessionView::Legacy { .. } => unreachable!(),
         };
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
-        assert_complete_close_frame(&buffer, &hits, token, locale);
+        assert_complete_close_frame(&buffer, &hits, token, locale, &view);
         let (_, hidden_hits) = draw_close_frame(&mut session, &view, locale, 20, 8)?;
         assert!((0..8).all(|y| (0..20).all(|x| !matches!(
             hidden_hits.hit_target_at(x, y),
@@ -486,7 +515,7 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         dispatch_close_input(&mut session, &mut view, b"\r");
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
-        assert_complete_close_frame(&buffer, &hits, token, locale);
+        assert_complete_close_frame(&buffer, &hits, token, locale, &view);
         dispatch_close_input(&mut session, &mut view, b"\x1b");
         assert!(
             matches!(session.view(), TerminalSessionView::Native(native) if native.close_confirmation().is_none())
@@ -500,7 +529,7 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         };
         assert_ne!(next, token);
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
-        assert_complete_close_frame(&buffer, &hits, next, locale);
+        assert_complete_close_frame(&buffer, &hits, next, locale, &view);
         dispatch_close_input(&mut session, &mut view, b"\r");
         spin(&mut session, |_| commands.load(Ordering::SeqCst) == 1);
         assert_eq!(commands.load(Ordering::SeqCst), 1);
