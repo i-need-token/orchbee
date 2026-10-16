@@ -74,6 +74,9 @@ selection or a changed member invalidates the choice. Multi-selection renders `*
 selected/total counts on group headers, including collapsed headers. Marking deliberately preserves
 the active terminal, unlike GUI selection that can also activate the marked Tab.
 
+Chinese menu, path and drag copy calls each Tab **标签页** and a group **分组**; English retains **Tab**.
+The localized wording distinguishes selected members from a whole group without changing captured IDs.
+
 Collapsed state remains Client-local, matching the authority in
 `packages/workbench/src/workbench/document/workbench-client-view.ts`. Header disclosure does not
 select a member, submit a command, advance a shared revision or hide members from the navigator.

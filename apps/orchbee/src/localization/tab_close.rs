@@ -23,7 +23,7 @@ impl Locale {
         match self {
             Self::EnUs if count == 1 => "Close 1 Tab?".into(),
             Self::EnUs => format!("Close {count} Tabs?"),
-            Self::ZhCn => format!("关闭 {count} 个 Tab？"),
+            Self::ZhCn => format!("关闭 {count} 个标签页？"),
         }
     }
     pub(crate) fn close_set_context(self, label: &str) -> String {
@@ -39,7 +39,7 @@ impl Locale {
         match self {
             Self::EnUs if count == 1 => "… and 1 more Tab".to_owned(),
             Self::EnUs => format!("… and {count} more Tabs"),
-            Self::ZhCn => format!("……以及另外 {count} 个 Tab"),
+            Self::ZhCn => format!("……以及另外 {count} 个标签页"),
         }
     }
     pub(crate) const fn close_set_warning(self) -> &'static str {
@@ -48,7 +48,7 @@ impl Locale {
                 "Closing ends the running work in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes."
             }
             Self::ZhCn => {
-                "关闭将终止这些 Tab 中运行的任务，影响所有连接到此工作区的人。Tab 将逐个关闭；失败时停止后续关闭。"
+                "关闭将终止这些标签页中运行的任务，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。"
             }
         }
     }
@@ -69,16 +69,16 @@ impl Locale {
                 format!("Closing Tabs: {completed} closed, {remaining} remaining")
             }
             (Self::ZhCn, false) => {
-                format!("正在关闭 Tab：{completed} 个已关闭，剩余 {remaining} 个")
+                format!("正在关闭标签页：{completed} 个已关闭，剩余 {remaining} 个")
             }
         }
     }
     pub(crate) const fn close_title(self, kind: NativeCloseConfirmationKind) -> &'static str {
         match (self, kind) {
             (Self::EnUs, NativeCloseConfirmationKind::Close) => "Close Tab?",
-            (Self::ZhCn, NativeCloseConfirmationKind::Close) => "关闭 Tab？",
+            (Self::ZhCn, NativeCloseConfirmationKind::Close) => "关闭标签页？",
             (Self::EnUs, NativeCloseConfirmationKind::Resume) => "Resume closing this Tab?",
-            (Self::ZhCn, NativeCloseConfirmationKind::Resume) => "继续关闭此 Tab？",
+            (Self::ZhCn, NativeCloseConfirmationKind::Resume) => "继续关闭此标签页？",
         }
     }
 
@@ -87,7 +87,7 @@ impl Locale {
             Self::EnUs => {
                 "Closing this Tab ends its running work for everyone connected to this workspace."
             }
-            Self::ZhCn => "关闭此 Tab 将终止其中运行的任务，影响所有连接到此工作区的人。",
+            Self::ZhCn => "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。",
         }
     }
 
@@ -105,7 +105,7 @@ impl Locale {
                 "Execution ended; awaiting Tab removal"
             }
             (Self::ZhCn, NativeCloseStatusKind::DisposedAwaitingPublication) => {
-                "执行已终止；等待移除 Tab"
+                "执行已终止；等待移除标签页"
             }
             (Self::EnUs, NativeCloseStatusKind::Closed) => "Closed",
             (Self::ZhCn, NativeCloseStatusKind::Closed) => "已关闭",

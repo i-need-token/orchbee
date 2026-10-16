@@ -14,7 +14,8 @@ One confirmation freezes 1–256 exact IDs, Session/context, full canonical Snap
 local marks and focused selection. Focus includes the logical `PaneKey`, physical `PaneRef`
 incarnation, selected Presentation and binding; a same-key reattach is a change. Background targets
 are planned by exact ID without selecting them or impersonating the selected-only Close planner.
-The dialog uses the same Tab terminology as its menu and shows the count, location, first three
+The dialog uses the same terminology as its menu: **Tab** in English and **标签页** in Chinese,
+with **group** / **分组** kept distinct. It shows the count, location, first three
 names/positions and an explicit remainder count. Single/selected/group menu scope comes from the
 [typed menu projection](native-action-menus.md#tab-scope-and-current-values), not translated counts.
 Names and location use sanitized, grapheme-safe previews capped at 64 cells (less on narrow

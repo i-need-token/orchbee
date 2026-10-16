@@ -40,7 +40,7 @@ impl Locale {
     pub(crate) const fn rename_title(self) -> &'static str {
         match self {
             Self::EnUs => "Rename Tab",
-            Self::ZhCn => "重命名 Tab",
+            Self::ZhCn => "重命名标签页",
         }
     }
 
@@ -54,7 +54,7 @@ impl Locale {
     pub(crate) const fn rename_warning(self) -> &'static str {
         match self {
             Self::EnUs => "The new Tab name is shared with everyone connected to this workspace.",
-            Self::ZhCn => "新的 Tab 名称会同步给所有连接到此工作区的人。",
+            Self::ZhCn => "新的标签页名称会同步给所有连接到此工作区的人。",
         }
     }
 

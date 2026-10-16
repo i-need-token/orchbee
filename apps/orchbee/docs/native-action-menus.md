@@ -207,6 +207,10 @@ geometry is required even before the first session state arrives.
 
 ## Tab scope and current values
 
+Across these menus, paths, drag hints, Close and Rename tasks, English user copy uses **Tab** and
+Chinese uses **标签页**; a group remains **group** / **分组**. Localization changes no semantic action
+or target identity.
+
 The Tab heading identifies the addressed name and, when applicable, the selected-set count.
 Each row states its own scope: selection marks elsewhere never imply that every action uses them.
 Group assignment, Group actions and color pages retain a short semantic path with the addressed

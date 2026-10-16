@@ -58,6 +58,88 @@ fn display_name_hints_follow_target_syntax_in_both_locales() {
 #[cfg(unix)]
 mod location_labels;
 
+#[cfg(windows)]
+#[test]
+fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
+    use std::num::NonZeroUsize;
+
+    use crate::{
+        action_menu::{MenuAction, MenuTarget, MenuUnavailable, TabMenuScope},
+        terminal_session::NativeCloseConfirmationKind,
+    };
+    use orchbee_workbench_protocol::WorkbenchTabId;
+
+    let locale = Locale::ZhCn;
+    let count = NonZeroUsize::new(2).unwrap();
+    assert_eq!(locale.menu_action(&MenuAction::PinTab), "固定标签页");
+    assert_eq!(
+        locale.menu_action(&MenuAction::CloseSelectedTabs),
+        "关闭标签页…"
+    );
+    assert_eq!(
+        locale.menu_tab_action(
+            &MenuAction::CloseSelectedTabs,
+            TabMenuScope::Selected(count)
+        ),
+        "关闭所选 2 个标签页…"
+    );
+    assert_eq!(
+        locale.menu_tab_action(&MenuAction::CloseGroup, TabMenuScope::Group(count)),
+        "关闭分组（2 个标签页）…"
+    );
+    assert_eq!(
+        locale.menu_tab_action(&MenuAction::Ungroup, TabMenuScope::Group(count)),
+        "解散分组，保留 2 个标签页"
+    );
+    let tab = WorkbenchTabId::parse("00000000000000000000000000000023").unwrap();
+    assert_eq!(
+        locale.menu_tab_path(&MenuTarget::Tab(tab.clone()), TabMenuScope::Addressed, ">"),
+        "标签页"
+    );
+    assert_eq!(
+        locale.menu_tab_path(
+            &MenuTarget::Tab(tab.clone()),
+            TabMenuScope::Selected(count),
+            ">"
+        ),
+        "所选 2 个标签页"
+    );
+    assert_eq!(
+        locale.menu_tab_path(
+            &MenuTarget::TabGroupChoices(tab),
+            TabMenuScope::Addressed,
+            ">"
+        ),
+        "标签页 > 加入分组"
+    );
+    assert_eq!(
+        locale.menu_unavailable(MenuUnavailable::NoMatchingTabs, true),
+        "无匹配标签页"
+    );
+    assert_eq!(
+        locale.tab_drag_hint(2, true),
+        "移动 2 个标签页 · 松手放置 · Esc 取消"
+    );
+    assert_eq!(
+        locale.tab_drag_hint(2, false),
+        "移动 2 个标签页 · 此处松手取消 · Esc 取消"
+    );
+    assert_eq!(locale.close_set_title(2), "关闭 2 个标签页？");
+    assert_eq!(
+        locale.close_title(NativeCloseConfirmationKind::Resume),
+        "继续关闭此标签页？"
+    );
+    assert_eq!(
+        locale.close_set_warning(),
+        "关闭将终止这些标签页中运行的任务，影响所有连接到此工作区的人。标签页将逐个关闭；失败时停止后续关闭。"
+    );
+    assert_eq!(locale.rename_title(), "重命名标签页");
+    assert_eq!(
+        locale.rename_warning(),
+        "新的标签页名称会同步给所有连接到此工作区的人。"
+    );
+}
+
 /// Flattens `(padded chord, description)` help pairs back into the single
 /// rendered row string so the registry-derived text can be compared whole.
 fn joined_shortcut_rows(text: &ShellText) -> Vec<String> {
