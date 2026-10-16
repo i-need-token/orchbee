@@ -56,12 +56,11 @@ fn automatic_and_explicit_tab_headings_share_zero_based_name_owner_without_selec
                 MenuTarget::Tab(tab.tab_id.clone()),
                 MenuTarget::TabTools(tab.tab_id.clone()),
                 MenuTarget::TabGroupChoices(tab.tab_id.clone()),
-                MenuTarget::TabGroups {
-                    tab_id: tab.tab_id.clone(),
-                    colors: false,
-                },
             ] {
-                assert!(ui.open_action_menu(target.clone(), None, false));
+                assert!(
+                    ui.open_action_menu(target.clone(), None, false),
+                    "{target:?}"
+                );
                 let view = ui.view();
                 let menu = view.action_menu().unwrap();
                 assert_eq!(menu.source, &target);

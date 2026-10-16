@@ -761,7 +761,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             let view = ui.view();
             let menu = view.action_menu().unwrap();
             let source = menu.source.clone();
-            let token = menu.token;
+            let mut token = menu.token;
             let selected = menu.selected;
             let mut hits = HitMapBuilder::new();
             terminal
@@ -800,14 +800,16 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                 assert!(mailbox.try_recv().unwrap().is_none());
                 let view = ui.view();
                 let menu = view.action_menu().unwrap();
-                assert_eq!(
-                    (menu.source, menu.token, menu.selected),
-                    (&source, token, selected)
+                assert_eq!((menu.source, menu.selected), (&source, selected));
+                assert_ne!(
+                    menu.token, token,
+                    "suspension revokes the old painted token"
                 );
 
                 // Recovery requires a new actual successful composition, not a synthetic receipt.
                 (painted_width, painted_height) = (80, 20);
                 ui.observe_geometry(Geometry::new(painted_width, painted_height, 8, 16).unwrap());
+                token = ui.view().action_menu().unwrap().token;
                 terminal = Terminal::new(TestBackend::new(painted_width, painted_height)).unwrap();
                 let mut recovered_hits = HitMapBuilder::new();
                 terminal
