@@ -1,6 +1,8 @@
 use super::*;
-use crate::terminal_session::state::worktree_launch::{Plan, WorktreeMode};
-use crate::terminal_session::ui::{tests::membership, tests::worktree_launch};
+use crate::terminal_session::state::worktree_launch::{Plan, WorktreeMode, WorktreeStage};
+use crate::terminal_session::ui::tests::{
+    context_selection, membership, viewport, worktree_launch,
+};
 use orchbee_workbench_protocol::{
     Directory, PanelNode, PresentationBinding, Project, TerminalContext, TerminalId,
     TerminalPresentationId, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkbenchPanelId,
@@ -9,19 +11,24 @@ use orchbee_workbench_protocol::{
 };
 
 fn case() -> (NativeUi, Plan, Snapshot) {
-    let mut ui = tests::worktree_launch::ready(WorktreeMode::Open);
+    case_with_mode(WorktreeMode::Open)
+}
+
+fn case_with_mode(mode: WorktreeMode) -> (NativeUi, Plan, Snapshot) {
+    let mut ui = tests::worktree_launch::ready(mode);
     let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
     let token = ui.worktrees.launcher.token().unwrap();
     ui.worktrees.launcher.draw(Some(token));
-    let plan = ui
-        .worktrees
-        .launcher
-        .confirm(
-            token,
-            WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
+    let operation = WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap();
+    let plan = match mode {
+        WorktreeMode::Create => ui.worktrees.launcher.create_with_defaults(
+            operation,
             &origin,
-        )
-        .unwrap();
+            crate::localization::Locale::EnUs,
+        ),
+        WorktreeMode::Open => ui.worktrees.launcher.confirm(token, operation, &origin),
+    }
+    .unwrap();
     let directory = WorkbenchDirectoryId::parse(&format!("{:032x}", 280)).unwrap();
     let workspace = WorkbenchWorkspaceId::parse(&format!("{:032x}", 281)).unwrap();
     let context = WorkbenchTerminalContextId::parse(&format!("{:032x}", 282)).unwrap();
@@ -87,6 +94,186 @@ fn case() -> (NativeUi, Plan, Snapshot) {
         },)
     ));
     (ui, plan, snapshot)
+}
+
+#[test]
+fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_dismissal() {
+    use crate::terminal_session::{
+        mailbox::{EventDeadline, UiReply, WorkerEvent},
+        state::{RefreshDecision, worktree_launch::addressed},
+    };
+    use orchbee_workbench_protocol::{WorkbenchProjectId, WorktreeIntent, WorktreeSelector};
+    let (mut ui, created, mut snapshot) = case_with_mode(WorktreeMode::Create);
+    let old_token = ui.worktrees.launcher.token().unwrap();
+    let old_outcome = ui.worktrees.launcher.operation().unwrap().outcome.clone();
+    let other = WorkbenchProjectId::parse(&format!("{:032x}", 290)).unwrap();
+    snapshot.navigation.projects.push(Project {
+        project_id: other.clone(),
+        label: "noncurrent source".into(),
+    });
+    let mut source = snapshot.navigation.workspaces[0].clone();
+    source.workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 291)).unwrap();
+    source.terminal_context_id =
+        WorkbenchTerminalContextId::parse(&format!("{:032x}", 292)).unwrap();
+    source.project_id = Some(other.clone());
+    let mut context = snapshot.terminal_contexts[1].clone();
+    context.terminal_context_id = source.terminal_context_id.clone();
+    context.tabs[0].tab_id = WorkbenchTabId::parse(&format!("{:032x}", 293)).unwrap();
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = &mut context.tabs[0].root
+    else {
+        panic!("one source panel");
+    };
+    *panel_id = WorkbenchPanelId::parse(&format!("{:032x}", 294)).unwrap();
+    primary_presentation.presentation_id =
+        TerminalPresentationId::parse(&format!("{:032x}", 295)).unwrap();
+    primary_presentation.binding.as_mut().unwrap().terminal_id =
+        TerminalId::parse(&format!("{:032x}", 296)).unwrap();
+    snapshot
+        .navigation
+        .workspace_order
+        .push(source.workspace_id.clone());
+    snapshot.navigation.workspaces.push(source);
+    snapshot.terminal_contexts.push(context);
+
+    // Consume the real refresh, old Viewer cleanup and exact membership install.
+    let mailbox = ui.mailbox.as_ref().unwrap().clone();
+    let source_lease = source_refresh(&mut ui);
+    ui.begin_worktree_entry(Some(snapshot.clone()));
+    let target = ui.worktrees.entry.as_ref().unwrap().member.clone();
+    let wait = publish_snapshot(&ui, &source_lease, snapshot.clone());
+    assert!(ui.tick());
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+    mailbox.finish_lease(source_lease).unwrap();
+    let context_lease = mailbox.try_recv().unwrap().unwrap();
+    let wait = publish_snapshot(&ui, &context_lease, snapshot.clone());
+    assert!(ui.tick());
+    let Some(UiReply::Refresh(reply)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("accepted context snapshot");
+    };
+    let RefreshDecision::Cleanup(cleanup) = reply.decision() else {
+        panic!("exact old Viewer cleanup");
+    };
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::MembershipDetached {
+                detached: cleanup.old().clone(),
+                cleanup: cleanup.clone(),
+            },
+            EventDeadline::TotalCleanup(cleanup.deadlines().total()),
+            &ui.clock,
+        )
+        .unwrap();
+    assert!(ui.tick());
+    let Some(UiReply::Membership(reply)) = mailbox.take_deposited_reply(&wait).unwrap() else {
+        panic!("exact membership install");
+    };
+    assert!(matches!(
+        reply.decision(),
+        RefreshDecision::AttachRecovered(_)
+    ));
+    mailbox.finish_lease(context_lease).unwrap();
+    context_selection::make_desired_ready(&mut ui, 2);
+    // The attach/physical-frame boundary is controlled here; entry still consumes
+    // its production Ready + exact-member + FrameAvailable admission.
+    viewport::install_projection(&mut ui, Some((0, false, 24)), 0);
+    for _ in 0..6 {
+        ui.drive_worktree_entry();
+        if ui.worktrees.entry.is_none() {
+            break;
+        }
+    }
+    assert!(
+        ui.worktrees.entry.is_none(),
+        "entry completed, not just queued"
+    );
+    assert_eq!(ui.worktrees.launcher.notice(), WorktreeNotice::Opened);
+    assert_eq!(ui.view().focused_member().as_ref(), Some(&target));
+    assert_eq!(
+        ui.view().pane_projection_status(&target.panel),
+        NativeProjectionStatus::FrameAvailable
+    );
+    ui.worktrees.dismiss_focus();
+    assert!(!ui.worktrees.launcher.visible());
+    let retained = ui.worktrees.launcher.operation().unwrap();
+    assert_eq!(retained.plan.operation_id, created.operation_id);
+    assert_eq!(retained.outcome, old_outcome);
+    assert!(retained.focus_allowed);
+
+    let addressed = addressed::AddressedWorktreeSource::capture(
+        &snapshot,
+        &addressed::SidebarWorktreeTarget::Project(other.clone()),
+    )
+    .unwrap();
+    let origin = ui.state.as_ref().unwrap().worktree_origin().unwrap();
+    assert_ne!(addressed.cache.location(), origin.cache.location());
+    let sidebar = addressed::SidebarDiscovery {
+        addressed,
+        sample: crate::terminal_session::primary_directory::RootDirectory::Available(Some(
+            WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+        )),
+        source: created.source.clone(),
+        discovery: created.discovery.clone(),
+    };
+    let checkout = WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap();
+    assert!(sidebar.valid(origin.cache.canonical_snapshot()));
+    assert!(
+        ui.open_sidebar_worktree(sidebar.clone(), Some(checkout.clone())),
+        "a completed hidden Create must allow a fresh addressed Open"
+    );
+    let next = ui.worktrees.launcher.token().unwrap();
+    assert_ne!(next, old_token);
+    assert_eq!(
+        ui.worktrees.launcher.view().unwrap().stage(),
+        WorktreeStage::Checkout
+    );
+    assert!(!ui.worktrees.launcher.sidebar_open_ready());
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "no Start before draw"
+    );
+    let operation = WorkbenchRequestId::parse(&format!("{:032x}", 91)).unwrap();
+    ui.worktrees.launcher.draw(Some(old_token));
+    assert!(
+        ui.worktrees
+            .launcher
+            .confirm(next, operation.clone(), &origin)
+            .is_none()
+    );
+    ui.worktrees.launcher.draw(Some(next));
+    assert!(ui.worktrees.launcher.sidebar_open_ready());
+    let opened = ui
+        .worktrees
+        .launcher
+        .confirm(next, operation.clone(), &origin)
+        .unwrap();
+    assert_eq!(opened.operation_id, operation);
+    assert_ne!(opened.operation_id, created.operation_id);
+    assert_eq!(opened.project.as_ref(), Some(&other));
+    assert_eq!(
+        opened.sidebar.as_ref().unwrap().addressed,
+        sidebar.addressed
+    );
+    assert_eq!(opened.discovery.worker, sidebar.discovery.worker);
+    assert!(matches!(opened.intent, WorktreeIntent::Open {
+        source: ref selected_source,
+        selector: WorktreeSelector::Path { path: ref selected }, ..
+    } if selected_source == &sidebar.source && selected == &checkout));
+    assert!(
+        ui.worktrees
+            .launcher
+            .confirm(next, operation, &origin)
+            .is_none()
+    );
+    assert!(
+        !ui.worktrees
+            .launcher
+            .start_settled(&created.operation_id, Ok(old_outcome.unwrap()))
+    );
+    assert_eq!(ui.worktrees.launcher.notice(), WorktreeNotice::Pending);
 }
 
 #[test]
