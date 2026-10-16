@@ -371,6 +371,56 @@ fn named_secondary_adjustments_are_the_minimum_readable_steps() {
 }
 
 #[test]
+fn dark_primary_separation_exceeds_the_readable_near_equal_pair_after_composition() {
+    let theme = Theme::one_dark();
+    // Both old foregrounds clear the surface readability floor. That alone did not protect
+    // priority: they were almost equally bright. Keep this control separate from RGB snapshots;
+    // a larger nominal separation is not a universal perceptual threshold or a host result.
+    let near_equal = [Color::Rgb(171, 178, 191), Color::Rgb(170, 177, 189)];
+    let near_equal_separation = contrast_ratio(near_equal[0], near_equal[1]);
+    for (base, interaction) in [
+        (Role::SurfaceCanvas, None),
+        (Role::SurfaceChrome, None),
+        (Role::SurfaceOverlay, None),
+        (Role::SurfaceOverlay, Some(Role::SurfaceHover)),
+        (Role::SurfaceOverlay, Some(Role::SurfacePressed)),
+        (Role::SurfaceOverlay, Some(Role::SurfaceSelection)),
+        (Role::SurfaceChrome, Some(Role::SurfaceCurrent)),
+        (Role::SurfaceInactive, None),
+    ] {
+        let primary = theme.content_on_surface(
+            base,
+            interaction,
+            Some(Role::TextPrimary),
+            theme.style(Role::TextPrimary),
+        );
+        let secondary = theme.content_on_surface(
+            base,
+            interaction,
+            Some(Role::TextSecondary),
+            theme.style(Role::TextSecondary),
+        );
+        assert_eq!(primary.bg, secondary.bg);
+        let background = primary.bg.expect("named content has a painted surface");
+        for foreground in near_equal {
+            assert!(contrast_ratio(foreground, background) >= 4.5);
+        }
+        let primary = primary.fg.expect("primary content has a foreground");
+        let secondary = secondary.fg.expect("secondary content has a foreground");
+        assert!(contrast_ratio(primary, background) >= 4.5);
+        assert!(contrast_ratio(secondary, background) >= 4.5);
+        assert!(
+            relative_luminance(primary) > relative_luminance(secondary),
+            "{base:?}/{interaction:?} reverses information priority"
+        );
+        assert!(
+            contrast_ratio(primary, secondary) > near_equal_separation,
+            "{base:?}/{interaction:?} retains the readable near-equal hierarchy"
+        );
+    }
+}
+
+#[test]
 fn shipped_palettes_have_declared_polarity_complete_roles_and_visible_text() {
     for (theme, name, polarity) in [
         (Theme::one_light(), "one-light", Polarity::Light),

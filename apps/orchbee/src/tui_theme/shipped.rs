@@ -125,7 +125,7 @@ impl Theme {
             #[cfg(test)]
             name: "one-dark",
             polarity: Polarity::Dark,
-            primary: [171, 178, 191],
+            primary: [204, 211, 224],
             secondary: [170, 177, 189],
             inverse: [40, 44, 52],
             action_accent: [245, 245, 245],

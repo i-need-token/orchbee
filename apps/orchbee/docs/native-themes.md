@@ -43,16 +43,27 @@ warning bold, underline or blink. Monochrome retains the localized Delete verb a
 Nominal palette tests cover overlay, hover, pressed and selection surfaces at truecolor, ANSI-256
 and ANSI-16; customized host palette appearance still requires real-window review.
 
-Adding the interaction surfaces exposed insufficient supporting-text contrast in the previous
-named-theme secondary colors. One Light moves from `[104, 107, 119]` to `[90, 93, 105]`; One Dark
-moves from `[157, 164, 178]` to `[170, 177, 189]`. Light uses the smallest uniform downward RGB
-step that clears 4.5:1. Dark uses the componentwise boundary that clears 4.5:1 on every shipped
-surface, remains lower-luminance than primary text and quantizes to a distinct ANSI-256 value.
-Pressed and provisional-selection fills are included. The shared secondary triplet also feeds
-`text-disabled`, `hint-label` and `status-pending`, so those projections change with it; the pending
-modifier remains independent. Primary text retains higher contrast on every surface and neither
-adjustment uses bold. This is the readability adjustment required by the new interaction matrix;
-the remaining roles keep their existing semantic ownership.
+Named-theme supporting text uses `[90, 93, 105]` in One Light and `[170, 177, 189]` in One Dark.
+These audited secondary values clear 4.5:1 on every shipped surface, including pressed and
+provisional-selection fills, and quantize separately from primary text at ANSI-256. The same
+triplet feeds `text-disabled`, `hint-label` and `status-pending`; the pending modifier and disabled
+availability remain independent. Secondary text is not dimmed to create priority at the expense
+of its surface readability.
+
+One Dark primary text uses `[204, 211, 224]` with those secondary values and fills unchanged. Its
+nominal sRGB primary/secondary contrast is approximately 1.434:1. Headings, primary values, key
+glyphs and the existing primary surface foregrounds inherit this theme-owned value; renderers add
+no local colors. Destructive intent, status, current identity, navigation, hover and pressed tracks
+retain their separate semantics. Terminal preferences and explicit program colors keep the
+independent authority described above.
+
+Fixed RGB checks protect chosen palette values and the audited secondary boundary. A separate
+regression uses a readable near-equal foreground pair to show why surface readability alone is
+insufficient, then compares primary/secondary separation after content composition across resting,
+current, selected, hover and pressed surfaces. Existing reduced-color and monochrome modifier
+fallbacks still apply. These are nominal palette claims, not a universal hierarchy ratio or proof
+of perceptual distinction; real-window light/dark, en-US/zh-CN and 80x24/120x40 review supplies that
+separate evidence.
 
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
@@ -146,6 +157,7 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 | Legacy names and migration admission                        | Settings decision cases and CLI warning/schema checks                           | Windows TOML owner and existing fatal source boundary                                                             |
 | Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases       | Three themes, canonical palette, sampled environment; program colors excluded                                     |
 | Shared Light/Dark interaction palette remains aligned       | CSS source-conformance test and exact foreign-input verification edge           | Public design tokens map only shared Light/Dark roles; System remains host-relative                               |
+| Dark text priority exceeds a readable near-equal control    | Resolved content separation and independent surface-readability cases           | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate               |
 | Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate |
 | Confirmed shared publication preserves complete appearance  | Server/Client publication traces and shared contract corpus                     | Shared settings lane and CAS traces; physical display capability remains separate                                 |
 | Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                   | Native Windows process/byte evidence; physical emulator appearance is separate                                    |
