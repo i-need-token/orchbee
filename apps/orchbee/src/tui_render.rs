@@ -172,6 +172,7 @@ pub(crate) fn render_shell(
 /// every painter reports the exact rect it drew, so a recorded region
 /// can never disagree with the frame on screen. The shell publishes the
 /// staged map only when the whole draw completes.
+#[cfg(any(not(windows), test))]
 pub(crate) fn render_terminal_shell(
     frame: &mut Frame<'_>,
     view: &ClientView,
@@ -180,6 +181,29 @@ pub(crate) fn render_terminal_shell(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> NativeDrawReceipt {
+    render_terminal_shell_with_resize(
+        frame,
+        view,
+        locale,
+        session,
+        theme,
+        hits,
+        &crate::tui_layout::ResizeProjection::Canonical,
+    )
+}
+
+pub(crate) fn render_terminal_shell_with_resize<'a>(
+    frame: &mut Frame<'_>,
+    view: &ClientView,
+    locale: Locale,
+    mut session: Option<TerminalSessionView<'a>>,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+    resize: &'a crate::tui_layout::ResizeProjection,
+) -> NativeDrawReceipt {
+    if let Some(TerminalSessionView::Native(native)) = session.as_mut() {
+        native.set_resize_projection(resize);
+    }
     let area = frame.area();
     let client_claims = ClientCaptureClaims::default();
     #[cfg(windows)]
@@ -196,7 +220,8 @@ pub(crate) fn render_terminal_shell(
     let text = bound_text.text();
     frame.render_widget(Block::new().style(theme.style(Role::SurfaceCanvas)), area);
 
-    let areas = project_shell_areas(area, view.sidebar_surface());
+    let sidebar_surface = resize.sidebar(view.sidebar_surface());
+    let areas = project_shell_areas(area, sidebar_surface);
     frame
         .buffer_mut()
         .set_style(areas.tabs, theme.style(Role::SurfaceChrome));
@@ -496,6 +521,7 @@ pub(crate) fn render_terminal_shell(
                     sidebar,
                     agent_sidebar::RenderContext {
                         view,
+                        sidebar_surface,
                         locale,
                         creation: match session.as_ref() {
                             Some(TerminalSessionView::Native(native)) => {

@@ -12,6 +12,12 @@ pub(super) struct LocalResizePending {
     deadline: Instant,
     interrupted: bool,
     awaiting_draw: bool,
+    presentation: Option<ReleasedDivider>,
+}
+
+struct ReleasedDivider {
+    source: crate::tui_layout::DrawnDivider,
+    ratio: orchbee_workbench_protocol::ClientSplitRatio,
 }
 
 pub(in crate::terminal_session) enum LocalResizeFeedback {
@@ -93,10 +99,16 @@ impl ClientControl {
         target: &crate::tui_layout::DrawnDivider,
         ratio: orchbee_workbench_protocol::ClientSplitRatio,
     ) {
-        self.submit_local(
+        let submitted = self.submit_local(
             native,
             native.prepare_divider_adjustment(target, ratio, self.viewport),
         );
+        if submitted && let Some(pending) = &mut self.local_resize {
+            pending.presentation = Some(ReleasedDivider {
+                source: target.clone(),
+                ratio,
+            });
+        }
     }
 
     fn submit_local(
@@ -110,14 +122,14 @@ impl ClientControl {
             ),
             Reason,
         >,
-    ) {
+    ) -> bool {
         if self.stopped {
             self.local_resize_feedback = Some(LocalResizeFeedback::Notice(Notice::ResizeFailed));
-            return;
+            return false;
         }
         if self.pending.is_some() || self.local_resize.is_some() {
             self.local_resize_feedback = Some(LocalResizeFeedback::Notice(Notice::ResizeBusy));
-            return;
+            return false;
         }
         let result = prepared.and_then(|(site, adjustment, before)| {
             if !adjustment.change.changed() {
@@ -141,6 +153,7 @@ impl ClientControl {
                 deadline: self.clock.now() + super::super::state::OPERATION_TOTAL,
                 interrupted: false,
                 awaiting_draw: false,
+                presentation: None,
             });
             self.local_resize_feedback = Some(LocalResizeFeedback::Clear);
             Ok(())
@@ -153,11 +166,42 @@ impl ClientControl {
                     Notice::ResizeFailed
                 }));
         }
+        self.local_resize.is_some()
     }
 
     pub(super) fn interrupt_local_resize(&mut self) {
         if let Some(pending) = &mut self.local_resize {
             pending.interrupted = true;
+            pending.presentation = None;
+        }
+    }
+
+    pub(in crate::terminal_session) fn resize_projection(
+        &mut self,
+        native: &NativeUi,
+        viewport: ratatui::layout::Rect,
+        sidebar: crate::client_view::SidebarSurface,
+        presentation_allowed: bool,
+    ) -> crate::tui_layout::ResizeProjection {
+        let Some(pending) = &mut self.local_resize else {
+            return crate::tui_layout::ResizeProjection::Canonical;
+        };
+        let Some(released) = pending.presentation.as_ref() else {
+            return crate::tui_layout::ResizeProjection::Canonical;
+        };
+        if !presentation_allowed
+            || pending.interrupted
+            || self.clock.now() >= pending.deadline
+            || !native.divider_projection_current(&released.source, (viewport, sidebar))
+        {
+            // Canonical publication also retires the draft: its new revision now paints the
+            // accepted ratio directly and remains eligible for the existing draw acknowledgement.
+            pending.presentation = None;
+            return crate::tui_layout::ResizeProjection::Canonical;
+        }
+        crate::tui_layout::ResizeProjection::Divider {
+            source: released.source.clone(),
+            ratio: released.ratio,
         }
     }
 

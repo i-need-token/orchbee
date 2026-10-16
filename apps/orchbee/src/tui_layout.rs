@@ -1,10 +1,12 @@
 //! Deterministic shell and pane geometry; no terminal or shared-layout mutations.
 mod divider;
+mod resize;
 mod sidebar;
 pub(crate) use divider::DividerSource;
 #[cfg(windows)]
 pub(crate) use divider::{DividerDrag, DrawnDivider, DrawnResize};
 use ratatui::layout::{Constraint, Layout, Rect};
+pub(crate) use resize::ResizeProjection;
 pub(crate) use sidebar::SidebarWidth;
 #[cfg(windows)]
 pub(crate) use sidebar::{DrawnSidebarWidth, SidebarWidthChange, SidebarWidthDrag};

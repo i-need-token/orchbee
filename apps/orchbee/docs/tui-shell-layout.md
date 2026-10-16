@@ -393,18 +393,21 @@ the preference for later restoration.
 | Full / Compact / Minimal | Keep existing tier and visibility intent rules: Full docks, Compact shows an explicitly requested overlay, lower tiers hide the sidebar. Width does not automatically open an overlay or change wide-window visibility intent.                                                                                                                                                             |
 | Keyboard width           | While sidebar navigation owns input, exact Shift+Left and Shift+Right emit a two-column narrower/wider intent; `0` emits reset to 30. The shared binding registry also supplies localized help. Require an exact current painted sidebar target even when mouse capture is released. No target means no mutation.                                                                          |
 | Adjustment at a limit    | Start from the effective width. If the clamped result equals that width, preserve the original preferred value; reset explicitly writes the default.                                                                                                                                                                                                                                       |
-| Pointer press / motion   | A plain left press on the existing one-column right border captures its exact viewport, full preferred surface and effective sidebar rectangle. Absolute displacement produces a reversible line preview, without changing width preference, terminal geometry, row focus, expansion or navigation requests.                                                                               |
+| Pointer press / motion   | A plain left press on the existing one-column right border captures its exact viewport, full preferred surface and effective sidebar rectangle. Absolute displacement produces a reversible live width: rows, border hits and docked terminal geometry move together. Width preference, row focus, expansion and navigation requests remain unchanged while held.                          |
 | Matching left release    | Revalidate the painted target and compare the original preferred width with the current preference. Commit the changed candidate once through Picker, retire old hit geometry and run the existing layout boundary. Equal effective rectangles cannot authorize a stale preferred value.                                                                                                   |
 | Cancel / stale source    | Escape, Shift, host resize, hidden sidebar, covering capture or loss of the painted target discards the preview. Zero displacement and clamped no-op releases preserve the original preference. The input owner retains release and packet retirement.                                                                                                                                     |
-| Width commit             | Clear queued sidebar wheel work and resume height-aware focus reveal. Preserve keyboard ownership, expansion, active Context and request. The next frame recomputes labels, row heights, hits and terminal geometry from the same width.                                                                                                                                                   |
+| Width commit             | Clear queued sidebar wheel work and resume height-aware focus reveal. Preserve keyboard ownership, expansion, active Context and request. The accepted preference takes over the already projected width; subsequent frames keep labels, row heights, hits and terminal geometry consistent.                                                                                               |
 | Hidden restoration       | When Full or Compact can present the sidebar and no covering capture owns the surface, a localized top-strip entry invokes the existing `FocusBusinessSidebar` action. It shares the configured navigation entry route; the existing visibility toggle and global Menu remain available. Minimal and TooSmall keep their existing reduced hints and refusal behavior until the host grows. |
 
 The border hit uses the sidebar control layer, above only its own surface and below
-covering modals. Row, menu and border rectangles are disjoint. Preview rendering uses
-the existing divider graphics-cover and rejected-preview repaint lifecycle; it never
-introduces a second terminal projection or sends a backend resize during motion.
-Only the one-column preview line changes to the focus accent foreground; backgrounds
-and neighboring cells retain their canonical rendering. Press, motion, release and
+covering modals. Row, menu and border rectangles are disjoint. A read-only local
+`ResizeProjection` supplies the same effective width to paint, hit mapping and
+terminal-size observation. The pointer keeps the immutable preferred source and
+last successful draft-frame proof separately; its own layout changes preserve the
+drag, while external owner/viewport/source changes cancel it. Compact overlay width
+changes leave the underlying terminal geometry unchanged. Graphics use the existing
+cover and rejected-draft repaint lifecycle. Only the actual one-column border uses
+the focus accent foreground; neighboring cells render normally at their new geometry. Press, motion, release and
 cancellation never add width values or drag instructions to the status area or an overlay.
 
 The pure width model covers admitted bounds, half-host clamping, offset viewports,
@@ -413,7 +416,7 @@ Picker cases cover compare-and-set rejection, focus preservation and collapsed a
 Workspace entry without disclosure. Sidebar renders cover widths 24/30/60, both
 locales, tier degradation and exact border hits. Shared input evidence under the
 native mouse-input authority owns capture, stale draws, cancellation, matching release,
-graphics cleanup and terminal-geometry agreement; pure geometry alone does not prove
+two held moves across rendered frames, graphics cleanup and terminal-geometry agreement; pure geometry alone does not prove
 those effects. The existing bounded hierarchy traces remain the hierarchy authority.
 
 ## Status line

@@ -94,6 +94,7 @@ fn sidebar_hidden_layout_retires_navigation_before_already_read_enter_or_split_c
                 &mut surface,
                 &mut size,
                 None,
+                (&crate::tui_layout::ResizeProjection::Canonical, false),
             )
             .unwrap();
             assert!(view.machines.enter_sidebar_navigation());
@@ -126,7 +127,8 @@ fn sidebar_hidden_layout_retires_navigation_before_already_read_enter_or_split_c
                     &mut view,
                     &mut surface,
                     &mut size,
-                    None
+                    None,
+                    (&crate::tui_layout::ResizeProjection::Canonical, false),
                 )
                 .unwrap()
             );
@@ -200,6 +202,7 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
                 &mut surface,
                 &mut size,
                 None,
+                (&crate::tui_layout::ResizeProjection::Canonical, false),
             )
             .unwrap();
             assert!(view.machines.focus_sidebar_target(&target));
@@ -237,6 +240,7 @@ fn sidebar_backdrop_retirement_settles_before_paint_with_or_without_packet_tail(
                             surface,
                             &mut size,
                             None,
+                            (&crate::tui_layout::ResizeProjection::Canonical, false),
                         )
                     },
                     &mut |_| Ok(()),
@@ -309,6 +313,7 @@ fn sidebar_width_retires_same_packet_release_when_press_or_motion_observes_host_
                 &mut surface,
                 &mut size,
                 None,
+                (&crate::tui_layout::ResizeProjection::Canonical, false),
             )
             .unwrap();
             let mut dispatcher = InputDispatcher::default();
@@ -345,6 +350,7 @@ fn sidebar_width_retires_same_packet_release_when_press_or_motion_observes_host_
                             surface,
                             &mut size,
                             None,
+                            (&crate::tui_layout::ResizeProjection::Canonical, false),
                         )
                     },
                     &mut |_| Ok(()),
@@ -385,6 +391,7 @@ fn sidebar_width_retires_same_packet_release_when_press_or_motion_observes_host_
                             surface,
                             &mut size,
                             None,
+                            (&crate::tui_layout::ResizeProjection::Canonical, false),
                         )
                     },
                     &mut |_| Ok(()),

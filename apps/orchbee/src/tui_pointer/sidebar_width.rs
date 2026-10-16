@@ -35,6 +35,10 @@ impl PointerState {
         view: &ClientView,
         target: &DrawnSidebarWidth,
     ) -> bool {
+        let painted = self
+            .sidebar_width_preview()
+            .filter(|drag| &drag.target == target)
+            .map_or(target, |drag| &drag.painted);
         view.machines.available
             && !view.machines.open
             && !view.resize_mode()
@@ -43,7 +47,7 @@ impl PointerState {
             && self
                 .map
                 .as_ref()
-                .is_some_and(|map| map.exposes_sidebar_width(target))
+                .is_some_and(|map| map.exposes_sidebar_width(painted))
     }
 
     /// Does not require mouse capture: keyboard uses the same successful paint.

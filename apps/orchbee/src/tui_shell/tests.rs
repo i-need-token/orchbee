@@ -1065,7 +1065,7 @@ fn transient_zero_cells_do_not_swallow_a_real_viewport_failure() -> io::Result<(
 }
 
 #[test]
-fn transient_zero_cells_never_report_a_geometry_to_the_session() -> io::Result<()> {
+fn transient_zero_cells_repeat_only_the_last_valid_geometry() -> io::Result<()> {
     let initial = dimensions(100, 24);
     let mut terminal = test_terminal(initial);
     let mut inputs = QueueInputSource {
@@ -1100,7 +1100,10 @@ fn transient_zero_cells_never_report_a_geometry_to_the_session() -> io::Result<(
             SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
             SurfaceEvent::AfterDraw,
+            SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
+            SurfaceEvent::Observe(geometry),
+            SurfaceEvent::Observe(geometry),
             SurfaceEvent::Tick,
             SurfaceEvent::Action(ClientAction::Exit),
         ]

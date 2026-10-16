@@ -978,6 +978,7 @@ fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_
                             RenderContext {
                                 creation: None,
                                 view: &view,
+                                sidebar_surface: view.sidebar_surface(),
                                 locale,
                                 backend_status: SiteStatus {
                                     text: "Ready",
@@ -1079,6 +1080,7 @@ fn captured_input_suppresses_sidebar_focus_chrome_and_local_hints_without_forget
                     RenderContext {
                         creation: None,
                         view: &view,
+                        sidebar_surface: view.sidebar_surface(),
                         locale: Locale::EnUs,
                         backend_status: SiteStatus {
                             text: "Ready",
@@ -1505,7 +1507,7 @@ fn bounded_sidebar_width_records_only_its_border_and_never_overrides_covering_he
 }
 
 #[test]
-fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_preference() {
+fn width_draft_moves_painted_geometry_and_rejects_an_equal_rect_with_stale_preference() {
     use crate::tui_layout::SidebarWidth;
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let theme = Theme::rgb_test_dark();
@@ -1518,9 +1520,15 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
         drag.update(target.edge().x + 10);
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
         let mut hits = HitMapBuilder::new();
+        let resize = crate::tui_layout::ResizeProjection::Sidebar {
+            source: target,
+            width: drag.width,
+        };
         terminal
             .draw(|frame| {
-                render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+                crate::tui_render::render_terminal_shell_with_resize(
+                    frame, &view, locale, None, &theme, &mut hits, &resize,
+                );
                 assert!(render_width_preview(frame, &view, &drag, &theme, &hits));
             })
             .unwrap();
@@ -1529,11 +1537,11 @@ fn width_preview_keeps_canonical_geometry_and_rejects_an_equal_rect_with_stale_p
         let map = hits.finish();
         for y in 0..39 {
             assert_eq!(
-                map.hit_target_at(target.edge().x, y),
-                Some(&HitTarget::SidebarResize(target))
+                map.hit_target_at(drag.preview.x, y),
+                Some(&HitTarget::SidebarResize(drag.projected_target()))
             );
             assert!(!matches!(
-                map.hit_target_at(drag.preview.x, y),
+                map.hit_target_at(target.edge().x, y),
                 Some(HitTarget::SidebarResize(_))
             ));
             assert_eq!(
@@ -1590,9 +1598,15 @@ fn width_preview_changes_only_the_single_line_foreground_without_footer_feedback
                     drag.update(target.edge().x.saturating_add_signed(displacement));
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut hits = HitMapBuilder::new();
+                    let resize = crate::tui_layout::ResizeProjection::Sidebar {
+                        source: target,
+                        width: drag.width,
+                    };
                     terminal
                         .draw(|frame| {
-                            render_terminal_shell(frame, &view, locale, None, &theme, &mut hits);
+                            crate::tui_render::render_terminal_shell_with_resize(
+                                frame, &view, locale, None, &theme, &mut hits, &resize,
+                            );
                             frame.buffer_mut().set_string(
                                 target.sidebar.area.right(),
                                 height - 1,

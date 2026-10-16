@@ -1804,7 +1804,7 @@ impl PointerState {
     #[cfg(windows)]
     fn chrome_pressed_fingerprint(&self) -> Option<chrome::Fingerprint> {
         match &self.gesture {
-            Gesture::Divider(drag) => Some(chrome::Fingerprint::divider(&drag.target)),
+            Gesture::Divider(drag) => Some(chrome::Fingerprint::divider(&drag.projected_target())),
             Gesture::Tab(drag) => drag.projection_fingerprint(),
             _ => None,
         }
@@ -1857,7 +1857,32 @@ impl PointerState {
         self.chrome_projection.clear_transport();
     }
 
-    /// Current reversible geometry, never a source of authoritative terminal dimensions.
+    /// Read-only geometry shared by drawing and physical-controller viewport observation.
+    pub(crate) fn resize_projection(&self) -> crate::tui_layout::ResizeProjection {
+        #[cfg(windows)]
+        match &self.gesture {
+            Gesture::Divider(drag) => {
+                return crate::tui_layout::ResizeProjection::Divider {
+                    source: drag.target.clone(),
+                    ratio: drag.ratio,
+                };
+            }
+            Gesture::SidebarWidth(drag) => {
+                return crate::tui_layout::ResizeProjection::Sidebar {
+                    source: drag.target,
+                    width: drag.width,
+                };
+            }
+            _ => {}
+        }
+        crate::tui_layout::ResizeProjection::Canonical
+    }
+
+    pub(crate) fn resize_presentation_allowed(&self) -> bool {
+        self.capture && !self.host_unfocused
+    }
+
+    /// Current reversible geometry; shared ratios remain authoritative until release commits.
     #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {
         match &self.gesture {
@@ -2297,17 +2322,35 @@ impl PointerState {
             self.gesture = Gesture::Idle;
         }
         #[cfg(windows)]
-        if self
-            .divider_preview()
-            .is_some_and(|drag| !map.exposes_divider(&drag.target))
-        {
+        let divider_lost = if let Gesture::Divider(drag) = &mut self.gesture {
+            let painted = drag.projected_target();
+            if map.exposes_divider(&painted) {
+                drag.painted = painted;
+                false
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        #[cfg(windows)]
+        if divider_lost {
             self.cancel_divider();
         }
         #[cfg(windows)]
-        if self
-            .sidebar_width_preview()
-            .is_some_and(|drag| !map.exposes_sidebar_width(&drag.target))
-        {
+        let sidebar_lost = if let Gesture::SidebarWidth(drag) = &mut self.gesture {
+            let painted = drag.projected_target();
+            if map.exposes_sidebar_width(&painted) {
+                drag.painted = painted;
+                false
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        #[cfg(windows)]
+        if sidebar_lost {
             self.cancel_sidebar_width();
         }
         #[cfg(windows)]
@@ -2631,7 +2674,7 @@ impl PointerState {
                 || self
                     .map
                     .as_ref()
-                    .is_none_or(|map| !map.exposes_divider(&drag.target))
+                    .is_none_or(|map| !map.exposes_divider(&drag.painted))
         }) {
             changed |= self.cancel_divider();
         }
@@ -3143,7 +3186,7 @@ impl PointerState {
         if self
             .map
             .as_ref()
-            .is_none_or(|map| !map.exposes_divider(&drag.target))
+            .is_none_or(|map| !map.exposes_divider(&drag.painted))
         {
             self.cancel_divider();
             return self

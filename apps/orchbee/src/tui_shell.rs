@@ -20,6 +20,8 @@ use ratatui::{Terminal, TerminalOptions, Viewport, backend::Backend, layout::Rec
 #[cfg(unix)]
 use std::os::fd::AsFd;
 
+#[cfg(not(windows))]
+use crate::tui_render::render_terminal_shell;
 use crate::{
     client_view::ClientView,
     localization::Locale,
@@ -32,7 +34,6 @@ use crate::{
     termination_signal::{TerminationSignal, TerminationSource},
     tui_backend::{FixedViewportBackend, ResizableBackend, RestorationGatedWriter},
     tui_pointer::HitMapBuilder,
-    tui_render::render_terminal_shell,
 };
 
 const EVENT_POLL_INTERVAL_MILLISECONDS: u16 = 50;
@@ -597,6 +598,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             terminal_input,
             &mut dimensions,
             dispatcher.graphics_facts().measurement,
+            (
+                &dispatcher.resize_projection(),
+                dispatcher.resize_presentation_allowed(),
+            ),
         )?;
         dispatcher.query_graphics(
             (dimensions.columns, dimensions.rows),
@@ -614,6 +619,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 terminal_input,
                 &mut dimensions,
                 dispatcher.graphics_facts().measurement,
+                (
+                    &dispatcher.resize_projection(),
+                    dispatcher.resize_presentation_allowed(),
+                ),
             )?;
         }
         #[cfg(windows)]
@@ -651,6 +660,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 terminal_input,
                 &mut dimensions,
                 dispatcher.graphics_facts().measurement,
+                (
+                    &dispatcher.resize_projection(),
+                    dispatcher.resize_presentation_allowed(),
+                ),
             )?;
             redraw |= viewport_changed;
             if viewport_changed {
@@ -679,6 +692,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             #[cfg(windows)]
             let menu_measurement = dispatcher.graphics_facts().measurement;
             #[cfg(windows)]
+            let menu_resize = dispatcher.resize_projection();
+            #[cfg(windows)]
+            let menu_resize_allowed = dispatcher.resize_presentation_allowed();
+            #[cfg(windows)]
             if let Some(outcome) = dispatcher.complete_action_menu(
                 &mut view,
                 terminal_input,
@@ -691,6 +708,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                         terminal_input,
                         &mut dimensions,
                         menu_measurement,
+                        (&menu_resize, menu_resize_allowed),
                     )
                 },
                 &mut |request| mode(request).map_err(LoopFailure::Input),
@@ -703,6 +721,8 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
             let previous_measurement = dispatcher.graphics_facts().measurement;
             if let Some(input) = input {
                 let measurement = dispatcher.graphics_facts().measurement;
+                let resize = dispatcher.resize_projection();
+                let resize_allowed = dispatcher.resize_presentation_allowed();
                 let outcome = dispatcher.dispatch(
                     &mut view,
                     &input,
@@ -716,6 +736,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                             terminal_input,
                             &mut dimensions,
                             measurement,
+                            (&resize, resize_allowed),
                         )
                     },
                     &mut |request| mode(request).map_err(LoopFailure::Input),
@@ -739,8 +760,24 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     terminal_input,
                     &mut dimensions,
                     dispatcher.graphics_facts().measurement,
+                    (
+                        &dispatcher.resize_projection(),
+                        dispatcher.resize_presentation_allowed(),
+                    ),
                 )?;
             }
+            // Observe the newest owned draft without sampling or reporting an external
+            // host change. This keeps both geometry consumers on one held position.
+            observe_surface_geometry(
+                &dimensions,
+                &view,
+                terminal_input,
+                (
+                    &dispatcher.resize_projection(),
+                    dispatcher.resize_presentation_allowed(),
+                ),
+            )
+            .map_err(LoopFailure::Viewport)?;
             if termination.requested() {
                 return Ok(LoopExit::Signal);
             }
@@ -753,6 +790,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     terminal_input,
                     &mut dimensions,
                     dispatcher.graphics_facts().measurement,
+                    (
+                        &dispatcher.resize_projection(),
+                        dispatcher.resize_presentation_allowed(),
+                    ),
                 )?;
                 dispatcher.invalidate_hit_map(terminal_input);
                 redraw = true;
@@ -783,6 +824,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                         surface.active(),
                         &mut dimensions,
                         dispatcher.graphics_facts().measurement,
+                        (
+                            &dispatcher.resize_projection(),
+                            dispatcher.resize_presentation_allowed(),
+                        ),
                     )?;
                 }
             }
@@ -896,6 +941,14 @@ fn draw_surface<B: Backend + ResizableBackend>(
     #[cfg(windows)]
     let graphics = terminal.backend().graphics_surface();
     #[cfg(windows)]
+    let resize = divider::project(
+        view,
+        surface,
+        terminal.get_frame().area(),
+        &dispatcher.resize_projection(),
+        dispatcher.resize_presentation_allowed(),
+    );
+    #[cfg(windows)]
     let mut preview_painted = false;
     #[cfg(windows)]
     let tab_drag = capture_owner
@@ -916,7 +969,10 @@ fn draw_surface<B: Backend + ResizableBackend>(
                 chrome,
                 surface,
                 graphics.as_ref(),
-                preview,
+                divider::Presentation {
+                    projection: &resize,
+                    preview,
+                },
                 &mut hits,
             );
         }
@@ -1059,17 +1115,13 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     terminal_input: &mut (impl TerminalSurface + ?Sized),
     dimensions: &mut WindowDimensions,
     measurement: Option<crate::terminal_graphics::Measurement>,
+    resize: (&crate::tui_layout::ResizeProjection, bool),
 ) -> Result<bool, LoopFailure<B::Error>> {
-    let Some(next) = viewport
+    let next = viewport
         .window_dimensions()
         .map_err(LoopFailure::Viewport)?
-    else {
-        #[cfg(windows)]
-        return Ok(synchronize_sidebar_visibility(view, *dimensions));
-        #[cfg(not(windows))]
-        return Ok(false);
-    };
-    let next = measurement.map_or(next, |measurement| measurement.apply(next));
+        .map(|next| measurement.map_or(next, |measurement| measurement.apply(next)))
+        .unwrap_or(*dimensions);
     let changed = next != *dimensions;
     if changed {
         #[cfg(windows)]
@@ -1091,11 +1143,44 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
     }
     #[cfg(windows)]
     let changed = synchronize_sidebar_visibility(view, *dimensions) || changed;
-    let session_view = terminal_input.view();
+    let resize = if changed {
+        // Pixel-only host changes also retire a released presentation lease, even when
+        // the cell rectangle still matches. An owned projection never enters this branch.
+        (&crate::tui_layout::ResizeProjection::Canonical, false)
+    } else {
+        resize
+    };
+    observe_surface_geometry(dimensions, view, terminal_input, resize)
+        .map_err(LoopFailure::Viewport)?;
+    Ok(changed)
+}
+
+/// Apply the same admitted local projection used by paint, without changing host ownership.
+fn observe_surface_geometry(
+    dimensions: &WindowDimensions,
+    view: &ClientView,
+    terminal_input: &mut (impl TerminalSurface + ?Sized),
+    resize: (&crate::tui_layout::ResizeProjection, bool),
+) -> io::Result<()> {
+    #[cfg(windows)]
+    let resize = divider::project(
+        view,
+        terminal_input,
+        to_area(*dimensions),
+        resize.0,
+        resize.1,
+    );
+    #[cfg(not(windows))]
+    let resize = resize.0;
+    let mut session_view = terminal_input.view();
+    if let Some(crate::terminal_session::TerminalSessionView::Native(native)) =
+        session_view.as_mut()
+    {
+        native.set_resize_projection(&resize);
+    }
     match session_view {
         Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
-            let panes =
-                pane_geometries(*dimensions, view, &native).map_err(LoopFailure::Viewport)?;
+            let panes = pane_geometries(*dimensions, view, &native)?;
             #[cfg(windows)]
             let split = native
                 .active_position()
@@ -1125,14 +1210,13 @@ fn synchronize_viewport<B: Backend + ResizableBackend>(
             }
         }
         _ => {
-            let geometry = terminal_geometry(*dimensions, view, session_view)
-                .map_err(LoopFailure::Viewport)?;
+            let geometry = terminal_geometry(*dimensions, view, session_view)?;
             if let Some(geometry) = geometry {
                 terminal_input.observe_geometry(geometry);
             }
         }
     }
-    Ok(changed)
+    Ok(())
 }
 
 /// The session's real pane geometry, computed from the same pure layout the
@@ -1148,7 +1232,13 @@ pub(crate) fn terminal_geometry(
     view: &ClientView,
     session: Option<crate::terminal_session::TerminalSessionView<'_>>,
 ) -> io::Result<Option<orchbee_client_server_protocol::Geometry>> {
-    let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
+    let sidebar = match session.as_ref() {
+        Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
+            native.sidebar_surface(view.sidebar_surface())
+        }
+        _ => view.sidebar_surface(),
+    };
+    let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), sidebar);
     let Some(area) = active_pane_area(&areas, session) else {
         return Ok(None);
     };
@@ -1171,7 +1261,7 @@ pub(crate) fn terminal_geometry(
 }
 
 /// The cell rect the live terminal attaches to, identical to what
-/// [`render_terminal_shell`] paints: the whole panel content for a single
+/// [`crate::tui_render::render_terminal_shell`] paints: the whole panel content for a single
 /// pane or a Minimal viewport (active pane only, no tree chrome), otherwise
 /// the active leaf's content inside the projected split tree. `None` when the
 /// viewport cannot present a pane at all — explicit, not inferred from a
@@ -1234,7 +1324,10 @@ pub(crate) fn pane_geometries(
     )>,
 > {
     use crate::tui_layout;
-    let areas = tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
+    let areas = tui_layout::project_shell_areas(
+        to_area(dimensions),
+        native.sidebar_surface(view.sidebar_surface()),
+    );
     if areas.tier == tui_layout::ViewportTier::TooSmall {
         return Ok(Vec::new());
     }

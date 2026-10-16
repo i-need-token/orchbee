@@ -81,8 +81,11 @@ Selected success requires the committed ratio in a rendered cache at or beyond t
 the original selection and zoom. Failure after commit may leave the new ratio visible. Successful
 drawing does not claim that the asynchronous Host resize has completed.
 
-Every tree projection reads canonical ratios: drawing, terminal sizing, pointer regions and layout
-inspection. Axis space excludes the shared divider; existing half-up cell rounding, minimum-size
+Canonical layout inspection and mutation preparation always read canonical ratios. A guarded
+[local divider draft](../../orchbee/docs/native-divider-resize.md) can temporarily supply one
+ratio to drawing, terminal sizing and pointer regions in its originating Client. Held moves do
+not publish a shared ratio; release submits the same exact canonical CAS once. This presentation
+lease cannot enter the shared cache, inspection result or checkpoint. Axis space excludes the shared divider; existing half-up cell rounding, minimum-size
 clamping, title rows, zoom and small-viewport collapse remain authoritative. Nominal ratios stay
 observable even where cell rounding or minimums constrain the physical result. Read-only panes
 observe the layout while the current controller alone resizes their terminals.

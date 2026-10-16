@@ -371,9 +371,10 @@ Esc cancels. Git directories remain, and canonical removal returns this Client t
 renaming preserves the running terminal and becomes visible to peers through the publication
 probe or explicit refresh.
 
-On Windows, drag a visible pane divider with the plain left button to preview its new position,
-then release to apply one shared, saved ratio. Esc, navigation or viewport changes cancel the
-preview; Shift stays with the outer terminal. Further drags during submission are not queued.
+On Windows, drag a visible pane divider with the plain left button to resize panes and controlled
+terminal viewports as the mouse moves, then release to apply one shared, saved ratio. Sidebar
+borders also resize their actual layout while held. Esc, navigation or external viewport changes
+cancel the local draft; Shift stays with the outer terminal. Further drags during submission are not queued.
 [Divider resizing](docs/native-divider-resize.md) shares the keyboard adjustment's acknowledgement
 and leaves terminal control unchanged.
 

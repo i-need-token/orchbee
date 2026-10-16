@@ -269,6 +269,7 @@ pub(crate) enum NativeDisplayRetirement {
 #[derive(Clone, Copy)]
 pub(crate) struct NativeTabView<'a> {
     inner: StateTabView<'a>,
+    resize: Option<&'a crate::tui_layout::ResizeProjection>,
 }
 
 impl<'a> NativeTabView<'a> {
@@ -291,7 +292,10 @@ impl<'a> NativeTabView<'a> {
         first: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
         second: &orchbee_workbench_protocol::WorkbenchPanelSlotId,
     ) -> orchbee_workbench_protocol::ClientSplitRatio {
-        self.inner.split_ratio(split, first, second)
+        let canonical = self.inner.split_ratio(split, first, second);
+        self.resize.map_or(canonical, |resize| {
+            resize.ratio(self.tab_id(), split, first, second, canonical)
+        })
     }
 
     pub(crate) const fn position(&self) -> usize {
@@ -330,6 +334,7 @@ impl<'a> NativeTabView<'a> {
 }
 
 pub(crate) struct NativeSessionView<'a> {
+    resize: Option<&'a crate::tui_layout::ResizeProjection>,
     settings: Option<&'a settings::Coordinator>,
     completion_reminder: Option<&'a super::completion_reminders::Reminder>,
     #[cfg(windows)]
@@ -363,6 +368,21 @@ pub(crate) struct NativeSessionView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    /// A shell-local projection never changes the cache or canonical layout inspection.
+    pub(crate) fn set_resize_projection(
+        &mut self,
+        resize: &'a crate::tui_layout::ResizeProjection,
+    ) {
+        self.resize = Some(resize);
+    }
+
+    pub(crate) fn sidebar_surface(
+        &self,
+        canonical: crate::client_view::SidebarSurface,
+    ) -> crate::client_view::SidebarSurface {
+        self.resize
+            .map_or(canonical, |resize| resize.sidebar(canonical))
+    }
     #[cfg(windows)]
     pub(crate) fn selected_tab_ids(&self) -> Vec<orchbee_workbench_protocol::WorkbenchTabId> {
         self.state
@@ -486,10 +506,10 @@ impl<'a> NativeSessionView<'a> {
     }
 
     pub(crate) fn tab(&self, index: usize) -> Option<NativeTabView<'a>> {
-        self.state
-            .as_ref()?
-            .tab(index)
-            .map(|inner| NativeTabView { inner })
+        self.state.as_ref()?.tab(index).map(|inner| NativeTabView {
+            inner,
+            resize: self.resize,
+        })
     }
 
     pub(crate) fn active_position(&self) -> Option<usize> {
@@ -867,6 +887,7 @@ impl<'a> NativeSessionView<'a> {
             settings: None,
             completion_reminder: None,
             state: None,
+            resize: None,
             panes: &[],
             retained_frames: None,
             focus: None,
@@ -903,6 +924,7 @@ impl<'a> NativeSessionView<'a> {
             settings: None,
             completion_reminder: None,
             state: Some(state.view()),
+            resize: None,
             panes,
             retained_frames: None,
             focus: state.focus_panel_id(),
@@ -1212,6 +1234,7 @@ impl NativeUi {
                 projection.status
             });
         NativeSessionView {
+            resize: None,
             state: state.map(NativeSessionState::view),
             panes: &self.projections,
             retained_frames: state.map(|state| self.retained_frames.view(state)),

@@ -63,6 +63,14 @@ impl DrawnSidebarWidth {
             SidebarSurface::Hidden => unreachable!("a drawn sidebar has a visible surface"),
         }
     }
+    pub(crate) fn with_width(self, width: SidebarWidth) -> Self {
+        let surface = match self.surface {
+            SidebarSurface::Docked(_) => SidebarSurface::Docked(width),
+            SidebarSurface::Overlay(_) => SidebarSurface::Overlay(width),
+            SidebarSurface::Hidden => unreachable!("a drawn sidebar has a visible surface"),
+        };
+        Self::new(self.viewport, surface).expect("changing width preserves sidebar visibility")
+    }
     pub(crate) fn edge(self) -> Rect {
         self.edge_for(self.preferred())
     }
@@ -104,6 +112,7 @@ impl DrawnSidebarWidth {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SidebarWidthDrag {
     pub(crate) target: DrawnSidebarWidth,
+    pub(crate) painted: DrawnSidebarWidth,
     pressed_column: u16,
     pub(crate) width: SidebarWidth,
     pub(crate) preview: Rect,
@@ -116,6 +125,7 @@ impl SidebarWidthDrag {
             .contains((column, row).into())
             .then_some(Self {
                 target,
+                painted: target,
                 pressed_column: column,
                 width: target.preferred(),
                 preview: target.edge(),
@@ -126,6 +136,9 @@ impl SidebarWidthDrag {
             .target
             .displaced(i32::from(column) - i32::from(self.pressed_column));
         self.preview = self.target.edge_for(self.width);
+    }
+    pub(crate) fn projected_target(&self) -> DrawnSidebarWidth {
+        self.target.with_width(self.width)
     }
 }
 

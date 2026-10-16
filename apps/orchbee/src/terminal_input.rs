@@ -471,6 +471,16 @@ pub(crate) trait TerminalInputPort {
         Err(crate::client_view::Notice::ResizeFailed)
     }
 
+    /// A read-only presentation check neither admits a mutation nor publishes busy feedback.
+    #[cfg(windows)]
+    fn divider_projection_current(
+        &self,
+        _target: &crate::tui_layout::DrawnDivider,
+        _viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
+    ) -> bool {
+        false
+    }
+
     /// Hands off one changed release; the asynchronous local owner reports its eventual result.
     #[cfg(windows)]
     fn pointer_divider_resize(
@@ -478,6 +488,18 @@ pub(crate) trait TerminalInputPort {
         _target: &crate::tui_layout::DrawnDivider,
         _ratio: orchbee_workbench_protocol::ClientSplitRatio,
     ) {
+    }
+
+    /// The local acknowledgement owner may retain released geometry until canonical publication.
+    /// A withdrawn presentation lease is retired independently of the submitted mutation.
+    #[cfg(windows)]
+    fn pending_resize_projection(
+        &mut self,
+        _viewport: ratatui::layout::Rect,
+        _sidebar: crate::client_view::SidebarSurface,
+        _presentation_allowed: bool,
+    ) -> crate::tui_layout::ResizeProjection {
+        crate::tui_layout::ResizeProjection::Canonical
     }
 
     /// Sends one cell-semantic selection step for the exact painted pane.

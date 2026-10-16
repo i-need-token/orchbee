@@ -52,6 +52,7 @@ pub(super) enum SidebarInput {
 
 pub(super) struct RenderContext<'a> {
     pub(super) view: &'a ClientView,
+    pub(super) sidebar_surface: crate::client_view::SidebarSurface,
     pub(super) locale: Locale,
     pub(super) backend_status: SiteStatus<'a>,
     pub(super) theme: &'a Theme,
@@ -249,6 +250,7 @@ pub(super) fn render(
 ) {
     let RenderContext {
         view,
+        sidebar_surface,
         locale,
         backend_status,
         theme,
@@ -276,7 +278,7 @@ pub(super) fn render(
     } else {
         HitLayer::Chrome
     };
-    if let Some(target) = DrawnSidebarWidth::new(frame.area(), view.sidebar_surface())
+    if let Some(target) = DrawnSidebarWidth::new(frame.area(), sidebar_surface)
         && target.sidebar == sidebar
         && let Some(hits) = hits.as_deref_mut()
     {
@@ -424,7 +426,7 @@ pub(super) fn render(
     );
 }
 
-/// Reversible border feedback uses the existing shell preview/graphics-cover lifecycle.
+/// Highlight the actual projected border; layout and hit regions already use this width.
 pub(crate) fn render_width_preview(
     frame: &mut Frame<'_>,
     view: &ClientView,
@@ -438,7 +440,7 @@ pub(crate) fn render_width_preview(
         || view.machines.open
         || view.pointer_released()
         || DrawnSidebarWidth::new(frame.area(), view.sidebar_surface()) != Some(drag.target)
-        || !hits.exposes_sidebar_width(&drag.target)
+        || !hits.exposes_sidebar_width(&drag.projected_target())
     {
         return false;
     }

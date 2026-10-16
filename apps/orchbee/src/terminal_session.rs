@@ -1432,6 +1432,19 @@ impl TerminalInputPort for TerminalSession {
     }
 
     #[cfg(windows)]
+    fn divider_projection_current(
+        &self,
+        target: &crate::tui_layout::DrawnDivider,
+        viewport: (ratatui::layout::Rect, crate::client_view::SidebarSurface),
+    ) -> bool {
+        match &self.backend {
+            SessionBackend::Native(native) => native.divider_projection_current(target, viewport),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
+    #[cfg(windows)]
     fn sidebar_reorder_source(&mut self) -> Option<crate::tui_pointer::SidebarReorderSource> {
         self.backend.native_mut()?.sidebar_reorder_source()
     }
@@ -1472,6 +1485,21 @@ impl TerminalInputPort for TerminalSession {
             && let Some(control) = &mut self.client_control
         {
             control.resize_divider(native, target, ratio);
+        }
+    }
+
+    #[cfg(windows)]
+    fn pending_resize_projection(
+        &mut self,
+        viewport: ratatui::layout::Rect,
+        sidebar: crate::client_view::SidebarSurface,
+        presentation_allowed: bool,
+    ) -> crate::tui_layout::ResizeProjection {
+        match (self.backend.native_mut(), self.client_control.as_mut()) {
+            (Some(native), Some(control)) => {
+                control.resize_projection(native, viewport, sidebar, presentation_allowed)
+            }
+            _ => crate::tui_layout::ResizeProjection::Canonical,
         }
     }
 

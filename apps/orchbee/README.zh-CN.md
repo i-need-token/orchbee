@@ -334,8 +334,9 @@ Git 目录保留，规范移除后此 Client 回到 Standalone。
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
 重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
 
-Windows 上，用无修饰左键拖动可见 pane 分隔线来预览新位置，松手后应用一次共享并保存的比例。
-Esc、导航或 viewport 变化会取消预览，Shift 仍交给外层终端。提交中再次拖动不会排队。
+Windows 上，用无修饰左键拖动可见 pane 分隔线，pane 及受控终端视口随鼠标移动实时调整，
+松手后应用一次共享并保存的比例。侧栏边框也在按住期间改变实际布局。Esc、导航或外部
+viewport 变化取消局部草稿，Shift 仍交给外层终端。提交中再次拖动不会排队。
 [分隔线调整](docs/native-divider-resize.zh-CN.md) 共用键盘调整的确认流程，不改变终端控制权。
 
 Windows 上，无程序鼠标跟踪的 pane 中，无修饰拖动选择实时或保留历史文本；双击选词，松开后

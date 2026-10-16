@@ -67,8 +67,18 @@ fn sidebar_width_motion_is_reversible_and_only_exact_release_commits_once() {
         geometry
     );
     assert_eq!(pointer.sidebar_width_preview().unwrap().width.columns(), 51);
-    pointer.publish(map(original));
+    let drawn = pointer.sidebar_width_preview().unwrap().projected_target();
+    assert_ne!(drawn.sidebar, original.sidebar);
+    let effective = pointer.resize_projection().sidebar(view.sidebar_surface());
+    assert_ne!(project_shell_areas(original.viewport, effective), geometry);
+    pointer.publish(map(drawn));
     assert!(pointer.sidebar_width_preview().is_some());
+    report(&mut pointer, &mut view, &mut port, MouseAction::Motion, 40);
+    let drawn = pointer.sidebar_width_preview().unwrap().projected_target();
+    pointer.publish(map(drawn));
+    pointer.tick(&mut view, &mut port, Instant::now(), None);
+    assert_eq!(pointer.sidebar_width_preview().unwrap().width.columns(), 41);
+    assert_eq!(view.machines.sidebar_width(), SidebarWidth::DEFAULT);
     assert_eq!(
         report(&mut pointer, &mut view, &mut port, MouseAction::Release, 35),
         PointerOutcome::SidebarWidthEnded
@@ -242,7 +252,10 @@ fn replay(commands: &[[u16; 2]]) -> Result<(), String> {
                 alive = false;
             }
             6 => {
-                pointer.publish(map(target(&view)));
+                let drawn = pointer
+                    .sidebar_width_preview()
+                    .map_or_else(|| target(&view), |drag| drag.projected_target());
+                pointer.publish(map(drawn));
                 painted = Some(preferred);
             }
             7 => {

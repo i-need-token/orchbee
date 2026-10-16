@@ -77,6 +77,8 @@ impl DrawnDivider {
 #[cfg(any(windows, test))]
 pub(crate) struct DividerDrag {
     pub(crate) target: DrawnDivider,
+    /// Last successfully painted geometry of this same local draft, never a new origin.
+    pub(crate) painted: DrawnDivider,
     pressed: (u16, u16),
     pub(crate) ratio: ClientSplitRatio,
     pub(crate) preview: Rect,
@@ -92,6 +94,7 @@ impl DividerDrag {
         Some(Self {
             ratio: target.ratio,
             preview: target.divider,
+            painted: target.clone(),
             target,
             pressed: (column, row),
         })
@@ -115,6 +118,13 @@ impl DividerDrag {
         self.preview = divide_panes(self.target.area, self.target.orientation, self.ratio)
             .expect("changing the ratio preserves the admitted minimum-size geometry")
             .divider;
+    }
+
+    pub(crate) fn projected_target(&self) -> DrawnDivider {
+        let mut target = self.target.clone();
+        target.ratio = self.ratio;
+        target.divider = self.preview;
+        target
     }
 }
 

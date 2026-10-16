@@ -487,6 +487,14 @@ impl InputDispatcher {
         self.pointer.sidebar_reorder_preview()
     }
 
+    pub(crate) fn resize_projection(&self) -> crate::tui_layout::ResizeProjection {
+        self.pointer.resize_projection()
+    }
+
+    pub(crate) fn resize_presentation_allowed(&self) -> bool {
+        self.pointer.resize_presentation_allowed()
+    }
+
     /// Immutable preview supplied by the gesture owner for one paint pass.
     #[cfg(windows)]
     pub(crate) fn divider_preview(&self) -> Option<&crate::tui_layout::DividerDrag> {

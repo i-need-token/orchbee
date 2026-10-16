@@ -87,6 +87,12 @@ is made on typed results, never on error text.
 | Zero or absent   | The host transiently reported zero rows or columns                         | No resize is sent, the Session is not retired, the last valid geometry stays in effect, and the next valid geometry resumes normally |
 | Inspection error | The descriptor or the query itself failed (permission, closed, invalid fd) | Fatal: the failure propagates and the interface exits                                                                                |
 
+The shell may repeat the exact last-valid viewport observation while synchronizing a local live
+divider draft. The existing physical controller deduplicates identical projected geometry, so a
+repeat sends no extra Resize. An owned layout change is separate from a Host observation and grants
+no controller authority. A new graphics cell measurement applies only with a nonzero Host sample;
+an absent sample cannot change the retained cell or pixel dimensions.
+
 A pixel extent of zero is a normal observation, not an error: the cell-pixel pair is reported as
 `(0, 0)` — "pixels unknown" — while the character grid keeps working. When the host reports only
 one pixel axis, or a derived cell-pixel axis rounds down to zero, the whole pair is reported

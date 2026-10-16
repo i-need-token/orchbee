@@ -41,6 +41,7 @@ struct Surface {
     require_geometry: bool,
     require_control: bool,
     control_samples: usize,
+    presentation_checks: Vec<bool>,
 }
 impl TerminalInputPort for Surface {
     fn forward(&mut self, _: &[u8]) -> Result<(), TerminalInputUnavailable> {
@@ -52,6 +53,100 @@ impl TerminalInputPort for Surface {
     ) -> Result<(), crate::client_view::Notice> {
         Ok(())
     }
+    fn pending_resize_projection(
+        &mut self,
+        _: Rect,
+        _: crate::client_view::SidebarSurface,
+        allowed: bool,
+    ) -> crate::tui_layout::ResizeProjection {
+        self.presentation_checks.push(allowed);
+        crate::tui_layout::ResizeProjection::Canonical
+    }
+}
+
+#[test]
+fn zero_host_samples_cannot_apply_new_pixels_to_the_retained_viewport() {
+    use crate::terminal_graphics::{Probe, Reply};
+    let initial = dimensions(120, 40);
+    let mut size = initial;
+    let mut terminal = test_terminal(initial);
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(None), Ok(None)])),
+    };
+    let mut probe = Probe::default();
+    probe.activate(1);
+    let now = Instant::now();
+    assert!(probe.query((initial.columns, initial.rows), now).is_some());
+    probe.reply(Reply::Cell(Some((16, 32))), now);
+    let measurement = probe.facts().measurement.unwrap();
+    assert_ne!(measurement.apply(initial), initial);
+    let mut view = ClientView::new(initial.columns);
+    let mut surface = OrderedSurface::default();
+    let canonical = crate::tui_layout::ResizeProjection::Canonical;
+    for _ in 0..2 {
+        assert!(
+            !super::super::synchronize_viewport(
+                &mut terminal,
+                &viewport,
+                &mut view,
+                &mut surface,
+                &mut size,
+                Some(measurement),
+                (&canonical, true),
+            )
+            .unwrap()
+        );
+        assert_eq!(size, initial);
+    }
+    let geometry = super::super::terminal_geometry(initial, &view, None)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        surface.events,
+        [
+            SurfaceEvent::Observe(geometry),
+            SurfaceEvent::Observe(geometry)
+        ]
+    );
+}
+
+#[test]
+fn external_pixel_resize_retires_the_lease_while_owned_observation_does_not_sample_the_host() {
+    let initial = dimensions(120, 40);
+    let resized = WindowDimensions {
+        pixel_width: initial.pixel_width + 120,
+        ..initial
+    };
+    let mut size = initial;
+    let mut terminal = test_terminal(initial);
+    let viewport = QueueViewportSource {
+        dimensions: std::cell::RefCell::new(VecDeque::from([Ok(Some(resized))])),
+    };
+    let mut view = ClientView::new(120);
+    let mut surface = Surface::default();
+    let canonical = crate::tui_layout::ResizeProjection::Canonical;
+    super::super::observe_surface_geometry(&size, &view, &mut surface, (&canonical, true)).unwrap();
+    assert_eq!(
+        viewport.dimensions.borrow().len(),
+        1,
+        "own geometry cannot consume a host resize sample"
+    );
+    assert_eq!(surface.presentation_checks, [true]);
+    assert!(
+        super::super::synchronize_viewport(
+            &mut terminal,
+            &viewport,
+            &mut view,
+            &mut surface,
+            &mut size,
+            None,
+            (&canonical, true),
+        )
+        .unwrap()
+    );
+    assert_eq!(surface.presentation_checks, [true, false]);
+    assert_eq!((size.columns, size.rows), (initial.columns, initial.rows));
+    assert_eq!(size.pixel_width, resized.pixel_width);
 }
 impl super::super::TerminalSurface for Surface {
     fn client_control_tick(&mut self, _: &mut ClientView, _: Rect, _: Locale) -> bool {
@@ -290,7 +385,10 @@ fn divider_rejected_preview_preserves_the_draw_pointer_projection() {
                     },
                     &surface,
                     None,
-                    None,
+                    super::super::divider::Presentation {
+                        projection: &crate::tui_layout::ResizeProjection::Canonical,
+                        preview: None,
+                    },
                     &mut hits,
                 );
                 assert!(!preview_painted);
@@ -350,7 +448,13 @@ fn divider_rejected_preview_preserves_the_draw_pointer_projection() {
                     },
                     &surface,
                     None,
-                    Some(super::super::divider::Preview::Divider(&drag)),
+                    super::super::divider::Presentation {
+                        projection: &crate::tui_layout::ResizeProjection::Divider {
+                            source: drag.target.clone(),
+                            ratio: drag.ratio,
+                        },
+                        preview: Some(super::super::divider::Preview::Divider(&drag)),
+                    },
                     &mut hits,
                 );
                 assert!(

@@ -1,4 +1,4 @@
-//! Release-only resize traces, including serialized generated timelines and deletion shrinking.
+//! Live draft ownership and one-release CAS traces with generated timelines and shrinking.
 use super::*;
 use crate::tui_layout::{DividerSource, DrawnDivider, divide_panes};
 use orchbee_workbench_protocol::{
@@ -150,7 +150,7 @@ fn divider_projection_uses_exact_painted_source_and_clears_on_transport_loss() {
 }
 
 #[test]
-fn divider_release_submits_once_without_program_input_or_preview_layout_effects() {
+fn divider_release_submits_once_without_program_input_or_canonical_layout_changes() {
     let (mut pointer, mut view, mut port) = fixture();
     let source = port.target.clone();
     let (x, y) = (source.divider.x, source.divider.y);
@@ -194,6 +194,71 @@ fn divider_release_submits_once_without_program_input_or_preview_layout_effects(
     port.busy = false;
     pointer.tick(&mut view, &mut port, Instant::now(), None);
     assert_eq!(port.submissions.len(), 1, "busy press is never replayed");
+}
+
+#[test]
+fn divider_two_held_moves_survive_own_frames_but_not_external_geometry() {
+    for orientation in [PanelOrientation::Horizontal, PanelOrientation::Vertical] {
+        for external in [false, true] {
+            let (mut pointer, mut view, mut port) = fixture();
+            port.target.orientation = orientation;
+            port.target.divider = divide_panes(port.target.area, orientation, port.target.ratio)
+                .unwrap()
+                .divider;
+            pointer.publish(map(&port.target));
+            let origin = port.target.clone();
+            let (x, y) = (origin.divider.x, origin.divider.y);
+            report(&mut pointer, &mut view, &mut port, MouseAction::Press, x, y);
+            for delta in [4, 8] {
+                let (column, row) = match orientation {
+                    PanelOrientation::Horizontal => (x + delta, y),
+                    PanelOrientation::Vertical => (x, y + delta),
+                };
+                report(
+                    &mut pointer,
+                    &mut view,
+                    &mut port,
+                    MouseAction::Motion,
+                    column,
+                    row,
+                );
+                let drawn = pointer.divider_preview().unwrap().projected_target();
+                assert_ne!(drawn.divider, origin.divider);
+                pointer.publish(map(&drawn));
+                pointer.tick(&mut view, &mut port, Instant::now(), None);
+                let drag = pointer
+                    .divider_preview()
+                    .expect("our completed frame retains this drag");
+                assert_eq!(drag.target, origin, "the canonical origin never moves");
+                assert_eq!(drag.painted, drawn);
+                assert_eq!(projected(&pointer, &drawn), ProjectedPointer::Pressed);
+                assert!(port.submissions.is_empty(), "held frames submit no CAS");
+            }
+            let final_ratio = pointer.divider_preview().unwrap().ratio;
+            if external {
+                let mut replaced = pointer.divider_preview().unwrap().projected_target();
+                replaced.area.width += 1;
+                pointer.publish(map(&replaced));
+                assert!(pointer.divider_preview().is_none());
+            }
+            let (column, row) = match orientation {
+                PanelOrientation::Horizontal => (x + 8, y),
+                PanelOrientation::Vertical => (x, y + 8),
+            };
+            report(
+                &mut pointer,
+                &mut view,
+                &mut port,
+                MouseAction::Release,
+                column,
+                row,
+            );
+            assert_eq!(port.submissions.len(), usize::from(!external));
+            if !external {
+                assert_eq!(port.submissions[0], (origin, final_ratio));
+            }
+        }
+    }
 }
 
 #[test]
@@ -471,8 +536,11 @@ fn replay(actions: &[[u16; 3]]) -> Result<u16, String> {
                 painted = false;
             }
             6 => {
-                pointer.publish(map(&port.target));
-                painted = true;
+                let drawn = pointer
+                    .divider_preview()
+                    .map_or_else(|| port.target.clone(), |drag| drag.projected_target());
+                painted = drawn == port.target;
+                pointer.publish(map(&drawn));
             }
             7 => {
                 port.target.source.revision =

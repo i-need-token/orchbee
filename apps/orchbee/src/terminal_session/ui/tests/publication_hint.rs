@@ -743,8 +743,21 @@ pub(in crate::terminal_session) fn ready_split_ui() -> (
     LocalOperationClock,
     Arc<AtomicU64>,
 ) {
+    ready_split_ui_with_mode(ControllerMode::ReadOnly)
+}
+
+pub(in crate::terminal_session) fn ready_split_ui_with_mode(
+    mode: ControllerMode,
+) -> (
+    NativeUi,
+    Arc<CommandMailbox>,
+    LocalOperationClock,
+    Arc<AtomicU64>,
+) {
     let (mut ui, mailbox, clock, elapsed) = starting_split_ui();
     let key = ui.state.as_ref().unwrap().desired().unwrap().clone();
+    let applied_geometry =
+        matches!(mode, ControllerMode::Controlling(_)).then(|| mailbox.latest_geometry().unwrap());
 
     // Drive the real setup event chain so `ui.projection` is genuinely installed:
     // `schedule_poll` only admits an ordinary Poll while a projection for the
@@ -778,8 +791,8 @@ pub(in crate::terminal_session) fn ready_split_ui() -> (
         &mut ui,
         WorkerEvent::SetupConfigured {
             key: key_ref.clone(),
-            mode: ControllerMode::ReadOnly,
-            applied_geometry: None,
+            mode: mode.clone(),
+            applied_geometry,
         },
     );
     // The drawn frame is renderer-local; only its acceptance arrives as an event.
@@ -802,8 +815,8 @@ pub(in crate::terminal_session) fn ready_split_ui() -> (
         &mut ui,
         WorkerEvent::ReadyCandidate {
             key: key_ref.clone(),
-            mode: ControllerMode::ReadOnly,
-            last_accepted_geometry: None,
+            mode,
+            last_accepted_geometry: applied_geometry,
             frame: FrameIdentity::new(1),
         },
     );

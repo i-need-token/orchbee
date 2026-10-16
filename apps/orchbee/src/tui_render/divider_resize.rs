@@ -1,4 +1,4 @@
-//! Paint only reversible divider feedback exposed by the current successful-frame candidate.
+//! Highlight the live divider exposed by the current successful-frame candidate.
 use crate::{
     client_view::{
         Binding, ClientView, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
@@ -10,7 +10,6 @@ use crate::{
     tui_pointer::{HitMapBuilder, ProjectedPointer},
     tui_theme::{GlyphMode, Role, Theme},
 };
-use orchbee_workbench_protocol::PanelOrientation;
 use ratatui::{
     Frame,
     layout::Rect,
@@ -19,7 +18,7 @@ use ratatui::{
 
 use super::controls::{KeyHint, measure_key_hints, render_key_hints};
 
-/// Paints the preview without changing hit regions or canonical pane geometry.
+/// Layout has already moved the panes; preserve its divider and junction glyphs.
 pub(crate) fn render_divider_preview(
     frame: &mut Frame<'_>,
     view: &ClientView,
@@ -33,7 +32,7 @@ pub(crate) fn render_divider_preview(
         || view.resize_mode()
         || view.machines.open
         || frame.area() != drag.target.viewport
-        || !hits.exposes_divider(&drag.target)
+        || !hits.exposes_divider(&drag.projected_target())
     {
         return false;
     }
@@ -43,15 +42,7 @@ pub(crate) fn render_divider_preview(
         #[cfg(test)]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
-    let glyph = match (drag.target.orientation, theme.glyphs.mode()) {
-        (PanelOrientation::Horizontal, GlyphMode::Unicode) => "│",
-        (PanelOrientation::Vertical, GlyphMode::Unicode) => "─",
-        #[cfg(test)]
-        (PanelOrientation::Horizontal, GlyphMode::Simplified) => "|",
-        #[cfg(test)]
-        (PanelOrientation::Vertical, GlyphMode::Simplified) => "-",
-    };
-    let pointer = hits.projected_divider_pointer(&drag.target);
+    let pointer = hits.projected_divider_pointer(&drag.projected_target());
     let interaction = match pointer {
         ProjectedPointer::Rest => None,
         ProjectedPointer::Hovered => Some(Role::SurfaceHover),
@@ -68,30 +59,7 @@ pub(crate) fn render_divider_preview(
             )
         },
     );
-    let buffer = frame.buffer_mut();
-    for y in line.y..line.bottom() {
-        let mut x = buffer.area.x;
-        while x < line.right() {
-            let cell = &buffer[(x, y)];
-            let width = u16::try_from(display_width(cell.symbol()).max(1)).unwrap_or(u16::MAX);
-            let next = x.saturating_add(width).min(buffer.area.right());
-            if next > line.x {
-                // A surviving wide lead would make the terminal diff skip the preview.
-                // Preserve its visible style on every intersected glyph's cell, including
-                // outside remnants; continuations may instead carry Reset or Skip.
-                let style = cell.style();
-                for column in x..next {
-                    let cell = &mut buffer[(column, y)];
-                    cell.reset();
-                    cell.set_style(style);
-                    if column >= line.x && column < line.right() {
-                        cell.set_symbol(glyph).set_style(preview_style);
-                    }
-                }
-            }
-            x = next;
-        }
-    }
+    frame.buffer_mut().set_style(line, preview_style);
     let areas = project_shell_areas(frame.area(), view.sidebar_surface());
     render_drag_hint(frame, areas.status, locale, glyphs, theme);
     true

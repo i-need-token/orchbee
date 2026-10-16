@@ -162,7 +162,12 @@ the viewport, full surface including preference, and derived sidebar. Only its
 exposed right border in a successful frame admits a resize. Keyboard navigation
 uses that same painted source without requiring mouse capture.
 
-`PointerState` owns one reversible width drag. Motion changes only the preview;
+`PointerState` owns one reversible width drag. Motion projects the actual sidebar
+width, row layout, border hits and docked terminal geometry before the next frame;
+the preference remains unchanged while held. A Compact overlay changes its own
+width without shrinking the terminal underneath. The immutable canonical source
+and last successful draft-frame proof are distinct, so a second held move survives
+its own first frame while external stale geometry still cancels. A
 plain left release revalidates the complete drawn source, drops the gesture and
 compares the original preference before committing once. Escape, Shift, missing
 map, host resize, hidden sidebar or competing capture cancels without changing
@@ -181,14 +186,16 @@ capture with keyboard resize, packet fragments and fresh-frame release. Shell
 composition traces cover preview graphics and terminal-geometry agreement;
 geometry vectors and both-locale width rendering remain with the layout owner.
 
-The actual shell layout callback returns whether synchronization observed a
-change. After a handled Press or Motion, the dispatcher immediately invalidates
+The actual shell layout callback returns whether synchronization observed an
+external host or sidebar-owner change. Owned draft projections also synchronize
+terminal sizes, but do not report themselves as external changes. After a handled
+Press or Motion, the dispatcher immediately invalidates
 the old map and gesture on that result, including same-tier width changes and
 height-only changes inside one read. No cached viewport class substitutes for
 that observation. Real shell traces drive this boundary before a same-packet
 release, then require a fresh draw and new press to admit another drag.
 
-Ending a width preview also retires its map even when Escape, Shift or an
+Ending a width draft also retires its map even when Escape, Shift or an
 unchanged release leaves the preference intact: its status hint covered the
 canonical Menu control. The existing redraw fence captures the ending decision
 and fragments until a successful canonical frame; same-packet presses cannot

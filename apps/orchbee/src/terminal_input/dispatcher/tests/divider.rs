@@ -1,4 +1,4 @@
-//! Native decoder timelines for release-only resize, Esc and prefix capture boundaries.
+//! Native decoder timelines for drag ownership, one release CAS, Esc and prefix boundaries.
 use super::*;
 use crate::tui_layout::{DividerSource, DrawnDivider};
 use crate::tui_pointer::{HitLayer, HitMapBuilder, HitTarget};

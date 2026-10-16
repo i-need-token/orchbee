@@ -4,7 +4,7 @@ use crate::{
     client_view::{ClientView, Notice, PanelDirection},
     localization::Locale,
     terminal_session::TerminalSessionView,
-    tui_layout::{DividerDrag, DrawnDivider},
+    tui_layout::{DividerDrag, DrawnDivider, ResizeProjection},
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget},
 };
 use orchbee_workbench_protocol::{
@@ -71,17 +71,28 @@ fn painted(
     width: u16,
     height: u16,
 ) -> (FrameHitMap, Vec<DrawnDivider>) {
+    painted_with_resize(native, view, width, height, &ResizeProjection::Canonical)
+}
+
+fn painted_with_resize(
+    native: &NativeUi,
+    view: &ClientView,
+    width: u16,
+    height: u16,
+    resize: &ResizeProjection,
+) -> (FrameHitMap, Vec<DrawnDivider>) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal
         .draw(|frame| {
-            crate::tui_render::render_terminal_shell(
+            crate::tui_render::render_terminal_shell_with_resize(
                 frame,
                 view,
                 Locale::EnUs,
                 Some(TerminalSessionView::Native(native.view())),
                 &crate::tui_theme::Theme::terminal_native(),
                 &mut hits,
+                resize,
             );
         })
         .unwrap();
@@ -106,10 +117,11 @@ fn divider_native_preparation_pins_every_painted_identity_and_geometry_without_e
     mailbox.finish_lease(poll).unwrap();
     let view = ClientView::new(120);
     let target = painted(&native, &view, 120, 40).1.remove(0);
-    let viewport = Some((target.viewport, view.sidebar_surface()));
+    let viewport = (target.viewport, view.sidebar_surface());
+    assert!(native.divider_projection_current(&target, viewport));
     let before = native.control_observation(false).unwrap();
     let (_, adjustment, observed) = native
-        .prepare_divider_adjustment(&target, ClientSplitRatio::new(0.7).unwrap(), viewport)
+        .prepare_divider_adjustment(&target, ClientSplitRatio::new(0.7).unwrap(), Some(viewport))
         .unwrap();
     assert_eq!(observed, before.1);
     let ClientLayoutChange::Split { split } = adjustment.change else {
@@ -162,9 +174,17 @@ fn divider_native_preparation_pins_every_painted_identity_and_geometry_without_e
         }
         assert!(
             native
-                .prepare_divider_adjustment(&stale, ClientSplitRatio::new(0.7).unwrap(), viewport)
+                .prepare_divider_adjustment(
+                    &stale,
+                    ClientSplitRatio::new(0.7).unwrap(),
+                    Some(viewport)
+                )
                 .is_err(),
             "dimension {dimension}"
+        );
+        assert!(
+            !native.divider_projection_current(&stale, viewport),
+            "projection dimension {dimension}"
         );
     }
     assert_eq!(native.control_observation(false).unwrap(), before);
@@ -186,18 +206,23 @@ fn divider_hit_map_and_preview_follow_visible_geometry_locales_and_overlay_cance
         let mut drag =
             DividerDrag::begin(target.clone(), target.divider.x, target.divider.y).unwrap();
         drag.update(target.divider.x + 5, target.divider.y);
+        let resize = ResizeProjection::Divider {
+            source: target.clone(),
+            ratio: drag.ratio,
+        };
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             let mut hits = HitMapBuilder::new();
             terminal
                 .draw(|frame| {
-                    crate::tui_render::render_terminal_shell(
+                    crate::tui_render::render_terminal_shell_with_resize(
                         frame,
                         &view,
                         locale,
                         Some(TerminalSessionView::Native(native.view())),
                         &crate::tui_theme::Theme::terminal_native(),
                         &mut hits,
+                        &resize,
                     );
                     assert!(crate::tui_render::render_divider_preview(
                         frame,
@@ -228,9 +253,8 @@ fn divider_hit_map_and_preview_follow_visible_geometry_locales_and_overlay_cance
                 "│"
             );
             assert_eq!(
-                hits.finish()
-                    .hit_target_at(target.divider.x, target.divider.y),
-                Some(&HitTarget::Divider(target.clone()))
+                hits.finish().hit_target_at(drag.preview.x, drag.preview.y),
+                Some(&HitTarget::Divider(drag.projected_target()))
             );
         }
     }
@@ -263,109 +287,62 @@ fn divider_hit_map_and_preview_follow_visible_geometry_locales_and_overlay_cance
 }
 
 #[test]
-fn divider_preview_emits_over_wide_glyphs_and_restores_visible_underlay() {
-    use crate::{
-        terminal_text::display_width,
-        tui_layout::divide_panes,
-        tui_theme::{Role, Theme},
-    };
-    use orchbee_workbench_protocol::PanelOrientation;
-    use ratatui::{
-        TerminalOptions, Viewport,
-        buffer::{Buffer, CellDiffOption},
-        layout::{Margin, Rect},
-        style::Modifier,
-    };
-
+fn divider_live_frames_share_program_geometry_and_preserve_pane_paint() {
+    use crate::{terminal_device::WindowDimensions, tui_theme::Theme};
     let (native, _, _, _) = ready_split_ui();
-    let view = ClientView::new(80);
-    let source = painted(&native, &view, 80, 24).1.remove(0);
-    let viewport = Rect::new(3, 2, 80, 24);
-    for theme in [
-        Theme::terminal_native(),
-        Theme::one_dark(),
-        Theme::one_light(),
-    ] {
-        for orientation in [PanelOrientation::Horizontal, PanelOrientation::Vertical] {
-            // Isolate composition with a valid inset split, leaving intact glyphs on both sides.
-            let mut target = source.clone();
-            target.viewport = viewport;
-            target.area = viewport.inner(Margin::new(4, 3));
-            target.orientation = orientation;
-            target.divider = divide_panes(target.area, orientation, target.ratio)
-                .unwrap()
-                .divider;
+    for (width, height) in [(120, 40), (80, 24)] {
+        let view = ClientView::new(width);
+        let target = painted(&native, &view, width, height).1.remove(0);
+        let dimensions = WindowDimensions {
+            columns: width,
+            rows: height,
+            pixel_width: 0,
+            pixel_height: 0,
+        };
+        let canonical =
+            crate::tui_shell::pane_geometries(dimensions, &view, &native.view()).unwrap();
+        for theme in [
+            Theme::terminal_native(),
+            Theme::one_dark(),
+            Theme::one_light(),
+        ] {
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             let mut drag =
                 DividerDrag::begin(target.clone(), target.divider.x, target.divider.y).unwrap();
-            match orientation {
-                PanelOrientation::Horizontal => {
-                    drag.update(target.divider.x + 5, target.divider.y);
-                }
-                PanelOrientation::Vertical => {
-                    drag.update(target.divider.x, target.divider.y + 4);
-                }
-            }
-            let line = drag.preview;
-            let expected = match orientation {
-                PanelOrientation::Horizontal => "│",
-                PanelOrientation::Vertical => "─",
-            };
-            for (glyph, right_edge, offset, skip) in [
-                ("中", false, -1_i16, true),
-                ("🙂", false, -1, true),
-                ("中", true, -1, true),
-                ("🙂", true, -1, true),
-                ("中", false, -2, false),
-                ("🙂", true, 0, false),
-                ("X", false, 0, true),
-            ] {
-                let case = format!(
-                    "{} {orientation:?} {glyph} {right_edge} {offset}",
-                    theme.name
+            for delta in [5, 10] {
+                drag.update(target.divider.x + delta, target.divider.y);
+                let resize = ResizeProjection::Divider {
+                    source: target.clone(),
+                    ratio: drag.ratio,
+                };
+                let mut projected = native.view();
+                projected.set_resize_projection(&resize);
+                let panes =
+                    crate::tui_shell::pane_geometries(dimensions, &view, &projected).unwrap();
+                let displacement = drag.preview.x - target.divider.x;
+                assert_eq!(panes.len(), 2);
+                assert_eq!(
+                    panes[0].2.columns(),
+                    canonical[0].2.columns() + displacement
                 );
-                let edge = if right_edge { line.right() } else { line.x };
-                let glyph_x = u16::try_from(i32::from(edge) + i32::from(offset)).unwrap();
-                let glyph_right = glyph_x + u16::try_from(display_width(glyph)).unwrap();
-                assert!(glyph_x >= viewport.x && glyph_right <= viewport.right());
-                let surface = theme
-                    .style(Role::SurfaceCanvas)
-                    .patch(theme.style(Role::TextPrimary));
-                let glyph_style = theme
-                    .style(Role::SurfaceChrome)
-                    .patch(theme.style(Role::AccentFocus))
-                    .add_modifier(Modifier::ITALIC | Modifier::UNDERLINED);
-                let mut underlay = Buffer::empty(viewport);
-                for y in viewport.y..viewport.bottom() {
-                    underlay.set_string(
-                        viewport.x,
-                        y,
-                        "p".repeat(usize::from(viewport.width)),
-                        surface,
-                    );
-                }
-                underlay.set_string(glyph_x, line.y, glyph, glyph_style);
-                let lead_style = underlay[(glyph_x, line.y)].style();
-                let intersects = glyph_x < line.right() && glyph_right > line.x;
-                let mut incoming = underlay.clone();
-                if skip {
-                    // The preview must reclaim both terminal tails and single-cell Skip targets.
-                    incoming[(glyph_right - 1, line.y)].set_diff_option(CellDiffOption::Skip);
-                }
-                let mut terminal = Terminal::with_options(
-                    TestBackend::new(viewport.right(), viewport.bottom()),
-                    TerminalOptions {
-                        viewport: Viewport::Fixed(viewport),
-                    },
-                )
-                .unwrap();
-                terminal
-                    .draw(|frame| *frame.buffer_mut() = underlay.clone())
-                    .unwrap();
+                assert_eq!(
+                    panes[1].2.columns(),
+                    canonical[1].2.columns() - displacement
+                );
+                assert_eq!(panes[0].2.rows(), canonical[0].2.rows());
                 let mut hits = HitMapBuilder::new();
-                hits.record_divider(target.clone());
-                let preview = terminal
+                terminal
                     .draw(|frame| {
-                        *frame.buffer_mut() = incoming.clone();
+                        crate::tui_render::render_terminal_shell_with_resize(
+                            frame,
+                            &view,
+                            Locale::ZhCn,
+                            Some(TerminalSessionView::Native(native.view())),
+                            &theme,
+                            &mut hits,
+                            &resize,
+                        );
+                        let base = frame.buffer_mut().clone();
                         assert!(crate::tui_render::render_divider_preview(
                             frame,
                             &view,
@@ -374,86 +351,153 @@ fn divider_preview_emits_over_wide_glyphs_and_restores_visible_underlay() {
                             &theme,
                             &hits,
                         ));
+                        // Feedback styles the real border. It cannot replace pane glyphs,
+                        // junctions or wide characters with a detached preview line.
+                        for y in 0..height - 1 {
+                            for x in 0..width {
+                                let before = &base[(x, y)];
+                                let after = &frame.buffer_mut()[(x, y)];
+                                assert_eq!(after.symbol(), before.symbol());
+                                if !drag.preview.contains((x, y).into()) {
+                                    assert_eq!(after, before);
+                                }
+                            }
+                        }
                     })
-                    .unwrap()
-                    .buffer
-                    .clone();
-                let emitted = underlay.diff(&preview);
-                for y in line.y..line.bottom() {
-                    for x in line.x..line.right() {
-                        let cell = &preview[(x, y)];
-                        assert_eq!(cell.symbol(), expected, "preview {case} ({x},{y})");
-                        assert_eq!(cell.diff_option, CellDiffOption::None);
-                        let mut expected_style =
-                            if y == line.y && intersects && x >= glyph_x && x < glyph_right {
-                                lead_style
-                            } else {
-                                underlay[(x, y)].style()
-                            };
-                        // Preview owns only the divider foreground. The visible
-                        // cell beneath it keeps its background and modifiers,
-                        // including those recovered from a wide-glyph lead.
-                        expected_style.fg = theme.style(Role::FrameDivider).fg;
-                        assert_eq!(
-                            cell.style(),
-                            expected_style,
-                            "preview style {case} ({x},{y})"
-                        );
-                        assert!(
-                            emitted.iter().any(|(cx, cy, drawn)| {
-                                (*cx, *cy) == (x, y) && **drawn == *cell
-                            })
-                        );
-                        assert_eq!(terminal.backend().buffer()[(x, y)], *cell);
-                    }
-                }
-                // Only the preview, its hint row, and intersected glyph remnants may change.
-                for y in viewport.y..viewport.bottom() - 1 {
-                    for x in viewport.x..viewport.right() {
-                        if line.contains((x, y).into()) {
-                            continue;
-                        }
-                        let cell = &preview[(x, y)];
-                        if y == line.y && intersects && x >= glyph_x && x < glyph_right {
-                            assert_eq!(cell.symbol(), " ", "remnant {case} ({x},{y})");
-                            assert_eq!(cell.style(), lead_style);
-                            assert_eq!(cell.diff_option, CellDiffOption::None);
-                            assert_eq!(terminal.backend().buffer()[(x, y)], *cell);
-                        } else {
-                            assert_eq!(*cell, underlay[(x, y)], "intact {case} ({x},{y})");
-                        }
-                    }
-                }
+                    .unwrap();
+                let map = hits.finish();
                 assert_eq!(
-                    hits.finish()
-                        .hit_target_at(target.divider.x, target.divider.y),
-                    Some(&HitTarget::Divider(target.clone()))
+                    map.hit_target_at(drag.preview.x, drag.preview.y),
+                    Some(&HitTarget::Divider(drag.projected_target()))
                 );
-                let restored = terminal
-                    .draw(|frame| *frame.buffer_mut() = underlay.clone())
-                    .unwrap()
-                    .buffer
-                    .clone();
-                let restored_diff = preview.diff(&restored);
-                for y in viewport.y..viewport.bottom() {
-                    let mut x = viewport.x;
-                    while x < viewport.right() {
-                        let cell = &underlay[(x, y)];
-                        assert_eq!(
-                            terminal.backend().buffer()[(x, y)],
-                            *cell,
-                            "restored visible glyph {case} ({x},{y})"
-                        );
-                        if preview[(x, y)] != *cell {
-                            assert!(restored_diff.iter().any(|(cx, cy, drawn)| {
-                                (*cx, *cy) == (x, y) && **drawn == *cell
-                            }));
-                        }
-                        x += u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
-                    }
+                assert!(!matches!(
+                    map.hit_target_at(target.divider.x, target.divider.y),
+                    Some(HitTarget::Divider(_))
+                ));
+            }
+            assert_eq!(
+                crate::tui_shell::pane_geometries(dimensions, &view, &native.view()).unwrap(),
+                canonical
+            );
+            assert_eq!(
+                painted(&native, &view, width, height).1.as_slice(),
+                std::slice::from_ref(&target)
+            );
+        }
+    }
+}
+
+#[test]
+fn held_viewport_observations_keep_the_cas_source_and_resize_only_its_controller() {
+    use crate::terminal_session::{
+        mailbox::{CausalSettlement, QueuedCommand},
+        state::{ControllerMode, OPERATION_TOTAL},
+        ui::tests::publication_hint::ready_split_ui_with_mode,
+    };
+    for controlling in [false, true] {
+        let mode = if controlling {
+            ControllerMode::Controlling(
+                orchbee_client_server_protocol::ControllerId::parse(&format!("{:032x}", 8))
+                    .unwrap(),
+            )
+        } else {
+            ControllerMode::ReadOnly
+        };
+        let (mut native, mailbox, clock, _) = ready_split_ui_with_mode(mode);
+        let poll = mailbox.try_recv().unwrap().unwrap();
+        let poll_key = poll.poll_key().unwrap().clone();
+        let deadline = clock.now() + OPERATION_TOTAL;
+        mailbox
+            .publish_poll_result_before(poll_key.clone(), None, false, deadline, &clock)
+            .unwrap();
+        native.tick();
+        assert!(matches!(
+            mailbox
+                .take_causal_before(&poll_key, deadline, &clock)
+                .unwrap(),
+            Some(CausalSettlement::NoFeedback)
+        ));
+        mailbox.finish_lease(poll).unwrap();
+        let view = ClientView::new(120);
+        let target = painted(&native, &view, 120, 40).1.remove(0);
+        let identity = native.view().divider_source().unwrap();
+        let focus = native
+            .view()
+            .pane_ref_for_panel(&target.source.focus)
+            .unwrap();
+        let dimensions = crate::terminal_device::WindowDimensions {
+            columns: 120,
+            rows: 40,
+            pixel_width: 960,
+            pixel_height: 640,
+        };
+        let mut drag =
+            DividerDrag::begin(target.clone(), target.divider.x, target.divider.y).unwrap();
+        for delta in [5, 10] {
+            drag.update(target.divider.x + delta, target.divider.y);
+            let resize = ResizeProjection::Divider {
+                source: target.clone(),
+                ratio: drag.ratio,
+            };
+            let mut projected = native.view();
+            projected.set_resize_projection(&resize);
+            let panes = crate::tui_shell::pane_geometries(dimensions, &view, &projected).unwrap();
+            let expected = panes
+                .iter()
+                .find(|(panel, _, _)| panel == &target.source.focus)
+                .unwrap()
+                .2;
+            native.observe_panes(&panes);
+            assert_eq!(native.view().divider_source().unwrap(), identity);
+            assert_eq!(
+                native
+                    .view()
+                    .pane_ref_for_panel(&target.source.focus)
+                    .unwrap(),
+                focus
+            );
+            assert!(
+                native
+                    .prepare_divider_adjustment(
+                        &target,
+                        drag.ratio,
+                        Some((target.viewport, view.sidebar_surface()))
+                    )
+                    .is_ok()
+            );
+            let mut resizes = Vec::new();
+            while let Some(lease) = mailbox.try_recv().unwrap() {
+                if let QueuedCommand::Resize(tagged) = lease.record() {
+                    resizes.push((tagged.key().clone(), *tagged.value()));
+                }
+                mailbox.finish_lease(lease).unwrap();
+            }
+            assert_eq!(
+                resizes,
+                if controlling {
+                    vec![(focus.clone(), expected)]
+                } else {
+                    Vec::new()
+                }
+            );
+            // The shell can re-observe its retained viewport after zero-sized host samples.
+            // The actual controller owner must deduplicate every identical projected geometry.
+            for _ in 0..3 {
+                native.observe_panes(&panes);
+                while let Some(lease) = mailbox.try_recv().unwrap() {
+                    assert!(
+                        !matches!(lease.record(), QueuedCommand::Resize(_)),
+                        "same held frame never resizes twice"
+                    );
+                    mailbox.finish_lease(lease).unwrap();
                 }
             }
+            assert_eq!(
+                painted_with_resize(&native, &view, 120, 40, &resize).1,
+                [drag.projected_target()]
+            );
         }
+        assert_eq!(painted(&native, &view, 120, 40).1, [target]);
     }
 }
 
@@ -544,6 +588,44 @@ fn divider_nested_vertical_target_uses_its_own_painted_area_and_ordered_slots() 
     assert_eq!(split.first_slot_id, nested.first);
     assert_eq!(split.second_slot_id, nested.second);
     assert_ne!(split.split_id, parent.split);
+    let dimensions = crate::terminal_device::WindowDimensions {
+        columns: 120,
+        rows: 40,
+        pixel_width: 0,
+        pixel_height: 0,
+    };
+    let original = crate::tui_shell::pane_geometries(dimensions, &view, &native.view()).unwrap();
+    for delta in [2, 4] {
+        drag.update(nested.divider.x, nested.divider.y + delta);
+        let resize = ResizeProjection::Divider {
+            source: nested.clone(),
+            ratio: drag.ratio,
+        };
+        let drawn = painted_with_resize(&native, &view, 120, 40, &resize).1;
+        assert!(drawn.contains(parent), "the ancestor split is unchanged");
+        assert!(drawn.contains(&drag.projected_target()));
+        let mut projected = native.view();
+        projected.set_resize_projection(&resize);
+        let panes = crate::tui_shell::pane_geometries(dimensions, &view, &projected).unwrap();
+        let displacement = drag.preview.y - nested.divider.y;
+        assert_eq!(
+            panes[0], original[0],
+            "the ancestor's other branch is unchanged"
+        );
+        assert_eq!(panes[1].2.columns(), original[1].2.columns());
+        assert_eq!(panes[1].2.rows(), original[1].2.rows() + displacement);
+        assert_eq!(panes[2].2.rows(), original[2].2.rows() - displacement);
+        assert!(
+            native
+                .prepare_divider_adjustment(
+                    nested,
+                    drag.ratio,
+                    Some((nested.viewport, view.sidebar_surface()))
+                )
+                .is_ok(),
+            "own projected geometry does not replace the canonical CAS origin"
+        );
+    }
     assert_eq!(painted(&native, &view, 120, 40).1, targets);
 }
 
@@ -570,6 +652,14 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
         .take_layout_for_test()
         .unwrap();
     assert_eq!(mutation.expected_revision, target.source.revision);
+    let released = ResizeProjection::Divider {
+        source: target.clone(),
+        ratio: ClientSplitRatio::new(0.7).unwrap(),
+    };
+    assert_eq!(
+        control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+        released
+    );
     assert!(
         matches!(mutation.action, WorkbenchAction::SplitRatioSet { split, previous_ratio, ratio, .. }
         if split.split_id == target.split && split.first_slot_id == target.first && split.second_slot_id == target.second && previous_ratio == target.ratio && ratio.value() == 0.7)
@@ -580,6 +670,11 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
     );
     control.resize(&native, PanelDirection::Right, false);
     control.resize_divider(&native, &target, ClientSplitRatio::new(0.8).unwrap());
+    assert_eq!(
+        control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+        released,
+        "a busy second release cannot retarget the accepted presentation"
+    );
     assert!(
         control
             .lane
@@ -600,6 +695,11 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
     control.tick(&mut native, false);
     control.after_draw(&mut native);
     assert!(control.local_resize_pending());
+    assert_eq!(
+        control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+        released,
+        "a reply before publication cannot snap the panes back"
+    );
     let mut snapshot = split_snapshot(3);
     let PanelNode::Split { ratio, .. } = &mut snapshot.terminal_contexts[0].tabs[0].root else {
         panic!()
@@ -613,6 +713,11 @@ fn divider_local_commit_waits_for_shared_publication_and_draw_and_competes_with_
     );
     control.tick(&mut native, false);
     assert!(control.local_resize_pending());
+    assert_eq!(
+        control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+        ResizeProjection::Canonical,
+        "the new canonical publication takes over the released position"
+    );
     control.after_draw(&mut native);
     assert!(!control.local_resize_pending());
     assert!(completion(&control).is_none());
@@ -642,6 +747,10 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
         control.observe_geometry(target.viewport, view.sidebar_surface());
         control.tick(&mut native, false);
         control.resize_divider(&native, &target, ClientSplitRatio::new(0.7).unwrap());
+        assert!(matches!(
+            control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+            ResizeProjection::Divider { .. }
+        ));
         let mutation = control
             .lane
             .as_ref()
@@ -663,6 +772,10 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
             });
         control.tick(&mut native, false);
         assert!(!control.local_resize_pending());
+        assert_eq!(
+            control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+            ResizeProjection::Canonical
+        );
         assert!(
             matches!(control.take_local_resize_feedback(), Some(LocalResizeFeedback::Notice(notice)) if notice == if unknown { Notice::ResizeUnknown } else { Notice::ResizeFailed })
         );
@@ -675,5 +788,69 @@ fn divider_unknown_or_rejected_resolution_never_replays_and_reports_the_shared_n
                 .is_none()
         );
         assert!(completion(&control).is_none());
+    }
+}
+
+#[test]
+fn released_divider_projection_retires_permanently_on_external_owner_or_geometry_loss() {
+    use crate::client_view::SidebarSurface;
+    for reason in 0..6 {
+        let (mut native, _, clock, elapsed) = ready_split_ui();
+        let view = ClientView::new(120);
+        let target = painted(&native, &view, 120, 40).1.remove(0);
+        let mut control = controller(clock);
+        control.observe_geometry(target.viewport, view.sidebar_surface());
+        control.tick(&mut native, false);
+        control.resize_divider(&native, &target, ClientSplitRatio::new(0.7).unwrap());
+        assert!(matches!(
+            control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+            ResizeProjection::Divider { .. }
+        ));
+        let mut viewport = target.viewport;
+        let mut sidebar = view.sidebar_surface();
+        let mut allowed = true;
+        match reason {
+            0 => allowed = false,
+            1 => viewport.width += 1,
+            2 => {
+                sidebar = SidebarSurface::Hidden;
+                assert_ne!(sidebar, view.sidebar_surface());
+            }
+            3 => {
+                native.apply_client_action(ClientAction::ToggleZoom);
+            }
+            4 => control.interrupt_local_resize(),
+            _ => elapsed.store(51_000, std::sync::atomic::Ordering::SeqCst),
+        }
+        assert_eq!(
+            control.resize_projection(&native, viewport, sidebar, allowed),
+            ResizeProjection::Canonical,
+            "retirement reason {reason}"
+        );
+        assert_eq!(
+            control.resize_projection(&native, target.viewport, view.sidebar_surface(), true),
+            ResizeProjection::Canonical,
+            "restoring the old presentation cannot revive its lease"
+        );
+        assert!(
+            control.local_resize_pending(),
+            "retiring pixels does not cancel or replay the submitted mutation"
+        );
+        assert!(
+            control
+                .lane
+                .as_ref()
+                .unwrap()
+                .take_layout_for_test()
+                .is_some()
+        );
+        assert!(
+            control
+                .lane
+                .as_ref()
+                .unwrap()
+                .take_layout_for_test()
+                .is_none()
+        );
     }
 }
