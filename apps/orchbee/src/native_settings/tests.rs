@@ -132,6 +132,50 @@ fn bounded_adjustments_use_owner_steps_without_rounding_and_disable_at_endpoints
 }
 
 #[test]
+fn primary_key_accepts_legacy_cr_but_rejects_explicit_enter_modifiers_and_release() {
+    for text_entry in [false, true] {
+        for (code, mods) in [
+            (KeyCode::Enter, Modifiers::NONE),
+            (KeyCode::Char('m'), Modifiers::CTRL),
+        ] {
+            for kind in [
+                crate::client_view::KeyKind::Press,
+                crate::client_view::KeyKind::Repeat,
+            ] {
+                let mut key = KeyEvent::press(code, mods);
+                key.kind = kind;
+                assert!(matches!(key_edit(key, text_entry), Some(Edit::Activate)));
+            }
+            let mut key = KeyEvent::press(code, mods);
+            key.kind = crate::client_view::KeyKind::Release;
+            assert!(key_edit(key, text_entry).is_none());
+        }
+        for mods in [
+            Modifiers::CTRL,
+            Modifiers::NONE.with_shift(),
+            Modifiers::NONE.with_alt(),
+            Modifiers::NONE.with_super_(),
+        ] {
+            assert!(key_edit(KeyEvent::press(KeyCode::Enter, mods), text_entry).is_none());
+        }
+        assert!(
+            key_edit(
+                KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL.with_shift()),
+                text_entry,
+            )
+            .is_none()
+        );
+        assert!(!matches!(
+            key_edit(
+                KeyEvent::press(KeyCode::Char('y'), Modifiers::NONE),
+                text_entry
+            ),
+            Some(Edit::Activate)
+        ));
+    }
+}
+
+#[test]
 fn shifted_horizontal_keys_are_large_steps_only_outside_text_editors() {
     let shifted_left = KeyEvent::press(KeyCode::Left, Modifiers::NONE.with_shift());
     let shifted_right = KeyEvent::press(KeyCode::Right, Modifiers::NONE.with_shift());

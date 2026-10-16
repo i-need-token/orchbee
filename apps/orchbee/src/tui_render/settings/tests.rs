@@ -404,6 +404,62 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
 }
 
 #[test]
+fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_hint_row() {
+    for (width, height) in [(48, 10), (80, 24), (120, 40)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [
+                Theme::one_dark(),
+                Theme::one_light(),
+                Theme::terminal_native(),
+            ] {
+                let mut editor = editor_with(UserPreferencesValues::default());
+                select_and_present(&mut editor, Row::ResetAll, locale, &theme);
+                editor.edit(Edit::Activate);
+                let (terminal, map, receipt) = render_once(&editor, width, height, locale, &theme);
+                let ModalPresentation::Presented(draw) = receipt else {
+                    panic!("complete confirmation actions at {width}x{height} {locale:?}");
+                };
+                for (control, label, key) in [
+                    (Control::Back, locale.settings_cancel(), "Esc"),
+                    (Control::Accept, locale.settings_accept_button(), "Enter"),
+                ] {
+                    let target = HitTarget::SettingsControl {
+                        token: draw.token(),
+                        control,
+                    };
+                    assert_eq!(
+                        without_cell_padding(&target_text(&terminal, &map, &target, false)),
+                        format!("[{label}{key}]"),
+                    );
+                    let cells = cells_for(&map, &target, width, height);
+                    let y = cells[0].1;
+                    assert!(cells.iter().all(|(_, row)| *row == y));
+                    let hint_row = line_text(&terminal, y - 1);
+                    assert!(!hint_row.contains("Esc") && !hint_row.contains("Enter"));
+                    let key_x = cells
+                        .iter()
+                        .find_map(|&(x, row)| {
+                            (terminal.backend().buffer()[(x, row)].symbol() == "E").then_some(x)
+                        })
+                        .expect("shortcut is inside the clickable action");
+                    let style = terminal.backend().buffer()[(key_x, y)].style();
+                    assert_eq!(style.fg, theme.style(Role::TextSecondary).fg);
+                    assert!(!style.add_modifier.contains(ratatui::style::Modifier::BOLD));
+                }
+            }
+        }
+    }
+
+    let theme = Theme::one_dark();
+    let mut editor = editor_with(UserPreferencesValues::default());
+    select_and_present(&mut editor, Row::ResetAll, Locale::EnUs, &theme);
+    editor.edit(Edit::Activate);
+    let (_, map, receipt) = render_once(&editor, 36, 10, Locale::EnUs, &theme);
+    assert!(matches!(receipt, ModalPresentation::NotPresented));
+    assert!((0..10).all(|y| (0..36).all(|x| map.hit_target_at(x, y).is_none())));
+}
+
+#[test]
 fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     let theme = Theme::one_dark();
 

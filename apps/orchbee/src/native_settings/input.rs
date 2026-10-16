@@ -197,7 +197,10 @@ pub(crate) fn footer_bindings(view: View<'_>) -> &'static [SettingsFooterBinding
 }
 
 pub(crate) fn key_edit(event: KeyEvent, text_entry: bool) -> Option<Edit> {
-    if event.kind == KeyKind::Release {
+    // Legacy CR arrives as Ctrl+M, but an explicitly modified named Enter is a different key.
+    if event.kind == KeyKind::Release
+        || (event.code == KeyCode::Enter && event.mods != Modifiers::NONE)
+    {
         return None;
     }
     if let Some(edit) = DISPATCH_ORDER.iter().find_map(|key| {

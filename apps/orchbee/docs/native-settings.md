@@ -59,8 +59,14 @@ the surface token and actual painted row slice: an anchor that remains painted
 retains row activation, while a nonpainted anchor cannot activate. Keyboard
 navigation reveals that anchor again; a painted pointer target may establish a new
 one. Child editors and confirmations retain input and expose their own
-Confirm/Cancel. Header Close follows Esc, including hiding an accepted save
-without cancelling it.
+Confirm/Cancel. Confirmations place their effective Esc/Enter bindings inside the
+Cancel/Confirm buttons in secondary, normal-weight text, without a duplicate hint
+row. Explicitly modified Enter and key releases cannot confirm; legacy carriage
+return remains supported. Esc backs out of a child editor or confirmation before
+closing the root. Header Close closes the whole surface. A plain left press and
+matching release on the surrounding blank backdrop invokes that same exact
+painted Close target; moving into the surface, a stale token, focus loss or a
+changed layout cancels it. Closing hides an accepted save without cancelling it.
 
 Save is the only write action. Opening, editing, cancelling and resizing do not
 apply a draft. Enter or a click on the successfully drawn Save row consumes its
@@ -79,7 +85,8 @@ and old read completions do not clear that requirement. No request is replayed a
 Esc discards an unsubmitted draft; after submission it hides the surface while
 the accepted save can continue. Captured packet/paste tails remain owned through
 cancellation and the next redraw. The pane cursor stays hidden under Settings.
-The surface requires at least 36 columns by 10 rows. If the first evaluated frame
+The surface requires at least 36 columns by 10 rows and complete localized footer
+actions; a confirmation can require more width. If the first evaluated frame
 cannot meet that geometry, the opening surface is refused and hidden with a localized
 enlarge-and-reopen notice; an already accepted read or save still settles under its
 original token and cannot reopen the surface. After at least one successful frame,

@@ -1,10 +1,10 @@
 //! Scrollable common settings; only controls from the last successful frame authorize input.
 use crate::{
-    client_view::{KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
+    client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
     localization::Locale,
     native_settings::{
-        Adjustment, Control, DraftView, Page, Row, SettingControl, SettingsDraw, View,
-        footer_bindings, setting_for_row,
+        Adjustment, Control, DraftView, Page, Row, SettingControl, SettingsDraw, SettingsHintLabel,
+        View, footer_bindings, setting_for_row,
     },
     terminal_session::ModalPresentation,
     terminal_text::{
@@ -85,8 +85,10 @@ pub(super) fn render(
         }
         SettingsDraw::surface(view.token())
     };
-    let painted_hints = render_footer_hints(frame, layout.hints, view, locale, theme);
-    debug_assert!(painted_hints.is_some());
+    if !is_confirmation(view) {
+        let painted_hints = render_footer_hints(frame, layout.hints, view, locale, theme);
+        debug_assert!(painted_hints.is_some());
+    }
     render_footer_actions(
         frame,
         layout.actions,
@@ -145,7 +147,9 @@ impl SettingsLayout {
         }
         let close = super::controls::close_rect(bounds, area)?;
         let hints = Rect::new(inner.x, inner.bottom().checked_sub(2)?, inner.width, 1);
-        footer_hints_admitted(bounds, hints, view, locale, theme)?;
+        if !is_confirmation(view) {
+            footer_hints_admitted(bounds, hints, view, locale, theme)?;
+        }
         let actions = Rect::new(inner.x, inner.bottom().checked_sub(1)?, inner.width, 1);
         let footer_actions = FooterActionGeometry::resolve(bounds, actions, view, locale, theme)?;
         let draft = match view {
@@ -175,22 +179,39 @@ struct ResolvedFooterHint {
     label: &'static str,
 }
 
-fn resolved_footer_hints(view: View<'_>, locale: Locale, theme: &Theme) -> Vec<ResolvedFooterHint> {
+fn format_settings_bindings(bindings: impl Iterator<Item = Binding>, theme: &Theme) -> String {
     let key_glyphs = match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
         #[cfg(test)]
         GlyphMode::Simplified => KeyLabelGlyphs::Ascii,
     };
+    bindings
+        .map(|binding| format_binding_with_glyphs(&binding, LabelStyle::for_host(), key_glyphs))
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn is_confirmation(view: View<'_>) -> bool {
+    matches!(view, View::Draft(draft) if draft.confirmation.is_some())
+}
+
+fn confirmation_shortcuts(view: View<'_>, theme: &Theme) -> Option<[String; 2]> {
+    is_confirmation(view).then(|| {
+        [SettingsHintLabel::Cancel, SettingsHintLabel::Confirm].map(|label| {
+            let hint = footer_bindings(view)
+                .iter()
+                .find(|hint| hint.label() == label)
+                .expect("confirmation owner exposes cancel and confirm bindings");
+            format_settings_bindings(hint.bindings(), theme)
+        })
+    })
+}
+
+fn resolved_footer_hints(view: View<'_>, locale: Locale, theme: &Theme) -> Vec<ResolvedFooterHint> {
     footer_bindings(view)
         .iter()
         .map(|hint| ResolvedFooterHint {
-            key: hint
-                .bindings()
-                .map(|binding| {
-                    format_binding_with_glyphs(&binding, LabelStyle::for_host(), key_glyphs)
-                })
-                .collect::<Vec<_>>()
-                .join("/"),
+            key: format_settings_bindings(hint.bindings(), theme),
             label: locale.settings_hint_label(hint.label()),
         })
         .collect()
@@ -315,6 +336,7 @@ struct ActionPaint<'a> {
     area: Rect,
     rect: Rect,
     label: &'a str,
+    shortcut: Option<&'a str>,
     kind: ActionKind,
     enabled: bool,
     target: InteractionTarget,
@@ -350,18 +372,23 @@ impl FooterActionGeometry {
         if child {
             let accept_enabled =
                 !matches!(view, View::Draft(draft) if draft.text.is_some() && draft.invalid);
-            let first_spec = action_spec(
+            let mut first_spec = action_spec(
                 locale.settings_cancel(),
                 ActionKind::Secondary,
                 true,
                 PointerPresentation::Rest,
             );
-            let second_spec = action_spec(
+            let mut second_spec = action_spec(
                 locale.settings_accept_button(),
                 ActionKind::Primary,
                 accept_enabled,
                 PointerPresentation::Rest,
             );
+            let shortcuts = confirmation_shortcuts(view, theme);
+            if let Some(shortcuts) = shortcuts.as_ref() {
+                first_spec = first_spec.with_shortcut(&shortcuts[0]);
+                second_spec = second_spec.with_shortcut(&shortcuts[1]);
+            }
             let first = super::controls::action_rect(bounds, row, first_spec, theme)?;
             let second_x = first.right().checked_add(2)?;
             let second_area = Rect::new(
@@ -408,12 +435,11 @@ fn render_interactive_action(
         &action.target,
         spec,
     ));
-    let painted = super::controls::render_action(
-        frame,
-        action.area,
-        action_spec(action.label, action.kind, action.enabled, pointer),
-        theme,
-    )?;
+    let mut action_spec = action_spec(action.label, action.kind, action.enabled, pointer);
+    if let Some(shortcut) = action.shortcut {
+        action_spec = action_spec.with_shortcut(shortcut);
+    }
+    let painted = super::controls::render_action(frame, action.area, action_spec, theme)?;
     if painted != action.rect {
         return None;
     }
@@ -442,6 +468,7 @@ fn render_footer_actions(
             unreachable!("preflighted child actions use pair geometry");
         };
         let labels = [locale.settings_cancel(), locale.settings_accept_button()];
+        let shortcuts = confirmation_shortcuts(view, theme);
         let accept_enabled =
             !matches!(view, View::Draft(draft) if draft.text.is_some() && draft.invalid);
         let token = view.token();
@@ -451,6 +478,7 @@ fn render_footer_actions(
                 area: row,
                 rect: first,
                 label: labels[0],
+                shortcut: shortcuts.as_ref().map(|keys| keys[0].as_str()),
                 kind: ActionKind::Secondary,
                 enabled: true,
                 target: InteractionTarget::SettingsControl {
@@ -469,6 +497,7 @@ fn render_footer_actions(
                 area: second_area,
                 rect: second,
                 label: labels[1],
+                shortcut: shortcuts.as_ref().map(|keys| keys[1].as_str()),
                 kind: ActionKind::Primary,
                 enabled: accept_enabled,
                 target: InteractionTarget::SettingsControl {
@@ -500,6 +529,7 @@ fn render_footer_actions(
             area: row,
             rect,
             label,
+            shortcut: None,
             kind: ActionKind::Secondary,
             enabled: true,
             target: InteractionTarget::SettingsControl {
