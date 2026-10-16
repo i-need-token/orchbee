@@ -24,23 +24,47 @@ use support::Fixture;
 fn tui_measurement_environment_has_no_help_version_or_offline_query_side_effects() {
     let fixture = Fixture::new();
     let measurements = fixture.0.join("tui-measurements.json");
-    for arguments in [
-        vec!["--help"],
-        vec!["--version"],
-        vec!["status", "client", "--format=json"],
-        vec!["config", "check", "--format=json"],
+    for (arguments, expected_status) in [
+        (vec!["--help"], 0),
+        (vec!["--version"], 0),
+        (vec!["status", "client", "--format=json"], 0),
+        (vec!["config", "check", "--format=json"], 1),
     ] {
+        let mut command = fixture.command(&arguments, None, None, &[]);
+        command.env_remove("ORCHBEE_TUI_MEASUREMENTS");
+        let baseline = fixture.run_command(command, None, Duration::from_secs(45), 8 * 1024 * 1024);
+        assert_eq!(
+            baseline.status.code(),
+            Some(expected_status),
+            "{arguments:?}: stdout={} stderr={}",
+            String::from_utf8_lossy(&baseline.stdout),
+            String::from_utf8_lossy(&baseline.stderr)
+        );
         let output = fixture.run_with_env(
             &arguments,
             None,
             None,
             &[("ORCHBEE_TUI_MEASUREMENTS", measurements.as_os_str())],
         );
-        assert!(
-            output.status.success(),
-            "{arguments:?}: {}",
-            String::from_utf8_lossy(&output.stderr)
+        assert_eq!(
+            output.status.code(),
+            baseline.status.code(),
+            "{arguments:?}"
         );
+        assert_eq!(output.stdout, baseline.stdout, "{arguments:?}");
+        assert_eq!(output.stderr, baseline.stderr, "{arguments:?}");
+        if expected_status == 1 {
+            // Inspection reports the absent base without creating it.
+            let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+            let checks = document["result"]["checks"].as_array().unwrap();
+            let failed: Vec<_> = checks
+                .iter()
+                .filter(|check| check["status"] == "fail")
+                .map(|check| check["name"].as_str().unwrap())
+                .collect();
+            assert_eq!(failed, ["runtime-base"]);
+            assert_eq!(checks[0]["details"]["reason"], "absent");
+        }
         assert!(
             !measurements.exists(),
             "non-TUI command must not create diagnostics: {arguments:?}"
