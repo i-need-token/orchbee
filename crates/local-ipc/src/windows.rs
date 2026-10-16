@@ -26,6 +26,9 @@ use winsafe::{HPROCESS, TokenInfo, co};
 const POLL_INTERVAL: Duration = Duration::from_millis(2);
 type Pipe = PipeStream<Bytes, Bytes>;
 
+mod connection;
+pub use connection::ConnectAttemptError;
+
 /// The kernel token user's SID, never an environment-variable identity.
 pub fn current_user_sid() -> io::Result<String> {
     process_user(&HPROCESS::GetCurrentProcess())

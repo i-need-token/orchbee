@@ -86,21 +86,53 @@ fn connect_stream(
     deadline: Instant,
     wake: Option<LocalIo<'_>>,
 ) -> Result<UnixStream, ConnectClientError> {
-    let stream = loop {
-        check_wake(wake)?;
-        if Instant::now() >= deadline {
-            return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
-        }
-        let slice = deadline.min(Instant::now() + Duration::from_millis(10));
-        match UnixStream::connect_before(endpoint, slice) {
-            Ok(stream) => break stream,
-            Err(error) if matches!(error.raw_os_error(), Some(121 | 231)) => {}
-            Err(error) => return Err(ConnectClientError::ConnectFailed(error)),
-        }
-    };
+    let stream = connect_stream_with(
+        deadline,
+        Instant::now,
+        || check_wake(wake),
+        |deadline, wait_limit| {
+            UnixStream::connect_before_with_wait_limit(endpoint, deadline, wait_limit).map_err(
+                |error| match error {
+                    orchbee_local_ipc::ConnectAttemptError::Dial(error) => {
+                        ConnectClientError::ConnectFailed(error)
+                    }
+                    orchbee_local_ipc::ConnectAttemptError::Admission(error) => {
+                        ConnectClientError::Io(error)
+                    }
+                },
+            )
+        },
+    )?;
     stream.set_nonblocking(true)?;
     Ok(stream)
 }
+
+/// Owns cancellation cadence and the one operation deadline; connected candidates never retry.
+fn connect_stream_with<T>(
+    deadline: Instant,
+    mut now: impl FnMut() -> Instant,
+    mut wake: impl FnMut() -> Result<(), ConnectClientError>,
+    mut connect: impl FnMut(Instant, Duration) -> Result<Option<T>, ConnectClientError>,
+) -> Result<T, ConnectClientError> {
+    loop {
+        wake()?;
+        let current = now();
+        if current >= deadline {
+            return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
+        }
+        let wait_limit = Duration::from_millis(10);
+        if let Some(stream) = connect(deadline, wait_limit)? {
+            wake()?;
+            if now() >= deadline {
+                return Err(ConnectClientError::Io(io::ErrorKind::TimedOut.into()));
+            }
+            return Ok(stream);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
 
 pub(super) fn site_stop(
     endpoint: &Path,

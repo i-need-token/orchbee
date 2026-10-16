@@ -24,6 +24,27 @@ fn pair() -> (LocalStream, LocalStream) {
 }
 
 #[test]
+fn short_kernel_wait_limit_retains_a_real_same_user_connection() {
+    let path = endpoint();
+    let listener = LocalListener::bind(&path).unwrap();
+    let mut client = LocalStream::connect_before_with_wait_limit(
+        &path,
+        Instant::now() + Duration::from_secs(5),
+        Duration::from_millis(1),
+    )
+    .unwrap()
+    .expect("available listener connects once");
+    let (mut server, ()) = listener.accept().unwrap();
+    server
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    client.write_all(b"authenticated").unwrap();
+    let mut bytes = [0; 13];
+    server.read_exact(&mut bytes).unwrap();
+    assert_eq!(&bytes, b"authenticated");
+}
+
+#[test]
 fn bounded_namespace_observation_never_connects_or_invents_absence() {
     use std::ffi::OsStr;
     let path = endpoint();

@@ -450,12 +450,12 @@
 			"zhCnSha256": "1043c81475f246113e507ad848f7f113c5a96f65404905bb45af73b87e25e8d8"
 		},
 		"crates/local-client-protocol/README.md": {
-			"englishSha256": "3991299fd456286a6feb44b22e2715d68e009f3254dd139d3eb2b27bb0ccfeeb",
-			"zhCnSha256": "46f9a8d6300006648cdf4c2381819cd52d93e794215da7effcf06a78e5f62730"
+			"englishSha256": "faac8d4ea1b650bed1cf3c1be9e6c5d47792173d79ba054d32b380c9dd3c2164",
+			"zhCnSha256": "294afdb5f0e2cb144c6f506ee3d1dbcf2aab2999f76d9d1196f71735c0921e89"
 		},
 		"crates/local-ipc/README.md": {
-			"englishSha256": "da26e91a32df716ec937a1ed4eb7b89d4f2862f1f45eb39b89a6a0a9893cb257",
-			"zhCnSha256": "bf3b5745d3170062777af012ce6a6438f1ee325ff5e223261d9973ec25a77b6e"
+			"englishSha256": "b4b990fc0e096cdccd5fe0fd16bfdbf2baf301b8508d57db78421c3290011bdc",
+			"zhCnSha256": "8afc580c5fd584c35c3bba71eed3f11dcb5c39da674a49e73d545038e29d20d6"
 		},
 		"crates/local-peer-credentials/README.md": {
 			"englishSha256": "751482f3bbcde8ec843bd67c4ed79b45154b89f259d63fff5dd202247d0a280b",

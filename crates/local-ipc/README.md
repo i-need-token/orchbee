@@ -32,6 +32,22 @@ owner must retain its existing unknown-outcome behavior. Kernel scheduling is ou
 the monotonic budget's real-time guarantee. The existing local submission/relay models
 continue to own request identity, at-most-once submission, and feedback semantics.
 
+`LocalStream::connect_before_with_wait_limit` separates one kernel connection wait from
+the caller's absolute admission deadline. `None` means only busy/wait exhaustion before
+a pipe was opened. An opened pipe must complete the same-user proof and nonblocking
+setup before the original deadline; crossing the shorter wait limit does not discard it.
+`ConnectAttemptError::Dial` preserves preconnection errors, while `Admission` preserves
+postconnection errors, including OS codes also used for wait timeouts. Authentication
+failure or total expiry drops the candidate and never authorizes another dial. The
+protocol owner checks cancellation between pending waits and before sending bytes;
+kernel authentication calls remain outside a preemptive timing guarantee.
+
+Controlled-clock tests in `src/windows/connection/tests.rs` cover slice crossing, true
+expiry and cleanup, pending classification and error provenance. The adjacent native
+transport tests exercise a real short-wait connection and same-user process round trip.
+These are implementation traces; the existing shared models do not abstract kernel
+authentication scheduling or prove its latency.
+
 The direct implementation challenge considered pipe squatting, remote clients, inherited
 handles, partial records, read-ahead duplication, blocked writes, and clone cancellation.
 It is an explicit adversarial read, not independent review. Native evidence must pass

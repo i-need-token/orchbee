@@ -175,3 +175,19 @@ pnpm verify
 ## Windows admission
 
 On Windows, the same OBLC messages run over `orchbee-local-ipc` local named pipes. The adapter proves the peer token user before sending the hello, retains the caller's absolute deadline across connect/read/write, and observes cancellation through a borrowed readiness source. It never starts or retries a Site. Pipe names and permissions belong to the runtime and transport owners; OBCS/OBWP framing is unchanged.
+
+The 10 ms cancellation cadence limits only a pending kernel connection wait. It is not
+the authenticated connection's deadline: a pipe that opens and completes peer proof
+after that slice, but before the caller's original deadline, proceeds to one hello.
+Only the transport's typed preconnection pending result permits another wait. Dial
+errors remain `ConnectFailed`; errors after opening a pipe remain `Io`, so neither
+authentication failure nor connected EOF can be reinterpreted as preconnect absence.
+Cancellation and total expiry after authentication release the candidate before hello,
+without another dial or any renewal of the total budget. Metadata and Site-stop use the
+same connection boundary. No request or effect is retried.
+
+`src/connection/windows_admission/tests.rs` controls completion order and clock progress
+across slice crossing, pending cancellation, connected failure, late completion and
+candidate cleanup. Native metadata/stop tests exercise the real pipe adapter. These
+named traces complement the existing protocol models; they do not model or bound
+Windows kernel scheduling.
