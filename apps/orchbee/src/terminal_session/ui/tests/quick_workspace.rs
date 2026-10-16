@@ -44,6 +44,22 @@ fn empty_ui(snapshot: Snapshot) -> (NativeUi, Arc<CommandMailbox>, LocalOperatio
     (ui, mailbox, clock, snapshot)
 }
 
+fn rendered_rows(buffer: &ratatui::buffer::Buffer) -> String {
+    (buffer.area.y..buffer.area.bottom())
+        .map(|y| {
+            let mut row = String::new();
+            let mut x = buffer.area.x;
+            while x < buffer.area.right() {
+                let symbol = buffer[(x, y)].symbol();
+                row.push_str(symbol);
+                x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
+            }
+            row
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn empty_compatibility_create_tab_uses_workspace_launch_and_cancel_never_resurrects_a_terminal() {
     for cancelled in [false, true] {
@@ -101,13 +117,7 @@ fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locale
                             );
                         })
                         .unwrap();
-                    let text: String = terminal
-                        .backend()
-                        .buffer()
-                        .content
-                        .iter()
-                        .map(|cell| cell.symbol())
-                        .collect();
+                    let text = rendered_rows(terminal.backend().buffer());
                     let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
                     let expected: String = locale
                         .no_current_workspace()
@@ -117,7 +127,7 @@ fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locale
                     assert_eq!(
                         compact.contains(&expected),
                         width >= 20,
-                        "{width}x{height}: {text}"
+                        "{width}x{height} machines={available}: {text}"
                     );
                     assert!(!text.contains(locale.shell().standalone), "{text}");
                 }
@@ -193,13 +203,7 @@ fn effective_create_binding_renders_and_invokes_workspace_or_empty_canonical_tab
                     );
                 })
                 .unwrap();
-            let text: String = terminal
-                .backend()
-                .buffer()
-                .content
-                .iter()
-                .map(|cell| cell.symbol())
-                .collect();
+            let text = rendered_rows(terminal.backend().buffer());
             let label = if canonical {
                 (locale.shell().prefix_desc)(PrefixDesc::CreateTab)
             } else {

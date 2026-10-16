@@ -89,6 +89,8 @@ children in the same window. Configuration still owns item row height, gap and t
 Fallback chrome without projected navigation rows never invents a legacy Workspace row. In the
 no-Workspace state, the existing Create Tab binding advertises its actual New Workspace effect;
 an empty canonical Workspace keeps its Tab creation guidance. Both use effective localized bindings.
+Minimal guidance yields the actual global Actions rectangle through the layout owner, so that
+chrome cannot overpaint its complete fact. This changes authored guidance space, not PTY geometry.
 
 Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
 blank cells after the button. A hint that cannot fit in full is omitted; its cells are outside

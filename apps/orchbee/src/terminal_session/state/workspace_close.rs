@@ -1,7 +1,7 @@
 //! Confirm and retain one Workspace Close or explicit Project close-all. Membership owns removal.
 use super::{
     NativeContextTabs, NativeSessionState, OperationDeadlines, PaneKey, PendingRefreshFlight,
-    SessionNotice, SessionPhase,
+    SessionNotice, SessionPhase, context_removal::ContextRemovalPermit,
 };
 use crate::{
     local_client::workbench::WorkbenchWorkspaceCloseAccepted,
@@ -253,7 +253,15 @@ pub(super) struct WorkspaceCloseState {
     confirmation: Option<Confirmation>,
     pub(super) pending: Option<WorkspaceCloseOperation>,
     evidence: Option<WorkspaceCloseEvidence>,
+    automatic_landing: Option<ClosedLanding>,
     show_pending: bool,
+}
+
+/// Display continuity for one validated removal install, never navigation or input authority.
+struct ClosedLanding {
+    request_id: WorkbenchRequestId,
+    generation: u64,
+    location: NativeContextLocation,
 }
 /// Read-only scope and draw identity of one pending confirmation.
 #[derive(Clone, Copy)]
@@ -548,6 +556,7 @@ impl NativeSessionState {
         self.pending_refresh = Some(PendingRefreshFlight::recovery(operation.generation));
         self.workspace_close.pending = Some(operation);
         self.workspace_close.evidence = None;
+        self.workspace_close.automatic_landing = None;
         self.workspace_close.show_pending = false;
         self.adopt_publication_debt();
         true
@@ -636,6 +645,15 @@ impl NativeSessionState {
             if evidence.result.is_closed()
                 && self.cache.location() != evidence.operation.baseline.location()
                 && !matches!(self.cache.location(), NativeContextLocation::Standalone(_))
+                && !self
+                    .workspace_close
+                    .automatic_landing
+                    .as_ref()
+                    .is_some_and(|landing| {
+                        landing.request_id == evidence.operation.request_id
+                            && landing.generation == evidence.operation.generation
+                            && &landing.location == self.cache.location()
+                    })
             {
                 return None;
             }
@@ -663,6 +681,37 @@ impl NativeSessionState {
             operation_id: &pending.request_id,
             status: WorkspaceCloseStatus::Closing,
         })
+    }
+
+    pub(super) fn record_workspace_close_landing(
+        &mut self,
+        permit: Option<&ContextRemovalPermit>,
+        generation: Option<u64>,
+        candidate: &NativeContextTabs,
+    ) {
+        if candidate.location() == self.cache.location() {
+            return;
+        }
+        // Every later cross-context install, including manual navigation, retires the
+        // prior display witness. Returning to that location cannot revive it.
+        self.workspace_close.automatic_landing = None;
+        let Some(permit) = permit else {
+            return;
+        };
+        let Some(evidence) = self.workspace_close.evidence.as_ref().filter(|evidence| {
+            evidence.result.is_closed()
+                && generation == Some(evidence.operation.generation)
+                && permit.generation() == evidence.operation.generation
+                && permit.removed() == evidence.operation.baseline.location()
+                && permit.authorizes(&self.cache, candidate)
+        }) else {
+            return;
+        };
+        self.workspace_close.automatic_landing = Some(ClosedLanding {
+            request_id: evidence.operation.request_id.clone(),
+            generation: evidence.operation.generation,
+            location: candidate.location().clone(),
+        });
     }
 }
 

@@ -110,6 +110,11 @@ progress modal. Final receipts can appear immediately.
 
 ## Correctness and evidence
 
+A validated removal install retains the known Closed notice at its automatic canonical Workspace
+landing. This private display witness binds the request, refresh generation and exact landing to the
+existing removal permit; it grants no navigation or terminal input. Later manual Context navigation
+retires it, including on return. Pending and unknown outcomes retain their existing guards.
+
 State, carrier and UI tests cover single Workspace scope including ungrouped membership, explicit
 Project member capture and empty Projects, exact drawn confirmation, token-bound mouse controls, packet-tail capture, source
 drift, admission/read/publication loss, monotone evidence, canonical repair and preserved focus.

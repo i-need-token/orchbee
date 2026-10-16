@@ -573,7 +573,12 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
             _ => WorkspaceCloseStatus::Closing,
         };
         assert_eq!(
-            ui.view().workspace_close_status().unwrap().status(),
+            ui.view()
+                .workspace_close_status()
+                .unwrap_or_else(|| panic!(
+                    "{scope:?} {cut:?}: close status must retain its admitted result"
+                ))
+                .status(),
             expected_status
         );
         let active = ui

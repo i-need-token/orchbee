@@ -206,6 +206,11 @@ enum MembershipMutationCompletion {
 
 impl PreparedMembershipInstall<'_> {
     pub(in crate::terminal_session) fn commit(self) -> MembershipInstallDecision {
+        self.state.record_workspace_close_landing(
+            self.prepared.context_removal.as_ref(),
+            self.refresh_generation,
+            &self.prepared.candidate,
+        );
         if let Some(consumption) = &self.close_consumption {
             self.state
                 .before_close_set_member_install(consumption.target());

@@ -409,6 +409,8 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     native,
                     &phase_status,
                     capture_owner.is_none(),
+                    #[cfg(windows)]
+                    menu_button,
                     theme,
                     hits,
                     #[cfg(windows)]
@@ -1391,6 +1393,7 @@ fn render_native_workbench(
     native: &NativeSessionView<'_>,
     phase_status: &str,
     directory_guidance_admitted: bool,
+    #[cfg(windows)] global_action: Option<Rect>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
     #[cfg(windows)] graphics_uncovered: bool,
@@ -1765,6 +1768,8 @@ fn render_native_workbench(
                 )
             };
             if let Some(guidance) = directory_guidance {
+                #[cfg(windows)]
+                let content_area = crate::tui_layout::guidance_area(content_area, global_action);
                 workspace_setup::render_directory_guidance(
                     frame,
                     content_area,

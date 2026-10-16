@@ -96,6 +96,10 @@ flight 允许只读规范成员修复。即使最新 Close read 不可用，snap
 
 ## 正确性与证据
 
+经过验证的移除安装会在自动落到的规范 Workspace 保留已知 Closed 提示。此私有显示凭据
+通过现有移除许可绑定请求、刷新 generation 与精确落点，不授予导航或终端输入权限。
+之后手动切换 Context 会使其失效，返回时也不会恢复。Pending 与 unknown 结果保留现有守卫。
+
 状态、carrier 和 UI 测试覆盖单个 Workspace 范围及未分组成员、显式 Project 成员捕获与
 空 Project、确切绘制确认、绑定 token 的鼠标控件、packet 尾部捕获、来源漂移、准入/read/publication 丢失、
 单调证据、规范修复和焦点保留。后台关闭证据覆盖从 Workspace 和 Standalone 发起时的

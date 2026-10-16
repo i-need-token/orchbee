@@ -121,6 +121,26 @@ pub(crate) struct ShellAreas {
     pub(crate) workbench: Rect,
 }
 
+/// Authored guidance yields the actual global chrome rectangle without changing
+/// terminal geometry. Minimal layouts paint that action over the first body row.
+#[cfg(windows)]
+pub(crate) fn guidance_area(content: Rect, global_action: Option<Rect>) -> Rect {
+    let Some(action) = global_action.filter(|action| !content.intersection(*action).is_empty())
+    else {
+        return content;
+    };
+    let occupied = action
+        .bottom()
+        .saturating_sub(content.y)
+        .min(content.height);
+    Rect::new(
+        content.x,
+        content.y + occupied,
+        content.width,
+        content.height - occupied,
+    )
+}
+
 pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> ShellAreas {
     let tier = ViewportTier::from_area(area);
     // Status is an overlay, never a reservation in the terminal's geometry.

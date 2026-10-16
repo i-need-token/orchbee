@@ -797,6 +797,72 @@ fn late_completion_preserves_later_focus_and_the_next_operation_identity() {
 }
 
 #[test]
+fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navigation_or_return() {
+    let mut state = close_state(0);
+    let operation = start(&mut state, false);
+    let evidence = WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: observed(&operation, true),
+    };
+    assert!(state.finish_workspace_close(&evidence));
+    let mut published = close_snapshot();
+    published.revision = WorkbenchRevision::new(2);
+    published.navigation.workspaces.remove(0);
+    published.navigation.workspace_order.remove(0);
+    published.terminal_contexts.remove(1);
+    assert_eq!(
+        finish_refresh(
+            &mut state,
+            operation.generation,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: published.clone()
+            },
+            None
+        ),
+        RefreshDecision::SettledWithoutAttachment
+    );
+    let landing = NativeContextLocation::Workspace {
+        workspace_id: workspace_id(1),
+        terminal_context_id: context_id(373),
+    };
+    assert_eq!(state.cache().location(), &landing);
+    let view = state.workspace_close_status().unwrap();
+    assert_eq!(
+        view.status(),
+        crate::terminal_session::WorkspaceCloseStatus::Closed
+    );
+    assert_eq!(view.operation_id(), Some(&operation.request_id));
+    assert_eq!(view.workspace_id(), Some(&workspace_id(0)));
+    assert!(state.desired().is_none());
+    assert!(state.attached_key().is_none());
+    // The compatibility row is nonempty in this fixture, so surviving canonical
+    // Workspaces occupy indices one and two. Navigation uses the real owner.
+    for (generation, index) in [(3, 2), (4, 1)] {
+        assert!(state.start_context_selection_at(
+            generation,
+            index,
+            OperationDeadlines::from_sample(Instant::now()).unwrap()
+        ));
+        assert_eq!(
+            finish_refresh(
+                &mut state,
+                generation,
+                WorkbenchSnapshotOutcome::Available {
+                    snapshot: published.clone()
+                },
+                None
+            ),
+            RefreshDecision::SettledWithoutAttachment
+        );
+        assert!(state.workspace_close_status().is_none());
+        assert!(state.invariant_holds());
+    }
+    assert_eq!(state.cache().location(), &landing);
+    assert!(state.retain_workspace_close_evidence(&evidence));
+    assert!(state.workspace_close_status().is_none());
+}
+
+#[test]
 fn workspace_and_project_unknown_observations_cannot_be_promoted_or_restarted() {
     use orchbee_workbench_protocol::{
         WorkbenchTabCloseUnknownPhase, WorkbenchTabCloseUnknownReason, WorkspaceGroupCloseFailure,
