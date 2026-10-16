@@ -133,7 +133,8 @@ impl SetupOperation {
                     .then_some(false)
             }
             (
-                WorkbenchAction::ProjectDissolve { project_id },
+                WorkbenchAction::ProjectDissolve { project_id }
+                | WorkbenchAction::ProjectDissolveIfIdle { project_id },
                 WorkbenchSetupCommit::ProjectDissolved {
                     project_id: project,
                     ..

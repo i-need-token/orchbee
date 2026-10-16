@@ -146,6 +146,19 @@
 					"type": "object",
 					"properties": {
 						"kind": {
+							"const": "workspace.close-if-idle"
+						},
+						"workspaceId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
+						}
+					},
+					"required": ["kind", "workspaceId"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
 							"const": "workspace.primary-directory.accept"
 						},
 						"workspaceId": {
@@ -1201,6 +1214,19 @@
 				{
 					"type": "object",
 					"additionalProperties": false,
+					"required": ["kind", "projectId"],
+					"properties": {
+						"kind": {
+							"const": "project.dissolve-if-idle"
+						},
+						"projectId": {
+							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/projectId"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
 					"required": ["kind", "workspaceId", "projectId"],
 					"properties": {
 						"kind": {
@@ -1373,6 +1399,7 @@
 				"identity-exhausted",
 				"revision-exhausted",
 				"request-identity-conflict",
+				"confirmation-required",
 				"tab-move-index-out-of-bounds",
 				"tab-move-order-conflict",
 				"workspace-move-index-out-of-bounds",

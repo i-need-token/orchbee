@@ -129,6 +129,46 @@ canonical commit and records the Closed tombstone. Project metadata, the global 
 other Workspaces' directory associations and the Git checkout are preserved, and no member
 row carries the close revision.
 
+## Conditional idle admission
+
+`workspace.close-if-idle {workspaceId}` is a distinct command fingerprint with the ordinary
+lifecycle grant, replay/conflict, capacity, Site/revision and complete Context membership checks.
+It shares the pending-create/split and overlapping-Close guards. The Site resolves **every bound
+Presentation**, including children under an unbound primary, while holding the coordinator gate.
+Only an empty bound scope or exact `Uncreated` evidence for every member admits the conditional
+action. `TerminalCoordinator::is_definitively_uncreated` requires one exact binding whose Create
+settled failed/unavailable before Host commit, with `Unavailable(None)` runtime identity. Missing,
+ambiguous, pending, unknown or runtime-backed records cannot establish that fact. A retained
+Started result, an observed Exited process or a Client snapshot is not this proof.
+
+A resolved runtime returns retained `rejected {reason:confirmation-required, revision}` without
+Close credit, publication or runtime effect. Missing authority and busy/unavailable association
+retain their existing precise classifications. Accepted conditional Close uses the **same**
+prepared reservation, complete fingerprint, continuation, maintenance and publication as ordinary
+Close. Its fence is installed before the gate is released; a later create or split in that Context
+cannot enter between an idle pre-read and unconditional Close. Exact replay observes the original
+receipt; changing the same request ID between conditional and confirmed actions conflicts.
+Ordinary `workspace.close` keeps its existing semantics.
+
+`project.dissolve-if-idle {projectId}` requires navigation authority and freezes all addressed
+Project member Contexts under that same gate. Its borrowed admission first applies ordinary
+grant, replay/capacity, Site/revision, Project and organization-conflict checks, rejects pending
+terminal reservations in **any** member Context even when no revision has advanced, and prepares
+the bounded organization plan before accepting exact per-binding evidence. It uses the identical
+never-created proof; a runtime requires confirmation. Acceptance removes only Project metadata
+and ungroups its Workspaces, preserving every member ID, directory, Context and runtime. It never
+composes Close operations. Explicit `project.dissolve` remains compatible.
+
+`ConfirmationRequired` is definite no-effect, not authorization to resend. A Client may offer a
+new complete, source-checked confirmation; only a later explicit confirmation sends the ordinary
+action with a new request ID. Revision drift, unavailable authority and uncertain transport remain
+distinct and cannot become idle or automatic retry. The finite authority transitions and
+[conditional admission tests](../src/workbench_authority/terminal_tab_close/tests/context/idle.rs)
+cover unchanged-revision pending creation, post-acceptance creation fences, whole-Project and
+child-only scope, retained refusal/replay, grant denial and confirmed-action compatibility. Site
+tests additionally own the mapping from real terminal records to this evidence; parser and
+authority tests alone do not establish current Host process state or real TUI behavior.
+
 ## Close command and retained status
 
 The existing `workbench.command` envelope and full fingerprint

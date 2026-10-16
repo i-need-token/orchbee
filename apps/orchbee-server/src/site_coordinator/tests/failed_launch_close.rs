@@ -1,4 +1,5 @@
 //! Failed launch removal uses real admission/settlement/publication with synthetic Worker replies.
+mod idle;
 use super::tab_create::{
     configure_workspace, context_tab_command, dispatch_tab, immediate_completion, tab_command,
 };

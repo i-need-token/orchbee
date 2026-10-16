@@ -70,6 +70,15 @@ English remains canonical.
 
 ## Workbench projection store
 
+Sidebar deletion can submit `workspace.close-if-idle` or `project.dissolve-if-idle` with distinct
+full fingerprints. The [conditional admission owner](docs/terminal-tab-close.md#conditional-idle-admission)
+proves the whole captured scope under the Site gate, including pending reservations and child
+bindings. A runtime-backed or unresolved scope never becomes empty from Client observations.
+Conditional Workspace Close installs the ordinary retained fence; conditional Project dissolution
+removes organization only and preserves member resources. A definite `confirmation-required`
+refusal permits a new reviewed decision, never automatic unconditional resubmission. Existing
+explicitly confirmed actions and receipts keep their semantics.
+
 `WorkbenchAuthority` owns one in-memory Site navigation document and a bounded request/result
 ledger. Navigation stores global, identity-sorted `directories`, `projects` and `workspaces` arrays
 and independent `projectOrder` and `workspaceOrder` permutations. A Project contains only its identity and label;

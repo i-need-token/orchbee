@@ -19,6 +19,13 @@ commands and all Close identities omit Project. The exact Close read bound is 1,
 Workspace events carry membership only inside the Workspace. All bindings, schemas and raw/canonical
 conformance fixtures move together within unpublished OBWP v1.
 
+Strict command bindings also admit `workspace.close-if-idle {workspaceId}` and
+`project.dissolve-if-idle {projectId}`, reject caller-supplied idle assertions, and decode the
+definite no-effect `confirmation-required` rejection. Existing confirmed action shapes and
+accepted receipt shapes are unchanged; conditional and confirmed kinds are different request
+fingerprints. The [Server conditional owner](../../apps/orchbee-server/docs/terminal-tab-close.md#conditional-idle-admission)
+defines effect admission. The binding cannot prove idle or authorize automatic retry.
+
 ## Semantic event binding
 
 The independent `workbench.events` binding validates 28 event kinds, closed filters, physical/Client

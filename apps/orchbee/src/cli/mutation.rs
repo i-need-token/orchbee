@@ -2010,7 +2010,9 @@ mod linux {
             | WorkbenchAction::TabsConfigure { .. }
             | WorkbenchAction::NavigationConfigure { .. }
             | WorkbenchAction::PanelCreateTerminal { .. }
-            | WorkbenchAction::TabCreateLayout { .. } => {
+            | WorkbenchAction::TabCreateLayout { .. }
+            | WorkbenchAction::WorkspaceCloseIfIdle { .. }
+            | WorkbenchAction::ProjectDissolveIfIdle { .. } => {
                 Err(Failure::new(FailureKind::InternalFailure))
             }
         }
@@ -2386,6 +2388,7 @@ mod linux {
             WorkbenchRejectionReason::IdentityExhausted => "identity-exhausted",
             WorkbenchRejectionReason::RevisionExhausted => "revision-exhausted",
             WorkbenchRejectionReason::RequestIdentityConflict => "request-identity-conflict",
+            WorkbenchRejectionReason::ConfirmationRequired => "confirmation-required",
         }
     }
 

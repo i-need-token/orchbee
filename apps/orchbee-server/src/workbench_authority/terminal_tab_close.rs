@@ -121,7 +121,7 @@ pub enum WorkbenchTabCloseMemberRuntime {
 }
 
 impl WorkbenchTabCloseMemberRuntime {
-    fn matches_member(&self, member: &WorkbenchTerminalTab) -> bool {
+    pub(super) fn matches_member(&self, member: &WorkbenchTerminalTab) -> bool {
         match self {
             Self::Runtime { target, .. } => target.matches_member(member),
             Self::Uncreated { binding } => binding == member.binding(),

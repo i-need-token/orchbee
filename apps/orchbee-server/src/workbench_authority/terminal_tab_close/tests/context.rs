@@ -1,3 +1,4 @@
+mod idle;
 mod worktree_hold;
 use super::workspace::workspace_fixture;
 use super::*;

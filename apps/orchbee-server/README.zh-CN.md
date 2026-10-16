@@ -57,6 +57,13 @@ installer 或 service manager 消费。
 
 ## Workbench projection store
 
+侧栏删除可提交带独立完整指纹的 `workspace.close-if-idle` 或 `project.dissolve-if-idle`。
+[条件准入所有者](docs/terminal-tab-close.zh-CN.md#条件式空闲准入)在 Site gate 内证明整个捕获
+范围，包括待处理预留和子项绑定。已有运行时或未解析的范围绝不会因 Client 观察而成为空范围。
+条件 Workspace Close 安装普通保留栅栏；条件 Project 解散只移除组织，保留成员资源。
+确定的 `confirmation-required` 拒绝允许重新审核决定，绝不自动无条件重发。既有显式确认动作
+及回执保持原语义。
+
 `WorkbenchAuthority` 拥有一份内存 Site 导航文档及有界 request/result ledger。导航保存按身份排序的
 全局 `directories`、`projects`、`workspaces` 数组，以及独立的 `projectOrder` 与 `workspaceOrder` 排列。
 Project 仅含身份和标签；每个 Workspace 都必须包含可为 null 的 `projectId`，未分组 Workspace

@@ -415,12 +415,14 @@ fn run(steps: &[Step]) -> Result<(), String> {
                 }
                 WorkbenchAction::TabClose { .. }
                 | WorkbenchAction::PanelClose { .. }
-                | WorkbenchAction::WorkspaceClose { .. } => {
+                | WorkbenchAction::WorkspaceClose { .. }
+                | WorkbenchAction::WorkspaceCloseIfIdle { .. } => {
                     return Err("pure trace generated lifecycle close".to_owned());
                 }
                 WorkbenchAction::WorkspaceSetProject { .. }
                 | WorkbenchAction::WorkspaceCreateProject { .. }
-                | WorkbenchAction::ProjectDissolve { .. } => {
+                | WorkbenchAction::ProjectDissolve { .. }
+                | WorkbenchAction::ProjectDissolveIfIdle { .. } => {
                     return Err(
                         "organization belongs to its dedicated transition corpus".to_owned()
                     );

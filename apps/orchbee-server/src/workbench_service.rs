@@ -164,6 +164,7 @@ impl WorkbenchService {
                     WorkbenchAction::TabClose { .. }
                         | WorkbenchAction::PanelClose { .. }
                         | WorkbenchAction::WorkspaceClose { .. }
+                        | WorkbenchAction::WorkspaceCloseIfIdle { .. }
                 ) =>
             {
                 self.policy.manage_terminal_lifecycle
@@ -324,11 +325,25 @@ impl WorkbenchService {
                 );
             }
             WorkbenchRequest::Command(command)
-                if matches!(&command.action, WorkbenchAction::WorkspaceClose { .. }) =>
+                if matches!(
+                    &command.action,
+                    WorkbenchAction::WorkspaceClose { .. } | WorkbenchAction::WorkspaceCloseIfIdle { .. }
+                ) =>
             {
                 let response = self
                     .terminals
                     .execute_workspace_close(command.clone())
+                    .map(WorkbenchResponse::Command);
+                return WorkbenchExecution::Response(
+                    response.unwrap_or_else(|| unavailable_or_denied(request, false)),
+                );
+            }
+            WorkbenchRequest::Command(command)
+                if matches!(&command.action, WorkbenchAction::ProjectDissolveIfIdle { .. }) =>
+            {
+                let response = self
+                    .terminals
+                    .execute_project_dissolve_if_idle(command.clone())
                     .map(WorkbenchResponse::Command);
                 return WorkbenchExecution::Response(
                     response.unwrap_or_else(|| unavailable_or_denied(request, false)),

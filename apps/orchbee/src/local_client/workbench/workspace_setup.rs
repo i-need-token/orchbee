@@ -141,6 +141,7 @@ impl TryFrom<WorkbenchCommand> for WorkbenchSetupRequest {
             command.action,
             WorkbenchAction::ProjectCreate { .. }
                 | WorkbenchAction::ProjectDissolve { .. }
+                | WorkbenchAction::ProjectDissolveIfIdle { .. }
                 | WorkbenchAction::WorkspaceSetProject { .. }
                 | WorkbenchAction::WorkspaceCreateProject { .. }
                 | WorkbenchAction::NavigationConfigure { .. }

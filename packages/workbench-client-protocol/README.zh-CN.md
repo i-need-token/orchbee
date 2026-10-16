@@ -17,6 +17,13 @@ primary-directory 命令及全部 Close 身份省略 Project。Close 读取结�
 Workspace 事件仅在 Workspace 内携带成员关系。所有绑定、schema 与原始／规范一致性语料在未发布
 OBWP v1 内共同升级。
 
+严格命令绑定还接受 `workspace.close-if-idle {workspaceId}` 和
+`project.dissolve-if-idle {projectId}`，拒绝调用方提供的空闲断言，并解码确定无效果的
+`confirmation-required` 拒绝。既有已确认动作和接受回执的形状不变；条件与已确认 kind
+属于不同请求指纹。
+[Server 条件所有者](../../apps/orchbee-server/docs/terminal-tab-close.zh-CN.md#条件式空闲准入)
+定义效果准入。绑定不能证明空闲或授权自动重试。
+
 ## 语义事件绑定
 
 独立 `workbench.events` 绑定验证 28 种事件、封闭过滤器、物理／Client 载荷、全宽 cursor、

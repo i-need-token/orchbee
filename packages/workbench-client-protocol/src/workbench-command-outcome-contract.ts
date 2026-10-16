@@ -58,6 +58,7 @@ export const WorkbenchRejectionReasonSchema = z.enum([
 	'identity-exhausted',
 	'revision-exhausted',
 	'request-identity-conflict',
+	'confirmation-required',
 ]);
 
 export const WorkbenchCommandUnavailableReasonSchema = z.enum([

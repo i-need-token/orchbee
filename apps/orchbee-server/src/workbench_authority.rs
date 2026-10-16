@@ -46,6 +46,9 @@ mod workspace_group_close;
 mod workspace_metadata;
 mod workspace_order;
 mod workspace_organization;
+pub use workspace_organization::idle_dissolve::{
+    WorkbenchProjectDissolveAdmission, WorkbenchProjectDissolveBegin,
+};
 mod worktree_membership;
 mod worktree_operation;
 pub use workspace_group_close::{WorkspaceGroupCloseMemberPlan, WorkspaceGroupClosePlan};
@@ -1524,7 +1527,9 @@ impl PureWorkbenchAction {
             | WorkbenchAction::PanelMove { .. }
             | WorkbenchAction::PanelSwap { .. }
             | WorkbenchAction::PanelRelocate { .. }
-            | WorkbenchAction::WorkspaceClose { .. } => return None,
+            | WorkbenchAction::WorkspaceClose { .. }
+            | WorkbenchAction::WorkspaceCloseIfIdle { .. }
+            | WorkbenchAction::ProjectDissolveIfIdle { .. } => return None,
         })
     }
 }

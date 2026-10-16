@@ -559,6 +559,10 @@ pub enum WorkbenchAction {
     /// Remove organization only, retaining every Workspace and terminal resource.
     #[serde(rename = "project.dissolve")]
     ProjectDissolve { project_id: WorkbenchProjectId },
+    /// Dissolve only when the Server proves the complete captured member scope
+    /// never created a Host runtime and has no pending terminal reservation.
+    #[serde(rename = "project.dissolve-if-idle")]
+    ProjectDissolveIfIdle { project_id: WorkbenchProjectId },
     #[serde(rename = "workspace.create")]
     WorkspaceCreate {
         #[serde(deserialize_with = "Deserialize::deserialize")]
@@ -613,6 +617,10 @@ pub enum WorkbenchAction {
     /// global Directory registry and Git checkout remain unchanged.
     #[serde(rename = "workspace.close")]
     WorkspaceClose { workspace_id: WorkbenchWorkspaceId },
+    /// Retain the ordinary Close fence only after authoritative no-runtime
+    /// admission. A refusal never authorizes an unconditional resubmission.
+    #[serde(rename = "workspace.close-if-idle")]
+    WorkspaceCloseIfIdle { workspace_id: WorkbenchWorkspaceId },
     #[serde(rename = "workspace.primary-directory.accept")]
     WorkspacePrimaryDirectoryAccept {
         workspace_id: WorkbenchWorkspaceId,
@@ -1056,6 +1064,8 @@ pub enum WorkbenchRejectionReason {
     IdentityExhausted,
     RevisionExhausted,
     RequestIdentityConflict,
+    /// A conditional action had no effect; explicit reviewed confirmation is required.
+    ConfirmationRequired,
     /// Legacy stacked-Presentation refusal retained for earlier peers. Current
     /// relocation preserves every child as part of its complete Panel.
     PanelNotLeaf,

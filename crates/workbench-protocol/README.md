@@ -25,6 +25,14 @@ Results use `workspace-project-changed` with required-nullable `projectId`, or `
 Regrouping preserves Workspace IDs, directories, terminal identities and display order. Authoritative
 membership admission, revision CAS and atomic publication remain Server responsibilities.
 
+The additive `workspace.close-if-idle {workspaceId}` and `project.dissolve-if-idle {projectId}`
+actions keep the ordinary command envelope and existing accepted receipts, with distinct full
+fingerprints. They accept no caller idle flag. Only Server-owned complete-scope admission can
+accept them; definite `rejected` reason `confirmation-required` has no effect and grants no
+automatic resubmission. Ordinary confirmed actions remain unchanged. The
+[Server conditional contract](../../apps/orchbee-server/docs/terminal-tab-close.md#conditional-idle-admission)
+owns pending reservations, exact never-created evidence, fences and organization preservation.
+
 `navigation.configure` carries one closed `NavigationConfiguration`: `move-project` requires a
 Project ID and nullable `beforeProjectId`; `move-workspace` requires a Workspace ID, nullable
 `projectId` and nullable `beforeWorkspaceId`. A null anchor appends within that destination group.

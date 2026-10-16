@@ -118,7 +118,8 @@ impl SetupKnownCommit {
                     .project_id = Some(project_id.clone());
             }
             (
-                WorkbenchAction::ProjectDissolve { project_id },
+                WorkbenchAction::ProjectDissolve { project_id }
+                | WorkbenchAction::ProjectDissolveIfIdle { project_id },
                 WorkbenchSetupCommit::ProjectDissolved { .. },
             ) => {
                 self.operation.organization_receipt(&self.commit)?;

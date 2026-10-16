@@ -22,6 +22,20 @@ const CANDIDATE_RETRY: Duration = Duration::from_millis(250);
 mod tests;
 
 impl LocalTerminalService {
+    pub(crate) fn execute_project_dissolve_if_idle(
+        &self,
+        command: WorkbenchCommand,
+    ) -> Option<WorkbenchCommandResult> {
+        let workers = self.workers.lock().ok();
+        let handle = workers
+            .as_ref()
+            .and_then(|workers| workers.request_handle());
+        self.coordinator
+            .lock()
+            .ok()?
+            .execute_project_dissolve_if_idle(command, placement(handle.as_ref()))
+    }
+
     pub(crate) fn execute_terminal_tab_close(
         &self,
         command: WorkbenchCommand,

@@ -102,6 +102,39 @@ workspaceId, closeRequestId, expectedAttemptGeneration}` 应用相同的代次�
 Workspace 及其 Terminal Context，并记录 Closed 墓碑。Project 元数据、全局 Directory 池、
 其他 Workspace 的目录关联及 Git checkout 均保留，且任何成员行都不携带 close 修订。
 
+## 条件式空闲准入
+
+`workspace.close-if-idle {workspaceId}` 使用独立命令指纹，沿用普通生命周期授权、重放／冲突、
+容量、Site／revision 及完整 Context 成员检查，并共用待处理 create／split 与重叠 Close 守卫。
+Site 在持有 coordinator gate 时解析**每个已绑定 Presentation**，包括未绑定 primary 下的子项。
+只有绑定范围为空，或每个成员均有精确 `Uncreated` 证据，才准入条件动作。
+`TerminalCoordinator::is_definitively_uncreated` 要求唯一准确绑定，其 Create 在 Host 提交前
+结算为 failed／unavailable，运行时身份为 `Unavailable(None)`。缺失、歧义、待处理、unknown
+或已有运行时的记录均不能证明该事实。保留的 Started 结果、观察到进程 Exited 或 Client snapshot
+都不是这项证明。
+
+已解析运行时返回保留的 `rejected {reason:confirmation-required, revision}`，不产生 Close
+额度、发布或运行时效果。权威缺失及 busy／unavailable 关联保留既有准确分类。条件 Close 接受后
+使用与普通 Close **相同**的 prepared reservation、完整指纹、continuation、maintenance 和
+publication。释放 gate 前已安装隔离栅栏；后续 create／split 不能插入空闲预读与无条件 Close
+之间。精确重放观察原回执；同一请求 ID 在条件动作与已确认动作间切换会冲突。
+普通 `workspace.close` 保持既有语义。
+
+`project.dissolve-if-idle {projectId}` 要求导航授权，在同一 gate 内冻结目标 Project 的全部成员
+Context。借用式准入先执行普通授权、重放／容量、Site／revision、Project 和组织冲突检查，
+即使 revision 尚未增加，也拒绝**任一**成员 Context 的待处理终端预留，并在接受逐绑定精确
+证据前准备有界组织计划。它使用相同的从未创建证明；已有运行时要求确认。接受只删除 Project
+元数据并将 Workspace 取消分组，保留全部成员 ID、目录、Context 与运行时，绝不组合 Close
+操作。显式 `project.dissolve` 保持兼容。
+
+`ConfirmationRequired` 表示确定无效果，不授权重发。Client 可提供新的、完整且已检查来源的
+确认；只有之后的显式确认才以新请求 ID 发送普通动作。revision 漂移、权威不可用及传输不确定
+保持独立，不能被转换为空闲或自动重试。有限权威转换和
+[条件准入测试](../src/workbench_authority/terminal_tab_close/tests/context/idle.rs)覆盖 revision
+不变的待处理创建、接受后的创建栅栏、整个 Project 与仅子项范围、保留拒绝／重放、授权拒绝和
+已确认动作兼容性。Site 测试另行负责真实终端记录到这些证据的映射；解析器和权威测试本身
+不能证明当前 Host 进程状态或真实 TUI 行为。
+
 ## Close 命令与保留状态
 
 既有 `workbench.command` 信封及完整指纹

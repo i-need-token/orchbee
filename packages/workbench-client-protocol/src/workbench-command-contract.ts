@@ -225,6 +225,12 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('project.dissolve-if-idle'),
+			projectId: WorkbenchProjectIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('workspace.set-project'),
 			workspaceId: WorkbenchWorkspaceIdSchema,
 			projectId: WorkbenchProjectIdSchema.nullable(),
@@ -288,6 +294,12 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('workspace.close'),
+			workspaceId: WorkbenchWorkspaceIdSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('workspace.close-if-idle'),
 			workspaceId: WorkbenchWorkspaceIdSchema,
 		})
 		.readonly(),

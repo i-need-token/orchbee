@@ -7167,6 +7167,50 @@
 					"revision": "3"
 				}
 			}
+		},
+		{
+			"name": "workspace.close-if-idle-exact-source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.close-if-idle",
+					"workspaceId": "00000000000000000000000000000003"
+				}
+			}
+		},
+		{
+			"name": "project.dissolve-if-idle-exact-source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "project.dissolve-if-idle",
+					"projectId": "00000000000000000000000000000004"
+				}
+			}
+		},
+		{
+			"name": "conditional-action-definite-confirmation-required",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"outcome": {
+					"kind": "rejected",
+					"revision": "4",
+					"reason": "confirmation-required"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -23021,6 +23065,70 @@
 					}
 				}
 			}
+		},
+		{
+			"name": "workspace.close-if-idle-reject-caller-idle-assertion",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.close-if-idle",
+					"workspaceId": "00000000000000000000000000000003",
+					"idle": true
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "workspace.close-if-idle-requires-exact-identity",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "2",
+				"action": {
+					"kind": "workspace.close-if-idle"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "project.dissolve-if-idle-reject-caller-idle-assertion",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "project.dissolve-if-idle",
+					"projectId": "00000000000000000000000000000004",
+					"idle": true
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "project.dissolve-if-idle-requires-exact-identity",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "project.dissolve-if-idle"
+				}
+			},
+			"boundary": "schema"
 		}
 	],
 	"invalidJson": [

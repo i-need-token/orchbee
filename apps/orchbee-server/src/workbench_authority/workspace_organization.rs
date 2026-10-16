@@ -1,4 +1,5 @@
 //! Project membership decisions at the existing canonical navigation commit boundary.
+pub(super) mod idle_dissolve;
 use super::{PlanFailure, WorkbenchAuthority, allocate, identity};
 use orchbee_workbench_protocol::{
     MAXIMUM_PROJECTS, MAXIMUM_WORKSPACES_PER_PROJECT, Navigation, Project, WorkbenchLabel,

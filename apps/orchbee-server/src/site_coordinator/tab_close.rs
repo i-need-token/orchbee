@@ -7,10 +7,10 @@ use orchbee_capability_node_protocol::{
 #[cfg(test)]
 use orchbee_server::CloseContinuationNext;
 use orchbee_server::{
-    CloseStepToken, WorkbenchGrant, WorkbenchTabCloseBegin, WorkbenchTabClosePreparation,
-    WorkbenchTabCloseResolution, WorkbenchTabCloseResumeBegin, WorkbenchTabCloseResumePreparation,
-    WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseTarget,
-    WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,
+    CloseStepToken, WorkbenchGrant, WorkbenchProjectDissolveBegin, WorkbenchTabCloseBegin,
+    WorkbenchTabClosePreparation, WorkbenchTabCloseResolution, WorkbenchTabCloseResumeBegin,
+    WorkbenchTabCloseResumePreparation, WorkbenchTabCloseRuntimeUnavailableReason,
+    WorkbenchTabCloseTarget, WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,
     WorkbenchWorkspaceCloseResumePreparation,
 };
 use orchbee_workbench_protocol::{
@@ -24,6 +24,33 @@ use super::{PostcommitCoordinationError, SiteCoordinator, tree_composition_match
 use crate::terminal_coordinator::WorkerPlacement;
 
 impl SiteCoordinator {
+    pub(crate) fn execute_project_dissolve_if_idle(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+    ) -> Option<WorkbenchCommandResult> {
+        let Self {
+            terminals,
+            workbench,
+            ..
+        } = self;
+        let workbench = workbench.as_mut()?;
+        let grant = WorkbenchGrant::manage_navigation(workbench.site_id().clone());
+        let admission = match workbench.begin_project_dissolve_if_idle(Some(&grant), command) {
+            WorkbenchProjectDissolveBegin::Ready(result) => return Some(result),
+            WorkbenchProjectDissolveBegin::Admitted(admission) => admission,
+        };
+        let runtimes = admission
+            .members()
+            .iter()
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .collect::<Result<Vec<_>, _>>();
+        Some(match runtimes {
+            Ok(runtimes) => admission.finish_resolved_members(runtimes),
+            Err(reason) => admission.runtime_unavailable(reason),
+        })
+    }
+
     pub(crate) fn execute_terminal_tab_close(
         &mut self,
         command: WorkbenchCommand,

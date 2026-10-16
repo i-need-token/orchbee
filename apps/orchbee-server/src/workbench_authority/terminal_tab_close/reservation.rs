@@ -37,7 +37,10 @@ pub(super) fn maximum_wire_charge(
     acknowledgment: &WorkbenchCommandResult,
     member_count: usize,
 ) -> Option<usize> {
-    if matches!(&command.action, WorkbenchAction::WorkspaceClose { .. }) {
+    if matches!(
+        &command.action,
+        WorkbenchAction::WorkspaceClose { .. } | WorkbenchAction::WorkspaceCloseIfIdle { .. }
+    ) {
         return maximum_workspace_charge(command, acknowledgment, member_count);
     }
     let (terminal_context_id, tab_id) = match &command.action {
@@ -283,7 +286,10 @@ fn command_owned_bytes(command: &WorkbenchCommand) -> Option<usize> {
             .owned_capacity()
             .checked_add(tab_id.owned_capacity())?
             .checked_add(panel_id.owned_capacity()),
-        WorkbenchAction::WorkspaceClose { workspace_id } => Some(workspace_id.owned_capacity()),
+        WorkbenchAction::WorkspaceClose { workspace_id }
+        | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => {
+            Some(workspace_id.owned_capacity())
+        }
         // A retained Close record only ever carries a close action.
         _ => None,
     }?;
@@ -353,8 +359,10 @@ fn maximum_workspace_charge(
     acknowledgment: &WorkbenchCommandResult,
     member_count: usize,
 ) -> Option<usize> {
-    let WorkbenchAction::WorkspaceClose { workspace_id } = &command.action else {
-        return None;
+    let workspace_id = match &command.action {
+        WorkbenchAction::WorkspaceClose { workspace_id }
+        | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id,
+        _ => return None,
     };
     let maximum_revision = WorkbenchRevision::new(u64::MAX);
     let maximum_generation = WorkbenchTabCloseAttemptGeneration::new(u64::MAX).ok()?;

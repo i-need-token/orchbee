@@ -8,6 +8,8 @@ use orchbee_workbench_protocol::{
 };
 use std::{fmt, io, time::Instant};
 
+#[cfg(test)]
+mod idle_tests;
 mod read;
 mod resume;
 #[cfg(any(target_os = "linux", windows))]
@@ -20,7 +22,10 @@ pub(crate) struct WorkbenchWorkspaceCloseRequest(WorkbenchCommand);
 impl TryFrom<WorkbenchCommand> for WorkbenchWorkspaceCloseRequest {
     type Error = WorkbenchCommand;
     fn try_from(command: WorkbenchCommand) -> Result<Self, Self::Error> {
-        if matches!(command.action, WorkbenchAction::WorkspaceClose { .. }) {
+        if matches!(
+            command.action,
+            WorkbenchAction::WorkspaceClose { .. } | WorkbenchAction::WorkspaceCloseIfIdle { .. }
+        ) {
             Ok(Self(command))
         } else {
             Err(command)
@@ -153,11 +158,10 @@ fn classify_command_result(
         return Err(WorkbenchWorkspaceCloseFailure::UnexpectedResponse);
     };
     validate_correlation(&command.request_id, &result.request_id)?;
-    let WorkbenchAction::WorkspaceClose {
-        workspace_id: expected_workspace,
-    } = &command.action
-    else {
-        unreachable!("opaque request admits only workspace.close")
+    let expected_workspace = match &command.action {
+        WorkbenchAction::WorkspaceClose { workspace_id }
+        | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id,
+        _ => unreachable!("opaque request admits only Workspace Close actions"),
     };
     match result.outcome {
         WorkbenchCommandOutcome::WorkspaceCloseAccepted {
@@ -192,17 +196,20 @@ fn classify_command_result(
             ))
         }
         WorkbenchCommandOutcome::Rejected { revision, reason }
-            if matches!(
-                reason,
-                WorkbenchRejectionReason::SiteMismatch
-                    | WorkbenchRejectionReason::RevisionMismatch
-                    | WorkbenchRejectionReason::ProjectUnavailable
-                    | WorkbenchRejectionReason::WorkspaceUnavailable
-                    | WorkbenchRejectionReason::WorkspaceGroupCloseRequired
-                    | WorkbenchRejectionReason::ResourceLimit
-                    | WorkbenchRejectionReason::RevisionExhausted
-                    | WorkbenchRejectionReason::RequestIdentityConflict
-            ) =>
+            if (reason == WorkbenchRejectionReason::ConfirmationRequired
+                && matches!(command.action, WorkbenchAction::WorkspaceCloseIfIdle { .. })
+                && revision == command.expected_revision)
+                || matches!(
+                    reason,
+                    WorkbenchRejectionReason::SiteMismatch
+                        | WorkbenchRejectionReason::RevisionMismatch
+                        | WorkbenchRejectionReason::ProjectUnavailable
+                        | WorkbenchRejectionReason::WorkspaceUnavailable
+                        | WorkbenchRejectionReason::WorkspaceGroupCloseRequired
+                        | WorkbenchRejectionReason::ResourceLimit
+                        | WorkbenchRejectionReason::RevisionExhausted
+                        | WorkbenchRejectionReason::RequestIdentityConflict
+                ) =>
         {
             Ok(WorkbenchWorkspaceCloseSubmission::DefinitePrecommit(
                 WorkbenchWorkspaceClosePrecommit::Rejected { revision, reason },

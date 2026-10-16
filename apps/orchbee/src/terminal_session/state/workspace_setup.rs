@@ -104,6 +104,7 @@ impl SetupOperation {
             WorkbenchAction::WorkspaceSetProject { .. }
                 | WorkbenchAction::WorkspaceCreateProject { .. }
                 | WorkbenchAction::ProjectDissolve { .. }
+                | WorkbenchAction::ProjectDissolveIfIdle { .. }
         ) {
             self.organization_receipt(&commit)?
         } else {

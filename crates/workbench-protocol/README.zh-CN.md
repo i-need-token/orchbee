@@ -22,6 +22,13 @@ Workspace 的成员关系；`workspace.create-project` 原子创建 Project 并�
 `workspace-project-changed` 或 `project-dissolved`。重新分组保留 Workspace ID、目录、终端身份
 及显示顺序。权威成员准入、revision CAS 与原子发布仍由 Server 负责。
 
+新增 `workspace.close-if-idle {workspaceId}` 与 `project.dissolve-if-idle {projectId}` 动作
+保留普通命令信封及既有接受回执，使用独立完整指纹，不接受调用方空闲标志。只有 Server 拥有
+的完整范围准入才能接受；确定的 `rejected` 原因 `confirmation-required` 无效果，且不授权
+自动重发。普通已确认动作不变。
+[Server 条件契约](../../apps/orchbee-server/docs/terminal-tab-close.zh-CN.md#条件式空闲准入)
+拥有待处理预留、精确从未创建证据、隔离栅栏及组织保留语义。
+
 `navigation.configure` 携带封闭的 `NavigationConfiguration`：`move-project` 要求 Project ID 和
 可空 `beforeProjectId`；`move-workspace` 要求 Workspace ID、可空 `projectId` 和可空
 `beforeWorkspaceId`。null 锚点表示追加到目标分组末尾；非空 Workspace 锚点必须已属于该组。

@@ -232,7 +232,8 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
         let workspace_id = match &self.command.action {
-            WorkbenchAction::WorkspaceClose { workspace_id } => workspace_id.clone(),
+            WorkbenchAction::WorkspaceClose { workspace_id }
+            | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id.clone(),
             _ => return WorkbenchTabCloseResolution::Ready(self.authority.retire(&self.command)),
         };
         let members: Vec<_> = self.membership.members().to_vec();
@@ -407,6 +408,18 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         {
             return WorkbenchTabClosePreparation::Ready(self.authority.retire(&self.command));
         }
+        if matches!(
+            self.command.action,
+            WorkbenchAction::WorkspaceCloseIfIdle { .. }
+        ) && runtimes
+            .iter()
+            .any(|runtime| !matches!(runtime, WorkbenchTabCloseMemberRuntime::Uncreated { .. }))
+        {
+            return WorkbenchTabClosePreparation::Ready(
+                self.authority
+                    .retain_rejection(self.command, WorkbenchRejectionReason::ConfirmationRequired),
+            );
+        }
         if let Err(failure) = self.authority.next_revision() {
             return WorkbenchTabClosePreparation::Ready(match failure {
                 PlanFailure::Rejected(reason) => {
@@ -434,7 +447,8 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
                 panel_id: panel_id.clone(),
                 accepted_revision: self.command.expected_revision,
             },
-            WorkbenchAction::WorkspaceClose { workspace_id } => {
+            WorkbenchAction::WorkspaceClose { workspace_id }
+            | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => {
                 WorkbenchCommandOutcome::WorkspaceCloseAccepted {
                     close_request_id: self.command.request_id.clone(),
                     workspace_id: workspace_id.clone(),
@@ -658,8 +672,11 @@ impl WorkbenchAuthority {
         command: WorkbenchCommand,
         group: Option<(&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize)>,
     ) -> WorkbenchWorkspaceCloseBegin<'_> {
-        let authorized = matches!(&command.action, WorkbenchAction::WorkspaceClose { .. })
-            && grant.is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
+        let authorized = matches!(
+            &command.action,
+            WorkbenchAction::WorkspaceClose { .. } | WorkbenchAction::WorkspaceCloseIfIdle { .. }
+        ) && grant
+            .is_some_and(|grant| grant.site_id == *self.site_id() && grant.close_terminal);
         if !authorized {
             return WorkbenchWorkspaceCloseBegin::Ready(result(
                 &command,
@@ -688,8 +705,10 @@ impl WorkbenchAuthority {
                 unavailable(WorkbenchCommandUnavailableReason::RequestLedgerFull),
             ));
         }
-        let WorkbenchAction::WorkspaceClose { workspace_id } = command.action.clone() else {
-            return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command));
+        let workspace_id = match &command.action {
+            WorkbenchAction::WorkspaceClose { workspace_id }
+            | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id.clone(),
+            _ => return WorkbenchWorkspaceCloseBegin::Ready(self.retire(&command)),
         };
         let snapshot = self.projection.snapshot();
         let rejection = if command.site_id != snapshot.site_id {

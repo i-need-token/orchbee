@@ -164,6 +164,13 @@ workspace-created、workspace-primary-directory-accepted、renamed、unchanged�
 [Server 权威](../../apps/orchbee-server/docs/workbench-authority.zh-CN.md) 拥有决策顺序、原子提交、
 授权及其有界进程内 ledger。契约不隐含自动重放。
 
+条件 `workspace.close-if-idle {workspaceId}` 和 `project.dissolve-if-idle {projectId}` 是独立
+严格动作形状，使用相同信封及既有接受回执。`confirmation-required` 是确定无效果的拒绝原因。
+共享命令语料包含两种 kind，并拒绝调用方空闲断言或缺失身份；旧动作案例不变。
+[Server 条件所有者](../../apps/orchbee-server/docs/terminal-tab-close.zh-CN.md#条件式空闲准入)
+定义完整范围证明及原子效果栅栏。Schema 接受本身不能证明运行时不存在、授权无条件后续动作，
+也不能建立真实交互行为证据。
+
 `tabs.configure` 要求准确的 context 及封闭的分组／固定操作。`tabs-configured` 结果包含已提交修订，
 除创建返回新分配身份外，`groupId` 必须为 null。命令语料校验这些形状；独立的
 [Tab 配置语料](v1/tab-configuration-conformance-v1.json)对照 Rust 和 GUI 模型的规范顺序及元数据转换。

@@ -6,6 +6,8 @@ use orchbee_workbench_protocol::{
     WorkbenchAction, WorkbenchCommandOutcome, WorkbenchCommandUnavailableReason,
     WorkbenchRejectionReason, WorkbenchRevision,
 };
+#[cfg(test)]
+mod idle_tests;
 pub(super) fn classify_outcome(
     action: &WorkbenchAction,
     expected_revision: WorkbenchRevision,
@@ -73,7 +75,8 @@ pub(super) fn classify_outcome(
             unchanged: false,
         },
         (
-            WorkbenchAction::ProjectDissolve { project_id },
+            WorkbenchAction::ProjectDissolve { project_id }
+            | WorkbenchAction::ProjectDissolveIfIdle { project_id },
             WorkbenchCommandOutcome::ProjectDissolved {
                 revision,
                 project_id: project,
@@ -101,7 +104,9 @@ pub(super) fn classify_outcome(
             unchanged: true,
         },
         (_, WorkbenchCommandOutcome::Rejected { revision, reason })
-            if compatible_rejection(action, reason) =>
+            if compatible_rejection(action, reason)
+                && (reason != WorkbenchRejectionReason::ConfirmationRequired
+                    || revision == expected_revision) =>
         {
             return Ok(WorkbenchSetupSubmission::DefinitePrecommit(
                 WorkbenchSetupPrecommit::Rejected { revision, reason },
@@ -282,6 +287,9 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
         | WorkbenchRejectionReason::ResourceLimit
         | WorkbenchRejectionReason::RevisionExhausted
         | WorkbenchRejectionReason::RequestIdentityConflict => true,
+        WorkbenchRejectionReason::ConfirmationRequired => {
+            matches!(action, WorkbenchAction::ProjectDissolveIfIdle { .. })
+        }
         WorkbenchRejectionReason::IdentityExhausted => matches!(
             action,
             WorkbenchAction::ProjectCreate { .. }
@@ -299,6 +307,7 @@ fn compatible_rejection(action: &WorkbenchAction, reason: WorkbenchRejectionReas
                 | WorkbenchAction::NavigationConfigure { .. }
                 | WorkbenchAction::WorkspaceSetProject { .. }
                 | WorkbenchAction::ProjectDissolve { .. }
+                | WorkbenchAction::ProjectDissolveIfIdle { .. }
                 | WorkbenchAction::ProjectRename { .. }
                 | WorkbenchAction::WorkspaceRename { .. }
                 | WorkbenchAction::WorkspacePrimaryDirectoryAccept { .. }
@@ -361,9 +370,12 @@ fn compatible_unavailable(
                     | WorkbenchAction::WorkspaceSetProject { .. }
                     | WorkbenchAction::WorkspaceCreateProject { .. }
                     | WorkbenchAction::ProjectDissolve { .. }
+                    | WorkbenchAction::ProjectDissolveIfIdle { .. }
             )
         }
-        WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable => false,
+        WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable => {
+            matches!(action, WorkbenchAction::ProjectDissolveIfIdle { .. })
+        }
     }
 }
 
