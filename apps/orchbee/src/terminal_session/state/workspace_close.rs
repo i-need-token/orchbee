@@ -644,7 +644,6 @@ impl NativeSessionState {
         if let Some(evidence) = &self.workspace_close.evidence {
             if evidence.result.is_closed()
                 && self.cache.location() != evidence.operation.baseline.location()
-                && !matches!(self.cache.location(), NativeContextLocation::Standalone(_))
                 && !self
                     .workspace_close
                     .automatic_landing

@@ -865,6 +865,73 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
 }
 
 #[test]
+fn automatic_nonempty_legacy_landing_uses_the_same_permit_without_new_ids_or_controller_authority()
+{
+    let mut source = close_snapshot();
+    source.navigation.workspaces.truncate(1);
+    source.navigation.workspace_order.truncate(1);
+    source.terminal_contexts.truncate(2);
+    let workspace = &source.navigation.workspaces[0];
+    let location = NativeContextLocation::Workspace {
+        workspace_id: workspace.workspace_id.clone(),
+        terminal_context_id: workspace.terminal_context_id.clone(),
+    };
+    let mut state = NativeSessionState::bootstrap(
+        project_native_context_tabs(&source, &location).unwrap(),
+        1,
+        geometry(80),
+    )
+    .unwrap()
+    .0;
+    let operation = start(&mut state, false);
+    assert!(state.finish_workspace_close(&WorkspaceCloseEvidence {
+        operation: operation.clone(),
+        result: observed(&operation, true),
+    }));
+    let legacy = source.terminal_contexts[0].clone();
+    source.navigation.workspaces.clear();
+    source.navigation.workspace_order.clear();
+    source.terminal_contexts.truncate(1);
+    source.revision = WorkbenchRevision::new(2);
+    let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
+        operation.generation,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: source.clone(),
+        },
+    ) else {
+        panic!("exact legacy removal candidate");
+    };
+    let desired = AttachmentKey::new(3, prepared.selected_tab_id().unwrap().clone());
+    assert!(matches!(
+        state
+            .prepare_refresh_membership_install(
+                operation.generation,
+                prepared,
+                Some(desired),
+                Some(OperationDeadlines::from_sample(Instant::now()).unwrap())
+            )
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Attach(_)
+    ));
+    assert_eq!(
+        state.cache().location(),
+        &NativeContextLocation::Standalone(source.navigation.standalone_terminal_context_id)
+    );
+    assert_eq!(state.cache().canonical_context(), &legacy);
+    let view = state.workspace_close_status().unwrap();
+    assert_eq!(
+        view.status(),
+        crate::terminal_session::WorkspaceCloseStatus::Closed
+    );
+    assert_eq!(view.operation_id(), Some(&operation.request_id));
+    assert_eq!(view.workspace_id(), Some(&workspace_id(0)));
+    assert_eq!(state.controller_mode(), None);
+    assert!(state.attached_key().is_none());
+    assert!(state.invariant_holds());
+}
+
+#[test]
 fn workspace_and_project_unknown_observations_cannot_be_promoted_or_restarted() {
     use orchbee_workbench_protocol::{
         WorkbenchTabCloseUnknownPhase, WorkbenchTabCloseUnknownReason, WorkspaceGroupCloseFailure,
