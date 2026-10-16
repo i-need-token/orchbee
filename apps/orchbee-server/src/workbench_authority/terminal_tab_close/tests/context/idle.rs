@@ -163,7 +163,7 @@ fn runtime_close_refusal_is_retained_without_effect_and_never_becomes_confirmati
 }
 
 #[test]
-fn pending_precommit_create_with_unchanged_revision_blocks_both_idle_actions() {
+fn committed_but_unsettled_create_blocks_both_idle_actions_at_the_current_revision() {
     for project in [false, true] {
         let (mut owner, grant) = workspace_fixture(0);
         let before = owner.snapshot().clone();
@@ -178,11 +178,24 @@ fn pending_precommit_create_with_unchanged_revision_blocks_both_idle_actions() {
             panic!("pending Create preparation")
         };
         let _pending = prepared.commit().into_pending();
+        let committed = owner.snapshot().clone();
         assert_eq!(
-            owner.snapshot(),
-            &before,
-            "pending reservation has no revision yet"
+            committed.revision.value(),
+            before.revision.value() + 1,
+            "Create commits canonical membership before installing its unsettled entry"
         );
+        let context = &committed.navigation.workspaces[1].terminal_context_id;
+        assert_eq!(
+            committed
+                .terminal_contexts
+                .iter()
+                .find(|entry| &entry.terminal_context_id == context)
+                .unwrap()
+                .tabs
+                .len(),
+            1
+        );
+        assert!(owner.pending_terminal_covers_context(context));
         let result = if project {
             let request = dissolve(&owner, 11201);
             let WorkbenchProjectDissolveBegin::Ready(result) =
@@ -210,8 +223,46 @@ fn pending_precommit_create_with_unchanged_revision_blocks_both_idle_actions() {
                 reason: WorkbenchCommandUnavailableReason::TerminalBusy
             }
         ));
-        assert_eq!(owner.snapshot(), &before);
+        assert_eq!(owner.snapshot(), &committed);
         assert_eq!(owner.outstanding_close_credits().ok(), Some(0));
+    }
+}
+
+#[test]
+fn dropping_uncommitted_create_preserves_empty_scope_without_a_pending_reservation() {
+    for prepared in [false, true] {
+        let (mut owner, grant) = workspace_fixture(0);
+        let before = owner.snapshot().clone();
+        let request = tab_create(&owner, 11210);
+        let WorkbenchTabCreateBegin::Admitted(admission) =
+            owner.begin_terminal_tab_create(Some(&grant), request)
+        else {
+            panic!("Create admission")
+        };
+        // Admission and preparation retain an exclusive Authority borrow. There is no
+        // production seam for another command until this value commits or is dropped.
+        if prepared {
+            let WorkbenchTabCreatePreparation::Prepared(prepared) = admission.finish(binding(3200))
+            else {
+                panic!("Create preparation")
+            };
+            drop(prepared);
+        } else {
+            drop(admission);
+        }
+        assert_eq!(owner.snapshot(), &before);
+        assert!(
+            !owner.pending_terminal_covers_context(
+                &before.navigation.workspaces[1].terminal_context_id
+            )
+        );
+        let request = conditional(&owner, 11211);
+        let primary = primary_workspace(&mut owner, &grant, request);
+        assert!(primary.members().is_empty());
+        assert!(matches!(
+            finish(primary, Vec::new()).outcome,
+            WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
+        ));
     }
 }
 

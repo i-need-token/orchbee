@@ -134,8 +134,8 @@ impl WorkbenchAuthority {
             .collect();
         let mut members = Vec::new();
         for context in contexts {
-            // A prepared create can owe this Context a member without advancing
-            // the projection revision. Revision CAS alone cannot prove idle.
+            // Committed membership can still owe a terminal-create/split settlement.
+            // A command at that current revision must not classify this scope as idle.
             if self.pending_terminal_covers_context(&context) {
                 return WorkbenchProjectDissolveBegin::Ready(self.retain_outcome(
                     command,

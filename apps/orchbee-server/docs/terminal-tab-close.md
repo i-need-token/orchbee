@@ -152,19 +152,27 @@ Ordinary `workspace.close` keeps its existing semantics.
 
 `project.dissolve-if-idle {projectId}` requires navigation authority and freezes all addressed
 Project member Contexts under that same gate. Its borrowed admission first applies ordinary
-grant, replay/capacity, Site/revision, Project and organization-conflict checks, rejects pending
-terminal reservations in **any** member Context even when no revision has advanced, and prepares
+grant, replay/capacity, Site/revision, Project and organization-conflict checks, rejects committed
+but unsettled terminal creation in **any** member Context at the current revision, and prepares
 the bounded organization plan before accepting exact per-binding evidence. It uses the identical
 never-created proof; a runtime requires confirmation. Acceptance removes only Project metadata
 and ungroups its Workspaces, preserving every member ID, directory, Context and runtime. It never
 composes Close operations. Explicit `project.dissolve` remains compatible.
+
+Uncommitted Tab/Panel Create admission and preparation retain an exclusive mutable Authority
+borrow; the service retains registry → Site gates through their commit or drop. They cannot
+interleave a conditional command before membership and its retained pending entry commit together.
+Create commits advance canonical revision, while later runtime settlement does not. A caller using
+that new revision must still be refused while the exact Context has a pending terminal settlement.
+Dropping admission or preparation preserves the old snapshot and installs no pending reservation.
 
 `ConfirmationRequired` is definite no-effect, not authorization to resend. A Client may offer a
 new complete, source-checked confirmation; only a later explicit confirmation sends the ordinary
 action with a new request ID. Revision drift, unavailable authority and uncertain transport remain
 distinct and cannot become idle or automatic retry. The finite authority transitions and
 [conditional admission tests](../src/workbench_authority/terminal_tab_close/tests/context/idle.rs)
-cover unchanged-revision pending creation, post-acceptance creation fences, whole-Project and
+cover committed-but-unsettled creation at the current revision, dropped uncommitted preparation,
+post-acceptance creation fences, whole-Project and
 child-only scope, retained refusal/replay, grant denial and confirmed-action compatibility. Site
 tests additionally own the mapping from real terminal records to this evidence; parser and
 authority tests alone do not establish current Host process state or real TUI behavior.
@@ -174,7 +182,7 @@ lifecycle owner: accepted conditional Close enters the same reservation and publ
 The new wire discriminants refine complete request fingerprints, and definite refusal has no effect
 before a separately reviewed unconditional request. Registered replay and Close models retain their
 own abstract scope. Their execution does not by itself prove the concrete never-created predicate,
-the complete primary/child/Project-member extractor, precommit reservations without revision change,
+the complete primary/child/Project-member extractor, concrete pending entries and precommit gate exclusion,
 cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Site
 witnesses above carry those obligations separately; they make no current-process-exit claim.
 

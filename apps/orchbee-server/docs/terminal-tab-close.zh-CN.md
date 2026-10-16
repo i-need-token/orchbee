@@ -122,23 +122,28 @@ publication。释放 gate 前已安装隔离栅栏；后续 create／split 不�
 
 `project.dissolve-if-idle {projectId}` 要求导航授权，在同一 gate 内冻结目标 Project 的全部成员
 Context。借用式准入先执行普通授权、重放／容量、Site／revision、Project 和组织冲突检查，
-即使 revision 尚未增加，也拒绝**任一**成员 Context 的待处理终端预留，并在接受逐绑定精确
+拒绝当前 revision 上**任一**成员 Context 已提交但尚未结算的终端创建，并在接受逐绑定精确
 证据前准备有界组织计划。它使用相同的从未创建证明；已有运行时要求确认。接受只删除 Project
 元数据并将 Workspace 取消分组，保留全部成员 ID、目录、Context 与运行时，绝不组合 Close
 操作。显式 `project.dissolve` 保持兼容。
 
+尚未提交的 Tab／Panel 创建准入与准备值持有 Authority 的独占可变借用；服务在提交或丢弃前
+始终持有 registry → Site gate。成员关系与保留的 pending 条目共同提交前，条件命令无法插入。
+创建提交增加规范 revision，而之后的运行时结算不增加。调用方即使使用新的 revision，
+只要准确 Context 仍有待定终端结算，也必须被拒绝。丢弃准入或准备保留原快照，不安装待定预留。
+
 `ConfirmationRequired` 表示确定无效果，不授权重发。Client 可提供新的、完整且已检查来源的
 确认；只有之后的显式确认才以新请求 ID 发送普通动作。revision 漂移、权威不可用及传输不确定
 保持独立，不能被转换为空闲或自动重试。有限权威转换和
-[条件准入测试](../src/workbench_authority/terminal_tab_close/tests/context/idle.rs)覆盖 revision
-不变的待处理创建、接受后的创建栅栏、整个 Project 与仅子项范围、保留拒绝／重放、授权拒绝和
+[条件准入测试](../src/workbench_authority/terminal_tab_close/tests/context/idle.rs)覆盖当前 revision
+上已提交但尚未结算的创建、丢弃尚未提交的准备、接受后的创建栅栏、整个 Project 与仅子项范围、保留拒绝／重放、授权拒绝和
 已确认动作兼容性。Site 测试另行负责真实终端记录到这些证据的映射；解析器和权威测试本身
 不能证明当前 Host 进程状态或真实 TUI 行为。
 
 这是既有保留 Close 状态机的准入谓词细化，不引入第二个生命周期所有者：已接受的条件 Close
 进入相同的预留与发布转换。新 wire 判别值细化完整请求指纹；明确拒绝没有效果，之后仍需另行
 审阅无条件请求。已注册的重放与 Close 模型保留各自抽象范围；执行它们本身不能证明具体的
-从未创建谓词、完整 primary／child／Project 成员提取、revision 不变的预提交预留、跨语言
+从未创建谓词、完整 primary／child／Project 成员提取、具体 pending 条目与预提交 gate 互斥、跨语言
 解码，或新的 Client 绘制与请求 ID 升级。上述实现与 Site 见证分别承担这些义务，
 不声称已知当前进程退出状态。
 

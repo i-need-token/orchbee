@@ -32,6 +32,17 @@ chain and its RGB projection. System and terminal-native stay host-relative and 
 equality with either named appearance. These roles are available to renderers, but each surface
 still requires consumer render evidence before it can claim adoption.
 
+The sidebar's explicit red Delete intent uses independent `accent-destructive` metadata and palette
+ownership, never `status-error`. Its shipped Light RGB is `[178, 52, 47]`, Dark is `[224, 108, 117]`,
+and terminal-native uses ANSI red. Disabled content resolves to `text-disabled` before action tone;
+it cannot acquire hover or pressed styling. Enabled destructive wording keeps its accent separately
+from surrounding focus, navigation, current, hover and pressed tracks. Where reduced-color or native
+interaction uses reverse video, the theme resolver removes reversal from the destructive content
+band and supplies its own contrasting backing pair. Components neither construct colors nor add
+warning bold, underline or blink. Monochrome retains the localized Delete verb and ordinary markers.
+Nominal palette tests cover overlay, hover, pressed and selection surfaces at truecolor, ANSI-256
+and ANSI-16; customized host palette appearance still requires real-window review.
+
 Adding the interaction surfaces exposed insufficient supporting-text contrast in the previous
 named-theme secondary colors. One Light moves from `[104, 107, 119]` to `[90, 93, 105]`; One Dark
 moves from `[157, 164, 178]` to `[170, 177, 189]`. Light uses the smallest uniform downward RGB
