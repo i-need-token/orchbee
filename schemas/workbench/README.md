@@ -738,6 +738,11 @@ v6 preserve all older closed variants. Catalog v123 retains 105 schemas/141 path
 
 [Configured commands](v1/workbench-configured-command.schema.json) close the native installed-command catalog, invoke and private independent-popup lifecycle. Native CLI `orchbee.command` embeds the same nested receipts; its Client popup follow-up uses control v11. IDs identify the normalized installed configuration and do not authorize caller-provided executable text. Required nullable source and selection fields distinguish global shell/plugin actions from current presentation-bound invocation; selected plugin text is captured from the exact terminal revision. Rust and TypeScript check ID/source/context correlation, row span, shared byte bounds and nested receipt identity in addition to JSON shape checks. [The native model](../../apps/orchbee/docs/windows-custom-commands.md) owns execution, uncertain effects, process retention and cleanup.
 
+Nested Pane rejections retain the complete canonical command rejection vocabulary, including
+`confirmation-required`; both this schema and the embedded CLI receipt keep that same closed enum.
+The shared corpus admits that receipt and rejects unknown reasons or extra rejection fields. This
+does not add conditional commands to configured input or widen unrelated CLI failure contracts.
+
 Canonical split `ratio` is optional with an equal default and finite 0.1–0.9 bounds. `layout.set-split-ratio` carries exact ordered identities, revision and previous/new ratios; its result is `split-ratio-configured`. See [shared ratio ownership](../../apps/orchbee-server/docs/shared-split-ratios.md) for cohort and durable compatibility.
 
 ## Named chrome theme publications

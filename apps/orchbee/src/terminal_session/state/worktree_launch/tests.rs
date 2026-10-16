@@ -12,6 +12,8 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
+mod replacement;
+
 fn request(n: u128) -> WorkbenchRequestId {
     WorkbenchRequestId::parse(&format!("{n:032x}")).unwrap()
 }

@@ -37,7 +37,13 @@ result is retained without automatic terminal entry; uncovering the surface does
 After submission, Esc hides observation without cancelling Server work. W or O reopens the retained
 operation; `r` only reads that operation. The operation ID and known checkout/Workspace facts survive
 failed reads and entry failure. Unknown Start is never replayed. Resume, deletion, trust override
-and rollback are never implicit. A terminal result can be dismissed before a new explicit operation.
+and rollback are never implicit. After successful entry completes, a hidden, correlated Opened result
+with retained focus eligibility may yield to a new explicit operation. Both ordinary and addressed
+routes require no remaining entry owner. Addressed replacement validates the current exact source,
+mode, listed non-bare checkout and next token before discarding the old receipt; refusal preserves
+that receipt and its reopen/read recovery. A new draft starts without old draw/input authority and
+requires its own complete draw before Start. Visible, pending, uncertain, failed or focus-retired
+results retain their recovery owner instead of silently becoming Idle.
 [Workspace Close](native-workspace-close.md) and checkout deletion are separate intents.
 
 Geometry suspension or a refused reopen revokes automatic terminal-entry focus but never cancels an

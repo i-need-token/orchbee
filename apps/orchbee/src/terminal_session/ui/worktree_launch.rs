@@ -7,7 +7,7 @@ pub(crate) use crate::terminal_session::state::worktree_launch::{
     WorktreeEdit, WorktreeMode, WorktreeNotice, WorktreeStage, WorktreeToken, WorktreeView,
 };
 use crate::terminal_session::{
-    state::worktree_launch::{Launcher, Plan, Preparation},
+    state::worktree_launch::{Launcher, Origin, Plan, Preparation, addressed::SidebarDiscovery},
     worktree_lane::{Action, Job, Lane, Reply},
 };
 use orchbee_workbench_protocol::WorkbenchRequestId;
@@ -35,6 +35,24 @@ pub(super) struct Coordinator {
     entry: Option<Entry>,
 }
 impl Coordinator {
+    pub(super) fn open_sidebar(
+        &mut self,
+        origin: Origin,
+        discovery: SidebarDiscovery,
+        checkout: Option<&orchbee_workbench_protocol::WorkbenchDirectoryPath>,
+    ) -> bool {
+        self.entry.is_none()
+            && self.launcher.open_sidebar(
+                origin,
+                discovery,
+                if checkout.is_some() {
+                    WorktreeMode::Open
+                } else {
+                    WorktreeMode::Create
+                },
+                checkout,
+            )
+    }
     pub(super) fn dismiss_focus(&mut self) {
         self.launcher.dismiss();
         self.entry = None;
@@ -139,15 +157,7 @@ impl NativeUi {
             }
             return SessionActionDisposition::KeepNavigator;
         }
-        if !self.worktrees.launcher.visible()
-            && self.worktrees.entry.is_none()
-            && self.worktrees.launcher.notice() == WorktreeNotice::Opened
-            && self
-                .worktrees
-                .launcher
-                .operation()
-                .is_some_and(|operation| operation.focus_allowed)
-        {
+        if self.worktrees.entry.is_none() && self.worktrees.launcher.hidden_opened_result() {
             self.worktrees.launcher.forget_terminal();
         }
         if self.worktrees.launcher.reopen() {

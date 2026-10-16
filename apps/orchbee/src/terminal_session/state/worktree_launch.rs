@@ -112,7 +112,7 @@ impl Launcher {
         mode: WorktreeMode,
         checkout: Option<&WorkbenchDirectoryPath>,
     ) -> bool {
-        if !matches!(self.phase, Phase::Idle)
+        if !(matches!(self.phase, Phase::Idle) || self.hidden_opened_result())
             || !sidebar.valid(origin.cache.canonical_snapshot())
             || (mode == WorktreeMode::Open) != checkout.is_some()
         {
@@ -184,6 +184,17 @@ impl Launcher {
 
     pub fn visible(&self) -> bool {
         self.visible
+    }
+    /// Only a hidden, correlated successful terminal result can yield to a new
+    /// explicit operation. Failed/uncertain outcomes retain their recovery owner.
+    pub fn hidden_opened_result(&self) -> bool {
+        !self.visible
+            && self.notice == WorktreeNotice::Opened
+            && matches!(&self.phase, Phase::Result(operation)
+                if operation.focus_allowed && matches!(&operation.outcome,
+                    Some(WorkbenchWorktreeOutcome::Available { project_id, status, .. })
+                        if project_id == &operation.plan.project
+                            && matches!(status.as_ref(), WorktreeOperationStatus::Opened { .. })))
     }
     pub fn token(&self) -> Option<WorktreeToken> {
         self.visible.then_some(WorktreeToken(self.last_token))

@@ -653,6 +653,10 @@ Workspace 侧栏发布增加必需非空 `spacesSidebarProfile`，独立于 `age
 
 [配置命令](v1/workbench-configured-command.schema.json)封闭原生已安装命令目录、调用及私有独立popup生命周期。原生CLI的 `orchbee.command` 内嵌同一组嵌套回执，Client popup后续操作使用control v11。ID标识规范化已安装配置，不授权调用者提供可执行文本。必须出现的可空source与selection字段区分全局shell／plugin动作及当前呈现绑定调用；plugin选区文本从准确终端版本捕获。除JSON形状外，Rust和TypeScript检查ID／来源／上下文关联、行跨度、共享字节上限及嵌套回执身份。[原生模型](../../apps/orchbee/docs/windows-custom-commands.zh-CN.md)拥有执行、不确定副作用、进程保留与回收语义。
 
+嵌套 Pane 拒绝保留完整的规范命令拒绝词汇，包括 `confirmation-required`；本 schema 与内嵌 CLI
+回执保持同一个封闭枚举。共享语料接受该回执，并拒绝未知原因或额外的拒绝字段。这不会向配置输入
+添加条件命令，也不会放宽无关的 CLI 失败契约。
+
 规范分割 `ratio` 可省略为等比例默认值，有限数值限制为 0.1–0.9。`layout.set-split-ratio` 携带确切有序身份、修订及原／新比例，结果为 `split-ratio-configured`。cohort 及持久兼容性见[共享比例归属](../../apps/orchbee-server/docs/shared-split-ratios.zh-CN.md)。
 
 ## 命名 chrome 主题发布

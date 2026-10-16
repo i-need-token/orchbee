@@ -483,6 +483,29 @@
 			}
 		},
 		{
+			"name": "pane-rejection-confirmation-required",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pane",
+					"commandId": "cmd_profile_0",
+					"result": {
+						"protocolVersion": 1,
+						"requestId": "00000000000000000000000000000001",
+						"outcome": {
+							"kind": "rejected",
+							"revision": "9",
+							"reason": "confirmation-required"
+						}
+					}
+				}
+			}
+		},
+		{
 			"name": "pane-rejection-invalid-navigation-configuration",
 			"direction": "response",
 			"document": {
@@ -553,6 +576,53 @@
 		}
 	],
 	"invalid": [
+		{
+			"name": "pane-rejection-unknown-reason",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pane",
+					"commandId": "cmd_profile_0",
+					"result": {
+						"protocolVersion": 1,
+						"requestId": "00000000000000000000000000000001",
+						"outcome": {
+							"kind": "rejected",
+							"revision": "9",
+							"reason": "confirmation-required-unknown"
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "pane-rejection-confirmation-extra-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.configured-command.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"outcome": {
+					"kind": "pane",
+					"commandId": "cmd_profile_0",
+					"result": {
+						"protocolVersion": 1,
+						"requestId": "00000000000000000000000000000001",
+						"outcome": {
+							"kind": "rejected",
+							"revision": "9",
+							"reason": "confirmation-required",
+							"confirmed": true
+						}
+					}
+				}
+			}
+		},
 		{
 			"name": "unknown-executable-input",
 			"direction": "request",

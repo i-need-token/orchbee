@@ -322,8 +322,8 @@
 			"zhCnSha256": "ef237b396d12fe0933c0762b8344b41c2e87264f40dc3fa0e7db421919697dde"
 		},
 		"apps/orchbee/docs/native-worktrees.md": {
-			"englishSha256": "b98aac80aad01f7e30f5ec0f1fac79d81cbc2571174a7e26d2e8b846e8d31702",
-			"zhCnSha256": "49a97b10fe6d859a5d8b81f1bbb9963787f2ad7ce542f042d27bfb2515278343"
+			"englishSha256": "803d6c37781f3c87883ea6a68d0983a07a9b29288bd2ac6d58ce518fa1390eab",
+			"zhCnSha256": "4798f6935afbbc785e7545f4c85898e18e3a903fbbb06614dc4fbaa035cd5d43"
 		},
 		"apps/orchbee/docs/tui-shell-layout.md": {
 			"englishSha256": "08f65b0a3d07f97c0055b21afc577f9bb1afa4aaae7945eab3ac3f0a3c9900bf",
@@ -866,8 +866,8 @@
 			"zhCnSha256": "1ea13ffb784a8b73e030930dcfd3487ba136f9673fbc703d1aa9f63abcb55e4d"
 		},
 		"schemas/workbench/README.md": {
-			"englishSha256": "750c8fa97072752b040e419b6662740b17290b0d2d52c94f77fdb1937638852b",
-			"zhCnSha256": "dd8a372a3b11fa8155ef939688e0d7fe5992dc29659a795c8ad1d138cf36bfdd"
+			"englishSha256": "afc49043b158acc3108271b7f7ab05e6deb62462bcdf9d820477ca7fc27a1877",
+			"zhCnSha256": "be7da180f6b66c519df8d96acc7e93d0aceecce404025ebd29eb3523eb45c21c"
 		},
 		"scripts/tla/README.md": {
 			"englishSha256": "c5d624c14927282a1c0d2d9e64a77d9fb91d79a7ee107c47814edfd91093ea35",

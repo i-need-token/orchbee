@@ -305,6 +305,68 @@ fn worktree_entry_waits_for_inflight_publication_refresh_then_enters_exact_conte
 }
 
 #[test]
+fn a_retained_entry_owner_prevents_success_replacement_from_both_routes() {
+    use crate::terminal_session::state::worktree_launch::addressed;
+    let (mut ui, created, snapshot) = case_with_mode(WorktreeMode::Create);
+    ui.begin_worktree_entry(Some(snapshot.clone()));
+    assert!(ui.worktrees.entry.is_some());
+    let state = ui.state.as_mut().unwrap();
+    assert!(state.start_pending_refresh(77));
+    let refresh = state.prepare_refresh(
+        77,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot.clone(),
+        },
+    );
+    state.apply_prepared_refresh(refresh, ui.clock.now());
+    let origin = state.worktree_origin().unwrap();
+    let addressed = addressed::AddressedWorktreeSource::capture(
+        &snapshot,
+        &addressed::SidebarWorktreeTarget::Project(
+            snapshot.navigation.projects[0].project_id.clone(),
+        ),
+    )
+    .unwrap();
+    let sidebar = addressed::SidebarDiscovery {
+        addressed,
+        sample: crate::terminal_session::primary_directory::RootDirectory::Available(Some(
+            WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+        )),
+        source: created.source.clone(),
+        discovery: created.discovery.clone(),
+    };
+    assert!(sidebar.valid(origin.cache.canonical_snapshot()));
+    // Keep the coordinator's entry owner independently of the launcher's known
+    // success projection; the coordinator must not infer entryNone from notice.
+    ui.worktrees.launcher.entry_started();
+    ui.worktrees.launcher.entry_notice(WorktreeNotice::Opened);
+    assert!(ui.worktrees.launcher.hidden_opened_result());
+    assert!(
+        !ui.worktrees
+            .open_sidebar(origin.clone(), sidebar.clone(), None)
+    );
+    assert_eq!(
+        ui.worktrees.launcher.operation().unwrap().plan.operation_id,
+        created.operation_id
+    );
+    assert_eq!(
+        ui.request_worktree(WorktreeMode::Create),
+        crate::terminal_session::SessionActionDisposition::DismissNavigator
+    );
+    assert_eq!(
+        ui.worktrees.launcher.operation().unwrap().plan.operation_id,
+        created.operation_id
+    );
+    assert!(ui.worktrees.launcher.preparation().is_none());
+    assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
+    ui.worktrees.launcher.dismiss();
+    ui.worktrees.entry = None;
+    assert!(ui.worktrees.open_sidebar(origin, sidebar, None));
+    assert!(ui.worktrees.launcher.operation().is_none());
+    assert!(!ui.worktrees.launcher.default_create_ready());
+}
+
+#[test]
 fn worktree_entry_requests_missing_membership_once_and_waits_without_reissuing() {
     let (mut ui, _, snapshot) = case();
     ui.begin_worktree_entry(Some(snapshot));

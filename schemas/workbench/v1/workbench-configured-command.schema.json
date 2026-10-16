@@ -3004,6 +3004,7 @@
 				"identity-exhausted",
 				"revision-exhausted",
 				"request-identity-conflict",
+				"confirmation-required",
 				"tab-move-index-out-of-bounds",
 				"tab-move-order-conflict",
 				"workspace-move-index-out-of-bounds",

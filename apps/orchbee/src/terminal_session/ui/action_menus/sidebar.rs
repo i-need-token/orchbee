@@ -6,7 +6,7 @@ use super::{
 use crate::terminal_session::{
     SidebarWorktreeTarget,
     state::worktree_launch::{
-        WorktreeMode, WorktreeNotice,
+        WorktreeNotice,
         addressed::{AddressedWorktreeSource, SidebarDiscovery},
     },
     worktree_lane::Action,
@@ -361,15 +361,7 @@ impl NativeUi {
         else {
             return false;
         };
-        self.worktrees.launcher.open_sidebar(
-            origin,
-            discovery,
-            if checkout.is_some() {
-                WorktreeMode::Open
-            } else {
-                WorktreeMode::Create
-            },
-            checkout.as_ref(),
-        )
+        self.worktrees
+            .open_sidebar(origin, discovery, checkout.as_ref())
     }
 }
