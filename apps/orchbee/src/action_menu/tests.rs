@@ -181,7 +181,7 @@ fn changed_tab_scope_or_saved_color_requires_fresh_paint_without_resetting_candi
     let red = MenuAction::GroupColor(TabGroupColor::Red);
     let blue = MenuAction::GroupColor(TabGroupColor::Blue);
     let mut menu = ActionMenu::default();
-    assert!(menu.open("Group".into(), vec![red, blue], None));
+    assert!(menu.open("Group".into(), vec![red.clone(), blue.clone()], None));
     let scope = TabMenuScope::Group(std::num::NonZeroUsize::new(2).unwrap());
     menu.set_tab_presentation(scope, Some(TabGroupColor::Red), |_| Some(scope));
     let first = present(&mut menu, 0, 2);

@@ -1,5 +1,7 @@
 use super::*;
 use crate::action_menu::MenuTarget;
+use crate::terminal_input::{MouseAction, MouseButton, MouseEvent, UnavailableTerminalInputPort};
+use crate::tui_pointer::{PointerOutcome, PointerState};
 use crate::tui_theme::ColorLevel;
 use orchbee_workbench_protocol::{TabGroupColor, WorkbenchTabId};
 use std::num::NonZeroUsize;
@@ -326,9 +328,37 @@ fn tab_children_paint_only_their_measured_back_action_and_semantic_path_above_ro
                         assert_eq!(*row, action.y - 1);
                         assert!(matches!(
                             hits.hit_target_at(*x, *row),
-                            Some(HitTarget::ActionMenuControl { source: drawn, token: t, control: MenuControl::Back })
-                                if drawn == &source && *t == token
+                            Some(HitTarget::ActionMenuControl { token: t, back: true })
+                                if *t == token
                         ));
+                        // The full source identity belongs to the existing generic interaction
+                        // record. Exercise its public release path rather than inspect internals.
+                        let mut pointer = PointerState::default();
+                        pointer.set_capture(true);
+                        pointer.publish(hits.clone());
+                        let mut port = UnavailableTerminalInputPort;
+                        let event = |action| MouseEvent {
+                            action,
+                            button: MouseButton::Left,
+                            mods: Modifiers::NONE,
+                            column: *x,
+                            row: *row,
+                        };
+                        assert_eq!(
+                            pointer.action_menu_event(&mut port, event(MouseAction::Press)),
+                            PointerOutcome::Handled,
+                        );
+                        assert_eq!(
+                            pointer.action_menu_event(&mut port, event(MouseAction::Release)),
+                            PointerOutcome::Interaction {
+                                target: InteractionTarget::ActionMenuControl {
+                                    source: source.clone(),
+                                    token,
+                                    control: MenuControl::Back,
+                                },
+                                contract: PrimaryContract::ActivateOnRelease,
+                            },
+                        );
                     }
                     let focus = u16::try_from(display_width(theme.glyphs.active_marker)).unwrap();
                     assert_text_at(
