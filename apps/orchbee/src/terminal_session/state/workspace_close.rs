@@ -160,7 +160,8 @@ impl WorkspaceCloseResult {
             return WorkspaceCloseStatus::Closing;
         }
         match self {
-            Self::NotSubmitted | Self::Refused | Self::ConfirmationRequired => WorkspaceCloseStatus::Refused,
+            Self::NotSubmitted | Self::Refused => WorkspaceCloseStatus::Refused,
+            Self::ConfirmationRequired => WorkspaceCloseStatus::ConfirmationRequired,
             Self::Unknown => WorkspaceCloseStatus::Unknown,
             Self::WorkspaceObserved { outcome, .. }
                 if matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
@@ -313,6 +314,7 @@ pub(crate) enum WorkspaceCloseStatus {
     Failed,
     Unknown,
     Refused,
+    ConfirmationRequired,
 }
 /// Scope and recovery identity retained independently of the current selection.
 #[derive(Clone, Copy)]
@@ -329,7 +331,11 @@ impl<'a> WorkspaceCloseStatusView<'a> {
         self.status
     }
     pub(crate) fn operation_id(self) -> Option<&'a WorkbenchRequestId> {
-        (self.status != WorkspaceCloseStatus::Refused).then_some(self.operation_id)
+        (!matches!(
+            self.status,
+            WorkspaceCloseStatus::Refused | WorkspaceCloseStatus::ConfirmationRequired
+        ))
+        .then_some(self.operation_id)
     }
     /// Ordinary recovery is scoped by stable Workspace identity, independent of its Project.
     pub(crate) fn workspace_id(self) -> Option<&'a WorkbenchWorkspaceId> {

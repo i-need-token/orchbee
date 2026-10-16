@@ -52,6 +52,11 @@ Enter may submit a new unconditional request ID. Other refusal, stale, missing, 
 evidence never opens this escalation or retries an effect. Ordinary explicitly confirmed Close and
 Project dissolve keep their existing compatibility semantics and distinct fingerprints.
 
+Workspace escalation reports that confirmation is required, rather than displaying an ordinary
+refusal/retry instruction under the fresh decision. This definite no-effect status has no admitted
+Close operation ID or close-status recovery command. Ordinary refusal and unknown outcomes retain
+their separate feedback and recovery rules.
+
 ## Inputs and ownership
 
 | Fact                                                      | Owner and validation                                                                                                                                                                                     |

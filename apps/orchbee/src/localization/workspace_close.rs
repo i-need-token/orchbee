@@ -49,6 +49,10 @@ impl Locale {
     pub(crate) fn workspace_close_status(self, view: WorkspaceCloseStatusView<'_>) -> String {
         let project = view.workspace_id().is_none();
         let phase = match (self, view.status(), project) {
+            (Self::EnUs, WorkspaceCloseStatus::ConfirmationRequired, _) => {
+                "Confirmation required before closing"
+            }
+            (Self::ZhCn, WorkspaceCloseStatus::ConfirmationRequired, _) => "关闭前需要确认",
             (Self::EnUs, WorkspaceCloseStatus::Closing, true) => "Closing Project Workspaces",
             (Self::ZhCn, WorkspaceCloseStatus::Closing, true) => "正在关闭项目工作区",
             (Self::EnUs, WorkspaceCloseStatus::Closed, true) => "Project Workspaces closed",
