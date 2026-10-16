@@ -53,8 +53,8 @@ impl Locale {
 
     pub(crate) const fn rename_warning(self) -> &'static str {
         match self {
-            Self::EnUs => "The shared Tab label changes for all Clients.",
-            Self::ZhCn => "共享 Tab 的名称会对所有 Client 更改。",
+            Self::EnUs => "The new Tab name is shared with everyone connected to this workspace.",
+            Self::ZhCn => "新的 Tab 名称会同步给所有连接到此工作区的人。",
         }
     }
 

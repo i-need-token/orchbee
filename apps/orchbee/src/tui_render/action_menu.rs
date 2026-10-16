@@ -19,6 +19,7 @@ use crate::{
 use ratatui::{
     Frame,
     layout::Rect,
+    style::Modifier,
     text::Line,
     widgets::{Clear, Padding, Paragraph},
 };
@@ -450,6 +451,7 @@ fn interaction_state(
     focused: bool,
     enabled: bool,
     pointer: PointerPresentation,
+    checked: CheckedState,
 ) -> InteractionState {
     InteractionState::new(
         if focused {
@@ -464,7 +466,7 @@ fn interaction_state(
             NavigationState::None
         },
         CurrentState::NotCurrent,
-        CheckedState::Unchecked,
+        checked,
         if enabled {
             Availability::Enabled
         } else {
@@ -569,10 +571,12 @@ fn render_row(
     if let Some(rect) = checked {
         tracks = tracks.with_checked(rect, theme.glyphs.active_marker);
     }
-    let mut state = interaction_state(focused, enabled, pointer);
-    if menu.tabs.is_some_and(|tabs| tabs.checked(&action)) {
-        state.checked = CheckedState::Checked;
-    }
+    let applied = if menu.tabs.is_some_and(|tabs| tabs.checked(&action)) {
+        CheckedState::Checked
+    } else {
+        CheckedState::Unchecked
+    };
+    let state = interaction_state(focused, enabled, pointer, applied);
     let painted = paint_row_interaction(
         frame,
         row,
@@ -587,7 +591,9 @@ fn render_row(
     if let (MenuAction::GroupColor(color), Some(rect)) = (action, swatch) {
         // A palette chip owns its contrast pair, independently of the row's candidate fill.
         let style = if enabled {
-            theme.tab_group_style(color)
+            theme
+                .tab_group_style(color)
+                .remove_modifier(Modifier::all())
         } else {
             theme.style(Role::TextDisabled)
         };

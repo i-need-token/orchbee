@@ -85,7 +85,7 @@ fn cross_group_selection_and_unselected_target_present_the_same_scope_as_close_c
             mailbox.try_recv().unwrap().is_none(),
             "opening a scoped decision never starts Close"
         );
-        assert!(ui.capture_confirmation_key(ClientKey::Esc));
+        assert!(ui.capture_confirmation_key(ClientKey::Escape));
         assert_eq!(
             ui.state.as_ref().unwrap().cache().canonical_snapshot(),
             &snapshot
@@ -120,7 +120,7 @@ fn relative_close_scope_protects_pinned_tabs_and_starts_after_rightmost_selected
         view.close_confirmation().unwrap().set_labels().unwrap(),
         &[(5, "Logs".into())]
     );
-    assert!(ui.capture_confirmation_key(ClientKey::Esc));
+    assert!(ui.capture_confirmation_key(ClientKey::Escape));
     assert!(ui.open_action_menu(MenuTarget::Tab(tabs[4].tab_id.clone()), None, false));
     assert!(
         !ui.view()

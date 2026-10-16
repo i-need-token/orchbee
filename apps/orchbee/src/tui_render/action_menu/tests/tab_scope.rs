@@ -130,6 +130,12 @@ fn applied_color_check_and_paired_palette_chip_survive_a_different_provisional_c
                                 buffer[(x, rect.y)].bg,
                                 theme.tab_group_style(*color).bg.unwrap()
                             );
+                            assert!(
+                                !buffer[(x, rect.y)]
+                                    .modifier
+                                    .intersects(Modifier::REVERSED | Modifier::HIDDEN),
+                                "candidate surfaces cannot reverse or hide the palette chip"
+                            );
                         }
                         assert_text_at(
                             &buffer,
@@ -200,6 +206,22 @@ fn typed_single_and_selected_scopes_paint_explicit_rows_and_keep_name_and_child_
                         &locale.menu_tab_action(*action, actual),
                     );
                 }
+                let expected_pin = match (locale, selected) {
+                    (Locale::EnUs, false) => "Pin Tab",
+                    (Locale::EnUs, true) => "Pin selected 2 Tabs",
+                    (Locale::ZhCn, false) => "固定 Tab",
+                    (Locale::ZhCn, true) => "固定选中的 2 个 Tab",
+                };
+                let pin = row(&hits, buffer.area, menu.view().unwrap().token, 2);
+                assert_text_at(&buffer, pin.x + 1, pin.y, expected_pin);
+                let expected_close = match (locale, selected) {
+                    (Locale::EnUs, false) => "Close Tab…",
+                    (Locale::EnUs, true) => "Close selected 2 Tabs…",
+                    (Locale::ZhCn, false) => "关闭 Tab…",
+                    (Locale::ZhCn, true) => "关闭选中的 2 个 Tab…",
+                };
+                let close = row(&hits, buffer.area, menu.view().unwrap().token, 3);
+                assert_text_at(&buffer, close.x + 1, close.y, expected_close);
                 assert_eq!(
                     locale.menu_tab_action(MenuAction::RenameTab, scope),
                     locale.menu_action(MenuAction::RenameTab)
