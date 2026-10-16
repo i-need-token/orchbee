@@ -1355,6 +1355,9 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                     Some((width - 1, height - 1)),
                     false
                 ));
+                let rename = action_row(&ui, MenuAction::RenameWorkspace);
+                assert_eq!(ui.view().action_menu().unwrap().unavailable[rename], None);
+                ui.menus.menu.select_action(MenuAction::RenameWorkspace);
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut hits = HitMapBuilder::new();
                 let mut receipt = NativeDrawReceipt::default();
@@ -1390,7 +1393,7 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 } else {
                     assert!(!text.contains("Esc"), "plain context menu: {text}");
                     assert!(text.contains(locale.menu_action(&MenuAction::RenameWorkspace)));
-                    assert!(ui.menus.menu.confirm());
+                    assert!(ui.menus.menu.confirm(), "{locale:?} {width}x{height}");
                     let map = hits.finish();
                     assert!((0..height).all(|y| (0..width).all(|x| !matches!(
                         map.hit_target_at(x, y),
