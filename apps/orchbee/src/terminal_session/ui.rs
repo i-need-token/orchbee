@@ -2480,7 +2480,6 @@ impl NativeUi {
                 | ClientAction::RequestWorkspaceDirectory
                 | ClientAction::RequestWorkspaceClose
                 | ClientAction::RequestProjectRename
-                | ClientAction::RequestProjectDissolve
         ) && let Some(state) = self.state.as_mut()
             && matches!(
                 state.cache().location(),
@@ -2541,31 +2540,18 @@ impl NativeUi {
                 }
                 SessionActionDisposition::KeepNavigator
             }
-            ClientAction::RequestWorkspaceMove | ClientAction::RequestProjectDissolve => {
+            ClientAction::RequestWorkspaceMove => {
                 let request = self.state.as_ref().and_then(|state| {
                     let deadline = self
                         .clock
                         .now()
                         .checked_add(std::time::Duration::from_secs(30))?;
-                    if matches!(action, ClientAction::RequestWorkspaceMove) {
-                        let super::NativeContextLocation::Workspace { workspace_id, .. } =
-                            state.cache().location()
-                        else {
-                            return None;
-                        };
-                        super::WorkspaceOrganizationRequest::workspace(
-                            state,
-                            workspace_id,
-                            deadline,
-                        )
-                    } else {
-                        let project = state
-                            .cache()
-                            .canonical_snapshot()
-                            .navigation
-                            .project(state.cache().project_id()?)?;
-                        super::WorkspaceOrganizationRequest::project(state, project, deadline)
-                    }
+                    let super::NativeContextLocation::Workspace { workspace_id, .. } =
+                        state.cache().location()
+                    else {
+                        return None;
+                    };
+                    super::WorkspaceOrganizationRequest::workspace(state, workspace_id, deadline)
                 });
                 if let Some(request) = request {
                     self.request_workspace_organization(Box::new(request));

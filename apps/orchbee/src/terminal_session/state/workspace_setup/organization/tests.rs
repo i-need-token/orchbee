@@ -51,7 +51,7 @@ fn conditional_project_delete_reviews_organization_only_and_needs_fresh_draw_and
         .unwrap();
     let draft = state.setup_draft().unwrap();
     assert_eq!(draft.stage(), NativeSetupStage::ProjectDeleteConfirm);
-    assert!(draft.destructive());
+    assert!(draft.draft.organization.as_ref().unwrap().reviewed_delete());
     assert!(!draft.interactive());
     let next = WorkbenchRequestId::parse(&format!("{:032x}", 91)).unwrap();
     assert!(

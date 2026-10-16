@@ -134,7 +134,6 @@ pub(crate) enum ClientAction {
     RequestProjectRename,
     RequestTargetedProjectRename(Box<crate::terminal_session::ProjectRenameRequest>),
     RequestWorkspaceMove,
-    RequestProjectDissolve,
     RequestWorkspaceOrganization(Box<crate::terminal_session::WorkspaceOrganizationRequest>),
     RequestProjectCloseAll(Option<orchbee_workbench_protocol::WorkbenchProjectId>),
     RequestRenameTab,
@@ -345,7 +344,6 @@ impl ClientAction {
             Self::RequestWorkspaceMove
             | Self::RequestWorkspaceCloseAt(_)
             | Self::RequestSidebarWorkspaceDelete(_)
-            | Self::RequestProjectDissolve
             | Self::RequestWorkspaceOrganization(_)
             | Self::RequestProjectCloseAll(_) => None,
             Self::RequestRenameTab => Some(BackendAction::RenameTab),
