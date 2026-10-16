@@ -741,8 +741,16 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                         text
                     })
                     .collect();
-                let reason = locale.menu_unavailable(MenuUnavailable::OperationBusy, true);
-                assert!(text.replace(' ', "").contains(&reason.replace(' ', "")));
+                let reasons = [false, true].map(|compact| {
+                    locale.menu_unavailable(MenuUnavailable::OperationBusy, compact)
+                });
+                assert!(
+                    reasons
+                        .iter()
+                        .any(|reason| text.replace(' ', "").contains(&reason.replace(' ', ""))),
+                    "{locale:?} {width}x{height}, selected={selected_row}, unavailable={:?}:\n{text}",
+                    ui.view().action_menu().unwrap().unavailable[selected_row]
+                );
                 assert!(!text.contains("Esc"), "context menu has no external footer");
                 assert!(!text.contains(&format!("{}/{}", selected_row + 1, action_count)));
                 assert!(!text.contains("Enter"));

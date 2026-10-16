@@ -273,7 +273,7 @@ fn paint(
     port: &mut Port,
     bindings: &crate::client_view::Bindings,
     locale: Locale,
-) -> (u16, u16, usize, (u16, u16)) {
+) -> (u16, u16, usize, Option<(u16, u16)>) {
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(50, 10)).unwrap();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     let mut draw = ModalPresentation::NotPresented;
@@ -305,17 +305,16 @@ fn paint(
             })
         })
         .unwrap();
-    let close = (0..10)
-        .find_map(|y| {
-            (0..50).find_map(|x| {
-                matches!(
-                    map.hit_target_at(x, y),
-                    Some(HitTarget::ActionMenuControl { back: false, .. })
-                )
-                .then_some((x + 1, y + 1))
-            })
+    let close = (0..10).find_map(|y| {
+        (0..50).find_map(|x| {
+            matches!(
+                map.hit_target_at(x, y),
+                Some(HitTarget::ActionMenuControl { back: false, .. })
+            )
+            .then_some((x + 1, y + 1))
         })
-        .unwrap();
+    });
+    assert_eq!(close.is_none(), port.menu.view().unwrap().context_menu);
     assert!(port.menu.presented(draw));
     dispatcher.publish_hit_map(map);
     (cell.0 + 1, cell.1 + 1, draw.visible_rows, close)
@@ -418,6 +417,7 @@ fn global_menu_button_and_close_follow_painted_cells_and_own_the_tail() {
     assert!(port.menu.active());
     assert_eq!(port.target, Some(MenuTarget::Global));
     let (_, _, _, close_cell) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    let close_cell = close_cell.expect("global menu retains its painted close control");
     dispatch_all(
         &mut dispatcher,
         &mut view,

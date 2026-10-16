@@ -1388,18 +1388,14 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                 if width == 12 {
                     assert!(!ui.action_menu_active());
                 } else {
-                    assert!(
-                        text.replace(' ', "")
-                            .contains(&locale.menu_title().replace(' ', "")),
-                        "{locale:?} {width}x{height}: {text}"
-                    );
-                    assert!(text.contains("Esc"));
-                    assert!(
-                        text.contains('猫'),
-                        "wide title {locale:?} {width}x{height}"
-                    );
+                    assert!(!text.contains("Esc"), "plain context menu: {text}");
+                    assert!(text.contains(locale.menu_action(&MenuAction::RenameWorkspace)));
                     assert!(ui.menus.menu.confirm());
                     let map = hits.finish();
+                    assert!((0..height).all(|y| (0..width).all(|x| !matches!(
+                        map.hit_target_at(x, y),
+                        Some(crate::tui_pointer::HitTarget::ActionMenuControl { .. })
+                    ))));
                     let rows = (0..height)
                         .flat_map(|y| (0..width).map(move |x| (x, y)))
                         .filter(|(x, y)| {
@@ -1542,7 +1538,7 @@ fn equal_numeric_navigation_generations_cannot_cross_context_and_tab_domains() {
         };
         assert!(ui.open_action_menu(target, None, false));
         let action = if context {
-            MenuAction::QuickWorkspace
+            MenuAction::RenameWorkspace
         } else {
             MenuAction::RenameTab
         };
