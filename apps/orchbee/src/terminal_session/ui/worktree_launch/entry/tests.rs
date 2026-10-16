@@ -221,7 +221,12 @@ fn completed_create_entry_accepts_one_fresh_noncurrent_project_checkout_after_di
     let checkout = WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap();
     assert!(sidebar.valid(origin.cache.canonical_snapshot()));
     assert!(
-        ui.open_sidebar_worktree(sidebar.clone(), Some(checkout.clone())),
+        ui.worktrees.launcher.open_sidebar(
+            origin.clone(),
+            sidebar.clone(),
+            WorktreeMode::Open,
+            Some(&checkout),
+        ),
         "a completed hidden Create must allow a fresh addressed Open"
     );
     let next = ui.worktrees.launcher.token().unwrap();
