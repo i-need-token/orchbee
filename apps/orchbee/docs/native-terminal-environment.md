@@ -234,6 +234,17 @@ separate verified cohort provenance.
 | `flush`            | The existing writer's flush interval and result. Successful completion is not physical host paint.                                                                                                                       |
 | `terminal_control` | An existing lifecycle-effect call interval and result; payload and user-controlled text are excluded.                                                                                                                    |
 
+Frame and writer intervals are nested observations, not independent costs to add together. Buffer
+preparation can dominate measured frames without dominating the complete run. Compute the union of
+recorded intervals against the run envelope and leave uncovered wall time unclassified; it is not
+automatically idle, CPU work or blocking. The post-preparation frame tail includes diffing, encoding,
+bookkeeping and output unless a separate observation distinguishes them.
+
+A successful short write is an accepted prefix. When the existing buffer submits its remaining
+suffix, adding requested counts counts those suffix bytes again. Validate each complete forwarding
+chain before interpreting byte totals: requested minus accepted is neither lost output nor proof of
+backpressure. Call duration and successful flush still do not establish host paint.
+
 Windows console records supply no arrival timestamps. These samples do not measure OS-console queue
 residence, user-device time, activation before TUI entry, first useful content, or canonical Ready
 acknowledgement. Real-window expected-feedback probes supply separate visible-response bounds under
