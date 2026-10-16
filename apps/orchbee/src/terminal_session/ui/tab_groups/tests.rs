@@ -12,6 +12,7 @@ mod creation;
 
 mod close;
 mod interaction;
+mod presentation;
 
 fn grouped() -> Snapshot {
     let mut snapshot = super::super::tests::membership::snapshot(3, 1);
@@ -734,7 +735,10 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     text.contains('*'),
                     "Tab selection has a monochrome text marker"
                 );
-                assert!(text.contains(locale.menu_action(&MenuAction::PinTab)));
+                assert!(text.contains(&locale.menu_tab_action(
+                    MenuAction::PinTab,
+                    TabMenuScope::Selected(NonZeroUsize::new(3).unwrap()),
+                )));
                 crate::tui_render::test_capture::capture_screen(
                     &mut terminal,
                     &format!("{locale:?}-{width}x{height}-selected-menu"),

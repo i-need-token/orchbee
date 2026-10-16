@@ -21,8 +21,9 @@ impl Locale {
 
     pub(crate) fn close_set_title(self, count: usize) -> String {
         match self {
-            Self::EnUs => format!("Close {count} terminal Tabs?"),
-            Self::ZhCn => format!("关闭 {count} 个终端 Tab？"),
+            Self::EnUs if count == 1 => "Close 1 Tab?".into(),
+            Self::EnUs => format!("Close {count} Tabs?"),
+            Self::ZhCn => format!("关闭 {count} 个 Tab？"),
         }
     }
     pub(crate) fn close_set_context(self, label: &str) -> String {
@@ -44,10 +45,10 @@ impl Locale {
     pub(crate) const fn close_set_warning(self) -> &'static str {
         match self {
             Self::EnUs => {
-                "This ends execution in these Tabs for all attached Clients. Tabs close one at a time; a failure stops further closes."
+                "Closing ends the running work in these Tabs for everyone connected to this workspace. Tabs close one at a time; a failure stops further closes."
             }
             Self::ZhCn => {
-                "这将终止这些 Tab 中的执行，影响所有已连接的 Client。Tab 将逐个关闭；失败时停止后续关闭。"
+                "关闭将终止这些 Tab 中运行的任务，影响所有连接到此工作区的人。Tab 将逐个关闭；失败时停止后续关闭。"
             }
         }
     }
@@ -74,17 +75,19 @@ impl Locale {
     }
     pub(crate) const fn close_title(self, kind: NativeCloseConfirmationKind) -> &'static str {
         match (self, kind) {
-            (Self::EnUs, NativeCloseConfirmationKind::Close) => "Close terminal Tab?",
-            (Self::ZhCn, NativeCloseConfirmationKind::Close) => "关闭终端 Tab？",
-            (Self::EnUs, NativeCloseConfirmationKind::Resume) => "Retry terminal Close?",
-            (Self::ZhCn, NativeCloseConfirmationKind::Resume) => "重试关闭终端？",
+            (Self::EnUs, NativeCloseConfirmationKind::Close) => "Close Tab?",
+            (Self::ZhCn, NativeCloseConfirmationKind::Close) => "关闭 Tab？",
+            (Self::EnUs, NativeCloseConfirmationKind::Resume) => "Resume closing this Tab?",
+            (Self::ZhCn, NativeCloseConfirmationKind::Resume) => "继续关闭此 Tab？",
         }
     }
 
     pub(crate) const fn close_warning(self) -> &'static str {
         match self {
-            Self::EnUs => "Closing this Tab ends its execution for all attached Clients.",
-            Self::ZhCn => "关闭此 Tab 将终止其执行，影响所有已连接的 Client。",
+            Self::EnUs => {
+                "Closing this Tab ends its running work for everyone connected to this workspace."
+            }
+            Self::ZhCn => "关闭此 Tab 将终止其中运行的任务，影响所有连接到此工作区的人。",
         }
     }
 

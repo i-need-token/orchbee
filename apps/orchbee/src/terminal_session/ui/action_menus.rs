@@ -840,37 +840,33 @@ impl NativeUi {
             MenuAction::NewTabInRecentGroup => state
                 .and_then(NativeSessionState::recent_tab_group)
                 .map(|group| group.label.clone()),
-            MenuAction::CloseSelectedTabs
-            | MenuAction::CloseOtherTabs
-            | MenuAction::CloseTrailingTabs
-            | MenuAction::CloseGroup => {
-                if let (Some(state), Target::Tab { tab, .. }) = (state, &intent.target) {
-                    super::tab_groups::close_tab_ids(state, tab.tab_id(), action)
-                        .map(|ids| ids.len().to_string())
-                } else {
-                    None
-                }
-            }
             MenuAction::JoinGroup(index) => state
                 .and_then(|state| state.cache().groups().get(usize::from(index)))
                 .map(|group| group.label.clone()),
-            MenuAction::PinTab
-            | MenuAction::DuplicateTab
-            | MenuAction::UnpinTab
-            | MenuAction::CreateGroup
-            | MenuAction::RemoveFromGroup => {
-                if let (Some(state), Target::Tab { tab, .. }) = (state, &intent.target) {
-                    Some(
-                        super::tab_groups::configuration_tab_ids(state, tab.tab_id())
-                            .len()
-                            .to_string(),
-                    )
-                } else {
-                    None
-                }
-            }
+            MenuAction::GroupMenu => match &intent.target {
+                Target::Tab { tab, .. } => tab.group().map(|group| group.label.clone()),
+                _ => None,
+            },
             _ => None,
         });
+        if let (Some(state), Target::Tab { tab, .. }) = (state, &intent.target) {
+            let Some(scope) = super::tab_groups::menu_scope(state, tab, group_menu) else {
+                self.menus.menu.cancel();
+                return false;
+            };
+            self.menus.menu.set_tab_presentation(
+                scope,
+                tab.group().map(|group| group.color),
+                |action| super::tab_groups::menu_row(state, tab, action),
+            );
+            if matches!(group_menu, Some(super::tab_groups::MenuPage::Colors))
+                && let Some(group) = tab.group()
+            {
+                self.menus
+                    .menu
+                    .select_action(MenuAction::GroupColor(group.color));
+            }
+        }
         self.menus.menu.refresh_availability(|action| {
             visible_unavailable(action_availability(
                 state,

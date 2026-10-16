@@ -7,6 +7,8 @@ use crate::{
 use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
 
+mod tab_scope;
+
 #[test]
 fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discovery() {
     for (width, height) in [(120, 40), (80, 24)] {

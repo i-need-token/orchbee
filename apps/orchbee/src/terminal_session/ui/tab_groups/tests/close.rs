@@ -820,7 +820,12 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                         b"\x1b[B".repeat(row).as_slice(),
                     );
                     let (menu, hits) = draw(&mut ui, locale, width, height, None);
-                    assert!(menu.contains(locale.menu_action(&action)), "{menu}");
+                    let label = {
+                        let view = ui.view();
+                        let projection = view.action_menu().unwrap();
+                        locale.menu_tab_action(action.clone(), projection.tabs.unwrap().rows[row])
+                    };
+                    assert!(menu.contains(&label), "{menu}");
                     let token = ui.view().action_menu().unwrap().token;
                     let (x, y) = cell(
                         &hits,

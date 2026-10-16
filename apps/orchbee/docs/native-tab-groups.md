@@ -67,8 +67,9 @@ the same boundary. This is canonical metadata, not a second TUI-only group model
 
 Selection marks are identity-keyed and Client-local. The active Tab is always included; ordinary
 Tab navigation clears additional marks. A menu target inside the selected set configures that whole
-set; an unselected background target configures itself. The affected count appears beside pinning,
-group creation, removal and duplication actions. Menu proof captures the selected canonical members, so a changed
+set; an unselected background target configures itself. Typed single/selected-set row copy exposes
+the affected count for pinning, group creation, removal and duplication. Rename, create to right and
+individual movement still address one Tab. Menu proof captures the selected canonical members, so a changed
 selection or a changed member invalidates the choice. Multi-selection renders `*` markers and
 selected/total counts on group headers, including collapsed headers. Marking deliberately preserves
 the active terminal, unlike GUI selection that can also activate the marked Tab.
@@ -85,10 +86,19 @@ cell-width clipping. Pointer regions come from the same paint as the header and 
 The new-Tab button's right-click menu contains New Tab, New Tab in Recent Group and New Group
 with Tab; the global menu exposes the same submenu to keyboard users. The recent group is local
 to the current context: active group, last retained group, then the last existing group.
-The group menu contains rename, a nine-color submenu, in-group creation, ungroup, close,
-disclosure and adjacent movement. Tab group choices contain New Group and other existing groups.
+The Tab root exposes Group actions directly beside group assignment; selection/movement does not
+contain group management. Direct header right-click still opens the same exact group menu.
+That menu contains in-group creation, rename, a nine-color submenu, disclosure, adjacent movement,
+ungroup and Close. Ungroup explicitly keeps Tabs; Close targets every canonical group member.
+Tab group choices contain New Group and other existing groups.
 Selection/movement remain keyboard-accessible from the Tab submenu; Shift gestures belong to the
-host. Move to New Window is disabled with a host-capability explanation.
+host. Move to New Window is hidden on the unsupported native host.
+
+The [menu projection](native-action-menus.md#tab-scope-and-current-values) keeps a group's saved
+color check, each palette chip and provisional menu navigation separate. Opening selects the
+saved color without a write; navigation and cancellation preserve it. Explicit activation uses
+the existing `update-group` operation, and reopening reads the committed value. Cross-group marks
+do not change which whole group is recolored.
 
 `tui_pointer::tabs::TabDrag` admits a plain left press only against the last successful frame's
 exact Session/revision, context, ordered metadata and token rectangles. A two-cell horizontal move

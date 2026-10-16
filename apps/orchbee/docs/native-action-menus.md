@@ -31,7 +31,8 @@ successful context frames expose only their actual rows and surface. The render 
 shipped theme families, and the width/height boundaries with and without a reserved reason.
 
 Tab menus follow the GUI sections for creation/grouping, duplication/pinning and close.
-Group assignment uses a submenu; selection and movement use a separate submenu.
+Group assignment uses a submenu; an addressed Tab's Group actions are directly alongside it,
+while selection and movement use a separate submenu.
 Painted group headers and the new-Tab button open distinct menus through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 The global menu also exposes the new-Tab submenu for keyboard users.
@@ -42,7 +43,8 @@ changing Tab/pane Close hierarchy. Disabled rows use `text-disabled` and acquire
 enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
 owner supplies all shipped and reduced-color values and any required native contrast pair.
 Selection actions provide local toggle/range/all/clear and configure the captured selected set
-when their target belongs to it. Pinning, group creation and removal show the affected count.
+when their target belongs to it. [Typed row scope and saved color](#tab-scope-and-current-values)
+make the affected set explicit without changing the underlying operation.
 Selection or selected-member changes revoke the menu proof; background metadata actions keep
 the current terminal attached. Menu movement uses GUI group boundaries, including collapsed neighbors.
 Metadata actions preserve the current terminal; the submenu retains its exact addressed Tab.
@@ -200,6 +202,43 @@ editing and custom or plugin-defined menus are outside this surface.
 When the carrier is unavailable, the global menu keeps only client-local search, help,
 sidebar, pointer release and detach. Member menus require a live carrier. An observed
 geometry is required even before the first session state arrives.
+
+## Tab scope and current values
+
+The Tab heading identifies the addressed name and, when applicable, the selected-set count.
+Each row states its own scope: selection marks elsewhere never imply that every action uses them.
+Group assignment, Group actions and color pages retain a short semantic path with the addressed
+Tab or group name. These facts are useful content, separate from generic menu decoration.
+
+| Action                                                       | Captured scope                                                                                                                  |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Rename, create to right, move one Tab, selection endpoint    | Addressed Tab, even when other Tabs are selected                                                                                |
+| Duplicate, pin/unpin, assign/remove group, direct Close      | Selected canonical set if the target belongs to it; otherwise the addressed Tab                                                 |
+| Group rename/color/disclosure/movement, ungroup, Close group | Entire group containing the addressed Tab, independently of selection marks                                                     |
+| Other/trailing Close                                         | Existing close resolver's nonempty set; pinned and selected-set protection and the rightmost-selected boundary remain unchanged |
+| Select all or keep only current selected                     | Current Workspace's Client-local marks                                                                                          |
+
+Single-target rows say **Pin Tab** or **Close Tab**; multi-target rows include the selected count.
+Other/trailing Close rows disappear when their exact set is empty. Relevant owner-derived disabled
+reasons remain visible. Counts are `NonZeroUsize` projection facts, never parsed labels or command
+targets. The existing coordinator captures and revalidates source, member/group metadata, marks,
+focus and action availability before any handoff.
+
+The color page initially addresses the saved canonical color. Its checked track stays on that
+applied color while arrows or received hover move the separate provisional navigation track.
+Every option also paints a paired palette chip and localized name; the checked/name tracks remain
+meaningful in monochrome. Only explicit activation after an exact successful draw can submit the
+existing group update. Browsing, Back, cancellation and reopening never write or replay a color.
+Changed scope or checked facts revoke the old row proof without resetting the candidate or
+renewing an action deadline. The parent still requires a fresh successful draw after return.
+
+The GUI's group editor already paints checked color radios and palette previews. Its radio keys
+apply a value immediately; native menu navigation remains provisional until activation. Both
+use canonical group color and the existing update owner; this is not a second shared color model.
+The implementation oracles cover exact cross-group selected/unselected scopes, pinned relative
+Close, zero-target filtering, scope/checked proof invalidation, saved-color cancellation and
+committed reopen. Render tests cover the two locales, narrow/wide cell geometry and independent
+checked/candidate/palette tracks; they do not establish physical host appearance.
 
 ## Model and ownership
 

@@ -1,7 +1,7 @@
 //! Retained action-menu projection; only a complete successful frame arms input.
 
 use crate::{
-    action_menu::{MenuAction, MenuControl, MenuDraw, MenuView},
+    action_menu::{MenuAction, MenuControl, MenuDraw, MenuView, TabMenuScope},
     action_projection::menu_binding_action,
     client_view::{
         Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
@@ -67,10 +67,12 @@ pub(super) fn render(
                 locale,
                 action.clone(),
                 menu.labels[index].as_deref(),
+                menu.tabs.map(|tabs| tabs.rows[index]),
                 theme.glyphs.middle_dot,
                 theme.glyphs.disclosure_closed,
             );
             marker_width
+                .saturating_add(color_track_width(*action, theme))
                 .saturating_add(display_width(&label))
                 .saturating_add(binding_labels[index].as_ref().map_or(0, |binding| {
                     display_width(binding).saturating_add(usize::from(ROW_BINDING_GAP))
@@ -80,6 +82,10 @@ pub(super) fn render(
         })
         .max()
         .unwrap_or(16);
+    let desired = menu.tabs.map_or(desired, |tabs| {
+        let path = locale.menu_tab_path(menu.source, tabs.scope, theme.glyphs.disclosure_closed);
+        desired.max(display_width(&path) + display_width(menu.title).min(16) + 9)
+    });
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
@@ -104,7 +110,14 @@ pub(super) fn render(
             crate::terminal_session::NativeContextLocation::Standalone(_)
         )
     );
-    let title = if menu.title.is_empty() && legacy {
+    let title = if menu.tabs.is_some() {
+        tab_title(
+            &menu,
+            locale,
+            theme,
+            usize::from(area.width.saturating_sub(6)),
+        )
+    } else if menu.title.is_empty() && legacy {
         format!(
             "{} {} {}",
             locale.menu_title(),
@@ -480,12 +493,23 @@ fn render_row(
         .unwrap_or(u16::MAX)
         .min(row.width.saturating_sub(1));
     let navigation = Rect::new(row.x, row.y, marker_width, 1);
+    let color = matches!(action, MenuAction::GroupColor(_));
+    let checked = color.then(|| {
+        Rect::new(
+            navigation.right(),
+            row.y,
+            u16::try_from(display_width(theme.glyphs.active_marker)).unwrap_or(1),
+            1,
+        )
+    });
+    let swatch = checked.map(|rect| Rect::new(rect.right() + 1, row.y, 2, 1));
+    let label_left = swatch.map_or(navigation.right(), |rect| rect.right() + 1);
     let binding_width = binding
         .map(display_width)
         .and_then(|width| u16::try_from(width).ok())
         .filter(|width| {
             row.width
-                .saturating_sub(marker_width)
+                .saturating_sub(label_left - row.x)
                 .saturating_sub(*width)
                 > ROW_BINDING_GAP
         });
@@ -493,9 +517,9 @@ fn render_row(
     let primary_right =
         binding_rect.map_or(row.right(), |rect| rect.x.saturating_sub(ROW_BINDING_GAP));
     let primary = Rect::new(
-        navigation.right(),
+        label_left,
         row.y,
-        primary_right.saturating_sub(navigation.right()),
+        primary_right.saturating_sub(label_left),
         1,
     );
     let label = truncate_display(
@@ -503,6 +527,7 @@ fn render_row(
             locale,
             action.clone(),
             menu.labels[index].as_deref(),
+            menu.tabs.map(|tabs| tabs.rows[index]),
             theme.glyphs.middle_dot,
             theme.glyphs.disclosure_closed,
         ),
@@ -514,6 +539,9 @@ fn render_row(
         primary,
     );
     let mut bands = Vec::new();
+    if let Some(rect) = swatch {
+        bands.push(RowContentBand::explicit(rect));
+    }
     if let (Some(binding), Some(rect)) = (binding, binding_rect) {
         frame.render_widget(
             Paragraph::new(binding).style(theme.style(Role::HintKey)),
@@ -535,20 +563,36 @@ fn render_row(
     } else {
         pointer_presentation(hits.projected_pointer(HitLayer::Overlay, row, row, &target, spec))
     };
-    let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary)
+    let mut tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary)
         .with_provisional(navigation)
         .with_primary_role(primary_role);
+    if let Some(rect) = checked {
+        tracks = tracks.with_checked(rect, theme.glyphs.active_marker);
+    }
+    let mut state = interaction_state(focused, enabled, pointer);
+    if menu.tabs.is_some_and(|tabs| tabs.checked(&action)) {
+        state.checked = CheckedState::Checked;
+    }
     let painted = paint_row_interaction(
         frame,
         row,
         tracks,
         &bands,
         ControlSurface::Overlay,
-        interaction_state(focused, enabled, pointer),
+        state,
         theme,
     )
     .expect("action-menu row geometry was resolved before painting");
     debug_assert_eq!(painted, row);
+    if let (MenuAction::GroupColor(color), Some(rect)) = (action, swatch) {
+        // A palette chip owns its contrast pair, independently of the row's candidate fill.
+        let style = if enabled {
+            theme.tab_group_style(color)
+        } else {
+            theme.style(Role::TextDisabled)
+        };
+        frame.render_widget(Paragraph::new("  ").style(style), rect);
+    }
     if !menu.transferring {
         hits.record_interaction(HitLayer::Overlay, row, painted, target, spec);
     }
@@ -659,6 +703,7 @@ fn action_label(
     locale: Locale,
     action: MenuAction,
     label: Option<&str>,
+    scope: Option<TabMenuScope>,
     separator: &str,
     disclosure: &str,
 ) -> String {
@@ -666,27 +711,58 @@ fn action_label(
         action,
         MenuAction::JoinWorkspaceProject(_) | MenuAction::OpenWorktreeAt(_)
     );
-    let text = label.map_or_else(
+    let text = scope.map_or_else(
         || locale.menu_action(&action).to_owned(),
-        |label| {
-            if choice {
-                return sanitize_terminal_text(label).into_owned();
-            }
-            format!(
-                "{} {separator} {}",
-                locale.menu_action(&action),
-                sanitize_terminal_text(if label.is_empty() {
-                    locale.shell().unnamed_tab_group
-                } else {
-                    label
-                })
-            )
-        },
+        |scope| locale.menu_tab_action(action.clone(), scope),
     );
+    let text = if let Some(label) = label {
+        if choice {
+            sanitize_terminal_text(label).into_owned()
+        } else {
+            format!(
+            "{text} {separator} {}",
+            sanitize_terminal_text(if label.is_empty() {
+                locale.shell().unnamed_tab_group
+            } else {
+                label
+            })
+            )
+        }
+    } else {
+        text
+    };
     if action.submenu() {
         format!("{text} {disclosure}")
     } else {
         text
+    }
+}
+
+fn color_track_width(action: MenuAction, theme: &Theme) -> usize {
+    if matches!(action, MenuAction::GroupColor(_)) {
+        display_width(theme.glyphs.active_marker) + 4
+    } else {
+        0
+    }
+}
+
+fn tab_title(menu: &MenuView<'_>, locale: Locale, theme: &Theme, width: usize) -> String {
+    let Some(tabs) = menu.tabs else {
+        return String::new();
+    };
+    let path = locale.menu_tab_path(menu.source, tabs.scope, theme.glyphs.disclosure_closed);
+    let name = sanitize_terminal_text(if menu.title.is_empty() {
+        locale.shell().unnamed_tab_group
+    } else {
+        menu.title
+    });
+    let separator = format!(" {} ", theme.glyphs.middle_dot);
+    let budget = width.saturating_sub(display_width(&path) + display_width(&separator));
+    let name = truncate_display(&name, budget, theme.glyphs.ellipsis);
+    if name.is_empty() {
+        truncate_display(&path, width, theme.glyphs.ellipsis)
+    } else {
+        format!("{name}{separator}{path}")
     }
 }
 

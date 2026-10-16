@@ -8,6 +8,8 @@ mod machines;
 mod navigator;
 mod notification;
 mod presentation;
+#[cfg(windows)]
+mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
 #[cfg(windows)]
 mod plugins;

@@ -16,6 +16,7 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
             MenuAction::RenameTab,
             MenuAction::ManageGroups,
             MenuAction::RemoveFromGroup,
+            MenuAction::GroupMenu,
             MenuAction::DuplicateTab,
             MenuAction::PinTab,
             MenuAction::CloseSelectedTabs,
@@ -27,8 +28,9 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
     assert!(!menu.actions.contains(&MenuAction::MoveToNewWindow));
     assert_eq!(menu.unavailable.len(), menu.actions.len());
     assert!(menu.separator_before(4));
-    assert!(menu.separator_before(6));
-    assert!(menu.separator_before(9));
+    assert!(menu.separator_before(5));
+    assert!(menu.separator_before(7));
+    assert!(menu.separator_before(10));
     choose(&mut ui, MenuAction::ManageGroups);
     assert_eq!(
         ui.view().action_menu().unwrap().actions,
@@ -62,11 +64,14 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
     let menu = view.action_menu().unwrap();
     assert_eq!(menu.title, "源组");
     assert_eq!(
-        &menu.actions[..5],
+        menu.actions,
         &[
+            MenuAction::NewTabInGroup,
             MenuAction::RenameGroup,
             MenuAction::ChooseGroupColor,
-            MenuAction::NewTabInGroup,
+            MenuAction::CollapseGroup,
+            MenuAction::MoveGroupPrevious,
+            MenuAction::MoveGroupNext,
             MenuAction::Ungroup,
             MenuAction::CloseGroup
         ]
@@ -75,7 +80,7 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
     choose(&mut ui, MenuAction::ChooseGroupColor);
     assert_eq!(ui.view().action_menu().unwrap().actions.len(), 9);
     ui.capture_action_menu_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
-    assert_eq!(ui.view().action_menu().unwrap().selected, 1);
+    assert_eq!(ui.view().action_menu().unwrap().selected, 2);
     ui.cancel_action_menu();
     let target = ui.view().tab_create_target().unwrap();
     assert!(ui.open_action_menu(MenuTarget::TabCreate(target), None, false));

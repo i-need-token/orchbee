@@ -5,6 +5,9 @@ use crate::client_view::{
 };
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
+mod tab_presentation;
+pub(crate) use tab_presentation::{TabMenuPresentation, TabMenuScope};
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MenuTarget {
     Global,
@@ -378,6 +381,7 @@ pub(crate) struct MenuView<'a> {
     pub(crate) has_parent: bool,
     pub(crate) title: &'a str,
     pub(crate) labels: &'a [Option<String>],
+    pub(crate) tabs: Option<&'a TabMenuPresentation>,
     pub(crate) actions: &'a [MenuAction],
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
     pub(crate) selected: usize,
@@ -450,6 +454,7 @@ fn row_height(source: &MenuTarget, actions: &[MenuAction], first: usize, end: us
 struct Menu {
     source: MenuTarget,
     labels: Vec<Option<String>>,
+    tabs: Option<TabMenuPresentation>,
     title: String,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
@@ -571,6 +576,7 @@ impl ActionMenu {
             source,
             title,
             labels: vec![None; actions.len()],
+            tabs: None,
             unavailable: vec![None; actions.len()],
             actions,
             selected: 0,
@@ -616,6 +622,45 @@ impl ActionMenu {
         menu.visible_rows = 0;
     }
 
+    /// Replaces captured display facts under the same successful-draw fence as row copy.
+    pub(crate) fn set_tab_presentation(
+        &mut self,
+        scope: TabMenuScope,
+        applied_color: Option<orchbee_workbench_protocol::TabGroupColor>,
+        row: impl Fn(MenuAction) -> Option<TabMenuScope>,
+    ) {
+        let Some(menu) = &self.menu else {
+            return;
+        };
+        let Some(rows) = menu.actions.iter().map(|action| row(*action)).collect() else {
+            self.cancel();
+            return;
+        };
+        let tabs = TabMenuPresentation {
+            scope,
+            applied_color,
+            rows,
+        };
+        if menu.tabs.as_ref() == Some(&tabs) {
+            return;
+        }
+        if self.confirmed.is_some() {
+            self.cancel();
+            return;
+        }
+        let Some(token) = self.allocate() else {
+            self.cancel();
+            return;
+        };
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        menu.tabs = Some(tabs);
+        menu.token = token;
+        menu.drawn = None;
+        menu.visible_rows = 0;
+    }
+
     pub(crate) fn view(&self) -> Option<MenuView<'_>> {
         self.menu.as_ref().map(|menu| MenuView {
             source: &menu.source,
@@ -623,6 +668,7 @@ impl ActionMenu {
             has_parent: false,
             title: &menu.title,
             labels: &menu.labels,
+            tabs: menu.tabs.as_ref(),
             actions: &menu.actions,
             unavailable: &menu.unavailable,
             selected: menu.selected,

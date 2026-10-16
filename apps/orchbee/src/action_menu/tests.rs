@@ -176,6 +176,48 @@ fn same_surface_metadata_rekeys_keep_the_continuation_lease() {
 }
 
 #[test]
+fn changed_tab_scope_or_saved_color_requires_fresh_paint_without_resetting_candidate() {
+    use orchbee_workbench_protocol::TabGroupColor;
+    let red = MenuAction::GroupColor(TabGroupColor::Red);
+    let blue = MenuAction::GroupColor(TabGroupColor::Blue);
+    let mut menu = ActionMenu::default();
+    assert!(menu.open("Group".into(), vec![red, blue], None));
+    let scope = TabMenuScope::Group(std::num::NonZeroUsize::new(2).unwrap());
+    menu.set_tab_presentation(scope, Some(TabGroupColor::Red), |_| Some(scope));
+    let first = present(&mut menu, 0, 2);
+    assert!(menu.hover(first.token, 1));
+    let candidate = present(&mut menu, 0, 2);
+    menu.set_tab_presentation(scope, Some(TabGroupColor::Blue), |_| Some(scope));
+    let view = menu.view().unwrap();
+    assert_ne!(view.token, candidate.token);
+    assert_eq!(view.selected, 1);
+    assert!(!view.tabs.unwrap().checked(&red));
+    assert!(view.tabs.unwrap().checked(&blue));
+    assert_eq!(
+        menu.input_context().unwrap().readiness(),
+        MenuInputReadiness::Continuation
+    );
+    assert!(!menu.click(candidate.token, 1));
+    assert!(!menu.confirm());
+    let current = present(&mut menu, 0, 2);
+    menu.set_tab_presentation(scope, Some(TabGroupColor::Blue), |_| Some(scope));
+    assert_eq!(
+        menu.view().unwrap().token,
+        current.token,
+        "unchanged facts preserve the exact frame"
+    );
+    let next_scope = TabMenuScope::Group(std::num::NonZeroUsize::new(3).unwrap());
+    menu.set_tab_presentation(next_scope, Some(TabGroupColor::Blue), |_| Some(next_scope));
+    assert_ne!(menu.view().unwrap().token, current.token);
+    assert_eq!(menu.view().unwrap().selected, 1);
+    assert!(!menu.click(current.token, 1));
+    assert!(!menu.confirm());
+    present(&mut menu, 0, 2);
+    assert!(menu.confirm());
+    assert_eq!(menu.take(), Some(blue));
+}
+
+#[test]
 fn disabled_pointer_rows_neither_select_nor_confirm() {
     let mut menu = menu();
     assert!(menu.refresh_availability(|action| {

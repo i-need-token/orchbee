@@ -14,13 +14,17 @@ One confirmation freezes 1–256 exact IDs, Session/context, full canonical Snap
 local marks and focused selection. Focus includes the logical `PaneKey`, physical `PaneRef`
 incarnation, selected Presentation and binding; a same-key reattach is a change. Background targets
 are planned by exact ID without selecting them or impersonating the selected-only Close planner.
-The dialog shows the count, location, first three names/positions and an explicit remainder count.
+The dialog uses the same Tab terminology as its menu and shows the count, location, first three
+names/positions and an explicit remainder count. Single/selected/group menu scope comes from the
+[typed menu projection](native-action-menus.md#tab-scope-and-current-values), not translated counts.
 Names and location use sanitized, grapheme-safe previews capped at 64 cells (less on narrow
 screens), with an explicit ellipsis for clipping; full frozen IDs and positions remain authoritative.
 The draw token covers the entire bounded preview, remainder count, warning and controls.
-Its localized warning covers execution in all attached Clients and incremental failure behavior.
+Its localized warning explains that running work ends for everyone connected to the Workspace,
+and that Tabs close one at a time with further closes stopped by failure.
 
-Only a complete successful draw authorizes unmodified `Enter`; local `Esc` cancels an armed
+The shared Close and Cancel buttons carry their own Enter/Esc labels. Only a complete successful
+draw authorizes unmodified `Enter`; local `Esc` cancels an armed
 confirmation even while it is not shown. An evaluated geometry block before the first successful
 draw refuses the new confirmation. After a successful draw, the same block suspends the existing
 confirmation while preserving its token, frozen set, local marks and focus; `Enter` and pointer release

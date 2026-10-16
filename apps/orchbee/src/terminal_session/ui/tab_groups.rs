@@ -1,16 +1,18 @@
 //! Menu adapters for canonical Tab configuration and identity-keyed, Client-local group disclosure.
 //! The existing setup lane owns admission, unknown outcomes, publication recovery and selection.
 use super::{NativeSessionState, NativeUi, OperationDeadlines, SessionActionDisposition};
-use crate::action_menu::{MenuAction, MenuTarget};
+use crate::action_menu::{MenuAction, MenuTarget, TabMenuScope};
 use crate::terminal_session::state::workspace_setup::NativeSetupIntent;
 use crate::terminal_session::workbench_projection::NativeSimpleTab;
 use orchbee_workbench_protocol::{
     TabConfiguration, TabGroupColor, TabGroupMoveDirection, WorkbenchTabGroupId,
     WorkbenchTabGroupLabel, WorkbenchTabId, WorkbenchTabIdSet, WorkbenchTabMoveDirection,
 };
+use std::num::NonZeroUsize;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone, Copy)]
 pub(super) enum MenuPage {
     Group,
     Colors,
@@ -41,6 +43,11 @@ pub(super) fn menu_actions(
         None => {
             let mut actions = Vec::new();
             for action in crate::action_menu::TAB_ACTIONS {
+                if matches!(action, CloseOtherTabs | CloseTrailingTabs)
+                    && close_tab_ids(state, tab.tab_id(), *action).is_some_and(|ids| ids.is_empty())
+                {
+                    continue;
+                }
                 if *action == CloseSelectedTabs && state.tab_close_resume_available(tab.tab_id()) {
                     actions.push(ResumeTabClose);
                 }
@@ -56,10 +63,13 @@ pub(super) fn menu_actions(
                 if *action == ManageGroups && targets.iter().any(|tab| tab.group().is_some()) {
                     actions.push(RemoveFromGroup);
                 }
+                if *action == ManageGroups && tab.group().is_some() {
+                    actions.push(GroupMenu);
+                }
             }
             actions
         }
-        Some(MenuPage::Colors) => [
+        Some(MenuPage::Colors) if tab.group().is_some() => [
             TabGroupColor::Blue,
             TabGroupColor::Cyan,
             TabGroupColor::Green,
@@ -73,15 +83,14 @@ pub(super) fn menu_actions(
         .into_iter()
         .map(GroupColor)
         .collect(),
+        Some(MenuPage::Colors) => Vec::new(),
         Some(MenuPage::Group) => {
             let mut actions = Vec::new();
             if let Some(group) = tab.group() {
                 actions.extend([
+                    NewTabInGroup,
                     RenameGroup,
                     ChooseGroupColor,
-                    NewTabInGroup,
-                    Ungroup,
-                    CloseGroup,
                     if state.group_collapsed(&group.group_id) {
                         ExpandGroup
                     } else {
@@ -89,6 +98,8 @@ pub(super) fn menu_actions(
                     },
                     MoveGroupPrevious,
                     MoveGroupNext,
+                    Ungroup,
+                    CloseGroup,
                 ]);
             }
             actions
@@ -107,7 +118,7 @@ pub(super) fn menu_actions(
             actions
         }
         Some(MenuPage::Tools) => {
-            let mut actions = vec![
+            vec![
                 if selected.contains(tab.tab_id()) {
                     DeselectTab
                 } else {
@@ -120,13 +131,62 @@ pub(super) fn menu_actions(
                 MoveTabNext,
                 MoveTabFirst,
                 MoveTabLast,
-            ];
-            if tab.group().is_some() {
-                actions.push(GroupMenu);
-            }
-            actions
+            ]
         }
     }
+}
+
+fn configuration_scope(state: &NativeSessionState, target: &WorkbenchTabId) -> TabMenuScope {
+    match NonZeroUsize::new(configuration_tab_ids(state, target).len()) {
+        Some(count) if count.get() > 1 => TabMenuScope::Selected(count),
+        _ => TabMenuScope::Addressed,
+    }
+}
+
+fn group_scope(state: &NativeSessionState, tab: &NativeSimpleTab) -> Option<TabMenuScope> {
+    NonZeroUsize::new(close_tab_ids(state, tab.tab_id(), MenuAction::CloseGroup)?.len())
+        .map(TabMenuScope::Group)
+}
+
+pub(super) fn menu_scope(
+    state: &NativeSessionState,
+    tab: &NativeSimpleTab,
+    page: Option<MenuPage>,
+) -> Option<TabMenuScope> {
+    match page {
+        Some(MenuPage::Group | MenuPage::Colors) => group_scope(state, tab),
+        _ => Some(configuration_scope(state, tab.tab_id())),
+    }
+}
+
+/// Project the same exact owner-resolved set that execution will revalidate; zero is not a scope.
+pub(super) fn menu_row(
+    state: &NativeSessionState,
+    tab: &NativeSimpleTab,
+    action: MenuAction,
+) -> Option<TabMenuScope> {
+    use MenuAction::*;
+    let scope = match action {
+        CloseSelectedTabs | CloseOtherTabs | CloseTrailingTabs | CloseGroup => {
+            let count = NonZeroUsize::new(close_tab_ids(state, tab.tab_id(), action)?.len())?;
+            match action {
+                CloseSelectedTabs if count.get() == 1 => TabMenuScope::Addressed,
+                CloseSelectedTabs => TabMenuScope::Selected(count),
+                CloseOtherTabs => TabMenuScope::Other(count),
+                CloseTrailingTabs => TabMenuScope::Trailing(count),
+                _ => TabMenuScope::Group(count),
+            }
+        }
+        DuplicateTab | PinTab | UnpinTab | ManageGroups | CreateGroup | JoinGroup(_)
+        | RemoveFromGroup => configuration_scope(state, tab.tab_id()),
+        GroupMenu | RenameGroup | ChooseGroupColor | GroupColor(_) | NewTabInGroup | Ungroup
+        | CollapseGroup | ExpandGroup | MoveGroupPrevious | MoveGroupNext => {
+            group_scope(state, tab)?
+        }
+        SelectAllTabs | ClearTabSelection => TabMenuScope::Workspace,
+        _ => TabMenuScope::Addressed,
+    };
+    Some(scope)
 }
 
 pub(super) fn configuration_tab_ids(
