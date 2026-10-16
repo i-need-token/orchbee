@@ -10,7 +10,7 @@ use ratatui::{
     layout::Rect,
     widgets::{Block, Paragraph, Widget, Wrap},
 };
-use std::sync::atomic::AtomicUsize;
+use std::{convert::Infallible, sync::atomic::AtomicUsize};
 
 struct CloseTestServer {
     server: FakeServer,
@@ -35,15 +35,26 @@ fn peer_disconnected(error: &(dyn std::error::Error + 'static)) -> bool {
 }
 
 fn dispatch_close_input(session: &mut TerminalSession, view: &mut ClientView, bytes: &[u8]) {
+    dispatch_close_input_at(
+        &mut InputDispatcher::default(),
+        session,
+        view,
+        bytes,
+        Instant::now(),
+    );
+}
+
+fn dispatch_close_input_at(
+    dispatcher: &mut InputDispatcher,
+    session: &mut TerminalSession,
+    view: &mut ClientView,
+    bytes: &[u8],
+    now: Instant,
+) {
     assert_eq!(
-        dispatch_input(
-            &mut InputDispatcher::default(),
-            view,
-            bytes,
-            session,
-            Instant::now(),
-            |_, _| Ok::<_, std::convert::Infallible>(())
-        ),
+        dispatch_input(dispatcher, view, bytes, session, now, |_, _| {
+            Ok::<_, Infallible>(())
+        }),
         Ok(DispatchOutcome::Continue),
     );
 }
@@ -497,7 +508,9 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         assert!(spin_with_draw(&mut session, |session| session.status()
             == TerminalStatus::Controlling));
         let mut view = ClientView::new(80);
-        dispatch_close_input(&mut session, &mut view, b"\x02x\r");
+        let mut dispatcher = InputDispatcher::default();
+        let now = Instant::now();
+        dispatch_close_input_at(&mut dispatcher, &mut session, &mut view, b"\x02x\r", now);
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let token = match session.view() {
             TerminalSessionView::Native(native) => native.close_confirmation().unwrap().token(),
@@ -505,23 +518,37 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         };
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
         assert_complete_close_frame(&buffer, &hits, token, locale, &view);
+        dispatcher.publish_hit_map(hits);
         let (_, hidden_hits) = draw_close_frame(&mut session, &view, locale, 20, 8)?;
         assert!((0..8).all(|y| (0..20).all(|x| !matches!(
             hidden_hits.hit_target_at(x, y),
             Some(HitTarget::TabClose { .. })
         ))));
+        dispatcher.publish_hit_map(hidden_hits);
         assert!(matches!(session.view(), TerminalSessionView::Native(native)
             if native.close_confirmation().is_some_and(|prompt| prompt.token() == token && !prompt.interactive())));
-        dispatch_close_input(&mut session, &mut view, b"\r");
+        dispatch_close_input_at(&mut dispatcher, &mut session, &mut view, b"\r", now);
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
         assert_complete_close_frame(&buffer, &hits, token, locale, &view);
-        dispatch_close_input(&mut session, &mut view, b"\x1b");
+        dispatcher.publish_hit_map(hits);
+        // A lone Escape stays pending until the same decoder crosses its idle
+        // deadline. Dropping a one-packet dispatcher never delivers Cancel.
+        dispatch_close_input_at(&mut dispatcher, &mut session, &mut view, b"\x1b", now);
+        assert!(matches!(session.view(), TerminalSessionView::Native(native)
+            if native.close_confirmation().is_some_and(|prompt| prompt.token() == token && prompt.interactive())));
+        assert_eq!(commands.load(Ordering::SeqCst), 0);
+        assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
+        let now = now + Duration::from_millis(60);
+        dispatcher.synchronize(&mut view, &mut session, now, &mut |_| {
+            Ok::<_, Infallible>(())
+        })?;
         assert!(
             matches!(session.view(), TerminalSessionView::Native(native) if native.close_confirmation().is_none())
         );
         assert_eq!(commands.load(Ordering::SeqCst), 0);
-        dispatch_close_input(&mut session, &mut view, b"\x02x\r");
+        assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
+        dispatch_close_input_at(&mut dispatcher, &mut session, &mut view, b"\x02x\r", now);
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let next = match session.view() {
             TerminalSessionView::Native(native) => native.close_confirmation().unwrap().token(),
@@ -530,7 +557,8 @@ fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_
         assert_ne!(next, token);
         let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
         assert_complete_close_frame(&buffer, &hits, next, locale, &view);
-        dispatch_close_input(&mut session, &mut view, b"\r");
+        dispatcher.publish_hit_map(hits);
+        dispatch_close_input_at(&mut dispatcher, &mut session, &mut view, b"\r", now);
         spin(&mut session, |_| commands.load(Ordering::SeqCst) == 1);
         assert_eq!(commands.load(Ordering::SeqCst), 1);
         assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
