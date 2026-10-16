@@ -306,6 +306,7 @@ fn render_close(
     if painted != rect {
         return None;
     }
+    hits.record_overlay_dismissal(&target);
     hits.record_interaction(HitLayer::Overlay, painted, painted, target, spec);
     Some(painted)
 }

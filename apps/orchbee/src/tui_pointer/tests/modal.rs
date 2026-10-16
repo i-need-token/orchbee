@@ -110,6 +110,95 @@ fn map(token: WorkspaceCloseToken, confirm: bool, area: Rect) -> FrameHitMap {
     hits.finish()
 }
 
+fn backdrop_map(token: WorkspaceCloseToken) -> FrameHitMap {
+    let mut hits = HitMapBuilder::new();
+    hits.start_modal();
+    hits.record(
+        HitLayer::OverlaySurface,
+        Rect::new(10, 5, 30, 10),
+        HitTarget::OverlaySurface,
+    );
+    let target = HitTarget::WorkspaceClose {
+        token,
+        confirm: false,
+    };
+    hits.record_modal_dismissal(target.clone());
+    hits.record_modal_control(
+        HitLayer::Overlay,
+        Rect::new(36, 5, 3, 1),
+        target,
+        InteractionAvailability::Enabled,
+    );
+    hits.finish()
+}
+
+#[test]
+fn backdrop_cancel_retains_exact_owner_and_matching_release_without_click_through() {
+    let token = WorkspaceCloseToken::for_test(31);
+    for revoke in 0..5 {
+        let mut pointer = PointerState::default();
+        let mut port = ClosePort::default();
+        pointer.set_capture(true);
+        pointer.publish(backdrop_map(token));
+        assert_eq!(
+            pointer.confirmation_event(
+                &mut port,
+                event(MouseAction::Press, MouseButton::Left, 2, 2)
+            ),
+            Some(false)
+        );
+        assert!(port.decisions.is_empty());
+        assert_eq!(pointer.modal_release_ownership(), ReleaseOwnership::Active);
+        assert_eq!(
+            projected_modal_pointer(
+                &pointer,
+                HitLayer::Overlay,
+                Rect::new(36, 5, 3, 1),
+                &HitTarget::WorkspaceClose {
+                    token,
+                    confirm: false
+                },
+                InteractionAvailability::Enabled
+            ),
+            ProjectedPointer::Rest,
+            "outside presses never press the X visually"
+        );
+        match revoke {
+            0 => pointer.publish(backdrop_map(token)),
+            1 => pointer.publish(backdrop_map(WorkspaceCloseToken::for_test(32))),
+            2 => pointer.set_host_focus(false),
+            3 => pointer.invalidate_map(),
+            4 => {
+                pointer.confirmation_event(
+                    &mut port,
+                    event(MouseAction::Motion, MouseButton::Left, 15, 8),
+                );
+            }
+            _ => unreachable!(),
+        }
+        pointer.confirmation_event(
+            &mut port,
+            event(MouseAction::Release, MouseButton::Left, 2, 2),
+        );
+        assert_eq!(
+            port.decisions,
+            if revoke == 0 {
+                vec![(token, false)]
+            } else {
+                vec![]
+            }
+        );
+        assert_eq!(pointer.modal_release_ownership(), ReleaseOwnership::None);
+        assert_eq!(
+            pointer.confirmation_event(
+                &mut port,
+                event(MouseAction::Release, MouseButton::Left, 2, 2)
+            ),
+            None
+        );
+    }
+}
+
 fn projected_map(
     projection: PointerProjection,
     layer: HitLayer,

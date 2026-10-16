@@ -10,21 +10,9 @@ impl Locale {
             Self::ZhCn => "取消",
         }
     }
-    pub(crate) const fn workspace_close_cancel_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "cancel",
-            Self::ZhCn => "取消",
-        }
-    }
     pub(crate) const fn workspace_close_confirm_label(self) -> &'static str {
         match self {
             Self::EnUs => "Close",
-            Self::ZhCn => "关闭",
-        }
-    }
-    pub(crate) const fn workspace_close_confirm_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "close",
             Self::ZhCn => "关闭",
         }
     }

@@ -385,7 +385,7 @@ impl NativeUi {
             self.capture_tab_confirmation_key(
                 token,
                 if confirm {
-                    ClientKey::Plain('y')
+                    ClientKey::Enter
                 } else {
                     ClientKey::Escape
                 },
@@ -454,7 +454,7 @@ impl NativeUi {
             return true;
         }
         match key {
-            ClientKey::Plain('y') => {
+            ClientKey::Enter => {
                 self.apply_client_action(crate::client_view::ClientAction::ConfirmClose);
             }
             ClientKey::Escape => {

@@ -370,6 +370,7 @@ pub(crate) struct FrameHitMap {
     #[cfg(windows)]
     sidebar_reorder: Option<SidebarReorderPaint>,
     overlay_active: bool,
+    backdrop_dismissal: Option<HitTarget>,
     regions: Vec<HitRegion>,
     projection_revision: u64,
     modal_projection: modal::Projection,
@@ -473,6 +474,20 @@ impl FrameHitMap {
             .iter()
             .find(|fingerprint| fingerprint.same_control(&enabled))
             .cloned()
+    }
+
+    /// Reuses the exact painted close control without exposing underlying regions.
+    fn backdrop_interaction_at(&self, column: u16, row: u16) -> Option<interaction::Fingerprint> {
+        if !matches!(self.hit(column, row), HitResolution::OverlayBackdrop) {
+            return None;
+        }
+        let target = self.backdrop_dismissal.as_ref()?;
+        let region = self.regions.iter().find(|region| {
+            region.layer == HitLayer::Overlay
+                && &region.target == target
+                && region.interaction.is_some()
+        })?;
+        self.interaction_fingerprint(region, None)
     }
 
     fn modal_fingerprint_at(&self, column: u16, row: u16) -> Option<modal::Fingerprint> {
@@ -660,6 +675,7 @@ impl HitMapBuilder {
     }
     /// A modal replaces all earlier overlay controls in this frame.
     pub(crate) fn start_modal(&mut self) {
+        self.map.backdrop_dismissal = None;
         #[cfg(windows)]
         {
             self.map.navigator = None;
@@ -671,6 +687,7 @@ impl HitMapBuilder {
             .retain(|region| !matches!(region.layer, HitLayer::Overlay | HitLayer::OverlaySurface));
     }
     pub(crate) fn start_settings(&mut self) {
+        self.map.backdrop_dismissal = None;
         #[cfg(windows)]
         {
             self.map.navigator = None;
@@ -690,6 +707,7 @@ impl HitMapBuilder {
     }
     #[cfg(windows)]
     pub(crate) fn start_action_menu(&mut self) {
+        self.map.backdrop_dismissal = None;
         self.map.navigator = None;
         self.map.overlay_active = true;
         self.map.help_draw_source = None;
@@ -703,6 +721,7 @@ impl HitMapBuilder {
                 #[cfg(windows)]
                 sidebar_reorder: None,
                 overlay_active: false,
+                backdrop_dismissal: None,
                 regions: Vec::new(),
                 projection_revision: 0,
                 modal_projection: modal::Projection::empty(),
@@ -809,6 +828,15 @@ impl HitMapBuilder {
             target,
             interaction: None,
         });
+    }
+
+    /// Called only after the current overlay's exact close control was painted.
+    pub(crate) fn record_modal_dismissal(&mut self, target: HitTarget) {
+        self.map.backdrop_dismissal = Some(target);
+    }
+
+    pub(crate) fn record_overlay_dismissal(&mut self, target: &InteractionTarget) {
+        self.map.backdrop_dismissal = Some(target.hit_target());
     }
 
     /// Records one specialized modal control after its complete exact extent

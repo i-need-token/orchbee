@@ -212,7 +212,7 @@ fn draw(ui: &mut NativeUi, locale: Locale, theme: &Theme, width: u16, height: u1
 fn submit(ui: &mut NativeUi, mailbox: &CommandMailbox, scope: Scope) -> CommandLease {
     open(ui, scope);
     draw(ui, Locale::EnUs, &Theme::terminal_native(), 120, 40);
-    assert!(ui.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(ui.capture_confirmation_key(ClientKey::Enter));
     mailbox.try_recv().unwrap().unwrap()
 }
 fn available(
@@ -732,7 +732,7 @@ fn workspace_and_project_close_shell_matrix_discloses_exact_scope_and_requires_a
                         ui.capture_confirmation_key(ClientKey::Plain('Y'));
                         assert_eq!(mailbox.cursors(), cursors);
                         assert!(mailbox.try_recv().unwrap().is_none());
-                        ui.capture_confirmation_key(ClientKey::Plain('y'));
+                        ui.capture_confirmation_key(ClientKey::Enter);
                         assert!(mailbox.try_recv().unwrap().is_some());
                     } else {
                         assert!(ui.view().workspace_close_confirmation().is_none());

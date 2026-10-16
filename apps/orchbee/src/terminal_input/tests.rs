@@ -155,7 +155,7 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
             if !self.active {
                 return false;
             }
-            if key == crate::client_view::ClientKey::Plain('y') {
+            if key == crate::client_view::ClientKey::Enter {
                 self.active = false;
             }
             true
@@ -177,12 +177,12 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
     )
     .unwrap();
     assert!(port.active);
-    // The decision `y` and a bare ESC share the decision packet; the CSI
+    // The decision Enter and a bare ESC share the decision packet; the CSI
     // tail completing in the next read belongs to the captured frame.
     dispatch_input(
         &mut dispatcher,
         &mut view,
-        b"y\x1b",
+        b"\r\x1b",
         &mut port,
         Instant::now(),
         |_, _| Ok::<_, Infallible>(()),
@@ -213,7 +213,7 @@ fn a_confirmation_tail_sequence_started_in_the_decision_packet_stays_captured() 
     dispatch_input(
         &mut dispatcher,
         &mut view,
-        b"y\x1b[200~",
+        b"\r\x1b[200~",
         &mut port,
         Instant::now(),
         |_, _| Ok::<_, Infallible>(()),

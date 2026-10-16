@@ -479,12 +479,22 @@ impl PointerProjection {
 #[derive(Clone, Debug)]
 struct Arm {
     fingerprint: Fingerprint,
+    backdrop: bool,
     column: u16,
     row: u16,
     cancelled: bool,
 }
 
 impl Arm {
+    fn matches_map(&self, map: &FrameHitMap, column: u16, row: u16) -> bool {
+        let current = if self.backdrop {
+            map.backdrop_interaction_at(column, row)
+        } else {
+            map.interaction_at(column, row)
+        };
+        current.as_ref() == Some(&self.fingerprint)
+    }
+
     fn active(&self) -> bool {
         !self.cancelled
     }
@@ -560,7 +570,7 @@ impl State {
             pressed: self
                 .arm
                 .as_ref()
-                .filter(|arm| arm.active())
+                .filter(|arm| arm.active() && !arm.backdrop)
                 .map(|arm| arm.fingerprint.clone()),
             modal: super::modal::Projection::empty(),
             #[cfg(windows)]
@@ -650,10 +660,7 @@ impl State {
                 }
                 arm.column = event.column;
                 arm.row = event.row;
-                let current = map
-                    .and_then(|map| map.interaction_at(event.column, event.row))
-                    .filter(|current| accepts(&current.target))
-                    .is_some_and(|current| current == arm.fingerprint);
+                let current = map.is_some_and(|map| arm.matches_map(map, event.column, event.row));
                 if !current {
                     arm.cancel();
                 }
@@ -666,13 +673,11 @@ impl State {
                 && matches!(event.button, MouseButton::Left | MouseButton::None)
             {
                 let arm = self.arm.take().expect("checked above");
-                let current = map
-                    .and_then(|map| map.interaction_at(event.column, event.row))
-                    .filter(|current| accepts(&current.target))
-                    .is_some_and(|current| current == arm.fingerprint);
+                let current = map.is_some_and(|map| arm.matches_map(map, event.column, event.row));
                 let admitted = arm.active()
                     && current
-                    && super::contains(arm.fingerprint.paint_rect, event.column, event.row);
+                    && (arm.backdrop
+                        || super::contains(arm.fingerprint.paint_rect, event.column, event.row));
                 if was_active {
                     self.changed();
                 }
@@ -726,8 +731,16 @@ impl State {
         {
             return Event::Ignored;
         }
+        let Some(map) = map else {
+            return Event::Ignored;
+        };
+        let backdrop = matches!(
+            map.hit(event.column, event.row),
+            super::HitResolution::OverlayBackdrop
+        );
         let Some(fingerprint) = map
-            .and_then(|map| map.interaction_at(event.column, event.row))
+            .interaction_at(event.column, event.row)
+            .or_else(|| map.backdrop_interaction_at(event.column, event.row))
             .filter(|fingerprint| accepts(&fingerprint.target))
         else {
             return Event::Ignored;
@@ -739,6 +752,7 @@ impl State {
             // never project Pressed or emit a semantic intent.
             self.arm = Some(Arm {
                 fingerprint,
+                backdrop,
                 column: event.column,
                 row: event.row,
                 cancelled: true,
@@ -753,6 +767,7 @@ impl State {
         let target = fingerprint.target.clone();
         self.arm = Some(Arm {
             fingerprint,
+            backdrop,
             column: event.column,
             row: event.row,
             cancelled: false,
@@ -805,10 +820,10 @@ impl State {
     /// bounded repaint.
     pub(super) fn publish(&mut self, map: &FrameHitMap) -> bool {
         if self.arm.as_ref().is_some_and(Arm::active) {
-            let still_current = self.arm.as_ref().is_some_and(|arm| {
-                map.interaction_at(arm.column, arm.row)
-                    .is_some_and(|current| current == arm.fingerprint)
-            });
+            let still_current = self
+                .arm
+                .as_ref()
+                .is_some_and(|arm| arm.matches_map(map, arm.column, arm.row));
             if !still_current {
                 self.cancel_arm();
             }

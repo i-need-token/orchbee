@@ -1184,6 +1184,7 @@ fn render_popup(
     )
     .expect("preflighted popup close remains paintable");
     debug_assert_eq!(painted_close, close);
+    hits.record_overlay_dismissal(&target);
     if let Some(terminal) = popup
         .projection
         .and_then(crate::terminal_projection::TerminalProjection::frame)

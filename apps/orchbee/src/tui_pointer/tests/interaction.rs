@@ -72,6 +72,77 @@ fn drive(pointer: &mut PointerState, input: MouseEvent) -> PointerOutcome {
 }
 
 #[test]
+fn settings_backdrop_uses_only_its_painted_close_and_revokes_on_owner_or_geometry_change() {
+    let mut editor = crate::native_settings::Editor::default();
+    let token = editor.open().unwrap();
+    let target = InteractionTarget::SettingsControl {
+        token,
+        control: crate::native_settings::Control::Close,
+    };
+    let map = |registered: bool| {
+        let mut hits = HitMapBuilder::new();
+        hits.start_settings();
+        hits.record(
+            HitLayer::OverlaySurface,
+            Rect::new(10, 5, 30, 10),
+            HitTarget::OverlaySurface,
+        );
+        if registered {
+            hits.record_overlay_dismissal(&target);
+        }
+        hits.record_interaction(
+            HitLayer::Overlay,
+            AREA,
+            AREA,
+            target.clone(),
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease),
+        );
+        hits.finish()
+    };
+    for revoke in 0..5 {
+        let mut pointer = pointer_with(map(true));
+        assert_eq!(
+            pointer.settings_event(event(MouseAction::Press, MouseButton::Left, 2, 2)),
+            PointerOutcome::Handled
+        );
+        assert_eq!(pointer.modal_release_ownership(), ReleaseOwnership::Active);
+        assert_eq!(
+            HitMapBuilder::with_pointer(pointer.projection()).projected_pointer(
+                HitLayer::Overlay,
+                AREA,
+                AREA,
+                &target,
+                InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+            ),
+            ProjectedPointer::Rest
+        );
+        match revoke {
+            0 => pointer.publish(map(true)),
+            1 => pointer.publish(map(false)),
+            2 => pointer.set_host_focus(false),
+            3 => pointer.invalidate_map(),
+            4 => {
+                pointer.settings_event(event(MouseAction::Motion, MouseButton::Left, 20, 8));
+            }
+            _ => unreachable!(),
+        }
+        let result = pointer.settings_event(event(MouseAction::Release, MouseButton::Left, 2, 2));
+        assert_eq!(
+            result,
+            if revoke == 0 {
+                PointerOutcome::Interaction {
+                    target: target.clone(),
+                    contract: PrimaryContract::ActivateOnRelease,
+                }
+            } else {
+                PointerOutcome::InteractionEnded
+            }
+        );
+        assert_eq!(pointer.modal_release_ownership(), ReleaseOwnership::None);
+    }
+}
+
+#[test]
 fn settings_targets_activate_only_through_the_settings_owner() {
     let mut editor = crate::native_settings::Editor::default();
     let token = editor.open().expect("the first Settings open has a token");

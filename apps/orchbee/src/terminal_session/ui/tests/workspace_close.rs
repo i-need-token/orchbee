@@ -112,7 +112,7 @@ pub(in crate::terminal_session) fn submit(
     );
     let token = ui.view().workspace_close_confirmation().unwrap().token();
     ui.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
-    assert!(ui.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(ui.capture_confirmation_key(ClientKey::Enter));
     mailbox.try_recv().unwrap().unwrap()
 }
 fn receipt(operation: &WorkspaceCloseOperation, closed: bool) -> WorkspaceCloseResult {
@@ -161,7 +161,7 @@ fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt()
     refused.after_workspace_close_draw(Some(ModalPresentation::NotPresented));
     assert!(refused.view().workspace_close_confirmation().is_none());
     assert_eq!(refused.view().notice(), None);
-    assert!(!refused.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(!refused.capture_confirmation_key(ClientKey::Enter));
     assert!(refused_mailbox.try_recv().unwrap().is_none());
 
     let (mut suspended, mailbox, _, _) = ready();
@@ -179,7 +179,7 @@ fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt()
     let prompt = suspended.view().workspace_close_confirmation().unwrap();
     assert_eq!(prompt.token(), token);
     assert!(!prompt.interactive());
-    assert!(suspended.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(suspended.capture_confirmation_key(ClientKey::Enter));
     suspended.click_workspace_close(token, true);
     assert!(mailbox.try_recv().unwrap().is_none());
 
@@ -191,7 +191,7 @@ fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt()
             .unwrap()
             .interactive()
     );
-    assert!(suspended.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(suspended.capture_confirmation_key(ClientKey::Enter));
     assert!(mailbox.try_recv().unwrap().is_some());
 }
 
@@ -279,7 +279,7 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
                 ui.view().workspace_close_confirmation().unwrap().label(),
                 target.label
             );
-            ui.capture_confirmation_key(ClientKey::Plain('y'));
+            ui.capture_confirmation_key(ClientKey::Enter);
             assert_eq!(
                 mailbox.cursors(),
                 cursors,
@@ -290,7 +290,7 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
             ui.capture_confirmation_key(if cancel {
                 ClientKey::Escape
             } else {
-                ClientKey::Plain('y')
+                ClientKey::Enter
             });
             if cancel {
                 assert_eq!(mailbox.cursors(), cursors);
@@ -436,11 +436,13 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                     assert!(alnum(&text).contains("项目space界"));
                     let compact = text.replace(' ', "");
                     assert!(
-                        compact.contains(&format!("[{}]", locale.workspace_close_cancel_label()))
+                        compact
+                            .contains(&format!("[{}Esc]", locale.workspace_close_cancel_label()))
                     );
-                    assert!(
-                        compact.contains(&format!("[{}]", locale.workspace_close_confirm_label()))
-                    );
+                    assert!(compact.contains(&format!(
+                        "[{}Enter]",
+                        locale.workspace_close_confirm_label()
+                    )));
                     let focus_width =
                         crate::terminal_text::display_width(theme.glyphs.active_marker).max(1);
                     assert_eq!(
@@ -450,6 +452,7 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                             + crate::terminal_text::display_width(
                                 locale.workspace_close_cancel_label()
                             )
+                            + 2 + 3 // Gap and Esc inside the button.
                             + 3 // The independent header [x] is also a cancel control.
                     );
                     assert_eq!(
@@ -459,8 +462,10 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
                             + crate::terminal_text::display_width(
                                 locale.workspace_close_confirm_label()
                             )
+                            + 2
+                            + 5 // Gap and Enter inside the button.
                     );
-                    ui.capture_confirmation_key(ClientKey::Plain('y'));
+                    ui.capture_confirmation_key(ClientKey::Enter);
                     assert!(
                         matches!(mailbox.try_recv().unwrap().unwrap().record(), QueuedCommand::Refresh(marker) if marker.workspace_close().is_some())
                     );
@@ -618,11 +623,11 @@ fn workspace_close_dispatcher_requires_draw_and_consumes_the_whole_confirmation_
         );
         assert!(ui.view().workspace_close_confirmation().is_some());
         for bytes in [
-            b"y".as_slice(),
+            b"\r".as_slice(),
             b"Y",
-            b"\r",
+            b"y",
             b"\x1bTRAILING",
-            b"\x1b[200~y\x1b[201~",
+            b"\x1b[200~\r\x1b[201~",
         ] {
             dispatch(&mut dispatcher, &mut view, &mut ui, &mut forwarded, bytes);
             assert_eq!(mailbox.cursors(), before);
@@ -634,7 +639,7 @@ fn workspace_close_dispatcher_requires_draw_and_consumes_the_whole_confirmation_
             &mut view,
             &mut ui,
             &mut forwarded,
-            if cancel { b"\x1b" } else { b"yTRAILING\x02N" },
+            if cancel { b"\x1b" } else { b"\rTRAILING\x02N" },
         );
         if cancel {
             dispatcher
@@ -742,10 +747,16 @@ fn project_close_all_dispatcher_confirms_only_drawn_exact_scope_and_consumes_pac
                 .project_member_count(),
             Some(1)
         );
-        dispatch(&mut dispatcher, &mut view, &mut ui, &mut forwarded, b"y");
+        dispatch(&mut dispatcher, &mut view, &mut ui, &mut forwarded, b"\r");
         assert_eq!(mailbox.cursors(), before);
         draw(&mut ui, Locale::EnUs, &Theme::terminal_native(), 120, 40);
-        for bytes in [b"Y".as_slice(), b"\r", b"\x1b[200~y\x1b[201~"] {
+        for bytes in [
+            b"Y".as_slice(),
+            b"y",
+            b"\x1b[13;2u",
+            b"\x1b[13;5u",
+            b"\x1b[200~\r\x1b[201~",
+        ] {
             dispatch(&mut dispatcher, &mut view, &mut ui, &mut forwarded, bytes);
             assert_eq!(mailbox.cursors(), before);
         }
@@ -754,7 +765,7 @@ fn project_close_all_dispatcher_confirms_only_drawn_exact_scope_and_consumes_pac
             &mut view,
             &mut ui,
             &mut forwarded,
-            if cancel { b"\x1b" } else { b"yTRAILING\x02N" },
+            if cancel { b"\x1b" } else { b"\rTRAILING\x02N" },
         );
         if cancel {
             dispatcher

@@ -45,6 +45,7 @@ impl ActionKind {
 pub(crate) struct ActionSpec<'a> {
     label: &'a str,
     pending_label: Option<&'a str>,
+    shortcut: Option<&'a str>,
     kind: ActionKind,
     surface: ControlSurface,
     state: InteractionState,
@@ -61,6 +62,7 @@ impl<'a> ActionSpec<'a> {
         Self {
             label,
             pending_label: None,
+            shortcut: None,
             kind,
             surface,
             state,
@@ -72,6 +74,12 @@ impl<'a> ActionSpec<'a> {
         self.pending_label = Some(label);
         self
     }
+
+    /// Keeps the owner's formatted binding inside the action's fixed extent.
+    pub(crate) const fn with_shortcut(mut self, shortcut: &'a str) -> Self {
+        self.shortcut = Some(shortcut);
+        self
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -79,6 +87,7 @@ struct ActionLayout {
     rect: Rect,
     focus_width: usize,
     label_width: usize,
+    shortcut_width: usize,
     status_width: usize,
 }
 
@@ -132,6 +141,10 @@ pub(crate) fn render_action(
         idle.as_ref()
     };
     let label = pad_to_width(label, layout.label_width);
+    let shortcut = spec.shortcut.map_or_else(String::new, |shortcut| {
+        format!("  {}", sanitize_terminal_text(shortcut))
+    });
+    let shortcut = pad_to_width(&shortcut, layout.shortcut_width);
     let mut label_style = content_style(
         theme,
         spec.surface,
@@ -179,11 +192,24 @@ pub(crate) fn render_action(
         Some(status_role),
         theme.style(status_role),
     );
+    let shortcut_role = if enabled {
+        Role::TextSecondary
+    } else {
+        Role::TextDisabled
+    };
+    let shortcut_style = content_style(
+        theme,
+        spec.surface,
+        interaction,
+        Some(shortcut_role),
+        theme.style(shortcut_role),
+    );
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(focus, focus_style),
             Span::styled("[ ", bracket_style),
             Span::styled(label, label_style),
+            Span::styled(shortcut, shortcut_style),
             Span::styled(" ]", bracket_style),
             Span::styled(status, status_style),
         ])),
@@ -216,6 +242,16 @@ fn resolve_action_layout(
         return None;
     }
     let label_width = idle_width.max(pending_width.unwrap_or(idle_width));
+    let shortcut_width = match spec.shortcut {
+        Some(shortcut) => {
+            let width = display_width(&sanitize_terminal_text(shortcut));
+            if width == 0 {
+                return None;
+            }
+            width.checked_add(2)?
+        }
+        None => 0,
+    };
     let focus_width = display_width(theme.glyphs.active_marker).max(1);
     let status_width = spec
         .pending_label
@@ -224,6 +260,7 @@ fn resolve_action_layout(
     let width = focus_width
         .checked_add(4)?
         .checked_add(label_width)?
+        .checked_add(shortcut_width)?
         .checked_add(status_width)?;
     let width = u16::try_from(width).ok()?;
     if width > area.width {
@@ -237,6 +274,7 @@ fn resolve_action_layout(
         rect,
         focus_width,
         label_width,
+        shortcut_width,
         status_width,
     })
 }

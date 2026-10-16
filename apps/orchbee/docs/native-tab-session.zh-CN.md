@@ -67,7 +67,7 @@ UI flight 身份。下文的 Linux 多 Client Close 到 Empty 进程用例补充
 `Presented` 才准入该 incarnation。缺失或被覆盖的回执会撤销当前 shown 权限，但不判定几何，
 也不丢弃呈现 phase。经过评估的 `NotPresented` 几何结果会拒绝并移除从未成功绘制的新提示，
 在该帧保留本地化放大提示，且不留下不可见输入 owner。首次成功绘制后，相同结果会挂起既有
-提示，同时保留其 token、冻结意图和本地焦点；`y` 与过期鼠标释放均不生效，本地 `Esc` 仍可
+提示，同时保留其 token、冻结意图和本地焦点；`Enter` 与过期鼠标释放均不生效，本地 `Esc` 仍可
 取消，同一 token 稍后完整绘制才恢复。已接受的 Close 或 Resume 工作已独立拥有其操作；隐藏
 或关闭此前的提示不能撤销或取消该工作。
 
@@ -700,9 +700,9 @@ Below / Above / Left / Right 方向提交 `panel.split`——键形遵循 input-
 沿用叶子现有 presentation label，并使用 Client 真实的控制 cell/pixel 几何，绝不伪造尺寸。
 `X` 对焦点叶子武装叶子作用域的 panel 关闭确认
 （[原生 panel 关闭确认](native-panel-close-confirmation.zh-CN.md)）：只有已绘制且仍有效的确认
-才对冻结叶子准入普通 `panel.close`——完整绘制后 `y` 确认、`Esc` 取消——被确认的 close 经普通
+才对冻结叶子准入普通 `panel.close`——完整绘制后 `Enter` 确认、`Esc` 取消——被确认的 close 经普通
 publication 路径提交。关闭 Tab 的末叶会移除整个 Tab——其终端被处置，Tab 对每个已挂接
-Client 结束，与 `x` Tab close 所要确认的后果同等——绘制出的确认在任何 `y` 生效前即指名该
+Client 结束，与 `x` Tab close 所要确认的后果同等——绘制出的确认在任何 `Enter` 生效前即指名该
 影响。`H`、`J`、`K`、`L` 对焦点叶子提交 `panel.move`，以方向邻居作为
 `target_panel_id`——它们是草案 `PANEL` 模式 `h`/`j`/`k`/`l` move 的过渡性顶层替身，因为
 模式结构不在本切片范围内；单个 Panel 或边界处没有方向邻居时在准入前即为本地空操作。

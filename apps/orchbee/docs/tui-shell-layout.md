@@ -35,6 +35,11 @@ action and close painting, and exact pointer projection and publication. Each fe
 its localized content, typed token and `HitTarget`, availability reason, presentation phase, effect,
 and draw receipt. The shared module never imports a feature-specific state or token.
 
+Confirmation `ModalAction` values supply the effective Esc/Enter labels to `ActionSpec`'s
+optional shortcut slot. It measures and paints the subdued key inside the button brackets; these
+confirmations omit the duplicate hint row. Other forms retain their stage-specific footer hints.
+The complete X paint also registers its exact typed dismissal target for backdrop gestures.
+
 All modal geometry, including complete hints, actions, fields, and the fixed three-cell close action,
 must be admitted before `start_modal`, frame mutation, cursor placement, or hit publication. A refused
 surface returns an empty or `NotPresented` receipt with zero frame and hit-map mutation. An admitted

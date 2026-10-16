@@ -232,6 +232,7 @@ pub(crate) enum Notice {
 pub(crate) enum ClientKey {
     ControlB,
     Escape,
+    Enter,
     Plain(char),
     Other,
 }

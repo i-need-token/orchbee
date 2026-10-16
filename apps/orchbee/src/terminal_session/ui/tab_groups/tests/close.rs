@@ -172,7 +172,7 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
             );
             assert_eq!(ui.state.as_ref().unwrap().desired(), original.as_ref());
             // Menu acceptance cannot substitute for the new confirmation's complete draw.
-            ui.capture_confirmation_key(ClientKey::Plain('y'));
+            ui.capture_confirmation_key(ClientKey::Enter);
             assert!(mailbox.try_recv().unwrap().is_none());
             let (screen, _) = draw_themed(
                 &mut ui,
@@ -196,7 +196,7 @@ fn close_set_menu_resumes_the_presented_exact_close_without_navigation_or_set_re
                     ))),
                 "{locale:?} {width}: {screen}"
             );
-            ui.capture_confirmation_key(ClientKey::Plain('y'));
+            ui.capture_confirmation_key(ClientKey::Enter);
             let lease = mailbox.try_recv().unwrap().unwrap();
             let QueuedCommand::Close(operation) = lease.record() else {
                 panic!("existing Close owner")
@@ -442,7 +442,7 @@ fn close_set_keyboard_recovery_addresses_the_presented_background_member() {
         SessionActionDisposition::DismissNavigator
     );
     draw(&mut ui, Locale::EnUs, 120, 40, None);
-    ui.capture_confirmation_key(ClientKey::Plain('y'));
+    ui.capture_confirmation_key(ClientKey::Enter);
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::Close(marker) = lease.record() else {
         panic!("existing Close owner")
@@ -668,7 +668,7 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                         .collect::<Vec<_>>()
                 );
                 // No complete draw yet: the bounded preview does not weaken the token fence.
-                assert!(ui.capture_confirmation_key(ClientKey::Plain('y')));
+                assert!(ui.capture_confirmation_key(ClientKey::Enter));
                 assert!(mailbox.try_recv().unwrap().is_none());
                 let name = format!("{locale:?}-{width}x{height}-close-long-names");
                 let (screen, _) = draw_themed(
@@ -706,7 +706,7 @@ fn close_set_maximum_names_are_bounded_previews_with_full_warning_and_frozen_tar
                     assert!(compact(&screen).contains(&compact(&required)), "{screen}");
                 }
                 assert!(!screen.contains(locale.presentation_notice(false)));
-                assert!(ui.capture_confirmation_key(ClientKey::Plain('y')));
+                assert!(ui.capture_confirmation_key(ClientKey::Enter));
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 let QueuedCommand::Close(operation) = lease.record() else {
                     panic!("Close admission")
@@ -886,7 +886,7 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                         &mut view,
                         &mut ui,
                         &mut forwarded,
-                        b"yTRAILING\x02N",
+                        b"\rTRAILING\x02N",
                     );
                     let lease = mailbox.try_recv().unwrap().unwrap();
                     let QueuedCommand::Close(operation) = lease.record() else {
@@ -949,7 +949,7 @@ fn close_set_prompt_cancel_resize_and_small_suspension_never_submit() {
                 if action == "cancel" {
                     b"\x1b"
                 } else {
-                    b"yTAIL"
+                    b"\rTAIL"
                 },
             );
             if action == "cancel" {

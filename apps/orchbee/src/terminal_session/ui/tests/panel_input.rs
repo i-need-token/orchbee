@@ -348,13 +348,13 @@ fn close_panel_request_queues_no_command_before_a_drawn_confirmation() {
     );
 
     // A decision key before any matching draw receipt executes nothing.
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(panel_confirmation_drawn(&ui));
     assert!(mailbox.try_recv().unwrap().is_none());
 
     // A receipt that carried no panel prompt token is not a drawn prompt.
     ui.after_close_draw(NativeDrawReceipt::default());
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(panel_confirmation_drawn(&ui));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
@@ -398,7 +398,7 @@ fn lowercase_n_does_not_cancel_a_drawn_tab_close_confirmation() {
 }
 
 #[test]
-fn drawn_panel_close_confirmation_and_lowercase_y_queue_exactly_one_panel_close() {
+fn drawn_panel_close_confirmation_and_enter_queues_exactly_one_panel_close() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
@@ -428,7 +428,7 @@ fn drawn_panel_close_confirmation_and_lowercase_y_queue_exactly_one_panel_close(
             .dissolves_tab()
     );
     draw_panel_prompt(&mut ui);
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
 
     assert!(!panel_confirmation_drawn(&ui));
     let lease = mailbox.try_recv().unwrap().expect("panel command queued");
@@ -475,7 +475,7 @@ fn split_leaf_panel_close_discloses_a_non_dissolving_impact() {
         "closing one of two leaves keeps the Tab alive"
     );
     draw_panel_prompt(&mut ui);
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     let lease = mailbox.try_recv().unwrap().expect("panel command queued");
     let QueuedCommand::Panel(marker) = lease.record() else {
         panic!("one Panel marker");
@@ -497,7 +497,16 @@ fn panel_close_confirmation_swallows_non_decision_keys_and_the_cancel_packet_tai
 
     // Uppercase Y, lowercase n/N, ordinary keys, and prefix bytes are
     // non-decisions that the armed confirmation swallows.
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"YnNq\x02X\x02x");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"yYnNq\x02X\x02x");
+    for nondecision in [
+        b"\x1b[13;2u".as_slice(),
+        b"\x1b[13;5u",
+        b"\x1b[200~\r\x1b[201~",
+    ] {
+        dispatch(&mut dispatcher, &mut view, &mut ui, nondecision);
+        assert!(panel_confirmation_drawn(&ui));
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
     assert!(panel_confirmation_drawn(&ui));
     assert!(!confirmation_drawn(&ui));
     assert!(!view.prefix_active());
@@ -530,9 +539,9 @@ fn resize_invalidation_blocks_a_drawn_panel_close_until_redrawn() {
     );
     draw_panel_prompt(&mut ui);
 
-    // Resize drops the draw receipt; y must not execute against it.
+    // Resize drops the draw receipt; Enter must not execute against it.
     ui.invalidate_close_display();
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(panel_confirmation_drawn(&ui));
     assert!(mailbox.try_recv().unwrap().is_none());
 
@@ -561,7 +570,7 @@ fn retired_session_drops_the_panel_close_confirmation() {
     draw_panel_prompt(&mut ui);
     ui.state.as_mut().unwrap().retire(CarrierFailure::Closed);
     assert!(!panel_confirmation_drawn(&ui));
-    assert!(!ui.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(!ui.capture_confirmation_key(ClientKey::Enter));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
@@ -580,7 +589,7 @@ fn carrier_retirement_drops_the_drawn_panel_close_confirmation() {
         !panel_confirmation_drawn(&ui),
         "carrier retirement drops the armed confirmation outright"
     );
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(!panel_confirmation_drawn(&ui));
 }
 
@@ -609,11 +618,11 @@ fn read_only_attachment_admits_panel_operations_while_terminal_input_stays_gated
             assert_eq!(disposition, SessionActionDisposition::DismissNavigator);
             if matches!(action, ClientAction::ClosePanel) {
                 // Close arms a confirmation; only a drawn prompt plus the exact
-                // lowercase y queues the close.
+                // unmodified Enter queues the close.
                 assert!(mailbox.try_recv().unwrap().is_none());
                 assert!(panel_confirmation_drawn(&ui));
                 draw_panel_prompt(&mut ui);
-                assert!(ui.capture_confirmation_key(ClientKey::Plain('y')));
+                assert!(ui.capture_confirmation_key(ClientKey::Enter));
             }
             let Some(lease) = mailbox.try_recv().unwrap() else {
                 panic!("panel command queued for {action:?}");
@@ -667,7 +676,7 @@ fn drifted_panel_close_target_settles_cancelled_before_the_next_key() {
         },
     );
     state.apply_prepared_refresh(prepared, std::time::Instant::now());
-    assert!(ui.capture_panel_confirmation_key(token, ClientKey::Plain('y')));
+    assert!(ui.capture_panel_confirmation_key(token, ClientKey::Enter));
     assert!(!panel_confirmation_drawn(&ui));
     assert_eq!(
         ui.view().notice(),
@@ -722,7 +731,7 @@ fn first_unpresentable_panel_close_draw_is_refused() {
         "a first draw that cannot present the prompt refuses the capture"
     );
     assert_eq!(ui.view().notice(), None);
-    assert!(!ui.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(!ui.capture_confirmation_key(ClientKey::Enter));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
@@ -744,25 +753,25 @@ fn presented_panel_close_suspends_hidden_input_and_resumes_with_the_same_token()
     assert_eq!(suspended.token(), token);
     assert!(!suspended.interactive());
     ui.click_panel_close(token, true);
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(mailbox.try_recv().unwrap().is_none());
 
     ui.after_close_draw(
         NativeDrawReceipt::default().with_panel_close(Some(ModalPresentation::Presented(token))),
     );
     assert!(ui.view().panel_close_confirmation().unwrap().interactive());
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(mailbox.try_recv().unwrap().is_some());
 }
 
-/// Arming and deciding inside one input packet can never execute: the `y`
+/// Arming and deciding inside one input packet can never execute: Enter
 /// arrives while the confirmation has no drawn receipt yet.
 #[test]
 fn panel_close_arm_and_decision_in_one_packet_cannot_execute() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x02Xy");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\x02X\r");
     assert!(
         panel_confirmation_drawn(&ui),
         "the y lands before any draw and stays a swallowed non-decision"
@@ -790,7 +799,7 @@ fn drifted_close_target_settles_cancelled_before_the_next_key() {
         },
     );
     state.apply_prepared_refresh(prepared, std::time::Instant::now());
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(!confirmation_drawn(&ui));
     assert_eq!(
         ui.view().notice(),
@@ -813,7 +822,7 @@ fn first_unpresentable_close_draw_is_refused() {
     ));
     assert!(!confirmation_drawn(&ui));
     assert_eq!(ui.view().notice(), None);
-    assert!(!ui.capture_confirmation_key(ClientKey::Plain('y')));
+    assert!(!ui.capture_confirmation_key(ClientKey::Enter));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
@@ -839,7 +848,7 @@ fn presented_tab_close_suspends_hidden_input_and_resumes_with_the_same_token() {
     assert_eq!(suspended.token(), token);
     assert!(!suspended.interactive());
     ui.click_tab_close(token, true);
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(mailbox.try_recv().unwrap().is_none());
 
     ui.after_close_draw(NativeDrawReceipt::new(
@@ -847,7 +856,7 @@ fn presented_tab_close_suspends_hidden_input_and_resumes_with_the_same_token() {
         None,
     ));
     assert!(ui.view().close_confirmation().unwrap().interactive());
-    dispatch(&mut dispatcher, &mut view, &mut ui, b"y");
+    dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
     assert!(mailbox.try_recv().unwrap().is_some());
 }
 

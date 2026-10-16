@@ -241,6 +241,7 @@ impl ProjectionState {
 
 pub(super) struct PaintedPress {
     fingerprint: Fingerprint,
+    backdrop: bool,
     column: u16,
     row: u16,
     cancelled: bool,
@@ -261,7 +262,7 @@ impl PaintedPress {
         !self.cancelled
     }
     fn active_fingerprint(&self) -> Option<Fingerprint> {
-        if self.active() {
+        if self.active() && !self.backdrop {
             Some(self.fingerprint.clone())
         } else {
             None
@@ -279,7 +280,31 @@ impl PaintedPress {
     }
 
     pub(super) fn exposed_in(&self, map: &FrameHitMap) -> bool {
-        map.modal_fingerprint_at(self.column, self.row).as_ref() == Some(&self.fingerprint)
+        self.matches_map(map, self.column, self.row)
+    }
+
+    fn matches_map(&self, map: &FrameHitMap, column: u16, row: u16) -> bool {
+        let current = if self.backdrop {
+            map.modal_backdrop_fingerprint_at(column, row)
+        } else {
+            map.modal_fingerprint_at(column, row)
+        };
+        current.as_ref() == Some(&self.fingerprint)
+    }
+}
+
+impl FrameHitMap {
+    fn modal_backdrop_fingerprint_at(&self, column: u16, row: u16) -> Option<Fingerprint> {
+        if !matches!(self.hit(column, row), HitResolution::OverlayBackdrop) {
+            return None;
+        }
+        let target = self.backdrop_dismissal.as_ref()?;
+        let region = self
+            .regions
+            .iter()
+            .find(|region| region.layer == HitLayer::Overlay && &region.target == target)?;
+        self.modal_fingerprint_for_region(region)
+            .filter(Fingerprint::enabled)
     }
 }
 
@@ -339,12 +364,9 @@ fn control_event(
             pending.cancel();
         }
         if event.action == MouseAction::Motion {
-            let current = map.and_then(|map| map.modal_fingerprint_at(event.column, event.row));
             pending.column = event.column;
             pending.row = event.row;
-            if current.as_ref() != Some(&pending.fingerprint)
-                || !super::contains(pending.fingerprint.area, event.column, event.row)
-            {
+            if !map.is_some_and(|map| pending.matches_map(map, event.column, event.row)) {
                 // Leaving this exact painted target ends the click intent.
                 // Moving back cannot re-arm it without a new press.
                 pending.cancel();
@@ -358,13 +380,9 @@ fn control_event(
                 let Some(pending) = press.take() else {
                     return ControlEvent::Ignored;
                 };
-                let current = map
-                    .and_then(|map| map.modal_fingerprint_at(event.column, event.row))
-                    .as_ref()
-                    == Some(&pending.fingerprint);
-                let admitted = !pending.cancelled
-                    && current
-                    && super::contains(pending.fingerprint.area, event.column, event.row);
+                let current =
+                    map.is_some_and(|map| pending.matches_map(map, event.column, event.row));
+                let admitted = !pending.cancelled && current;
                 return ControlEvent::Released(admitted.then_some(pending.fingerprint.target));
             }
         }
@@ -382,8 +400,13 @@ fn control_event(
     let Some(map) = map else {
         return ControlEvent::Ignored;
     };
+    let backdrop = matches!(
+        map.hit(event.column, event.row),
+        HitResolution::OverlayBackdrop
+    );
     let Some(fingerprint) = map
         .modal_fingerprint_at(event.column, event.row)
+        .or_else(|| map.modal_backdrop_fingerprint_at(event.column, event.row))
         .filter(Fingerprint::enabled)
         .filter(|fingerprint| accepts(&fingerprint.target))
     else {
@@ -391,6 +414,7 @@ fn control_event(
     };
     *press = Some(PaintedPress {
         fingerprint,
+        backdrop,
         column: event.column,
         row: event.row,
         cancelled: false,
@@ -653,7 +677,7 @@ impl PointerState {
         event: MouseEvent,
     ) -> Option<bool> {
         self.observe_modal_motion(event, accepts_confirmation);
-        let admit_new = self.can_admit_modal_press();
+        let admit_new = !self.host_unfocused && self.can_admit_modal_press();
         match control_event(
             self.map.as_ref(),
             self.capture,
@@ -699,7 +723,7 @@ impl PointerState {
             self.cancel_list_scroll();
         }
         self.observe_modal_motion(event, accepts_modal);
-        let admit_new = self.can_admit_modal_press();
+        let admit_new = !self.host_unfocused && self.can_admit_modal_press();
         let result = control_event(
             self.map.as_ref(),
             self.capture,

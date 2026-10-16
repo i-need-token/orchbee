@@ -285,26 +285,26 @@ Windows 原生启动与 ConPTY 流程证据见上文。尚不承诺发布性能�
 原生 Session 呈现当前上下文的有序 Tab 和 canonical 标签。每个 Client 独立拥有活动选择、
 navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication 探测可见，显式刷新仍可用。以下操作沿用 `Ctrl+B` 前缀：
 
-| 按键                   | 已连接原生行为                                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `c`                    | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。                                                                           |
-| `n` / `p`              | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                                                                                  |
-| `1` … `9`              | 该位置存在时选择它。                                                                                                                |
-| `[` / `]`              | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。                                                                       |
-| `Shift+N`              | Windows 上使用默认名称和目录创建未分组 Workspace 及首个 shell，然后进入它。                                                         |
-| `a`                    | 使用同一一步创建 Workspace 流程。                                                                                                   |
-| `e`                    | 配置当前尚未配置且为空的 Workspace 的首个目录。                                                                                     |
-| `r` / `R`              | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。                                                                  |
-| `<` / `>`              | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                                                                                      |
-| `,`                    | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。                                                                 |
-| `x`                    | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。                                                                               |
-| `w`                    | 打开 navigator 并刷新共享 Tab，保留活动终端身份。Windows 中用方向键／Tab 选择，Enter 打开，Esc 返回终端。                           |
-| `h` / `j` / `k` / `l`  | 当前 Tab 有分屏树时，将本地焦点移到相邻 Panel。                                                                                     |
-| `-` / `_` / `\` / `\|` | 将焦点 Panel 向下 / 向上 / 向左 / 向右分屏出第二个叶子（临时键位）。                                                                |
-| `X`                    | 为焦点 Panel 叶子请求关闭确认——确认完整绘制后 `y` 确认关闭，`Esc` 取消；末叶会指名整个 Tab 对所有已挂接 Client 的影响（临时键位）。 |
-| `H` / `J` / `K` / `L`  | 将焦点 Panel 叶子移向其方向邻居（临时键位）。                                                                                       |
-| `P`                    | Windows 上进入[键盘调整模式](docs/native-keyboard-resize.zh-CN.md)：方向键移动分隔线 5%，Shift+方向键 1%，Esc 退出。                |
-| `q` / `d`              | 关闭此 Client，保留的执行继续运行。                                                                                                 |
+| 按键                   | 已连接原生行为                                                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `c`                    | 请求一次 Server 拥有的 Tab 创建，再选择已验证的提交成员。                                                                               |
+| `n` / `p`              | 在当前 Client snapshot 中选择下一个 / 上一个 Tab。                                                                                      |
+| `1` … `9`              | 该位置存在时选择它。                                                                                                                    |
+| `[` / `]`              | 按 Server 导航顺序选择上一个 / 下一个独立上下文或 Workspace。                                                                           |
+| `Shift+N`              | Windows 上使用默认名称和目录创建未分组 Workspace 及首个 shell，然后进入它。                                                             |
+| `a`                    | 使用同一一步创建 Workspace 流程。                                                                                                       |
+| `e`                    | 配置当前尚未配置且为空的 Workspace 的首个目录。                                                                                         |
+| `r` / `R`              | 重命名当前 Workspace / 其所属 Project；standalone 没有这两种目标。                                                                      |
+| `<` / `>`              | 将活动 Tab 移到相邻项之前 / 之后，在两端循环。                                                                                          |
+| `,`                    | 编辑所选 Tab 的共享 label；首次完整绘制后 Enter 提交，Escape 取消。                                                                     |
+| `x`                    | 确认关闭所选 Tab 对所有已连接 Client 的执行，或取消。                                                                                   |
+| `w`                    | 打开 navigator 并刷新共享 Tab，保留活动终端身份。Windows 中用方向键／Tab 选择，Enter 打开，Esc 返回终端。                               |
+| `h` / `j` / `k` / `l`  | 当前 Tab 有分屏树时，将本地焦点移到相邻 Panel。                                                                                         |
+| `-` / `_` / `\` / `\|` | 将焦点 Panel 向下 / 向上 / 向左 / 向右分屏出第二个叶子（临时键位）。                                                                    |
+| `X`                    | 为焦点 Panel 叶子请求关闭确认——确认完整绘制后 `Enter` 确认关闭，`Esc` 取消；末叶会指名整个 Tab 对所有已挂接 Client 的影响（临时键位）。 |
+| `H` / `J` / `K` / `L`  | 将焦点 Panel 叶子移向其方向邻居（临时键位）。                                                                                           |
+| `P`                    | Windows 上进入[键盘调整模式](docs/native-keyboard-resize.zh-CN.md)：方向键移动分隔线 5%，Shift+方向键 1%，Esc 退出。                    |
+| `q` / `d`              | 关闭此 Client，保留的执行继续运行。                                                                                                     |
 
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
 Workspace 身份独立于可选的 Project。侧边栏将 Agent 直接列在各 Workspace 下，支持同时
@@ -329,7 +329,7 @@ Workspace 移动提供已有 Project、不属于 Project、以及原子的新建
 关闭全部 Workspace 是需要明确确认的独立操作。
 
 `Ctrl+B Shift+D` 打开 Windows [工作区关闭确认](docs/native-workspace-close.zh-CN.md)。
-完整绘制后，小写 `y` 只结束该 Workspace 的终端，影响所有 Client；Esc 取消。
+完整绘制后，无修饰的 `Enter` 只结束该 Workspace 的终端，影响所有 Client；Esc 取消。
 Git 目录保留，规范移除后此 Client 回到 Standalone。
 [位置标签](docs/native-location-labels.zh-CN.md) 使用预填编辑器与共享 Server 命令；
 重命名保留运行中终端，peer 通过 publication 探测或显式刷新看到变化。
@@ -365,7 +365,7 @@ Close 要求独立生命周期授权，只读 Client 也适用。关闭最后一
 叶子为作用域并经普通 publication 路径提交，move 将叶子重定位到其方向邻居旁。关闭 Tab 的末叶
 会移除整个 Tab——其终端执行被处置，Tab 对每个已挂接 Client 结束，与显式 `x` Tab close 警告的
 后果相同——而临时 `X` 键位只能经由已绘制的 [panel 关闭确认](docs/native-panel-close-confirmation.zh-CN.md)
-到达该 close：确认指名被冻结的叶及其影响后，才由精确的 `y` 准入。Panel 命令是在 Server `WorkbenchGrant` 能力下准入的 Workbench 变更——split 需要
+到达该 close：确认指名被冻结的叶及其影响后，才由无修饰的 `Enter` 准入。Panel 命令是在 Server `WorkbenchGrant` 能力下准入的 Workbench 变更——split 需要
 `mutate_navigation` 与 `create_terminal`，move 需要 `mutate_navigation`，close 需要
 `close_terminal`（[Workbench authority](../orchbee-server/docs/workbench-authority.zh-CN.md)）——
 该层独立于终端侧控制：viewer 附件既不授予 input 也不授予 resize 权威——其

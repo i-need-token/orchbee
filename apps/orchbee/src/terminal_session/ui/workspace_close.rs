@@ -123,7 +123,7 @@ impl NativeUi {
             return true;
         }
         match key {
-            ClientKey::Plain('y') => {
+            ClientKey::Enter => {
                 if let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now())
                     && let (Some(mailbox), Some(state)) =
                         (self.mailbox.as_ref(), self.state.as_mut())
@@ -151,7 +151,7 @@ impl NativeUi {
             self.capture_workspace_close_key(
                 token,
                 if confirm {
-                    ClientKey::Plain('y')
+                    ClientKey::Enter
                 } else {
                     ClientKey::Escape
                 },

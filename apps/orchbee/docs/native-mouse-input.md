@@ -31,6 +31,14 @@ link decoration remain separate decisions.
 
 Mouse and keyboard enter the same native state owners. Visible bracketed controls and complete rows have exact hit rectangles; disabled, clipped or covered cells cannot activate an underlying target. Local navigation may act on press. Native form, menu, settings, copy, resize and Agent-board buttons wait for a matching plain-left release with the same painted token and rectangle. Keyboard input, focus loss, capture release and changed drawing authority revoke that press. A decision owns its packet tail and late release, then fresh input returns to the retained terminal focus.
 
+Confirmation, rename/setup/worktree forms, Settings, the Machine picker and plugin popups
+register the exact painted X target for outside-backdrop dismissal. A plain-left press and matching
+release must remain outside the same completely painted surface; entering its body, a new token,
+map invalidation or focus loss cancels the intent. Wheel and modified reports are inert there.
+Closing follows the existing X owner, preserving accepted submissions and their recovery; no
+underlying pane, control or shell receives the gesture or its decision-packet tail. Existing menu,
+Help, navigator and Agent board backdrop routes retain their local return policy.
+
 `tui_composition::project_capture` is the one authority for exclusive paint, input, and notification
 admission. Machine capture covers native exclusive surfaces; their existing order covers Copy,
 which covers Resize. Claims describe retained capture intent rather than proof that a surface was

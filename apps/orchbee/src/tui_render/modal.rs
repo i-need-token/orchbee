@@ -42,6 +42,7 @@ pub(super) struct ModalAction<'a> {
     label: &'a str,
     kind: super::controls::ActionKind,
     enabled: bool,
+    shortcut: Option<&'a str>,
 }
 
 impl<'a> ModalAction<'a> {
@@ -54,7 +55,13 @@ impl<'a> ModalAction<'a> {
             label,
             kind,
             enabled,
+            shortcut: None,
         }
+    }
+
+    pub(super) const fn with_shortcut(mut self, shortcut: &'a str) -> Self {
+        self.shortcut = Some(shortcut);
+        self
     }
 
     pub(super) const fn availability(self) -> InteractionAvailability {
@@ -73,7 +80,7 @@ impl<'a> ModalAction<'a> {
             Availability, CheckedState, ControlSurface, CurrentState, FocusState, InteractionState,
             NavigationState, OperationState,
         };
-        super::controls::ActionSpec::new(
+        let spec = super::controls::ActionSpec::new(
             self.label,
             self.kind,
             ControlSurface::Overlay,
@@ -90,7 +97,9 @@ impl<'a> ModalAction<'a> {
                 },
                 OperationState::Idle,
             ),
-        )
+        );
+        self.shortcut
+            .map_or(spec, |shortcut| spec.with_shortcut(shortcut))
     }
 }
 
@@ -161,6 +170,7 @@ pub(super) fn paint_modal_close(
         painted, rect,
         "modal close paint must match its admitted extent"
     );
+    hits.record_modal_dismissal(target.clone());
     hits.record_modal_control(HitLayer::Overlay, rect, target, availability);
     rect
 }
@@ -182,8 +192,14 @@ pub(super) fn modal_layout(
     actions: [ModalAction<'_>; 2],
     theme: &Theme,
 ) -> Option<ModalLayout> {
-    let hint_width = super::controls::measure_key_hints(hints, theme)?;
-    let first_hint_width = super::controls::measure_key_hints(hints.get(..1)?, theme)?;
+    let (hint_width, first_hint_width) = if hints.is_empty() {
+        (0, 0)
+    } else {
+        (
+            super::controls::measure_key_hints(hints, theme)?,
+            super::controls::measure_key_hints(&hints[..1], theme)?,
+        )
+    };
     let action_widths = actions.map(|action| {
         super::controls::action_rect(
             Rect::new(0, 0, u16::MAX, 1),

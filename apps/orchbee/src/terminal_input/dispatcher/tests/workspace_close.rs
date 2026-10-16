@@ -99,6 +99,51 @@ fn close_mouse_decision_captures_its_whole_packet_and_split_tail_frame() {
 }
 
 #[test]
+fn backdrop_cancel_owns_split_mouse_decision_and_tail_before_shell_input_resumes() {
+    let bytes = b"\x1b[<0;2;2M\x1b[<0;2;2mtail\x02x";
+    let release_end = b"\x1b[<0;2;2M\x1b[<0;2;2m".len();
+    for split in 0..release_end {
+        let mut port = ClosePort {
+            active: true,
+            decisions: vec![],
+            forwarded: vec![],
+        };
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        publish_close_control(&mut dispatcher, &mut view, &mut port, false);
+        let mut hits = HitMapBuilder::new();
+        hits.start_modal();
+        hits.record(
+            HitLayer::OverlaySurface,
+            Rect::new(10, 5, 30, 10),
+            HitTarget::OverlaySurface,
+        );
+        let target = HitTarget::WorkspaceClose {
+            token: WorkspaceCloseToken::for_test(1),
+            confirm: false,
+        };
+        hits.record_modal_dismissal(target.clone());
+        hits.record_modal_control(
+            HitLayer::Overlay,
+            Rect::new(36, 5, 3, 1),
+            target,
+            crate::tui_pointer::InteractionAvailability::Enabled,
+        );
+        dispatcher.publish_hit_map(hits.finish());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, &bytes[..split]);
+        // Keep the tail in the release's physical packet. A later independent
+        // packet is ordinary input, not indefinitely captured modal history.
+        dispatch_all(&mut dispatcher, &mut view, &mut port, &bytes[split..]);
+        assert_eq!(port.decisions, [false], "split {split}");
+        assert!(port.forwarded.is_empty(), "split {split}");
+        assert!(!view.prefix_active());
+        port.forwarded.clear();
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"next");
+        assert_eq!(port.forwarded, b"next");
+    }
+}
+
+#[test]
 fn split_close_mouse_press_and_release_use_the_same_painted_control() {
     let bytes = b"\x1b[<0;12;6M\x1b[<0;12;6m";
     for split in 0..=bytes.len() {

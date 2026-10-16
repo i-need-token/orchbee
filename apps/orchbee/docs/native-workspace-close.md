@@ -3,7 +3,7 @@
 ## Scope and user outcome
 
 The Windows TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`), followed by the
-exact lowercase `y`; `Esc` cancels. The complete confirmation names the Workspace and explains
+unmodified `Enter`; `Esc` cancels. The complete confirmation names the Workspace and explains
 that its terminals end for every Client while Git branches and checkouts remain. Project grouping,
 shared directories and worktree relationships never expand this scope. Ungrouped Workspaces are
 valid targets; Standalone is not.
@@ -15,7 +15,9 @@ canonical removal and Standalone fallback; opening Close from Standalone may tar
 
 The visible cancel and close buttons support a left-button click. A matching press and release
 must still identify the same completely painted confirmation; releasing outside, modifiers or a stale
-paint cannot authorize closure. Keyboard and mouse use the same submission guard.
+paint cannot authorize closure. Keyboard and mouse use the same submission guard. Esc and Enter hints sit inside their
+buttons in subordinate text. A matching plain-left click on the outside backdrop cancels through
+the same exact painted X target, without selecting or sending input to the terminal underneath.
 
 The Project menu exposes a separate close-all operation for its exact Project ID. Its confirmation
 names the Project, shows its Workspace count, and explains that all member Workspaces and their
@@ -41,11 +43,11 @@ Pending and Unknown permit observation only.
 | Submission and observation evidence                       | Carrier retains typed admission and observations before another read or UI wait; mailbox and joined-worker handoff preserve them                                                                         |
 | Selection and Viewer cleanup                              | Existing context-removal and membership owners consume canonical snapshots and exact attachment identities                                                                                               |
 
-The existing confirmation packet owner decodes keys. Modified keys, uppercase `Y`, Enter, paste
+The existing confirmation packet owner decodes keys. Modified keys, `y`/`Y`, paste
 and trailing bytes never confirm or reach the terminal. Missing or incomplete draw evidence cannot
 submit. Before the first complete presentation, an evaluated geometry block refuses the new prompt
 and leaves the localized resize fallback visible. After presentation, the same block suspends the
-existing prompt while retaining its token, frozen source and focus: `y` and stale pointer releases
+existing prompt while retaining its token, frozen source and focus: `Enter` and stale pointer releases
 are inert, local `Esc` still cancels, and a later complete draw of the same token restores it. A
 missing receipt only revokes shown authority; it does not classify geometry or discard the prompt.
 A source revision, membership or selection change invalidates the prompt. The addressed
@@ -66,23 +68,23 @@ Workspace status and observed Project results. Ordinary admission retains the Se
 `close_request_id`, context and accepted revision even before the first status read succeeds.
 Project evidence preserves frozen member order and every known child Close identity.
 
-| State/event                            | Guard and output                                                                                                                                    |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Open                                   | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                               |
-| Draw                                   | Complete content at admitted geometry; acknowledge only its token                                                                                   |
-| Geometry block before first draw       | Refuse and remove the new prompt without allocating a Close request or reporting user cancellation                                                  |
-| Geometry block after a successful draw | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again             |
-| Missing or covered draw receipt        | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                |
-| Esc or stale source                    | Cancel without allocating or submitting a Close request                                                                                             |
-| Exact `y` or valid close-button click  | Same fully drawn source; atomically allocate and queue one typed operation                                                                          |
-| Execute                                | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                           |
-| Definitely unsent or admission refusal | Retain evidence without an admission claim or automatic retry                                                                                       |
-| Workspace accepted or observed Pending | Retain admission before the first read; poll the same canonical operation with read-only requests                                                   |
-| Project accepted or observed Pending   | Retain the group receipt and known child identities before read-only polling                                                                        |
-| Closed                                 | Retain Closed before reading a canonical snapshot; preserve a surviving origin, or use existing cleanup and Standalone fallback when it was removed |
-| Failed, unavailable read or deadline   | Preserve admission and all known observations; show the scope's executable status command                                                           |
-| Worker exit or transport loss          | Preserve receipt or unknown submission identity through mailbox/join handoff; never replay effects or infer Closed                                  |
-| Client exit after submission           | End local waiting; the Server-owned operation may continue                                                                                          |
+| State/event                                    | Guard and output                                                                                                                                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open                                           | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                               |
+| Draw                                           | Complete content at admitted geometry; acknowledge only its token                                                                                   |
+| Geometry block before first draw               | Refuse and remove the new prompt without allocating a Close request or reporting user cancellation                                                  |
+| Geometry block after a successful draw         | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again             |
+| Missing or covered draw receipt                | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                |
+| Esc or stale source                            | Cancel without allocating or submitting a Close request                                                                                             |
+| Unmodified `Enter` or valid close-button click | Same fully drawn source; atomically allocate and queue one typed operation                                                                          |
+| Execute                                        | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                           |
+| Definitely unsent or admission refusal         | Retain evidence without an admission claim or automatic retry                                                                                       |
+| Workspace accepted or observed Pending         | Retain admission before the first read; poll the same canonical operation with read-only requests                                                   |
+| Project accepted or observed Pending           | Retain the group receipt and known child identities before read-only polling                                                                        |
+| Closed                                         | Retain Closed before reading a canonical snapshot; preserve a surviving origin, or use existing cleanup and Standalone fallback when it was removed |
+| Failed, unavailable read or deadline           | Preserve admission and all known observations; show the scope's executable status command                                                           |
+| Worker exit or transport loss                  | Preserve receipt or unknown submission identity through mailbox/join handoff; never replay effects or infer Closed                                  |
+| Client exit after submission                   | End local waiting; the Server-owned operation may continue                                                                                          |
 
 Every observation must match its operation, Workspace/context or Project scope. Attempt generations,
 known members, child identities, disposal and Closed results cannot regress. Observed OutcomeUnknown

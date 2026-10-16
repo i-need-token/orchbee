@@ -2,7 +2,7 @@
 
 ## 范围与用户结果
 
-Windows TUI 通过 `Ctrl+B D`（`Shift+D`）仅关闭当前 Workspace，再按确切小写 `y` 确认；
+Windows TUI 通过 `Ctrl+B D`（`Shift+D`）仅关闭当前 Workspace，再按无修饰的 `Enter` 确认；
 `Esc` 取消。完整确认框显示 Workspace 名称，说明其终端会对所有 Client 结束，同时保留
 Git 分支和检出目录。Project 分组、共享目录及 worktree 关系均不会扩大关闭范围。
 未分组的 Workspace 是有效目标；Standalone 不是。
@@ -13,7 +13,8 @@ Workspace 时仍使用既有规范移除和 Standalone 回退。从 Standalone �
 某个 Workspace 为目标。
 
 可见的取消和关闭按钮支持鼠标左键点击。按下与释放必须仍指向同一个已完整绘制的确认；
-在按钮外释放、修饰键或过期绘制均不能授权关闭。键盘与鼠标使用同一个提交门禁。
+在按钮外释放、修饰键或过期绘制均不能授权关闭。键盘与鼠标使用同一个提交门禁。Esc 与 Enter 提示以次级文字放在对应按钮内。
+在外侧蒙层上匹配的普通左键点击复用精确的已绘制 X 目标取消，不会选中底层终端或向其发送输入。
 
 Project 菜单提供针对确切 Project ID 的独立全部关闭操作。确认框显示 Project 名称及
 Workspace 数量，说明全部成员 Workspace 及其终端会对所有 Client 关闭。Server 在准入时
@@ -38,10 +39,10 @@ CLI Resume；Pending 和 Unknown 仅允许观察。
 | 提交与观察证据                               | Carrier 在下次 read 或 UI wait 前保留带类型的准入及观察；mailbox 和已 join worker 的交接保留这些事实                                                                |
 | 选择与 Viewer 清理                           | 既有 context-removal 与 membership 所有者消费规范 snapshot 和确切 attachment 身份                                                                                   |
 
-既有确认 packet 所有者解码按键。带修饰键、大写 `Y`、Enter、粘贴和尾随字节均不能确认，
+既有确认 packet 所有者解码按键。带修饰键、`y`/`Y`、粘贴和尾随字节均不能确认，
 也不能到达终端。缺失或不完整的绘制证据不能提交。首次完整呈现之前，经过评估的几何阻塞会
 拒绝新提示，并保留本地化放大提示。成功呈现之后，相同阻塞会挂起既有提示并保留其 token、
-冻结来源与焦点：`y` 和过期鼠标释放不生效，本地 `Esc` 仍可取消，同一 token 随后完整绘制
+冻结来源与焦点：`Enter` 和过期鼠标释放不生效，本地 `Esc` 仍可取消，同一 token 随后完整绘制
 时恢复。缺失回执只撤销 shown 权限，不判定几何，也不丢弃提示。来源 revision、成员或选择
 变化会使确认失效。指定 Workspace 必须仍指向已捕获的确切终端 Context；即使当前 Context 和
 revision 未变化，目标消失或身份替换仍会使确认失效。交付前，新 snapshot 必须等于
@@ -58,23 +59,23 @@ revision 未变化，目标消失或身份替换仍会使确认失效。交付�
 `close_request_id`、context 和 accepted revision。Project 证据保留冻结成员顺序和
 每个已知 child Close 身份。
 
-| 状态/事件                        | 守卫与输出                                                                                  |
-| -------------------------------- | ------------------------------------------------------------------------------------------- |
-| 打开                             | 结构所有者空闲；冻结当前或指定 Workspace，或显式指定的 Project，不移动焦点                  |
-| 绘制                             | 准入几何下内容完整；仅认可其 token                                                          |
-| 首次绘制前几何阻塞               | 拒绝并移除新提示，不分配 Close 请求，也不报告为用户取消                                     |
-| 成功绘制后几何阻塞               | 挂起同一 token、冻结来源与焦点；撤销提交和鼠标权限，直到同一 token 再次完整呈现             |
-| 缺失或被覆盖的绘制回执           | 只撤销确切 shown 权限；保留 presentation phase 与冻结提示                                   |
-| Esc 或来源过期                   | 取消，不分配或提交 Close 请求                                                               |
-| 确切 `y` 或有效关闭按钮点击      | 同一个已完整绘制的来源；原子分配并排队一个带类型操作                                        |
-| 执行                             | 活 lease 和原始 forward cutoff；新来源证明先于一次普通命令或 Project Start                  |
-| 确定未提交或准入拒绝             | 保留证据，不声称已准入，也不自动重试                                                        |
-| Workspace 已接受或已观察 Pending | 首次读取前保留准入；用只读请求轮询同一个规范操作                                            |
-| Project 已接受或已观察 Pending   | 只读轮询前保留组回执和已知 child 身份                                                       |
-| Closed                           | 读取规范 snapshot 前保留 Closed；保留存活的来源，来源被移除时使用既有清理和 Standalone 回退 |
-| Failed、读取不可用或超时         | 保留准入和全部已知观察；显示该范围的可执行状态命令                                          |
-| Worker 退出或传输丢失            | 经 mailbox/join 交接保留回执或未知提交身份；不重放效果，也不推断 Closed                     |
-| 提交后 Client 退出               | 结束本地等待；Server 拥有的操作可以继续                                                     |
+| 状态/事件                         | 守卫与输出                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
+| 打开                              | 结构所有者空闲；冻结当前或指定 Workspace，或显式指定的 Project，不移动焦点                  |
+| 绘制                              | 准入几何下内容完整；仅认可其 token                                                          |
+| 首次绘制前几何阻塞                | 拒绝并移除新提示，不分配 Close 请求，也不报告为用户取消                                     |
+| 成功绘制后几何阻塞                | 挂起同一 token、冻结来源与焦点；撤销提交和鼠标权限，直到同一 token 再次完整呈现             |
+| 缺失或被覆盖的绘制回执            | 只撤销确切 shown 权限；保留 presentation phase 与冻结提示                                   |
+| Esc 或来源过期                    | 取消，不分配或提交 Close 请求                                                               |
+| 无修饰 `Enter` 或有效关闭按钮点击 | 同一个已完整绘制的来源；原子分配并排队一个带类型操作                                        |
+| 执行                              | 活 lease 和原始 forward cutoff；新来源证明先于一次普通命令或 Project Start                  |
+| 确定未提交或准入拒绝              | 保留证据，不声称已准入，也不自动重试                                                        |
+| Workspace 已接受或已观察 Pending  | 首次读取前保留准入；用只读请求轮询同一个规范操作                                            |
+| Project 已接受或已观察 Pending    | 只读轮询前保留组回执和已知 child 身份                                                       |
+| Closed                            | 读取规范 snapshot 前保留 Closed；保留存活的来源，来源被移除时使用既有清理和 Standalone 回退 |
+| Failed、读取不可用或超时          | 保留准入和全部已知观察；显示该范围的可执行状态命令                                          |
+| Worker 退出或传输丢失             | 经 mailbox/join 交接保留回执或未知提交身份；不重放效果，也不推断 Closed                     |
+| 提交后 Client 退出                | 结束本地等待；Server 拥有的操作可以继续                                                     |
 
 每次观察必须匹配其操作、Workspace/context 或 Project 范围。尝试代数、已知成员、
 child 身份、处置和 Closed 结果不能回退。已观察到的 OutcomeUnknown 不能改变状态或尝试代数。

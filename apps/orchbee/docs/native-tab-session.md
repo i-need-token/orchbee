@@ -79,7 +79,7 @@ authority without classifying geometry or discarding the presentation phase. An 
 `NotPresented` geometry result refuses and removes a new prompt that has never painted, leaving the
 localized resize fallback in that frame and no invisible input owner. After a successful paint, the
 same result suspends the existing prompt while preserving its token, frozen intent and local focus;
-`y` and stale pointer releases remain inert, local `Esc` may cancel, and a later complete paint of
+`Enter` and stale pointer releases remain inert, local `Esc` may cancel, and a later complete paint of
 the same token resumes it. Accepted Close or Resume work already owns its operation independently;
 hiding or closing its former prompt cannot undo or cancel that work.
 
@@ -862,11 +862,11 @@ follows the input-vocabulary draft table — carry the leaf's existing presentat
 the Client's real controlling cell/pixel geometry rather than a fabricated size. `X` arms the
 leaf-scoped panel-close confirmation on the focused leaf under
 [native panel close confirmation](native-panel-close-confirmation.md): only a drawn, still-valid
-confirmation admits the ordinary `panel.close` on the frozen leaf — `y` confirms after the
+confirmation admits the ordinary `panel.close` on the frozen leaf — `Enter` confirms after the
 complete draw and `Esc` cancels — and the confirmed close commits through the ordinary
 publication path. Closing the Tab's last leaf removes the whole Tab — its terminals are disposed
 and the Tab ends for every attached Client, the same blast radius the `x` Tab close confirms
-against — and the drawn confirmation names exactly that impact before any `y` can take effect. `H`, `J`, `K`, and `L` submit `panel.move` on
+against — and the drawn confirmation names exactly that impact before any `Enter` can take effect. `H`, `J`, `K`, and `L` submit `panel.move` on
 the focused leaf with the directional neighbor as `target_panel_id` — interim top-level stand-ins
 for the draft's `PANEL`-mode `h`/`j`/`k`/`l` move, since mode structure is out of this slice's
 scope; a single Panel or an edge with no directional neighbor is a local no-op before admission. All three operations admit only from a

@@ -66,7 +66,7 @@ impl NativeUi {
             self.capture_panel_confirmation_key(
                 token,
                 if confirm {
-                    ClientKey::Plain('y')
+                    ClientKey::Enter
                 } else {
                     ClientKey::Escape
                 },
@@ -136,7 +136,7 @@ impl NativeUi {
         }
     }
 
-    /// The armed panel-close confirmation owns input: only the exact lowercase `y`
+    /// The armed panel-close confirmation owns input: only unmodified Enter
     /// decides confirm and only `Esc` decides cancel; every other key is a
     /// swallowed non-decision. Returns `false` while no panel-close is armed.
     /// A confirmation whose frozen target drifted is settled as cancelled with
@@ -171,7 +171,7 @@ impl NativeUi {
             return true;
         }
         match key {
-            ClientKey::Plain('y') => {
+            ClientKey::Enter => {
                 self.confirm_panel_close();
             }
             ClientKey::Escape => {

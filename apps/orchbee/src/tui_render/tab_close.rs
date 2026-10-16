@@ -86,27 +86,24 @@ pub(super) fn render(
         }
     }
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
-    let confirm = modal_key_label(theme, &Binding::new(KeyCode::Char('y'), Modifiers::NONE));
-    let hints = [
-        super::controls::KeyHint::new(&escape, locale.tab_close_cancel_hint()),
-        super::controls::KeyHint::new(&confirm, locale.tab_close_confirm_hint()),
-    ];
+    let confirm = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let actions = [
         ModalAction::new(
             locale.tab_close_cancel_label(),
             super::controls::ActionKind::Secondary,
             true,
-        ),
+        )
+        .with_shortcut(&escape),
         ModalAction::new(
             locale.tab_close_confirm_label(),
             super::controls::ActionKind::Primary,
             true,
-        ),
+        )
+        .with_shortcut(&confirm),
     ];
-    lines.extend([Line::from(""), Line::from("")]);
+    lines.push(Line::from(""));
     let text = Text::from(lines);
-    let Some(layout) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)
-    else {
+    let Some(layout) = modal_layout(frame.area(), content_area, &text, &[], actions, theme) else {
         return ModalDraw {
             area: Rect::default(),
             prompt: ModalPresentation::NotPresented,
@@ -139,9 +136,6 @@ pub(super) fn render(
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
-        .expect("admitted modal hints must paint");
-    debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
     for ((rect, action), confirm) in layout.actions.into_iter().zip(actions).zip([false, true]) {
         paint_modal_action(
             frame,

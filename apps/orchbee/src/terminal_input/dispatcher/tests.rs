@@ -22,6 +22,85 @@ mod workspace_setup;
 #[cfg(windows)]
 mod worktree_launch;
 
+#[test]
+fn confirmation_enter_accepts_legacy_cr_alias_and_named_unmodified_key_only() {
+    for (code, mods, kind, expected) in [
+        (
+            KeyCode::Enter,
+            Modifiers::NONE,
+            KeyKind::Press,
+            ClientKey::Enter,
+        ),
+        (
+            KeyCode::Char('m'),
+            Modifiers::CTRL,
+            KeyKind::Press,
+            ClientKey::Enter,
+        ),
+        (
+            KeyCode::Enter,
+            Modifiers::NONE,
+            KeyKind::Repeat,
+            ClientKey::Enter,
+        ),
+        (
+            KeyCode::Enter,
+            Modifiers::NONE,
+            KeyKind::Release,
+            ClientKey::Other,
+        ),
+        (
+            KeyCode::Enter,
+            Modifiers::CTRL,
+            KeyKind::Press,
+            ClientKey::Other,
+        ),
+        (
+            KeyCode::Enter,
+            Modifiers::NONE.with_shift(),
+            KeyKind::Press,
+            ClientKey::Other,
+        ),
+        (
+            KeyCode::Enter,
+            Modifiers::NONE.with_alt(),
+            KeyKind::Press,
+            ClientKey::Other,
+        ),
+        (
+            KeyCode::Enter,
+            Modifiers::NONE.with_super_(),
+            KeyKind::Press,
+            ClientKey::Other,
+        ),
+        (
+            KeyCode::Char('m'),
+            Modifiers::CTRL.with_shift(),
+            KeyKind::Press,
+            ClientKey::Other,
+        ),
+        (
+            KeyCode::Char('y'),
+            Modifiers::NONE,
+            KeyKind::Press,
+            ClientKey::Plain('y'),
+        ),
+    ] {
+        let item = DecodedItem {
+            kind: DecodedKind::Key(crate::client_view::KeyEvent { code, mods, kind }),
+            raw: Box::default(),
+            owned: false,
+        };
+        assert_eq!(client_key(&item), expected, "{code:?} {mods:?} {kind:?}");
+    }
+    let paste = DecodedItem {
+        kind: DecodedKind::Paste { text: "\r".into() },
+        raw: Box::default(),
+        owned: false,
+    };
+    assert_eq!(client_key(&paste), ClientKey::Other);
+}
+
 #[cfg(windows)]
 #[test]
 fn physical_reply_queue_is_bounded_preserves_prefix_and_excludes_literal_paste() {

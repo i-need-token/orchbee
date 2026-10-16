@@ -295,6 +295,7 @@ fn render_picker_close(
         ),
         theme,
     )?;
+    hits.record_overlay_dismissal(&target);
     hits.record_interaction(HitLayer::Overlay, painted, painted, target, spec);
     Some(painted)
 }

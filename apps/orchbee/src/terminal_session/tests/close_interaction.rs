@@ -343,7 +343,7 @@ fn raw_close_packet_requires_actual_localized_draw_and_emits_one_command() -> Te
         assert!(spin_with_draw(&mut session, |session| session.status()
             == TerminalStatus::Controlling));
         let mut view = ClientView::new(120);
-        dispatch_close_input(&mut session, &mut view, b"\x02xy");
+        dispatch_close_input(&mut session, &mut view, b"\x02x\r");
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let rendered = draw_close(&mut session, &view, locale, 120, 32)?;
         assert!(
@@ -351,7 +351,7 @@ fn raw_close_packet_requires_actual_localized_draw_and_emits_one_command() -> Te
                 .replace(' ', "")
                 .contains(&locale.close_warning().replace(' ', ""))
         );
-        dispatch_close_input(&mut session, &mut view, b"yyy\x02q");
+        dispatch_close_input(&mut session, &mut view, b"\ryy\x02q");
         spin(&mut session, |session| {
             matches!(session.view(), TerminalSessionView::Native(view)
                 if view.notice() == Some(NativeSessionNotice::CloseRequestNotApplied))
@@ -406,7 +406,7 @@ fn nondecision_packets_swallowed_and_unpresentable_redraw_suspends_prompt() -> T
                         == crate::tui_presentation::PresentationPhase::Suspended
             })
     ));
-    dispatch_close_input(&mut session, &mut view, b"y");
+    dispatch_close_input(&mut session, &mut view, b"\r");
     assert_eq!(commands.load(Ordering::SeqCst), 0);
     assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
     let _ = draw_close(&mut session, &view, Locale::EnUs, 120, 32)?;
@@ -417,7 +417,7 @@ fn nondecision_packets_swallowed_and_unpresentable_redraw_suspends_prompt() -> T
                 prompt.token() == token && prompt.interactive()
             })
     ));
-    dispatch_close_input(&mut session, &mut view, b"y");
+    dispatch_close_input(&mut session, &mut view, b"\r");
     spin(&mut session, |_| commands.load(Ordering::SeqCst) == 1);
     assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
     server.finish(session)?;
@@ -443,7 +443,7 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
     let mut view = ClientView::new(120);
     dispatch_close_input(&mut session, &mut view, b"\x02x");
     let _ = draw_close(&mut session, &view, Locale::EnUs, 120, 32)?;
-    dispatch_close_input(&mut session, &mut view, b"y");
+    dispatch_close_input(&mut session, &mut view, b"\r");
     spin(&mut session, |session| {
         matches!(session.view(), TerminalSessionView::Native(view)
         if view.close_status().is_some_and(|status| status.status() == NativeCloseStatusKind::CleanupBlocked))
@@ -469,7 +469,7 @@ fn resume_requires_visible_status_and_the_complete_modal_returns_both_current_to
     view.report_backend_unavailable(crate::client_view::BackendAction::CreateTab);
     let rendered = draw_close(&mut session, &view, Locale::EnUs, 120, 32)?;
     assert!(rendered.contains("Close cleanup blocked"));
-    dispatch_close_input(&mut session, &mut view, b"yyy");
+    dispatch_close_input(&mut session, &mut view, b"\ryy");
     spin(&mut session, |session| {
         matches!(session.view(), TerminalSessionView::Native(view)
             if view.notice() == Some(NativeSessionNotice::CloseRequestNotApplied))
@@ -526,11 +526,11 @@ fn real_shell_resize_and_confirm_in_one_iteration_keeps_the_native_prompt_unsubm
     dispatch_close_input(&mut session, &mut ClientView::new(100), b"\x02x");
     assert_eq!(
         crate::tui_shell::tests::run_native_close_resize_confirmation(&mut session)?,
-        // armed at the loop-entry draw, still armed after the invalidated y,
+        // armed at the loop-entry draw, still armed after the invalidated Enter,
         // still armed while the lone Esc waits out its decode deadline, gone
         // once the wait resolves at the next packet boundary.
         [true, true, true, false],
-        "same-iteration resize+y must preserve the real current prompt until explicit Esc"
+        "same-iteration resize+Enter must preserve the real current prompt until explicit Esc"
     );
     assert_eq!(commands.load(Ordering::SeqCst), 0);
     assert_eq!(input_bytes.load(Ordering::SeqCst), 0);

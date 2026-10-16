@@ -13,11 +13,8 @@ use ratatui::{
     text::{Line, Text},
 };
 
-fn modal_hints(locale: Locale) -> [super::super::controls::KeyHint<'static>; 2] {
-    [
-        super::super::controls::KeyHint::new("Esc", locale.panel_close_cancel_hint()),
-        super::super::controls::KeyHint::new("Y", locale.panel_close_confirm_hint()),
-    ]
+fn modal_hints(_locale: Locale) -> [super::super::controls::KeyHint<'static>; 0] {
+    []
 }
 
 fn modal_actions<'a>(locale: Locale, confirm: &'a str) -> [ModalAction<'a>; 2] {
@@ -26,8 +23,10 @@ fn modal_actions<'a>(locale: Locale, confirm: &'a str) -> [ModalAction<'a>; 2] {
             locale.panel_close_cancel_label(),
             super::super::controls::ActionKind::Secondary,
             true,
-        ),
-        ModalAction::new(confirm, super::super::controls::ActionKind::Primary, true),
+        )
+        .with_shortcut("Esc"),
+        ModalAction::new(confirm, super::super::controls::ActionKind::Primary, true)
+            .with_shortcut("Enter"),
     ]
 }
 

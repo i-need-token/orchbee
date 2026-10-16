@@ -189,7 +189,7 @@ fn decision_read_partial_tail_completes_owned_and_is_swallowed() {
         &mut dispatcher,
         &mut view,
         &mut ui,
-        b"y\x1b",
+        b"\r\x1b",
         t0,
         &mut forwarded,
     );
@@ -226,7 +226,7 @@ fn next_packet_after_decision_decodes_normally() {
         &mut dispatcher,
         &mut view,
         &mut ui,
-        b"y",
+        b"\r",
         t0,
         &mut forwarded,
     );
@@ -246,7 +246,7 @@ fn next_packet_after_decision_decodes_normally() {
 
 /// A paste opened inside the decision packet keeps ownership across reads:
 /// its payload and terminator are swallowed, never reaching the pane, and a
-/// `y` payload byte can never decide anything.
+/// Enter payload byte can never decide anything.
 #[test]
 fn paste_opened_in_decision_packet_stays_owned_across_reads() {
     let (mut ui, _mailbox, _clock, _elapsed) = ready_ui();
@@ -259,7 +259,7 @@ fn paste_opened_in_decision_packet_stays_owned_across_reads() {
         &mut dispatcher,
         &mut view,
         &mut ui,
-        b"y\x1b[200~",
+        b"\r\x1b[200~",
         t0,
         &mut forwarded,
     );
@@ -267,7 +267,7 @@ fn paste_opened_in_decision_packet_stays_owned_across_reads() {
         &mut dispatcher,
         &mut view,
         &mut ui,
-        b"yyy",
+        b"\ryy",
         t0 + Duration::from_millis(5),
         &mut forwarded,
     );
@@ -321,11 +321,11 @@ fn armed_confirmation_survives_arrow_focus_and_sgr_sequences() {
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
-/// Exact-key + draw gate still holds on the final pair: drawn `y` closes
+/// Exact-key + draw gate still holds on the final pair: drawn Enter closes
 /// exactly once and the same-read tail is swallowed; arm+decide in one read
 /// cannot commit undrawn.
 #[test]
-fn drawn_y_closes_once_and_arm_plus_decide_cannot_commit() {
+fn drawn_enter_closes_once_and_arm_plus_decide_cannot_commit() {
     let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
     let mut view = ClientView::new(120);
     let mut dispatcher = InputDispatcher::default();
@@ -336,11 +336,11 @@ fn drawn_y_closes_once_and_arm_plus_decide_cannot_commit() {
         &mut dispatcher,
         &mut view,
         &mut ui,
-        b"y\x02|",
+        b"\r\x02|",
         t0,
         &mut forwarded,
     );
-    assert!(mailbox.try_recv().unwrap().is_some(), "drawn y closes");
+    assert!(mailbox.try_recv().unwrap().is_some(), "drawn Enter closes");
     assert!(mailbox.try_recv().unwrap().is_none(), "exactly once");
     assert!(forwarded.is_empty(), "decision tail swallowed");
 
@@ -356,13 +356,13 @@ fn drawn_y_closes_once_and_arm_plus_decide_cannot_commit() {
         &mut dispatcher2,
         &mut view2,
         &mut ui2,
-        b"y",
+        b"\r",
         t0,
         &mut forwarded2,
     );
     assert!(
         mailbox2.try_recv().unwrap().is_none(),
-        "undrawn y cannot commit"
+        "undrawn Enter cannot commit"
     );
 }
 

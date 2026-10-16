@@ -20,10 +20,10 @@ screens), with an explicit ellipsis for clipping; full frozen IDs and positions 
 The draw token covers the entire bounded preview, remainder count, warning and controls.
 Its localized warning covers execution in all attached Clients and incremental failure behavior.
 
-Only a complete successful draw authorizes ordinary lowercase `y`; local `Esc` cancels an armed
+Only a complete successful draw authorizes unmodified `Enter`; local `Esc` cancels an armed
 confirmation even while it is not shown. An evaluated geometry block before the first successful
 draw refuses the new confirmation. After a successful draw, the same block suspends the existing
-confirmation while preserving its token, frozen set, local marks and focus; `y` and pointer release
+confirmation while preserving its token, frozen set, local marks and focus; `Enter` and pointer release
 are inert until the same token is completely drawn again. A missing or covered draw receipt revokes
 shown authority without classifying geometry or discarding the presentation phase. Unseen,
 cancelled, stale, resized or unpresentable confirmation cannot submit. The existing input owner

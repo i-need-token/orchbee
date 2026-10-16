@@ -39,15 +39,15 @@ An overlay is one bordered region with the following reusable slots. Required sl
 present; optional slots are omitted without reordering the remaining slots or recreating them
 inside content.
 
-| Slot       | Requirement | Contract                                                                                   |
-| ---------- | ----------- | ------------------------------------------------------------------------------------------ |
-| Header     | Required    | One localized task title; an optional one-line description names its target or consequence |
-| Navigation | Optional    | Return path, breadcrumb, or tabs for movement within the same task                         |
-| Query      | Optional    | Search or filter editor; query text is draft state, not a committed domain value           |
-| Status     | Optional    | Validation, freshness, pending, failure, or recovery information for this task             |
-| Content    | Required    | List, editor, prompt, reference text, or progress; the only slot that scrolls by default   |
-| Actions    | Optional    | Selectable actions when footer bindings alone would be ambiguous                           |
-| Footer     | Required    | Exit or return first, primary binding second, then at most two secondary bindings          |
+| Slot       | Requirement | Contract                                                                                                                  |
+| ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Header     | Required    | One localized task title; an optional one-line description names its target or consequence                                |
+| Navigation | Optional    | Return path, breadcrumb, or tabs for movement within the same task                                                        |
+| Query      | Optional    | Search or filter editor; query text is draft state, not a committed domain value                                          |
+| Status     | Optional    | Validation, freshness, pending, failure, or recovery information for this task                                            |
+| Content    | Required    | List, editor, prompt, reference text, or progress; the only slot that scrolls by default                                  |
+| Actions    | Optional    | Selectable actions when footer bindings alone would be ambiguous                                                          |
+| Footer     | Required    | Exit or return first, primary binding second, then at most two secondary bindings; decision buttons may carry these hints |
 
 - One overlay is open at a time. A child task replaces the shell's task slots under the same capture
   owner; it never opens a second overlay above the first.
@@ -83,6 +83,10 @@ inside content.
   packet containing that decision remains owned and is consumed through its end, so trailing bytes
   never reach the new owner. Only a subsequent, separately decoded input event is resolved by the
   new owner; it is never delivered to the dismissed surface.
+- A visible popup can also be dismissed from its outside backdrop. Reuse its exact painted close
+  action, respect the current capture owner, and consume the complete dismissal gesture and packet
+  tail. Body padding and wheel reports do not dismiss or fall through. This has the same draft and
+  accepted-work policy as the close action.
 - A surface that stops fitting after it opened is suspended, not implicitly dismissed. Preserve its
   parent state, draft, required decision, accepted submission, pending work, and recovery. The
   too-small state exposes only a currently valid return, exit, or recovery binding and never
@@ -108,8 +112,9 @@ inside content.
 
 - A confirmation is required before an effect that destroys retained state, ends a process, or
   affects other attached Clients. It names the consequence and its scope in one sentence.
-- The confirm key is one exact key; `Esc` cancels; the default outcome is cancel. No other key is
-  interpreted, and the decision packet is captured as described in
+- Unmodified `Enter` confirms; `Esc` cancels; the default outcome is cancel. Their subordinate key
+  hints appear inside the corresponding button brackets rather than a duplicate footer row. No
+  other key is interpreted, and the decision packet is captured as described in
   [`keyboard-input.md`](keyboard-input.md#editing-and-drafts).
 - A confirmation is not used for reversible effects, routine edits, or information. Prefer direct
   execution with a notice.

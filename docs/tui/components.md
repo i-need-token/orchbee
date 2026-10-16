@@ -146,6 +146,9 @@ auxiliary-action slots required by any state that the component can enter.
   extent. The primary button in a decision context uses `accent-action` at rest; secondary buttons
   use `text-primary`. Neither state looks like keyboard focus. Status roles never distinguish
   primary, default, or destructive actions.
+- A decision button keeps its owner-formatted shortcut inside the brackets, after two blank cells.
+  Shortcut text uses `text-secondary` and normal weight; terminal cells retain their host font size.
+  It shares the button's complete fixed paint and hit extent and never creates a second action.
 - Buttons in a list's auxiliary-action slot use `text-secondary` at rest and inherit the row's
   surface. Their own hover and press feedback remains local to the painted action extent.
 - A button group reserves a focus-marker cell for each button. The focused button uses

@@ -48,6 +48,71 @@ fn idle(pointer: PointerPresentation) -> InteractionState {
     )
 }
 
+#[test]
+fn action_shortcut_is_subordinate_inside_the_complete_fixed_button() {
+    for theme in [
+        Theme::one_dark(),
+        Theme::one_light(),
+        Theme::terminal_native(),
+    ] {
+        for label in ["Close", "关闭"] {
+            let mut extent = None;
+            for pointer in [
+                PointerPresentation::Rest,
+                PointerPresentation::Hovered,
+                PointerPresentation::Pressed,
+            ] {
+                let spec = ActionSpec::new(
+                    label,
+                    ActionKind::Primary,
+                    ControlSurface::Overlay,
+                    idle(pointer),
+                )
+                .with_shortcut("Enter");
+                let mut terminal = Terminal::new(TestBackend::new(40, 1)).unwrap();
+                let rect =
+                    action_rect(Rect::new(0, 0, 40, 1), Rect::new(0, 0, 40, 1), spec, &theme)
+                        .unwrap();
+                assert_eq!(*extent.get_or_insert(rect), rect);
+                terminal
+                    .draw(|frame| {
+                        assert_eq!(render_action(frame, frame.area(), spec, &theme), Some(rect));
+                    })
+                    .unwrap();
+                let text = symbols(&terminal, 0, rect.width);
+                // TestBackend stores a blank continuation cell after each wide glyph.
+                assert!(text.replace(' ', "").contains(&format!("[{label}")));
+                assert!(text.ends_with("  Enter ]"));
+                let key_x = (0..rect.width)
+                    .find(|x| terminal.backend().buffer()[(*x, 0)].symbol() == "E")
+                    .unwrap();
+                let key = &terminal.backend().buffer()[(key_x, 0)];
+                let action = &terminal.backend().buffer()[(3, 0)];
+                assert!(!key.modifier.contains(Modifier::BOLD));
+                if pointer == PointerPresentation::Rest {
+                    assert_eq!(
+                        key.fg,
+                        theme.style(Role::TextSecondary).fg.unwrap_or(Color::Reset)
+                    );
+                    assert_eq!(
+                        action.fg,
+                        theme.style(Role::AccentAction).fg.unwrap_or(Color::Reset)
+                    );
+                }
+                assert!(
+                    action_rect(
+                        Rect::new(0, 0, 40, 1),
+                        Rect::new(0, 0, rect.width - 1, 1),
+                        spec,
+                        &theme
+                    )
+                    .is_none()
+                );
+            }
+        }
+    }
+}
+
 fn symbols(terminal: &Terminal<TestBackend>, y: u16, width: u16) -> String {
     (0..width)
         .map(|x| terminal.backend().buffer()[(x, y)].symbol())

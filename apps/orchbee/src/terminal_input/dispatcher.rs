@@ -114,7 +114,13 @@ fn client_key(item: &DecodedItem) -> ClientKey {
     match item.kind {
         DecodedKind::Key(event) if event.kind != KeyKind::Release => {
             let (code, mods) = (event.code, event.mods);
-            if mods == Modifiers::NONE {
+            // Legacy CR is the canonical Ctrl+M alias. Named protocol Enter
+            // must itself be unmodified; Ctrl+Enter is a distinct report.
+            if (code == KeyCode::Enter && mods == Modifiers::NONE)
+                || (code == KeyCode::Char('m') && mods == Modifiers::CTRL)
+            {
+                ClientKey::Enter
+            } else if mods == Modifiers::NONE {
                 match code {
                     KeyCode::Char(c) => ClientKey::Plain(c),
                     KeyCode::Esc => ClientKey::Escape,
