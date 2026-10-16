@@ -14,6 +14,7 @@ use ratatui::{Terminal, backend::TestBackend};
 mod organization;
 mod project;
 mod quick_create;
+mod tab_scope;
 
 fn arm(ui: &mut NativeUi) -> MenuToken {
     let (token, selected, visible_rows) = {

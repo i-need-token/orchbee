@@ -694,7 +694,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
     };
     use ratatui::{Terminal, backend::TestBackend};
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (width, height) in [(120, 40), (80, 20), (40, 10)] {
+        for (width, height) in [(120, 40), (80, 20), (80, 10), (40, 10)] {
             let mut snapshot = grouped();
             snapshot.terminal_contexts[0].tabs[0].pinned = true;
             let tab_id = snapshot.terminal_contexts[0].tabs[0].tab_id.clone();
@@ -726,7 +726,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                 })
                 .unwrap();
             let text = rendered_text(terminal.backend().buffer());
-            if width >= 80 {
+            if width >= 80 && height >= 20 {
                 assert!(
                     text.contains("(2/2)"),
                     "collapsed header exposes complete selected membership: {text}"
@@ -746,7 +746,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     &theme,
                 );
             }
-            // The tiny layout intentionally hides the strip; the same menu must still scroll.
+            // A low-height admitted menu still scrolls even when the strip is hidden.
             ui.after_close_draw(receipt.take().unwrap());
             choose(&mut ui, MenuAction::TabTools);
             // Keyboard traversal scrolls to the final movement row; paint, then pointer invokes it.
@@ -762,6 +762,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
             let menu = view.action_menu().unwrap();
             let source = menu.source.clone();
             let token = menu.token;
+            let selected = menu.selected;
             let mut hits = HitMapBuilder::new();
             terminal
                 .draw(|frame| {
@@ -775,15 +776,70 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     ));
                 })
                 .unwrap();
-            let hits = hits.finish();
+            let mut hits = hits.finish();
+            let (mut painted_width, mut painted_height) = (width, height);
+            if width == 40 {
+                assert!(
+                    !(0..height).any(|y| (0..width).any(|x| matches!(
+                        hits.hit_target_at(x, y),
+                        Some(HitTarget::ActionMenuRow { .. } | HitTarget::ActionMenuControl { .. })
+                    ))),
+                    "a refused complete header gives neither rows nor Back input authority"
+                );
+                ui.after_close_draw(receipt.take().unwrap());
+                assert_eq!(
+                    ui.action_menu_input_context().unwrap().phase(),
+                    crate::tui_presentation::PresentationPhase::Suspended
+                );
+                ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
+                    crate::client_view::KeyCode::Enter,
+                    crate::client_view::Modifiers::NONE,
+                ));
+                ui.activate_action_menu_row(&source, token, last);
+                assert!(ui.take_action_menu_action(false).is_none());
+                assert!(mailbox.try_recv().unwrap().is_none());
+                let view = ui.view();
+                let menu = view.action_menu().unwrap();
+                assert_eq!(
+                    (&menu.source, menu.token, menu.selected),
+                    (&source, token, selected)
+                );
+
+                // Recovery requires a new actual successful composition, not a synthetic receipt.
+                (painted_width, painted_height) = (80, 20);
+                ui.observe_geometry(Geometry::new(painted_width, painted_height, 8, 16).unwrap());
+                terminal = Terminal::new(TestBackend::new(painted_width, painted_height)).unwrap();
+                let mut recovered_hits = HitMapBuilder::new();
+                terminal
+                    .draw(|frame| {
+                        receipt = Some(crate::tui_render::render_terminal_shell(
+                            frame,
+                            &crate::client_view::ClientView::new(painted_width),
+                            locale,
+                            Some(TerminalSessionView::Native(ui.view())),
+                            &theme,
+                            &mut recovered_hits,
+                        ));
+                    })
+                    .unwrap();
+                hits = recovered_hits.finish();
+                let text = rendered_text(terminal.backend().buffer());
+                let view = ui.view();
+                let menu = view.action_menu().unwrap();
+                assert!(text.contains(&locale.menu_tab_path(
+                    menu.source,
+                    menu.tabs.unwrap().scope,
+                    theme.glyphs.disclosure_closed
+                )));
+            }
             assert!(
-                (0..height).any(|y| (0..width).any(|x| matches!(
+                (0..painted_height).any(|y| (0..painted_width).any(|x| matches!(
                     hits.hit_target_at(x, y),
                     Some(HitTarget::ActionMenuRow { token: painted, row })
                         if *painted == token && *row == last
                 ))),
                 "last row must be painted: {locale:?} {width}x{height}, selected {}, last {last}, source {source:?}\n{}",
-                menu.selected,
+                selected,
                 rendered_text(terminal.backend().buffer()),
             );
             ui.after_close_draw(receipt.take().unwrap());
