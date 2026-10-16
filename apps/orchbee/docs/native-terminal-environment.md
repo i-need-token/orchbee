@@ -236,7 +236,8 @@ separate verified cohort provenance.
 
 Frame and writer intervals are nested observations, not independent costs to add together. Buffer
 preparation can dominate measured frames without dominating the complete run. Compute the union of
-recorded intervals against the run envelope and leave uncovered wall time unclassified; it is not
+recorded intervals against the first recorded sample start through the last recorded sample end,
+not the full process or Session lifetime, and leave uncovered wall time unclassified; it is not
 automatically idle, CPU work or blocking. The post-preparation frame tail includes diffing, encoding,
 bookkeeping and output unless a separate observation distinguishes them.
 
