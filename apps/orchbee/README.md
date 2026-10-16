@@ -709,6 +709,14 @@ Future wiring must add deterministic process tests before claiming the model map
 
 ## Measurement
 
+For an actual TUI invocation, `ORCHBEE_TUI_MEASUREMENTS` may select one new absolute diagnostic
+file in an existing owned directory. Help, version, queries and other non-TUI commands do not read
+it or create diagnostic files. The opt-in collector records bounded timing/count samples in memory
+and writes them after terminal restoration; it records no input bytes or pane text. The
+[timing contract](docs/native-terminal-environment.md#tui-timing-observations) defines the schema,
+failure and truncation rules, packet correlation, and the limits of internal completion times.
+Compare enabled and disabled runs before attributing delay to the measured runtime.
+
 Collect the reference release baseline from the repository root:
 
 ```sh

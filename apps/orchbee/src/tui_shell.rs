@@ -2,6 +2,7 @@
 mod divider;
 #[cfg(windows)]
 mod machines;
+mod measurement;
 
 use std::{
     fmt,
@@ -11,6 +12,7 @@ use std::{
 #[cfg(unix)]
 use std::{fs::File, io::Read};
 
+use measurement::{MeasuredWriter, Measurements};
 #[cfg(unix)]
 use nix::{
     errno::Errno,
@@ -99,6 +101,10 @@ impl LoopFailure<io::Error> {
 trait InputSource {
     fn next_input(&mut self, timeout: Duration) -> io::Result<Option<Vec<u8>>>;
 
+    fn measurements(&self) -> Measurements {
+        Measurements::default()
+    }
+
     fn next_input_or_wakeup(
         &mut self,
         timeout: Duration,
@@ -121,6 +127,7 @@ trait ViewportSource {
 }
 
 struct InheritedInputSource {
+    measurements: Measurements,
     #[cfg(unix)]
     input: File,
     #[cfg(windows)]
@@ -128,8 +135,9 @@ struct InheritedInputSource {
 }
 
 impl InheritedInputSource {
-    fn open(terminal: &InheritedTerminal) -> io::Result<Self> {
+    fn open(terminal: &InheritedTerminal, measurements: Measurements) -> io::Result<Self> {
         Ok(Self {
+            measurements,
             #[cfg(unix)]
             input: File::from(terminal.duplicate_input()?),
             #[cfg(windows)]
@@ -139,6 +147,10 @@ impl InheritedInputSource {
 }
 
 impl InputSource for InheritedInputSource {
+    fn measurements(&self) -> Measurements {
+        self.measurements.clone()
+    }
+
     #[cfg(windows)]
     fn next_input_or_wakeup(
         &mut self,
@@ -289,6 +301,10 @@ fn run_prepared_surface(
     notice: Option<crate::client_view::Notice>,
     server_configuration: bool,
 ) -> Result<(), TuiFailure> {
+    let measurement_session =
+        measurement::Session::open(std::env::var_os("ORCHBEE_TUI_MEASUREMENTS"), locale)
+            .map_err(TuiFailure::Runtime)?;
+    let measurements = measurement_session.measurements();
     #[cfg(not(windows))]
     let _ = server_configuration;
     #[cfg(windows)]
@@ -352,7 +368,10 @@ fn run_prepared_surface(
     let output = BufWriter::with_capacity(
         OUTPUT_BUFFER_CAPACITY,
         RestorationGatedWriter::new(
-            inherited.output().map_err(TuiFailure::Runtime)?,
+            MeasuredWriter::new(
+                inherited.output().map_err(TuiFailure::Runtime)?,
+                measurements.clone(),
+            ),
             synchronized_update,
         ),
     );
@@ -373,7 +392,8 @@ fn run_prepared_surface(
         },
     )
     .map_err(TuiFailure::Runtime)?;
-    let mut inputs = InheritedInputSource::open(&inherited).map_err(TuiFailure::Runtime)?;
+    let mut inputs = InheritedInputSource::open(&inherited, measurements.clone())
+        .map_err(TuiFailure::Runtime)?;
     let theme = crate::tui_theme::Theme::terminal_native();
     // Pointer reporting is armed (or left released) before the loop so the
     // first drawn frame already agrees with the dispatcher's settled flag.
@@ -399,31 +419,38 @@ fn run_prepared_surface(
             locale,
             theme: &theme,
         },
-        (&mut inputs, &mut |request| match request {
-            ModeRequest::Bell => modes.ring_bell(),
-            ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
-            ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
-            #[cfg(windows)]
-            ModeRequest::Notification(effect) => {
-                use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
-                let result = match effect.delivery {
-                    Delivery::Terminal => modes.notify_terminal(&effect.message),
-                    Delivery::System => system_notifications.submit(effect.message.clone()),
-                    Delivery::Off | Delivery::Tui => Ok(()),
-                };
-                crate::notifications::sound(effect.message.sound);
-                result
+        (&mut inputs, &mut |request| {
+            let started = measurements.start();
+            let result = match request {
+                ModeRequest::Bell => modes.ring_bell(),
+                ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
+                ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
+                #[cfg(windows)]
+                ModeRequest::Notification(effect) => {
+                    use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
+                    let result = match effect.delivery {
+                        Delivery::Terminal => modes.notify_terminal(&effect.message),
+                        Delivery::System => system_notifications.submit(effect.message.clone()),
+                        Delivery::Off | Delivery::Tui => Ok(()),
+                    };
+                    crate::notifications::sound(effect.message.sound);
+                    result
+                }
+                #[cfg(windows)]
+                ModeRequest::WindowTitle(title) => modes.set_window_title(
+                    title
+                        .as_ref()
+                        .map_or("Orchbee", orchbee_workbench_protocol::WindowTitle::as_str),
+                ),
+                ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
+                ModeRequest::PointerCapture(request) => {
+                    modes.set_pointer_capture_level(pointer_tracking_level(request))
+                }
+            };
+            if let Some(started) = started {
+                started.control_completed(result.is_ok());
             }
-            #[cfg(windows)]
-            ModeRequest::WindowTitle(title) => modes.set_window_title(
-                title
-                    .as_ref()
-                    .map_or("Orchbee", orchbee_workbench_protocol::WindowTitle::as_str),
-            ),
-            ModeRequest::BracketedPaste(enabled) => modes.set_bracketed_paste(enabled),
-            ModeRequest::PointerCapture(request) => {
-                modes.set_pointer_capture_level(pointer_tracking_level(request))
-            }
+            result
         }),
         &mut surface,
         &termination,
@@ -442,16 +469,17 @@ fn run_prepared_surface(
     drop(system_notifications);
     drop(terminal);
     drop(surface);
-    let restore_result = modes.restore().map_err(io::Error::other);
-
-    match (run_result, restore_result) {
-        (Err(run_error), Err(restore_error)) => Err(TuiFailure::Runtime(io::Error::new(
-            run_error.kind(),
-            format!("{run_error}; terminal cleanup also failed: {restore_error}"),
-        ))),
-        (Err(error), Ok(())) | (Ok(_), Err(error)) => Err(TuiFailure::Runtime(error)),
-        (Ok(LoopExit::Signal | LoopExit::User), Ok(())) => Ok(()),
-    }
+    measurement_session
+        .finish_after_restore(
+            run_result.map(|_| ()),
+            || {
+                let restored = modes.restore().map_err(io::Error::other);
+                drop(modes);
+                restored
+            },
+            locale,
+        )
+        .map_err(TuiFailure::Runtime)
 }
 
 /// Presentation inputs that travel together through the event loop: the
@@ -567,6 +595,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     surface.active().set_ui_wakeup(Some(wakeup.clone()));
     let result = (|| {
         let (inputs, mode) = input_runtime;
+        let measurements = inputs.measurements();
         #[cfg(windows)]
         let mut machines =
             matches!(surface, SurfaceSlot::Owned(_)).then(|| machines::Manager::new(&mut view));
@@ -627,13 +656,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         }
         #[cfg(windows)]
         update_graphics_surface(terminal, &mut dispatcher, inputs.sample_time());
-        let mut pointer_projection_redraw = draw_surface(
+        let mut pointer_projection_redraw = draw_measured_surface(
             terminal,
             &mut view,
             chrome,
             terminal_input,
             &mut dispatcher,
             mode,
+            &measurements,
         )?;
         if pointer_projection_redraw {
             wakeup.signal();
@@ -648,9 +678,10 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 .next_poll_delay()
                 .unwrap_or(maximum_wait)
                 .min(maximum_wait);
-            let input = inputs
-                .next_input_or_wakeup(timeout, &wakeup)
-                .map_err(LoopFailure::Input)?;
+            let started = measurements.start();
+            let input = inputs.next_input_or_wakeup(timeout, &wakeup);
+            let batch = started.and_then(|started| started.input_completed(&input));
+            let input = input.map_err(LoopFailure::Input)?;
             let terminal_input = surface.active();
             let mut redraw = std::mem::take(&mut pointer_projection_redraw);
             let viewport_changed = synchronize_viewport(
@@ -723,6 +754,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 let measurement = dispatcher.graphics_facts().measurement;
                 let resize = dispatcher.resize_projection();
                 let resize_allowed = dispatcher.resize_presentation_allowed();
+                let started = measurements.start();
                 let outcome = dispatcher.dispatch(
                     &mut view,
                     &input,
@@ -740,7 +772,11 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                         )
                     },
                     &mut |request| mode(request).map_err(LoopFailure::Input),
-                )?;
+                );
+                if let Some(started) = started {
+                    started.dispatch_completed(batch, outcome.is_ok());
+                }
+                let outcome = outcome?;
                 if outcome == DispatchOutcome::Exit {
                     return Ok(LoopExit::User);
                 }
@@ -845,13 +881,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 redraw = true;
             }
             if redraw {
-                pointer_projection_redraw = draw_surface(
+                pointer_projection_redraw = draw_measured_surface(
                     terminal,
                     &mut view,
                     chrome,
                     terminal_input,
                     &mut dispatcher,
                     mode,
+                    &measurements,
                 )?;
                 if pointer_projection_redraw {
                     wakeup.signal();
@@ -862,13 +899,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 && mode(ModeRequest::Notification(effect)).is_err()
             {
                 view.notification_unavailable();
-                pointer_projection_redraw = draw_surface(
+                pointer_projection_redraw = draw_measured_surface(
                     terminal,
                     &mut view,
                     chrome,
                     terminal_input,
                     &mut dispatcher,
                     mode,
+                    &measurements,
                 )?;
                 if pointer_projection_redraw {
                     wakeup.signal();
@@ -896,6 +934,7 @@ fn update_graphics_surface<B: Backend + ResizableBackend>(
         })
 }
 
+#[cfg(test)]
 fn draw_surface<B: Backend + ResizableBackend>(
     terminal: &mut Terminal<B>,
     view: &mut ClientView,
@@ -904,6 +943,27 @@ fn draw_surface<B: Backend + ResizableBackend>(
     dispatcher: &mut InputDispatcher,
     mode: &mut impl FnMut(ModeRequest) -> io::Result<()>,
 ) -> Result<bool, LoopFailure<B::Error>> {
+    draw_measured_surface(
+        terminal,
+        view,
+        chrome,
+        surface,
+        dispatcher,
+        mode,
+        &Measurements::default(),
+    )
+}
+
+fn draw_measured_surface<B: Backend + ResizableBackend>(
+    terminal: &mut Terminal<B>,
+    view: &mut ClientView,
+    chrome: Chrome<'_>,
+    surface: &mut (impl TerminalSurface + ?Sized),
+    dispatcher: &mut InputDispatcher,
+    mode: &mut impl FnMut(ModeRequest) -> io::Result<()>,
+    measurements: &Measurements,
+) -> Result<bool, LoopFailure<B::Error>> {
+    let mut frame_measurement = measurements.frame();
     // Copy one complete cached palette for this frame, including every overlay and notice.
     let configured_theme = view.configured_theme();
     let chrome = Chrome {
@@ -960,6 +1020,9 @@ fn draw_surface<B: Backend + ResizableBackend>(
         .is_none()
         .then(|| dispatcher.sidebar_reorder_preview())
         .flatten();
+    if let Some(measurement) = &mut frame_measurement {
+        measurement.buffer_started();
+    }
     let drawn = terminal.draw(|frame| {
         #[cfg(windows)]
         {
@@ -1029,7 +1092,13 @@ fn draw_surface<B: Backend + ResizableBackend>(
                     || sidebar_reorder.is_some(),
             );
         }
+        if let Some(measurement) = &mut frame_measurement {
+            measurement.buffer_prepared();
+        }
     });
+    if let Some(measurement) = frame_measurement {
+        measurement.finish(drawn.is_ok());
+    }
     if let Err(error) = drawn {
         // A partial frame may already have reached the host. Its candidate
         // cannot authorize interaction; this loop exits before another input.

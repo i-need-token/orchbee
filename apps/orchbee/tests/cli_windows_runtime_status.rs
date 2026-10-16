@@ -21,6 +21,48 @@ use std::{
 use support::Fixture;
 
 #[test]
+fn tui_measurement_environment_has_no_help_version_or_offline_query_side_effects() {
+    let fixture = Fixture::new();
+    let measurements = fixture.0.join("tui-measurements.json");
+    for arguments in [
+        vec!["--help"],
+        vec!["--version"],
+        vec!["status", "client", "--format=json"],
+        vec!["config", "check", "--format=json"],
+    ] {
+        let output = fixture.run_with_env(
+            &arguments,
+            None,
+            None,
+            &[("ORCHBEE_TUI_MEASUREMENTS", measurements.as_os_str())],
+        );
+        assert!(
+            output.status.success(),
+            "{arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !measurements.exists(),
+            "non-TUI command must not create diagnostics: {arguments:?}"
+        );
+        assert!(!fixture.0.join("runtime").exists());
+    }
+    let output = fixture.run_with_env(
+        &["--version"],
+        None,
+        None,
+        &[(
+            "ORCHBEE_TUI_MEASUREMENTS",
+            std::ffi::OsStr::new("relative.json"),
+        )],
+    );
+    assert!(
+        output.status.success(),
+        "non-TUI command must not validate the TUI-only path"
+    );
+}
+
+#[test]
 fn shared_preparation_keeps_mutable_fixtures_and_corrupt_cohorts_isolated() {
     let first = Fixture::new();
     let second = Fixture::new();

@@ -195,6 +195,63 @@ A clean close owes nothing and emits nothing extra. This contract promises neith
 operating-system write per frame nor visual atomicity on hosts that do not support the
 synchronized-update mode.
 
+## TUI timing observations
+
+`tui_shell/measurement.rs` owns passive loop and writer measurements. Only entry to the actual TUI
+reads `ORCHBEE_TUI_MEASUREMENTS`; it validates an absolute file path and uses create-new before
+acquiring TUI modes. The parent directory must already exist. An existing file is preserved and
+refused. An absent variable leaves no journal or file and samples no clocks on the hot path.
+The selected file belongs to the caller, who releases it after the last diagnostic consumer.
+
+Enabled collection preallocates storage and retains at most 65,536 fixed-shape samples. The loop
+performs no diagnostic file I/O, serialization, background work or terminal output. A decorator under the existing output buffer
+and restoration fence forwards each writer operation exactly once, returning the original count or
+error. It adds no flush, drop-time write, retry, frame acknowledgement or scheduling decision.
+Lifecycle mode effects retain their existing writer and acquire only a call-duration observation.
+
+After the loop, the shell fences a failed frame, drops the frame writer and surface, and finishes
+terminal restoration before serializing diagnostics. Restoration is attempted even after runtime
+failure; a diagnostic failure cannot replace the primary runtime or restoration cause. An early
+initialization failure, panic or forced termination may leave an empty or incomplete file; absence
+of valid completed JSON is an aborted measurement, never a successful zero-duration run.
+
+The machine document has schema `orchbee.tui.measurements`, version `1`. It contains the process ID,
+a bracketed UTC/monotonic alignment when available, lifecycle results, sample limit and
+dropped/abandoned/outstanding/failed counts, an invalid-clock-or-count flag, `complete`, and samples.
+Sample intervals use monotonic `started_ns`/`ended_ns` relative to the run origin. The UTC alignment
+places its wall-clock value between `monotonic_before_ns` and `monotonic_after_ns`; it is not an exact
+wall-clock origin. Samples are stored in completion order, so a nested writer call precedes its
+enclosing frame record. No sample carries input bytes, terminal content, commands, paths,
+environment values or credentials. Source, tree, build profile and executable hashes come from the
+separate verified cohort provenance.
+
+| Event              | Observation and limit                                                                                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `input_read`       | One input-poll interval, ready/idle/failed result and byte count; each completed ready packet has a distinct `batch`. The poll includes intentional waiting and active draining, not just queue residence.               |
+| `dispatch`         | Dispatch of that completed application packet, correlated by `batch`. Its start minus read completion is application-ready delay. A packet may decode zero or several events; split sequences can settle on later turns. |
+| `frame`            | Frame ID, latest observed input batch, buffer-start/prepared checkpoints and completed draw result. The batch is context, never proof that this frame contains the expected feedback or useful terminal content.         |
+| `writer_call`      | Forwarded `write`, `write_all` or `write_vectored` interval and requested/accepted counts. A failed call may have an unknown emitted prefix. Call wall time includes conversion, CPU and any native/host blocking.       |
+| `flush`            | The existing writer's flush interval and result. Successful completion is not physical host paint.                                                                                                                       |
+| `terminal_control` | An existing lifecycle-effect call interval and result; payload and user-controlled text are excluded.                                                                                                                    |
+
+Windows console records supply no arrival timestamps. These samples do not measure OS-console queue
+residence, user-device time, activation before TUI entry, first useful content, or canonical Ready
+acknowledgement. Real-window expected-feedback probes supply separate visible-response bounds under
+[TUI verification](../../../docs/tui/verification.md#responsiveness-and-spatial-stability).
+
+`complete` requires successful runtime and restoration, no dropped, abandoned, outstanding or failed
+samples, and valid clocks/counts. A cap, exhausted identity/count, unfinished span, failed call or
+serialization error cannot establish complete latency distributions. A decoder no-op or a frame's
+latest input batch is not a feedback acknowledgement. Retain failure and timeout observations when
+comparing runs; measure enabled/disabled perturbation with the same cohort and scenario.
+
+The adjacent measurement tests cover disabled clock/storage absence, cap and incomplete accounting,
+packet/frame correlation through the actual loop, writer short/error/vectored/default-method seams,
+the real buffer/restoration fence, and restoration-before-serialization with primary-error
+preservation. Non-TUI process evidence must also prove that the new environment input has no path
+side effects outside TUI execution. These are instrumentation claims; they do not establish a
+response budget or a different writer/scheduler architecture.
+
 ## Outer title restoration
 
 [Windows title publication](windows-terminal-title.md) has its own lifecycle lease. The first title write captures the inherited title; restoration repays this lease after ending synchronized output and before disabling bracketed paste. Capture or write failure reports a localized status notice and keeps the TUI usable; any already-owed restoration remains registered. No title writes occur after restoration starts. Before an effective configured or explicit title is delivered, no title capture or write occurs.

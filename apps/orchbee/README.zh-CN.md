@@ -633,6 +633,12 @@ Authored help 与 diagnostic 同时提供 `en-US` 和 `zh-CN`。Locale selection
 
 ## 测量
 
+实际执行 TUI 时，`ORCHBEE_TUI_MEASUREMENTS` 可选择现有自有目录中的一个新的绝对诊断文件路径。
+帮助、版本、查询及其他非 TUI 命令既不读取该变量，也不创建诊断文件。显式启用的采集器只在内存中
+记录有界计时和计数样本，终端恢复后才写出；不记录输入字节或 pane 文本。
+[计时契约](docs/native-terminal-environment.zh-CN.md#tui-计时观测)定义 schema、失败与截断规则、
+数据包关联及内部完成时间的证据边界。把延迟归因于被测运行时前，先比较启用与禁用采集的运行。
+
 从仓库根目录收集 reference release baseline：
 
 ```sh

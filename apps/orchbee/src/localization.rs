@@ -555,6 +555,27 @@ pub(crate) enum Locale {
 }
 
 impl Locale {
+    pub(crate) const fn tui_measurement_path_invalid(self) -> &'static str {
+        match self {
+            Self::EnUs => "ORCHBEE_TUI_MEASUREMENTS must name a new absolute file path",
+            Self::ZhCn => "ORCHBEE_TUI_MEASUREMENTS 必须指定新的绝对文件路径",
+        }
+    }
+
+    pub(crate) const fn tui_measurement_also_failed(self) -> &'static str {
+        match self {
+            Self::EnUs => "TUI timing diagnostics also failed",
+            Self::ZhCn => "TUI 计时诊断也失败",
+        }
+    }
+
+    pub(crate) const fn tui_restoration_also_failed(self) -> &'static str {
+        match self {
+            Self::EnUs => "terminal cleanup also failed",
+            Self::ZhCn => "终端清理也失败",
+        }
+    }
+
     pub(crate) const fn shell(self) -> ShellText<'static> {
         match self {
             Self::EnUs => EN_US_SHELL,

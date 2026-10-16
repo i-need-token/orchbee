@@ -160,6 +160,48 @@ encoding, appearance reports, and multiplexer interception.
   protocol behavior and cell composition; it does not prove physical host palette or font quality.
 - Host evidence supplements unit evidence; it never replaces the classes above.
 
+## Responsiveness and spatial stability
+
+A responsiveness claim names the semantic action, exact target and expected local feedback before
+collecting timings. Use the same host, actual inner geometry, data, locale, theme and comparable
+build profile for a comparison; keep source, installed binary and executing cohort identities
+separate. Record instrumentation perturbation with enabled and disabled runs. A reference product's
+source mechanism does not establish its installed behavior or CI enforcement.
+
+| Measurement                  | Required endpoint and limit                                                                                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Input to visible feedback    | Bracket input delivery and the first expected control/content change in an actual host capture. Use a semantic region/predicate; cursor blink, animation, unrelated output or title changes do not satisfy it. Report capture uncertainty. |
+| Creation to useful content   | Identify the created target and its first useful terminal or task content. Immediate local acceptance, background completion and canonical readiness are separate checkpoints.                                                             |
+| Input-ready or queue delay   | Name the observed queue and its admission/dequeue timestamps. If arrival is unavailable, report the measured application boundary or external upper bound; intentional polling is not queue residence.                                     |
+| Preparation and output delay | Separate layout/buffer preparation, encoding, forwarded writer/flush calls and any acknowledgement. Call wall time can include CPU and blocking; completed output does not prove physical paint or semantic feedback.                      |
+
+- Exercise the complete task and its cancellation, failure and return paths. Check immediate local
+  acceptance in the expected place separately from delayed progress and eventual content; a changed
+  spinner elsewhere does not establish that the requested target responded.
+- Record sample counts and distributions, environment/load, failed and timed-out samples, and
+  measurement bounds. A truncated, aborted, invalid or incomplete trace cannot establish a complete
+  distribution. Set scenario regression targets from an observed baseline; do not infer a universal
+  budget or a speed ratio across unmatched builds.
+- Drive input while a bounded, reproducible content producer streams output. Verify input progress,
+  cancellation/release ordering and the expected feedback, with a predicate that excludes that
+  output. Diagnose the first delayed stage before changing scheduling or writer architecture.
+- Describe wheel reports by direction, count, timing and burst/reversal boundaries. Exercise dense
+  and sparse streams, ownership changes and pane passthrough separately from owned lists/history.
+  Equivalent synthetic reports do not establish equivalent physical wheel or trackpad movement.
+- Resize while reading identified logical content and while new content arrives. Verify the
+  declared row/identity anchor, focus and selection, with explicit bottom following kept distinct
+  from manual reading. A captured terminal grid and an authored wrapped document can own different
+  reflow contracts; never substitute one product's algorithm for the other's authority.
+- A live drag trace contains at least two held moves separated by rendered frames before release.
+  Observe the affected content geometry at both positions, separate release retention, and the
+  declared cancellation and stale-owner/viewport behavior. Endpoint-only images do not prove live
+  adjustment or distinguish an owned projection from an external geometry change.
+
+Keep recurring scenario definitions and instrumentation with their semantic owner. Point-in-time
+measurements, screenshots and comparison judgments belong to the active issue/review with their
+consumer and release condition, not a tracked task report. These checks supplement the render,
+input, lifecycle and host evidence above; neither timing nor a screenshot replaces those contracts.
+
 ## Change checklist
 
 | Change                      | Evidence                                                                                                |
