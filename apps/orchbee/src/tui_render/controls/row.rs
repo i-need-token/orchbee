@@ -353,6 +353,7 @@ fn disabled_content_role(role: Option<Role>, availability: Availability) -> Opti
             | Role::TextSecondary
             | Role::TextInverse
             | Role::AccentAction
+            | Role::AccentDestructive
             | Role::HintKey
             | Role::HintLabel,
         ) => Some(Role::TextDisabled),

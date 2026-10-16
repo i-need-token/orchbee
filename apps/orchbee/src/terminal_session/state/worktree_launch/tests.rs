@@ -147,6 +147,88 @@ fn worktree_exact_checkout_path_survives_duplicate_branch_labels_without_project
     );
 }
 
+fn sidebar_fixture() -> (Origin, addressed::SidebarDiscovery) {
+    let snapshot = addressed::tests::fixture();
+    let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let origin = state.worktree_origin().unwrap();
+    let addressed = addressed::AddressedWorktreeSource::capture(
+        &snapshot,
+        &addressed::SidebarWorktreeTarget::Project(
+            snapshot.navigation.projects[0].project_id.clone(),
+        ),
+    )
+    .unwrap();
+    let mut discovery = discovery();
+    discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
+    let sidebar = addressed::SidebarDiscovery {
+        addressed,
+        sample: crate::terminal_session::primary_directory::RootDirectory::Available(Some(path(
+            "C:/repo",
+        ))),
+        source: WorktreeSource::Directory {
+            path: path("C:/repo"),
+        },
+        discovery,
+    };
+    assert!(sidebar.valid(&snapshot));
+    (origin, sidebar)
+}
+
+#[test]
+fn sidebar_checkout_requires_its_complete_source_draw_then_starts_the_exact_choice_once() {
+    let (origin, sidebar) = sidebar_fixture();
+    let mut launcher = Launcher::default();
+    assert!(!launcher.open_sidebar(origin.clone(), sidebar.clone(), WorktreeMode::Open, None));
+    assert!(launcher.token().is_none());
+    assert!(launcher.open_sidebar(
+        origin.clone(),
+        sidebar.clone(),
+        WorktreeMode::Open,
+        Some(&path("C:/trees/猫"))
+    ));
+    let token = launcher.token().unwrap();
+    assert!(!launcher.sidebar_open_ready());
+    assert!(launcher.confirm(token, request(90), &origin).is_none());
+    launcher.draw(None);
+    assert!(!launcher.sidebar_open_ready());
+    launcher.draw(Some(token));
+    assert!(launcher.sidebar_open_ready());
+    assert!(!launcher.default_create_ready());
+    let plan = launcher.confirm(token, request(90), &origin).unwrap();
+    assert_eq!(plan.project, sidebar.addressed.cache.project_id().cloned());
+    assert!(matches!(plan.intent, WorktreeIntent::Open {
+        source: WorktreeSource::Directory { path: source },
+        selector: WorktreeSelector::Path { path: checkout }, ..
+    } if source == path("C:/repo") && checkout == path("C:/trees/猫")));
+    assert!(plan.sidebar.is_some());
+    assert!(!launcher.sidebar_open_ready());
+    assert!(launcher.confirm(token, request(91), &origin).is_none());
+}
+
+#[test]
+fn sidebar_checkout_blocked_or_cancelled_before_draw_cannot_authorize_a_start() {
+    for cancel in [false, true] {
+        let (origin, sidebar) = sidebar_fixture();
+        let mut launcher = Launcher::default();
+        assert!(launcher.open_sidebar(
+            origin.clone(),
+            sidebar,
+            WorktreeMode::Open,
+            Some(&path("C:/trees/猫"))
+        ));
+        let token = launcher.token().unwrap();
+        if cancel {
+            launcher.dismiss();
+        } else {
+            launcher.geometry_blocked();
+        }
+        launcher.draw(Some(token));
+        assert!(!launcher.sidebar_open_ready());
+        assert!(launcher.confirm(token, request(90), &origin).is_none());
+        assert!(launcher.operation().is_none());
+    }
+}
+
 #[test]
 fn worktree_reference_utf8_limit_is_atomic_and_base_empty_preserves_head_default() {
     let (mut l, origin) = fixture(1, WorktreeMode::Create);

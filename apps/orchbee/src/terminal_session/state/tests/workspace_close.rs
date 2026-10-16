@@ -1,4 +1,5 @@
 use super::*;
+mod sidebar;
 use crate::{
     local_client::workbench::WorkbenchWorkspaceCloseAccepted,
     localization::Locale,

@@ -832,9 +832,23 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
         .location
         .clone();
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
-    let token = arm(&mut ui);
-    let row = action_row(&ui, MenuAction::WorkspaceDirectory);
-    activate_row(&mut ui, token, row);
+    assert!(
+        !ui.view()
+            .action_menu()
+            .unwrap()
+            .actions
+            .contains(&MenuAction::WorkspaceDirectory)
+    );
+    assert_eq!(
+        action_availability(
+            ui.state.as_ref(),
+            &ui.menus.intent.as_ref().unwrap().target,
+            MenuAction::WorkspaceDirectory,
+            false,
+            None
+        ),
+        ActionAvailability::Disabled(MenuUnavailable::DirectoryConfigured)
+    );
     assert!(ui.action_menu_active());
     assert_eq!(ui.menus.menu.confirmed(), None);
     assert_eq!(ui.take_action_menu_action(false), None);
@@ -1421,7 +1435,7 @@ fn drawn_snapshot_source_and_owned_workspace_directory_replacement_are_fenced() 
     ));
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
     let token = arm(&mut ui);
-    let row = action_row(&ui, MenuAction::NewWorktree);
+    let row = action_row(&ui, MenuAction::RenameWorkspace);
     activate_row(&mut ui, token, row);
     let Stage::Context { generation, .. } = ui.menus.intent.as_ref().unwrap().stage else {
         panic!("owned generation");

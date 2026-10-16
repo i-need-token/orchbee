@@ -320,15 +320,18 @@ Windows TUI 会立即显示新的侧栏项及当前顶部 Tab，目录准备和�
 
 Windows `Ctrl+B F2` 打开[动作菜单](docs/native-action-menus.zh-CN.md)。
 右键点击 pane、tab、Workspace 或 Project 行即可发现已有动作。打开和取消保持焦点；
-成员动作使用准确目标导航，关闭动作保留原有确认。Project 重命名为准确的目标打开编辑器，
+已寻址的组织与删除动作也保留当前终端。Project 重命名为准确的目标打开编辑器，
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
 上下文菜单仅使用矩形边框、动作行及可选的禁用原因，不显示标题、X、页脚提示或选择计数。
 子菜单继承根菜单的构件策略；全局动作菜单保留按键发现控件。
 鼠标打开的菜单靠近点击单元格，并限制在状态行上方。悬停只选择可见行，不执行；点击或 Enter
 执行，Esc 或外部点击取消。
-Workspace 移动提供已有 Project、不属于 Project、以及原子的新建 Project 并移入操作。
-移动非当前 Workspace 保留当前终端。解散 Project 将所有 Workspace 保留为未分组状态；
-关闭全部 Workspace 是需要明确确认的独立操作。
+Workspace 的 Project 子菜单提供新建 Project 或离开 Project，之后列出已有 Project。
+Worktree 子菜单使用首个终端的根进程 cwd；Project 从规范顺序的首个成员推导该来源，
+并不拥有目录。来源未解析或不是 Git 时省略该子菜单。红色删除动作使用独立的破坏性强调色：
+删除 Workspace 关闭该 Workspace；删除 Project 只解散组织，保留所有 Workspace 与程序。
+只有权威的从未创建／空运行时证明才跳过确认。已有运行时的作用域需要审阅；待处理或不可用的
+权威保留准确拒绝。关闭全部 Workspace 仍是独立的兼容动作。
 
 `Ctrl+B Shift+D` 打开 Windows [工作区关闭确认](docs/native-workspace-close.zh-CN.md)。
 完整绘制后，无修饰的 `Enter` 只结束该 Workspace 的终端，影响所有 Client；Esc 取消。

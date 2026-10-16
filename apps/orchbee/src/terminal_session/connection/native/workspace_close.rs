@@ -1,7 +1,10 @@
 //! Submit the confirmed scope once, retain admission, and observe it without replaying effects.
 use super::{NativeExecutor, Result, closed, event};
 use crate::{
-    local_client::workbench::{WorkbenchWorkspaceCloseRequest, WorkbenchWorkspaceCloseSubmission},
+    local_client::workbench::{
+        WorkbenchWorkspaceClosePrecommit, WorkbenchWorkspaceCloseRequest,
+        WorkbenchWorkspaceCloseSubmission,
+    },
     terminal_session::{
         mailbox::{CommandLease, EventDeadline, MutationResult, RefreshMarker, WorkerEvent},
         state::{
@@ -107,8 +110,21 @@ impl NativeExecutor {
                 self.retain_workspace_close(operation, WorkspaceCloseResult::NotSubmitted)?;
                 return Err(CarrierFailure::Transport);
             }
-            WorkbenchWorkspaceCloseSubmission::DefinitePrecommit(_) => {
-                self.retain_workspace_close(operation, WorkspaceCloseResult::Refused)?;
+            WorkbenchWorkspaceCloseSubmission::DefinitePrecommit(reason) => {
+                let review = matches!(
+                    operation.workspace_command().map(|command| command.action),
+                    Some(orchbee_workbench_protocol::WorkbenchAction::WorkspaceCloseIfIdle { .. })
+                ) && matches!(reason, WorkbenchWorkspaceClosePrecommit::Rejected {
+                        revision, reason: orchbee_workbench_protocol::WorkbenchRejectionReason::ConfirmationRequired,
+                    } if revision == operation.baseline.revision());
+                self.retain_workspace_close(
+                    operation,
+                    if review {
+                        WorkspaceCloseResult::ConfirmationRequired
+                    } else {
+                        WorkspaceCloseResult::Refused
+                    },
+                )?;
                 return Ok(());
             }
             WorkbenchWorkspaceCloseSubmission::OutcomeUnknown { .. } => {

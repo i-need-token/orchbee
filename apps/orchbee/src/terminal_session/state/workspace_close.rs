@@ -16,6 +16,8 @@ use orchbee_workbench_protocol::{
     WorkspaceGroupCloseOutcome, WorkspaceGroupCloseStatus,
 };
 use std::time::{Duration, Instant};
+mod sidebar;
+pub(crate) use sidebar::WorkspaceDeleteRequest;
 
 /// Identifies exactly one fully drawn destructive confirmation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -84,6 +86,8 @@ impl WorkspaceCloseTarget {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct WorkspaceCloseOperation {
+    conditional: bool,
+    destructive: bool,
     pub(in crate::terminal_session) target: WorkspaceCloseTarget,
     pub(in crate::terminal_session) request_id: WorkbenchRequestId,
     pub(in crate::terminal_session) generation: u64,
@@ -97,6 +101,7 @@ pub(in crate::terminal_session) struct WorkspaceCloseOperation {
 pub(in crate::terminal_session) enum WorkspaceCloseResult {
     NotSubmitted,
     Refused,
+    ConfirmationRequired,
     Unknown,
     WorkspaceAccepted(WorkbenchWorkspaceCloseAccepted),
     WorkspaceObserved {
@@ -142,7 +147,10 @@ impl WorkspaceCloseResult {
         )
     }
     fn unresolved(&self) -> bool {
-        !matches!(self, Self::NotSubmitted | Self::Refused) && !self.is_closed()
+        !matches!(
+            self,
+            Self::NotSubmitted | Self::Refused | Self::ConfirmationRequired
+        ) && !self.is_closed()
     }
     fn status(&self) -> WorkspaceCloseStatus {
         if self.is_closed() {
@@ -152,7 +160,7 @@ impl WorkspaceCloseResult {
             return WorkspaceCloseStatus::Closing;
         }
         match self {
-            Self::NotSubmitted | Self::Refused => WorkspaceCloseStatus::Refused,
+            Self::NotSubmitted | Self::Refused | Self::ConfirmationRequired => WorkspaceCloseStatus::Refused,
             Self::Unknown => WorkspaceCloseStatus::Unknown,
             Self::WorkspaceObserved { outcome, .. }
                 if matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
@@ -178,8 +186,14 @@ impl WorkspaceCloseOperation {
             request_id: self.request_id.clone(),
             site_id: self.baseline.site_id().clone(),
             expected_revision: self.baseline.revision(),
-            action: WorkbenchAction::WorkspaceClose {
-                workspace_id: workspace_id.clone(),
+            action: if self.conditional {
+                WorkbenchAction::WorkspaceCloseIfIdle {
+                    workspace_id: workspace_id.clone(),
+                }
+            } else {
+                WorkbenchAction::WorkspaceClose {
+                    workspace_id: workspace_id.clone(),
+                }
             },
         })
     }
@@ -216,6 +230,7 @@ impl WorkspaceCloseOperation {
             WorkspaceCloseResult::NotSubmitted
             | WorkspaceCloseResult::Refused
             | WorkspaceCloseResult::Unknown => true,
+            WorkspaceCloseResult::ConfirmationRequired => self.conditional,
             WorkspaceCloseResult::WorkspaceAccepted(accepted) => self.admits_accepted(accepted),
             WorkspaceCloseResult::WorkspaceObserved { accepted, outcome } => {
                 self.admits_accepted(accepted)
@@ -239,6 +254,7 @@ impl WorkspaceCloseOperation {
     }
 }
 struct Confirmation {
+    destructive: bool,
     token: WorkspaceCloseToken,
     target: WorkspaceCloseTarget,
     baseline: NativeContextTabs,
@@ -269,6 +285,9 @@ pub(crate) struct WorkspaceCloseConfirmationView<'a> {
     inner: &'a Confirmation,
 }
 impl<'a> WorkspaceCloseConfirmationView<'a> {
+    pub(crate) fn destructive(self) -> bool {
+        self.inner.destructive
+    }
     pub(crate) const fn token(self) -> WorkspaceCloseToken {
         self.inner.token
     }
@@ -436,6 +455,7 @@ impl NativeSessionState {
         self.workspace_close.next_token = next;
         let token = WorkspaceCloseToken(next);
         self.workspace_close.confirmation = Some(Confirmation {
+            destructive: false,
             token,
             target,
             baseline: self.cache.clone(),
@@ -519,6 +539,8 @@ impl NativeSessionState {
             return None;
         }
         Some(WorkspaceCloseOperation {
+            conditional: false,
+            destructive: prompt.destructive,
             target: prompt.target.clone(),
             request_id,
             generation,
@@ -532,6 +554,13 @@ impl NativeSessionState {
         &mut self,
         operation: WorkspaceCloseOperation,
     ) -> bool {
+        if operation.conditional {
+            if !self.sidebar_workspace_delete_current(&operation) {
+                return false;
+            }
+            self.install_workspace_close(operation);
+            return true;
+        }
         let Some(token) = self
             .workspace_close
             .confirmation
@@ -553,13 +582,16 @@ impl NativeSessionState {
             return false;
         }
         self.cancel_workspace_close();
+        self.install_workspace_close(operation);
+        true
+    }
+    fn install_workspace_close(&mut self, operation: WorkspaceCloseOperation) {
         self.pending_refresh = Some(PendingRefreshFlight::recovery(operation.generation));
         self.workspace_close.pending = Some(operation);
         self.workspace_close.evidence = None;
         self.workspace_close.automatic_landing = None;
         self.workspace_close.show_pending = false;
         self.adopt_publication_debt();
-        true
     }
     pub(in crate::terminal_session) fn tick_workspace_close_pending(
         &mut self,
@@ -720,6 +752,10 @@ pub(in crate::terminal_session) fn retains_close_result(
     after: &WorkspaceCloseResult,
 ) -> bool {
     match (before, after) {
+        (
+            WorkspaceCloseResult::ConfirmationRequired,
+            WorkspaceCloseResult::ConfirmationRequired,
+        ) => true,
         (
             WorkspaceCloseResult::WorkspaceAccepted(a),
             WorkspaceCloseResult::WorkspaceAccepted(b),

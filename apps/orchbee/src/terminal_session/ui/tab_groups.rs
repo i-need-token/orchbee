@@ -50,7 +50,7 @@ pub(super) fn menu_actions(
                     } else if *action == SelectTab && selected.contains(tab.tab_id()) {
                         DeselectTab
                     } else {
-                        *action
+                        action.clone()
                     },
                 );
                 if *action == ManageGroups && targets.iter().any(|tab| tab.group().is_some()) {
@@ -344,7 +344,7 @@ impl NativeUi {
                 _ => None,
             };
         }
-        if let Some(ids) = close_tab_ids(state, &tab_id, action) {
+        if let Some(ids) = close_tab_ids(state, &tab_id, action.clone()) {
             return self.request_close_set(&ids);
         }
         let selection_change = match action {

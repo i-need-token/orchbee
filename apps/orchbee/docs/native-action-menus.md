@@ -35,6 +35,12 @@ Group assignment uses a submenu; selection and movement use a separate submenu.
 Painted group headers and the new-Tab button open distinct menus through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 The global menu also exposes the new-Tab submenu for keyboard users.
+The sidebar Workspace and Project Delete intents declare `ActionTone::Destructive`; the shared
+metadata and action/row controls resolve that label through `accent-destructive`. This fulfills the
+sidebar menu's explicit red Delete requirement without treating an action as an error status or
+changing Tab/pane Close hierarchy. Disabled rows use `text-disabled` and acquire no pointer state;
+enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
+owner supplies all shipped and reduced-color values and any required native contrast pair.
 Selection actions provide local toggle/range/all/clear and configure the captured selected set
 when their target belongs to it. Pinning, group creation and removal show the affected count.
 Selection or selected-member changes revoke the menu proof; background metadata actions keep
@@ -145,38 +151,46 @@ pointer capture. Unknown asynchronous prerequisites continue through their origi
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
-Project menus expose New Workspace, rename, Worktree create/open, Dissolve Project and
-Close All Workspaces. New Workspace accepts the exact drawn Project, including empty and
-noncurrent Projects, through the [setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership).
-It uses the same immediate creation path as an ungrouped Workspace, without a Project picker.
-Rename, dissolve and explicit Close All also target the drawn Project without entering a child.
-Worktree entries require the current Workspace to belong to that Project; otherwise they explain
-“Select a Workspace in this Project first.” Typed target proofs survive ClientView and InputDispatcher.
-Setup retains the current source and focus, checks the original menu deadline before admission,
-and uses its bounded preparation without timing optional human editing.
+Project menus expose New Workspace, Rename, a conditional Worktree submenu, then a separated Delete.
+New Workspace accepts the exact drawn Project, including empty and noncurrent Projects, through the
+[setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership). It uses the same
+immediate path as an ungrouped Workspace without a Project picker. Rename and Delete also target the
+drawn Project without entering a child. Project Delete dissolves only that organization: every member
+Workspace, terminal, program and identity survives ungrouped. It never composes Close All with removal.
+Explicit Close All compatibility keeps its separate owner. Worktree discovery uses the addressed
+derived source in [native-worktrees.md](native-worktrees.md), including for noncurrent Projects;
+it never borrows an unrelated current Workspace. Typed proofs survive ClientView and InputDispatcher.
+Setup retains the current source and focus, checks the original menu deadline at admission, and uses
+bounded preparation without timing optional human editing.
 
-Workspace Move to Project opens a choice of existing Projects, No Project or New Project.
-The latter asks for one name and atomically creates the Project and moves the Workspace.
-Moving a noncurrent Workspace does not select it. Dissolve changes grouping only; Close All
-opens the [separate scoped confirmation](native-workspace-close.md). Neither operation deletes Git checkouts.
+Workspace menus contain Project, conditional Worktree, Rename and Delete sections. Project opens
+New Project for an ungrouped Workspace or Leave Project for a grouped one, followed by existing
+Projects in canonical order. Choices retain exact IDs, including duplicate labels. New Project asks
+for one name and atomically creates the Project and moves the Workspace. Organization never selects
+a noncurrent Workspace. Empty conditional sections publish no orphan separator.
 
-Workspace Close uses the exact addressed Workspace without navigation and opens the normal
-[scoped confirmation](native-workspace-close.md). Closing a background Workspace preserves
-the unrelated current session.
+Sidebar Delete asks for authoritative conditional admission through the existing Close or setup owner.
+Only definite `confirmation-required` for that conditional kind and captured revision opens a new
+complete-draw confirmation; explicit Enter then uses a distinct unconditional request ID. Missing,
+stale, unavailable or unknown evidence never means idle and never escalates automatically.
+[Scoped Close](native-workspace-close.md) owns Workspace terminal disposal; Project Delete's warning
+instead explains preservation. Acting on a background target preserves the unrelated current session.
 
-The sidebar `+` entries use `MenuTarget::Create` to select the creation subset of the
-existing global or exact-Project menu. The Project entry puts Quick Workspace first;
-its normal prerequisites, target proof, disabled reasons and input capture remain unchanged.
-The [shell layout](tui-shell-layout.md#quick-creation-controls) owns their geometry and
-the direct Tab-strip create gesture.
+The sidebar `+` entries use `MenuTarget::Create` for the global or exact-Project creation context.
+The Project entry puts Quick Workspace first. Existing Worktree paths and their preceding separator
+appear only after source discovery yields openable entries; an empty or unresolved list contributes
+neither. The dedicated Worktree submenu independently contains New Worktree and existing paths.
+Its group is omitted for non-Git, unresolved or absent addressed sources. Successful asynchronous
+composition mints a fresh menu token and requires a new complete draw; late replies cannot reopen
+cancelled menus or retarget another episode. The [shell layout](tui-shell-layout.md#quick-creation-controls)
+owns the entry geometry and direct Tab-strip create gesture.
 
-Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close
-actions. Tab menus expose create, rename and close. Workspace menus expose quick
-create, new tab, directory, rename, Move to Project, Worktree create/open and close. The global menu
-exposes Workspace creation, Worktrees, reload, Settings, machine/Workspace/Agent search, help, sidebar, navigator, Agent board,
-pointer release and detach. Close actions still arm the original confirmation; the
-menu never confirms deletion. Settings delegates to its existing editor; checkout deletion, policy editing and custom
-or plugin-defined menus are outside this surface.
+Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close actions. Tab menus
+expose create, rename and close. The global menu exposes Workspace creation, Worktrees, reload,
+Settings, machine/Workspace/Agent search, help, sidebar, navigator, Agent board, pointer release and
+detach. Ordinary confirmed Close retains its compatibility behavior; sidebar conditional Delete follows
+the authority admission above. Settings delegates to its existing editor; checkout deletion, policy
+editing and custom or plugin-defined menus are outside this surface.
 
 When the carrier is unavailable, the global menu keeps only client-local search, help,
 sidebar, pointer release and detach. Member menus require a live carrier. An observed
@@ -192,9 +206,9 @@ The user wants to discover and execute existing actions without memorizing chord
 | Data            | One local episode, `Pending`/`Admitted`/`Suspended` presentation phase, independent whole-surface lease and exact row-window proof, `Recovery`/`Continuation`/`ActivationReady` input readiness, retained viewport and selection, owner-derived enabled/disabled/hidden availability, presentation token, frozen confirmed action, parent snapshot and optional exact target member |
 | Outputs         | Local capture and drawing; bounded navigation through existing membership owners; at most one action handed to the full ClientView/dispatcher path; localized cancellation or refusal                                                                                                                                                                                               |
 | Decisions       | Existing captures, including the Windows navigator, take priority. Help and sidebar remain unchanged underlays. Choosing an action admits navigation; opening does not. Each action retains its original availability policy rather than a universal Ready requirement                                                                                                              |
-| Invariants      | No undrawn or stale activation, no focus on open/cancel, no action on a replacement target, no implicit retry, no input or decision-packet tail reaching a pane; close still needs its original confirmation                                                                                                                                                                        |
+| Invariants      | No undrawn or stale activation, no focus on open/cancel, no action on a replacement target, no implicit retry, no input or decision-packet tail reaching a pane; ordinary Close keeps its confirmation; conditional Delete requires exact authority proof or a new reviewed decision                                                                                                |
 | Model           | Finite safety machine for capture, drawing, target invalidation, owned and foreign navigation, cancellation, prerequisites and one action transfer                                                                                                                                                                                                                                  |
-| Dependencies    | Existing native membership, terminal state, input decoder, hit map, layout, localization and action owners; no new dependency, wire or persistent data                                                                                                                                                                                                                              |
+| Dependencies    | Existing native membership, terminal state, input decoder, hit map, layout, localization and action owners; additive conditional Delete wire actions remain Server-owned; no new dependency or persistent data                                                                                                                                                                      |
 | Ownership       | NativeUi owns menu admission and target navigation; the deterministic menu owns selection and draw authority; ClientView owns local view decisions; InputDispatcher alone applies shell, mode and layout effects; original operation owners alone execute mutations                                                                                                                 |
 | Reference scope | Discoverability for current OrchBee actions, not complete Herdr menu parity                                                                                                                                                                                                                                                                                                         |
 
@@ -202,8 +216,8 @@ The user wants to discover and execute existing actions without memorizing chord
 Admission freezes the complete canonical Project and, only when its ID matches the
 current Workspace's Project, that Workspace/Directory source. Empty Projects and
 Projects outside the current Workspace remain valid menu targets with Quick Workspace available
-when the setup owner admits it, as do Project rename, dissolve and scoped Close All;
-Worktree actions retain their current-Workspace prerequisite.
+when the setup owner admits it, as do Project rename and organization-only Delete.
+Worktree actions separately freeze the derived addressed member and its complete source proof.
 The same Project and optional context proof must survive confirmation and handoff;
 an origin change or a replaced record cancels the episode rather than retargeting it.
 
@@ -219,12 +233,12 @@ The [Windows navigator](native-context-selection.md#windows-capturing-navigator)
 consumes menu shortcuts and pointer entries while it owns input. Close it before
 opening a menu; a menu may still open the navigator through its ordinary action.
 
-| Project context at opening                       | Availability and effect                                                                                                             |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                  |
-| Standalone, a different Project, or no Workspace | New Workspace, rename, dissolve and Close All target the exact Project without navigation; Worktree entries explain missing context |
-| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                                                               |
-| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                                                           |
+| Project context at opening                       | Availability and effect                                                                                                                         |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current Workspace belongs to the exact Project   | Existing actions retain their own prerequisites; confirmation offers one action without navigation                                              |
+| Standalone, a different Project, or no Workspace | New Workspace, rename and organization-only Delete target the exact Project; Worktree appears only for its admitted derived first-member source |
+| Project or captured Workspace/Directory replaced | Cancel before confirmation or handoff; never substitute another child                                                                           |
+| Cancel                                           | Preserve the native origin and caller-owned sidebar focus                                                                                       |
 
 ## Transitions and cancellation
 

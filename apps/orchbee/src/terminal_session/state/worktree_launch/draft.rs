@@ -49,6 +49,7 @@ pub(crate) enum WorktreeEdit<'a> {
     ScrollChoices { up: bool, lines: usize },
 }
 pub(super) struct Draft {
+    pub sidebar: Option<Box<super::addressed::SidebarDiscovery>>,
     pub token: WorktreeToken,
     pub origin: Origin,
     source: WorktreeSource,
@@ -91,6 +92,7 @@ impl Draft {
             WorktreeStage::Checkout
         };
         Self {
+            sidebar: None,
             token: WorktreeToken(0),
             origin,
             source,
@@ -261,11 +263,15 @@ impl Draft {
             }
         };
         Some(Plan {
+            sidebar: self.sidebar.clone(),
             operation_id,
             origin: self.origin.clone(),
             source: self.source.clone(),
             discovery: self.discovery.clone(),
-            project: None,
+            project: self
+                .sidebar
+                .as_ref()
+                .and_then(|source| source.addressed.cache.project_id().cloned()),
             intent,
         })
     }

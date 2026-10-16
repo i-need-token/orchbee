@@ -1,19 +1,12 @@
 //! Exact borrowed/temporary primary Viewer sampling; caller policies own all directory fallback.
 use super::{
-    CarrierFailure, HostEpoch, Instant, NativeExecutor, OperationDeadlines, PaneRef, Result,
+    CarrierFailure, Instant, NativeExecutor, OperationDeadlines, PaneRef, Result,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, closed, submission,
 };
 use crate::terminal_session::workbench_projection::{NativeContextTabs, NativeTerminalBinding};
-use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, MessageRole, PayloadEncoding, ProcessInfoControl,
-    decode_process_info_control, decode_transport_envelope,
-};
-use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
-pub(super) enum RootDirectory {
-    Available(Option<WorkbenchDirectoryPath>),
-    Unavailable,
-}
+pub(super) use crate::terminal_session::primary_directory::RootDirectory;
+use crate::terminal_session::primary_directory::decode_root;
 
 impl NativeExecutor {
     fn source_viewer(
@@ -55,7 +48,8 @@ impl NativeExecutor {
                 },
                 deadlines.forward_cutoff(),
             )?;
-            return decode_root(response, &attachment_id, &host_epoch, &host_terminal_id);
+            return decode_root(response, &attachment_id, &host_epoch, &host_terminal_id)
+                .map_err(|_| CarrierFailure::Protocol);
         }
         let action = TerminalViewerAction::AttachBinding {
             site_id: orchbee_client_server_protocol::SiteId::parse(baseline.site_id().as_str())
@@ -100,80 +94,6 @@ impl NativeExecutor {
         }
         let response = response?;
         decode_root(response, &attachment_id, &host_epoch, &host_terminal_id)
+            .map_err(|_| CarrierFailure::Protocol)
     }
-}
-
-fn decode_root(
-    response: TerminalViewerOutcome,
-    attachment_id: &orchbee_client_server_protocol::ViewerId,
-    host_epoch: &orchbee_client_server_protocol::HostEpoch,
-    host_terminal_id: &orchbee_client_server_protocol::HostTerminalId,
-) -> Result<RootDirectory> {
-    let TerminalViewerOutcome::Record(record) = response else {
-        return match response {
-            TerminalViewerOutcome::Rejected { .. } | TerminalViewerOutcome::Unavailable { .. } => {
-                Ok(RootDirectory::Unavailable)
-            }
-            _ => Err(CarrierFailure::Protocol),
-        };
-    };
-    if record.len() > 64 + orchbee_terminal_protocol::MAXIMUM_CONTROL_JSON_BYTES {
-        return Err(CarrierFailure::Protocol);
-    }
-    let envelope = decode_transport_envelope(&record).map_err(|_| CarrierFailure::Protocol)?;
-    let epoch = HostEpoch::parse(host_epoch.as_str()).map_err(|_| CarrierFailure::Protocol)?;
-    if envelope.protocol != CURRENT_PROTOCOL_VERSION
-        || envelope.role != MessageRole::Response
-        || envelope.optional_message
-        || envelope.payload_encoding != PayloadEncoding::ControlJson
-        || envelope.host_epoch != Some(epoch)
-        || envelope.correlation_id.is_none()
-    {
-        return Err(CarrierFailure::Protocol);
-    }
-    let Ok(ProcessInfoControl::ProcessInfo(info)) =
-        decode_process_info_control(envelope.kind, envelope.role, envelope.payload)
-    else {
-        if let Ok(orchbee_terminal_protocol::ConnectionControl::TypedFailure(failure)) =
-            orchbee_terminal_protocol::decode_connection_control(
-                envelope.kind,
-                envelope.role,
-                envelope.payload,
-            )
-            && matches!(
-                failure.code.as_str(),
-                "limit-exceeded"
-                    | "missing-resource"
-                    | "process-sample-unsupported"
-                    | "process-sample-changed"
-                    | "process-sample-unavailable"
-            )
-        {
-            return Ok(RootDirectory::Unavailable);
-        }
-        return Err(CarrierFailure::Protocol);
-    };
-    if info.attachment_id.to_text() != attachment_id.as_str()
-        || info.terminal_id.to_text() != host_terminal_id.as_str()
-    {
-        return Err(CarrierFailure::Protocol);
-    }
-    let Some(root) = info
-        .processes
-        .iter()
-        .find(|process| process.pid == info.root_pid)
-    else {
-        return Ok(RootDirectory::Unavailable);
-    };
-    let cwd = match root.current_directory.as_deref() {
-        None => None,
-        Some(path) if std::path::Path::new(path).is_absolute() => {
-            match WorkbenchDirectoryPath::parse(path) {
-                Ok(path) => Some(path),
-                Err(_) => return Ok(RootDirectory::Unavailable),
-            }
-        }
-        _ => return Ok(RootDirectory::Unavailable),
-    };
-    Ok(RootDirectory::Available(cwd))
 }

@@ -1,6 +1,7 @@
 //! Fixed-geometry action controls.
 
 use crate::{
+    action_projection::ActionTone,
     terminal_text::{display_width, sanitize_terminal_text},
     tui_theme::{Role, Theme},
 };
@@ -47,6 +48,7 @@ pub(crate) struct ActionSpec<'a> {
     pending_label: Option<&'a str>,
     shortcut: Option<&'a str>,
     kind: ActionKind,
+    tone: ActionTone,
     surface: ControlSurface,
     state: InteractionState,
 }
@@ -64,6 +66,7 @@ impl<'a> ActionSpec<'a> {
             pending_label: None,
             shortcut: None,
             kind,
+            tone: ActionTone::Ordinary,
             surface,
             state,
         }
@@ -78,6 +81,11 @@ impl<'a> ActionSpec<'a> {
     /// Keeps the owner's formatted binding inside the action's fixed extent.
     pub(crate) const fn with_shortcut(mut self, shortcut: &'a str) -> Self {
         self.shortcut = Some(shortcut);
+        self
+    }
+
+    pub(crate) const fn with_tone(mut self, tone: ActionTone) -> Self {
+        self.tone = tone;
         self
     }
 }
@@ -121,7 +129,7 @@ pub(crate) fn render_action(
     let interaction = state.interaction_role();
     let enabled = state.availability == Availability::Enabled;
     let action_role = if enabled {
-        spec.kind.content_role()
+        spec.tone.content_role(spec.kind.content_role())
     } else {
         Role::TextDisabled
     };

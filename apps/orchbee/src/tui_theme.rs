@@ -23,6 +23,7 @@ pub(crate) enum Role {
     TextDisabled,
     TextInverse,
     AccentAction,
+    AccentDestructive,
     AccentFocus,
     AccentSelection,
     #[cfg(test)]
@@ -53,12 +54,13 @@ impl Role {
     /// Test/validator helper for totality checks; production consumes roles
     /// individually.
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 28] = [
+    pub(crate) const ALL: [Self; 29] = [
         Self::TextPrimary,
         Self::TextSecondary,
         Self::TextDisabled,
         Self::TextInverse,
         Self::AccentAction,
+        Self::AccentDestructive,
         Self::AccentFocus,
         Self::AccentSelection,
         Self::AccentLink,
@@ -188,6 +190,7 @@ pub(crate) struct RoleStyles {
     pub text_disabled: Style,
     pub text_inverse: Style,
     pub accent_action: Style,
+    pub accent_destructive: Style,
     pub accent_focus: Style,
     pub accent_selection: Style,
     #[cfg(test)]
@@ -222,6 +225,7 @@ impl RoleStyles {
             Role::TextDisabled => self.text_disabled,
             Role::TextInverse => self.text_inverse,
             Role::AccentAction => self.accent_action,
+            Role::AccentDestructive => self.accent_destructive,
             Role::AccentFocus => self.accent_focus,
             Role::AccentSelection => self.accent_selection,
             #[cfg(test)]
@@ -255,6 +259,7 @@ impl RoleStyles {
             text_disabled: apply(self.text_disabled),
             text_inverse: apply(self.text_inverse),
             accent_action: apply(self.accent_action),
+            accent_destructive: apply(self.accent_destructive),
             accent_focus: apply(self.accent_focus),
             accent_selection: apply(self.accent_selection),
             #[cfg(test)]
@@ -394,6 +399,7 @@ impl Theme {
                 text_disabled: dim,
                 text_inverse: reset,
                 accent_action: Style::new().fg(Color::Cyan),
+                accent_destructive: Style::new().fg(Color::Red),
                 accent_focus: Style::new().fg(Color::Cyan),
                 accent_selection: Style::new().fg(Color::White).bg(Color::Blue),
                 #[cfg(test)]
@@ -444,6 +450,7 @@ impl Theme {
                 text_disabled: Style::new().fg(Color::Rgb(91, 101, 119)),
                 text_inverse: Style::new().fg(Color::Rgb(11, 14, 20)),
                 accent_action: Style::new().fg(Color::Rgb(245, 245, 245)),
+                accent_destructive: Style::new().fg(Color::Rgb(255, 116, 128)),
                 accent_focus: Style::new().fg(Color::Rgb(122, 162, 247)),
                 accent_selection: Style::new()
                     .fg(Color::Rgb(211, 218, 232))
@@ -532,6 +539,17 @@ impl Theme {
         if let Some(mut layer) = interaction_style {
             layer.fg = None;
             content = content.patch(layer);
+        }
+
+        // Preserve a destructive label's semantic foreground in reverse-video
+        // bands and on unknown or low-contrast fills. The contrast pair belongs
+        // to the theme, not a renderer or a status role; surrounding pointer and
+        // focus tracks retain their independent state. Monochrome keeps the
+        // ordinary control resolver and explicit localized action wording.
+        if content_role == Some(Role::AccentDestructive)
+            && self.color_level != ColorLevel::Monochrome
+        {
+            content = destructive_content_pair(content);
         }
 
         let paired = match interaction {
@@ -754,6 +772,10 @@ impl Theme {
                 (&mut styles.text_disabled, self.styles.text_disabled),
                 (&mut styles.text_inverse, self.styles.text_inverse),
                 (&mut styles.accent_action, self.styles.accent_action),
+                (
+                    &mut styles.accent_destructive,
+                    self.styles.accent_destructive,
+                ),
                 (&mut styles.accent_focus, self.styles.accent_focus),
                 (&mut styles.accent_selection, self.styles.accent_selection),
                 #[cfg(test)]
@@ -842,6 +864,59 @@ impl Theme {
 /// entire row from becoming bold.
 fn interaction_surface_fallback() -> Style {
     Style::new().add_modifier(Modifier::REVERSED)
+}
+
+/// A semantic foreground cannot be a readable foreground after reverse video
+/// swaps its channels. Use one resolver-owned contrast pair on that content
+/// band when the ambient fill is unknown or cannot support the declared hue.
+fn destructive_content_pair(content: Style) -> Style {
+    let Some(foreground) = content.fg.and_then(sampled_color) else {
+        return content;
+    };
+    if !content.add_modifier.contains(Modifier::REVERSED)
+        && content
+            .bg
+            .and_then(sampled_color)
+            .is_some_and(|background| color_contrast(foreground, background) >= 3.0)
+    {
+        return content;
+    }
+    let background =
+        if color_contrast(foreground, (0, 0, 0)) >= color_contrast(foreground, (255, 255, 255)) {
+            Color::Black
+        } else {
+            Color::White
+        };
+    content.bg(background).remove_modifier(Modifier::REVERSED)
+}
+
+fn sampled_color(color: Color) -> Option<(u8, u8, u8)> {
+    match color {
+        Color::Reset => None,
+        Color::Rgb(r, g, b) => Some((r, g, b)),
+        Color::Indexed(index) => Some(INDEXED_SRGB[usize::from(index)]),
+        color => ANSI16_SRGB
+            .iter()
+            .find(|(name, _)| *name == color)
+            .map(|(_, rgb)| *rgb),
+    }
+}
+
+fn color_contrast(left: (u8, u8, u8), right: (u8, u8, u8)) -> f64 {
+    let luminance = |(r, g, b): (u8, u8, u8)| {
+        let channel = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+    };
+    let left = luminance(left);
+    let right = luminance(right);
+    (left.max(right) + 0.05) / (left.min(right) + 0.05)
 }
 
 fn interaction_surfaces_collapse(styles: &RoleStyles) -> bool {

@@ -29,6 +29,26 @@ impl<'a> NativeSessionView<'a> {
     }
 }
 impl NativeUi {
+    pub(super) fn request_sidebar_workspace_delete(
+        &mut self,
+        request: &crate::terminal_session::WorkspaceDeleteRequest,
+    ) -> SessionActionDisposition {
+        if self.modal_owns_input() {
+            return SessionActionDisposition::KeepNavigator;
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        if mailbox.try_enqueue_sidebar_workspace_delete_for(state, request, deadlines, &self.clock)
+        {
+            SessionActionDisposition::DismissNavigator
+        } else {
+            SessionActionDisposition::KeepNavigator
+        }
+    }
     /// Opens Close for the addressed Workspace without navigating away from the current terminal.
     pub(in crate::terminal_session) fn request_workspace_close_at(
         &mut self,
@@ -208,6 +228,11 @@ impl NativeUi {
             self.retire(CarrierFailure::Protocol);
             return true;
         }
-        self.apply_refresh_event(mailbox, wait, evidence.operation.generation, outcome)
+        let changed =
+            self.apply_refresh_event(mailbox, wait, evidence.operation.generation, outcome);
+        if let Some(state) = self.state.as_mut() {
+            state.review_sidebar_workspace_delete(&evidence);
+        }
+        changed
     }
 }

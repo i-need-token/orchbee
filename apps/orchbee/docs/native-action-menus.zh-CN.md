@@ -28,6 +28,10 @@ Tab 菜单遵循 GUI 的创建／分组、复制／固定和关闭分段。
 已绘制组标题和新建 Tab 按钮通过
 [分组配置所有者](native-tab-groups.zh-CN.md#指针排列与菜单导航) 打开各自菜单。
 全局菜单也提供新建 Tab 子菜单供键盘使用。
+侧栏 Workspace 与 Project 的删除意图声明 `ActionTone::Destructive`；共享元数据与动作／行控件
+通过 `accent-destructive` 解析标签。这满足侧栏菜单明确的红色删除要求，不把动作当成错误状态，
+也不改变 Tab／pane 关闭层级。禁用行使用 `text-disabled`，不会获得指针状态；可用意图保留行的
+独立焦点、临时导航、悬停与按住反馈。主题所有者提供全部随附及低色深值和所需的原生对比色对。
 选择动作提供本地切换／区间／全选／清空；目标属于选中集合时配置捕获的完整集合。
 固定、建组及移出显示受影响数量。选择或所选成员变化会撤销菜单绘制证明；后台元数据操作
 保持当前终端连接。菜单移动采用 GUI 分组边界，包括折叠的相邻组。
@@ -105,30 +109,38 @@ Workspace 禁用目录配置；当前 Workspace 同时应用原有空状态及 s
 准入守卫。鼠标捕获已释放时禁用释放鼠标捕获。未知异步前提继续交给原 owner；
 菜单不根据只读机器观察推断 Git 支持、Worker 可达性或操作结果。
 
-Project 菜单提供新建 Workspace、重命名、Worktree 创建／打开、解散 Project 及关闭全部 Workspace。
-新建 Workspace 经由[setup owner](native-workspace-setup.zh-CN.md#创建默认值与结果归属)接受准确的
-已绘制 Project，包括空和非当前 Project。它与未分组 Workspace 使用同一立即创建路径，没有 Project 选择器。
-重命名、解散及显式关闭全部也直接针对已绘制 Project，不进入子 Workspace。
-Worktree 条目要求当前 Workspace 属于该 Project，否则提示“请先选择此项目中的工作区。”。
-有类型的目标准确证明经过 ClientView 和 InputDispatcher 保留。Setup 保留当前来源与焦点，
-准入前核对原菜单截止时间，并使用有界准备，不对可选的人工编辑计时。
+Project 菜单提供新建 Workspace、重命名、有条件出现的 Worktree 子菜单，以及分隔后的删除。
+新建 Workspace 经由 [setup owner](native-workspace-setup.zh-CN.md#创建默认值与结果归属) 接受准确的
+已绘制 Project，包括空和非当前 Project。它与未分组 Workspace 使用同一立即创建路径，没有
+Project 选择器。重命名与删除同样直接针对已绘制 Project，不进入子 Workspace。Project 删除只
+解散该组织关系：所有成员 Workspace、终端、程序及身份都保留，并成为未分组。绝不组合全部关闭
+与移除。显式全部关闭兼容入口保留独立所有者。Worktree 发现采用
+[native-worktrees.md](native-worktrees.zh-CN.md) 中的已寻址派生来源，包括非当前 Project；绝不借用
+无关的当前 Workspace。有类型证明经过 ClientView 与 InputDispatcher 保留。Setup 保留当前来源
+与焦点，准入时核对原菜单截止时间，并使用有界准备，不对可选的人工编辑计时。
 
-Workspace 的移入 Project 提供现有 Project、无 Project 或新建 Project。
-新建只询问一个名称，并原子地创建 Project 与移动 Workspace。移动非当前 Workspace 不选择它。
-解散仅改变分组；关闭全部打开[独立的范围确认](native-workspace-close.zh-CN.md)。两者都不删除 Git 检出目录。
+Workspace 菜单包含 Project、有条件出现的 Worktree、重命名和删除各段。Project 子菜单对未分组
+Workspace 提供新建 Project，对已分组 Workspace 提供离开 Project，再按规范顺序列出已有 Project。
+选项保留准确 ID，包括标签重复的情况。新建只询问一个名称，并原子创建 Project 与移动 Workspace。
+组织操作不会选择非当前 Workspace。空条件段不发布孤立分隔线。
 
-关闭 Workspace 直接针对准确的目标 Workspace，不导航到该 Workspace，并打开常规的
-[范围确认](native-workspace-close.zh-CN.md)。后台关闭非当前 Workspace 后，保留与其无关的当前会话。
+侧栏删除通过既有关闭或 setup 所有者请求权威条件准入。只有与条件类型及捕获修订号匹配的明确
+`confirmation-required` 才打开新的完整绘制确认；显式 Enter 随后使用不同的无条件请求 ID。
+缺失、过期、不可用或未知证据绝不等于空闲，也不自动升级。
+[范围关闭](native-workspace-close.zh-CN.md) 拥有 Workspace 终端处置；Project 删除的警告则说明
+资源保留。操作后台目标会保留与其无关的当前会话。
 
-侧栏 `+` 入口通过 `MenuTarget::Create` 选择原全局菜单或准确 Project 菜单中的创建子集。
-Project 入口把快速 Workspace 放在首位；原有前提、目标证明、禁用原因及输入捕获保持不变。
-[Shell 布局](tui-shell-layout.zh-CN.md#快捷创建控件) 拥有这些入口的几何及 Tab 顶栏直接创建手势。
+侧栏 `+` 入口使用 `MenuTarget::Create` 表达全局或准确 Project 创建上下文。Project 入口把快速
+Workspace 放在首位。已有 Worktree 路径及前置分隔线只在来源发现得到可打开条目后显示；空或
+未解析列表两者都不产生。独立 Worktree 子菜单另外包含新建 Worktree 与已有路径。非 Git、未解析
+或无已寻址来源时省略整个组。异步组合成功时分配新菜单 token，要求重新完整绘制；迟到回复不能
+重开已取消菜单或重新定位另一个 episode。[Shell 布局](tui-shell-layout.zh-CN.md#快捷创建控件)
+拥有入口几何及 Tab 顶栏直接创建手势。
 
-pane 菜单提供已有分屏、缩放、键盘调整、复制、接管和关闭动作。tab 菜单提供
-新建、重命名和关闭。Workspace 菜单提供快速新建、新建 tab、目录、重命名、移入 Project、
-Worktree 创建/打开及关闭。全局菜单提供新建 Workspace、Worktree、重载、设置、机器／Workspace／Agent 搜索、帮助、
-侧栏、导航器、Agent 看板、释放鼠标和分离。关闭仍打开原有确认；菜单从不代替
-删除确认。设置交给现有编辑器；checkout 删除、策略编辑和自定义或插件菜单不在此界面范围内。
+pane 菜单提供已有分屏、缩放、键盘调整、复制、接管和关闭动作。Tab 菜单提供新建、重命名和关闭。
+全局菜单提供新建 Workspace、Worktree、重载、设置、机器／Workspace／Agent 搜索、帮助、侧栏、
+导航器、Agent 看板、释放鼠标和分离。普通已确认关闭保留兼容行为；侧栏条件删除遵循上述权威准入。
+设置交给现有编辑器；checkout 删除、策略编辑和自定义或插件菜单不在此界面范围内。
 
 carrier 不可用时，全局菜单仅保留 Client 本地搜索、帮助、侧栏、释放鼠标及分离。
 成员菜单要求 carrier 存活；首个会话状态到达之前也必须有已观察的几何。
@@ -143,17 +155,17 @@ carrier 不可用时，全局菜单仅保留 Client 本地搜索、帮助、侧�
 | 数据     | 一个本地 episode、`Pending`／`Admitted`／`Suspended` 呈现阶段、相互独立的整体界面 lease 与准确行窗口证明、`Recovery`／`Continuation`／`ActivationReady` 输入 readiness、保留的视口与选择、owner 派生的启用／禁用／隐藏可用性、呈现 token、冻结的已确认动作、父快照和可选准确目标成员 |
 | 输出     | 本地捕获与绘制；通过现有 membership owner 进行有界导航；至多一个动作交给完整 ClientView/dispatcher 路径；本地化取消或拒绝                                                                                                                                                            |
 | 决策     | 现有捕获（包括 Windows 导航器）优先。帮助和侧栏作为不变底层保留。选择动作才准入导航，打开不导航。每个动作保留原有可用策略，不统一要求 Ready                                                                                                                                          |
-| 不变量   | 未绘制或过期时不能激活；打开/取消不改焦点；不对替代目标执行；不隐式重试；输入及决策包尾部不进入 pane；关闭仍需原有确认                                                                                                                                                               |
+| 不变量   | 未绘制或过期时不能激活；打开/取消不改焦点；不对替代目标执行；不隐式重试；输入及决策包尾部不进入 pane；普通关闭保留确认；条件删除要求准确权威证明或新审核决策                                                                                                                         |
 | 模型     | 捕获、绘制、目标失效、自有/外部导航、取消、前提和一次动作转交的有限安全状态机                                                                                                                                                                                                        |
-| 依赖     | 现有原生 membership、终端状态、输入解码器、hit map、布局、本地化和动作 owner；无新依赖、wire 或持久数据                                                                                                                                                                              |
+| 依赖     | 现有原生 membership、终端状态、输入解码器、hit map、布局、本地化和动作 owner；新增条件删除 wire 动作仍由 Server 拥有；无新依赖或持久数据                                                                                                                                             |
 | 归属     | NativeUi 管准入与目标导航；确定性菜单管选择和绘制权限；ClientView 管本地视图决策；仅 InputDispatcher 应用 shell、模式和布局副作用；仅原操作 owner 执行变更                                                                                                                           |
 | 参考范围 | 当前 OrchBee 动作的可发现性，不声称完整 Herdr 菜单对齐                                                                                                                                                                                                                               |
 
 `MenuTarget::Project` 携带 `WorkbenchProjectId`，不使用标签或行索引。
 准入冻结完整的规范 Project；仅当其 ID 与当前 Workspace 的 Project 匹配时，
 同时冻结该 Workspace/Directory 来源。空 Project 和当前 Workspace 之外的 Project
-仍是有效菜单目标；setup owner 准入时快速创建 Workspace、Project 重命名、解散及关闭全部可用；
-Worktree 动作保留当前 Workspace 前提。确认和转交时必须保持同一 Project 与可选 context
+仍是有效菜单目标；setup owner 准入时快速创建 Workspace、Project 重命名及只移除组织的删除可用。
+Worktree 动作另外冻结派生的已寻址成员及完整来源证明。确认和转交时必须保持同一 Project 与可选 context
 证明；来源改变或记录被替换时取消 episode，不重新定位。
 
 所有对象入口适配器都传入成功绘制的 `DrawnMenuSource` Session 和 revision。
@@ -168,7 +180,7 @@ Worktree 动作保留当前 Workspace 前提。确认和转交时必须保持同
 | 打开时的 Project context                    | 可用性及副作用                                                                                  |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | 当前 Workspace 属于准确 Project             | 既有动作保留自己的前提；确认仅提供一个动作，不导航                                              |
-| Standalone、其他 Project 或没有 Workspace   | 新建 Workspace、重命名、解散及关闭全部不导航地针对准确 Project；Worktree 条目解释缺失的 context |
+| Standalone、其他 Project 或没有 Workspace   | 新建 Workspace、重命名及只移除组织的删除针对准确 Project；Worktree 仅在派生首成员来源获准后出现 |
 | Project 或捕获的 Workspace/Directory 被替换 | 确认或转交前取消；从不替换成其他子项                                                            |
 | 取消                                        | 保留原生来源和调用方拥有的侧栏焦点                                                              |
 

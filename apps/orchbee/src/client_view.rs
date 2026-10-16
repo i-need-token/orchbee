@@ -127,6 +127,7 @@ pub(crate) enum ClientAction {
     RequestWorktreeOpen,
     RequestWorkspaceClose,
     RequestWorkspaceCloseAt(orchbee_workbench_protocol::WorkbenchWorkspaceId),
+    RequestSidebarWorkspaceDelete(Box<crate::terminal_session::WorkspaceDeleteRequest>),
     RequestControlTakeover,
     RequestWorkspaceDirectory,
     RequestWorkspaceRename,
@@ -343,6 +344,7 @@ impl ClientAction {
             }
             Self::RequestWorkspaceMove
             | Self::RequestWorkspaceCloseAt(_)
+            | Self::RequestSidebarWorkspaceDelete(_)
             | Self::RequestProjectDissolve
             | Self::RequestWorkspaceOrganization(_)
             | Self::RequestProjectCloseAll(_) => None,

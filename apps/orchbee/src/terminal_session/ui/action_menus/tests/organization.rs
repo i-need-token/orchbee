@@ -1,5 +1,4 @@
 use super::*;
-use crate::terminal_session::NativeSetupStage;
 use orchbee_workbench_protocol::WorkbenchAction;
 
 fn choose(ui: &mut NativeUi, target: MenuTarget, action: MenuAction) -> ClientAction {
@@ -28,7 +27,7 @@ fn choose(ui: &mut NativeUi, target: MenuTarget, action: MenuAction) -> ClientAc
 }
 
 #[test]
-fn moving_noncurrent_workspace_opens_organization_without_navigating_or_mutating() {
+fn leaving_noncurrent_workspace_submits_exact_organization_without_navigating() {
     let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();
     let selected = ui.state.as_ref().unwrap().desired().cloned();
@@ -45,8 +44,8 @@ fn moving_noncurrent_workspace_opens_organization_without_navigating_or_mutating
         .clone();
     let action = choose(
         &mut ui,
-        MenuTarget::Workspace(target),
-        MenuAction::MoveWorkspace,
+        MenuTarget::WorkspaceProjects(target.clone()),
+        MenuAction::LeaveWorkspaceProject,
     );
     assert!(matches!(
         action,
@@ -54,9 +53,20 @@ fn moving_noncurrent_workspace_opens_organization_without_navigating_or_mutating
     ));
     assert!(mailbox.try_recv().unwrap().is_none());
     ui.apply_client_action(action);
+    assert!(ui.view().setup_draft().is_none());
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("one exact grouping command");
+    };
+    let NativeContextLocation::Workspace { workspace_id, .. } = target else {
+        panic!("canonical Workspace");
+    };
     assert_eq!(
-        ui.view().setup_draft().unwrap().stage(),
-        NativeSetupStage::ChooseWorkspaceProject
+        marker.0.command.action,
+        WorkbenchAction::WorkspaceSetProject {
+            workspace_id,
+            project_id: None
+        }
     );
     assert_eq!(ui.state.as_ref().unwrap().cache().location(), &original);
     assert_eq!(ui.state.as_ref().unwrap().desired(), selected.as_ref());
@@ -106,7 +116,7 @@ fn right_clicking_noncurrent_legacy_workspace_keeps_canonical_focus_and_exact_me
 }
 
 #[test]
-fn closing_noncurrent_workspace_opens_exact_confirmation_without_navigation() {
+fn deleting_noncurrent_workspace_submits_only_conditional_admission_without_navigation() {
     let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();
     let selected = ui.state.as_ref().unwrap().desired().cloned();
@@ -128,14 +138,29 @@ fn closing_noncurrent_workspace_opens_exact_confirmation_without_navigation() {
     let action = choose(
         &mut ui,
         MenuTarget::Workspace(target),
-        MenuAction::CloseWorkspace,
+        MenuAction::DeleteWorkspace,
     );
-    assert_eq!(action, ClientAction::RequestWorkspaceCloseAt(expected));
+    assert!(matches!(
+        action,
+        ClientAction::RequestSidebarWorkspaceDelete(_)
+    ));
     assert!(mailbox.try_recv().unwrap().is_none());
     ui.apply_client_action(action);
-    assert!(ui.view().workspace_close_confirmation().is_some());
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    let evidence = mailbox.workspace_close_worker_loss().unwrap();
+    assert_eq!(
+        evidence.operation.workspace_command().unwrap().action,
+        WorkbenchAction::WorkspaceCloseIfIdle {
+            workspace_id: expected
+        }
+    );
     assert_eq!(ui.state.as_ref().unwrap().cache().location(), &original);
     assert_eq!(ui.state.as_ref().unwrap().desired(), selected.as_ref());
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("one conditional Close lease");
+    assert!(matches!(lease.record(), QueuedCommand::Refresh(_)));
     assert!(mailbox.try_recv().unwrap().is_none());
 }
 
@@ -157,7 +182,7 @@ fn dissolving_noncurrent_project_submits_only_its_metadata_action() {
     let action = choose(
         &mut ui,
         MenuTarget::Project(project.clone()),
-        MenuAction::DissolveProject,
+        MenuAction::DeleteProject,
     );
     ui.apply_client_action(action);
     let lease = mailbox.try_recv().unwrap().expect("one metadata command");
@@ -166,7 +191,7 @@ fn dissolving_noncurrent_project_submits_only_its_metadata_action() {
     };
     assert_eq!(
         marker.0.command.action,
-        WorkbenchAction::ProjectDissolve {
+        WorkbenchAction::ProjectDissolveIfIdle {
             project_id: project
         }
     );

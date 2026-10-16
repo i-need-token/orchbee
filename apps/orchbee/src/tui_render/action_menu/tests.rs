@@ -297,7 +297,7 @@ fn assert_bound_row_layout(
     assert_eq!(assert_text_at(buffer, chord_x, row.y, chord), row.right());
     let label_right = chord_x - ROW_BINDING_GAP;
     let label_budget = usize::from(label_right - marker_end);
-    let full_label = locale.menu_action(MenuAction::Machines);
+    let full_label = locale.menu_action(&MenuAction::Machines);
     let label = truncate_display(full_label, label_budget, theme.glyphs.ellipsis);
     assert!(display_width(&label) <= label_budget);
     assert_eq!(display_width(full_label) > label_budget, expect_truncated);

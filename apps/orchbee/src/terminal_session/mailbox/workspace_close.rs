@@ -26,6 +26,43 @@ impl CommandMailbox {
         deadlines: OperationDeadlines,
         clock: &LocalOperationClock,
     ) -> bool {
+        self.enqueue_workspace_close(
+            canonical,
+            deadlines,
+            clock,
+            |state, request_id, generation| {
+                state.plan_workspace_close(token, request_id, generation, deadlines)
+            },
+        )
+    }
+    pub(in crate::terminal_session) fn try_enqueue_sidebar_workspace_delete_for(
+        &self,
+        canonical: &mut NativeSessionState,
+        request: &crate::terminal_session::WorkspaceDeleteRequest,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+    ) -> bool {
+        let deadlines = deadlines.bounded_by(request.deadline());
+        self.enqueue_workspace_close(
+            canonical,
+            deadlines,
+            clock,
+            |state, request_id, generation| {
+                state.plan_sidebar_workspace_delete(request, request_id, generation, deadlines)
+            },
+        )
+    }
+    fn enqueue_workspace_close(
+        &self,
+        canonical: &mut NativeSessionState,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+        plan: impl FnOnce(
+            &NativeSessionState,
+            orchbee_workbench_protocol::WorkbenchRequestId,
+            u64,
+        ) -> Option<WorkspaceCloseOperation>,
+    ) -> bool {
         let Some((mut state, _)) = self.lock_before(deadlines.forward_cutoff(), clock) else {
             return false;
         };
@@ -53,9 +90,7 @@ impl CommandMailbox {
         let Some(generation) = state.refresh_generation.checked_add(1) else {
             return false;
         };
-        let Some(operation) =
-            canonical.plan_workspace_close(token, request_id, generation, deadlines)
-        else {
+        let Some(operation) = plan(canonical, request_id, generation) else {
             return false;
         };
         let mut marker = RefreshMarker::new(generation, deadlines.total());

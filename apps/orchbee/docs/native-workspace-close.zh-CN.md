@@ -8,7 +8,7 @@ Git 分支和检出目录。Project 分组、共享目录及 worktree 关系均�
 未分组的 Workspace 是有效目标。历史兼容工作区没有规范 Workspace ID；其 Tab 需逐个关闭。
 该工作区的整体关闭入口禁用，并提供本地化说明。
 
-Workspace 上下文菜单直接关闭所指向的 Workspace，不会先切换过去。确认、取消和完成均
+Workspace 上下文菜单的删除针对所指向的 Workspace，不会先切换过去。确认、取消和完成均
 保留无关的当前 Context、选中 pane 和终端 attachment；当前 shell 继续运行。关闭当前
 Workspace 时使用规范移除：先选择首个存活的规范 Workspace，包括空 Workspace，再选非空历史
 内容，否则显示显式的无工作区新建入口。主动关闭绝不重建 Workspace 或终端。从历史内容打开
@@ -18,7 +18,7 @@ Close 可以指定某个 Workspace 为目标。
 在按钮外释放、修饰键或过期绘制均不能授权关闭。键盘与鼠标使用同一个提交门禁。Esc 与 Enter 提示以次级文字放在对应按钮内。
 在外侧蒙层上匹配的普通左键点击复用精确的已绘制 X 目标取消，不会选中底层终端或向其发送输入。
 
-Project 菜单提供针对确切 Project ID 的独立全部关闭操作。确认框显示 Project 名称及
+显式 Project 全部关闭兼容入口针对确切 Project ID。确认框显示 Project 名称及
 Workspace 数量，说明全部成员 Workspace 及其终端会对所有 Client 关闭。Server 在准入时
 捕获 Project 成员。Project 记录保留，原本为空的 Project 也可以执行。解散 Project 是
 独立的组织操作，保留 Workspace 和终端。
@@ -28,6 +28,20 @@ Start。两条路径都不删除 Git 数据，也不自动恢复失败尝试。�
 `workspace close-status --workspace <workspace-id>` 或
 `project close-status --request <operation-id>` 查询保留状态。符合条件的恢复使用显式
 CLI Resume；Pending 和 Unknown 仅允许观察。
+
+## 侧栏条件准入
+
+侧栏 Workspace 删除使用新增 `WorkspaceCloseIfIdle`，绝不是 Client 声称“空闲”后再发送普通关闭。
+既有 Server 准入门禁内，权限、Site／revision、重放指纹和容量检查先于完整捕获成员及 primary／
+child 绑定证明。只有明确从未创建或为空的终端范围才无提示准入。存在运行时、待定、不可用或未知
+范围，不能因为 Client 未见附着 pane 或进程似乎退出就被当作空闲。接受时在释放门禁前安装同一
+Close reservation／围栏，因此并发创建或分屏不能占用已接受范围。
+
+Project 删除对全部捕获成员范围使用 `ProjectDissolveIfIdle`，保留所有 Workspace 和资源，绝不调用
+全部关闭。明确且匹配来源修订号的 `confirmation-required` 作为无效果保留，并以新显示 token 打开
+新的审核决策。警告说明成员与终端都会保留。只有完整成功绘制及显式普通 Enter 才可提交新的无条件
+请求 ID。其他拒绝、过期、缺失、传输或未知证据绝不打开此升级或重试效果。普通显式确认的关闭及
+Project 解散保留既有兼容语义与不同指纹。
 
 ## 输入与归属
 

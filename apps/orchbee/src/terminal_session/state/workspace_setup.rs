@@ -1,6 +1,7 @@
 mod draft;
 mod labels;
 mod organization;
+pub(in crate::terminal_session) use organization::OrganizationChoice;
 pub(crate) use organization::WorkspaceOrganizationRequest;
 mod navigation_configuration;
 mod tab_configuration;
@@ -80,6 +81,7 @@ pub(in crate::terminal_session) enum SetupWorkerEvidence {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) enum SetupResult {
     NotApplied,
+    ConfirmationRequired,
     Committed {
         known: Box<SetupKnownCommit>,
         outcome: Box<WorkbenchSnapshotOutcome>,
@@ -284,7 +286,7 @@ impl NativeSessionState {
                     label: WorkbenchLabel::parse(draft.editor.text()).ok()?,
                 }
             }
-            NativeSetupStage::DissolveProject => {
+            NativeSetupStage::DissolveProject | NativeSetupStage::ProjectDeleteConfirm => {
                 let organization::OrganizationTarget::Project(project) =
                     &draft.organization.as_ref()?.target
                 else {

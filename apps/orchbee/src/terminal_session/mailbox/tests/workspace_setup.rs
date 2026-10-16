@@ -1,9 +1,114 @@
 use super::*;
 use crate::local_client::workbench::workspace_setup::WorkbenchSetupCommit;
 use crate::terminal_session::state::workspace_setup::{
-    NativeSetupEdit, NativeSetupToken, SetupWorkerEvidence,
+    NativeSetupEdit, NativeSetupToken, SetupResult, SetupWorkerEvidence,
 };
 use orchbee_workbench_protocol::WorkbenchProjectId;
+
+#[test]
+fn conditional_project_review_requires_the_exact_retained_no_effect_reason_before_placement() {
+    use crate::local_client::workbench::workspace_setup::WorkbenchSetupPrecommit;
+    use crate::terminal_session::state::workspace_setup::OrganizationChoice;
+    use orchbee_workbench_protocol::WorkbenchRejectionReason;
+    let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
+        std::sync::atomic::AtomicU64::new(0),
+    ));
+    let deadlines = OperationDeadlines::from_sample(clock.now()).unwrap();
+    let (mut canonical, _) = project_rename_fixture(deadlines.total());
+    let project = canonical.cache().canonical_snapshot().navigation.projects[0].clone();
+    let request = crate::terminal_session::WorkspaceOrganizationRequest::project(
+        &canonical,
+        &project,
+        deadlines.total(),
+    )
+    .unwrap()
+    .with_choice(OrganizationChoice::DeleteIfIdle)
+    .unwrap();
+    let mailbox = bootstrapped_mailbox(1, 5);
+    mailbox.lock().desired = MailboxMembership::Live {
+        desired: None,
+        panes: Vec::new(),
+    };
+    mailbox
+        .try_enqueue_sidebar_organization_for(&mut canonical, &request, deadlines, &clock)
+        .unwrap();
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("conditional Project operation");
+    };
+    let operation = marker.0.clone();
+    let serial = mailbox.lock().active_lease.unwrap().serial;
+    assert_eq!(
+        mailbox.mark_setup_in_flight(&operation).unwrap(),
+        MutationResult::Applied
+    );
+    let exact = WorkbenchSetupPrecommit::Rejected {
+        revision: operation.command.expected_revision,
+        reason: WorkbenchRejectionReason::ConfirmationRequired,
+    };
+    assert!(
+        !mailbox.retain_setup_confirmation_required(&operation, &exact),
+        "no definite no-effect receipt yet"
+    );
+    assert!(mailbox.retain_setup_not_applied(&operation));
+    let placement = EventDeadline::PlacementOnly(operation.deadlines.forward_cutoff());
+    assert!(
+        !mailbox.lock().place_setup_result(
+            &operation,
+            &SetupResult::ConfirmationRequired,
+            placement,
+            Some(serial)
+        ),
+        "generic NotApplied cannot invent the special review outcome"
+    );
+    for reason in [
+        WorkbenchSetupPrecommit::Rejected {
+            revision: WorkbenchRevision::new(operation.command.expected_revision.value() + 1),
+            reason: WorkbenchRejectionReason::ConfirmationRequired,
+        },
+        WorkbenchSetupPrecommit::Rejected {
+            revision: operation.command.expected_revision,
+            reason: WorkbenchRejectionReason::RevisionMismatch,
+        },
+        WorkbenchSetupPrecommit::Unavailable {
+            reason: orchbee_workbench_protocol::WorkbenchCommandUnavailableReason::TerminalBusy,
+        },
+        WorkbenchSetupPrecommit::Denied,
+    ] {
+        assert!(!mailbox.retain_setup_confirmation_required(&operation, &reason));
+    }
+    let mut unconditional = operation.clone();
+    unconditional.command.action = WorkbenchAction::ProjectDissolve {
+        project_id: project.project_id,
+    };
+    assert!(!mailbox.retain_setup_confirmation_required(&unconditional, &exact));
+    assert!(mailbox.retain_setup_confirmation_required(&operation, &exact));
+    assert!(
+        !mailbox.lock().place_setup_result(
+            &operation,
+            &SetupResult::ConfirmationRequired,
+            placement,
+            Some(serial + 1)
+        ),
+        "the exact result still needs its existing lease"
+    );
+    assert!(mailbox.lock().place_setup_result(
+        &operation,
+        &SetupResult::ConfirmationRequired,
+        placement,
+        Some(serial)
+    ));
+    assert!(
+        canonical.setup_draft().is_none(),
+        "placement itself never creates or confirms a prompt"
+    );
+    mailbox.close(CarrierFailure::Transport);
+    assert_eq!(
+        mailbox.setup_worker_loss(),
+        Some(SetupWorkerEvidence::NotApplied(operation)),
+        "lost UI settlement preserves no-effect evidence without escalating or replaying"
+    );
+}
 
 fn project_rename_fixture(
     deadline: Instant,

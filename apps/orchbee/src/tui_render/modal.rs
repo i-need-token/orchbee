@@ -43,6 +43,7 @@ pub(super) struct ModalAction<'a> {
     kind: super::controls::ActionKind,
     enabled: bool,
     shortcut: Option<&'a str>,
+    tone: crate::action_projection::ActionTone,
 }
 
 impl<'a> ModalAction<'a> {
@@ -56,11 +57,16 @@ impl<'a> ModalAction<'a> {
             kind,
             enabled,
             shortcut: None,
+            tone: crate::action_projection::ActionTone::Ordinary,
         }
     }
 
     pub(super) const fn with_shortcut(mut self, shortcut: &'a str) -> Self {
         self.shortcut = Some(shortcut);
+        self
+    }
+    pub(super) const fn with_tone(mut self, tone: crate::action_projection::ActionTone) -> Self {
+        self.tone = tone;
         self
     }
 
@@ -97,7 +103,8 @@ impl<'a> ModalAction<'a> {
                 },
                 OperationState::Idle,
             ),
-        );
+        )
+        .with_tone(self.tone);
         self.shortcut
             .map_or(spec, |shortcut| spec.with_shortcut(shortcut))
     }

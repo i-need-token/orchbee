@@ -15,6 +15,7 @@ use crate::terminal_session::workbench_projection::{
 };
 use crate::tui_presentation::GeometrySettlement;
 use std::time::{Duration, Instant};
+mod sidebar;
 #[cfg(test)]
 mod tests;
 
@@ -159,7 +160,7 @@ fn action_availability(
         };
     }
     if let (Some(state), Target::Tab { tab, .. }) = (state, target)
-        && super::tab_groups::close_tab_ids(state, tab.tab_id(), action)
+        && super::tab_groups::close_tab_ids(state, tab.tab_id(), action.clone())
             .is_some_and(|ids| ids.is_empty())
     {
         return ActionAvailability::Disabled(MenuUnavailable::NoMatchingTabs);
@@ -172,7 +173,11 @@ fn action_availability(
         );
     }
     if (matches!(target, Target::Project { .. }) && action == MenuAction::CloseProjectWorkspaces)
-        || (matches!(target, Target::Workspace { .. }) && action == MenuAction::CloseWorkspace)
+        || (matches!(target, Target::Workspace { .. })
+            && matches!(
+                action,
+                MenuAction::CloseWorkspace | MenuAction::DeleteWorkspace
+            ))
     {
         return ActionAvailability::from_disabled_reason(
             state
@@ -183,13 +188,32 @@ fn action_availability(
     if (matches!(target, Target::Project { .. })
         && matches!(
             action,
-            MenuAction::RenameProject | MenuAction::DissolveProject
+            MenuAction::RenameProject | MenuAction::DissolveProject | MenuAction::DeleteProject
         ))
-        || action == MenuAction::MoveWorkspace
+        || matches!(
+            action,
+            MenuAction::MoveWorkspace
+                | MenuAction::WorkspaceProjects
+                | MenuAction::CreateWorkspaceProject
+                | MenuAction::LeaveWorkspaceProject
+                | MenuAction::JoinWorkspaceProject(_)
+        )
     {
         return ActionAvailability::from_disabled_reason(
             state
                 .is_none_or(|state| !state.project_rename_available())
+                .then_some(MenuUnavailable::OperationBusy),
+        );
+    }
+    if matches!(
+        action,
+        MenuAction::WorkspaceWorktrees | MenuAction::OpenWorktreeAt(_) | MenuAction::NewWorktree
+    ) && matches!(target, Target::Workspace { .. } | Target::Project { .. })
+    {
+        return ActionAvailability::from_disabled_reason(
+            state
+                .and_then(NativeSessionState::worktree_origin)
+                .is_none()
                 .then_some(MenuUnavailable::OperationBusy),
         );
     }
@@ -287,6 +311,7 @@ struct Intent {
     zoomed: bool,
     pointer_released: bool,
     resume_permit: Option<TabCloseResumePermit>,
+    project_choices: Option<Vec<orchbee_workbench_protocol::Project>>,
 }
 
 #[derive(Default)]
@@ -296,6 +321,8 @@ pub(super) struct Coordinator {
     geometry: Option<Geometry>,
     parents: Vec<ParentMenu>,
     resume_handoff: Option<ResumeHandoff>,
+    sidebar: Option<sidebar::Episode>,
+    next_sidebar: u64,
 }
 
 struct ParentMenu {
@@ -432,6 +459,7 @@ impl NativeUi {
         self.menus.intent = None;
         self.menus.parents.clear();
         self.menus.resume_handoff = None;
+        self.menus.sidebar = None;
     }
 
     pub(super) fn fail_action_menu(&mut self) {
@@ -511,12 +539,29 @@ impl NativeUi {
         {
             return false;
         }
-        let target = match target {
-            MenuTarget::Create(Some(project)) => MenuTarget::Project(project),
-            MenuTarget::Create(None) => MenuTarget::Global,
-            MenuTarget::TabCreate(_) => MenuTarget::Global,
-            target => target,
-        };
+        let target =
+            match target {
+                MenuTarget::Worktrees(crate::terminal_session::SidebarWorktreeTarget::Project(
+                    id,
+                )) => MenuTarget::Project(id),
+                MenuTarget::Worktrees(
+                    crate::terminal_session::SidebarWorktreeTarget::Workspace(id),
+                ) => {
+                    let Some(workspace) = self.state.as_ref().and_then(|state| {
+                        state.cache().canonical_snapshot().navigation.workspace(&id)
+                    }) else {
+                        return false;
+                    };
+                    MenuTarget::Workspace(NativeContextLocation::Workspace {
+                        workspace_id: id,
+                        terminal_context_id: workspace.terminal_context_id.clone(),
+                    })
+                }
+                MenuTarget::Create(Some(project)) => MenuTarget::Project(project),
+                MenuTarget::Create(None) => MenuTarget::Global,
+                MenuTarget::TabCreate(_) => MenuTarget::Global,
+                target => target,
+            };
         let live = self.menu_carrier_live();
         if creation_only && !live {
             return false;
@@ -650,7 +695,7 @@ impl NativeUi {
                     crate::action_menu::PROJECT_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::Workspace(location) => {
+            MenuTarget::Workspace(location) | MenuTarget::WorkspaceProjects(location) => {
                 if !live {
                     return false;
                 }
@@ -677,9 +722,22 @@ impl NativeUi {
                     crate::action_menu::WORKSPACE_ACTIONS.to_vec(),
                 )
             }
-            MenuTarget::Drawn { .. } | MenuTarget::Create(_) | MenuTarget::TabCreate(_) => {
+            MenuTarget::Drawn { .. }
+            | MenuTarget::Create(_)
+            | MenuTarget::TabCreate(_)
+            | MenuTarget::Worktrees(_) => {
                 return false;
             }
+        };
+        let project_choices = if matches!(entry, MenuTarget::WorkspaceProjects(_)) {
+            let Some(choices) = state.and_then(|state| sidebar::project_choices(state, &target))
+            else {
+                return false;
+            };
+            actions = choices.1;
+            Some(choices.0)
+        } else {
+            None
         };
         let resume_permit = match (state, &target, resume_seed) {
             (Some(state), Target::Tab { tab, .. }, ResumePermitSeed::CaptureDisplayed)
@@ -731,6 +789,7 @@ impl NativeUi {
                 )
             });
         }
+        actions = sidebar::actions(&entry, actions, self.menus.sidebar.as_ref());
         if tab_creation {
             actions = vec![
                 MenuAction::NewTab,
@@ -742,7 +801,7 @@ impl NativeUi {
             !action_availability(
                 state,
                 &target,
-                *action,
+                action.clone(),
                 pointer_released,
                 resume_permit.as_ref(),
             )
@@ -756,6 +815,7 @@ impl NativeUi {
             zoomed: state.is_some_and(NativeSessionState::zoom_active),
             pointer_released,
             resume_permit,
+            project_choices,
         };
         if !self
             .menus
@@ -765,6 +825,13 @@ impl NativeUi {
             return false;
         }
         self.menus.menu.set_labels(|action| match action {
+            MenuAction::JoinWorkspaceProject(id) => intent
+                .project_choices
+                .as_ref()?
+                .iter()
+                .find(|project| project.project_id == id)
+                .map(|project| project.label.to_string()),
+            MenuAction::OpenWorktreeAt(path) => Some(path.as_str().to_owned()),
             MenuAction::NewTabInRecentGroup => state
                 .and_then(NativeSessionState::recent_tab_group)
                 .map(|group| group.label.clone()),
@@ -812,6 +879,7 @@ impl NativeUi {
             return false;
         }
         self.menus.intent = Some(intent);
+        self.prepare_sidebar_worktrees();
         if let Some(state) = self.state.as_mut() {
             state.cancel_project_quick_entry();
         }
@@ -881,6 +949,7 @@ impl NativeUi {
             if !self.action_menu_active() {
                 self.menus.intent = None;
                 self.menus.parents.clear();
+                self.menus.sidebar = None;
             }
             return true;
         }
@@ -902,6 +971,7 @@ impl NativeUi {
         if !self.action_menu_active() {
             self.menus.intent = None;
             self.menus.parents.clear();
+            self.menus.sidebar = None;
         }
         true
     }
@@ -999,6 +1069,7 @@ impl NativeUi {
             Some(GeometrySettlement::Refused) => {
                 self.menus.intent = None;
                 self.menus.parents.clear();
+                self.menus.sidebar = None;
                 self.note_action_menu_unavailable();
             }
             Some(GeometrySettlement::Suspended) | None => {}
@@ -1082,7 +1153,7 @@ impl NativeUi {
         match target {
             Target::Global => true,
             Target::Tab { .. }
-                if matches!(action.client_action(), ClientAction::TabMenu { .. }) =>
+                if matches!(action.client_action(), Some(ClientAction::TabMenu { .. })) =>
             {
                 true
             }
@@ -1090,6 +1161,10 @@ impl NativeUi {
                 if matches!(
                     action,
                     MenuAction::QuickWorkspace
+                        | MenuAction::DeleteProject
+                        | MenuAction::WorkspaceWorktrees
+                        | MenuAction::NewWorktree
+                        | MenuAction::OpenWorktreeAt(_)
                         | MenuAction::RenameProject
                         | MenuAction::DissolveProject
                         | MenuAction::CloseProjectWorkspaces
@@ -1105,7 +1180,16 @@ impl NativeUi {
             Target::Workspace { .. }
                 if matches!(
                     action,
-                    MenuAction::MoveWorkspace | MenuAction::CloseWorkspace
+                    MenuAction::MoveWorkspace
+                        | MenuAction::CloseWorkspace
+                        | MenuAction::WorkspaceProjects
+                        | MenuAction::WorkspaceWorktrees
+                        | MenuAction::CreateWorkspaceProject
+                        | MenuAction::LeaveWorkspaceProject
+                        | MenuAction::JoinWorkspaceProject(_)
+                        | MenuAction::DeleteWorkspace
+                        | MenuAction::NewWorktree
+                        | MenuAction::OpenWorktreeAt(_)
                 ) =>
             {
                 true
@@ -1147,6 +1231,13 @@ impl NativeUi {
             .deadline()
             .is_some_and(|deadline| self.clock.now() >= deadline)
             || !self.target_valid(&intent.target)
+            || !self.sidebar_worktree_source_current()
+            || intent.project_choices.as_ref().is_some_and(|choices| {
+                self.state
+                    .as_ref()
+                    .and_then(|state| sidebar::project_choices(state, &intent.target))
+                    .is_none_or(|current| &current.0 != choices)
+            })
             || (open && current != intent.origin)
         {
             self.fail_action_menu();
@@ -1160,7 +1251,7 @@ impl NativeUi {
                         action_availability(
                             self.state.as_ref(),
                             &intent.target,
-                            *action,
+                            action.clone(),
                             intent.pointer_released,
                             intent.resume_permit.as_ref(),
                         )
@@ -1200,13 +1291,24 @@ impl NativeUi {
                         .menus
                         .menu
                         .confirmed()
-                        .filter(|action| self.menu_target_selected(&intent.target, *action))
+                        .filter(|action| self.menu_target_selected(&intent.target, action.clone()))
                         .is_some()
                         .then(|| Stage::Offered(current.clone(), deadline)),
                     Target::Workspace { location, .. }
                         if matches!(
                             self.menus.menu.confirmed(),
-                            Some(MenuAction::MoveWorkspace | MenuAction::CloseWorkspace)
+                            Some(
+                                MenuAction::MoveWorkspace
+                                    | MenuAction::CloseWorkspace
+                                    | MenuAction::WorkspaceProjects
+                                    | MenuAction::WorkspaceWorktrees
+                                    | MenuAction::CreateWorkspaceProject
+                                    | MenuAction::LeaveWorkspaceProject
+                                    | MenuAction::JoinWorkspaceProject(_)
+                                    | MenuAction::DeleteWorkspace
+                                    | MenuAction::NewWorktree
+                                    | MenuAction::OpenWorktreeAt(_)
+                            )
                         ) || self
                             .state
                             .as_ref()
@@ -1231,7 +1333,7 @@ impl NativeUi {
                     }
                     Target::Tab { .. }
                         if self.menus.menu.confirmed().is_some_and(|action| {
-                            matches!(action.client_action(), ClientAction::TabMenu { .. })
+                            matches!(action.client_action(), Some(ClientAction::TabMenu { .. }))
                         }) =>
                     {
                         Some(Stage::Offered(current.clone(), deadline))
@@ -1317,11 +1419,11 @@ impl NativeUi {
         }
         let action = self.menus.menu.confirmed()?;
         if !self.target_valid(&intent.target)
-            || !self.menu_target_selected(&intent.target, action)
+            || !self.menu_target_selected(&intent.target, action.clone())
             || !action_availability(
                 self.state.as_ref(),
                 &intent.target,
-                action,
+                action.clone(),
                 pointer_released,
                 intent.resume_permit.as_ref(),
             )
@@ -1355,6 +1457,66 @@ impl NativeUi {
             }
             return None;
         }
+        if action == MenuAction::WorkspaceProjects {
+            let Target::Workspace { location, .. } = &intent.target else {
+                return None;
+            };
+            let child = MenuTarget::WorkspaceProjects(location.clone());
+            let parent = ParentMenu {
+                target: intent.entry.clone(),
+                anchor: self.menus.menu.view()?.anchor,
+                selected: action,
+                resume_permit: intent.resume_permit.clone(),
+            };
+            self.menus.menu.take()?;
+            self.menus.intent = None;
+            if self.open_action_menu(child, parent.anchor, pointer_released) {
+                self.menus.parents.push(parent);
+            } else {
+                self.menus.parents.clear();
+            }
+            return None;
+        }
+        if action == MenuAction::WorkspaceWorktrees {
+            let child = MenuTarget::Worktrees(sidebar::target(
+                &intent.entry,
+                &intent.target,
+                self.state.as_ref()?,
+            )?);
+            let parent = ParentMenu {
+                target: intent.entry.clone(),
+                anchor: self.menus.menu.view()?.anchor,
+                selected: action,
+                resume_permit: intent.resume_permit.clone(),
+            };
+            self.menus.menu.take()?;
+            self.menus.intent = None;
+            if self.open_action_menu(child, parent.anchor, pointer_released) {
+                self.menus.parents.push(parent);
+            } else {
+                self.menus.parents.clear();
+            }
+            return None;
+        }
+        if matches!(
+            action,
+            MenuAction::NewWorktree | MenuAction::OpenWorktreeAt(_)
+        ) && matches!(
+            intent.entry,
+            MenuTarget::Worktrees(_) | MenuTarget::Create(_)
+        ) {
+            let discovery = self.menus.sidebar.as_ref()?.ready()?.clone();
+            let checkout = match &action {
+                MenuAction::OpenWorktreeAt(path) => Some(path.clone()),
+                _ => None,
+            };
+            self.menus.menu.take()?;
+            self.menus.intent = None;
+            self.menus.parents.clear();
+            self.menus.sidebar = None;
+            self.open_sidebar_worktree(discovery, checkout);
+            return None;
+        }
         if let Target::Tab { tab, .. } = &intent.target {
             let child = match action {
                 MenuAction::ManageGroups => Some(MenuTarget::TabGroupChoices(tab.tab_id().clone())),
@@ -1386,7 +1548,7 @@ impl NativeUi {
         }
         let resume_handoff = match (
             &intent.target,
-            action,
+            action.clone(),
             intent.resume_permit.as_ref(),
             intent.stage.deadline(),
         ) {
@@ -1409,6 +1571,51 @@ impl NativeUi {
             _ => None,
         };
         let action = match (&intent.target, action) {
+            (
+                Target::Workspace {
+                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    ..
+                },
+                MenuAction::DeleteWorkspace,
+            ) => ClientAction::RequestSidebarWorkspaceDelete(Box::new(
+                crate::terminal_session::WorkspaceDeleteRequest::capture(
+                    self.state.as_ref()?,
+                    workspace_id,
+                    intent.stage.deadline()?,
+                )?,
+            )),
+            (
+                Target::Workspace {
+                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    ..
+                },
+                choice @ (MenuAction::CreateWorkspaceProject
+                | MenuAction::LeaveWorkspaceProject
+                | MenuAction::JoinWorkspaceProject(_)),
+            ) => {
+                use crate::terminal_session::state::workspace_setup::OrganizationChoice;
+                let choice = match choice {
+                    MenuAction::CreateWorkspaceProject => OrganizationChoice::NewProject,
+                    MenuAction::LeaveWorkspaceProject => OrganizationChoice::SetProject(None),
+                    MenuAction::JoinWorkspaceProject(id) => {
+                        OrganizationChoice::SetProject(Some(id))
+                    }
+                    _ => unreachable!(),
+                };
+                let request = crate::terminal_session::WorkspaceOrganizationRequest::workspace(
+                    self.state.as_ref()?,
+                    workspace_id,
+                    intent.stage.deadline()?,
+                )?
+                .with_choice(choice)?;
+                ClientAction::RequestWorkspaceOrganization(Box::new(request))
+            }
+            (Target::Project { project, .. }, MenuAction::DeleteProject) => {
+                let request = crate::terminal_session::WorkspaceOrganizationRequest::project(
+                    self.state.as_ref()?, project, intent.stage.deadline()?)?
+                    .with_choice(crate::terminal_session::state::workspace_setup::OrganizationChoice::DeleteIfIdle)?;
+                ClientAction::RequestWorkspaceOrganization(Box::new(request))
+            }
             (
                 Target::Workspace {
                     location: NativeContextLocation::Workspace { workspace_id, .. },
@@ -1442,7 +1649,7 @@ impl NativeUi {
                 ClientAction::RequestProjectCloseAll(Some(project.project_id.clone()))
             }
             (Target::Tab { tab, .. }, action)
-                if matches!(action.client_action(), ClientAction::TabMenu { .. }) =>
+                if matches!(action.client_action(), Some(ClientAction::TabMenu { .. })) =>
             {
                 ClientAction::TabMenu {
                     action,
@@ -1465,11 +1672,12 @@ impl NativeUi {
                 )?;
                 ClientAction::RequestTargetedProjectRename(Box::new(request))
             }
-            _ => action.client_action(),
+            _ => action.client_action()?,
         };
         self.menus.menu.take()?;
         self.menus.intent = None;
         self.menus.parents.clear();
+        self.menus.sidebar = None;
         self.menus.resume_handoff = resume_handoff;
         Some(action)
     }

@@ -22,6 +22,8 @@ pub(crate) enum MenuTarget {
     /// Organization actions address the Project directly; terminal actions require a member.
     Project(orchbee_workbench_protocol::WorkbenchProjectId),
     Workspace(crate::terminal_session::NativeContextLocation),
+    WorkspaceProjects(crate::terminal_session::NativeContextLocation),
+    Worktrees(crate::terminal_session::SidebarWorktreeTarget),
     /// An object entry must still belong to the exact Site snapshot that painted it.
     Drawn {
         source: DrawnMenuSource,
@@ -53,7 +55,7 @@ pub(crate) struct DrawnTabCreate {
     pub(crate) location: crate::terminal_session::NativeContextLocation,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MenuAction {
     SplitVertical,
     SplitHorizontal,
@@ -106,6 +108,14 @@ pub(crate) enum MenuAction {
     RenameWorkspace,
     RenameProject,
     MoveWorkspace,
+    WorkspaceProjects,
+    WorkspaceWorktrees,
+    CreateWorkspaceProject,
+    LeaveWorkspaceProject,
+    JoinWorkspaceProject(orchbee_workbench_protocol::WorkbenchProjectId),
+    OpenWorktreeAt(orchbee_workbench_protocol::WorkbenchDirectoryPath),
+    DeleteWorkspace,
+    DeleteProject,
     DissolveProject,
     CloseProjectWorkspaces,
     CloseWorkspace,
@@ -137,7 +147,7 @@ pub(crate) enum MenuUnavailable {
 }
 
 impl MenuAction {
-    pub(crate) const fn submenu(self) -> bool {
+    pub(crate) const fn submenu(&self) -> bool {
         matches!(
             self,
             Self::ManageGroups
@@ -145,10 +155,14 @@ impl MenuAction {
                 | Self::GroupMenu
                 | Self::ChooseGroupColor
                 | Self::TabCreation
+                | Self::WorkspaceProjects
+                | Self::WorkspaceWorktrees
         )
     }
-    pub(crate) fn client_action(self) -> ClientAction {
-        match self {
+    /// Addressed sidebar choices require their menu's frozen source owner.
+    /// They cannot fall back to an action on the current Workspace.
+    pub(crate) fn client_action(&self) -> Option<ClientAction> {
+        Some(match self {
             Self::SplitVertical => ClientAction::SplitPanel(PanelDirection::Right),
             Self::SplitHorizontal => ClientAction::SplitPanel(PanelDirection::Down),
             Self::Zoom => ClientAction::ToggleZoom,
@@ -193,7 +207,7 @@ impl MenuAction {
             | Self::ExpandGroup
             | Self::MoveGroupPrevious
             | Self::MoveGroupNext => ClientAction::TabMenu {
-                action: self,
+                action: self.clone(),
                 tab_id: None,
             },
             Self::NewTab => ClientAction::CreateTab,
@@ -218,7 +232,15 @@ impl MenuAction {
             Self::AgentBoard => ClientAction::ToggleAgentBoard,
             Self::ReleasePointer => ClientAction::TogglePointerCapture,
             Self::Detach => ClientAction::Exit,
-        }
+            Self::WorkspaceProjects
+            | Self::WorkspaceWorktrees
+            | Self::CreateWorkspaceProject
+            | Self::LeaveWorkspaceProject
+            | Self::JoinWorkspaceProject(_)
+            | Self::OpenWorktreeAt(_)
+            | Self::DeleteWorkspace
+            | Self::DeleteProject => return None,
+        })
     }
 }
 
@@ -244,22 +266,16 @@ pub(crate) const TAB_ACTIONS: &[MenuAction] = &[
     MenuAction::TabTools,
 ];
 pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
-    MenuAction::QuickWorkspace,
-    MenuAction::NewTab,
-    MenuAction::WorkspaceDirectory,
+    MenuAction::WorkspaceProjects,
+    MenuAction::WorkspaceWorktrees,
     MenuAction::RenameWorkspace,
-    MenuAction::MoveWorkspace,
-    MenuAction::NewWorktree,
-    MenuAction::OpenWorktree,
-    MenuAction::CloseWorkspace,
+    MenuAction::DeleteWorkspace,
 ];
 pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::QuickWorkspace,
     MenuAction::RenameProject,
-    MenuAction::NewWorktree,
-    MenuAction::OpenWorktree,
-    MenuAction::DissolveProject,
-    MenuAction::CloseProjectWorkspaces,
+    MenuAction::WorkspaceWorktrees,
+    MenuAction::DeleteProject,
 ];
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::TabCreation,
@@ -384,26 +400,41 @@ impl MenuView<'_> {
     }
 
     pub(crate) fn separator_before(&self, index: usize) -> bool {
-        separator_before(self.actions, index)
+        separator_before(self.source, self.actions, index)
     }
 
     pub(crate) fn row_height(&self, first: usize, end: usize) -> usize {
-        row_height(self.actions, first, end)
+        row_height(self.source, self.actions, first, end)
     }
 }
 
-fn separator_before(actions: &[MenuAction], index: usize) -> bool {
+fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -> bool {
     if index == 0 {
         return false;
     }
-    let action = actions[index];
-    crate::action_projection::menu_metadata(action).starts_section(action)
+    let action = &actions[index];
+    match action {
+        MenuAction::JoinWorkspaceProject(_) => {
+            return !matches!(actions[index - 1], MenuAction::JoinWorkspaceProject(_));
+        }
+        MenuAction::OpenWorktreeAt(_) => {
+            return !matches!(actions[index - 1], MenuAction::OpenWorktreeAt(_));
+        }
+        MenuAction::WorkspaceWorktrees => {
+            return matches!(source, MenuTarget::Workspace(_));
+        }
+        MenuAction::RenameWorkspace | MenuAction::DeleteWorkspace | MenuAction::DeleteProject => {
+            return true;
+        }
+        _ => {}
+    }
+    crate::action_projection::menu_metadata(action.clone()).starts_section(action.clone())
 }
 
-fn row_height(actions: &[MenuAction], first: usize, end: usize) -> usize {
+fn row_height(source: &MenuTarget, actions: &[MenuAction], first: usize, end: usize) -> usize {
     end - first
         + ((first + 1)..end)
-            .filter(|index| separator_before(actions, *index))
+            .filter(|index| separator_before(source, actions, *index))
             .count()
 }
 
@@ -551,7 +582,11 @@ impl ActionMenu {
         let Some(menu) = &mut self.menu else {
             return;
         };
-        let labels: Vec<_> = menu.actions.iter().map(|action| label(*action)).collect();
+        let labels: Vec<_> = menu
+            .actions
+            .iter()
+            .map(|action| label(action.clone()))
+            .collect();
         if menu.labels == labels {
             return;
         }
@@ -688,12 +723,15 @@ impl ActionMenu {
         // Derive the actual terminal-row budget from the admitted window. Separators mean the same
         // budget can contain a different number of actions at the tail.
         let rows = row_height(
+            &menu.source,
             &menu.actions,
             draw.first,
             draw.first.saturating_add(draw.visible_rows),
         );
         let mut maximum = menu.actions.len().saturating_sub(1);
-        while maximum > 0 && row_height(&menu.actions, maximum - 1, menu.actions.len()) <= rows {
+        while maximum > 0
+            && row_height(&menu.source, &menu.actions, maximum - 1, menu.actions.len()) <= rows
+        {
             maximum -= 1;
         }
         let first = if up {
@@ -746,7 +784,11 @@ impl ActionMenu {
         let Some(menu) = &mut self.menu else {
             return false;
         };
-        let unavailable: Vec<_> = menu.actions.iter().map(|action| query(*action)).collect();
+        let unavailable: Vec<_> = menu
+            .actions
+            .iter()
+            .map(|action| query(action.clone()))
+            .collect();
         if menu.unavailable == unavailable {
             return false;
         }
@@ -782,7 +824,7 @@ impl ActionMenu {
         {
             return false;
         }
-        self.confirmed = Some(menu.actions[menu.selected]);
+        self.confirmed = Some(menu.actions[menu.selected].clone());
         true
     }
 
@@ -830,12 +872,12 @@ impl ActionMenu {
             return false;
         };
         menu.selected = row;
-        self.confirmed = Some(menu.actions[row]);
+        self.confirmed = Some(menu.actions[row].clone());
         true
     }
 
     pub(crate) fn confirmed(&self) -> Option<MenuAction> {
-        self.confirmed
+        self.confirmed.clone()
     }
 
     pub(crate) fn take(&mut self) -> Option<MenuAction> {

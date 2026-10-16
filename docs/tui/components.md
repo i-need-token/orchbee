@@ -146,6 +146,10 @@ auxiliary-action slots required by any state that the component can enter.
   extent. The primary button in a decision context uses `accent-action` at rest; secondary buttons
   use `text-primary`. Neither state looks like keyboard focus. Status roles never distinguish
   primary, default, or destructive actions.
+- An explicitly destructive action may declare the shared destructive intent tone. Its label uses
+  `accent-destructive` independently of primary/secondary hierarchy; disabled content still uses
+  `text-disabled`. Row and button owners retain their ordinary hover, pressed, focus, and provisional
+  tracks. They never construct a local warning color or borrow a status role for this intent.
 - A decision button keeps its owner-formatted shortcut inside the brackets, after two blank cells.
   Shortcut text uses `text-secondary` and normal weight; terminal cells retain their host font size.
   It shares the button's complete fixed paint and hit extent and never creates a second action.

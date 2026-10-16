@@ -20,6 +20,28 @@ impl Locale {
         }
     }
 
+    pub(crate) const fn sidebar_delete_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Delete",
+            Self::ZhCn => "删除",
+        }
+    }
+    pub(crate) const fn project_delete_title(self) -> &'static str {
+        match self {
+            Self::EnUs => "Delete Project?",
+            Self::ZhCn => "删除项目？",
+        }
+    }
+    pub(crate) const fn project_delete_warning(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "Remove this Project organization. All member Workspaces, terminals and programs are kept and become ungrouped."
+            }
+            Self::ZhCn => {
+                "移除此项目组织关系。全部成员工作区、终端和程序都会保留，并成为未分组工作区。"
+            }
+        }
+    }
     /// Localized progress for the Client-local Workspace creation projection.
     #[cfg(windows)]
     pub(crate) const fn workspace_creation_progress(
@@ -198,6 +220,7 @@ impl Locale {
             (Self::ZhCn, NativeSetupStage::WorkspaceProjectName) => "新建项目并移入工作区",
             (Self::EnUs, NativeSetupStage::DissolveProject) => "Dissolving Project…",
             (Self::ZhCn, NativeSetupStage::DissolveProject) => "正在解散项目…",
+            (_, NativeSetupStage::ProjectDeleteConfirm) => self.project_delete_title(),
             (Self::EnUs, NativeSetupStage::TabGroupName) => "Tab group name",
             (Self::ZhCn, NativeSetupStage::TabGroupName) => "标签页分组名称",
             (Self::EnUs, NativeSetupStage::PreparingWorkspace) => "Preparing Workspace directory…",

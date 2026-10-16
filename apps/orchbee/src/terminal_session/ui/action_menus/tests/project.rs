@@ -40,7 +40,7 @@ fn snapshot() -> Snapshot {
 }
 
 #[test]
-fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
+fn create_menu_omits_unresolved_worktree_and_reuses_exact_project_quick_workspace() {
     let mut snapshot = snapshot();
     snapshot.terminal_contexts[0].tabs.clear();
     let workspace = &snapshot.navigation.workspaces[0];
@@ -66,20 +66,9 @@ fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
     ));
     let view = ui.view();
     let menu = view.action_menu().unwrap();
-    assert_eq!(
-        menu.actions,
-        &[
-            MenuAction::QuickWorkspace,
-            MenuAction::NewWorktree,
-            MenuAction::OpenWorktree
-        ]
-    );
+    assert_eq!(menu.actions, &[MenuAction::QuickWorkspace]);
     assert_eq!(menu.unavailable[0], None);
-    assert!(
-        menu.unavailable[1..]
-            .iter()
-            .all(|reason| *reason == Some(MenuUnavailable::ProjectWorkspaceRequired))
-    );
+    assert_eq!(menu.unavailable, &[None]);
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::QuickWorkspace);
     activate_row(&mut ui, token, row);
@@ -208,6 +197,106 @@ fn open(ui: &mut NativeUi, project: &Project) -> bool {
         None,
         false,
     )
+}
+
+#[test]
+fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_current_focus() {
+    for grouped in [false, true] {
+        let mut snapshot = snapshot();
+        snapshot.terminal_contexts[0].tabs.clear();
+        if !grouped {
+            snapshot.navigation.workspaces[0].project_id = None;
+        }
+        assert_eq!(
+            snapshot.navigation.projects[0].label,
+            snapshot.navigation.projects[1].label
+        );
+        let addressed = &snapshot.navigation.workspaces[0];
+        let target = NativeContextLocation::Workspace {
+            workspace_id: addressed.workspace_id.clone(),
+            terminal_context_id: addressed.terminal_context_id.clone(),
+        };
+        let current = NativeContextLocation::Standalone(
+            snapshot.navigation.standalone_terminal_context_id.clone(),
+        );
+        let (mut ui, mailbox) = ready(&snapshot, &current);
+        let original = Origin::capture(ui.state.as_ref());
+        assert!(ui.open_action_menu(MenuTarget::WorkspaceProjects(target), None, false));
+        let project = snapshot.navigation.projects[1].clone();
+        let chosen = MenuAction::JoinWorkspaceProject(project.project_id.clone());
+        let row = {
+            let view = ui.view();
+            let menu = view.action_menu().unwrap();
+            assert_eq!(
+                menu.actions,
+                &[
+                    if grouped {
+                        MenuAction::LeaveWorkspaceProject
+                    } else {
+                        MenuAction::CreateWorkspaceProject
+                    },
+                    MenuAction::JoinWorkspaceProject(
+                        snapshot.navigation.projects[0].project_id.clone()
+                    ),
+                    chosen.clone(),
+                ]
+            );
+            assert!(!menu.separator_before(0));
+            assert!(menu.separator_before(1));
+            assert!(!menu.separator_before(2));
+            assert_eq!(menu.labels[1].as_deref(), Some(project.label.as_str()));
+            assert_eq!(menu.labels[2].as_deref(), Some(project.label.as_str()));
+            2
+        };
+        let token = arm(&mut ui);
+        activate_row(&mut ui, token, row);
+        let action = ui.take_action_menu_action(false).unwrap();
+        ui.apply_client_action(action);
+        let lease = mailbox
+            .try_recv()
+            .unwrap()
+            .expect("one addressed grouping command");
+        let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+            panic!("exact grouping");
+        };
+        assert_eq!(
+            marker.0.command.action,
+            WorkbenchAction::WorkspaceSetProject {
+                workspace_id: addressed.workspace_id.clone(),
+                project_id: Some(project.project_id),
+            }
+        );
+        assert_eq!(Origin::capture(ui.state.as_ref()), original);
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}
+
+#[test]
+fn workspace_project_choice_reorder_retires_the_frozen_submenu_before_dispatch() {
+    let mut snapshot = snapshot();
+    snapshot.terminal_contexts[0].tabs.clear();
+    let current = NativeContextLocation::Standalone(
+        snapshot.navigation.standalone_terminal_context_id.clone(),
+    );
+    let (mut ui, mailbox) = ready(&snapshot, &current);
+    let target = workspace(&snapshot, &snapshot.navigation.projects[0]);
+    assert!(ui.open_action_menu(MenuTarget::WorkspaceProjects(target), None, false));
+    let token = arm(&mut ui);
+    let source = ui.view().action_menu().unwrap().source.clone();
+    snapshot.navigation.project_order = snapshot
+        .navigation
+        .projects
+        .iter()
+        .rev()
+        .map(|project| project.project_id.clone())
+        .collect();
+    snapshot.revision = WorkbenchRevision::new(snapshot.revision.value() + 1);
+    install(&mut ui, &snapshot, &current);
+    ui.activate_action_menu_row(&source, token, 1);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(!ui.action_menu_active());
+    assert!(ui.view().setup_draft().is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
 }
 
 fn confirm_quick(ui: &mut NativeUi, project: &Project, keyboard: bool) -> ClientAction {
@@ -419,48 +508,44 @@ fn project_quick_menu_rejects_noncurrent_target_replacement_even_after_taking_th
 }
 
 #[test]
-fn project_menu_uses_current_workspace_and_hands_original_actions_once() {
+fn project_menu_requires_addressed_git_proof_even_when_its_workspace_is_current() {
     for current in 0..2 {
-        for (menu_action, expected) in [
-            (MenuAction::NewWorktree, ClientAction::RequestWorktreeCreate),
-            (MenuAction::OpenWorktree, ClientAction::RequestWorktreeOpen),
-        ] {
-            let snapshot = snapshot();
-            let project = &snapshot.navigation.projects[current];
-            let location = workspace(&snapshot, project);
-            let (mut ui, mailbox) = ready(&snapshot, &location);
-            let origin = Origin::capture(ui.state.as_ref());
-            let cursors = mailbox.cursors();
-            assert!(open(&mut ui, project));
-            ui.capture_action_menu_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
-            assert!(!ui.action_menu_active());
-            assert_eq!(Origin::capture(ui.state.as_ref()), origin);
-            assert!(open(&mut ui, project));
-            let row = ui
-                .view()
+        let snapshot = snapshot();
+        let project = &snapshot.navigation.projects[current];
+        let location = workspace(&snapshot, project);
+        let (mut ui, mailbox) = ready(&snapshot, &location);
+        let origin = Origin::capture(ui.state.as_ref());
+        let cursors = mailbox.cursors();
+        assert!(open(&mut ui, project));
+        assert_eq!(
+            ui.view().action_menu().unwrap().actions,
+            &[
+                MenuAction::QuickWorkspace,
+                MenuAction::RenameProject,
+                MenuAction::DeleteProject
+            ]
+        );
+        assert!(
+            !ui.view()
                 .action_menu()
                 .unwrap()
                 .actions
-                .iter()
-                .position(|action| *action == menu_action)
-                .unwrap();
-            let token = arm(&mut ui);
-            activate_row(&mut ui, token, row);
-            assert_eq!(ui.take_action_menu_action(false), Some(expected.clone()));
-            assert_eq!(ui.take_action_menu_action(false), None);
-            assert_eq!(Origin::capture(ui.state.as_ref()), origin);
-            assert_eq!(mailbox.cursors(), cursors);
-            assert!(mailbox.try_recv().unwrap().is_none());
-        }
+                .contains(&MenuAction::WorkspaceWorktrees)
+        );
+        assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+        assert_eq!(mailbox.cursors(), cursors);
+        assert!(mailbox.try_recv().unwrap().is_none());
+        ui.cancel_action_menu();
+        assert_eq!(Origin::capture(ui.state.as_ref()), origin);
     }
 }
 
 #[test]
-fn project_menu_never_guesses_context_for_empty_other_or_standalone_targets() {
+fn project_menu_empty_and_noncurrent_targets_do_not_invent_a_worktree_or_change_focus() {
     for standalone in [true, false] {
         for empty in [true, false] {
-            let (mut ui, mailbox, _, _) = tests::context_selection::ready(true);
             let mut snapshot = snapshot();
+            snapshot.terminal_contexts[0].tabs.clear();
             let target = usize::from(!standalone);
             let location = if standalone {
                 NativeContextLocation::Standalone(
@@ -470,45 +555,24 @@ fn project_menu_never_guesses_context_for_empty_other_or_standalone_targets() {
                 workspace(&snapshot, &snapshot.navigation.projects[0])
             };
             if empty {
-                let project_id = snapshot.navigation.projects[target].project_id.clone();
-                empty_project(&mut snapshot, &project_id);
+                let project = snapshot.navigation.projects[target].project_id.clone();
+                empty_project(&mut snapshot, &project);
             }
-            install(&mut ui, &snapshot, &location);
+            let (mut ui, mailbox) = ready(&snapshot, &location);
             let origin = Origin::capture(ui.state.as_ref());
             let cursors = mailbox.cursors();
             assert!(open(&mut ui, &snapshot.navigation.projects[target]));
-            let actions = ui.view().action_menu().unwrap().actions.to_vec();
-            for (row, action) in actions.iter().enumerate() {
-                if matches!(
-                    action,
-                    MenuAction::QuickWorkspace
-                        | MenuAction::RenameProject
-                        | MenuAction::DissolveProject
-                        | MenuAction::CloseProjectWorkspaces
-                ) {
-                    continue;
-                }
-                assert_eq!(
-                    ui.view().action_menu().unwrap().unavailable[row],
-                    Some(MenuUnavailable::ProjectWorkspaceRequired)
-                );
-                let token = arm(&mut ui);
-                activate_row(&mut ui, token, row);
-                let selected = ui.view().action_menu().unwrap().selected;
-                assert!(selected <= row);
-                for _ in selected..row {
-                    ui.capture_action_menu_key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
-                }
-                assert_eq!(ui.view().action_menu().unwrap().selected, row);
-                arm(&mut ui);
-                ui.capture_action_menu_key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
-                assert!(ui.action_menu_active());
-                assert_eq!(ui.menus.menu.confirmed(), None);
-                assert_eq!(ui.take_action_menu_action(false), None);
-                assert_eq!(Origin::capture(ui.state.as_ref()), origin);
-                assert_eq!(mailbox.cursors(), cursors);
-                assert!(mailbox.try_recv().unwrap().is_none());
-            }
+            assert_eq!(
+                ui.view().action_menu().unwrap().actions,
+                &[
+                    MenuAction::QuickWorkspace,
+                    MenuAction::RenameProject,
+                    MenuAction::DeleteProject
+                ]
+            );
+            assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+            assert_eq!(mailbox.cursors(), cursors);
+            assert!(mailbox.try_recv().unwrap().is_none());
             ui.cancel_action_menu();
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
         }
@@ -623,16 +687,19 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                 (12, 3),
             ] {
                 let (mut ui, _, _, _) = tests::context_selection::ready(true);
-                let snapshot = snapshot();
+                let mut snapshot = snapshot();
+                snapshot.terminal_contexts[0].tabs.clear();
                 let location = NativeContextLocation::Standalone(
                     snapshot.navigation.standalone_terminal_context_id.clone(),
                 );
                 install(&mut ui, &snapshot, &location);
                 ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
                 assert!(open(&mut ui, &snapshot.navigation.projects[0]));
-                let selected_row = action_row(&ui, MenuAction::NewWorktree);
+                assert!(ui.state.as_mut().unwrap().start_pending_refresh(1));
+                ui.drive_action_menu();
+                let selected_row = action_row(&ui, MenuAction::DeleteProject);
                 let action_count = ui.view().action_menu().unwrap().actions.len();
-                ui.menus.menu.select_action(MenuAction::NewWorktree);
+                ui.menus.menu.select_action(MenuAction::DeleteProject);
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut receipt = NativeDrawReceipt::default();
                 let mut hits = HitMapBuilder::new();
@@ -674,14 +741,13 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                         text
                     })
                     .collect();
-                let reason =
-                    locale.menu_unavailable(MenuUnavailable::ProjectWorkspaceRequired, true);
+                let reason = locale.menu_unavailable(MenuUnavailable::OperationBusy, true);
                 assert!(text.replace(' ', "").contains(&reason.replace(' ', "")));
-                assert!(text.contains("Esc"));
-                assert!(text.contains(&format!("{}/{}", selected_row + 1, action_count)));
+                assert!(!text.contains("Esc"), "context menu has no external footer");
+                assert!(!text.contains(&format!("{}/{}", selected_row + 1, action_count)));
                 assert!(!text.contains("Enter"));
                 if width >= 80 {
-                    assert!(text.contains(locale.menu_action(MenuAction::NewWorktree)));
+                    assert!(text.contains(locale.menu_action(&MenuAction::DeleteProject)));
                 }
                 if width == 20 {
                     let hits = hits.finish();
@@ -700,7 +766,7 @@ fn project_menu_disabled_reason_renders_in_both_locales_at_small_geometry() {
                         .unwrap();
                     let selected = text.lines().nth(usize::from(row)).unwrap();
                     assert!(
-                        selected.contains(locale.menu_action(MenuAction::NewWorktree))
+                        selected.contains(locale.menu_action(&MenuAction::DeleteProject))
                             || selected.contains(theme.glyphs.ellipsis)
                     );
                 }

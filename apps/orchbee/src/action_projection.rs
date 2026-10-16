@@ -78,6 +78,25 @@ pub(crate) struct ActionMetadata<'a> {
     pub(crate) search_aliases: &'static [ActionSearchAlias],
 }
 
+/// Intent tone is independent of reading hierarchy, availability and pointer state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ActionTone {
+    Ordinary,
+    Destructive,
+}
+
+impl ActionTone {
+    pub(crate) const fn content_role(
+        self,
+        ordinary: crate::tui_theme::Role,
+    ) -> crate::tui_theme::Role {
+        match self {
+            Self::Ordinary => ordinary,
+            Self::Destructive => crate::tui_theme::Role::AccentDestructive,
+        }
+    }
+}
+
 impl<'a> ActionMetadata<'a> {
     pub(crate) fn same_discovery_entry(&self, other: &Self) -> bool {
         self.identity == other.identity
@@ -393,6 +412,7 @@ pub(crate) fn menu_binding_action(
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct MenuActionMetadata {
     pub(crate) action: ActionMetadata<'static>,
+    pub(crate) tone: ActionTone,
 }
 
 #[cfg(windows)]
@@ -422,6 +442,11 @@ impl MenuActionMetadata {
 pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
     use ActionCategory as C;
     use MenuAction as A;
+    let tone = if matches!(action, A::DeleteWorkspace | A::DeleteProject) {
+        ActionTone::Destructive
+    } else {
+        ActionTone::Ordinary
+    };
     let projected = match action {
         A::SplitVertical => split_panel(PanelDirection::Right),
         A::SplitHorizontal => split_panel(PanelDirection::Down),
@@ -487,17 +512,34 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
             &[ActionSearchAlias::Workspace, ActionSearchAlias::Rename],
         ),
         A::RenameProject => built_in("workbench.project.rename", C::Project, PROJECT),
-        A::MoveWorkspace => built_in("workbench.workspace.set-project", C::Workspace, PROJECT),
-        A::DissolveProject => built_in("workbench.project.dissolve", C::Project, PROJECT),
+        A::MoveWorkspace | A::LeaveWorkspaceProject | A::JoinWorkspaceProject(_) => {
+            built_in("workbench.workspace.set-project", C::Workspace, PROJECT)
+        }
+        A::CreateWorkspaceProject => {
+            built_in("workbench.workspace.create-project", C::Workspace, PROJECT)
+        }
+        A::WorkspaceProjects => built_in(
+            "orchbee.native.workspace.project-menu.open",
+            C::Workspace,
+            PROJECT,
+        ),
+        A::WorkspaceWorktrees => {
+            built_in("orchbee.native.worktree-menu.open", C::Workspace, WORKTREE)
+        }
+        A::DissolveProject | A::DeleteProject => {
+            built_in("workbench.project.dissolve", C::Project, PROJECT)
+        }
         A::CloseProjectWorkspaces => built_in("workbench.project.close-all", C::Project, PROJECT),
-        A::CloseWorkspace => built_in(
+        A::CloseWorkspace | A::DeleteWorkspace => built_in(
             "workbench.workspace.delete",
             C::Workspace,
             &[ActionSearchAlias::Workspace, ActionSearchAlias::Close],
         ),
         A::NewWorkspace => built_in("workbench.workspace.create", C::Workspace, WORKSPACE),
         A::NewWorktree => built_in("orchbee.native.worktree.create", C::Workspace, WORKTREE),
-        A::OpenWorktree => built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE),
+        A::OpenWorktree | A::OpenWorktreeAt(_) => {
+            built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE)
+        }
         A::Reload => built_in(
             "orchbee.native.configuration.reload",
             C::Application,
@@ -516,7 +558,10 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::ReleasePointer => built_in("orchbee.native.pointer-capture.toggle", C::Input, MOUSE),
         A::Detach => built_in("orchbee.native.window.detach", C::Session, DETACH),
     };
-    MenuActionMetadata { action: projected }
+    MenuActionMetadata {
+        action: projected,
+        tone,
+    }
 }
 
 #[cfg(test)]

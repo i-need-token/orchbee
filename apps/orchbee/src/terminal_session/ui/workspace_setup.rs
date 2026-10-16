@@ -139,6 +139,17 @@ impl NativeUi {
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             return false;
         };
+        if request.direct() {
+            if self.modal_owns_input() {
+                return false;
+            }
+            let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+                return false;
+            };
+            return mailbox
+                .try_enqueue_sidebar_organization_for(state, &request, deadlines, &self.clock)
+                .is_ok();
+        }
         let Some(token) = self.request_setup_draft(NativeSetupIntent::Organize(request)) else {
             return false;
         };
@@ -431,7 +442,8 @@ impl NativeUi {
                 }
                 changed
             }
-            SetupResult::NotApplied => {
+            result @ (SetupResult::NotApplied | SetupResult::ConfirmationRequired) => {
+                let review_delete = matches!(result, SetupResult::ConfirmationRequired);
                 let result = mailbox.deposit_ui_reply_before(&wait, &self.clock, |transaction| {
                     if !state.settle_setup_not_applied(&operation) {
                         return Err(CarrierFailure::Protocol);
@@ -448,7 +460,16 @@ impl NativeUi {
                     )))
                 });
                 match result {
-                    Ok(MutationResult::Applied) => self.validate_state(),
+                    Ok(MutationResult::Applied) => {
+                        if review_delete {
+                            // The conditional command definitely had no effect. This creates a new
+                            // prompt/token; only its complete successful draw plus explicit Enter
+                            // can authorize a distinct unconditional request.
+                            let _ = state
+                                .review_project_delete(&operation, operation.deadlines.total());
+                        }
+                        self.validate_state()
+                    }
                     Ok(MutationResult::Stale) => false,
                     Err(error) => self.handle_event_error(error),
                 }

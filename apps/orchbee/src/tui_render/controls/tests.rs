@@ -1130,6 +1130,108 @@ fn enclosing_frame_focus_keeps_one_shared_navigation_cue_in_low_color() {
 }
 
 #[test]
+fn destructive_row_keeps_markers_and_disabled_content_without_pointer_emphasis() {
+    for theme in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = theme.quantize(level);
+            for availability in [Availability::Enabled, Availability::Disabled] {
+                for pointer in [
+                    PointerPresentation::Rest,
+                    PointerPresentation::Hovered,
+                    PointerPresentation::Pressed,
+                ] {
+                    let row = Rect::new(0, 0, 14, 1);
+                    let primary = Rect::new(3, 0, 6, 1);
+                    let mut terminal =
+                        Terminal::new(TestBackend::new(row.width, row.height)).unwrap();
+                    terminal
+                        .draw(|frame| {
+                            frame.buffer_mut().set_string(
+                                3,
+                                0,
+                                "Delete",
+                                theme.style(Role::AccentDestructive),
+                            );
+                            assert_eq!(
+                                paint_row_interaction(
+                                    frame,
+                                    row,
+                                    RowTracks::new(
+                                        RowFocusCue::Track(Rect::new(0, 0, 1, 1)),
+                                        primary
+                                    )
+                                    .with_primary_role(Role::AccentDestructive)
+                                    .with_provisional(Rect::new(1, 0, 1, 1)),
+                                    &[],
+                                    ControlSurface::Overlay,
+                                    state(
+                                        FocusState::Focused,
+                                        pointer,
+                                        if availability == Availability::Enabled {
+                                            NavigationState::Provisional
+                                        } else {
+                                            NavigationState::None
+                                        },
+                                        CurrentState::NotCurrent,
+                                        CheckedState::Unchecked,
+                                        availability,
+                                        OperationState::Idle
+                                    ),
+                                    &theme,
+                                ),
+                                Some(row)
+                            );
+                        })
+                        .unwrap();
+                    let buffer = terminal.backend().buffer();
+                    assert_eq!(buffer[(0, 0)].symbol(), theme.glyphs.active_marker);
+                    assert_eq!(
+                        buffer[(1, 0)].symbol(),
+                        if availability == Availability::Enabled {
+                            theme.glyphs.navigation_marker
+                        } else {
+                            " "
+                        }
+                    );
+                    let label = buffer[(3, 0)].style();
+                    assert_eq!(
+                        label.fg,
+                        theme
+                            .style(if availability == Availability::Disabled {
+                                Role::TextDisabled
+                            } else {
+                                Role::AccentDestructive
+                            })
+                            .fg
+                    );
+                    if availability == Availability::Disabled {
+                        assert!(!label.add_modifier.contains(Modifier::BOLD));
+                        assert_eq!(
+                            buffer[(13, 0)].style().bg,
+                            theme.style(Role::SurfaceOverlay).bg
+                        );
+                        assert!(
+                            !buffer[(13, 0)]
+                                .style()
+                                .add_modifier
+                                .contains(Modifier::REVERSED)
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn monochrome_rows_distinguish_rest_current_provisional_and_checked() {
     let theme = Theme::one_dark().quantize(ColorLevel::Monochrome);
     let render = |navigation: NavigationState, current: CurrentState, checked: CheckedState| {

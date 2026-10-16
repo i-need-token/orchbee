@@ -2038,6 +2038,7 @@ impl InputDispatcher {
                     | ClientAction::RequestWorkspaceOrganization(_)
                     | ClientAction::RequestProjectCloseAll(_)
                     | ClientAction::RequestWorkspaceCloseAt(_)
+                    | ClientAction::RequestSidebarWorkspaceDelete(_)
             )
         );
         #[cfg(windows)]
@@ -2624,6 +2625,21 @@ impl InputDispatcher {
         if context.readiness == CaptureReadiness::Recovery {
             if event == ModalInputEvent::Cancel {
                 port.cancel_setup_draft(token);
+            }
+            return;
+        }
+        if context.stage == NativeSetupStage::ProjectDeleteConfirm {
+            // This setup stage is a decision, not an editor. Framing completeness remains an
+            // admission fact, while text, paste and editing faults never change its question.
+            match event {
+                ModalInputEvent::Submit => {
+                    let _ = port.submit_setup_draft(token);
+                }
+                ModalInputEvent::Cancel => port.cancel_setup_draft(token),
+                ModalInputEvent::Completeness(complete) => {
+                    port.edit_setup_draft(token, NativeSetupEdit::Completeness(complete));
+                }
+                _ => {}
             }
             return;
         }

@@ -1,5 +1,6 @@
 //! Client-owned Worktree drafts, immutable confirmation and retained observation; Git and terminal
 //! attachment remain with their existing owners.
+pub(in crate::terminal_session) mod addressed;
 mod draft;
 mod origin;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
@@ -48,6 +49,7 @@ pub(in crate::terminal_session) struct Discovery {
 }
 #[derive(Clone, Debug)]
 pub(in crate::terminal_session) struct Plan {
+    pub sidebar: Option<Box<addressed::SidebarDiscovery>>,
     pub operation_id: WorkbenchRequestId,
     pub origin: Origin,
     pub source: WorktreeSource,
@@ -103,6 +105,46 @@ impl Default for Launcher {
     }
 }
 impl Launcher {
+    pub fn open_sidebar(
+        &mut self,
+        origin: Origin,
+        sidebar: addressed::SidebarDiscovery,
+        mode: WorktreeMode,
+        checkout: Option<&WorkbenchDirectoryPath>,
+    ) -> bool {
+        if !matches!(self.phase, Phase::Idle)
+            || !sidebar.valid(origin.cache.canonical_snapshot())
+            || (mode == WorktreeMode::Open) != checkout.is_some()
+        {
+            return false;
+        }
+        let mut draft = Draft::new(
+            origin,
+            sidebar.source.clone(),
+            sidebar.discovery.clone(),
+            mode,
+        );
+        if let Some(checkout) = checkout {
+            let Some(index) = sidebar.discovery.entries.iter().position(|entry| {
+                matches!(&entry.checkout.path, orchbee_workbench_protocol::WorktreeEntryText::Utf8(path) if path == checkout.as_str())
+            }) else { return false; };
+            if !draft.choose_checkout(index) {
+                return false;
+            }
+        }
+        draft.sidebar = Some(Box::new(sidebar));
+        let Some(token) = self.advance_token() else {
+            return false;
+        };
+        draft.token = token;
+        self.phase = Phase::Draft(Box::new(draft));
+        self.visible = true;
+        self.focus_revoked = false;
+        self.notice = WorktreeNotice::Preparing;
+        self.presentation = PresentationPhase::Pending;
+        self.presentation_notice = None;
+        true
+    }
     /// The painted token and exact row authorize one Open, without arming a
     /// replacement token for a selection that has never been drawn.
     pub fn choose_and_confirm(
@@ -154,6 +196,16 @@ impl Launcher {
             && self.presentation.interactive()
             && !self.focus_revoked
             && matches!(&self.phase, Phase::Draft(draft) if draft.is_create())
+    }
+    /// The menu already chose one exact checkout. Its complete source form
+    /// must still be painted before the choice can start an operation.
+    pub fn sidebar_open_ready(&self) -> bool {
+        self.visible
+            && self.shown == self.token()
+            && self.presentation.interactive()
+            && !self.focus_revoked
+            && matches!(&self.phase, Phase::Draft(draft)
+                if draft.sidebar.is_some() && draft.is_checkout())
     }
     fn focus_effect_allowed(&self) -> bool {
         self.visible

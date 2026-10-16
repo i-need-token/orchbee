@@ -14,7 +14,13 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
+mod sidebar;
+use super::state::worktree_launch::addressed::{AddressedWorktreeSource, SidebarDiscovery};
 pub(super) enum Action {
+    SidebarQuery {
+        episode: u64,
+        source: Box<AddressedWorktreeSource>,
+    },
     Query {
         token: WorktreeToken,
         source: WorktreeSource,
@@ -25,10 +31,15 @@ pub(super) enum Action {
 }
 pub(super) struct Job {
     pub action: Action,
-    pub requests: [WorkbenchRequestId; 4],
+    pub requests: [WorkbenchRequestId; 5],
+    pub viewers: [orchbee_client_server_protocol::RequestId; 4],
     pub deadline: Instant,
 }
 pub(super) enum Reply {
+    SidebarQuery {
+        episode: u64,
+        result: Result<SidebarDiscovery, WorktreeNotice>,
+    },
     Query {
         token: WorktreeToken,
         result: Result<Discovery, WorktreeNotice>,
@@ -153,7 +164,7 @@ fn run(shared: &Shared, origin: LocalClientOrigin, clock: LocalOperationClock, w
                 )
                 .ok();
         }
-        let reply = execute(client.as_mut(), job, &clock, wake);
+        let reply = execute(&mut client, job, &clock, wake);
         let Ok(mut h) = lock.lock() else {
             return;
         };
@@ -202,20 +213,35 @@ fn settings() -> Result<Option<WorkbenchDirectoryPath>, WorktreeNotice> {
         .map_err(|_| WorktreeNotice::ConfigurationUnavailable)
 }
 fn execute(
-    client: Option<&mut LocalClient>,
+    client: &mut Option<LocalClient>,
     job: Job,
     clock: &LocalOperationClock,
     wake: &LocalStream,
 ) -> Reply {
-    let [first, second, third, fourth] = job.requests;
+    let [first, second, third, fourth, fifth] = job.requests;
     match job.action {
+        Action::SidebarQuery { episode, source } => {
+            let result = sidebar::discover(
+                client,
+                sidebar::DiscoveryRequest {
+                    addressed: *source,
+                    requests: [first, second, third],
+                    viewers: job.viewers,
+                    expected: None,
+                },
+                job.deadline,
+                clock,
+                wake,
+            );
+            Reply::SidebarQuery { episode, result }
+        }
         Action::Query {
             token,
             source,
             origin,
         } => {
             let result = (|| {
-                let client = client.ok_or(WorktreeNotice::SourceUnavailable)?;
+                let client = client.as_mut().ok_or(WorktreeNotice::SourceUnavailable)?;
                 let root = settings()?;
                 let reply = client
                     .query_worktrees(
@@ -261,7 +287,35 @@ fn execute(
                 _ => unreachable!(),
             };
             let operation = plan.operation_id.clone();
-            let Some(client) = client else {
+            if start && let Some(addressed) = &plan.sidebar {
+                let checked = sidebar::discover(
+                    client,
+                    sidebar::DiscoveryRequest {
+                        addressed: addressed.addressed.clone(),
+                        requests: [first.clone(), second.clone(), third.clone()],
+                        viewers: job.viewers,
+                        expected: Some(addressed.sample.clone()),
+                    },
+                    job.deadline,
+                    clock,
+                    wake,
+                );
+                if checked.as_ref().map_or(true, |current| {
+                    current.sample != addressed.sample
+                        || current.source != addressed.source
+                        || current.discovery.source != addressed.discovery.source
+                        || current.discovery.worker != addressed.discovery.worker
+                        || current.discovery.configured_root != addressed.discovery.configured_root
+                }) {
+                    return Reply::Operation {
+                        operation,
+                        start,
+                        result: Err(false),
+                        snapshot: None,
+                    };
+                }
+            }
+            let Some(client) = client.as_mut() else {
                 return Reply::Operation {
                     operation,
                     start,
@@ -270,7 +324,7 @@ fn execute(
                 };
             };
             let result = (|| {
-                if start {
+                if start && plan.sidebar.is_none() {
                     let fresh = snapshot(client, first, job.deadline, clock, wake).ok_or(false)?;
                     if plan
                         .origin
@@ -320,7 +374,11 @@ fn execute(
                     .submit_worktree_operation(
                         WorkbenchWorktreeRequest {
                             protocol_version: ProtocolVersion,
-                            request_id: third,
+                            request_id: if plan.sidebar.is_some() {
+                                fourth.clone()
+                            } else {
+                                third
+                            },
                             site_id: plan.origin.cache.site_id().clone(),
                             action,
                         },
@@ -333,7 +391,17 @@ fn execute(
             let fresh = if matches!(&result, Ok(WorkbenchWorktreeOutcome::Available { status, .. })
                 if matches!(status.as_ref(), orchbee_workbench_protocol::WorktreeOperationStatus::Opened { .. }))
             {
-                snapshot(client, fourth, job.deadline, clock, wake)
+                snapshot(
+                    client,
+                    if plan.sidebar.is_some() {
+                        fifth
+                    } else {
+                        fourth
+                    },
+                    job.deadline,
+                    clock,
+                    wake,
+                )
             } else {
                 None
             };

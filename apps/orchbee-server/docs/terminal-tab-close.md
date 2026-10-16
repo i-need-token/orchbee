@@ -169,6 +169,15 @@ child-only scope, retained refusal/replay, grant denial and confirmed-action com
 tests additionally own the mapping from real terminal records to this evidence; parser and
 authority tests alone do not establish current Host process state or real TUI behavior.
 
+This is an admission-predicate refinement of the existing retained Close machine, not a second
+lifecycle owner: accepted conditional Close enters the same reservation and publication transitions.
+The new wire discriminants refine complete request fingerprints, and definite refusal has no effect
+before a separately reviewed unconditional request. Registered replay and Close models retain their
+own abstract scope. Their execution does not by itself prove the concrete never-created predicate,
+the complete primary/child/Project-member extractor, precommit reservations without revision change,
+cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Site
+witnesses above carry those obligations separately; they make no current-process-exit claim.
+
 ## Close command and retained status
 
 The existing `workbench.command` envelope and full fingerprint

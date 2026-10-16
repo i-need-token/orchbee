@@ -55,6 +55,7 @@ pub(crate) use panel_reports::PanelReportView;
 mod agent_read_lane;
 mod connection;
 mod mailbox;
+mod primary_directory;
 #[cfg(windows)]
 mod startup_directory;
 #[cfg(windows)]
@@ -65,9 +66,12 @@ pub(crate) use startup_directory::StartupDirectory;
 pub(crate) use workbench_projection::compatibility_workspace;
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
+pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;
 pub(crate) use state::workspace_setup::WorkspaceOrganizationRequest;
 pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
+#[cfg(windows)]
+pub(crate) use state::worktree_launch::addressed::SidebarWorktreeTarget;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod status_recovery;
 mod terminal_clipboard;

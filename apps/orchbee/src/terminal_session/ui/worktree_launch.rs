@@ -45,7 +45,7 @@ impl Coordinator {
     pub(super) fn close(&mut self) -> bool {
         self.lane.as_mut().is_none_or(Lane::close)
     }
-    fn ensure_lane(&mut self, clock: &crate::local_client::LocalOperationClock) -> bool {
+    pub(super) fn ensure_lane(&mut self, clock: &crate::local_client::LocalOperationClock) -> bool {
         if self.lane.as_ref().is_some_and(Lane::failed) {
             if !self.close() {
                 return false;
@@ -251,7 +251,11 @@ impl NativeUi {
         match draw {
             Some(ModalPresentation::Presented(token)) => {
                 self.worktrees.launcher.draw(Some(token));
-                self.submit_default_worktree_if_ready();
+                if self.worktrees.launcher.sidebar_open_ready() {
+                    self.submit_worktree(token);
+                } else {
+                    self.submit_default_worktree_if_ready();
+                }
             }
             Some(ModalPresentation::NotPresented) => {
                 if self.worktrees.launcher.geometry_blocked().is_some() {
@@ -277,11 +281,20 @@ impl NativeUi {
     fn worktree_request(&self) -> Option<WorkbenchRequestId> {
         self.mailbox.as_ref()?.allocate_workbench_request_id().ok()
     }
-    fn issue_worktree(&mut self, action: Action) -> bool {
+    pub(super) fn issue_worktree(&mut self, action: Action) -> bool {
+        self.issue_worktree_before(action, self.clock.now() + Duration::from_secs(10))
+    }
+    pub(super) fn issue_worktree_before(&mut self, action: Action, deadline: Instant) -> bool {
         if !self.worktrees.ensure_lane(&self.clock) {
             return false;
         }
-        let (Some(a), Some(b), Some(c), Some(d)) = (
+        if self.clock.now() >= deadline
+            || self.worktrees.lane.as_ref().is_none_or(|lane| !lane.idle())
+        {
+            return false;
+        }
+        let (Some(a), Some(b), Some(c), Some(d), Some(e)) = (
+            self.worktree_request(),
             self.worktree_request(),
             self.worktree_request(),
             self.worktree_request(),
@@ -289,11 +302,23 @@ impl NativeUi {
         ) else {
             return false;
         };
+        let Some(mailbox) = self.mailbox.as_ref() else {
+            return false;
+        };
+        let (Ok(v1), Ok(v2), Ok(v3), Ok(v4)) = (
+            mailbox.allocate_obcs_request_id(),
+            mailbox.allocate_obcs_request_id(),
+            mailbox.allocate_obcs_request_id(),
+            mailbox.allocate_obcs_request_id(),
+        ) else {
+            return false;
+        };
         self.worktrees.lane.as_ref().is_some_and(|lane| {
             lane.submit(Job {
                 action,
-                requests: [a, b, c, d],
-                deadline: self.clock.now() + Duration::from_secs(10),
+                requests: [a, b, c, d, e],
+                viewers: [v1, v2, v3, v4],
+                deadline,
             })
         })
     }
@@ -335,6 +360,9 @@ impl NativeUi {
         if let Some(reply) = self.worktrees.lane.as_ref().and_then(Lane::take) {
             changed = true;
             match reply {
+                Reply::SidebarQuery { episode, result } => {
+                    self.settle_sidebar_worktrees(episode, result)
+                }
                 Reply::Query { token, result } => {
                     self.worktrees.query = None;
                     if let Some((p, _)) = self.worktrees.launcher.query_input()
@@ -378,6 +406,7 @@ impl NativeUi {
                 }
             }
         }
+        changed |= self.drive_sidebar_worktrees();
         if self.worktrees.lane.as_ref().is_some_and(Lane::failed) {
             changed |= self.worktrees.launcher.carrier_lost();
             self.worktrees.read_at = None;

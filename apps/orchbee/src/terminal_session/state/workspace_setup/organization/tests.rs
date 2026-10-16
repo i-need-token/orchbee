@@ -13,6 +13,69 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Duration;
 
+#[test]
+fn conditional_project_delete_reviews_organization_only_and_needs_fresh_draw_and_identity() {
+    let (mut state, _) = fixture();
+    let original = state.cache.clone();
+    let project = original.canonical_snapshot().navigation.projects[0].clone();
+    let deadlines = OperationDeadlines::from_sample(Instant::now()).unwrap();
+    let request = WorkspaceOrganizationRequest::project(&state, &project, deadlines.total())
+        .unwrap()
+        .with_choice(OrganizationChoice::DeleteIfIdle)
+        .unwrap();
+    let operation = state
+        .plan_sidebar_organization(
+            &request,
+            WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
+            1,
+            deadlines,
+        )
+        .unwrap();
+    assert_eq!(
+        operation.command.action,
+        WorkbenchAction::ProjectDissolveIfIdle {
+            project_id: project.project_id.clone()
+        }
+    );
+    state.begin_setup(operation.clone());
+    assert!(state.settle_setup_not_applied(&operation));
+    state.apply_prepared_refresh(
+        PreparedRefresh::DefiniteFailure {
+            generation: 1,
+            baseline_revision: original.revision(),
+        },
+        Instant::now(),
+    );
+    let token = state
+        .review_project_delete(&operation, deadlines.total())
+        .unwrap();
+    let draft = state.setup_draft().unwrap();
+    assert_eq!(draft.stage(), NativeSetupStage::ProjectDeleteConfirm);
+    assert!(draft.destructive());
+    assert!(!draft.interactive());
+    let next = WorkbenchRequestId::parse(&format!("{:032x}", 91)).unwrap();
+    assert!(
+        state
+            .plan_setup(token, next.clone(), 2, deadlines)
+            .is_none()
+    );
+    assert!(
+        !state.arm_project_dissolve(token, deadlines),
+        "a reviewed Delete cannot acquire legacy automatic continuation"
+    );
+    state.acknowledge_setup_draw(Some(token));
+    let confirmed = state.plan_setup(token, next.clone(), 2, deadlines).unwrap();
+    assert_eq!(
+        confirmed.command.action,
+        WorkbenchAction::ProjectDissolve {
+            project_id: project.project_id
+        }
+    );
+    assert_eq!(confirmed.command.request_id, next);
+    assert_ne!(confirmed.command.request_id, operation.command.request_id);
+    assert_eq!(state.cache, original);
+}
+
 fn workspace_id() -> WorkbenchWorkspaceId {
     WorkbenchWorkspaceId::parse(&format!("{:032x}", 81)).unwrap()
 }

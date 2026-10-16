@@ -49,7 +49,7 @@ change values.
 | Role family | Roles                                                                                 | Use when                                                                                                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `text`      | `primary`, `secondary`, `disabled`, `inverse`                                         | Content and chrome text by information priority; `inverse` only on a filled surface                                                                                                  |
-| `accent`    | `action`, `focus`, `selection`, `link`                                                | The primary action at rest, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references                                   |
+| `accent`    | `action`, `destructive`, `focus`, `selection`, `link`                                 | The primary action at rest, explicit destructive intent, the focused frame or control, provisional or checked indicators, selected-range boundaries, and activatable references      |
 | `status`    | `success`, `warning`, `error`, `info`, `pending`, `working`, `unread`                 | Outcome and state meaning only; never decoration or hierarchy                                                                                                                        |
 | `frame`     | `focused`, `unfocused`, `divider`                                                     | Pane and overlay borders and split boundaries                                                                                                                                        |
 | `surface`   | `canvas`, `chrome`, `overlay`, `hover`, `pressed`, `selection`, `current`, `inactive` | Backgrounds for the terminal canvas, persistent chrome, overlays, pointer feedback, pressed controls, provisional or range selection, persistent current context, and inactive panes |
@@ -75,6 +75,14 @@ Theme rules:
   action's primary label, provisional selection retains its `accent-selection` marker, and current
   context retains its current marker or `BOLD`. Individual components apply the semantic state but
   never branch on the palette.
+- `accent-destructive` identifies an explicitly destructive action intent, independently of action
+  hierarchy, focus, current context, hover, and press. It has its own palette value and never borrows
+  `status-error`. Disabled intent uses `text-disabled`. The theme resolver retains the destructive
+  foreground on a contrast pair when a native reverse band, unknown host background, or quantized
+  fill would obscure it; the surrounding interaction band and navigation/focus markers remain.
+  Monochrome retains the explicit localized action wording and ordinary interaction cues, without
+  introducing warning bold, underline, or blink. Named ANSI contrast is checked against the reference
+  palette and actual host evidence; a customized host palette is not inferred from RGB tests.
 - `accent-action` identifies the one primary action in the current decision context while it is at
   rest. It never identifies keyboard focus, selection, or a successful outcome; those meanings keep
   their own roles.

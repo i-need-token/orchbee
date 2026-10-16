@@ -9,7 +9,7 @@ shared directories and worktree relationships never expand this scope. Ungrouped
 valid targets. The legacy compatibility Workspace has no canonical Workspace ID; close its Tabs
 individually. Its whole-Workspace Close entry is disabled with a localized explanation.
 
-The Workspace context menu closes its addressed Workspace without selecting it first. Confirmation,
+The Workspace context menu's Delete addresses its Workspace without selecting it first. Confirmation,
 cancellation and completion preserve an unrelated current Context, selected pane and terminal
 attachment. The selected shell continues running. Closing the current Workspace retains the existing
 canonical removal: select the first surviving canonical Workspace, including an empty one, then
@@ -22,7 +22,7 @@ paint cannot authorize closure. Keyboard and mouse use the same submission guard
 buttons in subordinate text. A matching plain-left click on the outside backdrop cancels through
 the same exact painted X target, without selecting or sending input to the terminal underneath.
 
-The Project menu exposes a separate close-all operation for its exact Project ID. Its confirmation
+Explicit Project close-all compatibility addresses an exact Project ID. Its confirmation
 names the Project, shows its Workspace count, and explains that all member Workspaces and their
 terminals close for every Client. The Server captures Project membership at admission. The Project
 record remains, including when already empty. Dissolving a Project is a separate organization
@@ -33,6 +33,24 @@ Start. Neither path deletes Git data or automatically resumes a failed attempt. 
 with `workspace close-status --workspace <workspace-id>` or
 `project close-status --request <operation-id>`. Eligible recovery uses explicit CLI Resume;
 Pending and Unknown permit observation only.
+
+## Conditional sidebar admission
+
+Sidebar Workspace Delete uses additive `WorkspaceCloseIfIdle`, never a Client "idle" flag followed
+by ordinary Close. Under the existing Server admission gate, grants, Site/revision, replay fingerprint
+and capacity checks precede complete captured membership and primary/child binding proof. Only
+definitively never-created or empty terminal scope is admitted without a prompt. Runtime-backed,
+pending, unavailable and unknown scope does not become idle because a Client saw no attached pane
+or a process appeared exited. Acceptance installs the same Close reservation/fence before releasing
+the gate, so a concurrent create or split cannot occupy the accepted scope.
+
+Project Delete uses `ProjectDissolveIfIdle` over the entire captured member scope and preserves all
+Workspaces and resources. It never invokes close-all. A definite same-base `confirmation-required`
+is retained as no effect and opens a new reviewed decision with a fresh display token. Its warning
+states that members and terminals are kept. Only a complete successful draw and explicit ordinary
+Enter may submit a new unconditional request ID. Other refusal, stale, missing, transport or unknown
+evidence never opens this escalation or retries an effect. Ordinary explicitly confirmed Close and
+Project dissolve keep their existing compatibility semantics and distinct fingerprints.
 
 ## Inputs and ownership
 

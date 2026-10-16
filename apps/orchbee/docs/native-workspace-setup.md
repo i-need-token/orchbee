@@ -71,8 +71,10 @@ a prior receipt never supplies a newer launch's identity.
 
 ## Optional Project organization
 
-Right-click a Workspace and choose Move to Project. Select an existing Project, No Project, or
-New Project. New Project asks only for its name; `WorkspaceCreateProject` creates the Project and
+Right-click a Workspace and open Project. An ungrouped Workspace offers New Project; a grouped one
+offers Leave Project. Existing Projects follow in canonical order, using exact captured IDs.
+The compatibility organization chooser still offers existing Projects, No Project and New Project.
+New Project asks only for its name; `WorkspaceCreateProject` creates the Project and
 moves the existing Workspace in one canonical commit. Duplicate labels are permitted; captured IDs
 determine the target. Project can contain Workspaces from multiple repositories.
 

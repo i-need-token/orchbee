@@ -237,6 +237,7 @@ fn is_content_role(role: Role) -> bool {
         | Role::TextDisabled
         | Role::TextInverse
         | Role::AccentAction
+        | Role::AccentDestructive
         | Role::AccentFocus
         | Role::AccentSelection
         | Role::StatusSuccess

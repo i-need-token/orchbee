@@ -355,7 +355,7 @@ and retains the operation ID.
 
 Windows `Ctrl+B F2` opens [action menus](docs/native-action-menus.md).
 Right-click a pane, tab, Workspace or Project row for its existing actions. Opening and cancelling
-preserve focus; member actions use exact target navigation and keep the original close confirmation.
+preserve focus; addressed organization and Delete actions also preserve the current terminal.
 Pointer-opened menus stay near the clicked cell and clamp above the status line. Hover selects
 a visible row without executing it; click or Enter executes, and Esc or an outside click cancels.
 Context menus use a plain rectangular border with action rows and an optional disabled reason,
@@ -363,9 +363,14 @@ without a title, X, footer hints or selection counter. Submenus inherit their ro
 the global action menu retains its discovery controls.
 Project Rename opens the editor for that exact Project, including empty and noncurrent Projects,
 without entering a child Workspace. The current terminal stays selected through rename or cancel.
-Workspace Move offers an existing Project, No Project, or New Project and move in one commit.
-Moving a noncurrent Workspace preserves the current terminal. Project Dissolve retains all its
-Workspaces as ungrouped; Close All Workspaces is a separate explicit confirmation.
+The Workspace Project submenu offers New Project or Leave Project, followed by existing Projects.
+Its Worktree submenu uses the first terminal's root cwd; a Project derives that source from its
+first canonical member rather than owning a directory. Unresolved and non-Git sources omit the
+submenu. The red Delete action uses its own destructive accent: Workspace Delete closes that
+Workspace; Project Delete dissolves only organization and preserves all Workspaces and programs.
+Only authoritative never-created/empty runtime proof skips confirmation. Runtime-backed scope needs
+review; pending or unavailable authority retains its precise refusal. Close All Workspaces remains a
+separate compatible action.
 
 `Ctrl+B Shift+D` opens the Windows [Workspace Close confirmation](docs/native-workspace-close.md).
 After a complete draw, unmodified `Enter` closes only this Workspace's terminals for every Client;

@@ -50,6 +50,38 @@ impl SetupPort {
     }
 }
 
+#[test]
+fn project_delete_decision_accepts_only_drawn_plain_enter_and_never_editor_or_paste_input() {
+    let now = Instant::now();
+    let mut port = SetupPort::new(NativeSetupStage::ProjectDeleteConfirm);
+    port.shown = true;
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(
+        &mut dispatcher,
+        &mut port,
+        b" yY\x1b[13;5u\x1b[13;2u\x1b[200~\r\x1b[201~",
+        now,
+    );
+    assert!(port.active);
+    assert!(port.submissions.is_empty());
+    assert!(port.text.is_empty());
+    assert!(!port.fault);
+    assert!(port.forwarded.is_empty());
+    dispatch(&mut dispatcher, &mut port, b"\rTAIL", now);
+    assert_eq!(port.submissions, [NativeSetupStage::ProjectDeleteConfirm]);
+    assert!(!port.active);
+    assert!(port.forwarded.is_empty());
+
+    let mut port = SetupPort::new(NativeSetupStage::ProjectDeleteConfirm);
+    let mut dispatcher = InputDispatcher::default();
+    dispatch(&mut dispatcher, &mut port, b"\r", now);
+    assert!(
+        port.submissions.is_empty(),
+        "undrawn question cannot confirm"
+    );
+    assert!(port.active);
+}
+
 impl TerminalInputPort for SetupPort {
     fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
         crate::tui_composition::NativeCaptureClaims::default().with_setup(self.active)

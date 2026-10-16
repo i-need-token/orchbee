@@ -52,7 +52,7 @@ pub(super) fn render(
     let binding_labels = menu
         .actions
         .iter()
-        .map(|action| effective_binding(bindings, &menu, *action, key_glyphs))
+        .map(|action| effective_binding(bindings, &menu, action.clone(), key_glyphs))
         .collect::<Vec<_>>();
     let marker_width = display_width(theme.glyphs.navigation_marker);
     if marker_width == 0 {
@@ -65,7 +65,7 @@ pub(super) fn render(
         .map(|(index, action)| {
             let label = action_label(
                 locale,
-                *action,
+                action.clone(),
                 menu.labels[index].as_deref(),
                 theme.glyphs.middle_dot,
                 theme.glyphs.disclosure_closed,
@@ -299,7 +299,7 @@ pub(super) fn render(
             row_area,
             &menu,
             offset,
-            *action,
+            action.clone(),
             binding_labels[offset].as_deref(),
             locale,
             theme,
@@ -473,6 +473,9 @@ fn render_row(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
+    let primary_role = crate::action_projection::menu_metadata(action.clone())
+        .tone
+        .content_role(Role::TextPrimary);
     let marker_width = u16::try_from(display_width(theme.glyphs.navigation_marker).max(1))
         .unwrap_or(u16::MAX)
         .min(row.width.saturating_sub(1));
@@ -498,7 +501,7 @@ fn render_row(
     let label = truncate_display(
         &action_label(
             locale,
-            action,
+            action.clone(),
             menu.labels[index].as_deref(),
             theme.glyphs.middle_dot,
             theme.glyphs.disclosure_closed,
@@ -507,7 +510,7 @@ fn render_row(
         theme.glyphs.ellipsis,
     );
     frame.render_widget(
-        Paragraph::new(label).style(theme.style(Role::TextPrimary)),
+        Paragraph::new(label).style(theme.style(primary_role)),
         primary,
     );
     let mut bands = Vec::new();
@@ -534,7 +537,7 @@ fn render_row(
     };
     let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary)
         .with_provisional(navigation)
-        .with_primary_role(Role::TextPrimary);
+        .with_primary_role(primary_role);
     let painted = paint_row_interaction(
         frame,
         row,
@@ -659,12 +662,19 @@ fn action_label(
     separator: &str,
     disclosure: &str,
 ) -> String {
+    let choice = matches!(
+        action,
+        MenuAction::JoinWorkspaceProject(_) | MenuAction::OpenWorktreeAt(_)
+    );
     let text = label.map_or_else(
-        || locale.menu_action(action).to_owned(),
+        || locale.menu_action(&action).to_owned(),
         |label| {
+            if choice {
+                return sanitize_terminal_text(label).into_owned();
+            }
             format!(
                 "{} {separator} {}",
-                locale.menu_action(action),
+                locale.menu_action(&action),
                 sanitize_terminal_text(if label.is_empty() {
                     locale.shell().unnamed_tab_group
                 } else {

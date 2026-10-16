@@ -3,6 +3,7 @@ use super::modal::{
     ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
     pointer_presentation, set_modal_cursor, single_modal_layout,
 };
+mod project_delete;
 use crate::{
     client_view::{
         Binding, Bindings, ClientAction, KeyCode, KeyLabelGlyphs, Modifiers, PrefixAction,
@@ -129,6 +130,19 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<NativeSetupToken>) {
+    if draft.stage() == NativeSetupStage::ProjectDeleteConfirm {
+        return project_delete::render(
+            frame,
+            locale,
+            project_delete::Decision {
+                token: draft.token(),
+                project: draft.project_label().unwrap_or(""),
+            },
+            content_area,
+            theme,
+            hits,
+        );
+    }
     if matches!(
         draft.stage(),
         NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject

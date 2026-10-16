@@ -195,7 +195,7 @@ fn menu_and_binding_presenters_share_common_action_identity() {
     ];
     for (menu, binding) in cases {
         assert_eq!(
-            menu_metadata(menu).action,
+            menu_metadata(menu.clone()).action,
             binding_metadata(&binding).unwrap(),
             "{menu:?}"
         );
@@ -238,6 +238,32 @@ fn dynamic_menu_input_keeps_one_semantic_identity() {
         menu_metadata(MenuAction::CollapseGroup).action.identity,
         menu_metadata(MenuAction::ExpandGroup).action.identity
     );
+}
+
+#[cfg(windows)]
+#[test]
+fn only_sidebar_delete_intents_adopt_destructive_tone() {
+    for action in crate::action_menu::WORKSPACE_ACTIONS
+        .iter()
+        .chain(crate::action_menu::PROJECT_ACTIONS)
+        .chain(crate::action_menu::PANE_ACTIONS)
+    {
+        assert_eq!(
+            menu_metadata(action.clone()).tone == super::ActionTone::Destructive,
+            matches!(
+                action,
+                MenuAction::DeleteWorkspace | MenuAction::DeleteProject
+            ),
+            "{action:?}",
+        );
+    }
+    for legacy in [
+        MenuAction::CloseWorkspace,
+        MenuAction::DissolveProject,
+        MenuAction::CloseProjectWorkspaces,
+    ] {
+        assert_eq!(menu_metadata(legacy).tone, super::ActionTone::Ordinary);
+    }
 }
 
 #[cfg(windows)]

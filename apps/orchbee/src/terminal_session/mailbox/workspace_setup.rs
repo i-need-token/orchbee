@@ -19,6 +19,7 @@ pub(super) struct SetupFlight {
     operation: SetupOperation,
     stage: PendingRefreshStage,
     not_applied: bool,
+    confirmation_required: bool,
     known: Option<crate::terminal_session::state::workspace_setup::SetupKnownCommit>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -164,6 +165,26 @@ impl CommandMailbox {
             },
         )
     }
+    pub(in crate::terminal_session) fn try_enqueue_sidebar_organization_for(
+        &self,
+        canonical: &mut NativeSessionState,
+        request: &crate::terminal_session::WorkspaceOrganizationRequest,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+    ) -> Result<(), MoveAdmissionError<()>> {
+        let deadlines = deadlines.bounded_by(request.deadline());
+        if clock.now() >= deadlines.forward_cutoff() {
+            return Err(MoveAdmissionError::Deadline);
+        }
+        self.enqueue_setup(
+            canonical,
+            deadlines,
+            clock,
+            |state, request_id, generation| {
+                state.plan_sidebar_organization(request, request_id, generation, deadlines)
+            },
+        )
+    }
     pub(in crate::terminal_session) fn try_enqueue_navigation_configuration_for(
         &self,
         canonical: &mut NativeSessionState,
@@ -229,6 +250,7 @@ impl CommandMailbox {
             operation: operation.clone(),
             stage: PendingRefreshStage::Queued,
             not_applied: false,
+            confirmation_required: false,
             known: None,
         });
         let marker = WorkspaceSetupMarker(operation.clone());
@@ -328,6 +350,37 @@ impl CommandMailbox {
         flight.known = Some(prepared);
         true
     }
+    pub(in crate::terminal_session) fn retain_setup_confirmation_required(
+        &self,
+        operation: &SetupOperation,
+        reason: &crate::local_client::workbench::workspace_setup::WorkbenchSetupPrecommit,
+    ) -> bool {
+        use crate::local_client::workbench::workspace_setup::WorkbenchSetupPrecommit;
+        if !matches!(
+            operation.command.action,
+            orchbee_workbench_protocol::WorkbenchAction::ProjectDissolveIfIdle { .. }
+        ) || !matches!(reason, WorkbenchSetupPrecommit::Rejected {
+                revision, reason: orchbee_workbench_protocol::WorkbenchRejectionReason::ConfirmationRequired,
+            } if revision == &operation.command.expected_revision)
+        {
+            return false;
+        }
+        let mut state = self.lock();
+        let Some(StructuralMutationFlight::Setup(flight)) =
+            state.structural_mutation_pending.as_mut()
+        else {
+            return false;
+        };
+        if flight.operation != *operation
+            || flight.stage != PendingRefreshStage::InFlight
+            || !flight.not_applied
+            || flight.known.is_some()
+        {
+            return false;
+        }
+        flight.confirmation_required = true;
+        true
+    }
     pub(in crate::terminal_session) fn setup_worker_loss(&self) -> Option<SetupWorkerEvidence> {
         let state = self.lock();
         let Some(StructuralMutationFlight::Setup(flight)) = &state.structural_mutation_pending
@@ -385,7 +438,14 @@ impl MailboxState {
         }
         let valid_result = match outcome {
             SetupResult::Committed { known, .. } => flight.known.as_ref() == Some(known.as_ref()),
-            SetupResult::NotApplied => flight.not_applied && flight.known.is_none(),
+            SetupResult::NotApplied | SetupResult::ConfirmationRequired => flight.not_applied
+                && flight.known.is_none()
+                && (!matches!(outcome, SetupResult::ConfirmationRequired)
+                    || flight.confirmation_required
+                        && matches!(
+                            operation.command.action,
+                            orchbee_workbench_protocol::WorkbenchAction::ProjectDissolveIfIdle { .. }
+                        )),
         };
         if !valid_result {
             return false;

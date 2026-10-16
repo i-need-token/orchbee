@@ -17,6 +17,7 @@ pub(crate) enum NativeSetupStage {
     ChooseWorkspaceProject,
     WorkspaceProjectName,
     DissolveProject,
+    ProjectDeleteConfirm,
     TabGroupName,
     PreparingWorkspace,
     QuickProject,
@@ -133,6 +134,7 @@ impl SetupDraft {
             self.stage,
             NativeSetupStage::ChooseWorkspaceProject
                 | NativeSetupStage::DissolveProject
+                | NativeSetupStage::ProjectDeleteConfirm
                 | NativeSetupStage::QuickProject
                 | NativeSetupStage::PreparingWorkspace
         )
@@ -188,6 +190,12 @@ impl<'a> NativeSetupDraftView<'a> {
     }
     pub(crate) fn stage(&self) -> NativeSetupStage {
         self.draft.stage
+    }
+    pub(crate) fn destructive(&self) -> bool {
+        self.draft
+            .organization
+            .as_ref()
+            .is_some_and(|request| request.reviewed_delete())
     }
     /// The draft's exact raw text — what a submit sends and a cancel
     /// discards.
@@ -330,11 +338,19 @@ impl NativeSessionState {
                 let stage = match &request.target {
                     super::organization::OrganizationTarget::Workspace(workspace) => {
                         project = workspace.project_id.clone();
-                        NativeSetupStage::ChooseWorkspaceProject
+                        if request.choice == super::organization::OrganizationChoice::NewProject {
+                            NativeSetupStage::WorkspaceProjectName
+                        } else {
+                            NativeSetupStage::ChooseWorkspaceProject
+                        }
                     }
                     super::organization::OrganizationTarget::Project(target) => {
                         project = Some(target.project_id.clone());
-                        NativeSetupStage::DissolveProject
+                        if request.reviewed_delete() {
+                            NativeSetupStage::ProjectDeleteConfirm
+                        } else {
+                            NativeSetupStage::DissolveProject
+                        }
                     }
                 };
                 organization = Some(request);

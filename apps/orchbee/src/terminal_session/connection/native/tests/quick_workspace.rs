@@ -4,6 +4,7 @@ use super::super::NativeExecutor;
 use super::setup::{TestResult, admit, fixture_geometry, snapshot};
 use crate::local_client::LocalClient;
 use crate::local_client::tests::server::FakeServer;
+use crate::terminal_session::primary_directory::tests::process_record;
 use crate::terminal_session::state::workspace_setup::{NativeSetupToken, quick::QuickPreparation};
 use crate::terminal_session::state::{AttachmentKey, ControllerMode, PaneKey, PaneRef};
 use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
@@ -15,51 +16,9 @@ use orchbee_client_server_protocol::{
     ClientMessage, ServerMessage, TerminalViewerAction, TerminalViewerOutcome,
     TerminalViewerResult, ViewerId, read_client_message, write_server_message,
 };
-use orchbee_terminal_protocol::{
-    AttachmentId, CURRENT_PROTOCOL_VERSION, CorrelationId, Envelope, HostEpoch, MessageRole,
-    PayloadEncoding, ProcessInfoControl, TerminalId, TerminalProcess, TerminalProcessInfo,
-    encode_process_info_control, encode_transport_envelope,
-};
 use orchbee_workbench_protocol::{WorkbenchDirectoryPath, WorkbenchSnapshotOutcome};
 use std::io::{self, Read};
 use std::{sync::Arc, time::Instant};
-
-fn process_record(cwd: Option<&str>, wrong_identity: bool) -> TestResult<Vec<u8>> {
-    let value = TerminalProcessInfo {
-        attachment_id: AttachmentId::from_bytes([if wrong_identity { 9 } else { 1 }; 16])?,
-        terminal_id: TerminalId::from_bytes([2; 16])?,
-        root_pid: 41,
-        processes: vec![
-            TerminalProcess {
-                pid: 41,
-                parent_pid: None,
-                creation_time: 900,
-                image: Some("powershell.exe".into()),
-                command_line: None,
-                current_directory: cwd.map(str::to_owned),
-            },
-            TerminalProcess {
-                pid: 42,
-                parent_pid: Some(41),
-                creation_time: 901,
-                image: Some("agent.exe".into()),
-                command_line: None,
-                current_directory: Some("C:/wrong-child".into()),
-            },
-        ],
-    };
-    let encoded = encode_process_info_control(&ProcessInfoControl::ProcessInfo(value))?;
-    Ok(encode_transport_envelope(&Envelope {
-        protocol: CURRENT_PROTOCOL_VERSION,
-        role: MessageRole::Response,
-        kind: encoded.kind,
-        optional_message: false,
-        payload_encoding: PayloadEncoding::ControlJson,
-        correlation_id: Some(CorrelationId::from_bytes([3; 16])?),
-        host_epoch: Some(HostEpoch::from_bytes([4; 16])?),
-        payload: &encoded.payload,
-    })?)
-}
 
 fn preparation() -> TestResult<(QuickPreparation, WorkbenchSnapshotOutcome)> {
     let snapshot = snapshot(1, 1);

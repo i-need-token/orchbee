@@ -324,7 +324,7 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                         return Err("disabled confirmation");
                     }
                     let view = menu.view().unwrap();
-                    expected = Some(view.actions[view.selected]);
+                    expected = Some(view.actions[view.selected].clone());
                 }
             }
             4 => {

@@ -112,7 +112,7 @@ impl Locale {
             Self::ZhCn => "动作菜单",
         }
     }
-    pub(crate) const fn menu_action(self, action: MenuAction) -> &'static str {
+    pub(crate) const fn menu_action(self, action: &MenuAction) -> &'static str {
         use MenuAction::*;
         match (self, action) {
             (Self::EnUs, TabCreation) => "New tab options",
@@ -227,6 +227,20 @@ impl Locale {
             (Self::ZhCn, QuickWorkspace) => "新建工作区",
             (Self::EnUs, MoveWorkspace) => "Move to Project…",
             (Self::ZhCn, MoveWorkspace) => "移入项目…",
+            (Self::EnUs, WorkspaceProjects) => "Project",
+            (Self::ZhCn, WorkspaceProjects) => "项目",
+            (Self::EnUs, WorkspaceWorktrees) => "Worktree",
+            (Self::ZhCn, WorkspaceWorktrees) => "Worktree",
+            (Self::EnUs, CreateWorkspaceProject) => "New Project…",
+            (Self::ZhCn, CreateWorkspaceProject) => "新建项目…",
+            (Self::EnUs, LeaveWorkspaceProject) => "Leave Project",
+            (Self::ZhCn, LeaveWorkspaceProject) => "移出项目",
+            (Self::EnUs, JoinWorkspaceProject(_)) => "Move to Project",
+            (Self::ZhCn, JoinWorkspaceProject(_)) => "移入项目",
+            (Self::EnUs, OpenWorktreeAt(_)) => "Open Worktree",
+            (Self::ZhCn, OpenWorktreeAt(_)) => "打开 Worktree",
+            (Self::EnUs, DeleteWorkspace | DeleteProject) => "Delete",
+            (Self::ZhCn, DeleteWorkspace | DeleteProject) => "删除",
             (Self::EnUs, DissolveProject) => "Dissolve Project, keep Workspaces",
             (Self::ZhCn, DissolveProject) => "解散项目，保留工作区",
             (Self::EnUs, CloseProjectWorkspaces) => "Close all Workspaces…",

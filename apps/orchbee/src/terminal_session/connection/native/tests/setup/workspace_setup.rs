@@ -99,7 +99,7 @@ impl UiDriver {
                         );
                         self.state().prepare_refresh(operation.generation, *outcome)
                     }
-                    SetupResult::NotApplied => {
+                    SetupResult::NotApplied | SetupResult::ConfirmationRequired => {
                         assert!(self.state_mut().settle_setup_not_applied(&operation));
                         PreparedRefresh::DefiniteFailure {
                             generation: operation.generation,

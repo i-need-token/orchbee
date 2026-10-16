@@ -57,7 +57,9 @@ Worker 验证字面目录并启动配置的默认 shell。准入失败不发布�
 
 ## 可选 Project 组织
 
-右键 Workspace 并选择移入项目，可选择已有 Project、不属于项目或新建 Project。
+右键 Workspace 并打开 Project 子菜单。未分组 Workspace 提供新建 Project，已分组的提供离开
+Project；随后按规范顺序列出已有 Project，使用准确捕获的 ID。兼容组织选择器仍提供已有 Project、
+不属于项目及新建 Project。
 新建 Project 只询问名称；`WorkspaceCreateProject` 在一次规范提交中创建 Project 并移入已有 Workspace。
 允许重复标签，捕获的 ID 决定目标。Project 可以包含多个仓库的 Workspace。
 

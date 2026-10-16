@@ -84,7 +84,7 @@ fn paint_menu_over_sidebar(
         column += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
     }
     assert!(
-        row.contains(locale.menu_action(MenuAction::QuickWorkspace)),
+        row.contains(locale.menu_action(&MenuAction::QuickWorkspace)),
         "{row}"
     );
     assert!(port.menu.presented(draw));

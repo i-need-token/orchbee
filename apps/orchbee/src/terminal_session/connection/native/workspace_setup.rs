@@ -1,6 +1,6 @@
 use super::{NativeExecutor, Result, SetupEntryExpiry, SetupOwner, SetupTarget, closed, event};
 use crate::local_client::workbench::workspace_setup::{
-    WorkbenchSetupNotSubmitted, WorkbenchSetupSubmission,
+    WorkbenchSetupNotSubmitted, WorkbenchSetupPrecommit, WorkbenchSetupSubmission,
 };
 use crate::terminal_session::state::workspace_setup::{
     SetupOperation, SetupResult, SetupWorkerEvidence,
@@ -51,12 +51,28 @@ impl NativeExecutor {
                 }
                 SetupResult::NotApplied
             }
-            WorkbenchSetupSubmission::DefinitePrecommit(_) => {
+            WorkbenchSetupSubmission::DefinitePrecommit(reason) => {
                 self.pending_setup = Some(SetupWorkerEvidence::NotApplied(operation.clone()));
                 if !self.mailbox.retain_setup_not_applied(&operation) {
                     return Err(CarrierFailure::Protocol);
                 }
-                SetupResult::NotApplied
+                if matches!(
+                    operation.command.action,
+                    orchbee_workbench_protocol::WorkbenchAction::ProjectDissolveIfIdle { .. }
+                ) && matches!(&reason, WorkbenchSetupPrecommit::Rejected {
+                        revision, reason: orchbee_workbench_protocol::WorkbenchRejectionReason::ConfirmationRequired,
+                    } if revision == &operation.command.expected_revision)
+                {
+                    if !self
+                        .mailbox
+                        .retain_setup_confirmation_required(&operation, &reason)
+                    {
+                        return Err(CarrierFailure::Protocol);
+                    }
+                    SetupResult::ConfirmationRequired
+                } else {
+                    SetupResult::NotApplied
+                }
             }
             WorkbenchSetupSubmission::OutcomeUnknown { request_id, .. } => {
                 return Err(if request_id == operation.command.request_id {

@@ -2627,6 +2627,9 @@ impl NativeUi {
             ClientAction::RequestWorkspaceCloseAt(workspace) => {
                 self.request_workspace_close_at(&workspace)
             }
+            ClientAction::RequestSidebarWorkspaceDelete(request) => {
+                self.request_sidebar_workspace_delete(&request)
+            }
             ClientAction::RequestControlTakeover => self.request_takeover(),
             #[cfg(windows)]
             ClientAction::EnterResizeMode => {

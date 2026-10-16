@@ -22,6 +22,10 @@ remain explicit failures.
 The Open list shows main and linked checkouts and resolves exact canonical paths, never duplicate
 branch or Workspace labels. Keyboard arrows, Enter and mouse selection operate the same choices;
 Esc cancels before submission. Bounded scrolling exposes long lists. Bare entries cannot be opened.
+Selecting an exact checkout in a sidebar submenu first opens the existing source form with that
+checkout selected. Its first complete draw authorizes that one Open without a second Enter; a
+blocked or cancelled presentation cannot submit it. The global Open picker still waits for an
+explicit choice. Both routes revalidate the addressed source before Start and never replay it.
 If the first complete shell cannot fit, that opening attempt is refused with a localized notice and
 retains no hidden owner. A shell that has already completed one draw instead suspends in place,
 preserving its operation, token, stage, fields, caret and checkout selection. Hidden edit, selection,
@@ -73,6 +77,30 @@ the source's current group under the Session gate and commits a new group, sourc
 new Workspace and first terminal structure together when needed. Closing the source refuses
 attachment without resurrecting it; already known Git effects remain in the partial result.
 There is no preliminary Client-owned Default Project creation or empty Project left by that step.
+
+Sidebar Worktree choices derive an addressed source through `AddressedWorktreeSource`. A Workspace
+uses its first canonical Tab's first leaf primary/root process, independent of focused Tabs, leaves
+or child Agents. A Project uses the first Workspace in its canonical display order, then that same
+first-terminal rule. Empty Projects have no source. Project has no canonical directory and may
+contain unrelated repositories; a non-Git or unavailable first source never triggers a search of
+later members or a borrow from the current Client context. An admitted explicit absent root cwd
+permits only that Workspace's canonical primary directory; failed, mismatched or unavailable
+samples never mean absence. An empty Workspace may use its own directory without inventing a process
+sample. An existing unbound first terminal is unavailable, rather than an absent cwd.
+
+These pre-submit choices freeze exact Project identity and ordered members, addressed Workspace,
+Context, first primary binding and directory proof. Membership, order, removal, rebind or source
+drift retires them; unrelated canonical writes do not become source drift. Sidebar preparation uses
+the existing background Worktree lane's own authenticated Session and a temporary read-only Viewer,
+released after root samples before and after Git. It never borrows the interactive Viewer or its
+controller. Every failure path detaches or retires that auxiliary Session within the original bounded
+budget and cleanup reserve. Ordinary shortcut preparation retains its existing borrowed/temporary
+Viewer policy. Discovery and creation must
+revalidate the addressed proof, and the chosen source/directory appears in the existing launch form
+before effect. The pure source model tests cover empty/noncurrent/multiple-repository grouping,
+first terminal versus child/later terminal, explicit absence versus unavailable samples and source
+drift. Git classification, actual cwd sampling and real menu interaction require their separate
+integration evidence.
 
 ## Entry and failure
 

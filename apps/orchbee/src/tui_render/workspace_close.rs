@@ -43,11 +43,20 @@ pub(super) fn render(
         )
         .with_shortcut(&escape),
         ModalAction::new(
-            locale.workspace_close_confirm_label(),
+            if confirmation.destructive() {
+                locale.sidebar_delete_label()
+            } else {
+                locale.workspace_close_confirm_label()
+            },
             super::controls::ActionKind::Primary,
             true,
         )
-        .with_shortcut(&confirm_key),
+        .with_shortcut(&confirm_key)
+        .with_tone(if confirmation.destructive() {
+            crate::action_projection::ActionTone::Destructive
+        } else {
+            crate::action_projection::ActionTone::Ordinary
+        }),
     ];
     let text = Text::from(vec![
         Line::from(title),
