@@ -2490,10 +2490,6 @@ fn render_sidebar(
                 .add_modifier(Modifier::BOLD),
         )),
         ListItem::new(Line::styled(
-            fit(format!("  {}", text.standalone)),
-            theme.style(Role::TextPrimary),
-        )),
-        ListItem::new(Line::styled(
             fit(format!("  {}", text.projects)),
             theme.style(Role::TextSecondary),
         )),

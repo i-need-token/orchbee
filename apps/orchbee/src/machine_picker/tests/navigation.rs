@@ -243,9 +243,11 @@ fn sidebar_source_mints_only_live_parts_and_rejects_structurally_stale_release()
     };
     assert!(
         source
-            .drawn(standalone, SidebarPart::Menu, window)
-            .is_none()
+            .drawn(standalone.clone(), SidebarPart::Menu, window)
+            .is_some()
     );
+    assert!(source.has_part(&standalone, SidebarPart::Menu));
+    assert!(!source.has_part(&standalone, SidebarPart::Create));
 
     picker.open = true;
     let covered = picker.sidebar_source();

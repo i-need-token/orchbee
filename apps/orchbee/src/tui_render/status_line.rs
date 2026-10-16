@@ -50,6 +50,8 @@ enum StatusAction {
     ShowHelp,
     Exit,
     CreateTab,
+    #[cfg(windows)]
+    CreateWorkspace,
     Refresh,
     CheckAgain,
     RetryClose,
@@ -730,6 +732,11 @@ fn action_hint(
             PrefixAction::Client(ClientAction::CreateTab),
             copy.create_tab,
         ),
+        #[cfg(windows)]
+        StatusAction::CreateWorkspace => (
+            PrefixAction::Client(ClientAction::CreateTab),
+            copy.create_workspace,
+        ),
         StatusAction::Refresh => (PrefixAction::NavigatorToggle, copy.refresh),
         StatusAction::CheckAgain => (PrefixAction::NavigatorToggle, copy.check_again),
         StatusAction::RetryClose => (
@@ -849,6 +856,10 @@ fn native_phase_actions(native: &NativeSessionView<'_>) -> Vec<StatusAction> {
                 || native.workspace_directory_unconfigured() =>
         {
             Vec::new()
+        }
+        #[cfg(windows)]
+        NativeDisplayPhase::Empty if native.no_current_workspace() => {
+            vec![StatusAction::CreateWorkspace]
         }
         NativeDisplayPhase::Empty => vec![StatusAction::CreateTab],
         NativeDisplayPhase::Ready if native.active_position().is_none() => {

@@ -43,9 +43,11 @@ fn snapshot() -> Snapshot {
 fn create_menu_reuses_project_quick_workspace_and_its_disabled_capabilities() {
     let mut snapshot = snapshot();
     snapshot.terminal_contexts[0].tabs.clear();
-    let location = NativeContextLocation::Standalone(
-        snapshot.navigation.standalone_terminal_context_id.clone(),
-    );
+    let workspace = &snapshot.navigation.workspaces[0];
+    let location = NativeContextLocation::Workspace {
+        workspace_id: workspace.workspace_id.clone(),
+        terminal_context_id: workspace.terminal_context_id.clone(),
+    };
     let (mut ui, mailbox) = ready(&snapshot, &location);
     assert_eq!(ui.view().tab_count(), 0);
     let create = ui.view().tab_create_target().unwrap();

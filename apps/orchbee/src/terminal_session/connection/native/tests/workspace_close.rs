@@ -330,6 +330,7 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
     let marker = marker.clone();
     let operation = marker.workspace_close().unwrap().clone();
     let expected = operation.clone();
+    let surviving = closed_snapshot(snapshot.clone(), scope);
     let server = FakeServer::start(move |mut stream| {
         admit(&mut stream)?;
         let WorkbenchRequest::SnapshotRead(read) =
@@ -585,7 +586,15 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
             && !scope.project()
             && scope != Scope::BackgroundWorkspace
         {
-            assert!(matches!(active, NativeContextLocation::Standalone(_)));
+            let workspace = surviving.navigation.ordered_workspaces().unwrap()[0].1;
+            assert_eq!(
+                active,
+                NativeContextLocation::Workspace {
+                    workspace_id: workspace.workspace_id.clone(),
+                    terminal_context_id: workspace.terminal_context_id.clone(),
+                },
+                "a removed current Workspace lands on the exact first surviving Workspace"
+            );
         } else {
             assert_eq!(
                 active, original_location,
@@ -595,11 +604,14 @@ fn exercise(scope: Scope, cut: Cut) -> TestResult {
         if cut == Cut::Complete {
             assert_eq!(
                 ui.view().context_count(),
-                match scope {
-                    Scope::Project => 2,
-                    Scope::EmptyProject => 4,
-                    _ => 3,
-                }
+                surviving.navigation.workspaces.len()
+            );
+            assert!(
+                (0..ui.view().context_count()).all(|index| matches!(
+                    ui.view().context_at(index).unwrap().location(),
+                    NativeContextLocation::Workspace { .. }
+                )),
+                "the empty compatibility slot is not a navigation row"
             );
         }
         assert!(mailbox.workspace_close_worker_loss().is_none());

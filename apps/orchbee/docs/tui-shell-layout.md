@@ -86,6 +86,10 @@ ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly und
 each Workspace, with independent lists expanded by default. The legacy Workspace owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
 
+Fallback chrome without projected navigation rows never invents a legacy Workspace row. In the
+no-Workspace state, the existing Create Tab binding advertises its actual New Workspace effect;
+an empty canonical Workspace keeps its Tab creation guidance. Both use effective localized bindings.
+
 Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
 blank cells after the button. A hint that cannot fit in full is omitted; its cells are outside
 the button's pointer target. At host heights of at least 24 rows, when the remaining sidebar area

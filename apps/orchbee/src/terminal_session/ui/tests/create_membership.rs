@@ -1,4 +1,4 @@
-use super::super::tests::membership::{place_refresh, snapshot};
+use super::super::tests::membership::{canonical_snapshot, place_refresh, snapshot};
 use super::super::*;
 use crate::local_client::tests::server::adjustable_operation_clock;
 use crate::terminal_session::mailbox::EventDeadline;
@@ -202,8 +202,9 @@ fn actual_create_candidate_installs_reserved_survivor_fresh_fallback_or_empty() 
 
 #[test]
 fn actual_empty_create_installs_without_old_cleanup_and_preserves_prior_receipt_until_install() {
-    let (mut ui, mailbox, clock) = ready_create_ui();
-    let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, snapshot(0, 2));
+    let (mut ui, mailbox, clock) =
+        ready_create_ui_from(canonical_snapshot(1, 1), Arc::new(AtomicU64::new(0)));
+    let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, canonical_snapshot(0, 2));
     ui.tick();
     let Some(UiReply::Refresh(settlement)) = mailbox.take_deposited_reply(&wait).unwrap() else {
         panic!("refresh");
@@ -266,7 +267,7 @@ fn actual_empty_create_installs_without_old_cleanup_and_preserves_prior_receipt_
                 .map(|commit| commit.operation().key().clone()),
             previous
         );
-        let mut committed = snapshot(4, revision);
+        let mut committed = canonical_snapshot(4, revision);
         let created = committed.terminal_contexts[0]
             .tabs
             .remove(if revision == 3 { 2 } else { 3 });
@@ -334,6 +335,13 @@ fn ready_create_ui() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock) {
 fn ready_create_ui_at(
     elapsed: Arc<AtomicU64>,
 ) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock) {
+    ready_create_ui_from(snapshot(1, 1), elapsed)
+}
+
+fn ready_create_ui_from(
+    snapshot: Snapshot,
+    elapsed: Arc<AtomicU64>,
+) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock) {
     let clock = adjustable_operation_clock(elapsed);
     let geometry = Geometry::new(80, 24, 8, 16).unwrap();
     let mailbox = Arc::new(CommandMailbox::new(10, geometry));
@@ -342,8 +350,12 @@ fn ready_create_ui_at(
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
-                    &snapshot(1, 1),
+                cache: super::super::super::workbench_projection::project_native_context_tabs(
+                    &snapshot,
+                    &super::super::super::workbench_projection::preferred_workspace_location(
+                        &snapshot,
+                    )
+                    .unwrap(),
                 )
                 .unwrap(),
             },

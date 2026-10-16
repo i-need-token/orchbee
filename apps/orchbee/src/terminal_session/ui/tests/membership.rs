@@ -311,10 +311,17 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache: super::super::super::workbench_projection::project_native_standalone_tabs(
-                    &snapshot(2, 1),
-                )
-                .unwrap(),
+                cache: {
+                    let snapshot = canonical_snapshot(2, 1);
+                    super::super::super::workbench_projection::project_native_context_tabs(
+                        &snapshot,
+                        &super::super::super::workbench_projection::preferred_workspace_location(
+                            &snapshot,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap()
+                },
             },
             EventDeadline::Startup(clock.now() + super::super::super::state::OPERATION_TOTAL),
             &clock,
@@ -367,7 +374,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
             WorkerEvent::SwitchSnapshotResult {
                 marker: marker.target().selected().key().clone(),
                 outcome: WorkbenchSnapshotOutcome::Available {
-                    snapshot: snapshot(2, 1),
+                    snapshot: canonical_snapshot(2, 1),
                 },
             },
             EventDeadline::PlacementOnly(deadlines.forward_cutoff()),
@@ -412,7 +419,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     mailbox.finish_lease(lease).unwrap();
     assert!(state.invariant_holds());
 
-    let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, snapshot(0, 2));
+    let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, canonical_snapshot(0, 2));
     // Timely placement owns transport completion; this later UI tick starts the one fresh reconciliation budget.
     elapsed.store(75_000, Ordering::SeqCst);
     ui.tick();
@@ -427,7 +434,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     assert_eq!(mailbox.cursors().0, selected.generation());
     mailbox.finish_lease(lease).unwrap();
 
-    let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, snapshot(0, 2));
+    let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, canonical_snapshot(0, 2));
     ui.tick();
     assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
     assert!(
@@ -487,7 +494,7 @@ fn actual_refresh_reply_installs_empty_and_later_peer_membership_with_one_shared
     assert_eq!(mailbox.cursors().0, selected.generation() + 1);
     mailbox.finish_lease(create).unwrap();
 
-    let mut peer = snapshot(3, 3);
+    let mut peer = canonical_snapshot(3, 3);
     peer.terminal_contexts[0].tabs.drain(..2);
     let (lease, wait) = place_refresh(&mut ui, &mailbox, &clock, peer);
     ui.tick();
@@ -738,6 +745,29 @@ fn place_refresh_outcome(
 
 fn snapshot_terminal(index: usize) -> TerminalId {
     TerminalId::parse(&format!("{:032x}", 1004 + index * 10)).unwrap()
+}
+
+/// A genuine Workspace owns context zero throughout its empty/member lifecycle;
+/// the separate required compatibility slot stays empty and is never navigated.
+pub(in crate::terminal_session::ui) fn canonical_snapshot(count: usize, revision: u64) -> Snapshot {
+    let mut snapshot = snapshot(count, revision);
+    let workspace_id = WorkbenchWorkspaceId::parse(&format!("{:032x}", 7000)).unwrap();
+    let compatibility_id = WorkbenchTerminalContextId::parse(&format!("{:032x}", 7001)).unwrap();
+    snapshot.navigation.workspaces.push(Workspace {
+        workspace_id: workspace_id.clone(),
+        terminal_context_id: snapshot.terminal_contexts[0].terminal_context_id.clone(),
+        project_id: None,
+        label: "Workspace".into(),
+        primary_directory_id: None,
+    });
+    snapshot.navigation.workspace_order.push(workspace_id);
+    snapshot.navigation.standalone_terminal_context_id = compatibility_id.clone();
+    snapshot.terminal_contexts.push(TerminalContext {
+        terminal_context_id: compatibility_id,
+        groups: Vec::new(),
+        tabs: Vec::new(),
+    });
+    snapshot
 }
 
 pub(in crate::terminal_session) fn snapshot(count: usize, revision: u64) -> Snapshot {

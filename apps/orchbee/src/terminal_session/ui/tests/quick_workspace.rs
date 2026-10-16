@@ -4,6 +4,14 @@ use orchbee_workbench_protocol::Snapshot;
 
 fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     let snapshot = super::super::tests::membership::snapshot(0, 1);
+    let result = empty_ui(snapshot);
+    assert!(result.0.view().no_current_workspace());
+    assert_eq!(result.0.view().context_count(), 0);
+    assert!(result.0.view().tab_create_target().is_none());
+    result
+}
+
+fn empty_ui(snapshot: Snapshot) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
@@ -16,11 +24,14 @@ fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapsh
         .publish_event_before(
             WorkerEvent::Bootstrap {
                 selection: None,
-                cache:
-                    crate::terminal_session::workbench_projection::project_native_standalone_tabs(
+                cache: crate::terminal_session::workbench_projection::project_native_context_tabs(
+                    &snapshot,
+                    &crate::terminal_session::workbench_projection::preferred_workspace_location(
                         &snapshot,
                     )
                     .unwrap(),
+                )
+                .unwrap(),
             },
             super::super::super::mailbox::EventDeadline::Startup(
                 clock.now() + super::super::super::state::OPERATION_TOTAL,
@@ -30,8 +41,6 @@ fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapsh
         .unwrap();
     ui.tick();
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
-    assert!(ui.view().no_current_workspace());
-    assert_eq!(ui.view().context_count(), 0);
     (ui, mailbox, clock, snapshot)
 }
 
@@ -73,45 +82,168 @@ fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locale
     };
     use ratatui::{Terminal, backend::TestBackend};
     let (ui, mailbox, _, _) = no_workspace();
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
-            for (width, height) in [(80, 24), (120, 40), (80, 18), (50, 10), (19, 4)] {
-                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-                terminal
-                    .draw(|frame| {
-                        crate::tui_render::render_terminal_shell(
-                            frame,
-                            &ClientView::new(width),
-                            locale,
-                            Some(TerminalSessionView::Native(ui.view())),
-                            &theme,
-                            &mut HitMapBuilder::new(),
-                        );
-                    })
-                    .unwrap();
-                let text: String = terminal
-                    .backend()
-                    .buffer()
-                    .content
-                    .iter()
-                    .map(|cell| cell.symbol())
-                    .collect();
-                let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-                let expected: String = locale
-                    .no_current_workspace()
-                    .chars()
-                    .filter(|c| !c.is_whitespace())
-                    .collect();
-                assert_eq!(
-                    compact.contains(&expected),
-                    width >= 20,
-                    "{width}x{height}: {text}"
-                );
-                assert!(!text.contains(locale.shell().standalone), "{text}");
+    for available in [false, true] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+                for (width, height) in [(80, 24), (120, 40), (80, 18), (50, 10), (19, 4)] {
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut view = ClientView::new(width);
+                    view.machines.available = available;
+                    terminal
+                        .draw(|frame| {
+                            crate::tui_render::render_terminal_shell(
+                                frame,
+                                &view,
+                                locale,
+                                Some(TerminalSessionView::Native(ui.view())),
+                                &theme,
+                                &mut HitMapBuilder::new(),
+                            );
+                        })
+                        .unwrap();
+                    let text: String = terminal
+                        .backend()
+                        .buffer()
+                        .content
+                        .iter()
+                        .map(|cell| cell.symbol())
+                        .collect();
+                    let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+                    let expected: String = locale
+                        .no_current_workspace()
+                        .chars()
+                        .filter(|c| !c.is_whitespace())
+                        .collect();
+                    assert_eq!(
+                        compact.contains(&expected),
+                        width >= 20,
+                        "{width}x{height}: {text}"
+                    );
+                    assert!(!text.contains(locale.shell().standalone), "{text}");
+                }
             }
         }
     }
     mailbox.close(CarrierFailure::Closed);
+}
+
+#[test]
+fn effective_create_binding_renders_and_invokes_workspace_or_empty_canonical_tab_by_exact_scope() {
+    use crate::{
+        client_view::{ClientView, KeyCode, KeyEvent, Modifiers, PrefixDesc, PrefixInput},
+        localization::Locale,
+        terminal_session::TerminalSessionView,
+        tui_pointer::HitMapBuilder,
+        tui_theme::Theme,
+    };
+    use orchbee_local_site_runtime::{
+        WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
+    };
+    use orchbee_workbench_protocol::{
+        Directory, WorkbenchDirectoryId, WorkbenchDirectoryPath, WorkerId,
+    };
+    use ratatui::{Terminal, backend::TestBackend};
+    let chord = |key: &str, ctrl| WindowsKeyChord {
+        key: key.into(),
+        ctrl,
+        alt: false,
+        shift: false,
+        super_key: false,
+    };
+    for canonical in [false, true] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let mut snapshot = if canonical {
+                super::super::tests::membership::canonical_snapshot(0, 1)
+            } else {
+                super::super::tests::membership::snapshot(0, 1)
+            };
+            if canonical {
+                let directory_id = WorkbenchDirectoryId::parse(&format!("{:032x}", 7100)).unwrap();
+                snapshot.navigation.workspaces[0].primary_directory_id = Some(directory_id.clone());
+                snapshot.navigation.directories.push(Directory {
+                    directory_id,
+                    worker_id: WorkerId::parse(&format!("{:032x}", 7101)).unwrap(),
+                    path: WorkbenchDirectoryPath::parse("C:/workspace").unwrap(),
+                });
+            }
+            let (mut ui, mailbox, clock, snapshot) = empty_ui(snapshot);
+            assert_eq!(ui.view().no_current_workspace(), !canonical);
+            let mut view = ClientView::new(120);
+            view.configure_keys(&WindowsKeySettings {
+                commands: Vec::new(),
+                prefix: chord("a", true),
+                overrides: vec![WindowsKeyOverride {
+                    action: "new_tab",
+                    triggers: vec![WindowsKeyTrigger {
+                        prefix: true,
+                        chord: chord("n", false),
+                    }],
+                }],
+            });
+            let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &view,
+                        locale,
+                        Some(TerminalSessionView::Native(ui.view())),
+                        &Theme::terminal_native(),
+                        &mut HitMapBuilder::new(),
+                    );
+                })
+                .unwrap();
+            let text: String = terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect();
+            let label = if canonical {
+                (locale.shell().prefix_desc)(PrefixDesc::CreateTab)
+            } else {
+                locale.status().create_workspace
+            };
+            assert!(text.contains(&format!("Ctrl+a n {label}")), "{text}");
+            if !canonical {
+                assert!(!text.contains(locale.status().create_tab), "{text}");
+            }
+            assert!(!text.contains("Ctrl+b c"), "{text}");
+            let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
+                KeyCode::Char('a'),
+                Modifiers::CTRL,
+            )));
+            view.commit(prefix, SessionActionDisposition::KeepNavigator);
+            let action = view
+                .decide(PrefixInput::Key(KeyEvent::press(
+                    KeyCode::Char('n'),
+                    Modifiers::NONE,
+                )))
+                .action()
+                .unwrap();
+            assert_eq!(action, ClientAction::CreateTab);
+            ui.apply_client_action(action);
+            if canonical {
+                let lease = mailbox.try_recv().unwrap().unwrap();
+                let QueuedCommand::Create(marker) = lease.record() else {
+                    panic!("empty canonical Tab Create");
+                };
+                assert_eq!(
+                    marker.operation().origin(),
+                    super::super::super::state::CreateOriginKind::Empty
+                );
+            } else {
+                finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+                let lease = mailbox.try_recv().unwrap().unwrap();
+                assert!(
+                    matches!(lease.record(), QueuedCommand::WorkspaceSetup(marker)
+                    if matches!(marker.0.command.action, WorkbenchAction::WorkspaceLaunch { .. }))
+                );
+            }
+            mailbox.close(CarrierFailure::Closed);
+        }
+    }
 }
 
 fn prepare(

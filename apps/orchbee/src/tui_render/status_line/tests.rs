@@ -9,6 +9,34 @@ use crate::{
 
 use super::render;
 
+#[cfg(windows)]
+#[test]
+fn workspace_and_tab_creation_hints_retain_the_same_effective_action_binding_and_localized_scope() {
+    let mut view = ClientView::new(120);
+    view.configure_keys(&configured_arrow_help());
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let workspace = super::action_hint(
+            &view,
+            super::StatusAction::CreateWorkspace,
+            locale,
+            KeyLabelGlyphs::Unicode,
+        )
+        .unwrap();
+        let tab = super::action_hint(
+            &view,
+            super::StatusAction::CreateTab,
+            locale,
+            KeyLabelGlyphs::Unicode,
+        )
+        .unwrap();
+        assert_eq!(workspace.key, tab.key);
+        assert_eq!(workspace.key, "Ctrl+a c");
+        assert_eq!(workspace.label, locale.status().create_workspace);
+        assert_eq!(tab.label, locale.status().create_tab);
+        assert_ne!(workspace.label, tab.label);
+    }
+}
+
 fn paint(
     view: &ClientView,
     width: u16,

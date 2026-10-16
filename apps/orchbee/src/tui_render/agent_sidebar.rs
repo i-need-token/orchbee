@@ -320,12 +320,11 @@ pub(super) fn render(
         backend_status.text.to_owned(),
         String::new(),
         text.business_section.to_owned(),
-        format!("  {}", text.standalone),
         format!("  {}", text.projects),
         format!("  {}", text.workspaces),
     ];
     let prefix = if rows.is_empty() && creation.is_none() {
-        if inner.height >= 16 { 7 } else { 2 }
+        if inner.height >= 16 { 6 } else { 2 }
     } else {
         0
     }
