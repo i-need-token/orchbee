@@ -766,6 +766,11 @@ fn draft_geometry_admitted(
     {
         return false;
     }
+    if draft.confirmation.is_some()
+        && display_width(locale.settings_detail(draft)) > usize::from(detail.width)
+    {
+        return false;
+    }
     draft.text.is_none() || editor_geometry_admitted(detail, draft.selected, locale, theme)
 }
 

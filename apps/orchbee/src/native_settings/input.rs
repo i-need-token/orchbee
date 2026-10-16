@@ -196,6 +196,23 @@ pub(crate) fn footer_bindings(view: View<'_>) -> &'static [SettingsFooterBinding
     }
 }
 
+/// Applies the current owner's local key map without admitting list shortcuts into a decision.
+pub(crate) fn key_edit_for_view(event: KeyEvent, view: View<'_>) -> Option<Edit> {
+    let edit = key_edit(
+        event,
+        matches!(view, View::Draft(draft) if draft.text.is_some()),
+    )?;
+    if matches!(view, View::Draft(draft) if draft.confirmation.is_some()) {
+        match edit {
+            Edit::Cancel => Some(edit),
+            Edit::Activate if LocalBinding::Primary.spec().binding.matches(event) => Some(edit),
+            _ => None,
+        }
+    } else {
+        Some(edit)
+    }
+}
+
 pub(crate) fn key_edit(event: KeyEvent, text_entry: bool) -> Option<Edit> {
     // Legacy CR arrives as Ctrl+M, but an explicitly modified named Enter is a different key.
     if event.kind == KeyKind::Release

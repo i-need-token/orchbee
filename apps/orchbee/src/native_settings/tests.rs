@@ -176,6 +176,48 @@ fn primary_key_accepts_legacy_cr_but_rejects_explicit_enter_modifiers_and_releas
 }
 
 #[test]
+fn confirmation_key_map_keeps_list_space_and_text_keys_out_of_the_decision() {
+    let mut editor = ready();
+    let list = editor.view().unwrap();
+    assert!(matches!(
+        key_edit_for_view(KeyEvent::press(KeyCode::Space, Modifiers::NONE), list),
+        Some(Edit::Activate)
+    ));
+    editor.edit(Edit::Select(Row::ResetAll));
+    draw(&mut editor);
+    editor.edit(Edit::Activate);
+    draw(&mut editor);
+    for key in [
+        KeyEvent::press(KeyCode::Space, Modifiers::NONE),
+        KeyEvent::press(KeyCode::Char(' '), Modifiers::NONE),
+        KeyEvent::press(KeyCode::Char('y'), Modifiers::NONE),
+        KeyEvent::press(KeyCode::Enter, Modifiers::CTRL),
+        KeyEvent::press(KeyCode::Enter, Modifiers::NONE.with_shift()),
+    ] {
+        assert!(key_edit_for_view(key, editor.view().unwrap()).is_none());
+        assert!(
+            matches!(editor.view(), Some(View::Draft(draft)) if draft.confirmation == Some(Confirmation::ResetAll) && !draft.dirty)
+        );
+    }
+    assert!(matches!(
+        key_edit_for_view(
+            KeyEvent::press(KeyCode::Esc, Modifiers::NONE),
+            editor.view().unwrap()
+        ),
+        Some(Edit::Cancel)
+    ));
+    let edit = key_edit_for_view(
+        KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL),
+        editor.view().unwrap(),
+    )
+    .expect("legacy Enter");
+    editor.edit(edit);
+    assert!(
+        matches!(editor.view(), Some(View::Draft(draft)) if draft.confirmation.is_none() && draft.dirty)
+    );
+}
+
+#[test]
 fn shifted_horizontal_keys_are_large_steps_only_outside_text_editors() {
     let shifted_left = KeyEvent::press(KeyCode::Left, Modifiers::NONE.with_shift());
     let shifted_right = KeyEvent::press(KeyCode::Right, Modifiers::NONE.with_shift());

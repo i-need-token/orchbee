@@ -11,7 +11,7 @@ mod rows;
 #[cfg(test)]
 mod tests;
 mod values;
-pub(crate) use input::{SettingsHintLabel, footer_bindings, key_edit};
+pub(crate) use input::{SettingsHintLabel, footer_bindings, key_edit, key_edit_for_view};
 #[cfg(test)]
 pub(crate) use metadata::SETTINGS;
 #[cfg(test)]

@@ -4,7 +4,7 @@ use crate::{
     client_view::KeyEvent,
     native_settings::{
         Edit, Editor, Observation, Reconciliation, Row, SettingsDraw, SettingsInputContext,
-        Submission, Token, View, key_edit,
+        Submission, Token, View, key_edit, key_edit_for_view,
     },
     terminal_session::settings_lane::{Job, Lane},
     tui_presentation::{GeometrySettlement, PresentationPhase},
@@ -358,9 +358,12 @@ impl NativeUi {
         true
     }
     pub(in crate::terminal_session) fn capture_settings_key(&mut self, event: KeyEvent) {
-        let text_entry =
-            matches!(self.settings.editor.view(), Some(View::Draft(draft)) if draft.text.is_some());
-        if let Some(edit) = key_edit(event, text_entry) {
+        let edit = self
+            .settings
+            .editor
+            .view()
+            .and_then(|view| key_edit_for_view(event, view));
+        if let Some(edit) = edit {
             let saving = matches!(self.settings.editor.view(), Some(View::Saving { .. }));
             if !matches!(
                 self.settings.notice(self.clock.now()),

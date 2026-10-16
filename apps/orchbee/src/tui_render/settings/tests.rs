@@ -405,7 +405,7 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
 
 #[test]
 fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_hint_row() {
-    for (width, height) in [(48, 10), (80, 24), (120, 40)] {
+    for (width, height) in [(80, 10), (80, 24), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [
                 Theme::one_dark(),
@@ -457,6 +457,33 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
     let (_, map, receipt) = render_once(&editor, 36, 10, Locale::EnUs, &theme);
     assert!(matches!(receipt, ModalPresentation::NotPresented));
     assert!((0..10).all(|y| (0..36).all(|x| map.hit_target_at(x, y).is_none())));
+}
+
+#[test]
+fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions() {
+    let theme = Theme::one_dark();
+    for (width, locale, admitted) in [
+        (48, Locale::EnUs, false),
+        (48, Locale::ZhCn, true),
+        (60, Locale::EnUs, true),
+    ] {
+        let mut editor = editor_with(UserPreferencesValues::default());
+        select_and_present(&mut editor, Row::ResetAll, locale, &theme);
+        editor.edit(Edit::Activate);
+        let (terminal, map, receipt) = render_once(&editor, width, 10, locale, &theme);
+        assert_eq!(matches!(receipt, ModalPresentation::Presented(_)), admitted);
+        if admitted {
+            let View::Draft(draft) = editor.view().unwrap() else {
+                panic!("confirmation draft")
+            };
+            assert!(
+                without_cell_padding(&screen_text(&terminal))
+                    .contains(&without_cell_padding(locale.settings_detail(draft)))
+            );
+        } else {
+            assert!((0..10).all(|y| (0..width).all(|x| map.hit_target_at(x, y).is_none())));
+        }
+    }
 }
 
 #[test]

@@ -97,8 +97,10 @@ impl TerminalInputPort for Port {
             }
             return true;
         }
-        let editing = matches!(self.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.text.is_some());
-        let edit = crate::native_settings::key_edit(event, editing);
+        let edit = self
+            .editor
+            .view()
+            .and_then(|view| crate::native_settings::key_edit_for_view(event, view));
         if let Some(edit) = edit
             && self.editor.edit(edit).is_some()
         {
@@ -228,6 +230,51 @@ fn primary_packet((column, row): (u16, u16), release: bool) -> Vec<u8> {
         if release { 'm' } else { 'M' }
     )
     .into_bytes()
+}
+
+#[test]
+fn settings_confirmation_uses_owner_key_map_and_retains_non_enter_decisions_and_packet_tails() {
+    let mut port = Port::ready();
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    port.editor.edit(Edit::Select(Row::ResetAll));
+    let _map = render_settings_map(&dispatcher, &mut port, 120, 40);
+    port.editor.edit(Edit::Activate);
+    for packet in [
+        b" ".as_slice(),
+        b"y",
+        b"\x1b[13;5u",
+        b"\x1b[13;2u",
+        b"\x1b[200~\r\x1b[201~",
+    ] {
+        let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+        dispatcher.publish_hit_map(map);
+        let token = port.editor.view().unwrap().token();
+        dispatch_all(&mut dispatcher, &mut view, &mut port, packet);
+        assert!(
+            matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft))
+            if draft.token == token && draft.confirmation == Some(crate::native_settings::Confirmation::ResetAll))
+        );
+        assert_eq!(port.saves, 0);
+        assert!(port.calls.borrow().is_empty());
+    }
+    let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+    dispatcher.publish_hit_map(map);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\rnever-forward-this",
+    );
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft))
+        if draft.confirmation.is_none() && draft.dirty)
+    );
+    assert_eq!(port.saves, 0, "confirmation edits only the draft");
+    assert!(
+        port.calls.borrow().is_empty(),
+        "the decision packet cannot reach a pane"
+    );
 }
 
 #[test]
