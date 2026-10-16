@@ -1380,19 +1380,31 @@ fn action_menu_renders_and_hits_only_presented_rows_in_both_locales_themes_and_s
                         );
                     })
                     .unwrap();
-                let text = terminal
+                let text: String = terminal
                     .backend()
                     .buffer()
                     .content()
-                    .iter()
-                    .map(|c| c.symbol())
-                    .collect::<String>();
+                    .chunks(usize::from(width))
+                    .map(|row| {
+                        let mut line = String::new();
+                        let mut column = 0;
+                        while let Some(cell) = row.get(column) {
+                            line.push_str(cell.symbol());
+                            column += crate::terminal_text::display_width(cell.symbol()).max(1);
+                        }
+                        line.push('\n');
+                        line
+                    })
+                    .collect();
                 ui.after_close_draw(receipt);
                 if width == 12 {
                     assert!(!ui.action_menu_active());
                 } else {
                     assert!(!text.contains("Esc"), "plain context menu: {text}");
-                    assert!(text.contains(locale.menu_action(&MenuAction::RenameWorkspace)));
+                    assert!(
+                        text.contains(locale.menu_action(&MenuAction::RenameWorkspace)),
+                        "{locale:?} {width}x{height}: {text}"
+                    );
                     assert!(ui.menus.menu.confirm(), "{locale:?} {width}x{height}");
                     let map = hits.finish();
                     assert!((0..height).all(|y| (0..width).all(|x| !matches!(
