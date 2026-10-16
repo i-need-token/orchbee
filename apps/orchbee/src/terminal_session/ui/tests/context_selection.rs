@@ -114,7 +114,7 @@ fn publish_accepted_selection(
     (lease, wait)
 }
 
-fn settle_nonempty_context_selection(
+pub(in crate::terminal_session::ui) fn settle_nonempty_context_selection(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
     clock: &LocalOperationClock,
@@ -193,7 +193,7 @@ fn direct_context_admission_guards_exact_identity_and_busy_current_before_round_
     }
 }
 
-fn make_desired_ready(ui: &mut NativeUi, frame: u64) {
+pub(in crate::terminal_session::ui) fn make_desired_ready(ui: &mut NativeUi, frame: u64) {
     let state = ui.state.as_mut().unwrap();
     let key = state.desired().unwrap().clone();
     let frame = FrameIdentity::new(frame);

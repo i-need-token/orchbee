@@ -41,7 +41,7 @@ pub(crate) struct Context {
     pub(crate) workspace: Option<String>,
 }
 impl Overview {
-    fn from_snapshot(snapshot: &Snapshot) -> Self {
+    fn from_snapshot(snapshot: &Snapshot) -> Result<Self, ()> {
         let mut labels = Vec::new();
         for project in &snapshot.navigation.projects {
             if labels.len() < 8 {
@@ -53,19 +53,23 @@ impl Overview {
                 labels.push(display_label(&workspace.label));
             }
         }
-        let mut contexts = vec![Context {
-            target: NativeContextTarget {
-                site_id: snapshot.site_id.clone(),
-                location: NativeContextLocation::Standalone(
-                    snapshot.navigation.standalone_terminal_context_id.clone(),
-                ),
-            },
-            project_id: None,
-            project: None,
-            workspace: None,
-        }];
+        let mut contexts = Vec::new();
+        if let Some(location) =
+            crate::terminal_session::compatibility_workspace(snapshot).map_err(|_| ())?
+        {
+            contexts.push(Context {
+                target: NativeContextTarget {
+                    site_id: snapshot.site_id.clone(),
+                    location,
+                },
+                project_id: None,
+                project: None,
+                workspace: None,
+            });
+        }
         // The wire boundary has already validated ordering, membership and protocol limits.
-        if let Ok(ordered) = snapshot.navigation.ordered_workspaces() {
+        {
+            let ordered = snapshot.navigation.ordered_workspaces().map_err(|_| ())?;
             contexts.extend(ordered.into_iter().map(|(project, workspace)| Context {
                 target: NativeContextTarget {
                     site_id: snapshot.site_id.clone(),
@@ -79,11 +83,11 @@ impl Overview {
                 workspace: Some(display_label(&workspace.label)),
             }));
         }
-        Self {
+        Ok(Self {
             site: snapshot.site_id.clone(),
             revision: snapshot.revision,
             projects: snapshot.navigation.projects.len(),
-            workspaces: snapshot.navigation.workspaces.len(),
+            workspaces: contexts.len(),
             tabs: snapshot
                 .terminal_contexts
                 .iter()
@@ -91,7 +95,7 @@ impl Overview {
                 .sum(),
             labels,
             contexts: contexts.into(),
-        }
+        })
     }
 }
 pub(crate) fn display_label(value: &str) -> String {

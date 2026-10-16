@@ -67,22 +67,20 @@ pub(in crate::terminal_session) fn directory() -> StartupDirectory {
 }
 
 #[test]
-fn directory_startup_only_empty_without_saved_position_or_restore_block_admits_creation() {
+fn directory_startup_only_empty_content_without_restore_block_admits_creation() {
     let directory = directory();
-    assert!(directory.admits(&empty(), false));
-    assert!(!directory.admits(&empty(), true));
+    assert!(directory.admits(&empty()));
     assert!(
-        !StartupDirectory::new(Some(Path::new("C:/repo")), Locale::EnUs, false)
-            .admits(&empty(), false)
+        !StartupDirectory::new(Some(Path::new("C:/repo")), Locale::EnUs, false).admits(&empty())
     );
-    assert!(directory.admits(&project_only(), false));
+    assert!(directory.admits(&project_only()));
     let mut empty_workspace = created();
     for context in &mut empty_workspace.terminal_contexts {
         context.tabs.clear();
     }
-    assert!(!directory.admits(&empty_workspace, false));
-    assert!(!directory.admits(&created(), false));
-    assert!(!directory.admits(&crate::machine_agents::tests::fixture(), false));
+    assert!(!directory.admits(&empty_workspace));
+    assert!(!directory.admits(&created()));
+    assert!(!directory.admits(&crate::machine_agents::tests::fixture()));
     assert!(
         StartupDirectory::new(None, Locale::EnUs, true)
             .parameters()

@@ -163,21 +163,21 @@ impl Reader<'_> {
                 }
             }
         }
-        let mut rows = vec![Row {
-            target: NativeContextTarget {
-                site_id: self.before.site_id.clone(),
-                location: NativeContextLocation::Standalone(
-                    self.before
-                        .navigation
-                        .standalone_terminal_context_id
-                        .clone(),
-                ),
-            },
-            project_id: None,
-            label: None,
-            tokens: MetadataTokens::default(),
-            git: None,
-        }];
+        let mut rows = Vec::new();
+        if let Some(location) =
+            crate::terminal_session::compatibility_workspace(&self.before).map_err(|_| ())?
+        {
+            rows.push(Row {
+                target: NativeContextTarget {
+                    site_id: self.before.site_id.clone(),
+                    location,
+                },
+                project_id: None,
+                label: None,
+                tokens: MetadataTokens::default(),
+                git: None,
+            });
+        }
         // Equal canonical directories share one Git job within this topology-fenced round.
         let mut directories: BTreeMap<(WorkerId, String), Option<Git>> = BTreeMap::new();
         for workspace in ordered {

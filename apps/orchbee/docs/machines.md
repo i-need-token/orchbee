@@ -178,6 +178,10 @@ labels used by workspace navigation below. A fresh successful native snapshot
 means Online; a saved profile or SSH process alone does not. An observation older
 than ten seconds is shown as stale and is not offered for connection reuse.
 
+Workspace navigation and its count include nonempty legacy compatibility content without
+inventing a canonical Workspace ID. Empty compatibility slots are omitted; empty canonical
+Workspaces remain visible. The same policy governs local sidebar checkpoints and remote summaries.
+
 Transitions are Waiting -> Connecting -> Online, or Connecting/Online ->
 Reconnecting/Attention. Transient failure retries after 500 milliseconds,
 doubling up to 120 seconds; 60 seconds continuously online resets that history.
@@ -456,8 +460,8 @@ absent/current targets, cancellation and exact cross-machine identity.
 ## Main Agent sidebar
 
 On Windows, the main sidebar joins the Agents picker's eligible projection to
-each exact Machine/Session/Context and renders Agents beneath their owning Workspace
-or Standalone row. Labels never establish ownership. The active machine's source
+each exact Machine/Session/Context and renders Agents beneath their owning Workspace,
+including the nonempty legacy Workspace. Labels never establish ownership. The active machine's source
 view and Client-local status, scope, ordering and search still define eligibility.
 The first nine eligible entries retain their global filtered-list ordinals even
 when other parents are collapsed. The focused physical member is marked.

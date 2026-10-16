@@ -1,7 +1,7 @@
 //! Client-owned last displayed position; canonical membership remains authoritative.
 use super::workbench_projection::{
     NativeContextLocation, NativeContextTabs, NativeMemberTarget, NativeProjectionError,
-    project_native_context_tabs,
+    preferred_workspace_location, project_native_context_tabs,
 };
 use orchbee_workbench_protocol::Snapshot;
 
@@ -16,9 +16,7 @@ pub(super) fn resolve(
     snapshot: &Snapshot,
     position: &Position,
 ) -> Result<(NativeContextTabs, Option<NativeMemberTarget>, bool), NativeProjectionError> {
-    let mut locations = vec![NativeContextLocation::Standalone(
-        snapshot.navigation.standalone_terminal_context_id.clone(),
-    )];
+    let mut locations = Vec::new();
     for (_, workspace) in snapshot
         .navigation
         .ordered_workspaces()
@@ -29,19 +27,19 @@ pub(super) fn resolve(
             terminal_context_id: workspace.terminal_context_id.clone(),
         });
     }
+    // A saved compatibility position does not supersede a canonical Workspace. With no
+    // canonical Workspace it still restores its exact legacy member, preserving old content.
+    if locations.is_empty()
+        && let Some(location) = super::workbench_projection::compatibility_workspace(snapshot)?
+    {
+        locations.push(location);
+    }
     let location_exists = locations.contains(&position.location);
+    let fallback_location = preferred_workspace_location(snapshot)?;
     let location = if location_exists {
         &position.location
     } else {
-        locations
-            .iter()
-            .find(|location| {
-                snapshot.terminal_contexts.iter().any(|context| {
-                    &context.terminal_context_id == location.terminal_context_id()
-                        && !context.tabs.is_empty()
-                })
-            })
-            .unwrap_or(&locations[0])
+        &fallback_location
     };
     let cache = project_native_context_tabs(snapshot, location)?;
     if location_exists

@@ -413,7 +413,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     refresh_hint: "refresh",
     stale: "stale",
     disconnected: "disconnected",
-    standalone: "Standalone",
+    standalone: "Legacy workspace",
     jump_gone: "Session or its panel is gone",
     jump_unavailable: "Cannot verify session · read unavailable",
     jump_denied: "Session read denied",
@@ -460,7 +460,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     shortcut_title: "Keyboard shortcuts",
     sidebar_hint: "Ctrl+B b · sidebar",
     site_section: "SITE",
-    standalone: "Standalone terminal",
+    standalone: "Legacy workspace",
     tabs_unavailable: "No shared Tabs · session unavailable",
     terminal_unavailable: "Terminal unavailable",
     too_small_notice: "Too small · resize to continue",
@@ -490,7 +490,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     refresh_hint: "刷新",
     stale: "已过期",
     disconnected: "已断连",
-    standalone: "独立终端",
+    standalone: "原有工作区",
     jump_gone: "会话或其面板已不存在",
     jump_unavailable: "无法验证会话 · 读取不可用",
     jump_denied: "会话读取被拒绝",
@@ -537,7 +537,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     shortcut_title: "键盘快捷键",
     sidebar_hint: "Ctrl+B b · 侧边栏",
     site_section: "站点",
-    standalone: "独立终端",
+    standalone: "原有工作区",
     tabs_unavailable: "无共享 Tab · 会话不可用",
     terminal_unavailable: "终端不可用",
     too_small_notice: "窗口太小 · 请调整大小后继续",
@@ -1268,9 +1268,16 @@ impl Locale {
                 Self::ZhCn => "关闭请求未执行".to_owned(),
             },
             NativeSessionNotice::WorkspaceCloseUnavailable => match self {
-                Self::EnUs => "Select a Workspace to close; Standalone stays open".to_owned(),
-                Self::ZhCn => "请先选择要关闭的工作区；独立终端保持打开".to_owned(),
+                Self::EnUs => {
+                    "Select a workspace to close; legacy workspace tabs close individually"
+                        .to_owned()
+                }
+                Self::ZhCn => "请选择要关闭的工作区；原有工作区请逐个关闭 Tab".to_owned(),
             },
+            NativeSessionNotice::LegacyWorkspace => {
+                self.legacy_workspace_action_unavailable().to_owned()
+            }
+            NativeSessionNotice::NoWorkspace => self.no_current_workspace().to_owned(),
             NativeSessionNotice::RenameNotRenamed => match self {
                 Self::EnUs => "Tab not renamed".to_owned(),
                 Self::ZhCn => "标签页未重命名".to_owned(),

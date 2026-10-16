@@ -40,6 +40,8 @@ pub(super) struct NativeContextTabs {
     serde(tag = "kind", content = "identity", deny_unknown_fields)
 )]
 pub(crate) enum NativeContextLocation {
+    // Historical wire/checkpoint identity. Only a nonempty context is a visible compatibility
+    // Workspace. An empty context remains valid for explicit targets and no-Workspace landing.
     Standalone(WorkbenchTerminalContextId),
     Workspace {
         workspace_id: WorkbenchWorkspaceId,
@@ -687,8 +689,9 @@ impl CreatedTabExpectation {
     }
 }
 
+/// A canonical context or its visible Workspace projection failed validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct NativeProjectionError;
+pub(crate) struct NativeProjectionError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct MovedTabExpectation {
@@ -785,32 +788,80 @@ pub(super) fn project_native_standalone_tabs(
     )
 }
 
+/// Resolves the legacy Workspace only when it owns content. Its identity remains a Context,
+/// never a fabricated canonical Workspace ID. The required compatibility slot is always checked.
+pub(crate) fn compatibility_workspace(
+    snapshot: &Snapshot,
+) -> Result<Option<NativeContextLocation>, NativeProjectionError> {
+    let id = &snapshot.navigation.standalone_terminal_context_id;
+    let mut contexts = snapshot
+        .terminal_contexts
+        .iter()
+        .filter(|context| &context.terminal_context_id == id);
+    let context = contexts.next().ok_or(NativeProjectionError)?;
+    if contexts.next().is_some() {
+        return Err(NativeProjectionError);
+    }
+    Ok((!context.tabs.is_empty()).then(|| NativeContextLocation::Standalone(id.clone())))
+}
+
+/// Ordinary entry and removal prefer canonical Workspaces, including empty ones. The
+/// compatibility slot is the last landing and may represent the explicit no-Workspace state.
+pub(super) fn preferred_workspace_location(
+    snapshot: &Snapshot,
+) -> Result<NativeContextLocation, NativeProjectionError> {
+    compatibility_workspace(snapshot)?;
+    Ok(snapshot
+        .navigation
+        .ordered_workspaces()
+        .map_err(|_| NativeProjectionError)?
+        .first()
+        .map_or_else(
+            || {
+                NativeContextLocation::Standalone(
+                    snapshot.navigation.standalone_terminal_context_id.clone(),
+                )
+            },
+            |(_, workspace)| NativeContextLocation::Workspace {
+                workspace_id: workspace.workspace_id.clone(),
+                terminal_context_id: workspace.terminal_context_id.clone(),
+            },
+        ))
+}
+
 pub(super) fn project_native_context_tabs(
     snapshot: &Snapshot,
     location: &NativeContextLocation,
 ) -> Result<NativeContextTabs, NativeProjectionError> {
-    let mut navigation = vec![NativeContext {
-        location: NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        ),
-        project_id: None,
-        project_label: None,
-        workspace_label: None,
-    }];
+    // Visibility does not relax the mandatory disjoint compatibility slot or its capacity.
+    if snapshot.navigation.workspaces.len() >= MAXIMUM_TERMINAL_CONTEXTS {
+        return Err(NativeProjectionError);
+    }
+    let mut navigation = Vec::new();
+    if let Some(location) = compatibility_workspace(snapshot)? {
+        navigation.push(NativeContext {
+            location,
+            project_id: None,
+            project_label: None,
+            workspace_label: None,
+        });
+    }
     for (project, workspace) in snapshot
         .navigation
         .ordered_workspaces()
         .map_err(|_| NativeProjectionError)?
     {
-        if workspace.primary_directory_id.as_ref().is_some_and(|id| {
-            snapshot
-                .navigation
-                .directories
-                .iter()
-                .filter(|directory| &directory.directory_id == id)
-                .count()
-                != 1
-        }) {
+        if workspace.terminal_context_id == snapshot.navigation.standalone_terminal_context_id
+            || workspace.primary_directory_id.as_ref().is_some_and(|id| {
+                snapshot
+                    .navigation
+                    .directories
+                    .iter()
+                    .filter(|directory| &directory.directory_id == id)
+                    .count()
+                    != 1
+            })
+        {
             return Err(NativeProjectionError);
         }
         if navigation.len() == MAXIMUM_TERMINAL_CONTEXTS {
@@ -831,7 +882,15 @@ pub(super) fn project_native_context_tabs(
             ),
         });
     }
-    if !navigation.iter().any(|entry| &entry.location == location)
+    let admitted_location = match location {
+        NativeContextLocation::Standalone(id) => {
+            id == &snapshot.navigation.standalone_terminal_context_id
+        }
+        NativeContextLocation::Workspace { .. } => {
+            navigation.iter().any(|entry| &entry.location == location)
+        }
+    };
+    if !admitted_location
         || navigation.iter().enumerate().any(|(index, entry)| {
             navigation[..index].iter().any(|prior| {
                 prior.location.terminal_context_id() == entry.location.terminal_context_id()

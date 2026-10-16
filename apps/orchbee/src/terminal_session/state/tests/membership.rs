@@ -50,6 +50,70 @@ fn removal_tab(index: usize) -> Tab {
 }
 
 #[test]
+fn removed_workspace_lands_on_empty_canonical_workspace_before_nonempty_legacy() {
+    let mut snapshot = super::context_selection::contexts(1, 1);
+    let removed = snapshot.navigation.workspaces[0].clone();
+    let surviving = snapshot.navigation.workspaces[1].clone();
+    let mut state = ready_with_cache(
+        crate::terminal_session::workbench_projection::project_native_context_tabs(
+            &snapshot,
+            &NativeContextLocation::Workspace {
+                workspace_id: removed.workspace_id.clone(),
+                terminal_context_id: removed.terminal_context_id.clone(),
+            },
+        )
+        .unwrap(),
+    );
+    let old = state.desired().unwrap().clone();
+    let old_pane = state.focus_pane_ref().unwrap();
+    assert_eq!(state.controller_mode(), Some(&controlling()));
+    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot.navigation.workspaces.remove(0);
+    snapshot
+        .terminal_contexts
+        .retain(|context| context.terminal_context_id != removed.terminal_context_id);
+    assert!(state.start_pending_refresh(7));
+    let PreparedRefresh::Membership { prepared, .. } =
+        state.prepare_refresh(7, WorkbenchSnapshotOutcome::Available { snapshot })
+    else {
+        panic!("removed Workspace has a canonical landing")
+    };
+    assert_eq!(prepared.context_removal().unwrap().generation(), 7);
+    assert!(prepared.selected_tab_id().is_none());
+    let cleanup = state
+        .stage_refresh_membership_cleanup(
+            7,
+            prepared,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
+        .unwrap();
+    assert!(matches!(
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, None)
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Empty
+    ));
+    assert_eq!(
+        state.cache().location(),
+        &NativeContextLocation::Workspace {
+            workspace_id: surviving.workspace_id,
+            terminal_context_id: surviving.terminal_context_id,
+        }
+    );
+    assert!(state.retained_contexts.is_empty());
+    assert_eq!(state.desired(), None);
+    assert_eq!(state.attached_key(), None);
+    assert_eq!(state.controller_mode(), None);
+    assert_eq!(state.focus_pane_ref(), None);
+    assert!(state.live_pane_record(&old_pane).is_none());
+    assert!(state.invariant_holds());
+}
+
+#[test]
 fn removed_context_refresh_classifies_removed_and_mints_a_bound_permit() {
     let mut state = ready(1);
     let removed = state.cache().location().clone();

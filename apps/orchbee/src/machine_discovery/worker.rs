@@ -133,7 +133,9 @@ fn observe(
             )
             .map_err(snapshot_error)?;
         let overview = match result.outcome {
-            WorkbenchSnapshotOutcome::Available { snapshot } => Overview::from_snapshot(&snapshot),
+            WorkbenchSnapshotOutcome::Available { snapshot } => {
+                Overview::from_snapshot(&snapshot).map_err(|_| io::ErrorKind::InvalidData)?
+            }
             WorkbenchSnapshotOutcome::Denied {} => {
                 return Err(io::ErrorKind::PermissionDenied.into());
             }

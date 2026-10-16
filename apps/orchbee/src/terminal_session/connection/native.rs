@@ -470,11 +470,17 @@ impl NativeExecutor {
     ) -> Result<Option<crate::terminal_session::workbench_projection::NativeContextTabs>> {
         #[cfg(windows)]
         if let Some(NativeStartupTarget::LocalDirectory {
-            position: Some(position),
-            fallback,
-            ..
+            position, fallback, ..
         }) = &self.initial_context
         {
+            let Some(position) = position else {
+                let location =
+                    super::super::workbench_projection::preferred_workspace_location(snapshot)
+                        .map_err(|_| CarrierFailure::AuthorityDivergence)?;
+                return project_native_context_tabs(snapshot, &location)
+                    .map(Some)
+                    .map_err(|_| CarrierFailure::AuthorityDivergence);
+            };
             let (cache, member, changed) =
                 crate::terminal_session::startup_preference::resolve(snapshot, position)
                     .map_err(|_| CarrierFailure::AuthorityDivergence)?;

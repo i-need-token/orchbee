@@ -1319,14 +1319,15 @@ impl Picker {
             } else if let Some(row) = self.visible_rows().get(self.selected)
                 && let Some(context) = &row.context
             {
+                if let Some(project) = &context.project {
+                    lines.push(project.clone());
+                }
                 lines.push(
                     context
-                        .project
-                        .as_deref()
-                        .unwrap_or(locale.machine_picker_text("standalone"))
-                        .to_owned(),
+                        .workspace
+                        .clone()
+                        .unwrap_or_else(|| locale.machine_picker_text("standalone").to_owned()),
                 );
-                lines.push(context.workspace.clone().unwrap_or_default());
                 let id = match &context.target.location {
                     crate::terminal_session::NativeContextLocation::Standalone(id) => id.as_str(),
                     crate::terminal_session::NativeContextLocation::Workspace {

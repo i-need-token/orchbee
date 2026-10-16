@@ -1721,9 +1721,7 @@ impl PointerState {
                 MenuTarget::Project(project_id.clone())
             }
             SidebarTarget::Context { machine, target }
-                if machine == &view.machines.current
-                    && target.site_id == source.site
-                    && matches!(target.location, NativeContextLocation::Workspace { .. }) =>
+                if machine == &view.machines.current && target.site_id == source.site =>
             {
                 MenuTarget::Workspace(target.location.clone())
             }

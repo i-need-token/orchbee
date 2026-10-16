@@ -66,9 +66,8 @@ impl StartupDirectory {
             report: Arc::new(Mutex::new(Progress::Initial)),
         }
     }
-    pub(super) fn admits(&self, snapshot: &Snapshot, has_position: bool) -> bool {
+    pub(super) fn admits(&self, snapshot: &Snapshot) -> bool {
         self.allowed
-            && !has_position
             && snapshot.navigation.workspaces.is_empty()
             && snapshot
                 .terminal_contexts

@@ -2,14 +2,15 @@
 
 ## Scope and ownership
 
-The native Client selects the standalone Terminal Context or a Workspace in the connected local
+The native Client selects a Workspace in the connected local
 Session. Server owns navigation, membership, revision and terminal lifetime; the Client owns its active
 location and selection. This reference governs the context-selection extension to the
 [native Tab Session](native-tab-session.md). Maintain it with the Session reducer, transport,
 navigation rendering and their correctness evidence.
 
-`Ctrl+B [` and `Ctrl+B ]` select the previous and next location in Server order: standalone,
-then the canonical global Workspace display order. Sorting never changes Project membership.
+`Ctrl+B [` and `Ctrl+B ]` select the previous and next visible Workspace: nonempty legacy content,
+then the canonical global Workspace display order. The required empty compatibility Context is
+absent from the sidebar, navigator and cycling. Sorting never changes Project membership.
 Selection wraps at either boundary. Workspace and context IDs establish location identity;
 Project membership and labels are presentation metadata. Moving a Workspace or dissolving its
 Project preserves selection memory and the live attachment. Entering another location restores this
@@ -26,7 +27,18 @@ selection together. See [machine navigation](machines.md#cross-machine-workspace
 for request lifetime, cancellation and cross-machine handoff.
 Bare Windows startup follows the preference below. Without a saved preference,
 [directory startup](native-directory-startup.md) creates the first Workspace only in an eligible
-empty Session; other Sessions retain standalone Open. Both use the existing first-frame readiness contract.
+empty Session; other Sessions select existing Workspaces without standalone Open. Both use the existing first-frame readiness contract.
+
+The private `NativeContextLocation::Standalone` identity remains the compatibility boundary for
+historical content and explicit `--standalone` commands. A nonempty Context is displayed as
+`Legacy workspace` / `原有工作区` without inventing a canonical Workspace ID. Its Tab, Panel,
+Presentation, terminal and attachment identities remain unchanged; Tab/Pane operations, menus,
+Agents and navigation use those exact identities. Canonical Workspace rename, directory, grouping
+and whole-Workspace Close are unavailable with a localized explanation; legacy Tabs close through
+their existing Tab actions. Emptying this context hides its navigation entry while the selected
+empty state offers explicit creation. Cycling from that state can enter a surviving Workspace.
+Membership validation remains separate from visibility: explicit compatibility targets still
+validate, the mandatory slot stays unique and disjoint, and its capacity is not reclaimed.
 
 Workspace creation, optional Project organization and first-directory configuration belong to
 [Workspace setup](native-workspace-setup.md); directory startup owns automatic empty-Session creation.
@@ -161,10 +173,12 @@ preference; unchanged redraws do not write again. Storage failure displays a loc
 without retiring a live terminal.
 
 Restoration validates current canonical ownership before ordinary bootstrap/attachment. A removed
-member selects the first surviving member in its location. A removed location selects the first
-nonempty canonical location, or standalone Empty when all locations are empty. Both produce a
-localized notice. Without a saved record, the directory-startup policy chooses eligible empty-Session
-creation or existing standalone Open. Invalid or unsupported records are preserved,
+member selects the first surviving member in its location. A removed location or saved compatibility
+position selects the first canonical Workspace, even when empty; with none, it restores nonempty
+legacy content or the no-Workspace state. A valid legacy preference retains its exact member only
+when there is no canonical Workspace. Fallback produces a localized notice. Without a saved record,
+directory startup chooses eligible empty-Session creation or the same existing-Workspace order
+without Open. Invalid or unsupported records are preserved,
 disable preference writes for that invocation and produce a localized notice. Explicit context or
 Agent startup retains its exact target. Preferences never grant input, change Create provenance,
 launch, dispose, change checkpoint data or move another live Client.
@@ -175,6 +189,18 @@ This contract separates durable advice, Client-local selection, pending draw pro
 
 The owning implementation tests cover selection memory, exact Workspace/Tab/Panel identity, cancellation, stale completion, cleanup-before-install, first-frame admission, startup preference and navigator input ownership.
 
+Compatibility navigation traces cover peer removal/addition while either canonical or legacy
+content is selected, cycling from a hidden empty compatibility slot, and right-clicking noncurrent
+legacy content without changing canonical focus. Removal landing on an empty canonical Workspace
+must release the old pane and controller authority before installation. Fresh peer-added membership
+requires a fresh attachment; visibility alone never grants input or recovers a live process.
+
 Maintain the concrete witnesses in `src/terminal_session/state/context_selection.rs`, `src/terminal_session/mailbox/tests/context_selection.rs`, `src/terminal_session/connection/native/tests/context_selection.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+
+The selected pane-membership model still abstracts departure, cleanup and anchor advancement;
+an empty Workspace landing creates no pane. The control-takeover and viewport models retain their
+existing grant and epoch fences. These abstractions do not establish Workspace ordering, compatibility
+filtering, startup admission or adapter/UI behavior; those remain concrete implementation and native
+acceptance obligations.

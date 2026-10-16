@@ -80,10 +80,10 @@ The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
-remain outside the scrolling navigation tree. Standalone stays first, followed by Projects in their
-canonical display order and their children, then ungrouped Workspaces. An ungrouped Workspace is a root entry; optional Projects group
+remain outside the scrolling navigation tree. Nonempty legacy compatibility content appears first when present. Projects in their canonical
+display order and their children follow, then ungrouped Workspaces. The empty compatibility slot is omitted. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
-each Workspace, with independent lists expanded by default. Standalone owns its Agent
+each Workspace, with independent lists expanded by default. The legacy Workspace owns its Agent
 children in the same window. Configuration still owns item row height, gap and token styles.
 
 Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
@@ -109,18 +109,18 @@ Before those rows arrive, connection and business placeholders appear below the 
 Both sidebar presentations keep one top padding row and one right padding cell, with no
 outer left padding; the shared focus gutter owns the list's left edge. The heading separates
 a primary label and secondary count. The count includes every canonical Workspace, including
-collapsed descendants, and excludes Standalone. A blank row separates the heading from its
+collapsed descendants, plus nonempty legacy content. A blank row separates the heading from its
 body when the section can fit it. Footer rows carry only overflow ranges; fully visible lists
 leave them blank.
 
 Navigation rows keep a one-cell navigation marker and two-cell-per-level indentation before the
 primary identity. Only Agent rows reserve a two-cell ordinal before identity; Project, Workspace
-and Standalone rows do not reserve unused Agent columns. Root owner labels start two cells from
+and legacy Workspace rows do not reserve unused Agent columns. Root owner labels start two cells from
 the list's left edge. Eligible disclosures follow the displayed first-line identity.
 After the primary identity, a one-cell gap precedes independent one-cell operational, current and
 unread markers, followed by the right-aligned auxiliary area. These tracks remain reserved even when
 their markers are blank, so changing state never moves the label. Grouped Workspaces indent two cells,
-and Agents indent two cells from their own Workspace or Standalone parent. Branch
+and Agents indent two cells from their own Workspace parent, including a legacy Workspace. Branch
 and custom continuation rows align with the Workspace name, including when a configured
 first row omits the state icon. Project labels use bold primary text;
 Workspace names use primary text and descriptive metadata uses secondary text. Eligible Project
@@ -307,7 +307,7 @@ Tabs and content follow the installed Session selection. Pending, superseded and
 cancelled requests follow [machine navigation](machines.md#cross-machine-workspace-navigation).
 
 The native sidebar renders Workspaces and optional Project groups from complete Machine
-checkpoints. Standalone and ungrouped Workspaces precede Projects for each Machine.
+checkpoints. Nonempty legacy content and ungrouped Workspaces precede Projects for each Machine.
 Grouped ordinary and Git-worktree-backed Workspaces share the same level; every Workspace
 owns its Agent children. `machine_spaces::Checkpoint` retains Project IDs and labels from
 the same fenced Snapshot as Workspaces, including empty Projects with their own menu and
@@ -369,7 +369,7 @@ without claiming pixel or backend equivalence.
 
 | Claim                                     | Executable evidence and limits                                                                                                                                                                                                             |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Session/Context joins, duplicate labels, ungrouped Workspaces, Standalone, multiple default-expanded lists, retained collapse preferences and exact Tab/Panel activation.                         |
+| Exact grouping and no implicit activation | Deterministic Picker cases cover Machine/Session/Context joins, duplicate labels, ungrouped Workspaces, preserved legacy content, multiple default-expanded lists, retained collapse preferences and exact Tab/Panel activation.           |
 | Valid focus and scroll                    | Bounded generated navigation traces cover topology and grouping changes; focused cases cover regroup/dissolve, removed ancestors, Agent-parent movement, current-Agent reveal and manual-scroll disclosure. No unbounded proof is claimed. |
 | Shared geometry and input authority       | Render, pointer and dispatcher cases cover configured heights/gaps, both locales/themes, wide glyphs, collapsed counts/current evidence, empty Project controls, stale hits, wheel cancellation and disclosure without focus transfer.     |
 

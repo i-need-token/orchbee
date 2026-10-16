@@ -33,6 +33,14 @@ pub(super) struct DirectoryGuidance {
     description: PrefixDesc,
 }
 
+pub(super) fn no_workspace_guidance(locale: Locale) -> DirectoryGuidance {
+    DirectoryGuidance {
+        fact: locale.no_current_workspace().to_owned(),
+        action: PrefixAction::Client(ClientAction::RequestQuickWorkspace),
+        description: PrefixDesc::QuickWorkspaceCreate,
+    }
+}
+
 pub(super) fn directory_guidance(
     locale: Locale,
     phase: NativeDisplayPhase,

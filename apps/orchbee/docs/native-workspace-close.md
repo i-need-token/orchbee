@@ -6,12 +6,15 @@ The Windows TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`), f
 unmodified `Enter`; `Esc` cancels. The complete confirmation names the Workspace and explains
 that its terminals end for every Client while Git branches and checkouts remain. Project grouping,
 shared directories and worktree relationships never expand this scope. Ungrouped Workspaces are
-valid targets; Standalone is not.
+valid targets. The legacy compatibility Workspace has no canonical Workspace ID; close its Tabs
+individually. Its whole-Workspace Close entry is disabled with a localized explanation.
 
 The Workspace context menu closes its addressed Workspace without selecting it first. Confirmation,
 cancellation and completion preserve an unrelated current Context, selected pane and terminal
 attachment. The selected shell continues running. Closing the current Workspace retains the existing
-canonical removal and Standalone fallback; opening Close from Standalone may target a named Workspace.
+canonical removal: select the first surviving canonical Workspace, including an empty one, then
+nonempty legacy content, otherwise show the explicit no-Workspace creation entry. Deliberate Close
+never recreates a Workspace or terminal. Opening Close from legacy content may target a named Workspace.
 
 The visible cancel and close buttons support a left-button click. A matching press and release
 must still identify the same completely painted confirmation; releasing outside, modifiers or a stale
@@ -68,23 +71,23 @@ Workspace status and observed Project results. Ordinary admission retains the Se
 `close_request_id`, context and accepted revision even before the first status read succeeds.
 Project evidence preserves frozen member order and every known child Close identity.
 
-| State/event                                    | Guard and output                                                                                                                                    |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Open                                           | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                               |
-| Draw                                           | Complete content at admitted geometry; acknowledge only its token                                                                                   |
-| Geometry block before first draw               | Refuse and remove the new prompt without allocating a Close request or reporting user cancellation                                                  |
-| Geometry block after a successful draw         | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again             |
-| Missing or covered draw receipt                | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                |
-| Esc or stale source                            | Cancel without allocating or submitting a Close request                                                                                             |
-| Unmodified `Enter` or valid close-button click | Same fully drawn source; atomically allocate and queue one typed operation                                                                          |
-| Execute                                        | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                           |
-| Definitely unsent or admission refusal         | Retain evidence without an admission claim or automatic retry                                                                                       |
-| Workspace accepted or observed Pending         | Retain admission before the first read; poll the same canonical operation with read-only requests                                                   |
-| Project accepted or observed Pending           | Retain the group receipt and known child identities before read-only polling                                                                        |
-| Closed                                         | Retain Closed before reading a canonical snapshot; preserve a surviving origin, or use existing cleanup and Standalone fallback when it was removed |
-| Failed, unavailable read or deadline           | Preserve admission and all known observations; show the scope's executable status command                                                           |
-| Worker exit or transport loss                  | Preserve receipt or unknown submission identity through mailbox/join handoff; never replay effects or infer Closed                                  |
-| Client exit after submission                   | End local waiting; the Server-owned operation may continue                                                                                          |
+| State/event                                    | Guard and output                                                                                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open                                           | Quiet structural owners; freeze the current or addressed Workspace, or explicitly named Project, without moving focus                                                |
+| Draw                                           | Complete content at admitted geometry; acknowledge only its token                                                                                                    |
+| Geometry block before first draw               | Refuse and remove the new prompt without allocating a Close request or reporting user cancellation                                                                   |
+| Geometry block after a successful draw         | Suspend the same token, frozen source and focus; revoke submit and pointer authority until the same token is completely presented again                              |
+| Missing or covered draw receipt                | Revoke exact shown authority only; preserve the presentation phase and frozen prompt                                                                                 |
+| Esc or stale source                            | Cancel without allocating or submitting a Close request                                                                                                              |
+| Unmodified `Enter` or valid close-button click | Same fully drawn source; atomically allocate and queue one typed operation                                                                                           |
+| Execute                                        | Live lease and original forward cutoff; fresh source proof precedes one ordinary command or Project Start                                                            |
+| Definitely unsent or admission refusal         | Retain evidence without an admission claim or automatic retry                                                                                                        |
+| Workspace accepted or observed Pending         | Retain admission before the first read; poll the same canonical operation with read-only requests                                                                    |
+| Project accepted or observed Pending           | Retain the group receipt and known child identities before read-only polling                                                                                         |
+| Closed                                         | Retain Closed before reading a canonical snapshot; preserve a surviving origin, or use exact cleanup and the surviving-Workspace selection order when it was removed |
+| Failed, unavailable read or deadline           | Preserve admission and all known observations; show the scope's executable status command                                                                            |
+| Worker exit or transport loss                  | Preserve receipt or unknown submission identity through mailbox/join handoff; never replay effects or infer Closed                                                   |
+| Client exit after submission                   | End local waiting; the Server-owned operation may continue                                                                                                           |
 
 Every observation must match its operation, Workspace/context or Project scope. Attempt generations,
 known members, child identities, disposal and Closed results cannot regress. Observed OutcomeUnknown

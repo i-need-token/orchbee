@@ -603,7 +603,8 @@ old Input and Resize emitted no request. It also checks still-owned pre-Switch I
 recovery. Run `cargo test --locked -p orchbee --bin orchbee terminal_session::` for these state and
 consumer checks. Full native binary tests also require the existing Server, Worker and terminal-host
 process binaries. These checks do not construct a Gone proof or establish complete Close integration.
-The production entry is `TerminalIntent::Standalone`. Legacy `Create`/`Attach`, their executor and
+Windows ordinary entry uses `NativeStartupTarget::LocalDirectory`; explicit compatibility and
+Linux/macOS entry retain `TerminalIntent::Standalone`. Legacy `Create`/`Attach`, their executor and
 renderer, and the connected legacy TUI entry are compiled only for tests. Their existing process
 witness retains its rendering, input, resize and terminal-mode restoration assertions; it does not
 establish the production startup path. Close inspection helpers and reexports used only by tests
@@ -2150,7 +2151,7 @@ cohort. These checks do not establish remote-reference cleanup, restart adoption
 
 A workspace Close owned by another Client removes this session's current context from canonical
 membership. The first visible fact is an ordinary Refresh reply whose validated navigation no
-longer contains the current context id while the surviving standalone context still projects —
+longer contains the current context id while the preferred surviving Workspace still projects —
 or, for an already retired session, the same shape inside one bounded recovery attempt. Snapshot
 absence is membership knowledge, not cleanup evidence; nothing in this entry relaxes the real
 Detach lifecycle.
@@ -2158,7 +2159,7 @@ Detach lifecycle.
 Every candidate snapshot classifies before it commits. `Candidate` keeps the ordinary membership
 path: the current context still projects. `Removed` requires the full conjunction — validated
 envelope, unchanged Session, nondecreasing revision, the current context id absent from every
-navigation entry, the surviving standalone projecting, the removed context's creation provenance
+canonical navigation owner, the preferred surviving Workspace projecting, the removed context's creation provenance
 carrying no `Pending`/`OutcomeUnknown`, and every structural guard quiet — no pending mutation,
 commit, setup, cleanup handoff, retired attempt, in-flight Create/Close or live
 Read/Poll/Move ownership. Only `Removed` mints a
@@ -2167,6 +2168,13 @@ field inside the prepared candidate, never on ambient session state, and is spen
 by the install it authorizes. `Divergent` — wrong site, regressed revision, malformed navigation
 or the old context id still present elsewhere — and every guard failure retire truthfully
 without touching canonical state.
+
+Landing prefers the first canonical Workspace in display order, including an empty Workspace,
+then nonempty compatibility content. With neither, the required empty compatibility Context
+represents no open Workspace and offers explicit creation. It is absent from ordinary navigation;
+this projection changes no canonical IDs or terminal resources and never automatically creates
+replacement content after Close. Missing, duplicate or overlapping compatibility membership still
+diverges, even when that empty slot is not displayed.
 
 With viewers alive the session never installs first: it stages the exact membership cleanup
 under `ReconcilingMembership`, keeping the old cache, desired pane and mailbox epoch so the

@@ -2,6 +2,93 @@ use super::*;
 use crate::client_view::PanelDirection;
 
 #[test]
+fn workspace_navigation_hides_only_empty_compatibility_and_preserves_canonical_and_legacy_identity()
+{
+    let mut source = snapshot(2, 8);
+    source.navigation.workspaces.push(Workspace {
+        project_id: None,
+        primary_directory_id: None,
+        label: "空 Workspace".into(),
+        terminal_context_id: context_id(91),
+        workspace_id: workspace_id(93),
+    });
+    source.terminal_contexts.push(terminal_context(91, 0));
+    let preferred = preferred_workspace_location(&source).unwrap();
+    assert!(
+        matches!(&preferred, NativeContextLocation::Workspace { workspace_id: id, .. }
+        if id == &workspace_id(93))
+    );
+    let original_legacy = source.terminal_contexts[0].clone();
+    let legacy = project_native_standalone_tabs(&source).unwrap();
+    assert_eq!(legacy.navigation().len(), 2);
+    assert_eq!(legacy.canonical_context(), &original_legacy);
+    assert_eq!(
+        compatibility_workspace(&source).unwrap(),
+        Some(legacy.location().clone())
+    );
+    let canonical = project_native_context_tabs(&source, &preferred).unwrap();
+    assert!(canonical.tabs().is_empty());
+    assert_eq!(canonical.navigation(), legacy.navigation());
+
+    source.terminal_contexts[0].tabs.clear();
+    let hidden = project_native_standalone_tabs(&source).unwrap();
+    assert!(hidden.tabs().is_empty());
+    assert_eq!(compatibility_workspace(&source).unwrap(), None);
+    assert_eq!(hidden.navigation().len(), 1);
+    assert_eq!(hidden.navigation()[0].location, preferred);
+    assert!(
+        !hidden
+            .navigation()
+            .iter()
+            .any(|entry| &entry.location == hidden.location())
+    );
+    // Hiding an empty slot never turns it into a second owner of a canonical Workspace.
+    source.navigation.workspaces[0].terminal_context_id = context_id(STANDALONE_CONTEXT_VALUE);
+    assert!(project_native_standalone_tabs(&source).is_err());
+}
+
+#[test]
+fn empty_compatibility_filter_keeps_required_slot_and_canonical_capacity_checks() {
+    let mut source = snapshot(0, 1);
+    for index in 0..MAXIMUM_TERMINAL_CONTEXTS - 1 {
+        let seed = 10_000 + u128::try_from(index).unwrap() * 2;
+        source.navigation.workspaces.push(Workspace {
+            project_id: None,
+            primary_directory_id: None,
+            label: format!("Workspace {index}"),
+            terminal_context_id: context_id(seed),
+            workspace_id: workspace_id(seed + 1),
+        });
+        source.terminal_contexts.push(terminal_context(seed, 0));
+    }
+    let first = preferred_workspace_location(&source).unwrap();
+    assert_eq!(
+        project_native_context_tabs(&source, &first)
+            .unwrap()
+            .navigation()
+            .len(),
+        1023
+    );
+    let mut missing = source.clone();
+    missing.terminal_contexts.remove(0);
+    assert!(project_native_context_tabs(&missing, &first).is_err());
+    let mut duplicate = source.clone();
+    duplicate
+        .terminal_contexts
+        .push(source.terminal_contexts[0].clone());
+    assert!(project_native_context_tabs(&duplicate, &first).is_err());
+    source.navigation.workspaces.push(Workspace {
+        project_id: None,
+        primary_directory_id: None,
+        label: "Overflow".into(),
+        terminal_context_id: context_id(90_000),
+        workspace_id: workspace_id(90_001),
+    });
+    source.terminal_contexts.push(terminal_context(90_000, 0));
+    assert!(project_native_context_tabs(&source, &first).is_err());
+}
+
+#[test]
 fn projects_exact_zero_one_and_256_tab_boundaries_in_order() {
     for tab_count in [0, 1, MAXIMUM_TABS_PER_CONTEXT] {
         let projection = project_native_standalone_tabs(&snapshot(tab_count, 17)).unwrap();

@@ -1750,13 +1750,20 @@ fn render_native_workbench(
             } else {
                 phase_status
             };
-            let directory_guidance = workspace_setup::directory_guidance(
-                locale,
-                native.phase(),
-                native.retirement().is_some(),
-                native.workspace_directory_path(),
-                native.workspace_directory_unconfigured(),
-            );
+            let directory_guidance = if native.no_current_workspace()
+                && native.phase() == NativeDisplayPhase::Empty
+                && native.retirement().is_none()
+            {
+                Some(workspace_setup::no_workspace_guidance(locale))
+            } else {
+                workspace_setup::directory_guidance(
+                    locale,
+                    native.phase(),
+                    native.retirement().is_some(),
+                    native.workspace_directory_path(),
+                    native.workspace_directory_unconfigured(),
+                )
+            };
             if let Some(guidance) = directory_guidance {
                 workspace_setup::render_directory_guidance(
                     frame,

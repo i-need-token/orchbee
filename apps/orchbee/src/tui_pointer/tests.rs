@@ -2816,13 +2816,18 @@ fn unbound_panel_focus_requires_exact_empty_member_and_never_forwards_input() {
 
 #[cfg(windows)]
 fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
+    workspace_fixture_with_legacy(count, false)
+}
+
+#[cfg(windows)]
+fn workspace_fixture_with_legacy(count: u64, legacy: bool) -> (ClientView, FrameHitMap) {
     use crate::{
         machine_discovery::Context,
         terminal_session::{NativeContextLocation, NativeContextTarget},
     };
     use orchbee_workbench_protocol::*;
     let (mut view, _) = sidebar_fixture(10);
-    let contexts = (0..count)
+    let mut contexts = (0..count)
         .map(|n| Context {
             target: NativeContextTarget {
                 site_id: SiteId::parse(&format!("{:032x}", 1)).unwrap(),
@@ -2841,6 +2846,15 @@ fn workspace_fixture(count: u64) -> (ClientView, FrameHitMap) {
             workspace: Some("same label".into()),
         })
         .collect::<Vec<_>>();
+    if legacy {
+        let context = contexts.last_mut().unwrap();
+        context.target.location = NativeContextLocation::Standalone(
+            WorkbenchTerminalContextId::parse(&format!("{:032x}", 900)).unwrap(),
+        );
+        context.project_id = None;
+        context.project = None;
+        context.workspace = None;
+    }
     let current = contexts.first().map(|context| context.target.clone());
     view.machines.observe_local(contexts);
     // The native endpoint and its focused context admit the same row capabilities.
@@ -2868,12 +2882,21 @@ fn ux_menu_workspace_sidebar_right_click_requires_the_exact_current_endpoint() {
     use crate::action_menu::{DrawnMenuSource, MenuTarget};
     use crate::terminal_session::NativeStartupTarget;
     use orchbee_workbench_protocol::{SiteId, WorkbenchRevision};
-    for invalid in 0..4 {
-        let (mut view, mut map) = workspace_fixture(2);
+    for (invalid, legacy) in
+        (0..4).flat_map(|invalid| [false, true].map(|legacy| (invalid, legacy)))
+    {
+        let (mut view, mut map) = workspace_fixture_with_legacy(2, legacy);
         let region = map
             .regions
             .iter()
-            .find(|r| matches!(r.target, HitTarget::MachineWorkspaceRow { .. }))
+            .find(|r| match &r.target {
+                HitTarget::MachineWorkspaceRow { selected, .. } => matches!(
+                    &selected.context,
+                    Some(NativeStartupTarget::Context(context))
+                        if matches!(context.location, crate::terminal_session::NativeContextLocation::Standalone(_)) == legacy
+                ),
+                _ => false,
+            })
             .unwrap();
         let HitTarget::MachineWorkspaceRow { selected, .. } = &region.target else {
             unreachable!()

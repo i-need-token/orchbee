@@ -95,7 +95,20 @@ pub(super) fn render(
         width,
         height,
     );
-    let title = if menu.title.is_empty() {
+    let legacy = matches!(
+        menu.source,
+        crate::action_menu::MenuTarget::Workspace(
+            crate::terminal_session::NativeContextLocation::Standalone(_)
+        )
+    );
+    let title = if menu.title.is_empty() && legacy {
+        format!(
+            "{} {} {}",
+            locale.menu_title(),
+            theme.glyphs.middle_dot,
+            locale.shell().standalone
+        )
+    } else if menu.title.is_empty() {
         locale.menu_title().to_owned()
     } else {
         format!(

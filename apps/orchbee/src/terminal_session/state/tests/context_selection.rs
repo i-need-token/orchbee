@@ -131,6 +131,153 @@ fn context_state(workspace_tabs: usize) -> NativeSessionState {
     ready_with_cache(project_native_standalone_tabs(&contexts(workspace_tabs, 1)).unwrap())
 }
 
+#[test]
+fn hidden_empty_compatibility_cycles_to_first_or_last_canonical_workspace() {
+    let mut snapshot = contexts(0, 1);
+    snapshot.terminal_contexts[0].tabs.clear();
+    for (next, expected_context, expected_position) in [(true, 72, 1), (false, 74, 2)] {
+        let cache = project_native_standalone_tabs(&snapshot).unwrap();
+        let mut state = NativeSessionState::bootstrap(cache, 1, geometry(80))
+            .unwrap()
+            .0;
+        assert!(state.view().no_current_workspace());
+        assert_eq!(state.view().active_context_position(), None);
+        assert!(state.start_context_selection(1, next, deadlines()));
+        finish_selection(&mut state, snapshot.clone(), 1);
+        assert_eq!(
+            state.cache().terminal_context_id(),
+            &context_id(expected_context)
+        );
+        assert_eq!(
+            state.view().active_context_position(),
+            Some(expected_position)
+        );
+        assert!(!state.view().no_current_workspace());
+        assert_eq!(state.phase_kind(), SessionPhaseKind::Empty);
+        assert_eq!(state.controller_mode(), None);
+    }
+}
+
+#[test]
+fn peer_legacy_visibility_changes_preserve_selected_canonical_focus() {
+    let mut snapshot = contexts(1, 1);
+    let workspace = &snapshot.navigation.workspaces[0];
+    let location =
+        crate::terminal_session::workbench_projection::NativeContextLocation::Workspace {
+            workspace_id: workspace.workspace_id.clone(),
+            terminal_context_id: workspace.terminal_context_id.clone(),
+        };
+    let cache = crate::terminal_session::workbench_projection::project_native_context_tabs(
+        &snapshot, &location,
+    )
+    .unwrap();
+    let mut state = ready_with_cache(cache);
+    let original = state.desired().cloned();
+    let original_pane = state.focus_pane_ref();
+    let legacy_tabs = (20..22).map(tab).collect();
+    for (generation, tabs, expected_count, expected_position) in
+        [(1, Vec::new(), 2, 1), (2, legacy_tabs, 3, 2)]
+    {
+        snapshot.revision = WorkbenchRevision::new(generation + 1);
+        snapshot.terminal_contexts[0].tabs = tabs;
+        assert!(state.start_pending_refresh(generation));
+        let prepared = state.prepare_refresh(
+            generation,
+            WorkbenchSnapshotOutcome::Available {
+                snapshot: snapshot.clone(),
+            },
+        );
+        assert!(matches!(prepared, PreparedRefresh::Append { .. }));
+        assert_eq!(
+            state.apply_prepared_refresh(prepared, Instant::now()),
+            RefreshDecision::Continue
+        );
+        assert_eq!(state.cache().location(), &location);
+        assert_eq!(state.desired(), original.as_ref());
+        assert_eq!(state.focus_pane_ref(), original_pane);
+        assert_eq!(state.controller_mode(), Some(&controlling()));
+        assert_eq!(state.view().context_count(), expected_count);
+        assert_eq!(
+            state.view().active_context_position(),
+            Some(expected_position)
+        );
+        assert!(state.invariant_holds());
+    }
+}
+
+#[test]
+fn peer_empty_and_refilled_selected_legacy_requires_cleanup_and_fresh_attachment_authority() {
+    let mut snapshot = contexts(1, 1);
+    let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+    let legacy = state.cache().location().clone();
+    let original_tabs = snapshot.terminal_contexts[0].tabs.clone();
+    let old = state.desired().unwrap().clone();
+    let old_pane = state.focus_pane_ref().unwrap();
+    assert_eq!(state.controller_mode(), Some(&controlling()));
+    snapshot.revision = WorkbenchRevision::new(2);
+    snapshot.terminal_contexts[0].tabs.clear();
+    assert!(state.start_pending_refresh(1));
+    let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
+        1,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot.clone(),
+        },
+    ) else {
+        panic!("peer clearing selected legacy requires membership cleanup")
+    };
+    let cleanup = state
+        .stage_refresh_membership_cleanup(1, prepared, deadlines())
+        .unwrap();
+    assert_eq!(cleanup.old(), old.anchor());
+    assert_eq!(state.cache().tabs().len(), original_tabs.len());
+    let prepared = state
+        .prepare_cleaned_membership_candidate(&cleanup, old.anchor())
+        .unwrap();
+    assert_eq!(
+        state
+            .prepare_cleaned_membership_install(&cleanup, prepared, None)
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Empty
+    );
+    assert_eq!(state.cache().location(), &legacy);
+    assert!(state.view().no_current_workspace());
+    assert_eq!(state.view().context_count(), 2);
+    assert_eq!(state.desired(), None);
+    assert_eq!(state.controller_mode(), None);
+    assert!(state.live_pane_record(&old_pane).is_none());
+
+    snapshot.revision = WorkbenchRevision::new(3);
+    let refilled_tabs: Vec<_> = (20..22).map(tab).collect();
+    snapshot.terminal_contexts[0].tabs = refilled_tabs.clone();
+    assert!(state.start_pending_refresh(2));
+    let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
+        2,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: snapshot.clone(),
+        },
+    ) else {
+        panic!("peer-added legacy membership comes only from the canonical snapshot")
+    };
+    let fresh = AttachmentKey::new(20, prepared.selected_tab_id().unwrap().clone());
+    let MembershipInstallDecision::Attach(target) = state
+        .prepare_refresh_membership_install(2, prepared, Some(fresh.clone()), Some(deadlines()))
+        .unwrap()
+        .commit()
+    else {
+        panic!("peer-added legacy needs a fresh attachment")
+    };
+    assert_eq!(target.selected().key().anchor(), &fresh);
+    assert_ne!(target.selected().key().anchor(), old.anchor());
+    assert_eq!(state.cache().canonical_context().tabs, refilled_tabs);
+    assert_eq!(state.cache().location(), &legacy);
+    assert_eq!(state.view().context_count(), 3);
+    assert_eq!(state.controller_mode(), None);
+    assert_eq!(state.ready(), None);
+    assert!(state.live_pane_record(&old_pane).is_none());
+    assert!(state.invariant_holds());
+}
+
 pub(super) fn finish_selection(
     state: &mut NativeSessionState,
     snapshot: Snapshot,

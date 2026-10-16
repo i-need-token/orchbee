@@ -725,14 +725,7 @@ impl Picker {
                 let target = row.target();
                 let menu = matches!(
                     &target,
-                    SidebarTarget::Project { .. }
-                        | SidebarTarget::Context {
-                            target: NativeContextTarget {
-                                location: NativeContextLocation::Workspace { .. },
-                                ..
-                            },
-                            ..
-                        }
+                    SidebarTarget::Project { .. } | SidebarTarget::Context { .. }
                 ) && target.machine() == &self.current
                     && menu_site == Some(target.site_id());
                 SidebarCatalogRow {

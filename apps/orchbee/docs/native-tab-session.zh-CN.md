@@ -483,7 +483,8 @@ Move/Snapshot/Detach 到 Empty，或后继 Attach/Resize/Poll/帧反馈/Ready；
 已提交恢复仅发送 Snapshot。运行 `cargo test --locked -p orchbee --bin orchbee terminal_session::`
 检查这些状态和消费者。完整原生二进制测试还需既有 Server、Worker 和 terminal-host 进程二进制。
 这些检查不构造 Gone 证明，也不建立完整 Close 集成。
-生产入口是 `TerminalIntent::Standalone`。遗留 `Create`/`Attach`、其执行器和渲染器，以及已连接的
+Windows 普通入口使用 `NativeStartupTarget::LocalDirectory`；显式兼容入口和 Linux/macOS 入口
+保留 `TerminalIntent::Standalone`。遗留 `Create`/`Attach`、其执行器和渲染器，以及已连接的
 遗留 TUI 入口只为测试编译。既有进程见证保留渲染、输入、Resize 和终端模式恢复断言；它不证明
 生产启动路径。仅由测试使用的 Close 检查辅助函数和重导出采用同样的明确边界。Create reducer
 测试在清理前准备候选，并使用共用安装计划。退休用例覆盖保留提交、已验证且待清理的候选、
@@ -1759,19 +1760,24 @@ shell PID 和 shell 局部标记。这不改变 Session 仍为 Empty 时裸 Open
 ## 上下文删除恢复
 
 另一个 Client 持有的 workspace Close 会把本会话的当前上下文从规范成员关系中删除。首个可见
-事实是一条普通 Refresh 回复：其经校验的导航不再包含当前上下文 id，而存活的 standalone
-上下文仍可投影——对已经退休的会话，则是在一次有界恢复尝试内看到同样的形态。Snapshot
+事实是一条普通 Refresh 回复：其经校验的导航不再包含当前上下文 id，而优先存活工作区
+仍可投影——对已经退休的会话，则是在一次有界恢复尝试内看到同样的形态。Snapshot
 中的缺席是成员关系知识，不是清理证据；本入口不放松真实的 Detach 生命周期。
 
 每个候选 Snapshot 在提交前先做分类。`Candidate` 保持普通成员路径：当前上下文仍可投影。
 `Removed` 要求全部条件同时成立——envelope 校验通过、Session 不变、revision 不回退、当前上下文
-id 从所有导航条目中缺席、存活 standalone 可投影、被删上下文的创建 provenance 不含
+id 从所有规范导航 owner 中缺席、优先存活工作区可投影、被删上下文的创建 provenance 不含
 `Pending`/`OutcomeUnknown`，且全部结构守卫静默——没有 pending mutation、commit、setup、
 cleanup 交接、退休尝试、在飞 Create/Close 或活跃的 Read/Poll/Move 占用。只有 `Removed`
 才铸造 `ContextRemovalPermit{generation, removed, landing, revision}`；它以有界私有字段
 存放在 prepared candidate 内，绝不落在会话环境状态上，并恰被其授权的 install 消费一次。
 `Divergent`——Session 错误、revision 回退、导航畸形或旧上下文 id 仍在别处——以及任何守卫
 失败都如实退休，不触碰规范状态。
+
+落点先选择显示顺序中的首个规范 Workspace，包括空 Workspace，再选非空兼容内容。
+两者都不存在时，必需的空兼容 Context 表示当前未打开工作区，并提供显式新建入口。
+它不出现在普通导航中；该投影不改变规范 ID 或终端资源，关闭后也不自动创建替代内容。
+即使空兼容槽未显示，其成员缺失、重复或归属重叠仍按 divergence 处理。
 
 viewer 仍存活时本会话绝不先装：先在 `ReconcilingMembership` 下 stage 精确成员清理，保留
 旧 cache、desired pane 和 mailbox 代次，使 executor 只 detach 被删代次。workspace close 在

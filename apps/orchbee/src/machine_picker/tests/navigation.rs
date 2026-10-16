@@ -787,7 +787,7 @@ fn project_collapse_keeps_independent_latent_agent_disclosure_and_counts() {
     assert!(!picker.sidebar_context_agents_expanded(&second));
     let counts = picker.sidebar_agent_counts(&project).unwrap();
     assert_eq!((counts.total, counts.waiting), (2, 1));
-    assert_eq!(picker.sidebar_workspace_count(), 3);
+    assert_eq!(picker.sidebar_workspace_count(), 4);
     assert!(!picker.activate_sidebar_workspace(&Selection {
         machine: Choice::Local,
         context: Some(workspace(1, 21).target.into())

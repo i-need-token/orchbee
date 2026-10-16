@@ -21,7 +21,10 @@ impl NativeContextTabs {
             terminal_context_id,
         } = location
         else {
-            return (location == self.location()).then_some(NativeMenuContextSource::Standalone);
+            return super::compatibility_workspace(self.canonical_snapshot())
+                .ok()?
+                .filter(|compatibility| compatibility == location)
+                .map(|_| NativeMenuContextSource::Standalone);
         };
         let workspace = self
             .canonical_snapshot()

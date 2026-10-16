@@ -8,11 +8,18 @@ use orchbee_workbench_protocol::*;
 use std::sync::{Arc, atomic::AtomicBool};
 
 fn harness(steps: Vec<WireKind>, directory: StartupDirectory) -> TestResult<Harness> {
+    harness_at(steps, directory, None)
+}
+fn harness_at(
+    steps: Vec<WireKind>,
+    directory: StartupDirectory,
+    position: Option<crate::terminal_session::startup_preference::Position>,
+) -> TestResult<Harness> {
     Harness::start_at(
         steps,
         fixture_geometry()?,
         NativeStartupTarget::LocalDirectory {
-            position: None,
+            position,
             fallback: Arc::new(AtomicBool::new(false)),
             directory: Box::new(directory),
         },
@@ -96,43 +103,52 @@ fn workspace(command: &WorkbenchCommand, pending: bool) -> TestResult<WorkbenchC
 #[test]
 fn directory_startup_actual_carrier_creates_in_cwd_before_bootstrap_without_standalone_open()
 -> TestResult {
-    let mut steps = vec![WireKind::Workbench; 3];
-    steps.extend([WireKind::Obcs; 5]);
-    let mut harness = harness(steps, fixtures::directory())?;
-    let command = launch(&harness)?;
-    reply(&harness, &command, workspace(&command, false)?)?;
-    read(&harness, fixtures::created())?;
-    let UiEvent::Bootstrap { key } = harness.ui.settle_next(FrameCut::None)? else {
-        return Err(test_error("created member Bootstrap"));
-    };
-    assert_eq!(key.tab_id(), &fixtures::commit().tab_id);
-    assert_eq!(
-        harness.ui.state().focus_panel_id(),
-        Some(&fixtures::commit().panel_id)
-    );
-    assert_eq!(
-        harness.ui.state().cache().terminal_context_id(),
-        &fixtures::commit().terminal_context_id
-    );
-    let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
-        return Err(test_error("created exact AttachBinding"));
-    };
-    assert!(
-        matches!(request.action(),TerminalViewerAction::AttachBinding {worker_id,terminal_id,..}
+    for saved_empty in [false, true] {
+        let mut steps = vec![WireKind::Workbench; 3];
+        steps.extend([WireKind::Obcs; 5]);
+        let position = saved_empty.then(|| crate::terminal_session::startup_preference::Position {
+            location: crate::terminal_session::NativeContextLocation::Standalone(
+                fixtures::empty().navigation.standalone_terminal_context_id,
+            ),
+            member: None,
+        });
+        let mut harness = harness_at(steps, fixtures::directory(), position)?;
+        let command = launch(&harness)?;
+        reply(&harness, &command, workspace(&command, false)?)?;
+        read(&harness, fixtures::created())?;
+        let UiEvent::Bootstrap { key } = harness.ui.settle_next(FrameCut::None)? else {
+            return Err(test_error("created member Bootstrap"));
+        };
+        assert_eq!(key.tab_id(), &fixtures::commit().tab_id);
+        assert_eq!(
+            harness.ui.state().focus_panel_id(),
+            Some(&fixtures::commit().panel_id)
+        );
+        assert_eq!(
+            harness.ui.state().cache().terminal_context_id(),
+            &fixtures::commit().terminal_context_id
+        );
+        let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
+            return Err(test_error("created exact AttachBinding"));
+        };
+        assert!(
+            matches!(request.action(),TerminalViewerAction::AttachBinding {worker_id,terminal_id,..}
         if worker_id.as_str()==format!("{:032x}",99) && terminal_id.as_str()==format!("{:032x}",112))
-    );
-    harness
-        .carrier
-        .respond_obcs(ServerMessage::TerminalViewerResult(
-            TerminalViewerResult::new(request.request_id().clone(), attached_outcome()?),
-        ))?;
-    assert!(matches!(
-        harness.ui.settle_next(FrameCut::None)?,
-        UiEvent::Attached { .. }
-    ));
-    drive_controlling_after_attach(&mut harness, &key, fixture_geometry()?)?;
-    assert!(harness.ui.state().ready().is_some());
-    harness.finish()
+        );
+        harness
+            .carrier
+            .respond_obcs(ServerMessage::TerminalViewerResult(
+                TerminalViewerResult::new(request.request_id().clone(), attached_outcome()?),
+            ))?;
+        assert!(matches!(
+            harness.ui.settle_next(FrameCut::None)?,
+            UiEvent::Attached { .. }
+        ));
+        drive_controlling_after_attach(&mut harness, &key, fixture_geometry()?)?;
+        assert!(harness.ui.state().ready().is_some());
+        harness.finish()?;
+    }
+    Ok(())
 }
 
 #[test]
@@ -200,5 +216,75 @@ fn directory_startup_actual_carrier_missing_cwd_never_submits_launch_or_falls_ba
             .failure_note(crate::localization::Locale::EnUs)?
             .is_none()
     );
+    Ok(())
+}
+
+#[test]
+fn directory_startup_existing_workspace_without_saved_position_never_opens_compatibility_terminal()
+-> TestResult {
+    let mut steps = vec![WireKind::Workbench];
+    steps.extend([WireKind::Obcs; 5]);
+    let mut harness = harness(steps, fixtures::directory())?;
+    read(&harness, fixtures::created())?;
+    let UiEvent::Bootstrap { key } = harness.ui.settle_next(FrameCut::None)? else {
+        return Err(test_error("existing Workspace Bootstrap"));
+    };
+    assert_eq!(key.tab_id(), &fixtures::commit().tab_id);
+    assert_eq!(
+        harness.ui.state().cache().terminal_context_id(),
+        &fixtures::commit().terminal_context_id
+    );
+    let ClientMessage::TerminalViewer(request) = harness.carrier.take_obcs()? else {
+        return Err(test_error("existing Workspace AttachBinding"));
+    };
+    assert!(matches!(
+        request.action(),
+        TerminalViewerAction::AttachBinding { worker_id, terminal_id, .. }
+            if worker_id.as_str() == format!("{:032x}", 99)
+                && terminal_id.as_str() == format!("{:032x}", 112)
+    ));
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(request.request_id().clone(), attached_outcome()?),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { .. }
+    ));
+    drive_controlling_after_attach(&mut harness, &key, fixture_geometry()?)?;
+    assert!(harness.ui.state().ready().is_some());
+    harness.finish()
+}
+
+#[test]
+fn directory_startup_empty_workspace_and_corrupt_restore_bootstrap_without_open_or_launch()
+-> TestResult {
+    for canonical_workspace in [false, true] {
+        let directory =
+            StartupDirectory::new(None, crate::localization::Locale::EnUs, canonical_workspace);
+        let mut snapshot = if canonical_workspace {
+            fixtures::created()
+        } else {
+            fixtures::empty()
+        };
+        for context in &mut snapshot.terminal_contexts {
+            context.tabs.clear();
+        }
+        let expected = canonical_workspace.then(|| fixtures::commit().terminal_context_id);
+        let mut harness = harness(vec![WireKind::Workbench], directory)?;
+        read(&harness, snapshot)?;
+        assert!(matches!(
+            harness.ui.settle_next(FrameCut::None)?,
+            UiEvent::BootstrapEmpty
+        ));
+        assert!(harness.ui.state().desired().is_none());
+        if let Some(expected) = expected {
+            assert_eq!(harness.ui.state().cache().terminal_context_id(), &expected);
+        } else {
+            assert_eq!(harness.ui.state().view().context_count(), 0);
+        }
+        harness.finish()?;
+    }
     Ok(())
 }

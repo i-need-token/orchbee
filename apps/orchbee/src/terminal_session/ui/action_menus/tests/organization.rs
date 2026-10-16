@@ -64,6 +64,47 @@ fn moving_noncurrent_workspace_opens_organization_without_navigating_or_mutating
 }
 
 #[test]
+fn right_clicking_noncurrent_legacy_workspace_keeps_canonical_focus_and_exact_menu_scope() {
+    let (mut ui, mailbox, clock, _) = tests::context_selection::ready(false);
+    let legacy = ui.state.as_ref().unwrap().cache().location().clone();
+    tests::context_selection::settle_nonempty_context_selection(
+        &mut ui,
+        &mailbox,
+        &clock,
+        true,
+        tests::context_selection::snapshot(false),
+    );
+    tests::context_selection::make_desired_ready(&mut ui, 2);
+    let original = Origin::capture(ui.state.as_ref());
+    assert!(matches!(
+        ui.state.as_ref().unwrap().cache().location(),
+        NativeContextLocation::Workspace { .. }
+    ));
+    let current_pane = ui.state.as_ref().unwrap().focus_pane_ref();
+    assert!(ui.open_action_menu(
+        MenuTarget::Drawn {
+            source: ui.view().action_menu_source().unwrap(),
+            target: Box::new(MenuTarget::Workspace(legacy.clone())),
+        },
+        Some((3, 8)),
+        false,
+    ));
+    let menu = ui.view().action_menu().unwrap();
+    assert_eq!(menu.source, &MenuTarget::Workspace(legacy));
+    assert_eq!(
+        menu.unavailable[action_row(&ui, MenuAction::RenameWorkspace)],
+        Some(MenuUnavailable::LegacyWorkspace)
+    );
+    assert_eq!(menu.unavailable[action_row(&ui, MenuAction::NewTab)], None);
+    assert_eq!(Origin::capture(ui.state.as_ref()), original);
+    assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), current_pane);
+    assert!(mailbox.try_recv().unwrap().is_none());
+    ui.cancel_action_menu();
+    assert_eq!(Origin::capture(ui.state.as_ref()), original);
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn closing_noncurrent_workspace_opens_exact_confirmation_without_navigation() {
     let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();

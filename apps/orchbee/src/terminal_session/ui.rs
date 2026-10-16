@@ -174,6 +174,8 @@ pub(crate) enum NativeSessionNotice {
     RenameNotRenamed,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
+    LegacyWorkspace,
+    NoWorkspace,
     ConfirmationCancelled,
     DraftCancelled,
     ModalOwnsInput,
@@ -501,6 +503,13 @@ impl<'a> NativeSessionView<'a> {
         }
     }
 
+    /// The selected compatibility slot has no user content and is absent from Workspace navigation.
+    pub(crate) fn no_current_workspace(&self) -> bool {
+        self.state
+            .as_ref()
+            .is_some_and(StateSessionView::no_current_workspace)
+    }
+
     pub(crate) fn tab_count(&self) -> usize {
         self.state.as_ref().map_or(0, StateSessionView::tab_count)
     }
@@ -566,6 +575,8 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::WorkspaceCloseUnavailable => {
                 NativeSessionNotice::WorkspaceCloseUnavailable
             }
+            SessionNotice::LegacyWorkspace => NativeSessionNotice::LegacyWorkspace,
+            SessionNotice::NoWorkspace => NativeSessionNotice::NoWorkspace,
             SessionNotice::ConfirmationCancelled => NativeSessionNotice::ConfirmationCancelled,
             SessionNotice::DraftCancelled => NativeSessionNotice::DraftCancelled,
             SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
@@ -2462,6 +2473,27 @@ impl NativeUi {
         if !matches!(action, ClientAction::ToggleAgentBoard) {
             self.board.close();
         }
+        if matches!(
+            action,
+            ClientAction::RequestWorkspaceRename
+                | ClientAction::RequestWorkspaceMove
+                | ClientAction::RequestWorkspaceDirectory
+                | ClientAction::RequestWorkspaceClose
+                | ClientAction::RequestProjectRename
+                | ClientAction::RequestProjectDissolve
+        ) && let Some(state) = self.state.as_mut()
+            && matches!(
+                state.cache().location(),
+                super::NativeContextLocation::Standalone(_)
+            )
+        {
+            state.set_notice(if state.cache().tabs().is_empty() {
+                SessionNotice::NoWorkspace
+            } else {
+                SessionNotice::LegacyWorkspace
+            });
+            return SessionActionDisposition::KeepNavigator;
+        }
         match action {
             #[cfg(windows)]
             ClientAction::OpenActionMenu => SessionActionDisposition::KeepNavigator,
@@ -2671,6 +2703,20 @@ impl NativeUi {
         &mut self,
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     ) -> SessionActionDisposition {
+        #[cfg(windows)]
+        if self.view().no_current_workspace() {
+            if placement.is_some() {
+                if let Some(state) = self.state.as_mut() {
+                    state.set_notice(SessionNotice::NoWorkspace);
+                }
+                return SessionActionDisposition::KeepNavigator;
+            }
+            return if self.request_quick_workspace() && self.workspace_creation_replaces_content() {
+                SessionActionDisposition::LayoutChanged
+            } else {
+                SessionActionDisposition::KeepNavigator
+            };
+        }
         #[cfg(windows)]
         if let Some(state) = &mut self.state {
             state.cancel_duplicate_sequence();

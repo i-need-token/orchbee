@@ -49,6 +49,72 @@ fn activate_row(ui: &mut NativeUi, token: MenuToken, row: usize) {
 }
 
 #[test]
+fn legacy_workspace_menu_keeps_tab_actions_and_refuses_canonical_workspace_effects() {
+    let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
+    let location = ui.state.as_ref().unwrap().cache().location().clone();
+    for action in [
+        MenuAction::WorkspaceDirectory,
+        MenuAction::RenameWorkspace,
+        MenuAction::MoveWorkspace,
+        MenuAction::CloseWorkspace,
+    ] {
+        assert!(ui.open_action_menu(MenuTarget::Workspace(location.clone()), None, false));
+        let row = action_row(&ui, action);
+        assert_eq!(
+            ui.view().action_menu().unwrap().unavailable[row],
+            Some(MenuUnavailable::LegacyWorkspace)
+        );
+        let token = arm(&mut ui);
+        activate_row(&mut ui, token, row);
+        assert!(ui.take_action_menu_action(false).is_none());
+        assert!(mailbox.try_recv().unwrap().is_none());
+        ui.cancel_action_menu();
+    }
+    for action in [
+        ClientAction::RequestWorkspaceRename,
+        ClientAction::RequestWorkspaceMove,
+        ClientAction::RequestWorkspaceDirectory,
+        ClientAction::RequestWorkspaceClose,
+    ] {
+        ui.apply_client_action(action);
+        assert_eq!(
+            ui.view().notice(),
+            Some(NativeSessionNotice::LegacyWorkspace)
+        );
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        assert!(
+            !locale
+                .menu_unavailable(MenuUnavailable::LegacyWorkspace, false)
+                .is_empty()
+        );
+        assert!(
+            !locale
+                .native_notice(NativeSessionNotice::LegacyWorkspace)
+                .is_empty()
+        );
+    }
+    assert!(ui.open_action_menu(MenuTarget::Workspace(location.clone()), None, false));
+    let row = action_row(&ui, MenuAction::NewTab);
+    assert_eq!(ui.view().action_menu().unwrap().unavailable[row], None);
+    let token = arm(&mut ui);
+    activate_row(&mut ui, token, row);
+    assert_eq!(
+        ui.take_action_menu_action(false),
+        Some(ClientAction::CreateTab)
+    );
+    ui.apply_client_action(ClientAction::CreateTab);
+    assert!(matches!(
+        mailbox.try_recv().unwrap().unwrap().record(),
+        QueuedCommand::Create(_)
+    ));
+    assert_eq!(ui.state.as_ref().unwrap().cache().location(), &location);
+    assert!(ui.state.as_ref().unwrap().invariant_holds());
+    mailbox.close(CarrierFailure::Closed);
+}
+
+#[test]
 fn guarded_menu_keys_consume_owned_phases_and_reject_stale_snapshots() {
     use crate::{
         action_menu::MenuInputReadiness,
@@ -762,7 +828,7 @@ fn ux_menu_configured_workspace_directory_refuses_before_navigation() {
             .0,
     );
     let origin = Origin::capture(ui.state.as_ref());
-    let location = ui.state.as_ref().unwrap().cache().navigation()[1]
+    let location = ui.state.as_ref().unwrap().cache().navigation()[0]
         .location
         .clone();
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));

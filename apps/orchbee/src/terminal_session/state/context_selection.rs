@@ -100,13 +100,10 @@ impl NativeSessionState {
             return false;
         }
         let navigation = self.cache.navigation();
-        let Some(position) = navigation
+        let position = navigation
             .iter()
-            .position(|entry| &entry.location == self.cache.location())
-        else {
-            return false;
-        };
-        if navigation.len() < 2 {
+            .position(|entry| &entry.location == self.cache.location());
+        if navigation.is_empty() || (position.is_some() && navigation.len() < 2) {
             return false;
         }
         if self.retained_contexts.len() >= MAXIMUM_TERMINAL_CONTEXTS
@@ -117,10 +114,11 @@ impl NativeSessionState {
         {
             return false;
         }
-        let target_index = if next {
-            (position + 1) % navigation.len()
-        } else {
-            (position + navigation.len() - 1) % navigation.len()
+        let target_index = match (position, next) {
+            (Some(position), true) => (position + 1) % navigation.len(),
+            (Some(position), false) => (position + navigation.len() - 1) % navigation.len(),
+            (None, true) => 0,
+            (None, false) => navigation.len() - 1,
         };
         let target = navigation[target_index].location.clone();
         self.remember_current_navigation();
@@ -366,6 +364,14 @@ impl<'a> NativeContextView<'a> {
 }
 
 impl<'a> NativeSessionView<'a> {
+    /// Empty compatibility storage is valid without representing an open Workspace.
+    pub(in crate::terminal_session) fn no_current_workspace(&self) -> bool {
+        matches!(
+            self.state.cache.location(),
+            NativeContextLocation::Standalone(_)
+        ) && self.state.cache.tabs().is_empty()
+    }
+
     #[cfg(windows)]
     pub(in crate::terminal_session) fn navigation_site(&self) -> &SiteId {
         self.state.cache.site_id()

@@ -406,7 +406,7 @@ fn overview_is_bounded_and_remote_labels_cannot_control_the_host_terminal() {
                 .unwrap(),
             });
     }
-    let overview = Overview::from_snapshot(&s);
+    let overview = Overview::from_snapshot(&s).unwrap();
     assert_eq!(overview.projects, 20);
     assert_eq!(overview.labels.len(), 8);
     assert!(overview.labels.iter().all(|s| s == &"界".repeat(80)));
@@ -445,16 +445,14 @@ fn discovered_contexts_preserve_global_order_and_full_identity_beyond_label_prev
             .unwrap(),
             label: "project".into(),
         });
-    let overview = Overview::from_snapshot(&s);
-    assert_eq!(overview.contexts.len(), 21);
-    assert!(matches!(
-        overview.contexts[0].target.location,
-        NativeContextLocation::Standalone(_)
-    ));
-    for (context, expected) in overview.contexts[1..]
-        .iter()
-        .zip(&s.navigation.workspace_order)
-    {
+    let overview = Overview::from_snapshot(&s).unwrap();
+    assert_eq!(overview.contexts.len(), 20);
+    assert_eq!(overview.workspaces, 20);
+    assert!(overview.contexts.iter().all(|context| matches!(
+        context.target.location,
+        NativeContextLocation::Workspace { .. }
+    )));
+    for (context, expected) in overview.contexts.iter().zip(&s.navigation.workspace_order) {
         assert_eq!(context.target.site_id, s.site_id);
         let NativeContextLocation::Workspace { workspace_id, .. } = &context.target.location else {
             panic!("workspace row");

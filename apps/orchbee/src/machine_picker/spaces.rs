@@ -50,19 +50,11 @@ impl Picker {
                 _ => None,
             })
     }
-    /// Count canonical Workspaces, including those hidden by a collapsed Project.
+    /// Count canonical Workspaces, including collapsed children, and nonempty legacy content.
     pub(crate) fn sidebar_workspace_count(&self) -> usize {
         self.workspace_rows
             .iter()
-            .filter(|row| {
-                row.enabled
-                    && row.context.as_ref().is_some_and(|context| {
-                        matches!(
-                            context.target.location,
-                            crate::terminal_session::NativeContextLocation::Workspace { .. }
-                        )
-                    })
-            })
+            .filter(|row| row.enabled && row.context.is_some())
             .count()
     }
     /// Counts for an exact Context or Project from the complete attention checkpoint.

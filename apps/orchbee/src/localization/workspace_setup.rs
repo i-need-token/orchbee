@@ -4,6 +4,22 @@ use crate::terminal_session::{
 };
 
 impl Locale {
+    pub(crate) const fn no_current_workspace(self) -> &'static str {
+        match self {
+            Self::EnUs => "No workspace open. Select a workspace or create one to begin.",
+            Self::ZhCn => "当前未打开工作区。请选择已有工作区或新建工作区。",
+        }
+    }
+
+    pub(crate) const fn legacy_workspace_action_unavailable(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "Legacy workspace tabs remain usable · create a new workspace for this action"
+            }
+            Self::ZhCn => "原有工作区的 Tab 可继续使用 · 请新建工作区后执行此操作",
+        }
+    }
+
     /// Localized progress for the Client-local Workspace creation projection.
     #[cfg(windows)]
     pub(crate) const fn workspace_creation_progress(

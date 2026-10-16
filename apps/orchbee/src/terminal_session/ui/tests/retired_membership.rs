@@ -102,9 +102,39 @@ fn context_removed(count: usize) -> Snapshot {
 
 #[test]
 fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit() {
-    for count in [0, 2] {
+    for (count, canonical) in [(0, false), (2, false), (0, true), (2, true)] {
         let elapsed = Arc::new(AtomicU64::new(0));
-        let (mut ui, _old, _lease, evidence) = ready(Arc::clone(&elapsed));
+        let (mut ui, _old, _lease, evidence) = if canonical {
+            let source = super::context_selection::snapshot(false);
+            let workspace = &source.navigation.workspaces[0];
+            let cache = crate::terminal_session::workbench_projection::project_native_context_tabs(
+                &source,
+                &crate::terminal_session::NativeContextLocation::Workspace {
+                    workspace_id: workspace.workspace_id.clone(),
+                    terminal_context_id: workspace.terminal_context_id.clone(),
+                },
+            )
+            .unwrap();
+            ready_with_cache(Arc::clone(&elapsed), cache)
+        } else {
+            ready(Arc::clone(&elapsed))
+        };
+        let snapshot = if canonical {
+            let mut snapshot = super::context_selection::snapshot(true);
+            snapshot.revision = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+            snapshot.terminal_contexts[0].tabs.truncate(count);
+            let workspace = &mut snapshot.navigation.workspaces[0];
+            workspace.workspace_id =
+                orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&format!("{:032x}", 73))
+                    .unwrap();
+            workspace.terminal_context_id =
+                WorkbenchTerminalContextId::parse(&format!("{:032x}", 74)).unwrap();
+            snapshot.terminal_contexts[1].terminal_context_id =
+                workspace.terminal_context_id.clone();
+            snapshot
+        } else {
+            context_removed(count)
+        };
         let old_key = evidence.poll.attachment().clone();
         retire(&mut ui, Some(evidence), true);
         let (mailbox, clock, cutoff) = ui.begin_retired_membership_recovery().unwrap();
@@ -120,9 +150,7 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
         let wait = mailbox
             .publish_refresh_result_before(
                 generation,
-                WorkbenchSnapshotOutcome::Available {
-                    snapshot: context_removed(count),
-                },
+                WorkbenchSnapshotOutcome::Available { snapshot },
                 cutoff,
                 &clock,
             )
@@ -134,9 +162,10 @@ fn removed_origin_context_lands_on_the_surviving_context_and_consumes_the_permit
         let state = ui.state.as_ref().unwrap();
         assert_eq!(
             state.cache().terminal_context_id(),
-            &WorkbenchTerminalContextId::parse(&format!("{:032x}", 9)).unwrap()
+            &WorkbenchTerminalContextId::parse(&format!("{:032x}", if canonical { 74 } else { 9 }))
+                .unwrap()
         );
-        if count == 0 {
+        if canonical || count == 0 {
             assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
             assert!(state.desired().is_none());
         } else {

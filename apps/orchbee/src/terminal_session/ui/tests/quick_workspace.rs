@@ -2,6 +2,118 @@ use super::super::tests::workspace_setup::{finish_preparation, finish_preparatio
 use super::super::*;
 use orchbee_workbench_protocol::Snapshot;
 
+fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+    let snapshot = super::super::tests::membership::snapshot(0, 1);
+    let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
+        std::sync::atomic::AtomicU64::new(0),
+    ));
+    let mailbox = Arc::new(CommandMailbox::new(
+        10,
+        Geometry::new(80, 24, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(Arc::clone(&mailbox), clock.clone());
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                selection: None,
+                cache:
+                    crate::terminal_session::workbench_projection::project_native_standalone_tabs(
+                        &snapshot,
+                    )
+                    .unwrap(),
+            },
+            super::super::super::mailbox::EventDeadline::Startup(
+                clock.now() + super::super::super::state::OPERATION_TOTAL,
+            ),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    mailbox.take_deposited_reply(&wait).unwrap().unwrap();
+    assert!(ui.view().no_current_workspace());
+    assert_eq!(ui.view().context_count(), 0);
+    (ui, mailbox, clock, snapshot)
+}
+
+#[test]
+fn empty_compatibility_create_tab_uses_workspace_launch_and_cancel_never_resurrects_a_terminal() {
+    for cancelled in [false, true] {
+        let (mut ui, mailbox, clock, snapshot) = no_workspace();
+        ui.apply_client_action(ClientAction::TabMenu {
+            action: crate::action_menu::MenuAction::NewGroupWithTab,
+            tab_id: None,
+        });
+        assert_eq!(ui.view().notice(), Some(NativeSessionNotice::NoWorkspace));
+        assert!(mailbox.try_recv().unwrap().is_none());
+        ui.apply_client_action(ClientAction::CreateTab);
+        finish_preparation(&mut ui, &mailbox, &clock, &snapshot, cancelled);
+        if cancelled {
+            assert!(ui.view().no_current_workspace());
+            assert!(mailbox.try_recv().unwrap().is_none());
+        } else {
+            let lease = mailbox.try_recv().unwrap().unwrap();
+            assert!(
+                matches!(lease.record(), QueuedCommand::WorkspaceSetup(marker)
+                if matches!(marker.0.command.action, WorkbenchAction::WorkspaceLaunch { .. }))
+            );
+        }
+        assert_eq!(
+            ui.state.as_ref().unwrap().cache().canonical_snapshot(),
+            &snapshot
+        );
+        mailbox.close(CarrierFailure::Closed);
+    }
+}
+
+#[test]
+fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locales_and_size_tiers() {
+    use crate::{
+        client_view::ClientView, localization::Locale, terminal_session::TerminalSessionView,
+        tui_pointer::HitMapBuilder, tui_theme::Theme,
+    };
+    use ratatui::{Terminal, backend::TestBackend};
+    let (ui, mailbox, _, _) = no_workspace();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            for (width, height) in [(80, 24), (120, 40), (80, 18), (50, 10), (19, 4)] {
+                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                terminal
+                    .draw(|frame| {
+                        crate::tui_render::render_terminal_shell(
+                            frame,
+                            &ClientView::new(width),
+                            locale,
+                            Some(TerminalSessionView::Native(ui.view())),
+                            &theme,
+                            &mut HitMapBuilder::new(),
+                        );
+                    })
+                    .unwrap();
+                let text: String = terminal
+                    .backend()
+                    .buffer()
+                    .content
+                    .iter()
+                    .map(|cell| cell.symbol())
+                    .collect();
+                let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+                let expected: String = locale
+                    .no_current_workspace()
+                    .chars()
+                    .filter(|c| !c.is_whitespace())
+                    .collect();
+                assert_eq!(
+                    compact.contains(&expected),
+                    width >= 20,
+                    "{width}x{height}: {text}"
+                );
+                assert!(!text.contains(locale.shell().standalone), "{text}");
+            }
+        }
+    }
+    mailbox.close(CarrierFailure::Closed);
+}
+
 fn prepare(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,

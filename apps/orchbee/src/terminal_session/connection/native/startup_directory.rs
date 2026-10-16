@@ -10,7 +10,7 @@ use crate::{
         workbench_projection::{NativeContextTabs, project_native_standalone_tabs},
     },
 };
-use orchbee_client_server_protocol::{Geometry, OpenOutcome, TerminalOpenRequest};
+use orchbee_client_server_protocol::Geometry;
 use orchbee_workbench_protocol::{
     LaunchOptions, ProtocolVersion, Snapshot, WorkbenchAction, WorkbenchCommand,
     WorkbenchSnapshotOutcome, WorkbenchTerminalGeometry, WorkbenchTerminalOutcome,
@@ -25,42 +25,16 @@ impl NativeExecutor {
         geometry: Geometry,
         deadline: Instant,
     ) -> Result<(Snapshot, Option<(NativeContextTabs, NativeMemberTarget)>)> {
-        let Some(NativeStartupTarget::LocalDirectory {
-            directory,
-            position,
-            ..
-        }) = &self.initial_context
+        let Some(NativeStartupTarget::LocalDirectory { directory, .. }) = &self.initial_context
         else {
             return Ok((snapshot, None));
         };
         let directory = (**directory).clone();
-        let has_position = position.is_some();
         // Validate the canonical projection before granting any automatic mutation.
         project_native_standalone_tabs(&snapshot)
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
-        if !directory.admits(&snapshot, has_position) {
-            if has_position {
-                return Ok((snapshot, None));
-            }
-            self.ensure_before(deadline)?;
-            let request = self
-                .mailbox
-                .allocate_obcs_request_id()
-                .map_err(super::closed)?;
-            let opened = self
-                .client
-                .submit_terminal_open(TerminalOpenRequest::new(request, geometry))
-                .map_err(super::submission)?;
-            match opened.into_outcome() {
-                OpenOutcome::Opened { .. } => {}
-                OpenOutcome::OutcomeUnknown {} => return Err(CarrierFailure::OutcomeUnknown),
-                OpenOutcome::Unavailable { .. } | OpenOutcome::Failed { .. } => {
-                    return Err(CarrierFailure::Transport);
-                }
-            }
-            return self
-                .directory_snapshot(deadline)
-                .map(|snapshot| (snapshot, None));
+        if !directory.admits(&snapshot) {
+            return Ok((snapshot, None));
         }
         let parameters = directory.parameters()?;
         self.ensure_before(deadline)?;

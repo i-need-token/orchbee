@@ -115,6 +115,32 @@ fn action_availability(
     if action == MenuAction::MoveToNewWindow {
         return ActionAvailability::Hidden;
     }
+    if matches!(
+        action,
+        MenuAction::NewGroupWithTab | MenuAction::NewTabInRecentGroup
+    ) && state.is_some_and(|state| {
+        matches!(
+            state.cache().location(),
+            NativeContextLocation::Standalone(_)
+        ) && state.cache().tabs().is_empty()
+    }) {
+        return ActionAvailability::Disabled(MenuUnavailable::WorkspaceRequired);
+    }
+    if matches!(
+        target,
+        Target::Workspace {
+            source: NativeMenuContextSource::Standalone,
+            ..
+        }
+    ) && matches!(
+        action,
+        MenuAction::WorkspaceDirectory
+            | MenuAction::RenameWorkspace
+            | MenuAction::MoveWorkspace
+            | MenuAction::CloseWorkspace
+    ) {
+        return ActionAvailability::Disabled(MenuUnavailable::LegacyWorkspace);
+    }
     if action == MenuAction::NewTabInRecentGroup
         && state
             .and_then(NativeSessionState::recent_tab_group)
@@ -628,9 +654,6 @@ impl NativeUi {
                 let Some(state) = state else {
                     return false;
                 };
-                if !matches!(location, NativeContextLocation::Workspace { .. }) {
-                    return false;
-                }
                 let Some(context) = state
                     .cache()
                     .navigation()

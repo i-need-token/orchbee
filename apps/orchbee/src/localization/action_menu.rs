@@ -49,6 +49,11 @@ impl Locale {
         compact: bool,
     ) -> &'static str {
         match (self, reason, compact) {
+            (_, MenuUnavailable::LegacyWorkspace, false) => {
+                self.legacy_workspace_action_unavailable()
+            }
+            (Self::EnUs, MenuUnavailable::LegacyWorkspace, true) => "New workspace",
+            (Self::ZhCn, MenuUnavailable::LegacyWorkspace, true) => "需新工作区",
             (Self::EnUs, MenuUnavailable::NoRecentGroup, _) => "No recent group",
             (Self::ZhCn, MenuUnavailable::NoRecentGroup, _) => "暂无最近使用的分组",
             (Self::EnUs, MenuUnavailable::NoMatchingTabs, false) => {
@@ -72,9 +77,11 @@ impl Locale {
             (Self::EnUs, MenuUnavailable::EmptyWorkspaceRequired, true) => "Needs empty",
             (Self::ZhCn, MenuUnavailable::EmptyWorkspaceRequired, true) => "需空工作区",
             (Self::EnUs, MenuUnavailable::WorkspaceRequired, false) => {
-                "Select a Workspace to configure its directory."
+                "Select or create a workspace before using this action."
             }
-            (Self::ZhCn, MenuUnavailable::WorkspaceRequired, false) => "选择工作区后配置目录。",
+            (Self::ZhCn, MenuUnavailable::WorkspaceRequired, false) => {
+                "请先选择或新建工作区，再执行此操作。"
+            }
             (Self::EnUs, MenuUnavailable::WorkspaceRequired, true) => "Workspace",
             (Self::ZhCn, MenuUnavailable::WorkspaceRequired, true) => "需工作区",
             (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, false) => {

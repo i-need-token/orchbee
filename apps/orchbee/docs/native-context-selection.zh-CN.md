@@ -2,13 +2,14 @@
 
 ## 范围与归属
 
-原生 Client 在已连接的本机 Session 中选择独立 Terminal Context 或 Workspace。Server 拥有导航、
+原生 Client 在已连接的本机 Session 中选择 Workspace。Server 拥有导航、
 成员、revision 和终端生命周期；Client 拥有活动位置与选择。本参考文档维护
 [原生 Tab Session](native-tab-session.zh-CN.md) 的上下文选择扩展，随 Session reducer、传输、
 导航渲染及其正确性证据一起更新。
 
-`Ctrl+B [` 和 `Ctrl+B ]` 按 Server 顺序选择上一个、下一个位置：独立上下文，然后是 canonical
-全局 Workspace 显示顺序。排序不改变 Project 归属，边界循环。Workspace 和 context ID 确立位置身份；
+`Ctrl+B [` 和 `Ctrl+B ]` 选择上一个、下一个可见工作区：非空历史内容，然后是 canonical
+全局 Workspace 显示顺序。必需的空兼容 Context 不出现在侧栏、导航器和循环选择中。
+排序不改变 Project 归属，边界循环。Workspace 和 context ID 确立位置身份；
 Project 归属和标签是展示元数据。移动 Workspace 或解散其 Project 保留选择记忆与存活 attachment。
 进入其他位置恢复本 Client 上次选择的 Tab 和 Panel，前提是这些身份仍属于该位置；
 否则选择首个现存成员，没有 Tab 则进入 Empty。
@@ -21,7 +22,15 @@ Session 结算已接受工作期间，机器 UI owner 只保留最后一个尚�
 请求生命周期、取消及跨机器交接见[机器导航](machines.zh-CN.md#跨机器工作区导航)。
 Windows 裸启动遵循下面的启动偏好；没有偏好时，
 [目录启动](native-directory-startup.zh-CN.md)只在符合条件的空 Session 创建首个 Workspace，
-其他 Session 保留 standalone Open。两者使用既有首帧就绪契约。
+其他 Session 选择已有 Workspace，不执行 standalone Open。两者使用既有首帧就绪契约。
+
+私有 `NativeContextLocation::Standalone` 身份仍是历史内容和显式 `--standalone` 命令的兼容边界。
+非空 Context 显示为 `Legacy workspace` / `原有工作区`，不虚构规范 Workspace ID。
+其 Tab、Panel、Presentation、终端和 attachment 身份保持不变；Tab/Pane 操作、菜单、Agent
+和导航均使用这些精确身份。规范 Workspace 的重命名、目录、分组和整体关闭操作不可用，并
+提供本地化说明；历史 Tab 通过既有 Tab 操作关闭。清空该 context 后隐藏其导航条目，当前空
+状态提供显式新建入口。从此状态循环选择可进入存活 Workspace。成员验证与可见性分离：
+显式兼容目标仍验证，必需槽保持唯一且与其他 owner 不重叠，也不回收其容量。
 
 Workspace 创建、可选的 Project 组织和首目录配置属于 [Workspace 设置](native-workspace-setup.zh-CN.md)；
 目录启动拥有空 Session 自动创建。两者复用这里的上下文安装 owner。
@@ -134,8 +143,10 @@ flush 后再验证并发布。遮挡、失败、过期或切换中画面不发�
 启动偏好；位置未变的重绘不重复写入。存储失败显示本地化提示，不使存活终端退休。
 
 恢复先验证当前 canonical 归属，再进入普通 bootstrap/attachment。成员已删除则选择该位置
-首个现存成员；位置已删除则选择首个非空 canonical 位置，全部为空则进入 standalone Empty。
-两种回退均提示。没有记录时，目录启动策略选择符合条件的空 Session 创建或既有 standalone Open。
+首个现存成员；位置已删除或保存的是兼容位置时，选择首个规范 Workspace，包括空 Workspace；
+没有规范 Workspace 时，恢复非空历史内容或进入无工作区状态。有效历史偏好仅在没有规范
+Workspace 时保留其精确成员。回退提供本地化提示。没有记录时，目录启动策略选择符合条件的
+空 Session 创建，或按相同已有 Workspace 顺序选择，不执行 Open。
 无效或不支持的记录原样保留，本次禁用
 偏好写入并提示。显式 context 或 Agent 启动仍使用确切目标。偏好不授予输入、不改变 Create
 provenance、不启动或销毁终端、不改 checkpoint，也不移动其他存活 Client。
@@ -146,6 +157,15 @@ provenance、不启动或销毁终端、不改 checkpoint，也不移动其他�
 
 所属实现测试覆盖选择记忆、准确 Workspace/Tab/Panel 身份、取消、过期完成、安装前清理、首帧接纳、启动偏好和导航器输入所有权。
 
+兼容导航轨迹覆盖选中规范或原有内容时同伴移除/新增内容、从隐藏的空兼容槽循环导航，
+以及右键非当前原有内容时保持规范工作区焦点。移除后落到空规范 Workspace，必须先释放
+旧 pane 和控制授权再安装。由同伴新增的成员需要全新 attachment；可见性本身不授予输入，
+也不恢复存活进程。
+
 在 `src/terminal_session/state/context_selection.rs`、`src/terminal_session/mailbox/tests/context_selection.rs`、`src/terminal_session/connection/native/tests/context_selection.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。
+
+选中的 pane-membership 模型仍抽象离开、清理和 anchor 前进；落到空 Workspace 不创建 pane。
+control-takeover 和 viewport 模型保留原有 grant 与 epoch 防护。这些抽象不证明 Workspace
+排序、兼容过滤、启动接纳或 adapter/UI 行为；这些仍需具体实现测试及原生验收提供证据。

@@ -117,6 +117,7 @@ pub(crate) enum MenuUnavailable {
     DirectoryConfigured,
     EmptyWorkspaceRequired,
     WorkspaceRequired,
+    LegacyWorkspace,
     ProjectWorkspaceRequired,
     OperationBusy,
     PointerReleased,

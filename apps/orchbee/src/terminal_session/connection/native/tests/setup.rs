@@ -707,6 +707,7 @@ pub(super) enum UiEvent {
     Bootstrap {
         key: AttachmentKey,
     },
+    BootstrapEmpty,
     Attached {
         key: AttachmentKey,
     },
@@ -1733,9 +1734,12 @@ impl UiDriver {
                 );
                 require_applied(result)?;
                 self.state = installed;
-                Ok(UiEvent::Bootstrap {
-                    key: self.state().desired().unwrap().anchor().clone(),
-                })
+                Ok(self
+                    .state()
+                    .desired()
+                    .map_or(UiEvent::BootstrapEmpty, |desired| UiEvent::Bootstrap {
+                        key: desired.anchor().clone(),
+                    }))
             }
             WorkerEvent::Attached { key, projection } => {
                 let wait_key = wait_key.ok_or_else(|| test_error("Attached wait key"))?;

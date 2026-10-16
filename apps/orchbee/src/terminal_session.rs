@@ -61,6 +61,8 @@ mod startup_directory;
 mod startup_preference;
 #[cfg(windows)]
 pub(crate) use startup_directory::StartupDirectory;
+#[cfg(windows)]
+pub(crate) use workbench_projection::compatibility_workspace;
 pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;

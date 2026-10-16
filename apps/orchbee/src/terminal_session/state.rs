@@ -481,6 +481,8 @@ pub(super) enum SessionNotice {
     RenameNotRenamed,
     CloseRequestNotApplied,
     WorkspaceCloseUnavailable,
+    LegacyWorkspace,
+    NoWorkspace,
     PanelNotApplied,
     ConfirmationCancelled,
     DraftCancelled,

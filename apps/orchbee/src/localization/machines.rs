@@ -202,8 +202,8 @@ impl Locale {
             (Self::ZhCn, "agent-blocked") => "受阻",
             (Self::EnUs, "agent-unknown") => "Unknown",
             (Self::ZhCn, "agent-unknown") => "未知",
-            (Self::EnUs, "standalone") => "Standalone",
-            (Self::ZhCn, "standalone") => "独立终端",
+            (Self::EnUs, "standalone") => "Legacy workspace",
+            (Self::ZhCn, "standalone") => "原有工作区",
             (Self::EnUs, "no-workspaces") => "No available workspaces.",
             (Self::ZhCn, "no-workspaces") => "暂无可用工作区。",
             (Self::EnUs, "hint") => {

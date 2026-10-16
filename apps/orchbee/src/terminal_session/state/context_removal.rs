@@ -2,7 +2,7 @@ use super::{
     CreateTerminalProvenance, NativeContextTabs, NativeSessionState, PreparedRefresh, SessionPhase,
 };
 use crate::terminal_session::workbench_projection::{
-    NativeContextLocation, project_native_context_tabs,
+    NativeContextLocation, preferred_workspace_location, project_native_context_tabs,
 };
 use orchbee_workbench_protocol::{Snapshot, WorkbenchRevision};
 
@@ -44,7 +44,7 @@ impl ContextRemovalPermit {
 impl NativeSessionState {
     /// The refresh reply's current context no longer projects. A peer
     /// workspace close removes the context: every navigation entry lacks its
-    /// id while the standalone context still projects — that shape mints the
+    /// id while the preferred surviving Workspace projects — that shape mints the
     /// permit the landing candidate carries. Any other projection failure is
     /// plain divergence and retires without touching canonical state.
     pub(super) fn prepare_context_removal(
@@ -69,8 +69,8 @@ impl NativeSessionState {
     }
 
     /// Shared evidence core for both entries: envelope checks, the current
-    /// context's id absent from every navigation entry, and the surviving
-    /// standalone context — always `navigation[0]` — projecting cleanly.
+    /// context's id absent from every canonical navigation owner, and the preferred
+    /// surviving Workspace projecting cleanly. An empty compatibility slot is the final fallback.
     pub(super) fn removed_context_landing(&self, snapshot: &Snapshot) -> Option<NativeContextTabs> {
         if &snapshot.site_id != self.cache.site_id() || snapshot.revision < self.cache.revision() {
             return None;
@@ -85,9 +85,7 @@ impl NativeSessionState {
         {
             return None;
         }
-        let landing = NativeContextLocation::Standalone(
-            snapshot.navigation.standalone_terminal_context_id.clone(),
-        );
+        let landing = preferred_workspace_location(snapshot).ok()?;
         project_native_context_tabs(snapshot, &landing).ok()
     }
 
