@@ -16,18 +16,19 @@ rows and their action buttons. The frame clamps to the entire viewport above the
 status line; it can overlap navigation chrome. Keyboard opening remains centered
 in the pane content area. Neither path changes the target or underlying focus.
 
-Object and creation context menus paint only a rectangular border, action rows and an optional
-reserved disabled-reason row. They have no frame title, header X, footer hints or selection counter,
-and publish no hidden hit targets for those omitted controls. Esc and outside dismissal, and Left
-or Esc returning from a submenu, keep their existing owner and draw guards. Submenus inherit the
-root menu's chrome policy rather than deriving it from a replacement child target. The global
+Object and creation context menus omit generic frame titles, header X controls, footer hints and
+selection counters, and publish no hidden hit targets for those omitted controls. Their border,
+action rows and optional reserved reason remain compact. Tab menus additionally reserve purposeful
+target/scope/path content and, for a retained parent, a Back action described below. Esc and outside
+dismissal, and Left or Esc returning from a submenu, keep their existing owner and draw guards.
+Submenus inherit the root menu's chrome policy rather than deriving it from a replacement child target. The global
 action menu retains its title and discovery controls.
 
 The presentation decision consumes the root target, retained parent chain, exact menu token,
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
 selection, capture or execution boundary. A refused frame publishes no row or control authority;
-successful context frames expose only their actual rows and surface. The render witnesses in
-`src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
+successful context frames expose only their actual content, controls and surface. The render
+witnesses in `src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
 shipped theme families, and the width/height boundaries with and without a reserved reason.
 
 Tab menus follow the GUI sections for creation/grouping, duplication/pinning and close.
@@ -36,11 +37,12 @@ while selection and movement use a separate submenu.
 Painted group headers and the new-Tab button open distinct menus through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 The global menu also exposes the new-Tab submenu for keyboard users.
-The sidebar Workspace and Project Delete intents declare `ActionTone::Destructive`; the shared
-metadata and action/row controls resolve that label through `accent-destructive`. This fulfills the
-sidebar menu's explicit red Delete requirement without treating an action as an error status or
-changing Tab/pane Close hierarchy. Disabled rows use `text-disabled` and acquire no pointer state;
-enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
+Sidebar Workspace/Project Delete and Tab Close/Resume intents declare `ActionTone::Destructive`;
+the shared metadata and action/row controls resolve that label through `accent-destructive`.
+The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Ungroup and color
+choices remain ordinary; a red palette choice is a value, not destructive intent. Pane Close keeps
+its existing hierarchy. These labels are not error statuses. Disabled rows use `text-disabled` and
+acquire no pointer state; enabled intent retains the row's independent focus, provisional, hover and held-press cues. The theme
 owner supplies all shipped and reduced-color values and any required native contrast pair.
 Selection actions provide local toggle/range/all/clear and configure the captured selected set
 when their target belongs to it. [Typed row scope and saved color](#tab-scope-and-current-values)
@@ -208,7 +210,14 @@ geometry is required even before the first session state arrives.
 The Tab heading identifies the addressed name and, when applicable, the selected-set count.
 Each row states its own scope: selection marks elsewhere never imply that every action uses them.
 Group assignment, Group actions and color pages retain a short semantic path with the addressed
-Tab or group name. These facts are useful content, separate from generic menu decoration.
+Tab or group name; group pages also identify their complete group count. These facts are useful
+content, separate from generic menu decoration. `src/tui_render/action_menu/tab_header.rs` composes
+this fixed row from the existing action control. A child paints Back with its Esc hint inside the
+button and emits the existing `MenuControl::Back` for the exact source/token. The root has no Back
+target. No generic X, footer or selection counter returns. The complete return button, semantic
+path, optional reason and at least one action must fit before any paint or hit publication; only
+action rows scroll. Back/Left/Esc restore the retained parent selection and require a fresh draw,
+without writing a color or changing terminal focus.
 
 | Action                                                       | Captured scope                                                                                                                  |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -237,8 +246,9 @@ apply a value immediately; native menu navigation remains provisional until acti
 use canonical group color and the existing update owner; this is not a second shared color model.
 The implementation oracles cover exact cross-group selected/unselected scopes, pinned relative
 Close, zero-target filtering, scope/checked proof invalidation, saved-color cancellation and
-committed reopen. Render tests cover the two locales, narrow/wide cell geometry and independent
-checked/candidate/palette tracks; they do not establish physical host appearance.
+committed reopen. Render assertions cover both locales, narrow/wide cell geometry, independent
+checked/candidate/palette tracks, compact child Back/path admission and destructive row/button
+adoption. They do not establish executed-test results or physical host appearance.
 
 ## Model and ownership
 
@@ -317,8 +327,8 @@ sequences. Output may repaint the underlay without cancelling a menu. A new inca
 target, changed structural source or conflicting capture revokes the episode. Resize immediately
 revokes both presentation proofs; an evaluated size failure then refuses `Pending` or suspends an
 already admitted incarnation.
-The renderer completes geometry, row and required-exit-hint admission before mutating the candidate
-buffer or hit map. `NotPresented` paints nothing and publishes neither menu targets nor a modal
+The renderer completes geometry, row, any Tab return/path and required-exit-hint admission before
+mutating the candidate buffer or hit map. `NotPresented` paints nothing and publishes neither menu targets nor a modal
 pointer backdrop.
 
 Hover updates only the Client-local provisional menu candidate. Only an exact enabled typed row

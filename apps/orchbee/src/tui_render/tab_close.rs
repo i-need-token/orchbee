@@ -2,6 +2,7 @@ use super::modal::{
     ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
 };
 use crate::{
+    action_projection::ActionTone,
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_session::{
@@ -99,7 +100,8 @@ pub(super) fn render(
             super::controls::ActionKind::Primary,
             true,
         )
-        .with_shortcut(&confirm),
+        .with_shortcut(&confirm)
+        .with_tone(ActionTone::Destructive),
     ];
     lines.push(Line::from(""));
     let text = Text::from(lines);

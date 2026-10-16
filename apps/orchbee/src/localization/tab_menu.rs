@@ -3,7 +3,7 @@ use crate::action_menu::{MenuAction, MenuTarget, TabMenuScope};
 
 impl Locale {
     /// Scope is captured owner data, not a count recovered from translated row copy.
-    pub(crate) fn menu_tab_action(self, action: MenuAction, scope: TabMenuScope) -> String {
+    pub(crate) fn menu_tab_action(self, action: &MenuAction, scope: TabMenuScope) -> String {
         use MenuAction::*;
         use TabMenuScope as S;
         let selected = match scope {
@@ -68,15 +68,21 @@ impl Locale {
         scope: TabMenuScope,
         disclosure: &str,
     ) -> String {
+        let group = match (self, scope) {
+            (Self::EnUs, TabMenuScope::Group(n)) if n.get() == 1 => "Group (1 Tab)".into(),
+            (Self::EnUs, TabMenuScope::Group(n)) => format!("Group ({} Tabs)", n.get()),
+            (Self::ZhCn, TabMenuScope::Group(n)) => format!("分组（{} 个 Tab）", n.get()),
+            (Self::EnUs, _) => "Group".into(),
+            (Self::ZhCn, _) => "分组".into(),
+        };
         match (self, target) {
             (Self::EnUs, MenuTarget::TabGroups { colors: true, .. }) => {
-                format!("Group {disclosure} Color")
+                format!("{group} {disclosure} Color")
             }
             (Self::ZhCn, MenuTarget::TabGroups { colors: true, .. }) => {
-                format!("分组 {disclosure} 颜色")
+                format!("{group} {disclosure} 颜色")
             }
-            (Self::EnUs, MenuTarget::TabGroups { colors: false, .. }) => "Group".into(),
-            (Self::ZhCn, MenuTarget::TabGroups { colors: false, .. }) => "分组".into(),
+            (_, MenuTarget::TabGroups { colors: false, .. }) => group,
             (Self::EnUs, MenuTarget::TabGroupChoices(_)) => {
                 format!("Tab {disclosure} Add to group")
             }

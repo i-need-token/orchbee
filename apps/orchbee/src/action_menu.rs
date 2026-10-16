@@ -627,12 +627,12 @@ impl ActionMenu {
         &mut self,
         scope: TabMenuScope,
         applied_color: Option<orchbee_workbench_protocol::TabGroupColor>,
-        row: impl Fn(MenuAction) -> Option<TabMenuScope>,
+        row: impl Fn(&MenuAction) -> Option<TabMenuScope>,
     ) {
         let Some(menu) = &self.menu else {
             return;
         };
-        let Some(rows) = menu.actions.iter().map(|action| row(*action)).collect() else {
+        let Some(rows) = menu.actions.iter().map(row).collect() else {
             self.cancel();
             return;
         };

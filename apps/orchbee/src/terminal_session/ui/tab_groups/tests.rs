@@ -736,7 +736,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                     "Tab selection has a monochrome text marker"
                 );
                 assert!(text.contains(&locale.menu_tab_action(
-                    MenuAction::PinTab,
+                    &MenuAction::PinTab,
                     TabMenuScope::Selected(NonZeroUsize::new(3).unwrap()),
                 )));
                 crate::tui_render::test_capture::capture_screen(

@@ -34,6 +34,8 @@ use super::controls::{
 /// Keeps the right-aligned effective chord visually independent from the action label.
 const ROW_BINDING_GAP: u16 = 2;
 
+mod tab_header;
+
 pub(super) fn render(
     frame: &mut Frame<'_>,
     content: Rect,
@@ -48,12 +50,19 @@ pub(super) fn render(
     }
 
     let footer_rows = usize::from(!menu.context_menu);
+    let header_rows = usize::from(menu.context_menu && menu.tabs.is_some());
 
     let key_glyphs = key_label_glyphs(theme);
+    let key_style = LabelStyle::for_host();
+    let exit_key = format_binding_with_glyphs(
+        &Binding::new(KeyCode::Esc, Modifiers::NONE),
+        key_style,
+        key_glyphs,
+    );
     let binding_labels = menu
         .actions
         .iter()
-        .map(|action| effective_binding(bindings, &menu, action.clone(), key_glyphs))
+        .map(|action| effective_binding(bindings, &menu, action, key_glyphs))
         .collect::<Vec<_>>();
     let marker_width = display_width(theme.glyphs.navigation_marker);
     if marker_width == 0 {
@@ -66,14 +75,14 @@ pub(super) fn render(
         .map(|(index, action)| {
             let label = action_label(
                 locale,
-                action.clone(),
+                action,
                 menu.labels[index].as_deref(),
                 menu.tabs.map(|tabs| tabs.rows[index]),
                 theme.glyphs.middle_dot,
                 theme.glyphs.disclosure_closed,
             );
             marker_width
-                .saturating_add(color_track_width(*action, theme))
+                .saturating_add(color_track_width(action, theme))
                 .saturating_add(display_width(&label))
                 .saturating_add(binding_labels[index].as_ref().map_or(0, |binding| {
                     display_width(binding).saturating_add(usize::from(ROW_BINDING_GAP))
@@ -85,16 +94,21 @@ pub(super) fn render(
         .unwrap_or(16);
     let desired = menu.tabs.map_or(desired, |tabs| {
         let path = locale.menu_tab_path(menu.source, tabs.scope, theme.glyphs.disclosure_closed);
-        desired.max(display_width(&path) + display_width(menu.title).min(16) + 9)
+        desired.max(
+            (display_width(&path) + display_width(menu.title).min(16) + 9).saturating_add(
+                tab_header::back_width(content, &menu, locale, &exit_key, theme),
+            ),
+        )
     });
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
     let reason_rows = usize::from(menu.unavailable.iter().any(Option::is_some));
-    let height =
-        u16::try_from(menu.row_height(0, menu.actions.len()) + 2 + footer_rows + reason_rows)
-            .unwrap_or(u16::MAX)
-            .min(content.height);
+    let height = u16::try_from(
+        menu.row_height(0, menu.actions.len()) + 2 + footer_rows + reason_rows + header_rows,
+    )
+    .unwrap_or(u16::MAX)
+    .min(content.height);
     let (x, y) = menu.anchor.unwrap_or((
         content.x + (content.width - width) / 2,
         content.y + (content.height - height) / 2,
@@ -146,7 +160,7 @@ pub(super) fn render(
         ))
     };
     let inner = block.inner(area);
-    let rows = usize::from(inner.height).saturating_sub(footer_rows + reason_rows);
+    let rows = usize::from(inner.height).saturating_sub(footer_rows + reason_rows + header_rows);
     if rows == 0 {
         return ModalPresentation::NotPresented;
     }
@@ -155,6 +169,17 @@ pub(super) fn render(
     if visible_rows == 0 {
         return ModalPresentation::NotPresented;
     }
+    let tab_header = if header_rows == 0 {
+        None
+    } else {
+        let Some(header) =
+            tab_header::TabHeader::layout(frame.area(), inner, &menu, locale, &exit_key, theme)
+        else {
+            return ModalPresentation::NotPresented;
+        };
+        Some(header)
+    };
+    let rows_y = inner.y + u16::try_from(header_rows).unwrap_or(0);
     let selected_visible = (first..first.saturating_add(visible_rows)).contains(&menu.selected);
 
     let position = format!("{}/{}", menu.selected + 1, menu.actions.len());
@@ -170,12 +195,6 @@ pub(super) fn render(
     } else {
         locale.menu_close_button()
     };
-    let key_style = LabelStyle::for_host();
-    let exit_key = format_binding_with_glyphs(
-        &Binding::new(KeyCode::Esc, Modifiers::NONE),
-        key_style,
-        key_glyphs,
-    );
     let enter_key = format_binding_with_glyphs(
         &Binding::new(KeyCode::Enter, Modifiers::NONE),
         key_style,
@@ -274,6 +293,9 @@ pub(super) fn render(
     if let Some(close_rect) = close_rect {
         render_close(frame, close_rect, &menu, theme, hits);
     }
+    if let Some(header) = tab_header {
+        header.paint(frame, &menu, locale, &exit_key, theme, hits);
+    }
 
     let mut painted_rows = 0;
     let mut used_rows = 0;
@@ -292,7 +314,7 @@ pub(super) fn render(
                     .style(theme.style(Role::TextSecondary)),
                 Rect::new(
                     inner.x,
-                    inner.y + u16::try_from(used_rows).unwrap_or(0),
+                    rows_y + u16::try_from(used_rows).unwrap_or(0),
                     inner.width,
                     1,
                 ),
@@ -304,7 +326,7 @@ pub(super) fn render(
         }
         let row_area = Rect::new(
             inner.x - 1,
-            inner.y + u16::try_from(used_rows).unwrap_or(0),
+            rows_y + u16::try_from(used_rows).unwrap_or(0),
             inner.width + 2,
             1,
         );
@@ -313,7 +335,7 @@ pub(super) fn render(
             row_area,
             &menu,
             offset,
-            action.clone(),
+            action,
             binding_labels[offset].as_deref(),
             locale,
             theme,
@@ -377,7 +399,7 @@ pub(super) fn render(
     let rows_height = u16::try_from(rows).unwrap_or(u16::MAX);
     hits.record(
         HitLayer::OverlaySurface,
-        Rect::new(inner.x - 1, inner.y, inner.width + 2, rows_height),
+        Rect::new(inner.x - 1, rows_y, inner.width + 2, rows_height),
         HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Menu(menu.token)),
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
@@ -411,10 +433,10 @@ fn visible_action_rows(menu: &MenuView<'_>, first: usize, rows: usize) -> usize 
 fn effective_binding(
     bindings: &Bindings,
     menu: &MenuView<'_>,
-    action: MenuAction,
+    action: &MenuAction,
     glyphs: KeyLabelGlyphs,
 ) -> Option<String> {
-    let action = menu_binding_action(menu.source, action)?;
+    let action = menu_binding_action(menu.source, action.clone())?;
     bindings
         .action_labels_with_glyphs(action, glyphs)
         .into_iter()
@@ -482,7 +504,7 @@ fn render_row(
     row: Rect,
     menu: &MenuView<'_>,
     index: usize,
-    action: MenuAction,
+    action: &MenuAction,
     binding: Option<&str>,
     locale: Locale,
     theme: &Theme,
@@ -527,7 +549,7 @@ fn render_row(
     let label = truncate_display(
         &action_label(
             locale,
-            action.clone(),
+            action,
             menu.labels[index].as_deref(),
             menu.tabs.map(|tabs| tabs.rows[index]),
             theme.glyphs.middle_dot,
@@ -571,7 +593,7 @@ fn render_row(
     if let Some(rect) = checked {
         tracks = tracks.with_checked(rect, theme.glyphs.active_marker);
     }
-    let applied = if menu.tabs.is_some_and(|tabs| tabs.checked(&action)) {
+    let applied = if menu.tabs.is_some_and(|tabs| tabs.checked(action)) {
         CheckedState::Checked
     } else {
         CheckedState::Unchecked
@@ -592,7 +614,7 @@ fn render_row(
         // A palette chip owns its contrast pair, independently of the row's candidate fill.
         let style = if enabled {
             theme
-                .tab_group_style(color)
+                .tab_group_style(*color)
                 .remove_modifier(Modifier::all())
         } else {
             theme.style(Role::TextDisabled)
@@ -707,7 +729,7 @@ fn render_close(
 
 fn action_label(
     locale: Locale,
-    action: MenuAction,
+    action: &MenuAction,
     label: Option<&str>,
     scope: Option<TabMenuScope>,
     separator: &str,
@@ -718,20 +740,20 @@ fn action_label(
         MenuAction::JoinWorkspaceProject(_) | MenuAction::OpenWorktreeAt(_)
     );
     let text = scope.map_or_else(
-        || locale.menu_action(&action).to_owned(),
-        |scope| locale.menu_tab_action(action.clone(), scope),
+        || locale.menu_action(action).to_owned(),
+        |scope| locale.menu_tab_action(action, scope),
     );
     let text = if let Some(label) = label {
         if choice {
             sanitize_terminal_text(label).into_owned()
         } else {
             format!(
-            "{text} {separator} {}",
-            sanitize_terminal_text(if label.is_empty() {
-                locale.shell().unnamed_tab_group
-            } else {
-                label
-            })
+                "{text} {separator} {}",
+                sanitize_terminal_text(if label.is_empty() {
+                    locale.shell().unnamed_tab_group
+                } else {
+                    label
+                })
             )
         }
     } else {
@@ -744,7 +766,7 @@ fn action_label(
     }
 }
 
-fn color_track_width(action: MenuAction, theme: &Theme) -> usize {
+fn color_track_width(action: &MenuAction, theme: &Theme) -> usize {
     if matches!(action, MenuAction::GroupColor(_)) {
         display_width(theme.glyphs.active_marker) + 4
     } else {

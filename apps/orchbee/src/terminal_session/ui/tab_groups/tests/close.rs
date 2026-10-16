@@ -734,6 +734,91 @@ fn cell(
 }
 
 #[test]
+fn tab_close_confirm_uses_shared_destructive_intent_without_changing_cancel_or_admission() {
+    use crate::tui_theme::{ColorLevel, Role};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height) in [(80, 24), (120, 40)] {
+            for base in [
+                Theme::terminal_native(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
+                for level in [
+                    ColorLevel::Truecolor,
+                    ColorLevel::Ansi256,
+                    ColorLevel::Ansi16,
+                    ColorLevel::Monochrome,
+                ] {
+                    let theme = base.quantize(level);
+                    let (mut ui, mailbox, _, snapshot) = ready_snapshot(grouped());
+                    ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
+                    ui.apply_client_action(ClientAction::TabMenu {
+                        action: MenuAction::CloseSelectedTabs,
+                        tab_id: Some(snapshot.terminal_contexts[0].tabs[1].tab_id.clone()),
+                    });
+                    assert!(ui.view().close_confirmation().is_some());
+                    assert!(mailbox.try_recv().unwrap().is_none());
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    let mut receipt = None;
+                    terminal
+                        .draw(|frame| {
+                            receipt = Some(crate::tui_render::render_terminal_shell(
+                                frame,
+                                &ClientView::new(width),
+                                locale,
+                                Some(TerminalSessionView::Native(ui.view())),
+                                &theme,
+                                &mut hits,
+                            ));
+                        })
+                        .unwrap();
+                    let map = hits.finish();
+                    let (x, y) = cell(&map, width, height, |target| {
+                        matches!(target, HitTarget::TabClose { confirm: true, .. })
+                    });
+                    let label_x = x
+                        + u16::try_from(crate::terminal_text::display_width(
+                            theme.glyphs.active_marker,
+                        ))
+                        .unwrap()
+                        + 2;
+                    assert_eq!(
+                        terminal.backend().buffer()[(label_x, y)].fg,
+                        theme.style(Role::AccentDestructive).fg.unwrap(),
+                        "Close and Resume use the existing destructive accent, never status-error"
+                    );
+                    let cancel_x = (0..width)
+                        .find(|candidate| {
+                            matches!(
+                                map.hit_target_at(*candidate, y),
+                                Some(HitTarget::TabClose { confirm: false, .. })
+                            )
+                        })
+                        .unwrap();
+                    assert_eq!(
+                        terminal.backend().buffer()[(cancel_x + label_x - x, y)].fg,
+                        theme.style(Role::TextPrimary).fg.unwrap(),
+                        "Cancel keeps its ordinary secondary-action tone"
+                    );
+                    ui.after_close_draw(receipt.unwrap());
+                    assert!(ui.capture_confirmation_key(ClientKey::Escape));
+                    assert!(ui.view().close_confirmation().is_none());
+                    assert_eq!(
+                        ui.state.as_ref().unwrap().cache().canonical_snapshot(),
+                        &snapshot
+                    );
+                    assert!(
+                        mailbox.try_recv().unwrap().is_none(),
+                        "painting intent cannot submit Close"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_confirmation() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for (width, height) in [(120, 40), (80, 24)] {
@@ -823,7 +908,7 @@ fn close_set_menu_keyboard_and_pointer_routes_capture_exact_ids_and_one_drawn_co
                     let label = {
                         let view = ui.view();
                         let projection = view.action_menu().unwrap();
-                        locale.menu_tab_action(action.clone(), projection.tabs.unwrap().rows[row])
+                        locale.menu_tab_action(&action, projection.tabs.unwrap().rows[row])
                     };
                     assert!(menu.contains(&label), "{menu}");
                     let token = ui.view().action_menu().unwrap().token;

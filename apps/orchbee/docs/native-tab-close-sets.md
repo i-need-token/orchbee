@@ -23,8 +23,10 @@ The draw token covers the entire bounded preview, remainder count, warning and c
 Its localized warning explains that running work ends for everyone connected to the Workspace,
 and that Tabs close one at a time with further closes stopped by failure.
 
-The shared Close and Cancel buttons carry their own Enter/Esc labels. Only a complete successful
-draw authorizes unmodified `Enter`; local `Esc` cancels an armed
+The shared Close and Cancel buttons carry their own Enter/Esc labels. Close and Resume use the
+existing destructive action tone; Cancel remains ordinary. Neither changes the Close owner or
+represents an error status. Only a complete successful draw authorizes unmodified `Enter`;
+local `Esc` cancels an armed
 confirmation even while it is not shown. An evaluated geometry block before the first successful
 draw refuses the new confirmation. After a successful draw, the same block suspends the existing
 confirmation while preserving its token, frozen set, local marks and focus; `Enter` and pointer release
@@ -49,7 +51,7 @@ bounded-notice convention. This retires only display state; retained counts and 
 facts survive. Halted/partial counts remain available, and current notices take display priority.
 
 For an already presented resumable status, the exact Tab's menu offers **Resume closing
-this tab** separately from set closure, including background members. It uses the existing single-Close confirmation and Resume
+this Tab** separately from set closure, including background members. It uses the existing single-Close confirmation and Resume
 operation, preserving the known request and attempt generation. It never restarts the remaining
 set, submits another Start, or navigates to a different Tab. Unknown or unseen statuses do not
 offer this action. The keyboard recovery entry addresses the presented operation too.

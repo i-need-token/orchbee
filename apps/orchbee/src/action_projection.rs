@@ -442,7 +442,16 @@ impl MenuActionMetadata {
 pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
     use ActionCategory as C;
     use MenuAction as A;
-    let tone = if matches!(action, A::DeleteWorkspace | A::DeleteProject) {
+    let tone = if matches!(
+        action,
+        A::DeleteWorkspace
+            | A::DeleteProject
+            | A::CloseSelectedTabs
+            | A::CloseOtherTabs
+            | A::CloseTrailingTabs
+            | A::CloseGroup
+            | A::ResumeTabClose
+    ) {
         ActionTone::Destructive
     } else {
         ActionTone::Ordinary

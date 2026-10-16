@@ -79,6 +79,28 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
     assert!(!menu.actions.contains(&MenuAction::CreateGroup));
     choose(&mut ui, MenuAction::ChooseGroupColor);
     assert_eq!(ui.view().action_menu().unwrap().actions.len(), 9);
+    let source = {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        assert!(menu.context_menu && menu.has_parent);
+        menu.source.clone()
+    };
+    let stale = present_action_menu(&mut ui);
+    ui.capture_action_menu_key(KeyEvent::press(KeyCode::Home, Modifiers::NONE));
+    ui.activate_action_menu_control(&source, stale, crate::action_menu::MenuControl::Back);
+    assert!(matches!(
+        ui.view().action_menu().unwrap().source,
+        MenuTarget::TabGroups { colors: true, .. }
+    ));
+    let token = present_action_menu(&mut ui);
+    ui.activate_action_menu_control(&source, token, crate::action_menu::MenuControl::Back);
+    assert_eq!(ui.view().action_menu().unwrap().selected, 2);
+    assert_eq!(ui.state.as_ref().unwrap().desired(), desired.as_ref());
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "Back cannot write a candidate color"
+    );
+    choose(&mut ui, MenuAction::ChooseGroupColor);
     ui.capture_action_menu_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     assert_eq!(ui.view().action_menu().unwrap().selected, 2);
     ui.cancel_action_menu();

@@ -44,7 +44,8 @@ pub(super) fn menu_actions(
             let mut actions = Vec::new();
             for action in crate::action_menu::TAB_ACTIONS {
                 if matches!(action, CloseOtherTabs | CloseTrailingTabs)
-                    && close_tab_ids(state, tab.tab_id(), *action).is_some_and(|ids| ids.is_empty())
+                    && close_tab_ids(state, tab.tab_id(), action.clone())
+                        .is_some_and(|ids| ids.is_empty())
                 {
                     continue;
                 }
@@ -163,12 +164,13 @@ pub(super) fn menu_scope(
 pub(super) fn menu_row(
     state: &NativeSessionState,
     tab: &NativeSimpleTab,
-    action: MenuAction,
+    action: &MenuAction,
 ) -> Option<TabMenuScope> {
     use MenuAction::*;
     let scope = match action {
         CloseSelectedTabs | CloseOtherTabs | CloseTrailingTabs | CloseGroup => {
-            let count = NonZeroUsize::new(close_tab_ids(state, tab.tab_id(), action)?.len())?;
+            let count =
+                NonZeroUsize::new(close_tab_ids(state, tab.tab_id(), action.clone())?.len())?;
             match action {
                 CloseSelectedTabs if count.get() == 1 => TabMenuScope::Addressed,
                 CloseSelectedTabs => TabMenuScope::Selected(count),

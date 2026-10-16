@@ -180,9 +180,9 @@ fn direct_group_menu_and_saved_color_are_independent_of_cross_group_marks_and_ca
             .actions
             .iter()
             .filter(|action| menu.tabs.unwrap().checked(action))
-            .copied()
+            .cloned()
             .collect();
-        (menu.actions[menu.selected], checked)
+        (menu.actions[menu.selected].clone(), checked)
     };
     assert_eq!(
         color_facts(&ui),

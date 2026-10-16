@@ -242,25 +242,35 @@ fn dynamic_menu_input_keeps_one_semantic_identity() {
 
 #[cfg(windows)]
 #[test]
-fn only_sidebar_delete_intents_adopt_destructive_tone() {
+fn sidebar_delete_and_tab_close_intents_share_destructive_tone_without_status_roles() {
     for action in crate::action_menu::WORKSPACE_ACTIONS
         .iter()
         .chain(crate::action_menu::PROJECT_ACTIONS)
         .chain(crate::action_menu::PANE_ACTIONS)
+        .chain(crate::action_menu::TAB_ACTIONS)
     {
         assert_eq!(
             menu_metadata(action.clone()).tone == super::ActionTone::Destructive,
             matches!(
                 action,
-                MenuAction::DeleteWorkspace | MenuAction::DeleteProject
+                MenuAction::DeleteWorkspace
+                    | MenuAction::DeleteProject
+                    | MenuAction::CloseSelectedTabs
+                    | MenuAction::CloseOtherTabs
+                    | MenuAction::CloseTrailingTabs
             ),
             "{action:?}",
         );
+    }
+    for action in [MenuAction::CloseGroup, MenuAction::ResumeTabClose] {
+        assert_eq!(menu_metadata(action).tone, super::ActionTone::Destructive);
     }
     for legacy in [
         MenuAction::CloseWorkspace,
         MenuAction::RenameProject,
         MenuAction::CloseProjectWorkspaces,
+        MenuAction::Ungroup,
+        MenuAction::GroupColor(orchbee_workbench_protocol::TabGroupColor::Red),
     ] {
         assert_eq!(menu_metadata(legacy).tone, super::ActionTone::Ordinary);
     }
