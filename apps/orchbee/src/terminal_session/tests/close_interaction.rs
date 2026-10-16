@@ -1,8 +1,14 @@
 use super::*;
+use crate::tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget};
 use orchbee_workbench_protocol::{
     WorkbenchRequestId, WorkbenchTabCloseAttemptGeneration, WorkbenchTabCloseBlockedReason,
     WorkbenchTabCloseReadOutcome, WorkbenchTabCloseReadResult, WorkbenchTabCloseResumeOutcome,
     WorkbenchTabCloseResumeResult, WorkbenchTabCloseStatus,
+};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    widgets::{Block, Paragraph, Widget, Wrap},
 };
 use std::sync::atomic::AtomicUsize;
 
@@ -49,8 +55,27 @@ fn draw_close(
     width: u16,
     height: u16,
 ) -> Result<String, Box<dyn std::error::Error>> {
+    let (buffer, _) = draw_close_frame(session, view, locale, width, height)?;
+    let mut text = String::new();
+    for row in buffer.content.chunks(usize::from(width)) {
+        for cell in row {
+            text.push_str(cell.symbol());
+        }
+        text.push('\n');
+    }
+    Ok(text)
+}
+
+fn draw_close_frame(
+    session: &mut TerminalSession,
+    view: &ClientView,
+    locale: Locale,
+    width: u16,
+    height: u16,
+) -> Result<(Buffer, FrameHitMap), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(TestBackend::new(width, height))?;
     let mut receipt = NativeDrawReceipt::default();
+    let mut hits = HitMapBuilder::new();
     terminal.draw(|frame| {
         receipt = render_terminal_shell(
             frame,
@@ -58,7 +83,7 @@ fn draw_close(
             locale,
             Some(session.view()),
             &crate::tui_theme::Theme::terminal_native(),
-            &mut crate::tui_pointer::HitMapBuilder::new(),
+            &mut hits,
         );
     })?;
     if matches!(session.view(), TerminalSessionView::Native(view) if view.close_confirmation().is_some())
@@ -69,19 +94,118 @@ fn draw_close(
         );
     }
     session.after_close_draw(receipt);
-    let mut text = String::new();
-    for row in terminal
-        .backend()
-        .buffer()
-        .content
-        .chunks(usize::from(width))
-    {
-        for cell in row {
-            text.push_str(cell.symbol());
+    Ok((terminal.backend().buffer().clone(), hits.finish()))
+}
+
+fn displayed_content_rows(buffer: &Buffer, area: Rect) -> Vec<String> {
+    (area.y..area.bottom())
+        .map(|y| {
+            let mut row = String::new();
+            let mut x = area.x;
+            while x < area.right() {
+                let symbol = buffer[(x, y)].symbol();
+                row.push_str(symbol);
+                // A wide glyph already represents its continuation cells.
+                x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
+            }
+            row.trim().to_owned()
+        })
+        .collect()
+}
+
+fn assert_complete_close_frame(
+    buffer: &Buffer,
+    hits: &FrameHitMap,
+    token: NativeCloseConfirmationToken,
+    locale: Locale,
+) {
+    let surface: Vec<_> = (buffer.area.y..buffer.area.bottom())
+        .flat_map(|y| (buffer.area.x..buffer.area.right()).map(move |x| (x, y)))
+        .filter(|(x, y)| matches!(hits.hit_target_at(*x, *y), Some(HitTarget::OverlaySurface)))
+        .collect();
+    let left = surface
+        .iter()
+        .map(|(x, _)| *x)
+        .min()
+        .expect("complete modal surface");
+    let right = surface.iter().map(|(x, _)| *x).max().unwrap() + 1;
+    let top = surface.iter().map(|(_, y)| *y).min().unwrap();
+    let bottom = surface.iter().map(|(_, y)| *y).max().unwrap() + 1;
+    let outer = Rect::new(left, top, right - left, bottom - top);
+    let mut border = Buffer::empty(outer);
+    Block::bordered()
+        .border_type(crate::tui_theme::Theme::terminal_native().corners)
+        .render(outer, &mut border);
+    for y in buffer.area.y..buffer.area.bottom() {
+        for x in buffer.area.x..buffer.area.right() {
+            if let Some(HitTarget::TabClose { token: actual, .. }) = hits.hit_target_at(x, y) {
+                assert_eq!(*actual, token);
+                assert!(
+                    outer.contains((x, y).into()),
+                    "no Close hit outside its modal"
+                );
+            }
+            let boundary = x == left || x + 1 == right || y == top || y + 1 == bottom;
+            if outer.contains((x, y).into())
+                && boundary
+                && !matches!(hits.hit_target_at(x, y), Some(HitTarget::TabClose { .. }))
+            {
+                assert_eq!(
+                    buffer[(x, y)].symbol(),
+                    border[(x, y)].symbol(),
+                    "complete border at {x},{y}"
+                );
+            }
         }
-        text.push('\n');
     }
-    Ok(text)
+    let close: Vec<_> = (left..right)
+        .filter(|x| matches!(hits.hit_target_at(*x, top), Some(HitTarget::TabClose { token: actual, confirm: false }) if *actual == token))
+        .collect();
+    assert_eq!(close.len(), 3);
+    assert_eq!(
+        displayed_content_rows(buffer, Rect::new(close[0], top, 3, 1)),
+        ["[x]"]
+    );
+
+    // The modal owner reserves a border cell plus two padding cells on each side.
+    let inner = Rect::new(left + 3, top + 1, outer.width - 6, outer.height - 2);
+    let warning = Paragraph::new(locale.close_warning()).wrap(Wrap { trim: false });
+    let warning_area = Rect::new(
+        0,
+        0,
+        inner.width,
+        u16::try_from(warning.line_count(inner.width)).unwrap(),
+    );
+    let mut expected_warning = Buffer::empty(warning_area);
+    warning.render(warning_area, &mut expected_warning);
+    let mut expected = vec![
+        locale
+            .close_title(NativeCloseConfirmationKind::Close)
+            .to_owned(),
+        String::new(),
+        "standalone".to_owned(),
+        String::new(),
+    ];
+    expected.extend(displayed_content_rows(&expected_warning, warning_area));
+    expected.extend([
+        String::new(),
+        format!(
+            "[ {}  Esc ]   [ {}  Enter ]",
+            locale.tab_close_cancel_label(),
+            locale.tab_close_confirm_label()
+        ),
+    ]);
+    assert_eq!(
+        displayed_content_rows(buffer, inner),
+        expected,
+        "{locale:?}: exact complete content rows"
+    );
+    for confirm in [false, true] {
+        assert!((inner.x..inner.right()).any(|x| matches!(
+            hits.hit_target_at(x, inner.bottom() - 1),
+            Some(HitTarget::TabClose { token: actual, confirm: choice }) if *actual == token && *choice == confirm
+        )), "both painted decision buttons keep their exact token");
+    }
 }
 
 fn interactive_close_server(
@@ -327,6 +451,62 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
     dispatch_close_input(&mut session, &mut view, b"n");
     drop(session);
     server.finish()?;
+    Ok(())
+}
+
+#[test]
+fn narrow_localized_close_keeps_complete_rows_and_tokens_through_suspend_cancel_and_enter()
+-> TestResult {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let geometry = fixture_geometry()?;
+        let commands = Arc::new(AtomicUsize::new(0));
+        let input_bytes = Arc::new(AtomicUsize::new(0));
+        let server =
+            interactive_close_server(geometry, Arc::clone(&commands), Arc::clone(&input_bytes))?;
+        let (mut session, _) =
+            native_session_with_identity(native_client(&server.server)?, geometry)?;
+        assert!(spin_with_draw(&mut session, |session| session.status()
+            == TerminalStatus::Controlling));
+        let mut view = ClientView::new(80);
+        dispatch_close_input(&mut session, &mut view, b"\x02x\r");
+        assert_eq!(commands.load(Ordering::SeqCst), 0);
+        let token = match session.view() {
+            TerminalSessionView::Native(native) => native.close_confirmation().unwrap().token(),
+            TerminalSessionView::Legacy { .. } => unreachable!(),
+        };
+        let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
+        assert_complete_close_frame(&buffer, &hits, token, locale);
+        let (_, hidden_hits) = draw_close_frame(&mut session, &view, locale, 20, 8)?;
+        assert!((0..8).all(|y| (0..20).all(|x| !matches!(
+            hidden_hits.hit_target_at(x, y),
+            Some(HitTarget::TabClose { .. })
+        ))));
+        assert!(matches!(session.view(), TerminalSessionView::Native(native)
+            if native.close_confirmation().is_some_and(|prompt| prompt.token() == token && !prompt.interactive())));
+        dispatch_close_input(&mut session, &mut view, b"\r");
+        assert_eq!(commands.load(Ordering::SeqCst), 0);
+        let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
+        assert_complete_close_frame(&buffer, &hits, token, locale);
+        dispatch_close_input(&mut session, &mut view, b"\x1b");
+        assert!(
+            matches!(session.view(), TerminalSessionView::Native(native) if native.close_confirmation().is_none())
+        );
+        assert_eq!(commands.load(Ordering::SeqCst), 0);
+        dispatch_close_input(&mut session, &mut view, b"\x02x\r");
+        assert_eq!(commands.load(Ordering::SeqCst), 0);
+        let next = match session.view() {
+            TerminalSessionView::Native(native) => native.close_confirmation().unwrap().token(),
+            TerminalSessionView::Legacy { .. } => unreachable!(),
+        };
+        assert_ne!(next, token);
+        let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 80, 24)?;
+        assert_complete_close_frame(&buffer, &hits, next, locale);
+        dispatch_close_input(&mut session, &mut view, b"\r");
+        spin(&mut session, |_| commands.load(Ordering::SeqCst) == 1);
+        assert_eq!(commands.load(Ordering::SeqCst), 1);
+        assert_eq!(input_bytes.load(Ordering::SeqCst), 0);
+        server.finish(session)?;
+    }
     Ok(())
 }
 

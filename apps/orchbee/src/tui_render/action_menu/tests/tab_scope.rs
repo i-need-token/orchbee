@@ -393,67 +393,73 @@ fn tab_children_paint_only_their_measured_back_action_and_semantic_path_above_ro
 
 #[test]
 fn tab_header_back_path_reason_and_one_action_must_all_fit_before_paint_or_hits() {
-    for (width, height, reason, fits) in [
-        (24, 8, false, false),
-        (80, 3, false, false),
-        (80, 4, false, true),
-        (80, 4, true, false),
-        (80, 5, true, true),
-    ] {
-        let mut menu = ActionMenu::default();
-        assert!(menu.open_for(
-            MenuTarget::TabGroups {
-                tab_id: WorkbenchTabId::parse(&format!("{:032x}", 35)).unwrap(),
-                colors: true,
-            },
-            "Build".into(),
-            vec![MenuAction::GroupColor(TabGroupColor::Red)],
-            None,
-        ));
-        let scope = TabMenuScope::Group(NonZeroUsize::new(2).unwrap());
-        menu.set_tab_presentation(scope, Some(TabGroupColor::Red), |_| Some(scope));
-        menu.refresh_availability(|_| {
-            reason.then_some(crate::action_menu::MenuUnavailable::OperationBusy)
-        });
-        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-        let mut hits = HitMapBuilder::new();
-        terminal
-            .draw(|frame| {
-                frame.render_widget(Paragraph::new("underlay"), frame.area());
-                let before = frame.buffer_mut().clone();
-                let mut view = menu.view().unwrap();
-                view.has_parent = true;
-                let result = render(
-                    frame,
-                    frame.area(),
-                    view,
-                    ClientView::new(width).bindings(),
-                    Locale::EnUs,
-                    &Theme::terminal_native(),
-                    &mut hits,
-                );
-                assert_eq!(matches!(result, ModalPresentation::Presented(_)), fits);
-                if !fits {
-                    assert_eq!(
-                        &*frame.buffer_mut(),
-                        &before,
-                        "refusal cannot paint a partial child"
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for (width, height, reason, fits) in [
+            (24, 8, false, false),
+            (80, 3, false, false),
+            (80, 4, false, true),
+            (80, 4, true, false),
+            (80, 5, true, true),
+        ] {
+            let mut menu = ActionMenu::default();
+            assert!(menu.open_for(
+                MenuTarget::TabGroups {
+                    tab_id: WorkbenchTabId::parse(&format!("{:032x}", 35)).unwrap(),
+                    colors: true,
+                },
+                "Build".into(),
+                vec![MenuAction::GroupColor(TabGroupColor::Red)],
+                None,
+            ));
+            let scope = TabMenuScope::Group(NonZeroUsize::new(2).unwrap());
+            menu.set_tab_presentation(scope, Some(TabGroupColor::Red), |_| Some(scope));
+            menu.refresh_availability(|_| {
+                reason.then_some(crate::action_menu::MenuUnavailable::OperationBusy)
+            });
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let mut hits = HitMapBuilder::new();
+            terminal
+                .draw(|frame| {
+                    frame.render_widget(Paragraph::new("underlay"), frame.area());
+                    let before = frame.buffer_mut().clone();
+                    let mut view = menu.view().unwrap();
+                    view.has_parent = true;
+                    let result = render(
+                        frame,
+                        frame.area(),
+                        view,
+                        ClientView::new(width).bindings(),
+                        locale,
+                        &Theme::terminal_native(),
+                        &mut hits,
                     );
-                }
-            })
-            .unwrap();
-        let map = hits.finish();
-        let has_menu = (0..height).any(|y| {
-            (0..width).any(|x| {
-                matches!(
-                    map.hit_target_at(x, y),
-                    Some(HitTarget::ActionMenuRow { .. } | HitTarget::ActionMenuControl { .. })
-                )
-            })
-        });
-        assert_eq!(
-            has_menu, fits,
-            "no hidden Back or row target survives refusal"
-        );
+                    assert_eq!(
+                        matches!(result, ModalPresentation::Presented(_)),
+                        fits,
+                        "{locale:?} {width}x{height} reason={reason}"
+                    );
+                    if !fits {
+                        assert_eq!(
+                            &*frame.buffer_mut(),
+                            &before,
+                            "refusal cannot paint a partial child"
+                        );
+                    }
+                })
+                .unwrap();
+            let map = hits.finish();
+            let has_menu = (0..height).any(|y| {
+                (0..width).any(|x| {
+                    matches!(
+                        map.hit_target_at(x, y),
+                        Some(HitTarget::ActionMenuRow { .. } | HitTarget::ActionMenuControl { .. })
+                    )
+                })
+            });
+            assert_eq!(
+                has_menu, fits,
+                "no hidden Back or row target survives refusal"
+            );
+        }
     }
 }
