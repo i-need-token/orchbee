@@ -810,17 +810,26 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
     published.navigation.workspaces.remove(0);
     published.navigation.workspace_order.remove(0);
     published.terminal_contexts.remove(1);
-    assert_eq!(
-        finish_refresh(
-            &mut state,
-            operation.generation,
-            WorkbenchSnapshotOutcome::Available {
-                snapshot: published.clone()
-            },
-            None
-        ),
-        RefreshDecision::SettledWithoutAttachment
-    );
+    let PreparedRefresh::Membership { prepared, .. } = state.prepare_refresh(
+        operation.generation,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: published.clone(),
+        },
+    ) else {
+        panic!("exact automatic removal candidate");
+    };
+    assert!(matches!(
+        state
+            .prepare_refresh_membership_install(
+                operation.generation,
+                prepared,
+                None,
+                Some(OperationDeadlines::from_sample(Instant::now()).unwrap())
+            )
+            .unwrap()
+            .commit(),
+        MembershipInstallDecision::Empty
+    ));
     let landing = NativeContextLocation::Workspace {
         workspace_id: workspace_id(1),
         terminal_context_id: context_id(373),
@@ -837,24 +846,17 @@ fn closed_receipt_survives_exact_automatic_canonical_landing_but_not_manual_navi
     assert!(state.attached_key().is_none());
     // The compatibility row is nonempty in this fixture, so surviving canonical
     // Workspaces occupy indices one and two. Navigation uses the real owner.
-    for (generation, index) in [(3, 2), (4, 1)] {
+    for (generation, index) in [(3, 2), (4, 1), (5, 0), (6, 1)] {
         assert!(state.start_context_selection_at(
             generation,
             index,
             OperationDeadlines::from_sample(Instant::now()).unwrap()
         ));
-        assert_eq!(
-            finish_refresh(
-                &mut state,
-                generation,
-                WorkbenchSnapshotOutcome::Available {
-                    snapshot: published.clone()
-                },
-                None
-            ),
-            RefreshDecision::SettledWithoutAttachment
+        super::context_selection::finish_selection(&mut state, published.clone(), generation);
+        assert!(
+            state.workspace_close_status().is_none(),
+            "manual target index {index}"
         );
-        assert!(state.workspace_close_status().is_none());
         assert!(state.invariant_holds());
     }
     assert_eq!(state.cache().location(), &landing);
