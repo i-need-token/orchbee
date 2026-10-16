@@ -1,6 +1,6 @@
 //! Exercise the conditional owner through actual retained Create records.
 use super::*;
-use orchbee_workbench_protocol::WorkbenchRejectionReason;
+use orchbee_workbench_protocol::{WorkbenchRejectionReason, WorkbenchRevision};
 
 #[test]
 fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_missing_worker() {
