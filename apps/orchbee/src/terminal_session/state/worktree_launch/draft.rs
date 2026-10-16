@@ -271,6 +271,7 @@ impl Draft {
             project: self
                 .sidebar
                 .as_ref()
+                .filter(|_| matches!(self.source, WorktreeSource::Directory { .. }))
                 .and_then(|source| source.addressed.cache.project_id().cloned()),
             intent,
         })

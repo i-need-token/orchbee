@@ -271,6 +271,17 @@ pub(crate) const WORKSPACE_ACTIONS: &[MenuAction] = &[
     MenuAction::RenameWorkspace,
     MenuAction::DeleteWorkspace,
 ];
+/// Retained compatibility contexts have no Workspace ID for canonical sidebar operations.
+pub(crate) const LEGACY_WORKSPACE_ACTIONS: &[MenuAction] = &[
+    MenuAction::QuickWorkspace,
+    MenuAction::NewTab,
+    MenuAction::WorkspaceDirectory,
+    MenuAction::RenameWorkspace,
+    MenuAction::MoveWorkspace,
+    MenuAction::NewWorktree,
+    MenuAction::OpenWorktree,
+    MenuAction::CloseWorkspace,
+];
 pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
     MenuAction::QuickWorkspace,
     MenuAction::RenameProject,

@@ -71,6 +71,9 @@ Tab 的首个叶子 primary／根进程，独立于当前聚焦 Tab、叶子或�
 已准入的根 cwd 显式缺失只允许回退到该 Workspace 的规范主目录；失败、不匹配或不可用的采样
 绝不等于缺失。空 Workspace 可使用自身目录，但不虚构进程采样。已有但未绑定的首个终端表示
 来源不可用，而非 cwd 缺失。
+已寻址的 Directory 来源可在 Start 中携带冻结的已有 Project。同一 Workspace 的目录回退则保留
+必须可空的 `projectId: null`，由既有 Server Alongside 所有者解析该 Workspace 的分组。
+Client 不能将 Project 复制到 Workspace 来源的 Start；严格 wire 契约会拒绝这种组合。
 
 这些提交前选项冻结确切 Project 身份及有序成员、已寻址 Workspace、Context、首个 primary
 绑定和目录证明。成员、顺序、移除、重新绑定或来源漂移会使选项退役；无关规范写入不被视作

@@ -147,7 +147,7 @@ fn worktree_exact_checkout_path_survives_duplicate_branch_labels_without_project
     );
 }
 
-fn sidebar_fixture() -> (Origin, addressed::SidebarDiscovery) {
+pub(in crate::terminal_session) fn sidebar_fixture() -> (Origin, addressed::SidebarDiscovery) {
     let snapshot = addressed::tests::fixture();
     let state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
     let origin = state.worktree_origin().unwrap();
@@ -174,6 +174,126 @@ fn sidebar_fixture() -> (Origin, addressed::SidebarDiscovery) {
     (origin, sidebar)
 }
 
+fn start_request(plan: &Plan) -> orchbee_workbench_protocol::WorkbenchWorktreeRequest {
+    orchbee_workbench_protocol::WorkbenchWorktreeRequest {
+        protocol_version: orchbee_workbench_protocol::ProtocolVersion,
+        request_id: request(901),
+        site_id: plan.origin.cache.site_id().clone(),
+        action: orchbee_workbench_protocol::WorkbenchWorktreeAction::Start {
+            operation_id: plan.operation_id.clone(),
+            project_id: plan.project.clone(),
+            intent: plan.intent.clone(),
+        },
+    }
+}
+
+fn assert_start_roundtrip(plan: &Plan) {
+    use orchbee_workbench_protocol::{
+        WorkbenchRequest, read_workbench_request, write_workbench_request,
+    };
+    let start = start_request(plan);
+    assert!(start.validate().is_ok());
+    let request = WorkbenchRequest::WorktreeOperation(start);
+    let mut wire = Vec::new();
+    write_workbench_request(&mut wire, &request).unwrap();
+    assert_eq!(
+        read_workbench_request(&mut wire.as_slice()).unwrap(),
+        request
+    );
+}
+
+#[test]
+fn grouped_absent_cwd_and_empty_workspace_fallbacks_keep_required_null_project_at_the_wire_boundary()
+ {
+    use crate::terminal_session::primary_directory::RootDirectory;
+    use orchbee_workbench_protocol::{
+        WorkbenchRequest, WorkbenchWorktreeAction, write_workbench_request,
+    };
+    for empty in [false, true] {
+        for mode in [WorktreeMode::Create, WorktreeMode::Open] {
+            let mut snapshot = addressed::tests::fixture();
+            if empty {
+                snapshot.terminal_contexts[1].tabs.clear();
+            }
+            let origin = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap())
+                .worktree_origin()
+                .unwrap();
+            let addressed = addressed::AddressedWorktreeSource::capture(
+                &snapshot,
+                &addressed::SidebarWorktreeTarget::Project(
+                    snapshot.navigation.projects[0].project_id.clone(),
+                ),
+            )
+            .unwrap();
+            assert_eq!(addressed.member.is_none(), empty);
+            let sample = RootDirectory::Available(None);
+            let source = addressed.resolve_sample(sample.clone()).unwrap();
+            let WorktreeSource::Workspace { workspace_id } = &source else {
+                panic!("same-Workspace fallback");
+            };
+            let directory = addressed.cache.directory().unwrap();
+            let mut discovery = discovery();
+            discovery.worker = directory.worker_id.clone();
+            discovery.source = WorktreeQuerySource {
+                requested_path: directory.path.clone(),
+                repository_root: directory.path.clone(),
+                common_directory: path(&format!("{}/.git", directory.path.as_str())),
+                checkout_path: directory.path.clone(),
+                workspace_id: Some(workspace_id.clone()),
+            };
+            let expected_project = addressed.cache.project_id().unwrap().clone();
+            let sidebar = addressed::SidebarDiscovery {
+                addressed,
+                sample,
+                source,
+                discovery,
+            };
+            assert!(sidebar.valid(&snapshot));
+            let mut launcher = Launcher::default();
+            let checkout = path("C:/trees/猫");
+            assert!(launcher.open_sidebar(
+                origin.clone(),
+                sidebar,
+                mode,
+                (mode == WorktreeMode::Open).then_some(&checkout)
+            ));
+            let token = launcher.token().unwrap();
+            launcher.draw(Some(token));
+            let plan = match mode {
+                WorktreeMode::Create => {
+                    launcher.create_with_defaults(request(90), &origin, Locale::EnUs)
+                }
+                WorktreeMode::Open => launcher.confirm(token, request(90), &origin),
+            }
+            .unwrap();
+            assert!(matches!(plan.source, WorktreeSource::Workspace { .. }));
+            assert!(
+                plan.project.is_none(),
+                "Workspace sources keep Server-owned Alongside grouping"
+            );
+            assert_start_roundtrip(&plan);
+            let mut invalid = start_request(&plan);
+            let WorkbenchWorktreeAction::Start { project_id, .. } = &mut invalid.action else {
+                unreachable!()
+            };
+            *project_id = Some(expected_project);
+            assert!(
+                invalid.validate().is_err(),
+                "explicit Project applies to Directory sources only"
+            );
+            let mut wire = Vec::new();
+            assert!(
+                write_workbench_request(&mut wire, &WorkbenchRequest::WorktreeOperation(invalid))
+                    .is_err()
+            );
+            assert!(
+                wire.is_empty(),
+                "invalid intent cannot submit even a carrier header"
+            );
+        }
+    }
+}
+
 #[test]
 fn sidebar_checkout_requires_its_complete_source_draw_then_starts_the_exact_choice_once() {
     let (origin, sidebar) = sidebar_fixture();
@@ -196,6 +316,7 @@ fn sidebar_checkout_requires_its_complete_source_draw_then_starts_the_exact_choi
     assert!(!launcher.default_create_ready());
     let plan = launcher.confirm(token, request(90), &origin).unwrap();
     assert_eq!(plan.project, sidebar.addressed.cache.project_id().cloned());
+    assert_start_roundtrip(&plan);
     assert!(matches!(plan.intent, WorktreeIntent::Open {
         source: WorktreeSource::Directory { path: source },
         selector: WorktreeSelector::Path { path: checkout }, ..

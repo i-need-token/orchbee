@@ -169,6 +169,11 @@ Projects in canonical order. Choices retain exact IDs, including duplicate label
 for one name and atomically creates the Project and moves the Workspace. Organization never selects
 a noncurrent Workspace. Empty conditional sections publish no orphan separator.
 
+The retained Legacy workspace uses its existing Context identity and compatibility action list,
+including New Tab. Canonical directory, rename, organization and whole-Workspace Close entries stay
+disabled with the localized Legacy workspace explanation. Its plain context chrome retains the
+selected disabled reason; it never substitutes a canonical Workspace ID or hides that prerequisite.
+
 Sidebar Delete asks for authoritative conditional admission through the existing Close or setup owner.
 Only definite `confirmation-required` for that conditional kind and captured revision opens a new
 complete-draw confirmation; explicit Enter then uses a distinct unconditional request ID. Missing,

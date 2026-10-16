@@ -700,7 +700,7 @@ impl TerminalInputPort for Port {
         }
     }
     fn take_action_menu_action(&mut self, _: bool) -> Option<ClientAction> {
-        self.menu.take().map(MenuAction::client_action)
+        self.menu.take().and_then(|action| action.client_action())
     }
     fn pointer_probe(&mut self) -> PointerProbe {
         let mut probe = self.probe.clone();
@@ -1224,7 +1224,7 @@ fn menu_shared_dispatch_applies_resize_layout_pointer_modes_and_shell_exit() {
         MenuAction::ReleasePointer,
         MenuAction::Detach,
     ] {
-        let mut port = Port::new(action);
+        let mut port = Port::new(action.clone());
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(120);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);

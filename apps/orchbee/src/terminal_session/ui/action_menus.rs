@@ -713,13 +713,18 @@ impl NativeUi {
                 let Some(source) = state.cache().menu_context_source(&location) else {
                     return false;
                 };
+                let actions = if matches!(source, NativeMenuContextSource::Standalone) {
+                    crate::action_menu::LEGACY_WORKSPACE_ACTIONS
+                } else {
+                    crate::action_menu::WORKSPACE_ACTIONS
+                };
                 (
                     Target::Workspace { location, source },
                     context
                         .workspace_label
                         .as_ref()
                         .map_or(String::new(), |l| l.as_str().to_owned()),
-                    crate::action_menu::WORKSPACE_ACTIONS.to_vec(),
+                    actions.to_vec(),
                 )
             }
             MenuTarget::Drawn { .. }
@@ -1672,7 +1677,7 @@ impl NativeUi {
                 )?;
                 ClientAction::RequestTargetedProjectRename(Box::new(request))
             }
-            _ => action.client_action()?,
+            (_, action) => action.client_action()?,
         };
         self.menus.menu.take()?;
         self.menus.intent = None;

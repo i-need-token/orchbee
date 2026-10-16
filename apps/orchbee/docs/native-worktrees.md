@@ -87,6 +87,10 @@ later members or a borrow from the current Client context. An admitted explicit 
 permits only that Workspace's canonical primary directory; failed, mismatched or unavailable
 samples never mean absence. An empty Workspace may use its own directory without inventing a process
 sample. An existing unbound first terminal is unavailable, rather than an absent cwd.
+An addressed Directory source may carry the frozen existing Project in Start. A same-Workspace
+directory fallback instead keeps required-nullable `projectId: null`; the existing Server Alongside
+owner resolves that Workspace's grouping. A Client must not copy the Project onto a Workspace-source
+Start, which the strict wire contract rejects.
 
 These pre-submit choices freeze exact Project identity and ordered members, addressed Workspace,
 Context, first primary binding and directory proof. Membership, order, removal, rebind or source

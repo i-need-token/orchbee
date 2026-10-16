@@ -52,6 +52,13 @@ fn activate_row(ui: &mut NativeUi, token: MenuToken, row: usize) {
 fn legacy_workspace_menu_keeps_tab_actions_and_refuses_canonical_workspace_effects() {
     let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let location = ui.state.as_ref().unwrap().cache().location().clone();
+    assert!(ui.open_action_menu(MenuTarget::Workspace(location.clone()), None, false));
+    assert_eq!(
+        ui.view().action_menu().unwrap().actions,
+        crate::action_menu::LEGACY_WORKSPACE_ACTIONS
+    );
+    assert!(ui.menus.sidebar.is_none());
+    ui.cancel_action_menu();
     for action in [
         MenuAction::WorkspaceDirectory,
         MenuAction::RenameWorkspace,

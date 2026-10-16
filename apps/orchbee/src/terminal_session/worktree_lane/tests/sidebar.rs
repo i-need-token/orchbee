@@ -81,29 +81,10 @@ fn attach_reply(
 
 #[test]
 fn changed_first_root_at_start_is_no_effect_and_never_queries_the_replacement_repository() {
-    use crate::terminal_session::state::{tests::ready_with_cache, worktree_launch::Launcher};
-    use crate::terminal_session::workbench_projection::project_native_standalone_tabs;
+    use crate::terminal_session::state::worktree_launch::{Launcher, tests::sidebar_fixture};
     let canonical = fixture();
-    let addressed = AddressedWorktreeSource::capture(
-        &canonical,
-        &SidebarWorktreeTarget::Project(canonical.navigation.projects[0].project_id.clone()),
-    )
-    .unwrap();
-    let origin = ready_with_cache(project_native_standalone_tabs(&canonical).unwrap())
-        .worktree_origin()
-        .unwrap();
-    let mut discovery = discovery();
-    discovery.worker = addressed.primary.as_ref().unwrap().worker_id().clone();
-    let sidebar = SidebarDiscovery {
-        addressed: addressed.clone(),
-        sample: crate::terminal_session::primary_directory::RootDirectory::Available(Some(
-            WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
-        )),
-        source: WorktreeSource::Directory {
-            path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
-        },
-        discovery,
-    };
+    let (origin, sidebar) = sidebar_fixture();
+    let addressed = sidebar.addressed.clone();
     let mut launcher = Launcher::default();
     assert!(launcher.open_sidebar(
         origin.clone(),
