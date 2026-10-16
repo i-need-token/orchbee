@@ -1,5 +1,8 @@
 //! Sidebar composition projects exact typed organization choices, never labels as identity.
-use super::*;
+use super::{
+    Duration, Instant, MenuAction, MenuTarget, NativeContextLocation, NativeMenuContextSource,
+    NativeSessionState, NativeUi, Stage, Target, action_availability, visible_unavailable,
+};
 use crate::terminal_session::{
     SidebarWorktreeTarget,
     state::worktree_launch::{
@@ -249,10 +252,9 @@ impl NativeUi {
                 source: Box::new(source),
             },
             deadline,
-        ) {
-            if let Some(episode) = self.menus.sidebar.as_mut() {
-                episode.state = DiscoveryState::Querying;
-            }
+        ) && let Some(episode) = self.menus.sidebar.as_mut()
+        {
+            episode.state = DiscoveryState::Querying;
         }
         false
     }
@@ -260,7 +262,7 @@ impl NativeUi {
     pub(in crate::terminal_session::ui) fn settle_sidebar_worktrees(
         &mut self,
         id: u64,
-        result: Result<SidebarDiscovery, WorktreeNotice>,
+        result: Result<Box<SidebarDiscovery>, WorktreeNotice>,
     ) {
         let Some(episode) = self.menus.sidebar.as_mut().filter(|episode| {
             episode.id == id && matches!(episode.state, DiscoveryState::Querying)
@@ -275,7 +277,7 @@ impl NativeUi {
                         discovery.valid(state.cache().canonical_snapshot())
                     }) =>
             {
-                DiscoveryState::Ready(Box::new(discovery))
+                DiscoveryState::Ready(discovery)
             }
             _ => DiscoveryState::Absent,
         };

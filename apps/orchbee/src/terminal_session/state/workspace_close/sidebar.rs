@@ -1,5 +1,9 @@
 //! Sidebar Delete retains exact source evidence and asks the Server for conditional admission.
-use super::*;
+use super::{
+    Instant, NativeContextTabs, NativeSessionState, OperationDeadlines, PaneKey,
+    WorkbenchRequestId, WorkbenchWorkspaceId, WorkspaceCloseEvidence, WorkspaceCloseOperation,
+    WorkspaceCloseResult, WorkspaceCloseTarget,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WorkspaceDeleteRequest {

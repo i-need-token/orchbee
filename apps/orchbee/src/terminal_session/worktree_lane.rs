@@ -38,7 +38,7 @@ pub(super) struct Job {
 pub(super) enum Reply {
     SidebarQuery {
         episode: u64,
-        result: Result<SidebarDiscovery, WorktreeNotice>,
+        result: Result<Box<SidebarDiscovery>, WorktreeNotice>,
     },
     Query {
         token: WorktreeToken,
@@ -232,7 +232,8 @@ fn execute(
                 job.deadline,
                 clock,
                 wake,
-            );
+            )
+            .map(Box::new);
             Reply::SidebarQuery { episode, result }
         }
         Action::Query {

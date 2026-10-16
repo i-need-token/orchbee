@@ -191,12 +191,6 @@ impl<'a> NativeSetupDraftView<'a> {
     pub(crate) fn stage(&self) -> NativeSetupStage {
         self.draft.stage
     }
-    pub(crate) fn destructive(&self) -> bool {
-        self.draft
-            .organization
-            .as_ref()
-            .is_some_and(|request| request.reviewed_delete())
-    }
     /// The draft's exact raw text — what a submit sends and a cancel
     /// discards.
     pub(crate) fn text(&self) -> &'a str {

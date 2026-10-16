@@ -526,9 +526,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::WorkspaceWorktrees => {
             built_in("orchbee.native.worktree-menu.open", C::Workspace, WORKTREE)
         }
-        A::DissolveProject | A::DeleteProject => {
-            built_in("workbench.project.dissolve", C::Project, PROJECT)
-        }
+        A::DeleteProject => built_in("workbench.project.dissolve", C::Project, PROJECT),
         A::CloseProjectWorkspaces => built_in("workbench.project.close-all", C::Project, PROJECT),
         A::CloseWorkspace | A::DeleteWorkspace => built_in(
             "workbench.workspace.delete",

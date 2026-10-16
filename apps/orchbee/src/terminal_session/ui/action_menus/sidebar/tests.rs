@@ -1,6 +1,7 @@
 use super::*;
+use crate::action_menu::{MenuDraw, MenuToken};
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
-use crate::terminal_session::ui::tests::context_selection;
+use crate::terminal_session::{ModalPresentation, ui::tests::context_selection};
 use orchbee_workbench_protocol::WorkbenchDirectoryPath;
 
 fn draw(ui: &mut NativeUi) -> MenuToken {
@@ -66,7 +67,7 @@ fn async_git_choices_replace_the_menu_token_and_require_a_fresh_draw_without_nav
     episode.state = DiscoveryState::Querying;
     let id = episode.id;
     let discovery = ready_discovery(&ui);
-    ui.settle_sidebar_worktrees(id, Ok(discovery));
+    ui.settle_sidebar_worktrees(id, Ok(Box::new(discovery)));
     let (source, current, row) = {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
@@ -119,13 +120,13 @@ fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     ui.capture_action_menu_key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
     assert!(!ui.action_menu_active());
     assert!(ui.menus.sidebar.is_none());
-    ui.settle_sidebar_worktrees(cancelled_id, Ok(stale.clone()));
+    ui.settle_sidebar_worktrees(cancelled_id, Ok(Box::new(stale.clone())));
     assert!(!ui.action_menu_active());
     assert!(ui.open_action_menu(target, None, false));
     let token = ui.view().action_menu().unwrap().token;
     assert_ne!(ui.menus.sidebar.as_ref().unwrap().id, cancelled_id);
     ui.menus.sidebar.as_mut().unwrap().state = DiscoveryState::Querying;
-    ui.settle_sidebar_worktrees(cancelled_id, Ok(stale));
+    ui.settle_sidebar_worktrees(cancelled_id, Ok(Box::new(stale)));
     assert_eq!(ui.view().action_menu().unwrap().token, token);
     assert!(
         !ui.view()

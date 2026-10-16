@@ -188,7 +188,7 @@ fn action_availability(
     if (matches!(target, Target::Project { .. })
         && matches!(
             action,
-            MenuAction::RenameProject | MenuAction::DissolveProject | MenuAction::DeleteProject
+            MenuAction::RenameProject | MenuAction::DeleteProject
         ))
         || matches!(
             action,
@@ -1171,7 +1171,6 @@ impl NativeUi {
                         | MenuAction::NewWorktree
                         | MenuAction::OpenWorktreeAt(_)
                         | MenuAction::RenameProject
-                        | MenuAction::DissolveProject
                         | MenuAction::CloseProjectWorkspaces
                 ) =>
             {
@@ -1638,14 +1637,6 @@ impl NativeUi {
                 let request = crate::terminal_session::WorkspaceOrganizationRequest::workspace(
                     self.state.as_ref()?,
                     workspace_id,
-                    intent.stage.deadline()?,
-                )?;
-                ClientAction::RequestWorkspaceOrganization(Box::new(request))
-            }
-            (Target::Project { project, .. }, MenuAction::DissolveProject) => {
-                let request = crate::terminal_session::WorkspaceOrganizationRequest::project(
-                    self.state.as_ref()?,
-                    project,
                     intent.stage.deadline()?,
                 )?;
                 ClientAction::RequestWorkspaceOrganization(Box::new(request))

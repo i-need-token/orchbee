@@ -1,5 +1,10 @@
 //! Complete organization-only Project deletion decision; existing setup owns every effect.
-use super::*;
+use super::{
+    Binding, Clear, Frame, HitLayer, HitMapBuilder, HitTarget, KeyCode, Line, Locale, ModalAction,
+    ModalControl, ModalPresentation, Modifiers, NativeSetupToken, Paragraph, Rect, Text, Theme,
+    Wrap, modal_key_label, modal_layout, overlay_block, paint_modal_action, paint_modal_close,
+    sanitize_terminal_text,
+};
 
 pub(super) struct Decision<'a> {
     pub token: NativeSetupToken,
@@ -140,8 +145,10 @@ mod tests {
                             while column < interior.right() {
                                 let cell = &buffer[(column, row)];
                                 line.push_str(cell.symbol());
-                                column +=
-                                    u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                                column += u16::try_from(
+                                    crate::terminal_text::display_width(cell.symbol()).max(1),
+                                )
+                                .unwrap();
                             }
                             line.push('\n');
                             line

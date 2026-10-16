@@ -259,7 +259,7 @@ fn only_sidebar_delete_intents_adopt_destructive_tone() {
     }
     for legacy in [
         MenuAction::CloseWorkspace,
-        MenuAction::DissolveProject,
+        MenuAction::RenameProject,
         MenuAction::CloseProjectWorkspaces,
     ] {
         assert_eq!(menu_metadata(legacy).tone, super::ActionTone::Ordinary);

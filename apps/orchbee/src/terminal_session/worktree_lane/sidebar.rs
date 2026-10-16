@@ -1,5 +1,9 @@
 //! Addressed read-only discovery shares the bounded Worktree lane, never the interactive Viewer.
-use super::*;
+use super::{
+    AddressedWorktreeSource, AsLocalIo, Discovery, Duration, Instant, LocalClient,
+    LocalOperationClock, LocalStream, ProtocolVersion, SidebarDiscovery, WorkbenchRequestId,
+    WorkbenchWorktreeQuery, WorkbenchWorktreeQueryOutcome, WorktreeNotice, settings, snapshot,
+};
 use crate::terminal_session::primary_directory::{RootDirectory, decode_root};
 use orchbee_client_server_protocol::{
     RequestId, TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest,
