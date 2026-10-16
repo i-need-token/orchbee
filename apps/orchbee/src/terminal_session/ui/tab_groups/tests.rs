@@ -801,7 +801,7 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                 let view = ui.view();
                 let menu = view.action_menu().unwrap();
                 assert_eq!(
-                    (&menu.source, menu.token, menu.selected),
+                    (menu.source, menu.token, menu.selected),
                     (&source, token, selected)
                 );
 
