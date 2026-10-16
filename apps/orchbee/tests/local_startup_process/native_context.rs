@@ -437,13 +437,12 @@ fn native_standalone_panel_split_refreshes_and_moves_focus_between_live_leaves()
             "",
             "Closing this Tab ends its execution for all attached Clients.",
             "",
-            "Esc cancel · y close",
-            "[ Cancel ]   [ Close ]",
+            "[ Cancel  Esc ]   [ Close  Enter ]",
         ],
         &mut [],
     );
     let checkpoint = client.checkpoint();
-    client.send(b"y");
+    client.send(b"\r");
     client.wait_native_frame_text_after(
         checkpoint,
         Instant::now() + CLOSE_TIMEOUT,
@@ -1271,14 +1270,13 @@ fn native_workspace_selection_creates_only_explicitly_and_retains_exact_shells()
             "",
             "Closing this Tab ends its execution for all attached Clients.",
             "",
-            "Esc cancel · y close",
-            "[ Cancel ]   [ Close ]",
+            "[ Cancel  Esc ]   [ Close  Enter ]",
         ],
         &mut [&mut independent],
     );
     let checkpoint = client.checkpoint();
     let deadline = Instant::now() + CLOSE_TIMEOUT;
-    client.send(b"y");
+    client.send(b"\r");
     let directory_fact = format!("Directory: {directory_text}");
     client.wait_native_frame_text_after(
         checkpoint,

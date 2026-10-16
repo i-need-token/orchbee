@@ -209,8 +209,7 @@ fn modal_observer_requires_complete_borders_exact_close_and_exact_rows() {
         ModalRow::exact(""),
         ModalRow::exact("warning"),
         ModalRow::exact(""),
-        ModalRow::exact("Esc cancel · y close"),
-        ModalRow::exact("[ Cancel ]   [ Close ]"),
+        ModalRow::exact("[ Cancel  Esc ]   [ Close  Enter ]"),
     ];
     let rows = [
         "  Close terminal Tab?",
@@ -219,8 +218,7 @@ fn modal_observer_requires_complete_borders_exact_close_and_exact_rows() {
         "",
         "  warning",
         "",
-        "  Esc cancel · y close",
-        "  [ Cancel ]   [ Close ]",
+        "  [ Cancel  Esc ]   [ Close  Enter ]",
     ];
     for (top, right, accepted) in [
         (format!("{}[x]", "─".repeat(37)), "│", true),

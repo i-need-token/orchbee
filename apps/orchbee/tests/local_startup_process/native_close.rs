@@ -70,7 +70,6 @@ struct CloseCopy {
     ready: &'static str,
     title: &'static str,
     warning: &'static str,
-    hints: &'static str,
     actions: &'static str,
 }
 
@@ -79,16 +78,14 @@ const ENGLISH: CloseCopy = CloseCopy {
     ready: "Tab 1 · Ready · controlling",
     title: "Close terminal Tab?",
     warning: "Closing this Tab ends its execution for all attached Clients.",
-    hints: "Esc cancel · y close",
-    actions: "[ Cancel ]   [ Close ]",
+    actions: "[ Cancel  Esc ]   [ Close  Enter ]",
 };
 const CHINESE: CloseCopy = CloseCopy {
     locale: "zh_CN.UTF-8",
     ready: "Tab 1 · 已就绪 · 可控制",
     title: "关闭终端 Tab？",
     warning: "关闭此 Tab 将终止其执行，影响所有已连接的 Client。",
-    hints: "Esc 取消 · y 关闭",
-    actions: "[ 取消 ]   [ 关闭 ]",
+    actions: "[ 取消  Esc ]   [ 关闭  Enter ]",
 };
 
 fn ready(client: &mut Client, checkpoint: usize, deadline: Instant, copy: CloseCopy) {
@@ -110,16 +107,7 @@ fn prompt(client: &mut Client, copy: CloseCopy) {
         checkpoint,
         Instant::now() + OBSERVATION_TIMEOUT,
         "Standalone terminal",
-        &[
-            copy.title,
-            "",
-            "1",
-            "",
-            copy.warning,
-            "",
-            copy.hints,
-            copy.actions,
-        ],
+        &[copy.title, "", "1", "", copy.warning, "", copy.actions],
         &mut [],
     );
 }
@@ -294,7 +282,7 @@ fn view_only_close_reaches_empty_then_manual_create_survives_bare_reopen() -> Te
     prompt(&mut peer, ENGLISH);
     let deadline = Instant::now() + CLOSE_TIMEOUT;
     let retired_checkpoint = controller.checkpoint();
-    peer.send(b"y");
+    peer.send(b"\r");
     loop {
         controller.collect();
         peer.collect();
