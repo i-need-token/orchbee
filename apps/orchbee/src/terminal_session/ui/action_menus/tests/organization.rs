@@ -89,7 +89,8 @@ fn right_clicking_noncurrent_legacy_workspace_keeps_canonical_focus_and_exact_me
         Some((3, 8)),
         false,
     ));
-    let menu = ui.view().action_menu().unwrap();
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
     assert_eq!(menu.source, &MenuTarget::Workspace(legacy));
     assert_eq!(
         menu.unavailable[action_row(&ui, MenuAction::RenameWorkspace)],
