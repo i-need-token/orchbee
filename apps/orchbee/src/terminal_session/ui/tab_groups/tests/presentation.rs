@@ -18,8 +18,7 @@ fn scopes_snapshot() -> Snapshot {
     ];
     let context = &mut snapshot.terminal_contexts[0];
     for (index, tab) in context.tabs.iter_mut().enumerate() {
-        tab.label = ["work", "Pinned", "Test", "Build", "Logs"][index].into();
-        tab.pinned = index < 2;
+        tab.label = ["work", "Review", "Test", "Build", "Logs"][index].into();
         tab.group_id = groups.get(index / 2).map(|group| group.group_id.clone());
     }
     context.groups = groups.into();
@@ -98,7 +97,15 @@ fn cross_group_selection_and_unselected_target_present_the_same_scope_as_close_c
 
 #[test]
 fn relative_close_scope_protects_pinned_tabs_and_starts_after_rightmost_selected_tab() {
-    let (mut ui, mailbox, _, snapshot) = ready_snapshot(scopes_snapshot());
+    let mut snapshot = scopes_snapshot();
+    // Pinned tabs form an ungrouped prefix; the other fixture cases keep
+    // two real groups so their cross-group selection remains canonical.
+    for tab in &mut snapshot.terminal_contexts[0].tabs[..2] {
+        tab.pinned = true;
+        tab.group_id = None;
+    }
+    snapshot.terminal_contexts[0].groups.remove(0);
+    let (mut ui, mailbox, _, snapshot) = ready_snapshot(snapshot);
     let tabs = &snapshot.terminal_contexts[0].tabs;
     ui.state
         .as_mut()

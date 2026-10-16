@@ -776,7 +776,16 @@ fn selected_tab_group_composed_screen_keeps_set_markers_and_scrollable_menu_rout
                 })
                 .unwrap();
             let hits = hits.finish();
-            assert!((0..height).any(|y|(0..width).any(|x|matches!(hits.hit_target_at(x,y),Some(HitTarget::ActionMenuRow {token:painted,row}) if *painted==token && *row==last))));
+            assert!(
+                (0..height).any(|y| (0..width).any(|x| matches!(
+                    hits.hit_target_at(x, y),
+                    Some(HitTarget::ActionMenuRow { token: painted, row })
+                        if *painted == token && *row == last
+                ))),
+                "last row must be painted: {locale:?} {width}x{height}, selected {}, last {last}, source {source:?}\n{}",
+                menu.selected,
+                rendered_text(terminal.backend().buffer()),
+            );
             ui.after_close_draw(receipt.take().unwrap());
             ui.activate_action_menu_row(&source, token, last);
             let action = ui.take_action_menu_action(false).unwrap();
