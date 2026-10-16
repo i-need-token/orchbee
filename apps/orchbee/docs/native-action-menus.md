@@ -16,6 +16,20 @@ rows and their action buttons. The frame clamps to the entire viewport above the
 status line; it can overlap navigation chrome. Keyboard opening remains centered
 in the pane content area. Neither path changes the target or underlying focus.
 
+Object and creation context menus paint only a rectangular border, action rows and an optional
+reserved disabled-reason row. They have no frame title, header X, footer hints or selection counter,
+and publish no hidden hit targets for those omitted controls. Esc and outside dismissal, and Left
+or Esc returning from a submenu, keep their existing owner and draw guards. Submenus inherit the
+root menu's chrome policy rather than deriving it from a replacement child target. The global
+action menu retains its title and discovery controls.
+
+The presentation decision consumes the root target, retained parent chain, exact menu token,
+viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,
+selection, capture or execution boundary. A refused frame publishes no row or control authority;
+successful context frames expose only their actual rows and surface. The render witnesses in
+`src/tui_render/action_menu/tests.rs` compare context and global composition, both locales and
+shipped theme families, and the width/height boundaries with and without a reserved reason.
+
 Tab menus follow the GUI sections for creation/grouping, duplication/pinning and close.
 Group assignment uses a submenu; selection and movement use a separate submenu.
 Painted group headers and the new-Tab button open distinct menus through the
@@ -67,7 +81,7 @@ and separators do not move the candidate. Hover preserves the viewport and actio
 requires a successful draw of the current candidate. Without received idle reports there is no hover feedback. A left click on a
 drawn row executes it only after a matching release on the same typed source, token, row and painted
 rectangle. Keyboard input, focus loss, capture release or a changed target/rectangle cancels a
-pending click. The header X closes the menu; a submenu's Back action returns to its parent. Right
+pending click. The global menu's header X closes it; its Back action returns to its parent. Right
 opens a selected submenu; Left or Esc returns to its parent and restores the stable selected action,
 anchor and freshly queried availability. Returning requires a fresh successful paint; old child
 tokens cannot execute.
@@ -76,8 +90,8 @@ Esc at the root or a click outside cancels. Wheel outside the list is inert. Ins
 contributes three rows to a bounded, viewport-capped stream without wrapping or executing; wheel
 movement changes only the viewport and may leave keyboard selection offscreen. Reversal drops the
 previous direction's backlog and retains the first new notch. Separators are noninteractive and
-consume layout rows, while the footer counts actions only. Rows scroll within the menu, leaving the
-status line visible. The fixed footer shows the selected row and total (`current/total`) plus ordered,
+consume layout rows, while the global footer counts actions only. Rows scroll within the menu, leaving the
+status line visible. The global menu's fixed footer shows the selected row and total (`current/total`) plus ordered,
 atomic key hints styled as key and localized verb. Exit is first; Enter and navigation disappear as
 whole items when space runs out. Shared Back or Close actions are shown when they fit. The menu
 footer owns routine key discovery, so a normally presented global menu leaves the session status row
@@ -94,8 +108,10 @@ visible action count and selected action for pointer and activation admission; a
 available rows without changing selection.
 A cancellation or owner unavailability outcome appears once after the menu closes; it does not
 duplicate the open menu's footer or geometry-recovery status.
-A newly requested surface that cannot present its title, a row and its exit instruction is refused
-with a localized notice. If an admitted menu later becomes too small, it enters `Suspended`, retains
+A newly requested global menu that cannot present its title, a row and its exit instruction is refused
+with a localized notice. A context menu instead requires its border, at least one action row and
+any reserved reason row; its minimum complete frame is 16 columns by 3 rows without a reason.
+If an admitted menu later becomes too small, it enters `Suspended`, retains
 its source, selection, viewport, parent and anchor, and accepts only its current local exit or return.
 Restoring sufficient geometry resumes the same menu incarnation after a fresh successful paint.
 Ordinary terminal output continues while the menu captures input.
@@ -103,8 +119,9 @@ The underlying pane cursor is hidden during capture;
 cancelling restores the ordinary pane projection without changing focus.
 Known unavailable actions use the full disabled text style, retaining its modifiers
 at every color level. They can be selected to read a localized reason; Enter or clicking keeps the menu open and
-cannot confirm or navigate. A fixed reason row leaves the exit instruction and
-selection count visible even at the smallest presentable geometry. The footer omits the Enter action
+cannot confirm or navigate. A fixed reason row leaves the global exit instruction and
+selection count visible even at the smallest presentable geometry, while a context menu reserves
+the reason without adding footer chrome. The global footer omits the Enter action
 for a disabled or offscreen selection.
 Actions unsupported by the current host are hidden rather than presented as disabled learning
 rows. Consequently, Move Tab to New Window is absent on the native Windows host until that host

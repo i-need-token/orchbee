@@ -39,6 +39,13 @@ An overlay is one bordered region with the following reusable slots. Required sl
 present; optional slots are omitted without reordering the remaining slots or recreating them
 inside content.
 
+Context menus use a compact composition instead: a rectangular border, action rows and any
+owner-required reason row. They omit the title, header close control, footer hints and position
+counter. The visible menu retains exclusive input ownership; Esc closes its root, Left or Esc
+returns to its parent, and an outside click dismisses through the exact admitted menu surface.
+Submenus inherit their root's composition. General modal slots below continue to govern forms,
+pickers, confirmations and global action discovery.
+
 | Slot       | Requirement | Contract                                                                                                                  |
 | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Header     | Required    | One localized task title; an optional one-line description names its target or consequence                                |
@@ -64,7 +71,8 @@ inside content.
 
 - Opening an overlay records the invoking region and focus identity. Entering a child task also
   records the parent's focus, selection, query or filter, viewport anchor, draft, and reversible
-  preview. A visible return action exists whenever that parent state exists.
+  preview. A visible return action exists whenever that parent state exists, except that a compact
+  context menu uses its Left/Esc return bindings without additional chrome.
 - Returning from a child restores the recorded parent state. Closing the root restores the invoker
   when it still exists; otherwise focus moves to the nearest surviving item in the same region,
   then that region's documented default. Neither path reorders panes or changes domain selection as
@@ -87,6 +95,8 @@ inside content.
   action, respect the current capture owner, and consume the complete dismissal gesture and packet
   tail. Body padding and wheel reports do not dismiss or fall through. This has the same draft and
   accepted-work policy as the close action.
+  A compact context menu without a close control instead uses its exact successfully painted
+  surface, target and token proof for that same local dismissal; it invents no invisible X target.
 - A surface that stops fitting after it opened is suspended, not implicitly dismissed. Preserve its
   parent state, draft, required decision, accepted submission, pending work, and recovery. The
   too-small state exposes only a currently valid return, exit, or recovery binding and never

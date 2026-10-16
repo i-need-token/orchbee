@@ -42,9 +42,11 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<MenuDraw> {
-    if content.width < 16 || content.height < 5 {
+    if content.width < 16 || content.height < if menu.context_menu { 3 } else { 5 } {
         return ModalPresentation::NotPresented;
     }
+
+    let footer_rows = usize::from(!menu.context_menu);
 
     let key_glyphs = key_label_glyphs(theme);
     let binding_labels = menu
@@ -82,9 +84,10 @@ pub(super) fn render(
         .unwrap_or(u16::MAX)
         .min(content.width);
     let reason_rows = usize::from(menu.unavailable.iter().any(Option::is_some));
-    let height = u16::try_from(menu.row_height(0, menu.actions.len()) + 3 + reason_rows)
-        .unwrap_or(u16::MAX)
-        .min(content.height);
+    let height =
+        u16::try_from(menu.row_height(0, menu.actions.len()) + 2 + footer_rows + reason_rows)
+            .unwrap_or(u16::MAX)
+            .min(content.height);
     let (x, y) = menu.anchor.unwrap_or((
         content.x + (content.width - width) / 2,
         content.y + (content.height - height) / 2,
@@ -118,14 +121,18 @@ pub(super) fn render(
             sanitize_terminal_text(menu.title)
         )
     };
-    let block =
-        super::overlay_surface(theme, true, Padding::horizontal(1)).title(truncate_display(
+    let block = super::overlay_surface(theme, true, Padding::horizontal(1));
+    let block = if menu.context_menu {
+        block
+    } else {
+        block.title(truncate_display(
             &title,
             usize::from(area.width.saturating_sub(6)),
             theme.glyphs.ellipsis,
-        ));
+        ))
+    };
     let inner = block.inner(area);
-    let rows = usize::from(inner.height).saturating_sub(1 + reason_rows);
+    let rows = usize::from(inner.height).saturating_sub(footer_rows + reason_rows);
     if rows == 0 {
         return ModalPresentation::NotPresented;
     }
@@ -186,26 +193,39 @@ pub(super) fn render(
             locale.menu_select_hint(),
         ));
     }
-    if measure_key_hints(&hints, theme).is_none() {
+    if !menu.context_menu && measure_key_hints(&hints, theme).is_none() {
         return ModalPresentation::NotPresented;
     }
-    let Some(required_hint_width) = measure_key_hints(&hints[..1], theme) else {
-        return ModalPresentation::NotPresented;
+    let required_hint_width = if menu.context_menu {
+        0
+    } else {
+        let Some(width) = measure_key_hints(&hints[..1], theme) else {
+            return ModalPresentation::NotPresented;
+        };
+        width
     };
-    if required_hint_width > usize::from(footer_area.width) {
+    if !menu.context_menu && required_hint_width > usize::from(footer_area.width) {
         return ModalPresentation::NotPresented;
     }
-    let close_rect = match super::controls::close_rect(frame.area(), area) {
-        Some(rect) => rect,
-        None => return ModalPresentation::NotPresented,
+    let close_rect = if menu.context_menu {
+        None
+    } else {
+        match super::controls::close_rect(frame.area(), area) {
+            Some(rect) => Some(rect),
+            None => return ModalPresentation::NotPresented,
+        }
     };
-    let footer_action = footer_action_layout(
-        frame.area(),
-        footer_area,
-        exit_label,
-        required_hint_width,
-        theme,
-    );
+    let footer_action = if menu.context_menu {
+        None
+    } else {
+        footer_action_layout(
+            frame.area(),
+            footer_area,
+            exit_label,
+            required_hint_width,
+            theme,
+        )
+    };
     let hint_area = footer_action.map_or(footer_area, |(_, hint_area)| hint_area);
 
     // Admission is complete. Only a menu that will paint may replace lower overlay hits and claim
@@ -237,7 +257,9 @@ pub(super) fn render(
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
 
-    render_close(frame, close_rect, &menu, theme, hits);
+    if let Some(close_rect) = close_rect {
+        render_close(frame, close_rect, &menu, theme, hits);
+    }
 
     let mut painted_rows = 0;
     let mut used_rows = 0;
@@ -298,7 +320,12 @@ pub(super) fn render(
         };
         frame.render_widget(
             Paragraph::new(reason).style(theme.style(Role::TextSecondary)),
-            Rect::new(inner.x, inner.bottom() - 2, inner.width, 1),
+            Rect::new(
+                inner.x,
+                inner.bottom() - 1 - u16::try_from(footer_rows).unwrap_or(0),
+                inner.width,
+                1,
+            ),
         );
     }
 
@@ -318,18 +345,20 @@ pub(super) fn render(
             hits,
         );
     }
-    let painted_hints = render_key_hints(frame, hint_area, &hints, theme)
-        .expect("the required exit hint was measured in the same area");
-    debug_assert!(hint_area.intersection(painted_hints) == painted_hints);
-    frame.render_widget(
-        Paragraph::new(position).style(theme.style(Role::TextSecondary)),
-        Rect::new(
-            inner.right() - position_width,
-            inner.bottom() - 1,
-            position_width,
-            1,
-        ),
-    );
+    if !menu.context_menu {
+        let painted_hints = render_key_hints(frame, hint_area, &hints, theme)
+            .expect("the required exit hint was measured in the same area");
+        debug_assert!(hint_area.intersection(painted_hints) == painted_hints);
+        frame.render_widget(
+            Paragraph::new(position).style(theme.style(Role::TextSecondary)),
+            Rect::new(
+                inner.right() - position_width,
+                inner.bottom() - 1,
+                position_width,
+                1,
+            ),
+        );
+    }
 
     let rows_height = u16::try_from(rows).unwrap_or(u16::MAX);
     hits.record(

@@ -116,14 +116,18 @@ instead of presenting an incomplete task.
   opened. The triggering action reports its refusal through the status line and performs no domain
   effect. An already-open overlay follows the suspension contract in
   [`overlays-and-status.md`](overlays-and-status.md#lifecycle-and-return).
+  A compact context menu instead needs one complete action row, its frame and any reserved reason;
+  it allocates no title or footer rows and never publishes controls that did not fit.
 - The overlay clears the cells beneath it before drawing so pane content never shows through.
-- Capturing overlays retain a visible, current mode indicator and exit hint. A status overlay
+- Capturing overlays retain a visible, current mode indicator and exit hint; compact context menus
+  use their visible menu frame and ordinary Esc/Left/outside policy without extra hints. A status overlay
   occupies content cells without resizing the child terminal; dismissal repaints the covered cells.
 - Allocate the fixed shell slots from
   [`overlays-and-status.md`](overlays-and-status.md#overlay-composition) before the content viewport.
   Header, navigation, query, status, actions, and footer never scroll with content. If they leave
   less than the declared minimum content area, refuse the overlay rather than crop a fixed slot.
-- Overlay content that exceeds the remaining inner height scrolls and shows its position. Variable
+- Overlay content that exceeds the remaining inner height scrolls and shows its position, except
+  compact context menus omit the position counter. Variable
   row heights participate in that viewport calculation.
 
 ## Truncation and wrapping

@@ -29,6 +29,17 @@ pub(crate) enum MenuTarget {
     },
 }
 
+impl MenuTarget {
+    /// Object and creation menus retain context chrome even when entered with the keyboard.
+    pub(crate) fn context_menu(&self) -> bool {
+        match self {
+            Self::Global => false,
+            Self::Drawn { target, .. } => target.context_menu(),
+            _ => true,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DrawnMenuSource {
     pub(crate) site: orchbee_workbench_protocol::SiteId,
@@ -338,6 +349,7 @@ pub(crate) enum MenuSelection {
 #[derive(Clone, Copy)]
 pub(crate) struct MenuView<'a> {
     pub(crate) source: &'a MenuTarget,
+    pub(crate) context_menu: bool,
     pub(crate) has_parent: bool,
     pub(crate) title: &'a str,
     pub(crate) labels: &'a [Option<String>],
@@ -563,6 +575,7 @@ impl ActionMenu {
     pub(crate) fn view(&self) -> Option<MenuView<'_>> {
         self.menu.as_ref().map(|menu| MenuView {
             source: &menu.source,
+            context_menu: menu.source.context_menu(),
             has_parent: false,
             title: &menu.title,
             labels: &menu.labels,

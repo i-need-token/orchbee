@@ -322,6 +322,8 @@ Windows `Ctrl+B F2` 打开[动作菜单](docs/native-action-menus.zh-CN.md)。
 右键点击 pane、tab、Workspace 或 Project 行即可发现已有动作。打开和取消保持焦点；
 成员动作使用准确目标导航，关闭动作保留原有确认。Project 重命名为准确的目标打开编辑器，
 包括空和非当前 Project，不进入子 Workspace；重命名或取消期间仍选中当前终端。
+上下文菜单仅使用矩形边框、动作行及可选的禁用原因，不显示标题、X、页脚提示或选择计数。
+子菜单继承根菜单的构件策略；全局动作菜单保留按键发现控件。
 鼠标打开的菜单靠近点击单元格，并限制在状态行上方。悬停只选择可见行，不执行；点击或 Enter
 执行，Esc 或外部点击取消。
 Workspace 移动提供已有 Project、不属于 Project、以及原子的新建 Project 并移入操作。

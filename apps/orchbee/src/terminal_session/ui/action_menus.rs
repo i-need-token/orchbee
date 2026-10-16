@@ -329,6 +329,9 @@ impl Coordinator {
         self.intent.as_ref()?;
         self.menu.view().map(|mut menu| {
             menu.has_parent = !self.parents.is_empty();
+            if let Some(parent) = self.parents.first() {
+                menu.context_menu = parent.target.context_menu();
+            }
             menu
         })
     }

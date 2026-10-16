@@ -307,6 +307,10 @@ fixed while only the result body scrolls.
 
 ## Modal windows
 
+Compact context menus use their dedicated composition in
+[`overlays-and-status.md`](overlays-and-status.md#overlay-composition), rather than borrowing a
+modal's title, close control or footer. Their row and capture owners still retain all input guards.
+
 The shared modal component implements the slots defined by
 [`overlays-and-status.md`](overlays-and-status.md#overlay-composition). It owns the complete outer
 surface, frame, title, optional tabs, close action, content rectangle, and footer; feature content

@@ -358,6 +358,9 @@ Right-click a pane, tab, Workspace or Project row for its existing actions. Open
 preserve focus; member actions use exact target navigation and keep the original close confirmation.
 Pointer-opened menus stay near the clicked cell and clamp above the status line. Hover selects
 a visible row without executing it; click or Enter executes, and Esc or an outside click cancels.
+Context menus use a plain rectangular border with action rows and an optional disabled reason,
+without a title, X, footer hints or selection counter. Submenus inherit their root's chrome policy;
+the global action menu retains its discovery controls.
 Project Rename opens the editor for that exact Project, including empty and noncurrent Projects,
 without entering a child Workspace. The current terminal stays selected through rename or cancel.
 Workspace Move offers an existing Project, No Project, or New Project and move in one commit.

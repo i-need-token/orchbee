@@ -154,8 +154,8 @@
 			"zhCnSha256": "86b18e725c73556efc878f8ae86d618943f88067f0e1b0f27f22d8e50cff698a"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "6877604ea0e43578df14de14b94d47128a91b89983eaafbf767d86fba6ec2190",
-			"zhCnSha256": "83b1f2fd8ef919d13da2e9ec4ec2db5380dd5c577ce8431b9887b3b5568a4af4"
+			"englishSha256": "e25a4dca7d17c0d738c691d71ce2fd01135f67d409ab3e280eaddb47929172e0",
+			"zhCnSha256": "9b9a5a82a498891c453ade90f552c7ed644ebe9fd55932c61fd5804f51143aa2"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "b66ff2fb8f663b529c26062182e3e5abb31f0acea083fe6554501d5deaa62d02",
@@ -174,8 +174,8 @@
 			"zhCnSha256": "58202456edc706b9c03f4f11905e26c856b42836bad051d0048843564410f3ac"
 		},
 		"apps/orchbee/docs/native-action-menus.md": {
-			"englishSha256": "9a0bd015a90510adffba824d6ca4ae6e9971339516a3c153a047d1821b7dc9c6",
-			"zhCnSha256": "d702d9373b97a2e9fd117541218e8f567467c1b89bf44ec8bc18ce00774998a5"
+			"englishSha256": "7cdc1a0a7b78ebde351cc35e3f4d5b88e295aad89bcf54bd5056cc4a874c56ff",
+			"zhCnSha256": "fc139308a161af526ee3c7dccdeb1cc59f415bad567960e0f638d2facb42ad5c"
 		},
 		"apps/orchbee/docs/native-agent-navigation.md": {
 			"englishSha256": "c49344ce1b1c6b8279a0e9b21a4ea229772c67a3507e08f88754b63e55b47579",
@@ -642,24 +642,24 @@
 			"zhCnSha256": "59effecd934640cf72cbbfba1f04f760b9d154571fbe7539b161684495ea874f"
 		},
 		"docs/tui/components.md": {
-			"englishSha256": "edcd009355efc2941f8ae3eedb27d68441534b2b7937cfca6d3e55d5fe785795",
-			"zhCnSha256": "d5400e5955127fe44b88de24a9f07cdc5b1330110aff3c37cfe06e8236f3ae4b"
+			"englishSha256": "d676fdd0cd414d2500db09a7593941b568adddfe1602ca82eb0c4df92caef97a",
+			"zhCnSha256": "4c395938c3871fbd6b6d3b1d3d543910cb36ca67c3a20ff3141ec2fe6ea42e95"
 		},
 		"docs/tui/keyboard-input.md": {
 			"englishSha256": "4190724ab5fa11c65a6f97b7e854b7c7ac6850ed67bf2ff670720a5cf436fc12",
 			"zhCnSha256": "1dfe8835e6f39e77c1a98ca6ee54c4c27eaa1f070289046a856c5d043003d45a"
 		},
 		"docs/tui/layout.md": {
-			"englishSha256": "ffd75a00a7fd09cc085963708221b7b07c5961c5bdac2dde12a08148ae5fb79f",
-			"zhCnSha256": "5ef13af3f976121ca7ab1b7830206ef657c45e7eac3b3982b29b02dfa0af4792"
+			"englishSha256": "8a2c4e2d735438e2349fff993c4aa5c9e0b4d886d586709a1012557466500932",
+			"zhCnSha256": "d1e57ee800e9758d7b16ba42683e3364ca7e2b3981f0ce63844abde2c3217c1f"
 		},
 		"docs/tui/mouse-input.md": {
 			"englishSha256": "89fbab054ba4882a2be13e16c2e898d9ea117b6651b5d3b477aa2738e0bd812b",
 			"zhCnSha256": "9cf328635ad42dbdc073c0a443fb1b8519368ad78a374de97cb61737b1d9e4d8"
 		},
 		"docs/tui/overlays-and-status.md": {
-			"englishSha256": "906f93e7c2513df89be2b8f2d7a46f113466c726066983bf8b682256ad52e39d",
-			"zhCnSha256": "80ffa6a5a5dbac6949e1c2ff646cdc7ff8c91e3108cefce4e168cfe1072ad221"
+			"englishSha256": "4e5cb739fe3b44e510af38877c787b4acf25be856241e05da21afb6771851b17",
+			"zhCnSha256": "fc77654a9c58c71377f25bf9e737084a6a313083b7d84d5bc2aeaf5affa6f618"
 		},
 		"docs/tui/settings.md": {
 			"englishSha256": "b10c4de9e22c03a3f089115323494e3f19988fea539a7408cb070fd230046e80",

@@ -251,6 +251,9 @@
 
 ## 模态窗口
 
+紧凑上下文菜单使用 [`overlays-and-status.md`](overlays-and-status.md#覆盖层组合) 中的专用组合，
+不借用模态框的标题、关闭控件或页脚；行及捕获 owner 仍保留全部输入守卫。
+
 共享模态框组件实现 [`overlays-and-status.md`](overlays-and-status.md#覆盖层组合) 定义的槽位。
 它拥有完整外层表面、框架、标题、可选 Tab、关闭动作、内容矩形和页脚；功能内容只在返回的内容
 槽位内渲染。

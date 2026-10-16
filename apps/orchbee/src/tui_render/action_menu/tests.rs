@@ -8,6 +8,141 @@ use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
 
 #[test]
+fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discovery() {
+    for (width, height) in [(120, 40), (80, 24)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for theme in [
+                Theme::terminal_native(),
+                Theme::one_light(),
+                Theme::one_dark(),
+            ] {
+                for context in [false, true] {
+                    let client = ClientView::new(width);
+                    let mut menu = ActionMenu::default();
+                    assert!(menu.open_for(
+                        if context {
+                            crate::action_menu::MenuTarget::Create(None)
+                        } else {
+                            crate::action_menu::MenuTarget::Global
+                        },
+                        "QZX".into(),
+                        vec![MenuAction::Help, MenuAction::Reload],
+                        Some((3, 2)),
+                    ));
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    let mut presentation = ModalPresentation::NotPresented;
+                    terminal
+                        .draw(|frame| {
+                            presentation = render(
+                                frame,
+                                frame.area(),
+                                menu.view().unwrap(),
+                                client.bindings(),
+                                locale,
+                                &theme,
+                                &mut hits,
+                            );
+                        })
+                        .unwrap();
+                    let ModalPresentation::Presented(draw) = presentation else {
+                        panic!("both menu kinds fit the declared geometry")
+                    };
+                    assert_eq!(draw.visible_rows, 2);
+                    assert!(menu.presented(draw));
+                    let text = terminal
+                        .backend()
+                        .buffer()
+                        .content
+                        .iter()
+                        .map(|cell| cell.symbol())
+                        .collect::<String>();
+                    assert_eq!(text.contains("QZX"), !context);
+                    assert_eq!(text.contains("Esc"), !context);
+                    assert_eq!(text.contains("1/2"), !context);
+                    let map = hits.finish();
+                    let has_chrome_control = (0..height).any(|y| {
+                        (0..width).any(|x| {
+                            matches!(
+                                map.hit_target_at(x, y),
+                                Some(HitTarget::ActionMenuControl { .. })
+                            )
+                        })
+                    });
+                    assert_eq!(has_chrome_control, !context);
+                    let row = action_row_rect(&map, terminal.backend().buffer().area, draw.token);
+                    assert_eq!(row.y, 3, "the first row follows the anchored top border");
+                    menu.key(crate::client_view::KeyEvent::press(
+                        KeyCode::Esc,
+                        Modifiers::NONE,
+                    ));
+                    assert!(
+                        !menu.active(),
+                        "removing chrome preserves local Esc cancellation"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn context_menu_admission_requires_one_action_and_its_reserved_reason_without_footer_rows() {
+    for width in [15, 16, 17] {
+        for height in [2, 3, 4] {
+            for unavailable in [false, true] {
+                let client = ClientView::new(width);
+                let mut menu = ActionMenu::default();
+                assert!(menu.open_for(
+                    crate::action_menu::MenuTarget::Create(None),
+                    "QZX".into(),
+                    vec![MenuAction::Help],
+                    None,
+                ));
+                menu.refresh_availability(|_| {
+                    unavailable.then_some(crate::action_menu::MenuUnavailable::OperationBusy)
+                });
+                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                let mut hits = HitMapBuilder::new();
+                let mut presentation = ModalPresentation::NotPresented;
+                terminal
+                    .draw(|frame| {
+                        presentation = render(
+                            frame,
+                            frame.area(),
+                            menu.view().unwrap(),
+                            client.bindings(),
+                            Locale::EnUs,
+                            &Theme::terminal_native(),
+                            &mut hits,
+                        );
+                    })
+                    .unwrap();
+                let expected = width >= 16 && height >= if unavailable { 4 } else { 3 };
+                assert_eq!(
+                    matches!(presentation, ModalPresentation::Presented(_)),
+                    expected,
+                    "{width}x{height}, unavailable={unavailable}"
+                );
+                let map = hits.finish();
+                let has_row = (0..height).any(|y| {
+                    (0..width).any(|x| {
+                        matches!(
+                            map.hit_target_at(x, y),
+                            Some(HitTarget::ActionMenuRow { .. })
+                        )
+                    })
+                });
+                assert_eq!(
+                    has_row, expected,
+                    "refused geometry publishes no row authority"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn hovered_candidate_uses_the_full_row_selection_and_marker_in_every_usable_tier() {
     for (width, height) in [(120, 40), (80, 24), (65, 16), (40, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
