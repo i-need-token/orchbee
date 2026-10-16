@@ -129,13 +129,24 @@ mod tests {
                         })
                         .unwrap();
                     let (area, presentation) = rendered.unwrap();
-                    let text = terminal
-                        .backend()
-                        .buffer()
-                        .content()
-                        .iter()
-                        .map(|cell| cell.symbol())
-                        .collect::<String>();
+                    // Read every interior cell, including wrapped decision text and controls,
+                    // without inserting the frame's vertical borders between content lines.
+                    let interior = area.inner(ratatui::layout::Margin::new(1, 1));
+                    let buffer = terminal.backend().buffer();
+                    let text: String = (interior.y..interior.bottom())
+                        .map(|row| {
+                            let mut line = String::new();
+                            let mut column = interior.x;
+                            while column < interior.right() {
+                                let cell = &buffer[(column, row)];
+                                line.push_str(cell.symbol());
+                                column +=
+                                    u16::try_from(display_width(cell.symbol()).max(1)).unwrap();
+                            }
+                            line.push('\n');
+                            line
+                        })
+                        .collect();
                     let map = hits.finish();
                     let mut submit = false;
                     let mut cancel = false;
@@ -169,7 +180,7 @@ mod tests {
                         ] {
                             assert!(
                                 compact(&text).contains(&compact(complete)),
-                                "{width}x{height}: missing complete {complete:?} in {text:?}"
+                                "{locale:?} {width}x{height}: missing complete {complete:?} in {text:?}"
                             );
                         }
                         assert!(area.bottom() < height, "status row is not dialog content");
