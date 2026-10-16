@@ -211,7 +211,8 @@ Across these menus, paths, drag hints, Close and Rename tasks, English user copy
 Chinese uses **标签页**; a group remains **group** / **分组**. Localization changes no semantic action
 or target identity.
 
-The Tab heading identifies the addressed name and, when applicable, the selected-set count.
+The Tab heading identifies the addressed name using the strip's zero-based name formatter and,
+when applicable, the selected-set count.
 Each row states its own scope: selection marks elsewhere never imply that every action uses them.
 Group assignment, Group actions and color pages retain a short semantic path with the addressed
 Tab or group name; group pages also identify their complete group count. These facts are useful
@@ -236,6 +237,11 @@ Other/trailing Close rows disappear when their exact set is empty. Relevant owne
 reasons remain visible. Counts are `NonZeroUsize` projection facts, never parsed labels or command
 targets. The existing coordinator captures and revalidates source, member/group metadata, marks,
 focus and action availability before any handoff.
+The private Tab target also captures the ordered canonical Tab IDs, pin states and group IDs used
+by the scope resolvers. Input, offer and handoff revalidate these exact facts. An append, removal,
+same-count ID replacement, reorder, pin or group-membership change retires that menu; reopening
+requires a new token and successful draw. An unchanged resolver source survives a revision-only
+refresh. This presentation fence does not replace the existing fresh complete-set Close decision.
 
 The color page initially addresses the saved canonical color. Its checked track stays on that
 applied color while arrows or received hover move the separate provisional navigation track.

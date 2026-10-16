@@ -96,8 +96,7 @@ fn scope_drift_retires(
         .collect();
     let expected_labels: Vec<_> = expected_indices
         .iter()
-        .enumerate()
-        .map(|(n, i)| (n + 1, peer.terminal_contexts[0].tabs[*i].label.clone()))
+        .map(|i| (i + 1, peer.terminal_contexts[0].tabs[*i].label.clone()))
         .collect();
     let (mut ui, mailbox, _, _) = ready_snapshot(old);
     let desired = ui.state.as_ref().unwrap().desired().cloned();
@@ -247,7 +246,24 @@ fn unchanged_resolver_source_keeps_painted_token_and_exact_other_scope() {
             .unwrap()
             .set_labels()
             .unwrap(),
-        &[(1, "Tab 1".into())]
+        &[(2, "Tab 1".into())]
     );
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
+fn drift_after_enter_offer_is_revalidated_before_handoff_without_replay() {
+    let old = snapshot(2, 1);
+    let target = old.terminal_contexts[0].tabs[0].tab_id.clone();
+    let (mut ui, mailbox, _, _) = ready_snapshot(old);
+    assert!(ui.open_action_menu(MenuTarget::Tab(target), None, false));
+    let (token, source, row) = select(&mut ui, MenuAction::CloseOtherTabs);
+    key(&mut ui, KeyCode::Enter);
+    assert!(ui.menus.menu.confirmed().is_some());
+    peer_append(&mut ui, snapshot(3, 2));
+    assert!(ui.take_action_menu_action(false).is_none());
+    ui.activate_action_menu_row(&source, token, row);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(ui.view().close_confirmation().is_none());
     assert!(mailbox.try_recv().unwrap().is_none());
 }

@@ -16,6 +16,8 @@ use crate::terminal_session::workbench_projection::{
 use crate::tui_presentation::GeometrySettlement;
 use std::time::{Duration, Instant};
 mod sidebar;
+mod tab_source;
+use tab_source::TabResolverSource;
 #[cfg(test)]
 mod tests;
 
@@ -88,6 +90,7 @@ enum Target {
         location: NativeContextLocation,
         tab: Box<NativeSimpleTab>,
         source: NativeMenuContextSource,
+        resolver: TabResolverSource,
     },
     Workspace {
         location: NativeContextLocation,
@@ -650,13 +653,14 @@ impl NativeUi {
                         location: state.cache().location().clone(),
                         tab: Box::new(tab.clone()),
                         source,
+                        resolver: TabResolverSource::capture(state.cache().tabs()),
                     },
                     match &entry {
                         MenuTarget::TabGroups { .. } => tab.group().map_or_else(
-                            || tab.display_label(index + 1).into_owned(),
+                            || tab.display_label(index).into_owned(),
                             |group| group.label.clone(),
                         ),
-                        _ => tab.display_label(index + 1).into_owned(),
+                        _ => tab.display_label(index).into_owned(),
                     },
                     super::tab_groups::menu_actions(state, tab, group_menu),
                 )
@@ -1120,9 +1124,11 @@ impl NativeUi {
                 location,
                 tab,
                 source,
+                resolver,
             } => {
                 state.cache().location() == location
                     && state.cache().menu_context_source(location).as_ref() == Some(source)
+                    && resolver.matches(state.cache().tabs())
                     && state
                         .cache()
                         .tab_index(tab.tab_id())
@@ -1557,6 +1563,7 @@ impl NativeUi {
                     location,
                     tab,
                     source,
+                    ..
                 },
                 MenuAction::ResumeTabClose,
                 Some(permit),
@@ -1828,6 +1835,7 @@ impl NativeUi {
                     location,
                     tab,
                     source,
+                    ..
                 },
             stage: Stage::Tab {
                 generation: owned, ..
