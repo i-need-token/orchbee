@@ -43,8 +43,14 @@ fn modal_frame(top_edge: &str, rows: &[&str], right_border: &str) -> Screen {
     let width = top_edge.chars().count();
     let mut draw = format!("\x1b[2;3H┌{top_edge}┐");
     for (index, content) in rows.iter().enumerate() {
+        let content_width = ratatui::text::Line::raw(*content).width();
+        assert!(
+            content_width <= width,
+            "fixture row must fit inside its borders"
+        );
+        let padding = " ".repeat(width - content_width);
         draw.push_str(&format!(
-            "\x1b[{};3H│{content:<width$}{right_border}",
+            "\x1b[{};3H│{content}{padding}{right_border}",
             index + 3
         ));
     }
@@ -203,7 +209,7 @@ fn navigator_observer_keeps_current_state_distinct_from_row_order() {
 #[test]
 fn modal_observer_requires_complete_borders_exact_close_and_exact_rows() {
     let expected = [
-        ModalRow::exact("Close terminal Tab?"),
+        ModalRow::exact("Close Tab?"),
         ModalRow::exact(""),
         ModalRow::exact("1"),
         ModalRow::exact(""),
@@ -212,7 +218,7 @@ fn modal_observer_requires_complete_borders_exact_close_and_exact_rows() {
         ModalRow::exact("[ Cancel  Esc ]   [ Close  Enter ]"),
     ];
     let rows = [
-        "  Close terminal Tab?",
+        "  Close Tab?",
         "",
         "  1",
         "",
@@ -236,6 +242,61 @@ fn modal_observer_requires_complete_borders_exact_close_and_exact_rows() {
             accepted,
             "top {top:?}, right border {right:?}"
         );
+    }
+}
+
+#[test]
+fn localized_close_observer_requires_the_full_consequence_target_and_decision_keys() {
+    for (title, warning, actions, incomplete_warning) in [
+        (
+            "Close Tab?",
+            "Closing this Tab ends its running work for everyone connected to this workspace.",
+            "[ Cancel  Esc ]   [ Close  Enter ]",
+            "Closing this Tab ends its running work.",
+        ),
+        (
+            "关闭标签页？",
+            "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。",
+            "[ 取消  Esc ]   [ 关闭  Enter ]",
+            "关闭此标签页将终止其中运行的任务。",
+        ),
+    ] {
+        let expected = [
+            ModalRow::exact(title),
+            ModalRow::exact(""),
+            ModalRow::exact("1"),
+            ModalRow::exact(""),
+            ModalRow::exact(warning),
+            ModalRow::exact(""),
+            ModalRow::exact(actions),
+        ];
+        // This grammar fixture holds the complete English warning and padding;
+        // it does not establish product admission.
+        let top = format!("{}[x]", "─".repeat(81));
+        let rows = [title, "", "1", "", warning, "", actions];
+        assert!(
+            modal_frame(&top, &rows, "│")
+                .latest_frame()
+                .unwrap()
+                .has_bordered_modal_content(&expected),
+            "{title}"
+        );
+        for (index, replacement) in [
+            (2, "2".to_owned()),
+            (4, incomplete_warning.to_owned()),
+            (6, actions.replace("Enter", "")),
+            (6, actions.replace("Esc", "")),
+        ] {
+            let mut changed = rows;
+            changed[index] = &replacement;
+            assert!(
+                !modal_frame(&top, &changed, "│")
+                    .latest_frame()
+                    .unwrap()
+                    .has_bordered_modal_content(&expected),
+                "incomplete or changed row {index}: {title}"
+            );
+        }
     }
 }
 

@@ -76,15 +76,15 @@ struct CloseCopy {
 const ENGLISH: CloseCopy = CloseCopy {
     locale: "en_US.UTF-8",
     ready: "Tab 1 · Ready · controlling",
-    title: "Close terminal Tab?",
-    warning: "Closing this Tab ends its execution for all attached Clients.",
+    title: "Close Tab?",
+    warning: "Closing this Tab ends its running work for everyone connected to this workspace.",
     actions: "[ Cancel  Esc ]   [ Close  Enter ]",
 };
 const CHINESE: CloseCopy = CloseCopy {
     locale: "zh_CN.UTF-8",
     ready: "Tab 1 · 已就绪 · 可控制",
-    title: "关闭终端 Tab？",
-    warning: "关闭此 Tab 将终止其执行，影响所有已连接的 Client。",
+    title: "关闭标签页？",
+    warning: "关闭此标签页将终止其中运行的任务，影响所有连接到此工作区的人。",
     actions: "[ 取消  Esc ]   [ 关闭  Enter ]",
 };
 
