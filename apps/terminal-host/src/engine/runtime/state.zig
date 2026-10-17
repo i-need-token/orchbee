@@ -15,6 +15,14 @@ const terminal_runtime_startup = @import("../runtime_startup.zig");
 const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 
+pub const ClosePromptPhase = enum {
+    unknown,
+    prompt_start,
+    input_ready,
+    command_active,
+    command_finished,
+};
+
 pub const State = struct {
     allocator: std.mem.Allocator,
     // terminal_mutex protects the monotonically increasing count of visible
@@ -44,10 +52,19 @@ pub const State = struct {
     close_activity: contracts.TerminalCloseActivity = .unknown,
     close_activity_epoch: u64 = 0,
     close_activity_epoch_exhausted: bool = false,
-    // input_mutex owns this monotonic fence for accepted activity bytes.
-    // Neither OS write completion nor a VT prompt proves consumption of buffered input, so
-    // only terminal retirement clears its lifetime. Projection is independent.
-    close_input_accepted: bool = false,
+    // terminal_mutex owns the committed phase; reader batches stage updates
+    // until their canonical VT mutation commits successfully.
+    close_prompt_phase: ClosePromptPhase = .unknown,
+    close_prompt_phase_staged: ClosePromptPhase = .unknown,
+    close_input_line_acknowledgements_staged: u64 = 0,
+    // input_mutex owns submitted/consumed Enter counts and the cross-write
+    // CRLF normalizer. A semantic C marker consumes only a line already
+    // published when that marker was parsed.
+    close_input_lines_submitted: u64 = 0,
+    close_input_lines_consumed: u64 = 0,
+    close_input_lines_exhausted: bool = false,
+    close_input_partial_line: bool = false,
+    close_input_last_byte_was_cr: bool = false,
     command_batch_active: bool = false,
     command_completion: ?contracts.TerminalCommandCompletion = null,
     command_completion_staged: ?contracts.TerminalCommandCompletion = null,

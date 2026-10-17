@@ -146,30 +146,20 @@ pub fn resolveCloseActivity(
     return .idle;
 }
 
-/// Close admission uses a fresh sample even without an attached reader. After
-/// accepted activity bytes, a prompt cannot prove that all shell-buffered input
-/// has been consumed; only authoritative settlement or replacement clears that limit.
+/// Close admission and published inventory share one fresh process sample plus
+/// the committed semantic reader phase. Accepted Enter submissions remain
+/// pending until a later C marker acknowledges them; only a ready prompt with
+/// no pending or partial input is idle.
 pub fn sampleCloseActivityForClose(self: *state.State) contracts.TerminalCloseActivity {
-    const sample = sampleCloseActivity(self) catch return .unknown;
-    self.terminal_mutex.lock();
-    const prompt_seen = self.terminal.screens.active.semantic_prompt.seen;
-    const at_prompt = prompt_seen and self.terminal.cursorIsAtPrompt();
-    self.terminal_mutex.unlock();
-    // A single shell process can be running a builtin or have exec-replaced
-    // itself. Only current prompt semantics may refine inactive into idle.
-    if (!at_prompt and sample.activity == .idle) return .unknown;
-    self.input_mutex.lock();
-    defer self.input_mutex.unlock();
-    if (self.close_input_accepted) return if (sample.activity == .active) .active else .unknown;
-    if (self.input_queue.client_charge.entries != 0) return .unknown;
-    return sample.activity;
+    return (sampleCloseActivity(self) catch return .unknown).activity;
 }
 
 /// Samples the independent process observation without holding a runtime
-/// mutex, then resolves it with Ghostty's current semantic-prompt state under
-/// the canonical projection -> terminal lock order. Activity-affecting input
-/// invalidates older evidence, but a later sample may restore idle in the same
-/// lifecycle from the current canonical state.
+/// mutex, then resolves it with Ghostty's committed prompt phase and accepted
+/// input accounting. This is the activity published in inventory for UI Close
+/// preflight as well as the final Host termination guard. Activity-affecting
+/// input invalidates older evidence; a later ready prompt restores idle only
+/// after all accepted submissions are acknowledged and no partial input stays.
 pub fn sampleCloseActivity(
     self: *state.State,
 ) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {
@@ -189,12 +179,31 @@ pub fn sampleCloseActivity(
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
 
+    const prompt_seen = self.terminal.screens.active.semantic_prompt.seen;
+    const at_prompt = prompt_seen and self.terminal.cursorIsAtPrompt();
     var next_activity = resolveCloseActivity(
         platform_command_active,
-        self.terminal.screens.active.semantic_prompt.seen,
-        self.terminal.screens.active.semantic_prompt.seen and
-            self.terminal.cursorIsAtPrompt(),
+        prompt_seen,
+        at_prompt,
     );
+    const prompt_phase = self.close_prompt_phase;
+    if (next_activity == .idle) {
+        // C begins command execution. This catches in-process shell builtins
+        // even when the platform observer sees only the interactive shell.
+        if (prompt_phase == .command_active) {
+            next_activity = .active;
+        } else if (!at_prompt or prompt_phase != .input_ready) {
+            next_activity = .unknown;
+        } else {
+            self.input_mutex.lock();
+            const pending_lines = self.close_input_lines_submitted > self.close_input_lines_consumed;
+            const unresolved_input = self.close_input_lines_exhausted or
+                self.close_input_partial_line or
+                self.input_queue.client_charge.entries != 0;
+            self.input_mutex.unlock();
+            if (pending_lines or unresolved_input) next_activity = .unknown;
+        }
+    }
 
     const previous_activity = self.close_activity;
     if (previous_activity != next_activity and

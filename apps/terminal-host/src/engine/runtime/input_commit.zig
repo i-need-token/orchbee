@@ -115,11 +115,44 @@ pub fn publishPreparedInput(
     commitPreparedInputOwnershipLocked(self, ownership);
     if (affects_close_activity) {
         // Queue publication proves acceptance of these bytes, never shell
-        // consumption. No later prompt or completed OS write may clear this fence.
-        if (bytes.len != 0) self.close_input_accepted = true;
+        // consumption. Prompt phases and C markers settle submitted lines.
+        if (source == .client) recordAcceptedCloseInputLines(self, bytes);
         projection_ops.invalidateCloseActivityAfterInputLocked(self);
     }
     self.input_condition.broadcast();
+}
+
+/// Counts accepted line terminators for the Close-only reader acknowledgement.
+/// CRLF is one submission even when its bytes arrive in separate writes.
+/// Called only after all fallible publication checks pass and while
+/// input_mutex protects the queue commit.
+fn recordAcceptedCloseInputLines(self: *state.State, bytes: []const u8) void {
+    for (bytes) |byte| {
+        if (byte == '\r') {
+            self.close_input_last_byte_was_cr = true;
+            self.close_input_partial_line = false;
+            incrementCloseInputLineCount(self);
+        } else if (byte == '\n') {
+            if (!self.close_input_last_byte_was_cr) incrementCloseInputLineCount(self);
+            self.close_input_last_byte_was_cr = false;
+            self.close_input_partial_line = false;
+        } else {
+            self.close_input_last_byte_was_cr = false;
+            self.close_input_partial_line = true;
+        }
+    }
+}
+
+fn incrementCloseInputLineCount(self: *state.State) void {
+    if (self.close_input_lines_exhausted) return;
+    self.close_input_lines_submitted = std.math.add(
+        u64,
+        self.close_input_lines_submitted,
+        1,
+    ) catch {
+        self.close_input_lines_exhausted = true;
+        return;
+    };
 }
 
 /// Activity-affecting input is one bounded cross-owner transaction. Mouse

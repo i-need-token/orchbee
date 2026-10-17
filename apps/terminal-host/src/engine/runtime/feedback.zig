@@ -105,9 +105,12 @@ pub fn semanticPromptEffect(
     std.debug.assert(self.command_batch_active);
     switch (command.action) {
         .end_input_start_output => {
+            self.close_prompt_phase_staged = .command_active;
+            stageCloseInputLineAcknowledgement(self);
             self.command_started_at_ns_staged = clock.monotonicTimeNanoseconds(self);
         },
         .end_command => {
+            self.close_prompt_phase_staged = .command_finished;
             const started_at_ns = self.command_started_at_ns_staged orelse return;
             self.command_started_at_ns_staged = null;
             const completed_at_ns = clock.monotonicTimeNanoseconds(self) orelse return;
@@ -127,13 +130,30 @@ pub fn semanticPromptEffect(
             };
         },
         .fresh_line_new_prompt,
+        .new_command,
         .prompt_start,
-        => mode_effects.recoverMouseTrackingAtPromptLocked(self),
+        => {
+            self.close_prompt_phase_staged = .prompt_start;
+            mode_effects.recoverMouseTrackingAtPromptLocked(self);
+        },
         .end_prompt_start_input,
         .end_prompt_start_input_terminate_eol,
+        => self.close_prompt_phase_staged = .input_ready,
         .fresh_line,
-        .new_command,
         => {},
+    }
+}
+
+/// A C marker acknowledges one line only when that line was already accepted
+/// at marker parse time. This prevents an empty/canceled read from consuming
+/// a command published afterward, even if the reader batch commits later.
+fn stageCloseInputLineAcknowledgement(self: *state.State) void {
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    if (self.close_input_lines_exhausted) return;
+    const pending_lines = self.close_input_lines_submitted - self.close_input_lines_consumed;
+    if (pending_lines > self.close_input_line_acknowledgements_staged) {
+        self.close_input_line_acknowledgements_staged += 1;
     }
 }
 
@@ -143,6 +163,8 @@ pub fn beginReaderBatch(self: *state.State) void {
     std.debug.assert(self.progress_staged == null);
     std.debug.assert(!self.command_batch_active);
     self.command_batch_active = true;
+    self.close_prompt_phase_staged = self.close_prompt_phase;
+    self.close_input_line_acknowledgements_staged = 0;
     self.command_completion_staged = self.command_completion;
     self.command_sequence_staged = self.command_sequence;
     self.command_started_at_ns_staged = self.command_started_at_ns;
@@ -162,6 +184,8 @@ pub fn abortReaderBatch(self: *state.State) void {
     self.command_completion_staged = null;
     self.command_sequence_staged = 0;
     self.command_started_at_ns_staged = null;
+    self.close_prompt_phase_staged = self.close_prompt_phase;
+    self.close_input_line_acknowledgements_staged = 0;
 }
 
 pub fn commitReaderBatch(self: *state.State) void {
@@ -203,6 +227,16 @@ pub fn commitReaderBatch(self: *state.State) void {
         self.application_signal_sequence = self.application_signal_sequence_staged;
     }
 
+    if (self.close_input_line_acknowledgements_staged != 0) {
+        self.input_mutex.lock();
+        if (!self.close_input_lines_exhausted) {
+            self.close_input_lines_consumed += self.close_input_line_acknowledgements_staged;
+        }
+        self.input_mutex.unlock();
+    }
+    self.close_prompt_phase = self.close_prompt_phase_staged;
+    self.close_prompt_phase_staged = .unknown;
+    self.close_input_line_acknowledgements_staged = 0;
     self.command_started_at_ns = self.command_started_at_ns_staged;
     self.command_completion = self.command_completion_staged;
     self.command_sequence = self.command_sequence_staged;

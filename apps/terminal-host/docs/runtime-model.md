@@ -1965,14 +1965,19 @@ Direct commands, scripts and Agent roots remain active even when they are the on
 Windows exited root with remaining Job descendants is active. Missing prompt semantics and process
 query failure remain unknown.
 
-Successful publication of nonempty activity-affecting client bytes sets a monotonic close-only
-fence under `input_mutex`. Zero-byte and focus-only semantics preserve existing projection
-policy but cannot create buffered command bytes and do not set this fence. After publication, an
-inactive live-process sample stays unknown until terminal replacement or authoritative settlement. `client_charge.entries` includes reserved,
-queued, copied, in-flight and partial writes until the final successful OS write is accounted; zero
-entries prove delivery, not consumption. ConPTY/PSReadLine may still hold later commands. An earlier prompt after command 1
-cannot prove that command 2 is no longer buffered, and later prompt markers never clear this fence. Projection's reclassification and epochs remain unchanged and
-cannot authorize a destructive Close. Ordinary post-command live prompts require confirmation.
+Accepted activity-affecting input invalidates the prior close sample. Under `input_mutex`, the Host
+counts accepted CR/LF submissions, treating CRLF as one line. A committed semantic C marker
+acknowledges at most one submission that was already published when the marker was parsed; an
+aborted reader batch acknowledges nothing. Semantic A/P markers begin a prompt and B marks the
+reader ready for input; C keeps even an in-process shell builtin active until the next ready prompt.
+Only an inactive process sample at a current ready prompt, with no unacknowledged submissions,
+exhausted accounting, partial accepted input after the latest submission, or queued/in-flight client
+input, is idle. The same evidence feeds periodic inventory and final Host Close admission, so the UI
+does not rely on a separate stale classification. Thus the prompt after command 1
+cannot authorize Close while command 2 remains buffered. Successful OS writes prove delivery, not
+consumption, and projection's reclassification and epochs remain separate from Close admission.
+Missing or unknown reader markers, process-query failure, and incomplete prompt phases remain
+unknown; a normal post-command prompt can become idle again after its accepted line is acknowledged.
 
 On Windows, interactive PowerShell launches receive the Local Site Runtime's shared, process-local
 `-NoExit -Command` bootstrap after normal profile execution. Worker-prepared argv is interactive
