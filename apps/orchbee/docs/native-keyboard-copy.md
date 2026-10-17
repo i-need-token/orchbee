@@ -37,14 +37,22 @@ at its bottom-left cell. This initial-position projection is adopted from local 
 `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `src/client/shell/copy_mode.rs`; this is not a complete
 Herdr compatibility claim. Normalize movement to complete displayed glyphs.
 
-Copy mode paints the served content rows. Its mouse toolbar replaces the Tab strip, or overlays
-the first row in Minimal layout without changing content coordinates. It omits the ordinary
+Copy mode takes its coordinates from the complete admitted row window or alternate-screen frame,
+independently of the ordinary live crop. Its local display reserves the permanent outer footer and,
+in Minimal layout, the first-row mouse toolbar. It crops the served rows and columns to keep the
+actual cursor glyph fully visible above the footer, including the second cell of a wide glyph.
+Search submission and keyboard or toolbar repetition reveal the matching served text and cursor
+together; the cursor never substitutes a footer cell for an obscured result. This display does not
+resize the physical terminal, move a committed history bookmark or change ordinary input-method
+coordinates. The mouse toolbar replaces the Tab strip outside Minimal layout. Copy omits the ordinary
 history badge and bottom line inside the pane; the outer status area shows the persistent mode
 indicator, search draft or notice, and owner-ordered keyboard hints. Dispatch, footer keys and
 labels derive from the same local binding definitions. The footer keeps the longest ordered prefix
 of complete key-and-label items that fits, with the local exit route first; it never clips an item
-or paints a key without its localized action. The cursor, selection, read coordinates and painter
-use the same content geometry.
+or paints a key without its localized action. Cursor and selection paint use the same local crop;
+pointer hits carry its source origin and translate back to the original admitted coordinates.
+Read and Host selection commands retain the complete source fence. A changed crop revokes a drag
+against the preceding painted rectangle and origin.
 
 ## Mouse controls
 
@@ -205,7 +213,11 @@ The owning implementation tests cover input packet ownership, admitted geometry,
 Maintain the concrete witnesses in `src/terminal_copy_mode/tests.rs`,
 `src/terminal_session/terminal_selection/tests.rs`,
 `src/terminal_session/ui/copy_mode/tests/mouse.rs`, `src/tui_render/copy_mode/tests.rs` and the
-adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and
+adjacent state, carrier, input and rendering suites. The mouse visibility suite composes the full
+shell at 120×40, 80×24, Compact and Minimal sizes in both locales and native/RGB themes. Controlled
+search completions check visible matching glyphs and a cursor above the footer for primary and
+alternate screens, keyboard/toolbar search and repeat, and translated wide-cell selection/drag.
+These local crop checks do not exercise query transport. Use controlled completion/clock order and
 generated trace replay where the workflow has multiple outcomes.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

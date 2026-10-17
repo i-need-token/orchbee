@@ -172,6 +172,11 @@ pub(crate) struct CopySurfaceToken {
 }
 
 impl CopyModeToken {
+    /// Painting retains the admitted surface while search or effects suspend pointer input.
+    pub(crate) const fn content_surface(self) -> Option<Surface> {
+        self.surface
+    }
+
     pub(crate) fn surface(self) -> Option<CopySurfaceToken> {
         (self.searching.is_none()
             && matches!(

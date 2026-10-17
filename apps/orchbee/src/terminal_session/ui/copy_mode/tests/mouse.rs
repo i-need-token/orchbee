@@ -13,6 +13,7 @@ use crate::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 use std::io;
+mod visibility;
 
 struct Port {
     ui: NativeUi,
@@ -313,7 +314,7 @@ fn copy_mouse_drag_normalizes_cells_coalesces_updates_and_exports_only_after_cop
     let found = cell(&map, 80, 28, |target| {
         matches!(target, HitTarget::CopySurface { .. })
     });
-    let HitTarget::CopySurface { area, token } = map.hit_target_at(found.0, found.1).unwrap()
+    let HitTarget::CopySurface { area, token, .. } = map.hit_target_at(found.0, found.1).unwrap()
     else {
         unreachable!()
     };

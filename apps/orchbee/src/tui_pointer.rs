@@ -126,6 +126,7 @@ pub(crate) enum HitTarget {
     CopySurface {
         token: crate::terminal_copy_mode::CopySurfaceToken,
         area: Rect,
+        origin: crate::terminal_copy_mode::CopyModeCursor,
     },
     #[cfg(windows)]
     Resize(ResizeControl),

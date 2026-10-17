@@ -175,7 +175,11 @@ fn copy_surface_map() -> (crate::tui_pointer::FrameHitMap, Rect) {
     hits.record(
         HitLayer::ChromeSurface,
         area,
-        HitTarget::CopySurface { token, area },
+        HitTarget::CopySurface {
+            token,
+            area,
+            origin: CopyModeCursor { column: 0, row: 0 },
+        },
     );
     (hits.finish(), area)
 }

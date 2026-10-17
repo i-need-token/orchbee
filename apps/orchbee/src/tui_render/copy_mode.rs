@@ -8,10 +8,7 @@ use crate::{
     terminal_copy::CopySearchDirection,
     terminal_copy_mode::{CopyControl, CopyModeStatus, CopyModeView},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
-    tui_pointer::{
-        HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ListScrollTarget,
-        ProjectedPointer,
-    },
+    tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer},
     tui_theme::{GlyphMode, Role, Theme},
 };
 use ratatui::{Frame, layout::Rect, style::Modifier, widgets::Clear};
@@ -23,38 +20,8 @@ use super::controls::{
     PointerPresentation, RowContentBand, RowFocusCue, RowTracks,
 };
 
-pub(super) fn paint_surface(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    mode: CopyModeView<'_>,
-    theme: &Theme,
-    hits: &mut HitMapBuilder,
-) {
-    paint_cursor(frame, area, mode, theme);
-    if let Some(token) = mode.pointer
-        && let Some(surface) = token.surface()
-    {
-        let content = Rect::new(
-            area.x,
-            area.y,
-            area.width.min(surface.surface.columns),
-            area.height.min(surface.surface.row_count),
-        );
-        hits.record(
-            HitLayer::ChromeSurface,
-            content,
-            HitTarget::CopySurface {
-                token: surface,
-                area: content,
-            },
-        );
-        hits.record(
-            HitLayer::ChromeSurface,
-            content,
-            HitTarget::ListScroll(ListScrollTarget::Copy(token)),
-        );
-    }
-}
+mod content;
+pub(super) use content::paint_surface;
 
 pub(super) fn render_controls(
     frame: &mut Frame<'_>,

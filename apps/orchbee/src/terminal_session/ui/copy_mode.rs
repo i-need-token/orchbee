@@ -1362,13 +1362,13 @@ impl NativeUi {
             .find(|projection| &projection.key == key)?;
         if let Some(viewport) = projection.viewport.as_ref() {
             let committed = viewport.committed_window()?;
-            let source = self.view().painted_content_source(key.pane().panel())?;
+            let source = self.view().copy_content_source(key.pane().panel())?;
             (source.rows.sequence == committed.route.sequence
                 && source.rows.generation == committed.route.generation
                 && source.rows.revision == committed.route.revision)
                 .then_some(source)
         } else {
-            self.view().painted_content_source(key.pane().panel())
+            self.view().copy_content_source(key.pane().panel())
         }
     }
 
@@ -1396,7 +1396,7 @@ impl NativeUi {
             return false;
         }
         self.view()
-            .painted_content_source(key.pane().panel())
+            .copy_content_source(key.pane().panel())
             .is_some_and(|current| entry_source_matches(expected, &current))
     }
 

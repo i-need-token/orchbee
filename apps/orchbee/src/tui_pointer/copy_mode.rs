@@ -9,6 +9,7 @@ use crate::terminal_copy_mode::{CopyModeCursor, CopySurfaceToken};
 pub(super) struct Drag {
     token: CopySurfaceToken,
     area: Rect,
+    origin: CopyModeCursor,
 }
 impl Drag {
     pub(super) fn painted_in(&self, map: &FrameHitMap) -> bool {
@@ -18,6 +19,7 @@ impl Drag {
                     == HitTarget::CopySurface {
                         token: self.token,
                         area: self.area,
+                        origin: self.origin,
                     }
             })
     }
@@ -26,11 +28,13 @@ impl Drag {
             column: event
                 .column
                 .saturating_sub(self.area.x)
-                .min(self.area.width.saturating_sub(1)),
+                .min(self.area.width.saturating_sub(1))
+                .saturating_add(self.origin.column),
             row: event
                 .row
                 .saturating_sub(self.area.y)
-                .min(self.area.height.saturating_sub(1)),
+                .min(self.area.height.saturating_sub(1))
+                .saturating_add(self.origin.row),
         }
     }
 }
@@ -77,12 +81,16 @@ impl PointerState {
         }
         self.cancel_list_scroll();
         if let Some(map) = &self.map
-            && let HitResolution::Region(HitTarget::CopySurface { token, area }) =
-                map.hit(event.column, event.row)
+            && let HitResolution::Region(HitTarget::CopySurface {
+                token,
+                area,
+                origin,
+            }) = map.hit(event.column, event.row)
         {
             let drag = Drag {
                 token: *token,
                 area: *area,
+                origin: *origin,
             };
             if port.copy_pointer_cell(drag.token, drag.cell(event), true) {
                 self.copy_drag = Some(drag);

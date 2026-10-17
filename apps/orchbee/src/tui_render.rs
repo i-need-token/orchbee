@@ -1688,7 +1688,7 @@ fn render_native_workbench(
             );
             #[cfg(windows)]
             if input_enabled && let Some(copy) = native.copy_mode() {
-                copy_mode::paint_surface(frame, content_area, copy, theme, hits);
+                copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
             }
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
@@ -1768,7 +1768,7 @@ fn render_native_workbench(
             );
             #[cfg(windows)]
             if input_enabled && let Some(copy) = native.copy_mode() {
-                copy_mode::paint_surface(frame, content_area, copy, theme, hits);
+                copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
             }
             // The title band stays Client chrome. The terminal owns every
             // content cell, including its edges; the hit region carries the
@@ -2362,7 +2362,7 @@ fn render_leaf(
         && input_enabled
         && let Some(copy) = native.copy_mode()
     {
-        copy_mode::paint_surface(frame, content, copy, theme, hits);
+        copy_mode::paint_surface(frame, content, copy, native, theme, hits);
     }
     selector.map(|s| s.area)
 }

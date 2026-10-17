@@ -866,6 +866,24 @@ impl<'a> NativeSessionView<'a> {
         &self,
         panel_id: &WorkbenchPanelId,
     ) -> Option<crate::terminal_content::ContentSource> {
+        self.content_source(panel_id, true)
+    }
+
+    /// Copy owns a local view of the complete admitted grid, independent of the live crop.
+    #[cfg(windows)]
+    pub(crate) fn copy_content_source(
+        &self,
+        panel_id: &WorkbenchPanelId,
+    ) -> Option<crate::terminal_content::ContentSource> {
+        self.content_source(panel_id, false)
+    }
+
+    #[cfg(windows)]
+    fn content_source(
+        &self,
+        panel_id: &WorkbenchPanelId,
+        crop_live: bool,
+    ) -> Option<crate::terminal_content::ContentSource> {
         use crate::terminal_content::{ContentSource, PaintedRows, SnapshotMember, TerminalScreen};
 
         let state = self.state.as_ref()?;
@@ -926,7 +944,7 @@ impl<'a> NativeSessionView<'a> {
             None => {
                 let frame = projection.frame()?;
                 let mut rows = PaintedRows::live(frame)?;
-                if let Some(crop) = self.pane_live_view(panel_id) {
+                if crop_live && let Some(crop) = self.pane_live_view(panel_id) {
                     rows.start_column = crop.column;
                     rows.start_row = rows.start_row.checked_add(u64::from(crop.row))?;
                     rows.row_count = crop.rows;

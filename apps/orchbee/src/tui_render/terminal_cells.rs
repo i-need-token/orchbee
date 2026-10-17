@@ -75,7 +75,7 @@ pub(super) fn render_live(
     }
 }
 
-fn render_rows_at(
+pub(super) fn render_rows_at(
     frame: &mut Frame<'_>,
     area: Rect,
     rows: &[TerminalTextRow],
