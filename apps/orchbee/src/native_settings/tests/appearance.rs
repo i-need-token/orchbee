@@ -10,6 +10,7 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
         let mut editor = Editor::default();
         let token = editor.open().unwrap();
         editor.loaded(token, basis.clone());
+        draw(&mut editor);
         let row = setting(key).row;
         editor.edit(Edit::Select(row));
         match key {
@@ -145,6 +146,16 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         let mut preview = basis().values;
         preview.application_theme = ApplicationAppearance::Dark;
         let submission = submit(&mut editor);
+        let NativeSettingsOperation::Save { source, changes } = &submission.operation else {
+            panic!("appearance conflict saves the local patch");
+        };
+        assert_eq!(source.as_str(), basis().source);
+        assert_eq!(
+            changes.keys().collect::<Vec<_>>(),
+            [PreferenceKey::ApplicationTheme],
+            "a conflict retains the exact locally edited leaf"
+        );
+        assert_eq!(changes.apply(&basis().values).unwrap(), preview);
         assert!(editor.failed(submission.token, reconciliation));
         if reconciliation == Some(Reconciliation::OutcomeUnknown) {
             assert!(editor.appearance_preview().is_none());
@@ -158,6 +169,7 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         external.source = "a".repeat(64);
         external.values.locale = PreferencesLocale::ZhCn;
         assert_eq!(editor.observe(&external), Observation::Conflict);
+        draw(&mut editor);
         let mut merged = preview.clone();
         merged.locale = external.values.locale;
         if reconciliation == Some(Reconciliation::OutcomeUnknown) {
@@ -171,9 +183,17 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         assert!(matches!(editor.view(), Some(View::Draft(draft))
             if draft.values == &preview && draft.effective_values == &external.values));
         editor.edit(Edit::Select(Row::Reload));
-        editor.edit(Edit::Activate);
         draw(&mut editor);
-        let reload = editor.edit(Edit::Activate).unwrap();
+        assert!(
+            editor.edit(Edit::Activate).is_none(),
+            "reload asks for confirmation"
+        );
+        draw(&mut editor);
+        let reload = editor.edit(Edit::Activate).expect("explicit fresh read");
+        assert!(matches!(
+            &reload.operation,
+            NativeSettingsOperation::Open {}
+        ));
         assert!(editor.appearance_preview().is_none());
         assert!(editor.loaded(reload.token, external.clone()));
         assert_eq!(

@@ -101,7 +101,11 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                         .preview_theme(preview)
                         .with_host_terminal_colors(0x102030, 0xe0d0c0);
                     let buffer = paint(&mut ui, &mut shell, size, fallback);
-                    assert_eq!(buffer[(0, 0)].bg, expected.color(Role::SurfaceChrome));
+                    assert_eq!(
+                        buffer[(0, size.1 - 1)].bg,
+                        expected.color(Role::SurfaceChrome),
+                        "the Settings overlay can cover (0, 0) at compact sizes; sample the status chrome"
+                    );
                     let defaults = expected.terminal_defaults();
                     assert_eq!(buffer[(pane.right() - 2, pane.y)].symbol(), "d");
                     assert_eq!(buffer[(pane.right() - 2, pane.y)].fg, defaults.0);

@@ -53,7 +53,7 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
     view.apply_user_preferences(preferences.clone());
     view.settle_pointer_released(true);
     let theme = view.configured_theme();
-    let mut published = snapshot(1, "[keys]\nprefix='ctrl+a'\nsettings='prefix+f6'");
+    let mut published = snapshot(1, "[keys]\nprefix='ctrl+a'\nreload_config='prefix+f6'");
     published.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneLight;
     published.agent_sidebar_profile = r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
     published.spaces_sidebar_profile = r#"{"rows":[],"row_gap":3}"#.into();
@@ -79,12 +79,12 @@ fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
             Modifiers::NONE
         )))
         .action(),
-        Some(ClientAction::OpenSettings)
+        Some(ClientAction::ReloadConfiguration)
     );
     assert_eq!(
         view.bindings()
             .action_labels(crate::client_view::PrefixAction::Client(
-                ClientAction::OpenSettings
+                ClientAction::ReloadConfiguration
             )),
         ["Ctrl+a F6"],
         "discovery uses the effective configured action"
