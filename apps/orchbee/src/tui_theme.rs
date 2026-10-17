@@ -902,6 +902,39 @@ fn sampled_color(color: Color) -> Option<(u8, u8, u8)> {
     }
 }
 
+/// Resolve a software block cursor against the cell's displayed background, independently of
+/// the host's cursor palette. Unknown default colors invert the displayed host-default pair.
+pub(crate) fn cursor_style(foreground: Color, background: Color, modifiers: Modifier) -> Style {
+    let reversed = modifiers.contains(Modifier::REVERSED);
+    let background = if reversed { foreground } else { background };
+    let Some(rgb) = sampled_color(background) else {
+        let defaults = Style::new().fg(Color::Reset).bg(Color::Reset);
+        // A reversed default foreground is already the displayed background. In that case
+        // the normal host background, rather than another reversal, supplies the cursor fill.
+        return if reversed {
+            defaults
+        } else {
+            defaults.add_modifier(Modifier::REVERSED)
+        };
+    };
+    let dark = color_contrast(rgb, (0, 0, 0)) >= color_contrast(rgb, (255, 255, 255));
+    let fill = match background {
+        Color::Rgb(..) => {
+            let channel = if dark { 0 } else { 255 };
+            Color::Rgb(channel, channel, channel)
+        }
+        Color::Indexed(_) => Color::Indexed(if dark { 16 } else { 231 }),
+        _ => {
+            if dark {
+                Color::Black
+            } else {
+                Color::White
+            }
+        }
+    };
+    Style::new().fg(background).bg(fill)
+}
+
 fn color_contrast(left: (u8, u8, u8), right: (u8, u8, u8)) -> f64 {
     let luminance = |(r, g, b): (u8, u8, u8)| {
         let channel = |value: u8| {

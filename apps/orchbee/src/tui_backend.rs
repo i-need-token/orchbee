@@ -1,10 +1,13 @@
+//! Encode fixed-viewport frame diffs and an owned software cursor through the admitted writer.
+//! The base-cell cache excludes the cursor; host cursor colors and shape are never changed.
+
 use std::{
     io::{self, Write},
     sync::Arc,
 };
 
 use crossterm::{
-    cursor::{Hide, MoveTo, Show},
+    cursor::{Hide, MoveTo},
     style::{
         Attribute, Color as CrosstermColor, Print, ResetColor, SetAttribute, SetBackgroundColor,
         SetForegroundColor,
@@ -13,8 +16,8 @@ use crossterm::{
 };
 use ratatui::{
     backend::{Backend, ClearType, WindowSize},
-    buffer::{Cell, CellWidth},
-    layout::{Position, Size},
+    buffer::{Buffer, Cell, CellWidth},
+    layout::{Position, Rect, Size},
     style::{Color, Modifier},
 };
 
@@ -25,6 +28,7 @@ use crate::{
         write_ansi_command,
     },
     terminal_text::sanitize_terminal_symbol,
+    tui_theme::cursor_style,
 };
 
 pub(crate) trait ResizableBackend: Backend {
@@ -42,7 +46,10 @@ pub(crate) struct FixedViewportBackend<W: Write> {
     #[cfg(windows)]
     graphics: Option<crate::tui_graphics::Surface>,
     graphics_probe_id: Option<u32>,
+    base_cells: Buffer,
     cursor_position: Position,
+    pending_cursor: Option<Position>,
+    painted_cursor: Option<(Position, Cell)>,
     synchronized_update: Arc<SynchronizedUpdateLease>,
     window: WindowSize,
     writer: W,
@@ -58,7 +65,10 @@ impl<W: Write> FixedViewportBackend<W> {
             #[cfg(windows)]
             graphics: None,
             graphics_probe_id: None,
+            base_cells: Buffer::empty(Rect::new(0, 0, dimensions.columns, dimensions.rows)),
             cursor_position: Position::ORIGIN,
+            pending_cursor: None,
+            painted_cursor: None,
             synchronized_update,
             window: to_window_size(dimensions),
             writer,
@@ -70,6 +80,57 @@ impl<W: Write> FixedViewportBackend<W> {
         self.graphics = self
             .graphics_probe_id
             .map(|id| crate::tui_graphics::Surface::new(id, Arc::clone(&self.synchronized_update)));
+    }
+
+    fn erase_cursor(&mut self) -> io::Result<()> {
+        if let Some((position, cell)) = &self.painted_cursor {
+            write_cell(&mut self.writer, *position, cell)?;
+            write_ansi_command(
+                &mut self.writer,
+                &MoveTo(self.cursor_position.x, self.cursor_position.y),
+            )?;
+            self.painted_cursor = None;
+        }
+        Ok(())
+    }
+
+    fn paint_cursor(&mut self) -> io::Result<()> {
+        // Retire the request before writing. A failed or unknown flush cannot replay it.
+        let Some(mut position) = self.pending_cursor.take() else {
+            return Ok(());
+        };
+        if !self.base_cells.area.contains(position) {
+            return Ok(());
+        }
+        // A cursor reported on a wide glyph's tail paints the whole owned glyph, while the
+        // native input-method anchor remains at the exact reported cell.
+        for x in (0..position.x).rev() {
+            let candidate = Position::new(x, position.y);
+            if let Some(cell) = self.base_cells.cell(candidate)
+                && x.saturating_add(cell.cell_width()) > position.x
+            {
+                position = candidate;
+                break;
+            }
+        }
+        let Some(base) = self.base_cells.cell(position).cloned() else {
+            return Ok(());
+        };
+        let style = cursor_style(base.fg, base.bg, base.modifier);
+        let mut cursor = base.clone();
+        cursor.modifier = Modifier::empty();
+        cursor.set_style(style);
+        if base.modifier.contains(Modifier::HIDDEN) {
+            // Concealed program text stays concealed; only its insertion position is exposed.
+            cursor.set_symbol(&" ".repeat(usize::from(base.cell_width())));
+        }
+        // Record before writing: even a partially written cursor is owned until restoration.
+        self.painted_cursor = Some((position, base));
+        write_cell(&mut self.writer, position, &cursor)?;
+        write_ansi_command(
+            &mut self.writer,
+            &MoveTo(self.cursor_position.x, self.cursor_position.y),
+        )
     }
 }
 
@@ -113,6 +174,13 @@ impl<W: Write> ResizableBackend for FixedViewportBackend<W> {
     }
     fn set_window_dimensions(&mut self, dimensions: WindowDimensions) {
         self.window = to_window_size(dimensions);
+        let area = Rect::new(0, 0, dimensions.columns, dimensions.rows);
+        if self.base_cells.area != area {
+            self.base_cells = Buffer::empty(area);
+            // The viewport owner clears and redraws the resized terminal before admitting input.
+            self.painted_cursor = None;
+            self.pending_cursor = None;
+        }
     }
 }
 
@@ -135,11 +203,21 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
         // cursor from chasing cell writes even on hosts without synchronized
         // update support.
         write_ansi_command(&mut self.writer, &Hide)?;
+        self.erase_cursor()?;
         write_ansi_command(&mut self.writer, &SetAttribute(Attribute::Reset))?;
         write_ansi_command(&mut self.writer, &ResetColor)?;
         let mut style = PaintedStyle::default();
         let mut advanced_to: Option<Position> = None;
         for (x, y, cell) in content {
+            if let Some(base) = self.base_cells.cell_mut((x, y)) {
+                *base = cell.clone();
+            }
+            for offset in 1..cell.cell_width() {
+                if let Some(tail) = self.base_cells.cell_mut((x.saturating_add(offset), y)) {
+                    *tail = Cell::default();
+                    tail.set_style(cell.style());
+                }
+            }
             if advanced_to != Some(Position { x, y }) {
                 write_ansi_command(&mut self.writer, &MoveTo(x, y))?;
             }
@@ -190,11 +268,16 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     }
 
     fn hide_cursor(&mut self) -> io::Result<()> {
+        self.pending_cursor = None;
+        self.erase_cursor()?;
         write_ansi_command(&mut self.writer, &Hide)
     }
 
     fn show_cursor(&mut self) -> io::Result<()> {
-        write_ansi_command(&mut self.writer, &Show)
+        // Ratatui supplies the position after this call. Paint once at flush, after that
+        // position and every frame/graphics write are known; never expose the host's block.
+        self.pending_cursor = Some(self.cursor_position);
+        Ok(())
     }
 
     fn get_cursor_position(&mut self) -> io::Result<Position> {
@@ -205,6 +288,9 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
         let position = position.into();
         write_ansi_command(&mut self.writer, &MoveTo(position.x, position.y))?;
         self.cursor_position = position;
+        if let Some(cursor) = &mut self.pending_cursor {
+            *cursor = position;
+        }
         Ok(())
     }
 
@@ -213,11 +299,35 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
     }
 
     fn clear_region(&mut self, clear_type: ClearType) -> io::Result<()> {
+        self.erase_cursor()?;
         #[cfg(windows)]
         if clear_type == ClearType::All
             && let Some(graphics) = &self.graphics
         {
             graphics.invalidate();
+        }
+        for y in 0..self.base_cells.area.height {
+            for x in 0..self.base_cells.area.width {
+                let position = Position::new(x, y);
+                let clear = match clear_type {
+                    ClearType::All => true,
+                    ClearType::AfterCursor => {
+                        y > self.cursor_position.y
+                            || (y == self.cursor_position.y && x >= self.cursor_position.x)
+                    }
+                    ClearType::BeforeCursor => {
+                        y < self.cursor_position.y
+                            || (y == self.cursor_position.y && x <= self.cursor_position.x)
+                    }
+                    ClearType::CurrentLine => y == self.cursor_position.y,
+                    ClearType::UntilNewLine => {
+                        y == self.cursor_position.y && x >= self.cursor_position.x
+                    }
+                };
+                if clear && let Some(cell) = self.base_cells.cell_mut(position) {
+                    *cell = Cell::default();
+                }
+            }
         }
         let clear_type = match clear_type {
             ClearType::All => CrosstermClearType::All,
@@ -250,6 +360,15 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
             },
             None => Vec::new(),
         };
+        if first_error.is_some() {
+            self.pending_cursor = None;
+        }
+        if self.synchronized_update.frame_open()
+            && first_error.is_none()
+            && let Err(error) = self.paint_cursor()
+        {
+            first_error = Some(error);
+        }
         if self.synchronized_update.frame_open()
             && let Err(error) = self.writer.write_all(SYNCHRONIZED_UPDATE_END)
             && first_error.is_none()
@@ -273,6 +392,23 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
             None => Ok(()),
         }
     }
+}
+
+fn write_cell(writer: &mut impl Write, position: Position, cell: &Cell) -> io::Result<()> {
+    write_ansi_command(writer, &MoveTo(position.x, position.y))?;
+    write_ansi_command(writer, &SetAttribute(Attribute::Reset))?;
+    write_ansi_command(writer, &SetForegroundColor(to_crossterm_color(cell.fg)))?;
+    write_ansi_command(writer, &SetBackgroundColor(to_crossterm_color(cell.bg)))?;
+    write_modifier_transition(writer, Modifier::empty(), cell.modifier)?;
+    let symbol = sanitize_terminal_symbol(cell.symbol());
+    if symbol.as_ref().cell_width() < cell.cell_width() {
+        // Captured grids can reserve two cells for a cluster this host measures as one.
+        write_ansi_command(writer, &Print(" ".repeat(usize::from(cell.cell_width()))))?;
+        write_ansi_command(writer, &MoveTo(position.x, position.y))?;
+    }
+    write_ansi_command(writer, &Print(symbol.as_ref()))?;
+    write_ansi_command(writer, &SetAttribute(Attribute::Reset))?;
+    write_ansi_command(writer, &ResetColor)
 }
 
 /// The rendition currently on the wire inside one `draw` pass. It starts at

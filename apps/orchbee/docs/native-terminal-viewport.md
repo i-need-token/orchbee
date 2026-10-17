@@ -39,7 +39,10 @@ cursor to the top therefore reveals the new output rather than an empty bottom s
 native cell-grid adaptation; GUI terminal rendering remains with its existing terminal presenter.
 
 A clipped pane keeps a localized live-crop indicator above its cells, with the effective history
-entry binding when it fits and a complete scroll-up instruction at narrow widths. The last local
+entry binding when it fits and a complete scroll-up instruction at narrow widths. The indicator
+measures and paints only the header columns before any occupied global Actions rectangle. In Minimal
+layouts this keeps the entire hint beside Actions without moving the live cells or cursor; ordinary
+layouts retain the full header width when Actions is on a separate row. The last local
 row remains available to the shell's status overlay, so read-only/control feedback cannot cover
 the current prompt. These local viewing rows never resize the physical terminal. Selection and
 link inspection use the same visible source row and column offsets; a wide glyph crossing either

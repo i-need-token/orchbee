@@ -9,6 +9,113 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::sync::Arc;
 
 #[test]
+fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_terminal_appearance() {
+    use crate::{
+        terminal_device::WindowDimensions, terminal_lifecycle::SynchronizedUpdateLease,
+        tui_backend::FixedViewportBackend,
+    };
+    use orchbee_workbench_protocol::{
+        TerminalDisplayAppearance as Appearance, UserPreferencesValues,
+    };
+    use std::{
+        cell::RefCell,
+        io::{self, Write},
+        rc::Rc,
+    };
+
+    #[derive(Clone, Default)]
+    struct Writer(Rc<RefCell<Vec<u8>>>);
+    impl Write for Writer {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.borrow_mut().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    source.foreground = 0x141414;
+    source.background = 0xfcfcfc;
+    source.geometry.columns = 16;
+    source.geometry.rows = 2;
+    let mut default_style = source.rows[0].cells[0].style;
+    default_style.foreground = 0x0100_0000;
+    default_style.background = 0x0100_0000;
+    default_style.flags = 0;
+    source.rows = vec![TerminalTextRow {
+        index: 0,
+        flags: 0,
+        prompt_class: 0,
+        cells: "Get-Date"
+            .chars()
+            .map(|character| orchbee_terminal_protocol::TerminalTextCell {
+                text: character.to_string(),
+                width: 0,
+                style: default_style,
+            })
+            .collect(),
+    }];
+    source.cursor.visible = true;
+    source.cursor.row = 0;
+    for appearance in [
+        Appearance::Light,
+        Appearance::Dark,
+        Appearance::Custom,
+        Appearance::Host,
+    ] {
+        let values = UserPreferencesValues {
+            terminal_display_theme: appearance,
+            custom_foreground: "#cccccc".into(),
+            custom_background: "#cccccc".into(),
+            ..UserPreferencesValues::default()
+        };
+        let theme = Theme::one_dark().with_terminal_preferences(&values);
+        let writer = Writer::default();
+        let bytes = writer.0.clone();
+        let backend = FixedViewportBackend::new(
+            writer,
+            WindowDimensions {
+                columns: 20,
+                rows: 4,
+                pixel_width: 0,
+                pixel_height: 0,
+            },
+            Arc::new(SynchronizedUpdateLease::new()),
+        );
+        let mut terminal = Terminal::new(backend).unwrap();
+        for (column, glyph) in [(8, " "), (3, "-")] {
+            source.cursor.column = column;
+            let offset = bytes.borrow().len();
+            terminal
+                .draw(|surface| render(surface, Rect::new(1, 1, 16, 2), &source, true, &theme))
+                .unwrap();
+            let output = bytes.borrow();
+            let output = std::str::from_utf8(&output[offset..]).unwrap();
+            let channel = if appearance == Appearance::Dark {
+                255
+            } else {
+                0
+            };
+            assert!(
+                output.contains(&format!("\x1b[48;2;{channel};{channel};{channel}m{glyph}")),
+                "{appearance:?} {output:?}"
+            );
+            assert!(output.ends_with(&format!("\x1b[2;{}H\x1b[?2026l", column + 2)));
+            assert!(!output.contains("\x1b[?25h"));
+            assert_eq!(
+                terminal.get_cursor_position().unwrap(),
+                ratatui::layout::Position::new(column + 1, 1)
+            );
+        }
+    }
+}
+
+#[test]
 fn captured_regional_indicator_cells_survive_paint_and_clear_their_entire_footprint() {
     use ratatui::buffer::{Buffer, CellDiffOption, CellWidth};
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
@@ -68,6 +175,80 @@ fn captured_regional_indicator_cells_survive_paint_and_clear_their_entire_footpr
 }
 
 #[test]
+fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() {
+    let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    source.geometry.columns = 104;
+    source.geometry.rows = 36;
+    source.cursor.visible = true;
+    source.cursor.column = 0;
+    source.cursor.row = 35;
+    let style = source.rows[0].cells[0].style;
+    source.rows = vec![TerminalTextRow {
+        index: 35,
+        flags: 0,
+        prompt_class: 0,
+        cells: vec![orchbee_terminal_protocol::TerminalTextCell {
+            text: ">".into(),
+            width: 0,
+            style,
+        }],
+    }];
+    for (columns, rows) in [(40, 10), (80, 24)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let area = Rect::new(0, 0, columns, rows);
+            let occupied = Rect::new(columns - 12, 0, 12, 1);
+            let crop = LiveView::new(&source, columns, rows);
+            let mut terminal = Terminal::new(TestBackend::new(columns, rows)).unwrap();
+            terminal
+                .draw(|surface| {
+                    surface.buffer_mut().set_string(
+                        occupied.x,
+                        occupied.y,
+                        "############",
+                        Style::new(),
+                    );
+                    super::super::viewport::render_live(
+                        surface,
+                        area,
+                        &source,
+                        crop,
+                        true,
+                        Some("Ctrl+b PageUp"),
+                        Some(occupied),
+                        locale,
+                        &Theme::terminal_native(),
+                    );
+                })
+                .unwrap();
+            let buffer = terminal.backend().buffer();
+            for column in occupied.x..occupied.right() {
+                assert_eq!(buffer[(column, 0)].symbol(), "#");
+            }
+            let header: String = (0..occupied.x)
+                .map(|column| buffer[(column, 0)].symbol())
+                .flat_map(str::chars)
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            let expected = match (columns, locale) {
+                (40, Locale::EnUs) => "Crop:scrollup",
+                (_, Locale::EnUs) => "LivecropCtrl+bPageUpHistory",
+                (_, Locale::ZhCn) => "实时裁切Ctrl+bPageUp历史",
+            };
+            assert_eq!(header, expected, "{columns} {locale:?}");
+            let prompt_y = crop.content(area).y + source.cursor.row - crop.row;
+            assert_eq!(buffer[(0, prompt_y)].symbol(), ">");
+            assert_eq!(
+                terminal.get_cursor_position().unwrap(),
+                ratatui::layout::Position::new(0, prompt_y),
+            );
+        }
+    }
+}
+
+#[test]
 fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
     let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
         "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
@@ -105,6 +286,7 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
                             crop,
                             true,
                             Some("Ctrl+B PgUp"),
+                            None,
                             locale,
                             &theme,
                         )

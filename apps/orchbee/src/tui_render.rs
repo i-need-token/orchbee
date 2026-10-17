@@ -1745,6 +1745,10 @@ fn render_native_workbench(
                     crop,
                     show_cursor,
                     history_key.as_deref(),
+                    #[cfg(windows)]
+                    global_action,
+                    #[cfg(not(windows))]
+                    None,
                     locale,
                     theme,
                 );
@@ -2310,6 +2314,7 @@ fn render_leaf(
                 crop,
                 show_cursor,
                 history_key,
+                None,
                 locale,
                 theme,
             );

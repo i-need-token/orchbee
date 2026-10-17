@@ -10,8 +10,25 @@ semantic defaults; the TUI does not change the outer host's font or appearance.
 Terminal Host uses the captured frame/window foreground and background. Light/Dark use the shared
 shipped defaults; Custom uses the validated RGB pair. Only default-marked cells are substituted.
 Explicit program RGB, palette colors, OSC overrides, reversal, attributes and wide-cell geometry
-retain their captured authority in live and retained rows. Cursor and empty canvas use the same
-selected terminal defaults. This presentation does not change retained Host color-query replies.
+retain their captured authority in live and retained rows. Empty canvas uses the selected terminal
+defaults. This presentation does not change retained Host color-query replies.
+
+The native backend paints a steady software block at the current input owner's reported position,
+after composing text and graphics in the synchronized frame. Its theme-owned contrast policy uses
+the cell's displayed background, including program reversal, and chooses the higher-contrast black
+or white fill in that color encoding. The covered glyph uses the former background as its foreground;
+dim, hidden and blink attributes cannot hide the block, and concealed program glyphs remain blank.
+This also handles equal custom foreground/background values and blank cells. Unknown default colors
+invert the displayed host-default pair, accounting for an already reversed cell. Indexed and ANSI
+contrast uses the canonical palette and still requires physical host review.
+
+The backend keeps unadorned cells, erases the previous block before every diff (including an empty
+diff), and paints only the final requested cursor. Covering surfaces hide it or supply their own
+editor position; panel switches, live cropping, retained-tail offsets and recovery keep the renderer's
+input coordinates. A wide-cell tail paints its complete glyph without changing the exact native
+input-method anchor. Cursor output stays in the same frame and flush, and a failed write never
+replays a pending cursor. Host cursor color and shape are untouched. The native cursor stays hidden
+while the Client draws; the existing terminal mode guard restores its visibility on exit and failure.
 
 Legacy Windows TOML accepts terminal-native, one-light and one-dark. These are migration inputs:
 explicit legacy values seed unclaimed shared preferences once. Later TOML reloads cannot override
@@ -152,15 +169,16 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 
 ## Correctness and evidence
 
-| Claim                                                       | Evidence                                                                        | Bounds                                                                                                            |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Legacy names and migration admission                        | Settings decision cases and CLI warning/schema checks                           | Windows TOML owner and existing fatal source boundary                                                             |
-| Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases       | Three themes, canonical palette, sampled environment; program colors excluded                                     |
-| Shared Light/Dark interaction palette remains aligned       | CSS source-conformance test and exact foreign-input verification edge           | Public design tokens map only shared Light/Dark roles; System remains host-relative                               |
-| Dark text priority exceeds a readable near-equal control    | Resolved content separation and independent surface-readability cases           | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate               |
-| Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate |
-| Confirmed shared publication preserves complete appearance  | Server/Client publication traces and shared contract corpus                     | Shared settings lane and CAS traces; physical display capability remains separate                                 |
-| Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                   | Native Windows process/byte evidence; physical emulator appearance is separate                                    |
+| Claim                                                       | Evidence                                                                                                          | Bounds                                                                                                             |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Legacy names and migration admission                        | Settings decision cases and CLI warning/schema checks                                                             | Windows TOML owner and existing fatal source boundary                                                              |
+| Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                      |
+| Shared Light/Dark interaction palette remains aligned       | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map only shared Light/Dark roles; System remains host-relative                                |
+| Dark text priority exceeds a readable near-equal control    | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                |
+| Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate  |
+| Cursor contrast follows the displayed cell and input owner  | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Host/Light/Dark/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate |
+| Confirmed shared publication preserves complete appearance  | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                  |
+| Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                     |
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`
 and the affected `pnpm verify` root gate. Shared custom colors and System appearance are current behavior;

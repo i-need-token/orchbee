@@ -9,6 +9,7 @@ use ratatui::{
 
 use super::{ColorLevel, GlyphMode, GlyphSet, Polarity, Role, Theme, quantize_color};
 
+mod cursor;
 mod destructive;
 
 const DESIGN_TOKENS_CSS: &str = include_str!("../../../../packages/design-tokens/src/tokens.css");

@@ -11,7 +11,7 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 #[test]
-fn read_only_crop_keeps_latest_prompt_above_status_and_never_resizes_the_controller() {
+fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() {
     for (width, height) in [(80, 24), (40, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let (mut ui, mailbox, _, _) = ready_ui();
@@ -30,6 +30,8 @@ fn read_only_crop_keeps_latest_prompt_above_status_and_never_resizes_the_control
             let mut source = frame(&projection.value, 0, false, 36);
             source.geometry.columns = 104;
             source.geometry.rows = 36;
+            source.cursor.visible = true;
+            source.cursor.column = 0;
             source.cursor.row = 35;
             source.rows[35].cells[0].text = ">".into();
             projection.value.install_frame_for_test(source);
@@ -47,10 +49,40 @@ fn read_only_crop_keeps_latest_prompt_above_status_and_never_resizes_the_control
                     );
                 })
                 .unwrap();
+            let row_text = |row| -> String {
+                (0..width)
+                    .map(|column| terminal.backend().buffer()[(column, row)].symbol())
+                    .flat_map(str::chars)
+                    .filter(|character| !character.is_whitespace())
+                    .collect()
+            };
+            let expected_header = match (width, locale) {
+                (40, Locale::EnUs) => "Crop:scrollup[Actions]",
+                (40, Locale::ZhCn) => "裁切：向上滚动[动作菜单]",
+                (_, Locale::EnUs) => "LivecropCtrl+bPageUpHistory",
+                (_, Locale::ZhCn) => "实时裁切Ctrl+bPageUp历史",
+            };
+            assert_eq!(row_text(pane.y), expected_header, "{width} {locale:?}");
+            let action_row = if areas.tabs.is_empty() {
+                areas.workbench.y
+            } else {
+                areas.tabs.y
+            };
+            let action = match locale {
+                Locale::EnUs => "[Actions]",
+                Locale::ZhCn => "[动作菜单]",
+            };
+            assert!(row_text(action_row).ends_with(action), "{width} {locale:?}");
             assert_eq!(
                 terminal.backend().buffer()[(pane.x, pane.bottom() - 2)].symbol(),
                 ">"
             );
+            assert_eq!(
+                terminal.get_cursor_position().unwrap(),
+                ratatui::layout::Position::new(pane.x, pane.bottom() - 2),
+                "header chrome never moves the live cursor",
+            );
+            assert_eq!(ui.view().pane_live_view(key.pane().panel()), Some(crop));
             assert!(crop.clipped);
             assert!(
                 mailbox.try_recv().unwrap().is_none(),

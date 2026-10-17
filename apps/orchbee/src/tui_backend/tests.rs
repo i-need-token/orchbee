@@ -23,6 +23,8 @@ use super::{
     FixedViewportBackend, ResizableBackend, RestorationGatedWriter, write_modifier_transition,
 };
 
+mod cursor;
+
 fn new_test_backend<W: Write>(writer: W, dimensions: WindowDimensions) -> FixedViewportBackend<W> {
     FixedViewportBackend::new(writer, dimensions, Arc::new(SynchronizedUpdateLease::new()))
 }
@@ -263,7 +265,7 @@ fn every_draw_reestablishes_style_and_cursor_baselines_inside_one_frame() -> io:
 }
 
 #[test]
-fn ratatui_restores_a_visible_cursor_after_each_backend_draw() -> io::Result<()> {
+fn ratatui_paints_its_cursor_without_exposing_the_host_cursor() -> io::Result<()> {
     let backend = new_test_backend(Vec::<u8>::new(), TEST_DIMENSIONS);
     let mut terminal = Terminal::new(backend)?;
 
@@ -279,11 +281,15 @@ fn ratatui_restores_a_visible_cursor_after_each_backend_draw() -> io::Result<()>
     let shows = marker_positions(output, b"\x1b[?25h");
     let ends = marker_positions(output, SYNCHRONIZED_UPDATE_END);
     assert_eq!(hides.len(), 2);
-    assert_eq!(shows.len(), 2);
+    assert!(shows.is_empty());
     assert_eq!(ends.len(), 2);
     for index in 0..2 {
-        assert!(hides[index] < shows[index] && shows[index] < ends[index]);
+        assert!(hides[index] < ends[index]);
     }
+    let (position, cell) = terminal.backend().painted_cursor.as_ref().unwrap();
+    assert_eq!(*position, ratatui::layout::Position::new(1, 1));
+    assert_eq!(cell.symbol(), " ");
+    assert!(output.windows(4).any(|bytes| bytes == b"\x1b[7m"));
     Ok(())
 }
 

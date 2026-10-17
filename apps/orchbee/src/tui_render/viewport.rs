@@ -25,6 +25,7 @@ pub(super) fn render_live(
     view: LiveView,
     show_cursor: bool,
     history_key: Option<&str>,
+    occupied_header: Option<Rect>,
     locale: Locale,
     theme: &Theme,
 ) {
@@ -32,7 +33,17 @@ pub(super) fn render_live(
     if !view.clipped || area.height < 2 || area.width == 0 {
         return;
     }
-    let header = Rect::new(area.x, area.y, area.width, 1);
+    let mut header = Rect::new(area.x, area.y, area.width, 1);
+    if let Some(occupied) =
+        occupied_header.filter(|occupied| !header.intersection(*occupied).is_empty())
+    {
+        // Minimal shell chrome shares this row. Only the indicator yields its
+        // occupied columns; the live content and cursor keep their original area.
+        header.width = occupied.x.saturating_sub(header.x).min(header.width);
+    }
+    if header.is_empty() {
+        return;
+    }
     frame.render_widget(Clear, header);
     frame
         .buffer_mut()
@@ -42,16 +53,19 @@ pub(super) fn render_live(
         let hints = [KeyHint::new(key, locale.terminal_view_history())];
         if let Some(width) = measure_key_hints(&hints, theme)
             && display_width(label).saturating_add(width).saturating_add(2)
-                <= usize::from(area.width)
+                <= usize::from(header.width)
         {
-            frame
-                .buffer_mut()
-                .set_string(area.x, area.y, label, theme.style(Role::TextSecondary));
+            frame.buffer_mut().set_string(
+                header.x,
+                header.y,
+                label,
+                theme.style(Role::TextSecondary),
+            );
             // The complete hint was measured against this u16 rectangle.
             let width = u16::try_from(width).expect("hint fits the pane");
             let _ = render_key_hints(
                 frame,
-                Rect::new(area.right() - width, area.y, width, 1),
+                Rect::new(header.right() - width, header.y, width, 1),
                 &hints,
                 theme,
             );
@@ -61,16 +75,16 @@ pub(super) fn render_live(
     let compact = locale.terminal_live_crop_compact();
     let text = if !terminal.alternate_screen
         && terminal.interaction.mouse_tracking() == orchbee_terminal_protocol::MouseTracking::None
-        && display_width(compact) <= usize::from(area.width)
+        && display_width(compact) <= usize::from(header.width)
     {
         compact
     } else {
         label
     };
-    if display_width(text) <= usize::from(area.width) {
+    if display_width(text) <= usize::from(header.width) {
         frame
             .buffer_mut()
-            .set_string(area.x, area.y, text, theme.style(Role::TextSecondary));
+            .set_string(header.x, header.y, text, theme.style(Role::TextSecondary));
     }
 }
 
