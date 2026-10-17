@@ -166,6 +166,11 @@ fn search_fixture(
     view.settle_copy_mode(true);
     let mut dispatcher = InputDispatcher::default();
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<_, io::Error>(())
+        })
+        .unwrap();
     (port, mailbox, dispatcher, view)
 }
 
