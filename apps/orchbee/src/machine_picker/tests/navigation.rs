@@ -490,6 +490,7 @@ fn pointer_disclosure_preserves_manual_viewport_and_focus_while_canceling_old_wh
             machine: Choice::Local,
             target: owner_context,
         };
+        let before_row_count = picker.sidebar_navigation_rows().len();
         let retained = SidebarTarget::Context {
             machine: Choice::Local,
             target: workspace(2, 23).target,
@@ -510,6 +511,7 @@ fn pointer_disclosure_preserves_manual_viewport_and_focus_while_canceling_old_wh
                 .top
         };
         assert!(manual_top < before.top);
+        let manual_anchor = picker.sidebar_navigation_rows()[manual_top].target();
         if !active {
             picker.leave_sidebar_navigation();
         }
@@ -521,13 +523,20 @@ fn pointer_disclosure_preserves_manual_viewport_and_focus_while_canceling_old_wh
         picker.queue_space_scroll(old_geometry, false);
         assert!(picker.toggle_sidebar_context_agents(&owner));
         assert!(!picker.settle_sidebar_scroll());
-        let expanded_top = {
-            let rows = picker.sidebar_navigation_rows();
+        let updated_rows = picker.sidebar_navigation_rows();
+        assert_eq!(updated_rows.len() + 1, before_row_count);
+        let updated_top = {
             picker
-                .space_window_for_row_gaps(&rows, &vec![1; rows.len()], &vec![0; rows.len()], 2)
+                .space_window_for_row_gaps(
+                    &updated_rows,
+                    &vec![1; updated_rows.len()],
+                    &vec![0; updated_rows.len()],
+                    2,
+                )
                 .top
         };
-        assert_eq!(expanded_top, manual_top);
+        // Removing the child before the viewport shifts its row index, not its anchor.
+        assert_eq!(updated_rows[updated_top].target(), manual_anchor);
         if active {
             assert_eq!(picker.sidebar_focused_target(), Some(&retained));
         } else {

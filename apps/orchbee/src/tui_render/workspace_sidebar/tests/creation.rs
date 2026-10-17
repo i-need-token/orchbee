@@ -61,7 +61,7 @@ fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_row
                     crate::machine_spaces::Checkpoint {
                         site_id: site.clone(),
                         revision: WorkbenchRevision::new(if phase == 2 { 2 } else { 1 }),
-                        metadata_revision: WorkbenchRevision::new(1),
+                        metadata_revision: WorkbenchRevision::new(2),
                         git_requested: true,
                         projects: vec![crate::machine_spaces::ProjectSummary {
                             project_id: project.clone(),
