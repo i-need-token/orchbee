@@ -95,6 +95,19 @@ impl AuthorizedHostOperationKernel {
             self.queue_lifecycle_rejection(request, reason)?;
             return Ok(LifecycleAdmission::ResultReady);
         }
+        if matches!(
+            request.action,
+            TerminalLifecycleAction::InspectInventoryPage { .. }
+        ) {
+            if expired(request, now) {
+                self.queue_lifecycle_rejection(request, LifecycleRejection::LeaseExpired)?;
+                return Ok(LifecycleAdmission::ResultReady);
+            }
+            self.slot = Some(HostOperationSlot::Lifecycle(LifecycleSlot::Awaiting(
+                request,
+            )));
+            return Ok(LifecycleAdmission::Dispatch(LifecycleDispatch { request }));
+        }
         let binding = self
             .bindings
             .get(&request.authorization.terminal_id)
@@ -253,6 +266,13 @@ impl AuthorizedHostOperationKernel {
         outcome: TerminalLifecycleOutcome,
     ) -> Result<(), AuthorizationKernelError> {
         let result = TerminalLifecycleResult::new(request, outcome)?;
+        if matches!(
+            request.action,
+            TerminalLifecycleAction::InspectInventoryPage { .. }
+        ) {
+            self.slot = Some(HostOperationSlot::Lifecycle(LifecycleSlot::Ready(result)));
+            return Ok(());
+        }
         let receipts = self
             .bindings
             .get_mut(&request.authorization.terminal_id)
@@ -284,6 +304,7 @@ fn is_mutation(request: TerminalLifecycleRequest) -> bool {
     !matches!(
         request.action,
         TerminalLifecycleAction::InventoryPage { .. }
+            | TerminalLifecycleAction::InspectInventoryPage { .. }
     )
 }
 

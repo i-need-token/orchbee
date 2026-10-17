@@ -11,7 +11,7 @@
 		"format": "zig fmt build.zig build.zig.zon src",
 		"format:check": "zig fmt --check build.zig build.zig.zon src && node scripts/check-zig-file-size.mjs",
 		"surface-fixtures:generate": "node scripts/run-surface-fixture-conformance.mjs --write",
-		"test": "zig build test -j1 && node scripts/run-protocol-conformance.mjs && node scripts/run-surface-fixture-conformance.mjs",
+		"test": "zig build test -j1 && node scripts/run-protocol-conformance.mjs && node scripts/run-surface-fixture-conformance.mjs && node --test scripts/powershell-prompt.test.mjs",
 		"test:black-box": "zig build test-black-box",
 		"test:protocol": "node scripts/run-protocol-conformance.mjs",
 		"test:surface-fixtures": "node scripts/run-surface-fixture-conformance.mjs",

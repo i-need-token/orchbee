@@ -502,3 +502,20 @@ Host 使用这些事实和固定的 Ghostty 选择行为来拥有单词、行、
 OBTF 与 OBPB 的网格几何以 `(0, 0)` 保留未知字符像素尺寸，与 Host 及控制几何契约一致。
 否则两个尺寸都必须为正；零值与正值混合的组合非法。网格及像素范围上限不变。
 终端快照不会为了导出文本或样式而编造像素尺寸。
+
+## 条件空闲终止
+
+kind 82 `TerminateTerminalIfIdle` 使用控制 JSON 请求／响应，与普通终止共用准确的
+`{ terminalId }` schema。成功回显目标且只接受经过空闲门禁的优雅终止请求；不证明退出或已处置。
+Host 在派发前立即刷新权威进程／提示符状态。活动、未知、排队输入或尚未得到回应的输入返回
+不可重试的 typed `confirmation-required`，不改变终止意图或发送信号。成功的库存预读不能替代
+此门禁。旧 cohort 拒绝 kind 82；不会回退到 kind 12 或 Force。
+
+库存摘要可携带 `closeActivity: "idle" | "active" | "unknown"`。
+Host 为每个序列化页刷新这项仅供关闭的观察，包括没有 attachment 的终端。缺省表示 unknown，
+绝非 idle；显式 null 或其他值非法。采样与内容 revision 及库存 membership generation 独立。
+其 idle 状态要求当前语义提示符证据，且此前未接受产生字节的活动输入。
+接受活动输入字节后，活动终端的空闲证据保持 unknown，直到终端被替换或已证实结束；即使 OS 写入
+全部完成，后续 C/A 提示符周期也不能证明 shell 缓冲已被消费。普通投影关闭活动的回退
+不授予破坏性权限。TypeScript／Rust codec 与 Zig registry 共用封闭判别值及既有规范目标 ACK
+fixture。

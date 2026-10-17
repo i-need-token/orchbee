@@ -936,3 +936,23 @@ Packed OBTF and OBPB geometry preserves unknown cell pixels as `(0, 0)`, matchin
 control geometry contract. Otherwise both dimensions are positive; mixed zero/positive pairs are
 invalid. Grid and pixel-extent bounds remain unchanged. A terminal snapshot never invents pixel
 dimensions merely to export text or styles.
+
+## Conditional idle termination
+
+Kind 82 `TerminateTerminalIfIdle` is a control-JSON request/response with the same exact
+`{ terminalId }` schema as ordinary termination. Success echoes that target and accepts only a
+guarded graceful request; it does not establish exit or disposal. Immediately before dispatch the
+Host refreshes authoritative process/prompt state. Active, unknown, queued input or unacknowledged
+input returns non-retryable typed `confirmation-required` without changing termination intent or
+signaling. A successful inventory pre-read never replaces this guard. Old cohorts reject kind 82;
+there is no fallback to kind 12 or Force.
+
+Inventory summaries optionally carry `closeActivity: "idle" | "active" | "unknown"`.
+The Host refreshes this close-only observation for every serialized page, including unattached
+terminals. Absence means unknown, never idle; explicit null and other values are malformed. The
+sample is independent of content revision and inventory membership generation. Its idle state
+requires current semantic prompt evidence and no previously accepted activity-affecting input bytes.
+Accepted activity bytes latch live idle evidence unknown until terminal replacement or proven
+settlement: even fully accounted OS writes and later C/A prompt cycles do not prove shell-buffer
+consumption. Ordinary projection close-activity fallback does not grant destructive authority. TypeScript/Rust codecs and
+the Zig registry share the closed discriminants and existing canonical target-ACK fixture.

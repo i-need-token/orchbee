@@ -202,6 +202,7 @@ fn core(terminal: u8) -> orchbee_terminal_protocol::TerminalSummaryCore {
         TerminalThemeState,
     };
     TerminalSummaryCore {
+        close_activity: None,
         configuration: TerminalConfiguration {
             scrollback_bytes: 0,
         },

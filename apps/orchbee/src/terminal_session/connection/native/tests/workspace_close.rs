@@ -170,19 +170,28 @@ fn ready(scope: Scope) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, S
     (ui, mailbox, clock, snapshot)
 }
 fn open(ui: &mut NativeUi, scope: Scope) {
-    assert_eq!(
-        if scope.project() {
-            ui.request_project_close_all(&project_id(scope))
-        } else if scope == Scope::BackgroundWorkspace {
-            ui.request_workspace_close_at(
-                &snapshot().navigation.workspaces[scope.index()].workspace_id,
-            )
-        } else {
-            ui.apply_client_action(ClientAction::RequestWorkspaceClose)
-        },
-        SessionActionDisposition::DismissNavigator
-    );
+    if scope.project() {
+        assert_eq!(
+            ui.request_project_close_all(&project_id(scope)),
+            SessionActionDisposition::DismissNavigator
+        );
+    } else {
+        let target = snapshot().navigation.workspaces[scope.index()]
+            .workspace_id
+            .clone();
+        let (Some(mailbox), Some(state)) = (ui.mailbox.as_ref(), ui.state.as_mut()) else {
+            panic!("ready UI");
+        };
+        assert!(
+            mailbox
+                .apply_local_for(state, |state| state
+                    .open_workspace_close_at(&target)
+                    .ok_or(()))
+                .is_ok()
+        );
+    }
 }
+
 fn draw(ui: &mut NativeUi, locale: Locale, theme: &Theme, width: u16, height: u16) -> String {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     let view = ClientView::new(width);

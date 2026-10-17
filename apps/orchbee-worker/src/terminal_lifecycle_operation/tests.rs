@@ -636,6 +636,7 @@ fn summary_core(
         TerminalThemeState,
     };
     Ok(TerminalSummaryCore {
+        close_activity: None,
         configuration: TerminalConfiguration {
             scrollback_bytes: 0,
         },
@@ -754,6 +755,7 @@ fn inventory_projects_every_exact_target_phase_and_rejects_conflicting_identitie
         assert_eq!(
             page.target,
             Some(LifecycleTargetObservation {
+                close_activity: orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
                 revision: 42,
                 phase
             })

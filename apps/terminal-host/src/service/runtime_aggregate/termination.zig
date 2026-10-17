@@ -11,6 +11,21 @@ const DisposeResult = contracts.DisposeResult;
 const TerminationError = contracts.TerminationError;
 const TerminationMode = contracts.TerminationMode;
 
+/// The Host owner serializes this live check with all input/Start admissions.
+/// A failed guard leaves Core termination intent and the process untouched.
+pub fn requestTerminationIfIdle(
+    self: anytype,
+    connection_id: core_module.ConnectionId,
+    terminal_id: core_module.TerminalId,
+) TerminationError!core_module.TransitionOutcome {
+    self.synchronizeTerminal(terminal_id);
+    const admission = try self.core_state.prepareTermination(connection_id, terminal_id, .graceful);
+    if (admission == .replay) return .idempotent;
+    const runtime = self.runtimeFor(terminal_id) orelse return error.ConfirmationRequired;
+    if (runtime.sampleCloseActivityForClose() != .idle) return error.ConfirmationRequired;
+    return requestTermination(self, connection_id, terminal_id, .graceful);
+}
+
 pub fn requestTermination(
     self: anytype,
     connection_id: core_module.ConnectionId,

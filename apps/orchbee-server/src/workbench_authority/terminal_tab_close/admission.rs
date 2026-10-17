@@ -215,6 +215,12 @@ impl<'a> WorkbenchTabCloseAdmission<'a> {
 }
 
 impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
+    /// Explicit ordinary Close may resume a parked conditional operation with
+    /// confirmation authority, preserving its canonical identity and receipts.
+    #[must_use]
+    pub fn resolve_after_confirmation(self, now: Instant) -> WorkbenchTabCloseResolution<'a> {
+        self.resolve_workspace_scope(Some(now))
+    }
     #[must_use]
     pub fn terminal_membership(&self) -> &WorkbenchTerminalMembership {
         &self.membership
@@ -231,6 +237,13 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
     /// create/split owing this Context a member refuses busy.
     #[must_use]
     pub fn resolve_after_composition(self) -> WorkbenchTabCloseResolution<'a> {
+        self.resolve_workspace_scope(None)
+    }
+
+    fn resolve_workspace_scope(
+        self,
+        confirmed_at: Option<Instant>,
+    ) -> WorkbenchTabCloseResolution<'a> {
         let workspace_id = match &self.command.action {
             WorkbenchAction::WorkspaceClose { workspace_id }
             | WorkbenchAction::WorkspaceCloseIfIdle { workspace_id } => workspace_id.clone(),
@@ -267,8 +280,24 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
             }
             let same_action = std::mem::discriminant(&record.command.action)
                 == std::mem::discriminant(&self.command.action);
-            if same_action {
-                // Joining retained facts is effect-free even when the runtime is now unavailable.
+            let upgrade = confirmed_at
+                .filter(|_| {
+                    matches!(self.command.action, WorkbenchAction::WorkspaceClose { .. })
+                        && matches!(
+                            record.command.action,
+                            WorkbenchAction::WorkspaceCloseIfIdle { .. }
+                        )
+                        && record.is_resumable()
+                })
+                .and_then(|now| {
+                    Some((
+                        record.generation.checked_next()?,
+                        record.prepare_resumes(now).ok()?,
+                    ))
+                });
+            if same_action || upgrade.is_some() {
+                // Plain joins are effect-free. Explicit confirmation resumes
+                // only this retained operation after the alias commit succeeds.
                 let plan = CommitPlan {
                     projection: None,
                     last_identity: None,
@@ -279,6 +308,20 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
                     match self.authority.prepare_command_commit(self.command, plan) {
                         Ok(prepared) => {
                             let result = prepared.commit();
+                            if let Some((generation, resumes)) = upgrade {
+                                // The same Authority gate spans lookup and alias
+                                // insertion; committing an alias never removes its primary.
+                                let Some(RetainedRequest::TabClose(record)) =
+                                    self.authority.ledger.get_mut(&close_id)
+                                else {
+                                    unreachable!("confirmed alias retains its primary Close");
+                                };
+                                record.commit_resumes(resumes);
+                                record.generation = generation;
+                                for continuation in &mut record.continuations {
+                                    continuation.confirmed();
+                                }
+                            }
                             self.authority.release_failed_worktree_close(&close_id);
                             result
                         }
@@ -333,6 +376,13 @@ impl<'a> WorkbenchWorkspaceCloseAdmission<'a> {
 }
 
 impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
+    /// A conditional preflight could not establish complete live idle evidence.
+    /// This retained rejection allocates no Close operation or lifecycle fence.
+    #[must_use]
+    pub fn confirmation_required(self) -> WorkbenchCommandResult {
+        self.authority
+            .retain_rejection(self.command, WorkbenchRejectionReason::ConfirmationRequired)
+    }
     #[must_use]
     pub fn member(&self) -> &super::super::WorkbenchTerminalTab {
         self.members.first().expect("Close membership is nonempty")
@@ -411,10 +461,13 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         if matches!(
             self.command.action,
             WorkbenchAction::WorkspaceCloseIfIdle { .. }
-        ) && runtimes
-            .iter()
-            .any(|runtime| !matches!(runtime, WorkbenchTabCloseMemberRuntime::Uncreated { .. }))
-        {
+        ) && runtimes.iter().any(|runtime| {
+            !matches!(
+                runtime,
+                WorkbenchTabCloseMemberRuntime::Uncreated { .. }
+                    | WorkbenchTabCloseMemberRuntime::IdleRuntime { .. }
+            )
+        }) {
             return WorkbenchTabClosePreparation::Ready(
                 self.authority
                     .retain_rejection(self.command, WorkbenchRejectionReason::ConfirmationRequired),
@@ -465,6 +518,13 @@ impl<'a> WorkbenchTabClosePrimaryAdmission<'a> {
         let mut continuations = Vec::with_capacity(member_count);
         for (member, evidence) in self.members.into_iter().zip(runtimes) {
             let (runtime, continuation) = match evidence {
+                WorkbenchTabCloseMemberRuntime::IdleRuntime {
+                    target,
+                    observed_phase,
+                } => (
+                    Some(target),
+                    CloseContinuation::prepare_if_idle(now, Some(observed_phase)),
+                ),
                 WorkbenchTabCloseMemberRuntime::Runtime {
                     target,
                     observed_phase,

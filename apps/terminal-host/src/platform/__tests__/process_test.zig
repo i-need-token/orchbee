@@ -13,6 +13,38 @@ const ExitResult = subject.ExitResult;
 const PosixProcess = subject.testing.PosixProcessType;
 const Process = subject.Process;
 const foregroundCommandActive = subject.testing.foregroundCommandActiveFn;
+
+test "idle evidence distinguishes interactive shell launches from commands and solo agents" {
+    const classify = subject.testing.interactiveShellLaunchFn;
+    try std.testing.expect(classify("C:\\Program Files\\PowerShell\\7\\pwsh.exe", &.{}));
+    try std.testing.expect(classify("powershell.exe", &.{ "-NoLogo", "-NoProfile" }));
+    try std.testing.expect(classify("/bin/zsh", &.{"-l"}));
+    try std.testing.expect(!classify("codex.exe", &.{}));
+    try std.testing.expect(!classify("/usr/bin/python", &.{"agent.py"}));
+    try std.testing.expect(!classify("pwsh.exe", &.{ "-Command", "Start-Sleep 60" }));
+    try std.testing.expect(!classify("cmd.exe", &.{ "/C", "agent.exe" }));
+    try std.testing.expect(!classify("/bin/sh", &.{ "-c", "exec agent" }));
+    try std.testing.expect(!classify("/bin/bash", &.{"script.sh"}));
+}
+
+test "PowerShell prompt bootstrap is process local and only extends an interactive launch" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const original = [_][]const u8{"-l"};
+    const injected = try subject.testing.powershellArgumentsFn(arena.allocator(), "pwsh.exe", &original);
+    try std.testing.expectEqual(@as(usize, 4), injected.len);
+    try std.testing.expectEqualStrings("-l", injected[0]);
+    try std.testing.expectEqualStrings("-NoExit", injected[1]);
+    try std.testing.expectEqualStrings("-Command", injected[2]);
+    try std.testing.expect(std.mem.indexOf(u8, injected[3], "PSConsoleHostReadLine") != null);
+    for ([_][]const u8{ "cmd.exe", "agent.exe" }) |executable| {
+        try std.testing.expectEqual(@as(usize, 0), (try subject.testing.powershellArgumentsFn(arena.allocator(), executable, &.{})).len);
+    }
+    const command = [_][]const u8{ "-Command", "Start-Sleep 60" };
+    const unchanged = try subject.testing.powershellArgumentsFn(arena.allocator(), "pwsh.exe", &command);
+    try std.testing.expectEqual(command.len, unchanged.len);
+    for (command, unchanged) |expected, actual| try std.testing.expectEqualStrings(expected, actual);
+}
 const posixExecutableCandidates = subject.testing.posixExecutableCandidatesFn;
 const windowsCommandLine = subject.testing.windowsCommandLineFn;
 

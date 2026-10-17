@@ -2585,6 +2585,95 @@ const ActiveCommandObservation = enum {
     inactive,
 };
 
+test "destructive close needs a fresh prompt and never reclassifies accepted input as consumed" {
+    var probe: GatedReaderProbe(ActiveCommandProbe) = .{ .probe = .{ .observation = .inactive } };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    probe.runtime = runtime;
+    defer {
+        probe.reader.release();
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+    probe.reader.wait();
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"));
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    probe.probe.observation = .active;
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.active, runtime.sampleCloseActivityForClose());
+    probe.probe.observation = .failed;
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    probe.probe.observation = .inactive;
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    // A suppressed encoding publishes no shell bytes and cannot leave buffered work.
+    try std.testing.expectEqual(@as(usize, 0), try runtime.enqueueKeyInput(.{
+        .action = .release,
+        .composing = false,
+        .consumed_modifiers = .{},
+        .key = "KeyA",
+        .modifiers = .{},
+        .text = "",
+        .unshifted_codepoint = 0,
+    }));
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    _ = try runtime.enqueueRawInput("ordinary-command\r");
+    for ([_][]const u8{
+        "\x1b]133;A\x07\x1b]133;B\x07",
+        "\x1b]133;C\x07\x1b]133;A\x07\x1b]133;B\x07",
+        "\x1b]133;C\x07\x1b]133;A\x07\x1b]133;B\x07",
+    }) |markers| {
+        try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, markers));
+        try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    }
+    // Projection retains its separate current-prompt behavior.
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, (try runtime.sampleCloseActivity()).activity);
+}
+
+const BufferedCloseCommands = struct {
+    fn inactive(_: *anyopaque) anyerror!bool {
+        return false;
+    }
+    fn accounted(context: *anyopaque) void {
+        const probe: *WriterProbe = @ptrCast(@alignCast(context));
+        if (probe.counts().calls == 2) probe.accounted.notify();
+    }
+};
+
+test "fully written queued commands cannot be acknowledged by an earlier prompt cycle" {
+    var probe: GatedReaderProbe(WriterProbe) = .{ .probe = .{ .pause_at = .copied } };
+    var hooks = probe.hooks();
+    hooks.has_active_command = BufferedCloseCommands.inactive;
+    hooks.writer_slice_accounted = BufferedCloseCommands.accounted;
+    const runtime = try createRuntimeWithHooks(hooks);
+    probe.runtime = runtime;
+    defer {
+        probe.probe.copied.release();
+        probe.reader.release();
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+    probe.reader.wait();
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;A\x07\x1b]133;B\x07"));
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, runtime.sampleCloseActivityForClose());
+    _ = try runtime.enqueueRawInput("first-command\r");
+    probe.probe.copied.wait();
+    _ = try runtime.enqueueRawInput("Start-Sleep -Seconds 30\r");
+    try std.testing.expectEqual(@as(usize, 2), inputQueueSnapshot(runtime).client_charge.entries);
+    probe.probe.copied.release();
+    probe.probe.accounted.wait();
+    // Both successful platform writes are accounted, but the second command
+    // may still be buffered inside ConPTY or PSReadLine. No VT cycle proves it.
+    try std.testing.expectEqual(@as(usize, 0), inputQueueSnapshot(runtime).client_charge.entries);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    for ([_][]const u8{
+        "\x1b]133;C\x07\x1b]133;A\x07\x1b]133;B\x07",
+        "\x1b]133;A\x07\x1b]133;B\x07",
+        "\x1b]133;C\x07\x1b]133;A\x07\x1b]133;B\x07",
+    }) |markers| {
+        try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, markers));
+        try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, runtime.sampleCloseActivityForClose());
+    }
+}
+
 const ActiveCommandProbe = struct {
     calls: usize = 0,
     observation: ActiveCommandObservation,

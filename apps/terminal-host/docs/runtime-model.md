@@ -1955,3 +1955,38 @@ duplicating authority, permitting illegal state combinations, or hiding cross-ow
 a boundary improvement.
 
 The opaque runtime handle composes a private `process_handle.zig` adapter for process sampling, completion and termination. This adapter only converts the handle to private State and delegates to the existing process/lifecycle owners; it introduces no state, ordering change, or new process authority. This keeps process-facing growth out of the general runtime facade.
+
+## Destructive Close observations
+
+Native inventory and guarded termination use `sampleCloseActivityForClose`, independently of the
+projection fallback described above. Idle requires a recognized interactive shell, a successful
+inactive process observation, current semantic prompt state and no queued/in-flight client input.
+Direct commands, scripts and Agent roots remain active even when they are the only process. A
+Windows exited root with remaining Job descendants is active. Missing prompt semantics and process
+query failure remain unknown.
+
+Successful publication of nonempty activity-affecting client bytes sets a monotonic close-only
+fence under `input_mutex`. Zero-byte and focus-only semantics preserve existing projection
+policy but cannot create buffered command bytes and do not set this fence. After publication, an
+inactive live-process sample stays unknown until terminal replacement or authoritative settlement. `client_charge.entries` includes reserved,
+queued, copied, in-flight and partial writes until the final successful OS write is accounted; zero
+entries prove delivery, not consumption. ConPTY/PSReadLine may still hold later commands. An earlier prompt after command 1
+cannot prove that command 2 is no longer buffered, and later prompt markers never clear this fence. Projection's reclassification and epochs remain unchanged and
+cannot authorize a destructive Close. Ordinary post-command live prompts require confirmation.
+
+On Windows, interactive PowerShell launches receive an embedded, process-local `-NoExit -Command` bootstrap
+after normal profile execution. It snapshots the existing `PSConsoleHostReadLine` ScriptBlock,
+emits A/B before invoking it and C in finally, preserving returned input and thrown exceptions.
+It leaves prompt functions (including mise), PSReadLine history/key hooks and all profile files
+untouched. Commands, scripts and unknown shells receive no bootstrap. Missing or restricted reader
+support emits no idle proof. Existing sessions without integration require confirmation. The reader
+hook boundary also appears in [VS Code's PowerShell integration](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1);
+Orchbee adopts only read-phase markers, not command text, environment reporting or key remapping.
+
+The Host owner rechecks this strict sample immediately before admitting guarded graceful dispatch;
+refusal leaves Core intent unchanged and sends no signal. The Server retains late refusal/partial
+results and never forces an unconfirmed Close. Runtime/process regressions and the recurring
+`powershell-prompt.test.mjs` check cover queued-input consumption ambiguity, builtin-vs-prompt state, direct Agent roots,
+reader output/exceptions and preserved hooks. Native TUI evidence remains required for live startup,
+all-Tab membership and actual OS scheduling; sampled evidence is not an atomic OS process-spawn
+transaction.

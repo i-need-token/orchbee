@@ -66,6 +66,7 @@ export function encodeControlRequest(
 		case MessageKind.startTerminal:
 			return encodeControlJson(value, StartTerminalSchema);
 		case MessageKind.terminateTerminal:
+		case MessageKind.terminateTerminalIfIdle:
 		case MessageKind.forceTerminateTerminal:
 		case MessageKind.disposeTerminal:
 			return encodeControlJson(value, TerminalTargetSchema);

@@ -593,6 +593,13 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None,
         Some(PayloadEncoding::GraphicsImage)
     ),
+    contract!(
+        82,
+        "TerminateTerminalIfIdle",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 82)),
+        Some(PayloadEncoding::ControlJson)
+    ),
 ];
 
 const _: () = {

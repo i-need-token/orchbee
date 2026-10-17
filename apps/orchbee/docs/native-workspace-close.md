@@ -2,8 +2,9 @@
 
 ## Scope and user outcome
 
-The Windows TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`), followed by the
-unmodified `Enter`; `Esc` cancels. The complete confirmation names the Workspace and explains
+The Windows TUI closes only the current Workspace with `Ctrl+B D` (`Shift+D`). Proven idle Workspaces
+close directly; active or unproven program state opens confirmation, where unmodified `Enter`
+confirms and `Esc` cancels. The complete confirmation names the Workspace and explains
 that its terminals end for every Client while Git branches and checkouts remain. Project grouping,
 shared directories and worktree relationships never expand this scope. Ungrouped Workspaces are
 valid targets. The legacy compatibility Workspace has no canonical Workspace ID; close its Tabs
@@ -28,7 +29,7 @@ terminals close for every Client. The Server captures Project membership at admi
 record remains, including when already empty. Dissolving a Project is a separate organization
 operation that preserves Workspaces and terminals.
 
-Ordinary Close uses `WorkbenchAction::WorkspaceClose`; only explicit Project close-all uses group
+Explicitly confirmed Close uses `WorkbenchAction::WorkspaceClose`; only explicit Project close-all uses group
 Start. Neither path deletes Git data or automatically resumes a failed attempt. Read retained status
 with `workspace close-status --workspace <workspace-id>` or
 `project close-status --request <operation-id>`. Eligible recovery uses explicit CLI Resume;
@@ -36,13 +37,26 @@ Pending and Unknown permit observation only.
 
 ## Conditional sidebar admission
 
-Sidebar Workspace Delete uses additive `WorkspaceCloseIfIdle`, never a Client "idle" flag followed
-by ordinary Close. Under the existing Server admission gate, grants, Site/revision, replay fingerprint
-and capacity checks precede complete captured membership and primary/child binding proof. Only
-definitively never-created or empty terminal scope is admitted without a prompt. Runtime-backed,
-pending, unavailable and unknown scope does not become idle because a Client saw no attached pane
-or a process appeared exited. Acceptance installs the same Close reservation/fence before releasing
-the gate, so a concurrent create or split cannot occupy the accepted scope.
+Sidebar Delete, addressed Close and the keyboard shortcut share `WorkspaceCloseIfIdle`; none
+uses a Client idle flag followed by ordinary Close. The Server captures all Tabs, split leaves and
+child Presentations, reads fresh native inventory outside its gates, then revalidates the complete
+scope and exact runtime identities at final admission. Empty/never-created scope and authoritative
+idle or settled runtimes close directly. Active, missing, unavailable or unknown process evidence
+requires the existing fully drawn confirmation with a fresh unconditional request ID. Concurrent
+create/split and revision drift retain ordinary safety fences.
+
+Host dispatch independently guards each unconfirmed termination. Its strict idle evidence requires
+an interactive shell, current prompt semantics and no previously accepted activity-affecting input bytes;
+a single process or a shell foreground group alone is insufficient. After such byte-producing input,
+the live terminal requires confirmation until it is replaced or
+proven settled. A later prompt cannot prove consumption of ConPTY/PSReadLine-buffered commands.
+This conservative boundary also applies after an ordinary command appears to return to its prompt. New interactive PowerShell
+launches receive process-local reader markers that preserve the user's prompt, history and key hooks.
+Older or unsupported shell sessions without reliable prompt markers require confirmation. A program
+starting after inventory can therefore refuse the actual signal. Such late refusal preserves the
+Close operation and any completed members; no implicit Force runs. Repeating Close on its known
+resumable refusal opens explicit confirmation, and the ordinary confirmed command resumes that
+same canonical operation. Unknown/in-flight effects remain fenced.
 
 Project Delete uses `ProjectDissolveIfIdle` over the entire captured member scope and preserves all
 Workspaces and resources. It never invokes close-all. A definite same-base `confirmation-required`

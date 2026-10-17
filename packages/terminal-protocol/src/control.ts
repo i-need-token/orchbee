@@ -956,6 +956,7 @@ export const FailureContainmentSchema = z.discriminatedUnion('kind', [
 ]);
 
 const terminalSummaryShape = {
+	closeActivity: z.enum(['idle', 'active', 'unknown']).optional(),
 	configuration: TerminalConfigurationSchema,
 	configurationRevision: CanonicalUint64TextSchema,
 	identity: TerminalIdentitySchema,

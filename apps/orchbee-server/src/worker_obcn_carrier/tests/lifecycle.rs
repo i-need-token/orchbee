@@ -90,7 +90,7 @@ fn every_lifecycle_seal_field_is_checked_even_on_a_definite_refusal() -> TestRes
             10 => {
                 actual.authorization.capability_version =
                     orchbee_capability_node_protocol::TerminalLifecycleCapabilityVersion::new(
-                        std::num::NonZeroU16::new(2).unwrap(),
+                        std::num::NonZeroU16::new(3).unwrap(),
                     );
                 WorkerResponseFailure::MismatchedAuthorization
             }

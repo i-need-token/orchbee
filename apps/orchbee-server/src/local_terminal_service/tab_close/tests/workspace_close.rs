@@ -1,4 +1,5 @@
 use super::*;
+mod idle;
 use crate::site_coordinator::PendingTerminalTabCreate;
 use orchbee_client_server_protocol::RequestId;
 use orchbee_server::WorkbenchGrant;

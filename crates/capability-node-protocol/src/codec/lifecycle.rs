@@ -2,13 +2,13 @@ use std::num::{NonZeroU16, NonZeroU64};
 
 use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
-    LeaseExpiresAtUnixMilliseconds, LeaseId, LifecycleHostFailure, LifecycleInventoryCursor,
-    LifecycleInventoryFailure, LifecycleInventoryPage, LifecycleRejection, LifecycleStepOrdinal,
-    LifecycleTargetObservation, LifecycleTerminalPhase, LifecycleUnknownReason, OperationId,
-    ProtocolError, TerminalFence, TerminalId, TerminalLifecycleAction,
-    TerminalLifecycleAuthorization, TerminalLifecycleCapabilityVersion, TerminalLifecycleOutcome,
-    TerminalLifecycleRequest, TerminalLifecycleResult, TerminalOperationLease, WorkerGeneration,
-    WorkerId,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, LifecycleCloseActivity, LifecycleHostFailure,
+    LifecycleInventoryCursor, LifecycleInventoryFailure, LifecycleInventoryPage,
+    LifecycleRejection, LifecycleStepOrdinal, LifecycleTargetObservation, LifecycleTerminalPhase,
+    LifecycleUnknownReason, OperationId, ProtocolError, TerminalFence, TerminalId,
+    TerminalLifecycleAction, TerminalLifecycleAuthorization, TerminalLifecycleCapabilityVersion,
+    TerminalLifecycleOutcome, TerminalLifecycleRequest, TerminalLifecycleResult,
+    TerminalOperationLease, WorkerGeneration, WorkerId,
 };
 
 pub(super) fn encode_request(request: TerminalLifecycleRequest) -> Vec<u8> {
@@ -36,6 +36,13 @@ pub(super) fn encode_result(result: TerminalLifecycleResult) -> Vec<u8> {
                     bytes.push(1);
                     bytes.extend(target.revision.to_be_bytes());
                     encode_phase(&mut bytes, target.phase);
+                    if result.request().authorization.capability_version.get() >= 2 {
+                        bytes.push(match target.close_activity {
+                            LifecycleCloseActivity::Unknown => 0,
+                            LifecycleCloseActivity::Idle => 1,
+                            LifecycleCloseActivity::Active => 2,
+                        });
+                    }
                 }
             }
         }
@@ -57,6 +64,7 @@ pub(super) fn encode_result(result: TerminalLifecycleResult) -> Vec<u8> {
             match reason {
                 LifecycleHostFailure::HostRefused => 1,
                 LifecycleHostFailure::CleanupIncomplete => 2,
+                LifecycleHostFailure::ConfirmationRequired => 3,
             },
         ]),
         TerminalLifecycleOutcome::InventoryFailure(reason) => bytes.extend([
@@ -104,6 +112,16 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalLifecycleResult, Pro
                 1 => Some(LifecycleTargetObservation {
                     revision: reader.read_u64()?,
                     phase: decode_phase(&mut reader)?,
+                    close_activity: if request.authorization.capability_version.get() >= 2 {
+                        match reader.read_u8()? {
+                            0 => LifecycleCloseActivity::Unknown,
+                            1 => LifecycleCloseActivity::Idle,
+                            2 => LifecycleCloseActivity::Active,
+                            _ => return Err(ProtocolError::InvalidPayload),
+                        }
+                    } else {
+                        LifecycleCloseActivity::Unknown
+                    },
                 }),
                 _ => return Err(ProtocolError::InvalidPayload),
             };
@@ -128,6 +146,7 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalLifecycleResult, Pro
         6 => TerminalLifecycleOutcome::HostFailure(match reader.read_u8()? {
             1 => LifecycleHostFailure::HostRefused,
             2 => LifecycleHostFailure::CleanupIncomplete,
+            3 => LifecycleHostFailure::ConfirmationRequired,
             _ => return Err(ProtocolError::InvalidPayload),
         }),
         7 => TerminalLifecycleOutcome::InventoryFailure(match reader.read_u8()? {
@@ -165,10 +184,15 @@ fn encode_request_body(bytes: &mut Vec<u8>, request: TerminalLifecycleRequest) {
     encode_host_identity(bytes, request.target);
     match request.action {
         TerminalLifecycleAction::Terminate => bytes.push(1),
+        TerminalLifecycleAction::TerminateIfIdle => bytes.push(5),
         TerminalLifecycleAction::Force => bytes.push(2),
         TerminalLifecycleAction::Dispose => bytes.push(3),
         TerminalLifecycleAction::InventoryPage { cursor } => {
             bytes.push(4);
+            encode_cursor(bytes, cursor);
+        }
+        TerminalLifecycleAction::InspectInventoryPage { cursor } => {
+            bytes.push(6);
             encode_cursor(bytes, cursor);
         }
     }
@@ -196,6 +220,10 @@ fn decode_request_body(
     let target = decode_host_identity(reader)?;
     let action = match reader.read_u8()? {
         1 => TerminalLifecycleAction::Terminate,
+        5 if capability_version.get() >= 2 => TerminalLifecycleAction::TerminateIfIdle,
+        6 if capability_version.get() >= 2 => TerminalLifecycleAction::InspectInventoryPage {
+            cursor: decode_cursor(reader)?,
+        },
         2 => TerminalLifecycleAction::Force,
         3 => TerminalLifecycleAction::Dispose,
         4 => TerminalLifecycleAction::InventoryPage {

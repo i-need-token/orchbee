@@ -43,6 +43,47 @@ fn frame(payload: &[u8]) -> Vec<u8> {
 }
 
 #[test]
+fn v2_inspection_activity_and_idle_guard_have_distinct_closed_bytes() -> TestResult {
+    for (action, outcome) in [
+        (vec![5], vec![1]),
+        (vec![5], vec![6, 3]),
+        (vec![6, 0], vec![7, 3]),
+    ] {
+        let mut payload = request_payload(&action);
+        assert!(
+            decode_message(&frame(&payload)).is_err(),
+            "v1 cannot claim a v2 action"
+        );
+        payload[2] = 2;
+        assert_eq!(
+            encode_message(&decode_message(&frame(&payload))?)?,
+            frame(&payload)
+        );
+        payload[0] = 10;
+        payload.extend(outcome);
+        assert_eq!(
+            encode_message(&decode_message(&frame(&payload))?)?,
+            frame(&payload)
+        );
+    }
+    for activity in 0..=3 {
+        let mut payload = request_payload(&[6, 0]);
+        payload[0] = 10;
+        payload[2] = 2;
+        let mut observation = vec![2, 0]; // Running, terminateRequested=false.
+        observation.push(activity);
+        payload.extend(page_bytes(7, None, 1, Some(&observation)));
+        let decoded = decode_message(&frame(&payload));
+        if activity == 3 {
+            assert!(decoded.is_err());
+        } else {
+            assert_eq!(encode_message(&decoded?)?, frame(&payload));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn hand_derived_lifecycle_request_and_acknowledgement_goldens_round_trip() -> TestResult {
     for action in 1..=3 {
         let mut payload = request_payload(&[action]);
@@ -262,6 +303,8 @@ fn complete_request_seal_and_six_host_phases_are_retained() -> TestResult {
                 }),
                 returned_count: 128,
                 target: Some(LifecycleTargetObservation {
+                    close_activity:
+                        orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
                     revision: u64::MAX,
                     phase
                 }),

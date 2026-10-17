@@ -1,3 +1,5 @@
+//! Closed, versioned lifecycle observations and exact binding authorization.
+//! Read-only inspection never grants a retained Close or mutation authority.
 use std::num::{NonZeroU8, NonZeroU16, NonZeroU64};
 
 use crate::{
@@ -6,7 +8,7 @@ use crate::{
 };
 
 pub const TERMINAL_LIFECYCLE_CAPABILITY_VERSION: TerminalLifecycleCapabilityVersion =
-    TerminalLifecycleCapabilityVersion::new(NonZeroU16::MIN);
+    TerminalLifecycleCapabilityVersion::new(NonZeroU16::new(2).unwrap());
 pub const LIFECYCLE_INVENTORY_PAGE_TERMINALS: u16 = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -62,11 +64,25 @@ pub struct LifecycleInventoryCursor {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalLifecycleAction {
     Terminate,
+    /// Ends only a freshly rechecked idle shell; never grants unconditional termination.
+    TerminateIfIdle,
     Force,
     Dispose,
     InventoryPage {
         cursor: Option<LifecycleInventoryCursor>,
     },
+    /// Read-only preflight; does not claim or advance a Close lifecycle owner.
+    InspectInventoryPage {
+        cursor: Option<LifecycleInventoryCursor>,
+    },
+}
+
+/// Host classification sampled for this inventory request, independent of lifecycle phase.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LifecycleCloseActivity {
+    Unknown,
+    Idle,
+    Active,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -92,6 +108,8 @@ pub enum LifecycleTerminalPhase {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LifecycleTargetObservation {
+    /// Fresh request-scoped classification; old cohorts yield unknown.
+    pub close_activity: LifecycleCloseActivity,
     pub revision: u64,
     pub phase: LifecycleTerminalPhase,
 }
@@ -120,6 +138,8 @@ pub enum LifecycleRejection {
 pub enum LifecycleHostFailure {
     HostRefused,
     CleanupIncomplete,
+    /// Guard rejected the signal without changing termination intent.
+    ConfirmationRequired,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -163,18 +183,42 @@ impl TerminalLifecycleResult {
     ) -> Result<Self, ProtocolError> {
         use TerminalLifecycleAction as Action;
         use TerminalLifecycleOutcome as Outcome;
+        if request.authorization.capability_version.get() < 2
+            && matches!(
+                request.action,
+                Action::TerminateIfIdle | Action::InspectInventoryPage { .. }
+            )
+        {
+            return Err(ProtocolError::InvalidPayload);
+        }
         match (request.action, outcome) {
             (Action::Terminate, Outcome::TerminateAccepted)
+            | (Action::TerminateIfIdle, Outcome::TerminateAccepted)
+            | (
+                Action::TerminateIfIdle,
+                Outcome::HostFailure(LifecycleHostFailure::ConfirmationRequired),
+            )
             | (Action::Force, Outcome::ForceAccepted)
             | (Action::Dispose, Outcome::Disposed)
             | (Action::Dispose, Outcome::HostFailure(LifecycleHostFailure::CleanupIncomplete))
             | (Action::InventoryPage { .. }, Outcome::InventoryFailure(_))
+            | (Action::InspectInventoryPage { .. }, Outcome::InventoryFailure(_))
             | (_, Outcome::Rejected(_))
             | (_, Outcome::HostFailure(LifecycleHostFailure::HostRefused))
             | (_, Outcome::OutcomeUnknown(_)) => {}
             (_, Outcome::HostUnavailableBeforeHandoff) => {}
-            (Action::InventoryPage { cursor }, Outcome::InventoryPage(page)) => {
+            (
+                Action::InventoryPage { cursor } | Action::InspectInventoryPage { cursor },
+                Outcome::InventoryPage(page),
+            ) => {
                 validate_page(cursor, page)?;
+                if request.authorization.capability_version.get() < 2
+                    && page.target.is_some_and(|target| {
+                        target.close_activity != LifecycleCloseActivity::Unknown
+                    })
+                {
+                    return Err(ProtocolError::InvalidPayload);
+                }
             }
             _ => return Err(ProtocolError::InvalidPayload),
         }

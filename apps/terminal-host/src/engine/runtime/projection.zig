@@ -146,6 +146,25 @@ pub fn resolveCloseActivity(
     return .idle;
 }
 
+/// Close admission uses a fresh sample even without an attached reader. After
+/// accepted activity bytes, a prompt cannot prove that all shell-buffered input
+/// has been consumed; only authoritative settlement or replacement clears that limit.
+pub fn sampleCloseActivityForClose(self: *state.State) contracts.TerminalCloseActivity {
+    const sample = sampleCloseActivity(self) catch return .unknown;
+    self.terminal_mutex.lock();
+    const prompt_seen = self.terminal.screens.active.semantic_prompt.seen;
+    const at_prompt = prompt_seen and self.terminal.cursorIsAtPrompt();
+    self.terminal_mutex.unlock();
+    // A single shell process can be running a builtin or have exec-replaced
+    // itself. Only current prompt semantics may refine inactive into idle.
+    if (!at_prompt and sample.activity == .idle) return .unknown;
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    if (self.close_input_accepted) return if (sample.activity == .active) .active else .unknown;
+    if (self.input_queue.client_charge.entries != 0) return .unknown;
+    return sample.activity;
+}
+
 /// Samples the independent process observation without holding a runtime
 /// mutex, then resolves it with Ghostty's current semantic-prompt state under
 /// the canonical projection -> terminal lock order. Activity-affecting input

@@ -114,6 +114,9 @@ pub fn publishPreparedInput(
     std.debug.assert(self.input_queue.publish(reservation, bytes));
     commitPreparedInputOwnershipLocked(self, ownership);
     if (affects_close_activity) {
+        // Queue publication proves acceptance of these bytes, never shell
+        // consumption. No later prompt or completed OS write may clear this fence.
+        if (bytes.len != 0) self.close_input_accepted = true;
         projection_ops.invalidateCloseActivityAfterInputLocked(self);
     }
     self.input_condition.broadcast();

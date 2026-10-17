@@ -1,4 +1,5 @@
 export const MessageKind = {
+	terminateTerminalIfIdle: 82,
 	decodeGraphicsPng: 80,
 	graphicsPngDecoded: 81,
 	readProcessInfo: 79,
@@ -105,6 +106,12 @@ const raw = PayloadEncoding.rawBytes;
  * its successful response kind, so producers do not repeat that association.
  */
 export const MESSAGE_CONTRACTS = {
+	[MessageKind.terminateTerminalIfIdle]: {
+		eventEncoding: null,
+		name: 'TerminateTerminalIfIdle',
+		request: { payloadEncoding: control, successKind: MessageKind.terminateTerminalIfIdle },
+		responseEncoding: control,
+	},
 	[MessageKind.decodeGraphicsPng]: {
 		eventEncoding: null,
 		name: 'DecodeGraphicsPng',

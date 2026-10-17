@@ -135,27 +135,39 @@ row carries the close revision.
 lifecycle grant, replay/conflict, capacity, Site/revision and complete Context membership checks.
 It shares the pending-create/split and overlapping-Close guards. The Site resolves **every bound
 Presentation**, including children under an unbound primary, while holding the coordinator gate.
-Only an empty bound scope or exact `Uncreated` evidence for every member admits the conditional
-action. `TerminalCoordinator::is_definitively_uncreated` requires one exact binding whose Create
-settled failed/unavailable before Host commit, with `Unavailable(None)` runtime identity. Missing,
-ambiguous, pending, unknown or runtime-backed records cannot establish that fact. A retained
-Started result, an observed Exited process or a Client snapshot is not this proof.
+An empty bound scope, exact `Uncreated` evidence, or fresh `IdleRuntime` evidence for **every**
+member permits conditional admission. `Uncreated` still requires a settled failed/unavailable Create
+before Host commit with `Unavailable(None)` runtime identity; missing or ambiguous records never
+establish it. A retained Started result or a Client's attached panes is not live process evidence.
 
-A resolved runtime returns retained `rejected {reason:confirmation-required, revision}` without
-Close credit, publication or runtime effect. Missing authority and busy/unavailable association
-retain their existing precise classifications. Accepted conditional Close uses the **same**
-prepared reservation, complete fingerprint, continuation, maintenance and publication as ordinary
-Close. Its fence is installed before the gate is released; a later create or split in that Context
-cannot enter between an idle pre-read and unconditional Close. Exact replay observes the original
-receipt; changing the same request ID between conditional and confirmed actions conflicts.
-Ordinary `workspace.close` keeps its existing semantics.
+For runtimes, the service drops registry/Site locks before the read-only `InspectInventoryPage`
+walk. Every target pins Worker generation, binding fence and full Host creation/epoch/terminal
+identity. One four-second admission window and 32-page allowance cover the whole scope; slow
+outstanding transport keeps its existing carrier response bound and cannot renew this window.
+Every target requires complete generation-consistent inventory and exactly one match. AwaitingStart,
+Exited and Failed establish no live program; Running requires fresh Host `idle` and no termination
+intent. A live Host can establish idle only before accepted activity-affecting input bytes; accounted OS
+writes and later prompt cycles do not establish shell consumption. After input, even an ordinary
+post-command prompt requires confirmation until replacement or proven settlement. Finishing,
+containment, active, unknown, missing, unsupported and unavailable evidence require confirmation. Final admission repeats ordinary guards and exact runtime matching under the Site gate.
+A same-base `confirmation-required` retains no Close credit, fence, publication or runtime effect;
+revision/structural conflicts retain their ordinary precise outcomes.
+
+Accepted conditional Close installs the existing complete reservation/fence before releasing the
+gate. Every actual signal uses Host `TerminateTerminalIfIdle`, which rechecks process/prompt state
+at dispatch; stale inventory never grants unconditional termination. A refusal parks the retained
+operation with `HostRefused`, including partial member results, and conditional Close never escalates
+to Force. Explicit Resume remains guarded. A fresh explicitly confirmed ordinary `workspace.close`
+may upgrade a resumable conditional record, retaining its canonical Close ID and all receipts while
+advancing the attempt once; outstanding or unknown signals cannot be upgraded. Exact request replay
+never grants another attempt, and changing the same request ID's action still conflicts.
 
 `project.dissolve-if-idle {projectId}` requires navigation authority and freezes all addressed
 Project member Contexts under that same gate. Its borrowed admission first applies ordinary
 grant, replay/capacity, Site/revision, Project and organization-conflict checks, rejects committed
 but unsettled terminal creation in **any** member Context at the current revision, and prepares
-the bounded organization plan before accepting exact per-binding evidence. It uses the identical
-never-created proof; a runtime requires confirmation. Acceptance removes only Project metadata
+the bounded organization plan before accepting exact per-binding evidence. It retains the stricter
+never-created proof; every runtime still requires confirmation. Acceptance removes only Project metadata
 and ungroups its Workspaces, preserving every member ID, directory, Context and runtime. It never
 composes Close operations. Explicit `project.dissolve` remains compatible.
 
@@ -181,10 +193,10 @@ This is an admission-predicate refinement of the existing retained Close machine
 lifecycle owner: accepted conditional Close enters the same reservation and publication transitions.
 The new wire discriminants refine complete request fingerprints, and definite refusal has no effect
 before a separately reviewed unconditional request. Registered replay and Close models retain their
-own abstract scope. Their execution does not by itself prove the concrete never-created predicate,
+own abstract scope. Their execution does not by itself prove fresh process/prompt classification, guarded signal admission, or the concrete never-created predicate,
 the complete primary/child/Project-member extractor, concrete pending entries and precommit gate exclusion,
 cross-language decoding, or fresh Client draw and request-ID escalation. The implementation and Site
-witnesses above carry those obligations separately; they make no current-process-exit claim.
+witnesses above carry those obligations separately; native process and prompt behavior additionally require the Host regressions and real TUI witnesses.
 
 ## Close command and retained status
 

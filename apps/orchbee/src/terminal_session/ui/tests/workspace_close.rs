@@ -102,12 +102,34 @@ fn ready_with_background_target(
     }
     (ui, mailbox, clock, snapshot)
 }
+fn open_confirmation(
+    ui: &mut NativeUi,
+    target: Option<&WorkbenchWorkspaceId>,
+) -> SessionActionDisposition {
+    let (Some(mailbox), Some(state)) = (ui.mailbox.as_ref(), ui.state.as_mut()) else {
+        return SessionActionDisposition::KeepNavigator;
+    };
+    if mailbox
+        .apply_local_for(state, |state| {
+            match target {
+                Some(target) => state.open_workspace_close_at(target),
+                None => state.open_workspace_close(),
+            }
+            .ok_or(())
+        })
+        .is_ok()
+    {
+        SessionActionDisposition::DismissNavigator
+    } else {
+        SessionActionDisposition::KeepNavigator
+    }
+}
 pub(in crate::terminal_session) fn submit(
     ui: &mut NativeUi,
     mailbox: &CommandMailbox,
 ) -> super::super::super::mailbox::CommandLease {
     assert_eq!(
-        ui.apply_client_action(ClientAction::RequestWorkspaceClose),
+        open_confirmation(ui, None),
         SessionActionDisposition::DismissNavigator
     );
     let token = ui.view().workspace_close_confirmation().unwrap().token();
@@ -158,7 +180,7 @@ pub(in crate::terminal_session::ui) fn receipt(
 fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt() {
     let (mut refused, refused_mailbox, _, _) = ready();
     assert_eq!(
-        refused.apply_client_action(ClientAction::RequestWorkspaceClose),
+        open_confirmation(&mut refused, None),
         SessionActionDisposition::DismissNavigator
     );
     refused.after_workspace_close_draw(Some(ModalPresentation::NotPresented));
@@ -169,7 +191,7 @@ fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt()
 
     let (mut suspended, mailbox, _, _) = ready();
     assert_eq!(
-        suspended.apply_client_action(ClientAction::RequestWorkspaceClose),
+        open_confirmation(&mut suspended, None),
         SessionActionDisposition::DismissNavigator
     );
     let token = suspended
@@ -202,7 +224,7 @@ fn workspace_close_refuses_a_blocked_first_draw_and_resumes_an_admitted_prompt()
 fn suspended_workspace_close_keeps_only_local_escape_cancellation_active() {
     let (mut ui, mailbox, _, _) = ready();
     assert_eq!(
-        ui.apply_client_action(ClientAction::RequestWorkspaceClose),
+        open_confirmation(&mut ui, None),
         SessionActionDisposition::DismissNavigator
     );
     let token = ui.view().workspace_close_confirmation().unwrap().token();
@@ -251,6 +273,33 @@ fn draw_with_hits(
 fn alnum(text: &str) -> String {
     text.chars().filter(|c| c.is_alphanumeric()).collect()
 }
+
+#[test]
+fn keyboard_and_addressed_workspace_close_share_conditional_admission_without_a_local_prompt() {
+    for addressed in [false, true] {
+        let (mut ui, mailbox, _, snapshot) = ready();
+        let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+        let action = if addressed {
+            ClientAction::RequestWorkspaceCloseAt(workspace.clone())
+        } else {
+            ClientAction::RequestWorkspaceClose
+        };
+        assert_eq!(
+            ui.apply_client_action(action),
+            SessionActionDisposition::DismissNavigator
+        );
+        assert!(ui.view().workspace_close_confirmation().is_none());
+        let evidence = mailbox.workspace_close_worker_loss().unwrap();
+        assert_eq!(
+            evidence.operation.workspace_command().unwrap().action,
+            WorkbenchAction::WorkspaceCloseIfIdle {
+                workspace_id: workspace
+            }
+        );
+        assert!(mailbox.try_recv().unwrap().is_some());
+        assert!(mailbox.try_recv().unwrap().is_none());
+    }
+}
 #[test]
 fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canonical_removal() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -272,9 +321,7 @@ fn background_workspace_close_ui_keeps_the_live_origin_through_cancel_and_canoni
             assert!(ui.view().workspace_close_confirmation().is_none());
             assert_eq!(mailbox.cursors(), cursors);
             assert_eq!(
-                ui.apply_client_action(ClientAction::RequestWorkspaceCloseAt(
-                    target.workspace_id.clone()
-                )),
+                open_confirmation(&mut ui, Some(&target.workspace_id)),
                 SessionActionDisposition::DismissNavigator
             );
             assert_eq!(ui.state.as_ref().unwrap().cache().location(), &origin);
@@ -393,7 +440,7 @@ fn workspace_close_full_shell_draw_matrix_discloses_scope_and_gates_submission()
             ] {
                 let (mut ui, mailbox, _, _) = ready();
                 let before = mailbox.cursors();
-                ui.apply_client_action(ClientAction::RequestWorkspaceClose);
+                open_confirmation(&mut ui, None);
                 let token = ui.view().workspace_close_confirmation().unwrap().token();
                 assert!(ui.modal_owns_input());
                 #[cfg(windows)]
@@ -495,7 +542,7 @@ fn workspace_close_mouse_decisions_require_current_drawn_token_for_each_scope() 
                 if project {
                     ui.request_project_close_all(&snapshot.navigation.projects[0].project_id)
                 } else {
-                    ui.request_workspace_close()
+                    open_confirmation(ui, None)
                 }
             };
             assert_eq!(open(&mut ui), SessionActionDisposition::DismissNavigator);

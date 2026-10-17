@@ -2,10 +2,11 @@ use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{error::Error, io, time::Duration};
 
 use orchbee_capability_node_protocol::{
-    HostEpoch as CapabilityHostEpoch, LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleHostFailure,
-    LifecycleInventoryCursor, LifecycleInventoryFailure, LifecycleInventoryPage,
-    LifecycleTargetObservation, LifecycleTerminalPhase, LifecycleUnknownReason,
-    TerminalLifecycleAction, TerminalLifecycleOutcome, TerminalLifecycleRequest,
+    HostEpoch as CapabilityHostEpoch, LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleCloseActivity,
+    LifecycleHostFailure, LifecycleInventoryCursor, LifecycleInventoryFailure,
+    LifecycleInventoryPage, LifecycleTargetObservation, LifecycleTerminalPhase,
+    LifecycleUnknownReason, TerminalLifecycleAction, TerminalLifecycleOutcome,
+    TerminalLifecycleRequest,
 };
 use orchbee_terminal_protocol::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InventoryControl,
@@ -41,7 +42,8 @@ impl PreparedLifecycleOperation {
             )?,
         };
         let (kind, payload) = match request.action {
-            TerminalLifecycleAction::InventoryPage { cursor } => {
+            TerminalLifecycleAction::InventoryPage { cursor }
+            | TerminalLifecycleAction::InspectInventoryPage { cursor } => {
                 let control =
                     encode_inventory_control(&InventoryControl::ListTerminals(ListTerminals {
                         cursor: cursor.map(|cursor| TerminalInventoryCursor {
@@ -57,11 +59,15 @@ impl PreparedLifecycleOperation {
                     TerminalLifecycleAction::Terminate => {
                         LifecycleControl::TerminateTerminal(target)
                     }
+                    TerminalLifecycleAction::TerminateIfIdle => {
+                        LifecycleControl::TerminateTerminalIfIdle(target)
+                    }
                     TerminalLifecycleAction::Force => {
                         LifecycleControl::ForceTerminateTerminal(target)
                     }
                     TerminalLifecycleAction::Dispose => LifecycleControl::DisposeTerminal(target),
-                    TerminalLifecycleAction::InventoryPage { .. } => {
+                    TerminalLifecycleAction::InventoryPage { .. }
+                    | TerminalLifecycleAction::InspectInventoryPage { .. } => {
                         unreachable!("query matched above")
                     }
                 })?;
@@ -170,7 +176,8 @@ fn response_outcome(
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)
     {
         return Ok(match request.action {
-            TerminalLifecycleAction::InventoryPage { .. } => {
+            TerminalLifecycleAction::InventoryPage { .. }
+            | TerminalLifecycleAction::InspectInventoryPage { .. } => {
                 TerminalLifecycleOutcome::InventoryFailure(
                     if failure.code == "stale-inventory-cursor" {
                         LifecycleInventoryFailure::StaleCursor
@@ -182,12 +189,16 @@ fn response_outcome(
             TerminalLifecycleAction::Dispose if failure.code == "cleanup-incomplete" => {
                 TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::CleanupIncomplete)
             }
+            TerminalLifecycleAction::TerminateIfIdle if failure.code == "confirmation-required" => {
+                TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::ConfirmationRequired)
+            }
             _ => TerminalLifecycleOutcome::HostFailure(LifecycleHostFailure::HostRefused),
         });
     }
     if matches!(
         request.action,
         TerminalLifecycleAction::InventoryPage { .. }
+            | TerminalLifecycleAction::InspectInventoryPage { .. }
     ) {
         return Ok(inventory_outcome(
             request,
@@ -203,6 +214,10 @@ fn response_outcome(
         )?,
     };
     let outcome = match (request.action, accepted) {
+        (
+            TerminalLifecycleAction::TerminateIfIdle,
+            LifecycleControl::TerminateTerminalIfIdleAccepted(observed),
+        ) if observed == target => TerminalLifecycleOutcome::TerminateAccepted,
         (
             TerminalLifecycleAction::Terminate,
             LifecycleControl::TerminateTerminalAccepted(observed),
@@ -260,6 +275,21 @@ fn inventory_outcome(
             target = Some(LifecycleTargetObservation {
                 revision: core.revision,
                 phase,
+                close_activity: if request.authorization.capability_version.get() < 2 {
+                    LifecycleCloseActivity::Unknown
+                } else {
+                    match core.close_activity {
+                        Some(orchbee_terminal_protocol::TerminalCloseActivity::Idle) => {
+                            LifecycleCloseActivity::Idle
+                        }
+                        Some(orchbee_terminal_protocol::TerminalCloseActivity::Active) => {
+                            LifecycleCloseActivity::Active
+                        }
+                        Some(orchbee_terminal_protocol::TerminalCloseActivity::Unknown) | None => {
+                            LifecycleCloseActivity::Unknown
+                        }
+                    }
+                },
             });
         }
     }

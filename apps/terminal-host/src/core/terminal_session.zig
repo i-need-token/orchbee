@@ -8,6 +8,7 @@ const terminal_theme = model.theme;
 pub const CreationId = identifiers.CreationId;
 pub const TerminalId = identifiers.TerminalId;
 pub const LaunchDigest = [32]u8;
+pub const CloseActivity = enum { unknown, idle, active };
 
 pub const OutcomeKind = terminal_lifecycle.OutcomeKind;
 pub const OutcomePublicationToken = struct {
@@ -55,6 +56,8 @@ pub const EngineObservation = struct {
 /// membership and creation-identity indexing live in TerminalRegistry; broker
 /// capabilities live in AttachmentSession.
 pub const Session = struct {
+    /// Request-scoped inventory sample, refreshed before serialization.
+    close_activity: CloseActivity = .unknown,
     configuration_state: ConfigurationState = .{},
     creation_id: CreationId,
     engine_observation: ?EngineObservation,
@@ -68,6 +71,10 @@ pub const Session = struct {
 
     pub fn phase(self: Session) terminal_lifecycle.Phase {
         return self.lifecycle.phase();
+    }
+
+    pub fn closeActivity(self: Session) CloseActivity {
+        return self.close_activity;
     }
 
     pub fn effectiveConfiguration(self: Session) terminal_configuration.Configuration {

@@ -102,7 +102,7 @@ Close 共同激活。旧私有 cohort 拒绝新增 tag；不定义混合 cohort 
 
 kind 9 `TerminalLifecycleRequest` 和 kind 10 `TerminalLifecycleResult` 使用帧版本 2 及
 40 KiB payload 上限。整数均为无符号大端，ID 均为非零 16 字节值。请求 kind 后依次为：
-生命周期能力版本（`u16`，当前为 1）、产品 Terminal ID（16）、Worker ID（16）、Worker
+生命周期能力版本（`u16`，当前为 2）、产品 Terminal ID（16）、Worker ID（16）、Worker
 代次（正 `u64`）、保留绑定 fence（正 `u64`）、新 lease ID（16）、lease Unix 毫秒到期值
 （正 `u64`）、Close 操作 ID（16）、步骤请求 ID（16）、尝试代次（正 `u64`）、步骤序号
 （`u8`，1 至 32）、Host creation/epoch/terminal ID（各 16）及 action（`u8`）。生命周期
@@ -671,3 +671,19 @@ SelectionChanged、SelectionExportStarted 及取消后的 SelectionExportFinishe
 ## viewer 所属的 PNG 请求
 
 `TerminalGraphicsDecodeRequest` 是已接纳附件上的只读操作。OBNG v1 使用 12 字节头和 64 字节身份／尺寸前缀，之后最多为 16 MiB PNG。在读取或分配正文之前检查长度上限。结果复用按请求／附件精确关联的 viewer 载体（OBNR），内容是受限的 Host 回执或明确的 viewer 拒绝。此操作不授权启动 Host、写入 PTY、改变生命周期或访问其他连接的附件。
+
+## 条件 Close 检查与门禁
+
+生命周期能力版本 2 保留既有动作／结果的版本 1 解码字节；版本 1 无法表达新增动作。
+当前配套 Server／Worker cohort 要求版本 2。动作 5 `TerminateIfIdle` 只映射到 Host kind 82；
+接受 outcome 1 或已知 HostFailure reason 3 `ConfirmationRequired`（以及既有通用失败结果）。
+其他动作使用该新 reason 均非法。动作 6 `InspectInventoryPage` 使用与动作 4 相同的 cursor／
+page 表示，但它只读，绝不申请、推进或替换保留的 Worker Close owner／ordinal／mutation
+receipt。交接前仍校验 Worker generation、绑定 fence、lease 和完整 Host 身份。因此预检后
+可以用新请求进行已确认 Close，不会产生虚假的生命周期冲突。
+
+对于能力 2，每个匹配的库存目标在 phase 及可选 termination flag 之后追加一个关闭活动字节：
+0 unknown、1 idle、2 active。其他字节解码失败。能力 1 保留原目标布局，并得到 unknown。
+Worker 将缺失的 Host 元数据映射为 unknown；保留的启动、终端数量或 Client frame 均不构成
+空闲证据。独立字节 golden、Worker 回执测试及 Server 条件关闭见证覆盖这些细化。配套原生
+cohort 一同升级／回滚；不支持混用版本绕过安全门禁。

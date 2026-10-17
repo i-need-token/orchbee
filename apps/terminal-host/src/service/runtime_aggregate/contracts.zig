@@ -272,6 +272,7 @@ pub const DisposeResult = union(enum) {
 };
 
 pub const TerminationError = core_module.CoreError || error{
+    ConfirmationRequired,
     TerminalRuntimeMissing,
     TerminationDispatchFailed,
 };

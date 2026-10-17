@@ -18,6 +18,51 @@ use orchbee_capability_node_protocol::{
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 #[test]
+fn idle_inspection_never_claims_close_owner_or_advances_mutation_receipts() -> TestResult {
+    let mut kernel = kernel()?;
+    let mut inspect = request(Action::InspectInventoryPage { cursor: None }, 1, 1, 30)?;
+    inspect.close_operation_id = OperationId::from_bytes([99; 16])?;
+    let page = Outcome::InventoryPage(orchbee_capability_node_protocol::LifecycleInventoryPage {
+        inventory_generation: nz(1),
+        next_cursor: None,
+        returned_count: 0,
+        target: None,
+    });
+    assert_eq!(complete(&mut kernel, inspect, page)?.outcome(), page);
+    assert!(
+        kernel
+            .bindings
+            .get(&inspect.authorization.terminal_id)
+            .unwrap()
+            .lifecycle
+            .is_none()
+    );
+    // A fresh confirmed Close uses its own owner/first ordinal after inspection.
+    let close = request(Action::Terminate, 1, 1, 31)?;
+    assert_eq!(
+        complete(&mut kernel, close, Outcome::TerminateAccepted)?.outcome(),
+        Outcome::TerminateAccepted
+    );
+    let receipts = kernel
+        .bindings
+        .get(&close.authorization.terminal_id)
+        .unwrap()
+        .lifecycle;
+    inspect.request_id = OperationId::from_bytes([32; 16])?;
+    complete(&mut kernel, inspect, page)?;
+    let after = kernel
+        .bindings
+        .get(&close.authorization.terminal_id)
+        .unwrap()
+        .lifecycle
+        .unwrap();
+    assert_eq!(after.owner, receipts.unwrap().owner);
+    assert_eq!(after.high_ordinal, receipts.unwrap().high_ordinal);
+    assert_eq!(after.last_mutation, receipts.unwrap().last_mutation);
+    Ok(())
+}
+
+#[test]
 fn phase_and_action_mismatched_completions_cannot_replace_the_receipt() -> TestResult {
     let mut kernel = kernel()?;
     let request = request(Action::Dispose, 1, 1, 30)?;
@@ -295,7 +340,7 @@ fn changed_owner_authority_identity_and_capability_are_effect_free() -> TestResu
     changed = base;
     changed.authorization.capability_version =
         orchbee_capability_node_protocol::TerminalLifecycleCapabilityVersion::new(
-            std::num::NonZeroU16::new(2).expect("two"),
+            std::num::NonZeroU16::new(3).expect("three"),
         );
     cases.push((changed, LifecycleRejection::UnsupportedCapability));
     for (candidate, reason) in cases {

@@ -8,6 +8,7 @@ pub const HRESULT = windows.LONG;
 
 pub const S_OK: HRESULT = 0;
 pub const WAIT_OBJECT_0: windows.DWORD = 0;
+pub const WAIT_TIMEOUT: windows.DWORD = 258;
 pub const INFINITE: windows.DWORD = std.math.maxInt(windows.DWORD);
 
 pub const STARTUPINFOEXW = extern struct {

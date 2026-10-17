@@ -2,8 +2,8 @@
 
 ## 范围与用户结果
 
-Windows TUI 通过 `Ctrl+B D`（`Shift+D`）仅关闭当前 Workspace，再按无修饰的 `Enter` 确认；
-`Esc` 取消。完整确认框显示 Workspace 名称，说明其终端会对所有 Client 结束，同时保留
+Windows TUI 通过 `Ctrl+B D`（`Shift+D`）仅关闭当前 Workspace。已证实空闲的 Workspace 直接关闭；
+程序活动或状态未被证实则打开确认框，无修饰的 `Enter` 确认，`Esc` 取消。完整确认框显示 Workspace 名称，说明其终端会对所有 Client 结束，同时保留
 Git 分支和检出目录。Project 分组、共享目录及 worktree 关系均不会扩大关闭范围。
 未分组的 Workspace 是有效目标。历史兼容工作区没有规范 Workspace ID；其 Tab 需逐个关闭。
 该工作区的整体关闭入口禁用，并提供本地化说明。
@@ -23,7 +23,7 @@ Workspace 数量，说明全部成员 Workspace 及其终端会对所有 Client 
 捕获 Project 成员。Project 记录保留，原本为空的 Project 也可以执行。解散 Project 是
 独立的组织操作，保留 Workspace 和终端。
 
-普通关闭使用 `WorkbenchAction::WorkspaceClose`；仅显式 Project 全部关闭使用 group
+明确确认的关闭使用 `WorkbenchAction::WorkspaceClose`；仅显式 Project 全部关闭使用 group
 Start。两条路径都不删除 Git 数据，也不自动恢复失败尝试。通过
 `workspace close-status --workspace <workspace-id>` 或
 `project close-status --request <operation-id>` 查询保留状态。符合条件的恢复使用显式
@@ -31,11 +31,20 @@ CLI Resume；Pending 和 Unknown 仅允许观察。
 
 ## 侧栏条件准入
 
-侧栏 Workspace 删除使用新增 `WorkspaceCloseIfIdle`，绝不是 Client 声称“空闲”后再发送普通关闭。
-既有 Server 准入门禁内，权限、Site／revision、重放指纹和容量检查先于完整捕获成员及 primary／
-child 绑定证明。只有明确从未创建或为空的终端范围才无提示准入。存在运行时、待定、不可用或未知
-范围，不能因为 Client 未见附着 pane 或进程似乎退出就被当作空闲。接受时在释放门禁前安装同一
-Close reservation／围栏，因此并发创建或分屏不能占用已接受范围。
+侧栏删除、指定目标 Close 与键盘快捷键共用 `WorkspaceCloseIfIdle`；均不使用 Client 空闲标记
+后再发送普通关闭。Server 捕获全部 Tab、分屏叶项和 child Presentation，在 gate 外读取新鲜
+原生清单，再于最终准入复核完整范围和准确运行时身份。空／从未创建的范围及权威空闲或已结束
+的运行时直接关闭。活动、缺失、不可用或未知的进程证据要求既有的完整绘制确认，以新的无条件
+请求 ID 提交。并发 create／split 和 revision 漂移保留普通安全围栏。
+
+Host 派发时独立检查每次未经确认的终止。严格空闲证据要求交互 shell、当前提示符语义，以及
+此前未接受产生字节的活动输入；单个进程或 shell 前台进程组本身不足以证明空闲。接受这类产生字节的输入后，
+活动终端在被替换或已证实结束前要求确认。后续提示符不能证明
+ConPTY／PSReadLine 缓冲的命令已被消费。这一保守边界也适用于普通命令看似已返回提示符的情况。新建交互
+PowerShell 会注入进程内读行标记，保留用户 prompt、历史和键位钩子。旧会话或不支持的 shell
+没有可靠提示符标记时要求确认。库存读取后启动的程序因此仍可在实际发送信号前拒绝关闭。
+这种迟到拒绝保留 Close 操作和已完成成员，不隐式执行 Force。在已知、可恢复拒绝上再次 Close
+会打开明确确认，普通确认命令恢复同一个规范操作。unknown／尚未结算的效果仍被围栏阻止。
 
 Project 删除对全部捕获成员范围使用 `ProjectDissolveIfIdle`，保留所有 Workspace 和资源，绝不调用
 全部关闭。明确且匹配来源修订号的 `confirmation-required` 作为无效果保留，并以新显示 token 打开

@@ -958,3 +958,32 @@ Core 保留该准入值作为不可变的附件重放标识，并将当前能力
 即使一个语义所有者必须保持完整，文件大小也是一个强制性的审查信号。当所有者不再适合一个可独立审查的文件时，将其提升到一个目录，并将其状态声明、公共外观和事务实现划分为指定的审查单元。保留一位权威所有者并明确跨部门提交；仅仅在复制权限、允许非法状态组合或隐藏跨所有者提交的同时移动代码并不是边界改进。
 
 不透明 runtime handle 通过私有的 `process_handle.zig` 适配器组合进程采样、完成与终止操作。适配器只将 handle 转为私有 State，并委托现有的进程／生命周期所有者；不新增状态、不改变顺序，也不新增进程权限。这使进程相关的增长不再挤入通用 runtime 门面。
+
+## 破坏性 Close 观察
+
+原生库存和带门禁的终止使用 `sampleCloseActivityForClose`，独立于前文的投影回退。
+Idle 要求已识别的交互 shell、成功的不活动进程观察、当前语义提示符状态，并且没有排队／
+正在写入的 Client 输入。直接命令、脚本和 Agent 根进程即使是唯一进程仍为 active。
+Windows 根进程已退出但 Job 仍有后代时为 active。缺少提示符语义、进程查询失败
+均保持 unknown。
+
+成功发布非空活动 Client 字节时，在 `input_mutex` 下设置单调的关闭专用围栏。零字节及仅焦点
+语义保留既有投影策略，但不可能产生缓冲的命令字节，因此不设置此围栏。
+此后，不活动的实时进程采样保持 unknown，直到终端被替换或权威状态证明已结束。
+`client_charge.entries` 为预留、排队、已复制、在途及部分写入保留计费，直到最后一次成功 OS
+写入完成结算；零条目只证明传递，不证明消费。ConPTY／PSReadLine 可能仍缓冲后续命令。
+命令 1 之后的旧提示符不能证明命令 2 已不再缓冲，后续提示符标记也不能清除此围栏。
+投影的重新分类及 epoch 保持原样，不能授权破坏性 Close。普通命令结束后仍活动的提示符要求确认。
+
+Windows 上交互 PowerShell 启动在正常 profile 执行后注入内嵌、仅当前进程的 `-NoExit -Command` bootstrap。
+它保存既有 `PSConsoleHostReadLine` ScriptBlock，在调用前发送 A/B，在 finally 中发送 C，
+保留返回输入和抛出的异常。不修改 prompt 函数（包括 mise）、PSReadLine 历史／键位钩子或任何
+profile 文件。命令、脚本及未知 shell 不注入。缺失或受限制的 reader 支持不产生空闲证明。
+无集成的既有会话要求确认。[VS Code 的 PowerShell 集成](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1)
+也采用该 reader 钩子边界；Orchbee 只采用读行阶段标记，不采用命令文本、环境上报或键位重映射。
+
+Host owner 在接受带门禁的优雅信号派发前立即重新检查严格采样；拒绝不改变 Core 意图，也不
+发送信号。Server 保留迟到拒绝／部分结果，绝不强制执行未经确认的 Close。运行时／进程回归及
+持续运行的 `powershell-prompt.test.mjs` 检查覆盖排队输入的消费歧义、内建命令与提示符、直接 Agent 根进程、
+reader 输出／异常和保留钩子。真实启动、全部 Tab 成员及 OS 调度仍要求原生 TUI 证据；采样证据
+不是原子的 OS 进程创建事务。

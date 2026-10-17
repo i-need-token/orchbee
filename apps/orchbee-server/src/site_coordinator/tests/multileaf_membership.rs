@@ -142,6 +142,7 @@ pub(super) fn drive_close_to_publication(
                             next_cursor: None,
                             returned_count: 1,
                             target: Some(LifecycleTargetObservation {
+                                close_activity: orchbee_capability_node_protocol::LifecycleCloseActivity::Unknown,
                                 revision: 3,
                                 phase: LifecycleTerminalPhase::Exited {
                                     terminate_requested: false,

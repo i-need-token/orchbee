@@ -31,6 +31,9 @@ const FeedbackHandle = feedback_handle.Type(TerminalRuntime);
 const ProcessHandle = process_handle.Type(TerminalRuntime);
 
 pub const TerminalRuntime = opaque {
+    pub fn sampleCloseActivityForClose(self: *TerminalRuntime) contracts.TerminalCloseActivity {
+        return projection_ops.sampleCloseActivityForClose(stateFrom(self));
+    }
     pub const sampleProcesses = ProcessHandle.sampleProcesses;
     pub const completion = ProcessHandle.completion;
     pub const waitForCompletion = ProcessHandle.waitForCompletion;

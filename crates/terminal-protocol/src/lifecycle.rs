@@ -23,6 +23,7 @@ const START_TERMINAL_KIND: u16 = 16;
 const TERMINAL_START_ACCEPTED_KIND: u16 = 17;
 const FORCE_TERMINATE_TERMINAL_KIND: u16 = 18;
 const TERMINAL_FAILED_KIND: u16 = 19;
+const TERMINATE_TERMINAL_IF_IDLE_KIND: u16 = 82;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TerminalTarget {
@@ -65,6 +66,8 @@ pub struct TerminalFailed {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LifecycleControl {
+    TerminateTerminalIfIdle(TerminalTarget),
+    TerminateTerminalIfIdleAccepted(TerminalTarget),
     TerminateTerminal(TerminalTarget),
     TerminateTerminalAccepted(TerminalTarget),
     DisposeTerminal(TerminalTarget),
@@ -92,6 +95,16 @@ pub fn decode_lifecycle_control(
 ) -> Result<LifecycleControl, ProtocolError> {
     preflight_json(payload)?;
     match (kind, role) {
+        (TERMINATE_TERMINAL_IF_IDLE_KIND, MessageRole::Request) => {
+            decode_wire::<TerminalTargetWire>(payload)
+                .and_then(terminal_target_from_wire)
+                .map(LifecycleControl::TerminateTerminalIfIdle)
+        }
+        (TERMINATE_TERMINAL_IF_IDLE_KIND, MessageRole::Response) => {
+            decode_wire::<TerminalTargetWire>(payload)
+                .and_then(terminal_target_from_wire)
+                .map(LifecycleControl::TerminateTerminalIfIdleAccepted)
+        }
         (TERMINATE_TERMINAL_KIND, MessageRole::Request) => {
             decode_wire::<TerminalTargetWire>(payload)
                 .and_then(terminal_target_from_wire)
@@ -147,6 +160,16 @@ pub fn encode_lifecycle_control(
     value: &LifecycleControl,
 ) -> Result<EncodedLifecycleControl, ProtocolError> {
     let (kind, role, payload) = match value {
+        LifecycleControl::TerminateTerminalIfIdle(target) => (
+            TERMINATE_TERMINAL_IF_IDLE_KIND,
+            MessageRole::Request,
+            serialize_wire(&terminal_target_to_wire(*target))?,
+        ),
+        LifecycleControl::TerminateTerminalIfIdleAccepted(target) => (
+            TERMINATE_TERMINAL_IF_IDLE_KIND,
+            MessageRole::Response,
+            serialize_wire(&terminal_target_to_wire(*target))?,
+        ),
         LifecycleControl::TerminateTerminal(target) => (
             TERMINATE_TERMINAL_KIND,
             MessageRole::Request,

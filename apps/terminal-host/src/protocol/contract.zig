@@ -113,6 +113,7 @@ pub const PayloadEncoding = enum(u8) {
 /// Native dispatch operation owned by the protocol adapter. It is not a wire
 /// field; it makes Host request coverage exhaustive when the registry grows.
 pub const RequestOperation = enum {
+    terminate_terminal_if_idle,
     decode_graphics_png,
     read_process_info,
     apply_terminal_theme,
@@ -211,6 +212,7 @@ fn responseAndEvent(name: []const u8, encoding: PayloadEncoding) MessageContract
 pub fn messageContract(kind: u16) ?MessageContract {
     const M = MessageKind;
     return switch (kind) {
+        M.terminate_terminal_if_idle => requestAndResponse("TerminateTerminalIfIdle", .terminate_terminal_if_idle, .control_json, M.terminate_terminal_if_idle, .control_json),
         M.decode_graphics_png => requestOnly("DecodeGraphicsPng", .decode_graphics_png, .graphics_image, M.graphics_png_decoded),
         M.graphics_png_decoded => responseOnly("GraphicsPngDecoded", .graphics_image),
         M.hello => requestOnly("Hello", .hello, .control_json, M.hello_accepted),

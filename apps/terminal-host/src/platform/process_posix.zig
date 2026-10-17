@@ -29,6 +29,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     const default_path = "/usr/local/bin:/bin/:/usr/bin";
 
     child_id: posix.pid_t,
+    interactive_shell: bool = false,
     exit_reaped: bool = false,
     exit_result: ?ExitResult = null,
     pty: pty_module.Pty,
@@ -126,7 +127,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             _ = posix_compat.waitpid(child_id, 0);
             return error.SpawnFailed;
         }
-        return .{ .child_id = child_id, .pty = pty, .identity = .{} };
+        return .{ .child_id = child_id, .pty = pty, .identity = .{}, .interactive_shell = @import("interactive_shell.zig").isInteractive(launch.executable, launch.arguments) };
     }
 
     pub fn deinit(self: *Process) void {
@@ -191,6 +192,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn hasActiveCommand(self: *const Process) !bool {
+        if (!self.interactive_shell) return true;
         return foregroundCommandActive(self.child_id, try self.pty.foregroundProcessGroup());
     }
 

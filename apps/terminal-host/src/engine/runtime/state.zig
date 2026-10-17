@@ -44,6 +44,10 @@ pub const State = struct {
     close_activity: contracts.TerminalCloseActivity = .unknown,
     close_activity_epoch: u64 = 0,
     close_activity_epoch_exhausted: bool = false,
+    // input_mutex owns this monotonic fence for accepted activity bytes.
+    // Neither OS write completion nor a VT prompt proves consumption of buffered input, so
+    // only terminal retirement clears its lifetime. Projection is independent.
+    close_input_accepted: bool = false,
     command_batch_active: bool = false,
     command_completion: ?contracts.TerminalCommandCompletion = null,
     command_completion_staged: ?contracts.TerminalCommandCompletion = null,

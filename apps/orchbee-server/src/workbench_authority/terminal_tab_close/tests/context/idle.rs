@@ -43,6 +43,170 @@ fn finish(
     }
 }
 
+#[test]
+fn only_complete_idle_runtime_proofs_admit_unconfirmed_close_for_every_member() {
+    for unknown in [None, Some(0), Some(1)] {
+        let (mut owner, grant) = workspace_fixture(2);
+        let close = conditional(&owner, 11800);
+        let before = owner.snapshot().clone();
+        let primary = primary_workspace(&mut owner, &grant, close);
+        let proofs = primary
+            .members()
+            .iter()
+            .enumerate()
+            .map(|(index, member)| {
+                let target = runtime(member);
+                if unknown == Some(index) {
+                    WorkbenchTabCloseMemberRuntime::Runtime {
+                        target,
+                        observed_phase: None,
+                    }
+                } else {
+                    WorkbenchTabCloseMemberRuntime::IdleRuntime {
+                        target,
+                        observed_phase: LifecycleTerminalPhase::Running {
+                            terminate_requested: false,
+                        },
+                    }
+                }
+            })
+            .collect();
+        let result = finish(primary, proofs);
+        assert_eq!(owner.snapshot(), &before);
+        if unknown.is_none() {
+            assert!(matches!(
+                result.outcome,
+                WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
+            ));
+            assert_eq!(owner.outstanding_close_credits().ok(), Some(1));
+        } else {
+            assert!(matches!(
+                result.outcome,
+                WorkbenchCommandOutcome::Rejected {
+                    reason: WorkbenchRejectionReason::ConfirmationRequired,
+                    ..
+                }
+            ));
+            assert_eq!(owner.outstanding_close_credits().ok(), Some(0));
+        }
+    }
+}
+
+#[test]
+fn confirmed_close_upgrades_a_late_idle_refusal_but_never_an_unknown_signal() {
+    for unknown in [false, true] {
+        let (mut owner, grant) = workspace_fixture(1);
+        let close = conditional(&owner, 11820);
+        let primary = primary_workspace(&mut owner, &grant, close.clone());
+        let proofs = primary
+            .members()
+            .iter()
+            .map(|member| WorkbenchTabCloseMemberRuntime::IdleRuntime {
+                target: runtime(member),
+                observed_phase: LifecycleTerminalPhase::Running {
+                    terminate_requested: false,
+                },
+            })
+            .collect();
+        finish(primary, proofs);
+        let now = Instant::now();
+        let step = owner
+            .next_terminal_tab_close_step_target(&close.request_id, now)
+            .unwrap();
+        let CloseContinuationNext::Lifecycle {
+            action,
+            step_ordinal,
+        } = step.next()
+        else {
+            panic!("guarded step");
+        };
+        assert_eq!(action, TerminalLifecycleAction::TerminateIfIdle);
+        let request = step_request(
+            &close.request_id,
+            step.target().unwrap(),
+            action,
+            step_ordinal,
+            WorkbenchTabCloseAttemptGeneration::new(1).unwrap(),
+        );
+        let token = owner
+            .reserve_terminal_tab_close_step(&close.request_id, now, request)
+            .unwrap();
+        owner
+            .confirm_terminal_tab_close_step_admitted(&close.request_id, &token, now)
+            .unwrap();
+        let outcome = if unknown {
+            orchbee_capability_node_protocol::TerminalLifecycleOutcome::OutcomeUnknown(
+                orchbee_capability_node_protocol::LifecycleUnknownReason::TransportLost,
+            )
+        } else {
+            orchbee_capability_node_protocol::TerminalLifecycleOutcome::HostFailure(
+                orchbee_capability_node_protocol::LifecycleHostFailure::ConfirmationRequired,
+            )
+        };
+        let result =
+            orchbee_capability_node_protocol::TerminalLifecycleResult::new(request, outcome)
+                .unwrap();
+        owner
+            .settle_terminal_tab_close_step(
+                &close.request_id,
+                token,
+                now,
+                CloseStepObservation::Result(&result),
+            )
+            .unwrap();
+        let confirmed = workspace_close_command(&owner, 11821, 1, 0);
+        let WorkbenchWorkspaceCloseBegin::Admitted(admission) =
+            owner.begin_workspace_close(Some(&grant), confirmed.clone())
+        else {
+            panic!("confirmed admission");
+        };
+        let WorkbenchTabCloseResolution::Ready(result) = admission.resolve_after_confirmation(now)
+        else {
+            panic!("retained operation");
+        };
+        if unknown {
+            assert!(matches!(
+                result.outcome,
+                WorkbenchCommandOutcome::Unavailable {
+                    reason: WorkbenchCommandUnavailableReason::TerminalBusy
+                }
+            ));
+            assert_eq!(
+                owner
+                    .terminal_tab_close_generation(&close.request_id)
+                    .unwrap()
+                    .value(),
+                1
+            );
+        } else {
+            assert!(
+                matches!(result.outcome, WorkbenchCommandOutcome::WorkspaceCloseAccepted { ref close_request_id, .. } if close_request_id == &close.request_id)
+            );
+            assert_eq!(
+                owner
+                    .terminal_tab_close_generation(&close.request_id)
+                    .unwrap()
+                    .value(),
+                2
+            );
+            assert!(matches!(
+                owner
+                    .next_terminal_tab_close_step_target(&close.request_id, now)
+                    .unwrap()
+                    .next(),
+                CloseContinuationNext::Lifecycle {
+                    action: TerminalLifecycleAction::Terminate,
+                    ..
+                }
+            ));
+            assert!(
+                matches!(owner.begin_workspace_close(Some(&grant), confirmed), WorkbenchWorkspaceCloseBegin::Ready(replay) if replay == result)
+            );
+        }
+        assert_eq!(owner.outstanding_close_credits().ok(), Some(1));
+    }
+}
+
 fn tab_create(owner: &WorkbenchAuthority, id: u128) -> WorkbenchCommand {
     command(
         owner,

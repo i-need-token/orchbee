@@ -111,6 +111,12 @@ impl WorkbenchTabCloseRuntimeTarget {
 /// Create failure before Host commit, never merely a missing runtime observation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorkbenchTabCloseMemberRuntime {
+    /// Fresh complete inventory proof for this exact runtime. Actual signaling
+    /// still requires the independent Host idle guard.
+    IdleRuntime {
+        target: WorkbenchTabCloseRuntimeTarget,
+        observed_phase: orchbee_capability_node_protocol::LifecycleTerminalPhase,
+    },
     Runtime {
         target: WorkbenchTabCloseRuntimeTarget,
         observed_phase: Option<orchbee_capability_node_protocol::LifecycleTerminalPhase>,
@@ -123,7 +129,9 @@ pub enum WorkbenchTabCloseMemberRuntime {
 impl WorkbenchTabCloseMemberRuntime {
     pub(super) fn matches_member(&self, member: &WorkbenchTerminalTab) -> bool {
         match self {
-            Self::Runtime { target, .. } => target.matches_member(member),
+            Self::Runtime { target, .. } | Self::IdleRuntime { target, .. } => {
+                target.matches_member(member)
+            }
             Self::Uncreated { binding } => binding == member.binding(),
         }
     }

@@ -1237,6 +1237,14 @@ describe('control schemas', () => {
 
 		expect(TerminalSummarySchema.parse(awaitingStart)).toEqual(awaitingStart);
 		expect(TerminalSummarySchema.parse(failed)).toEqual(failed);
+		for (const closeActivity of ['idle', 'active', 'unknown'] as const) {
+			expect(TerminalSummarySchema.parse({ ...failed, closeActivity }).closeActivity).toBe(
+				closeActivity,
+			);
+		}
+		for (const closeActivity of [null, true, 'running', 1]) {
+			expect(TerminalSummarySchema.safeParse({ ...failed, closeActivity }).success).toBe(false);
+		}
 		expect(RuntimeFailureSchema.safeParse(failure).success).toBe(true);
 		expect(
 			TerminalFailedSchema.safeParse({

@@ -49,7 +49,7 @@ impl NativeUi {
             SessionActionDisposition::KeepNavigator
         }
     }
-    /// Opens Close for the addressed Workspace without navigating away from the current terminal.
+    /// Checks the addressed Workspace through the same conditional Server owner as sidebar Delete.
     pub(in crate::terminal_session) fn request_workspace_close_at(
         &mut self,
         workspace_id: &WorkbenchWorkspaceId,
@@ -57,19 +57,38 @@ impl NativeUi {
         if self.modal_owns_input() {
             return SessionActionDisposition::KeepNavigator;
         }
-        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+        if self
+            .state
+            .as_ref()
+            .is_some_and(|state| state.can_confirm_guarded_workspace_close(workspace_id))
+        {
+            let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+                return SessionActionDisposition::KeepNavigator;
+            };
+            return if mailbox
+                .apply_local_for(state, |state| {
+                    state.open_workspace_close_at(workspace_id).ok_or(())
+                })
+                .is_ok()
+            {
+                SessionActionDisposition::DismissNavigator
+            } else {
+                SessionActionDisposition::KeepNavigator
+            };
+        }
+        let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             return SessionActionDisposition::KeepNavigator;
         };
-        if mailbox
-            .apply_local_for(state, |state| {
-                state.open_workspace_close_at(workspace_id).ok_or(())
-            })
-            .is_ok()
-        {
-            SessionActionDisposition::DismissNavigator
-        } else {
-            SessionActionDisposition::KeepNavigator
-        }
+        let Some(request) = self.state.as_ref().and_then(|state| {
+            crate::terminal_session::WorkspaceDeleteRequest::capture(
+                state,
+                workspace_id,
+                deadlines.total(),
+            )
+        }) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        self.request_sidebar_workspace_delete(&request)
     }
 
     /// Opens Project close-all for the explicitly named menu target without changing focus.
@@ -99,17 +118,21 @@ impl NativeUi {
         if self.modal_owns_input() {
             return SessionActionDisposition::KeepNavigator;
         }
-        let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
+        let Some(state) = self.state.as_ref() else {
             return SessionActionDisposition::KeepNavigator;
         };
-        if mailbox
-            .apply_local_for(state, |state| state.open_workspace_close().ok_or(()))
-            .is_ok()
-        {
-            SessionActionDisposition::DismissNavigator
-        } else {
-            SessionActionDisposition::KeepNavigator
-        }
+        let crate::terminal_session::workbench_projection::NativeContextLocation::Workspace {
+            workspace_id,
+            ..
+        } = state.cache().location()
+        else {
+            if let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) {
+                let _ =
+                    mailbox.apply_local_for(state, |state| state.open_workspace_close().ok_or(()));
+            }
+            return SessionActionDisposition::KeepNavigator;
+        };
+        self.request_workspace_close_at(&workspace_id.clone())
     }
     pub(in crate::terminal_session) fn capture_workspace_close_key(
         &mut self,

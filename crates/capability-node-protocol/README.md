@@ -120,7 +120,7 @@ together. Old private cohorts reject the additive tags; no mixed-cohort fallback
 
 Kind 9 `TerminalLifecycleRequest` and kind 10 `TerminalLifecycleResult` use frame version 2 and
 the 40 KiB payload bound. All integers are unsigned big-endian and IDs are nonzero 16-byte values.
-The request body after its kind is, in order: lifecycle capability version (`u16`, current 1),
+The request body after its kind is, in order: lifecycle capability version (`u16`, current 2),
 product Terminal ID (16), Worker ID (16), Worker generation (`u64`, positive), retained binding fence
 (`u64`, positive), fresh lease ID (16), lease Unix-millisecond expiry (`u64`, positive), Close
 operation ID (16), step request ID (16), attempt generation (`u64`, positive), step ordinal (`u8`,
@@ -743,3 +743,22 @@ Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and te
 ## Viewer-scoped PNG requests
 
 `TerminalGraphicsDecodeRequest` is a read-only operation on an already admitted attachment. OBNG v1 uses a 12-byte header and 64-byte identity/dimension prefix, followed by at most 16 MiB of PNG. The length bound is checked before reading or allocating the body. A result reuses the exact request/attachment-correlated viewer carrier (OBNR), containing either the bounded Host reply or a typed viewer rejection. The operation does not authorize a Host start, PTY input, lifecycle change or another connection’s attachment.
+
+## Conditional Close inspection and guard
+
+Lifecycle capability version 2 retains version 1 bytes for decoding existing actions/results;
+version 1 cannot express the new actions. The current matched Server/Worker cohort requires
+version 2. Action 5 `TerminateIfIdle` maps only to Host kind 82; it accepts outcome 1 or known
+HostFailure reason 3 `ConfirmationRequired` (or the existing common failure outcomes). That new
+reason is invalid for every other action. Action 6 `InspectInventoryPage` has the same cursor and
+page representation as action 4, but is read-only and never claims, advances or replaces a retained
+Worker Close owner/ordinal/mutation receipt. It still validates Worker generation, binding fence,
+lease and complete Host identity before handoff. A preflight can therefore be followed by a fresh
+confirmed Close without a phantom lifecycle conflict.
+
+For capability 2 each matched inventory target appends one close-activity byte after its phase and
+optional termination flag: 0 unknown, 1 idle, 2 active. Other bytes fail decoding. Capability 1
+retains its original target layout and yields unknown. Worker maps missing Host metadata to unknown;
+no retained launch, terminal count or Client frame becomes idle evidence. Independent byte goldens,
+Worker receipt tests and the Server conditional-close witnesses cover these refinements. Upgrade
+and roll back the matched native cohort together; no mixed-version safety bypass is supported.

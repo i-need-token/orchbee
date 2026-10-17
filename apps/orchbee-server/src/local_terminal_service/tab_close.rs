@@ -17,6 +17,7 @@ use crate::{
 
 // Inert candidate failure yields at this cadence; it never renews the retained attempt.
 const CANDIDATE_RETRY: Duration = Duration::from_millis(250);
+mod idle;
 
 #[cfg(test)]
 mod tests;
@@ -62,6 +63,12 @@ impl LocalTerminalService {
         &self,
         command: WorkbenchCommand,
     ) -> Option<WorkbenchCommandResult> {
+        if matches!(
+            command.action,
+            orchbee_workbench_protocol::WorkbenchAction::WorkspaceCloseIfIdle { .. }
+        ) {
+            return self.execute_workspace_close_if_idle(command);
+        }
         let result = {
             let workers = self.workers.lock().ok();
             let handle = workers

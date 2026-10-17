@@ -8,9 +8,10 @@ use orchbee_capability_node_protocol::{
 use orchbee_server::CloseContinuationNext;
 use orchbee_server::{
     CloseStepToken, WorkbenchGrant, WorkbenchProjectDissolveBegin, WorkbenchTabCloseBegin,
-    WorkbenchTabClosePreparation, WorkbenchTabCloseResolution, WorkbenchTabCloseResumeBegin,
-    WorkbenchTabCloseResumePreparation, WorkbenchTabCloseRuntimeUnavailableReason,
-    WorkbenchTabCloseTarget, WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,
+    WorkbenchTabCloseMemberRuntime, WorkbenchTabClosePreparation, WorkbenchTabCloseResolution,
+    WorkbenchTabCloseResumeBegin, WorkbenchTabCloseResumePreparation,
+    WorkbenchTabCloseRuntimeUnavailableReason, WorkbenchTabCloseTarget,
+    WorkbenchWorkspaceCloseBegin, WorkbenchWorkspaceCloseResumeBegin,
     WorkbenchWorkspaceCloseResumePreparation,
 };
 use orchbee_workbench_protocol::{
@@ -24,6 +25,76 @@ use super::{PostcommitCoordinationError, SiteCoordinator, tree_composition_match
 use crate::terminal_coordinator::WorkerPlacement;
 
 impl SiteCoordinator {
+    /// Captures every primary/child binding without reserving a Close; ordinary
+    /// admission refusals remain retained by their existing ledger owner.
+    /// The caller drops the Site gate before reading Host inventory, then final
+    /// admission repeats these guards and compares exact runtime incarnations.
+    pub(crate) fn prepare_workspace_idle_close(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+    ) -> Option<Result<Vec<WorkbenchTabCloseMemberRuntime>, WorkbenchCommandResult>> {
+        let Self {
+            terminals,
+            workbench,
+            ..
+        } = self;
+        let workbench = workbench.as_mut()?;
+        let grant =
+            WorkbenchGrant::read_only(workbench.site_id().clone()).with_terminal_lifecycle();
+        let admission = match workbench.begin_workspace_close(Some(&grant), command) {
+            WorkbenchWorkspaceCloseBegin::Ready(result) => return Some(Err(result)),
+            WorkbenchWorkspaceCloseBegin::Admitted(admission) => admission,
+        };
+        let admission = match admission.resolve_after_composition() {
+            WorkbenchTabCloseResolution::Ready(result) => return Some(Err(result)),
+            WorkbenchTabCloseResolution::Primary(admission) => admission,
+        };
+        let runtimes = admission
+            .members()
+            .iter()
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .collect::<Result<Vec<_>, _>>();
+        Some(match runtimes {
+            Ok(runtimes) => Ok(runtimes),
+            Err(_) => Err(admission.confirmation_required()),
+        })
+    }
+
+    pub(crate) fn prepare_workspace_idle_inspection(
+        &mut self,
+        target: orchbee_server::WorkbenchTabCloseRuntimeTarget,
+        close_id: &WorkbenchRequestId,
+        cursor: Option<orchbee_capability_node_protocol::LifecycleInventoryCursor>,
+        expiry: LeaseExpiresAtUnixMilliseconds,
+    ) -> Option<TerminalLifecycleRequest> {
+        let request_id = self.terminals.allocate_identity()?;
+        let lease_id = self.terminals.allocate_identity()?;
+        Some(TerminalLifecycleRequest {
+            authorization: TerminalLifecycleAuthorization {
+                capability_version: TERMINAL_LIFECYCLE_CAPABILITY_VERSION,
+                terminal_id: target.terminal_id(),
+                worker_id: target.worker_id(),
+                worker_generation: target.worker_generation(),
+                binding_fence: target.fence(),
+                lease: TerminalOperationLease::new(LeaseId::from_bytes(lease_id).ok()?, expiry),
+            },
+            close_operation_id: OperationId::from_bytes(
+                u128::from_str_radix(close_id.as_str(), 16)
+                    .ok()?
+                    .to_be_bytes(),
+            )
+            .ok()?,
+            request_id: OperationId::from_bytes(request_id).ok()?,
+            attempt_generation: std::num::NonZeroU64::MIN,
+            step_ordinal: orchbee_capability_node_protocol::LifecycleStepOrdinal::new(1).ok()?,
+            target: target.host_identity(),
+            action:
+                orchbee_capability_node_protocol::TerminalLifecycleAction::InspectInventoryPage {
+                    cursor,
+                },
+        })
+    }
     pub(crate) fn execute_project_dissolve_if_idle(
         &mut self,
         command: WorkbenchCommand,
@@ -114,7 +185,25 @@ impl SiteCoordinator {
         owner_available: bool,
         now: Instant,
     ) -> Option<WorkbenchCommandResult> {
-        self.execute_workspace_close_with_group(command, worker, owner_available, now, None)
+        self.execute_workspace_close_with_group(command, worker, owner_available, now, None, None)
+    }
+
+    pub(crate) fn execute_workspace_close_with_idle_proof(
+        &mut self,
+        command: WorkbenchCommand,
+        worker: Option<WorkerPlacement>,
+        owner_available: bool,
+        now: Instant,
+        proof: &[WorkbenchTabCloseMemberRuntime],
+    ) -> Option<WorkbenchCommandResult> {
+        self.execute_workspace_close_with_group(
+            command,
+            worker,
+            owner_available,
+            now,
+            None,
+            Some(proof),
+        )
     }
 
     pub(crate) fn execute_workspace_group_member_close(
@@ -125,7 +214,14 @@ impl SiteCoordinator {
         now: Instant,
         token: (&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize),
     ) -> Option<WorkbenchCommandResult> {
-        self.execute_workspace_close_with_group(command, worker, owner_available, now, Some(token))
+        self.execute_workspace_close_with_group(
+            command,
+            worker,
+            owner_available,
+            now,
+            Some(token),
+            None,
+        )
     }
 
     fn execute_workspace_close_with_group(
@@ -135,7 +231,12 @@ impl SiteCoordinator {
         owner_available: bool,
         now: Instant,
         group: Option<(&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize)>,
+        idle_proof: Option<&[WorkbenchTabCloseMemberRuntime]>,
     ) -> Option<WorkbenchCommandResult> {
+        let conditional = matches!(
+            command.action,
+            orchbee_workbench_protocol::WorkbenchAction::WorkspaceCloseIfIdle { .. }
+        );
         let Self {
             terminals,
             workbench,
@@ -159,7 +260,11 @@ impl SiteCoordinator {
             WorkbenchWorkspaceCloseBegin::Ready(result) => return Some(result),
             WorkbenchWorkspaceCloseBegin::Admitted(admission) => admission,
         };
-        let admission = match admission.resolve_after_composition() {
+        let admission = match if conditional {
+            admission.resolve_after_composition()
+        } else {
+            admission.resolve_after_confirmation(now)
+        } {
             WorkbenchTabCloseResolution::Ready(result) => return Some(result),
             WorkbenchTabCloseResolution::Primary(admission) => admission,
         };
@@ -174,10 +279,22 @@ impl SiteCoordinator {
             .iter()
             .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
             .collect::<Result<Vec<_>, _>>();
-        let runtimes = match runtimes {
+        let mut runtimes = match runtimes {
             Ok(runtimes) => runtimes,
+            Err(_) if conditional => return Some(admission.confirmation_required()),
             Err(reason) => return Some(admission.runtime_unavailable(reason)),
         };
+        if let Some(proof) = idle_proof.filter(|proof| proof.len() == runtimes.len()) {
+            for (runtime, proof) in runtimes.iter_mut().zip(proof) {
+                if matches!((&*runtime, proof), (
+                    WorkbenchTabCloseMemberRuntime::Runtime { target: current, .. },
+                    WorkbenchTabCloseMemberRuntime::IdleRuntime { target: observed, .. }
+                ) if current == observed)
+                {
+                    *runtime = proof.clone();
+                }
+            }
+        }
         Some(match admission.finish_resolved_members(runtimes, now) {
             WorkbenchTabClosePreparation::Ready(result) => result,
             WorkbenchTabClosePreparation::Prepared(prepared) => prepared.commit(),

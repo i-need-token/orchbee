@@ -13,6 +13,50 @@ const CONTROL_FIXTURE: &str =
     include_str!("../../../packages/terminal-protocol/fixtures/control-conformance-v0.0.25.json");
 
 #[test]
+fn inventory_close_activity_is_optional_closed_and_never_inferred_from_phase()
+-> Result<(), Box<dyn Error>> {
+    let fixture = read_fixture()?;
+    let raw = fixture_string(&fixture, "/outputs/terminal_list")?;
+    for (text, activity) in [
+        (
+            "idle",
+            orchbee_terminal_protocol::TerminalCloseActivity::Idle,
+        ),
+        (
+            "active",
+            orchbee_terminal_protocol::TerminalCloseActivity::Active,
+        ),
+        (
+            "unknown",
+            orchbee_terminal_protocol::TerminalCloseActivity::Unknown,
+        ),
+    ] {
+        let mut value: Value = serde_json::from_str(raw)?;
+        value["terminals"][1]["closeActivity"] = text.into();
+        let InventoryControl::TerminalList(page) =
+            decode_inventory_control(10, MessageRole::Response, &serde_json::to_vec(&value)?)?
+        else {
+            panic!("inventory");
+        };
+        let TerminalSummary::Running { core, .. } = &page.terminals[1] else {
+            panic!("running shell");
+        };
+        assert_eq!(core.close_activity, Some(activity));
+        let encoded = encode_inventory_control(&InventoryControl::TerminalList(page))?;
+        assert_eq!(serde_json::from_slice::<Value>(&encoded.payload)?, value);
+    }
+    for invalid in [Value::Null, true.into(), "running".into(), 1.into()] {
+        let mut value: Value = serde_json::from_str(raw)?;
+        value["terminals"][1]["closeActivity"] = invalid;
+        assert!(
+            decode_inventory_control(10, MessageRole::Response, &serde_json::to_vec(&value)?)
+                .is_err()
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn canonical_inventory_payloads_decode_and_reencode_byte_for_byte() -> Result<(), Box<dyn Error>> {
     let fixture = read_fixture()?;
     assert_canonical_round_trip(

@@ -86,6 +86,7 @@ fn reply_editor_source_inventory(peer: &mut LocalStream, source: TerminalEditorS
             next_cursor: None,
             terminals: vec![terminal::TerminalSummary::Running {
                 core: terminal::TerminalSummaryCore {
+                    close_activity: None,
                     configuration: terminal::TerminalConfiguration {
                         scrollback_bytes: 0,
                     },

@@ -59,6 +59,7 @@ pub const Dispatcher = struct {
             .create_terminal,
             .start_terminal,
             .terminate_terminal,
+            .terminate_terminal_if_idle,
             .force_terminate_terminal,
             .dispose_terminal,
             .attach_terminal,

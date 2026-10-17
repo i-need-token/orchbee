@@ -147,6 +147,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 
     job_handle: windows.HANDLE,
     process_handle: windows.HANDLE,
+    interactive_shell: bool = false,
     pty: pty_module.Pty,
     termination: termination_module.Termination = .{},
 
@@ -157,13 +158,14 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         defer arena_state.deinit();
         const arena = arena_state.allocator();
 
-        var arguments = try arena.alloc([]const u8, launch.arguments.len + 1);
+        const shell_arguments = try @import("powershell_integration.zig").arguments(arena, launch.executable, launch.arguments);
+        var arguments = try arena.alloc([]const u8, shell_arguments.len + 1);
         // cmd.exe parses argv0 itself and mistakes forward-slash path segments
         // for switches. Keep application selection and caller arguments literal.
         const executable_argument = try arena.dupe(u8, launch.executable);
         std.mem.replaceScalar(u8, executable_argument, '/', '\\');
         arguments[0] = executable_argument;
-        @memcpy(arguments[1..], launch.arguments);
+        @memcpy(arguments[1..], shell_arguments);
         const batch = @import("windows_command_line.zig").isBatch(executable_argument);
         const command_line = if (batch)
             try @import("windows_command_line.zig").batch(arena, executable_argument, launch.arguments)
@@ -274,6 +276,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         return .{
             .job_handle = job_handle,
             .process_handle = process_information.hProcess,
+            .interactive_shell = @import("interactive_shell.zig").isInteractive(launch.executable, launch.arguments),
             .pty = pty,
         };
     }
@@ -336,6 +339,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn hasActiveCommand(self: *const Process) !bool {
+        if (!self.interactive_shell) return true;
         var active_processes: windows.DWORD = 0;
         if (!windows_api.ob_windows_terminal_job_active_processes(
             self.job_handle,
@@ -343,7 +347,10 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         ).toBool()) {
             return error.ProcessObservationFailed;
         }
-        return active_processes > 1;
+        const root_state = windows_api.WaitForSingleObject(self.process_handle, 0);
+        if (root_state == windows_api.WAIT_OBJECT_0) return active_processes != 0;
+        if (root_state != windows_api.WAIT_TIMEOUT or active_processes == 0) return error.ProcessObservationFailed;
+        return active_processes != 1;
     }
 
     pub fn wait(self: *Process) !ExitResult {

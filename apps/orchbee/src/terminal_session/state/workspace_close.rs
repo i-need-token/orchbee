@@ -343,6 +343,27 @@ impl<'a> WorkspaceCloseStatusView<'a> {
     }
 }
 impl NativeSessionState {
+    /// A known guarded-signal refusal can be reviewed explicitly without
+    /// discarding the retained operation or weakening unknown-outcome fences.
+    pub(in crate::terminal_session) fn can_confirm_guarded_workspace_close(
+        &self,
+        workspace: &WorkbenchWorkspaceId,
+    ) -> bool {
+        self.workspace_close_quiet()
+            && self.workspace_close.confirmation.is_none()
+            && self.workspace_close.pending.is_none()
+            && self.workspace_close.evidence.as_ref().is_some_and(|evidence| {
+                evidence.operation.conditional
+                    && evidence.operation.target.workspace_id() == Some(workspace)
+                    && matches!(&evidence.result, WorkspaceCloseResult::WorkspaceObserved { outcome, .. }
+                        if matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
+                            status: WorkbenchTabCloseStatus::CleanupBlocked {
+                                reason: orchbee_workbench_protocol::WorkbenchTabCloseBlockedReason::HostRefused,
+                                resumable: true,
+                            }, ..
+                        }))
+            })
+    }
     pub(super) fn workspace_close_invariant_holds(&self) -> bool {
         self.workspace_close
             .pending
@@ -453,7 +474,11 @@ impl NativeSessionState {
         target: WorkspaceCloseTarget,
         label: String,
     ) -> Option<WorkspaceCloseToken> {
-        if !self.close_scope_available() {
+        if !self.close_scope_available()
+            && !target
+                .workspace_id()
+                .is_some_and(|workspace| self.can_confirm_guarded_workspace_close(workspace))
+        {
             self.set_notice(SessionNotice::LocalBusy);
             return None;
         }

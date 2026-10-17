@@ -107,23 +107,33 @@ Workspace 及其 Terminal Context，并记录 Closed 墓碑。Project 元数据�
 `workspace.close-if-idle {workspaceId}` 使用独立命令指纹，沿用普通生命周期授权、重放／冲突、
 容量、Site／revision 及完整 Context 成员检查，并共用待处理 create／split 与重叠 Close 守卫。
 Site 在持有 coordinator gate 时解析**每个已绑定 Presentation**，包括未绑定 primary 下的子项。
-只有绑定范围为空，或每个成员均有精确 `Uncreated` 证据，才准入条件动作。
-`TerminalCoordinator::is_definitively_uncreated` 要求唯一准确绑定，其 Create 在 Host 提交前
-结算为 failed／unavailable，运行时身份为 `Unavailable(None)`。缺失、歧义、待处理、unknown
-或已有运行时的记录均不能证明该事实。保留的 Started 结果、观察到进程 Exited 或 Client snapshot
-都不是这项证明。
+空绑定范围、准确 `Uncreated` 证据，或**每个**成员的新鲜 `IdleRuntime` 证据才允许条件准入。
+`Uncreated` 仍要求准确绑定的 Create 在 Host 提交前明确失败／不可用，运行时身份为
+`Unavailable(None)`；缺失或歧义记录不能证明它。保留的 Started 结果或 Client 附着的 pane
+都不是实时进程证据。
 
-已解析运行时返回保留的 `rejected {reason:confirmation-required, revision}`，不产生 Close
-额度、发布或运行时效果。权威缺失及 busy／unavailable 关联保留既有准确分类。条件 Close 接受后
-使用与普通 Close **相同**的 prepared reservation、完整指纹、continuation、maintenance 和
-publication。释放 gate 前已安装隔离栅栏；后续 create／split 不能插入空闲预读与无条件 Close
-之间。精确重放观察原回执；同一请求 ID 在条件动作与已确认动作间切换会冲突。
-普通 `workspace.close` 保持既有语义。
+对于已有运行时，服务先释放 registry／Site 锁，再通过只读 `InspectInventoryPage` 遍历清单。
+每个目标固定 Worker generation、绑定 fence 及完整的 Host creation／epoch／terminal 身份。
+整个范围共享四秒准入窗口和 32 页额度；已发出的慢速传输仍受既有 carrier 回复时限约束，
+不能延长该窗口。每个目标要求完整且代次一致的清单以及唯一匹配。AwaitingStart、Exited 与
+Failed 证明没有活动程序；Running 要求 Host 新鲜 `idle` 且没有终止意图。活动 Host 只能在
+接受产生字节的活动输入之前证明空闲；已结算的 OS 写入及后续提示符周期均不能证明 shell 消费。
+输入后，即使普通命令已返回提示符，也要求确认，直到终端被替换或已证实结束。Finishing、遏制、
+active、unknown、缺失、不支持或不可用证据均要求确认。最终准入在 Site gate 内重做普通门禁
+及准确运行时匹配。同一来源版本上的 `confirmation-required` 不产生 Close 额度、围栏、发布
+或运行时效果；revision／结构冲突保留既有准确结果。
+
+已接受的条件 Close 在释放 gate 前安装既有的完整预留／围栏。实际发送的每个信号使用 Host
+`TerminateTerminalIfIdle`，在派发时重新检查进程／提示符状态；过期库存绝不授予无条件终止权。
+拒绝会将保留操作停在 `HostRefused`，保留已完成的部分成员结果；条件 Close 永不升级为 Force。
+显式 Resume 仍要求空闲检查。新的、已明确确认的普通 `workspace.close` 可升级一个可恢复的
+条件记录，保留规范 Close ID 和所有回执，同时只推进一次尝试；尚未结算或 unknown 信号不能
+升级。精确请求重放不会再授予尝试，同一请求 ID 更换动作仍然冲突。
 
 `project.dissolve-if-idle {projectId}` 要求导航授权，在同一 gate 内冻结目标 Project 的全部成员
 Context。借用式准入先执行普通授权、重放／容量、Site／revision、Project 和组织冲突检查，
 拒绝当前 revision 上**任一**成员 Context 已提交但尚未结算的终端创建，并在接受逐绑定精确
-证据前准备有界组织计划。它使用相同的从未创建证明；已有运行时要求确认。接受只删除 Project
+证据前准备有界组织计划。它保留更严格的从未创建证明；每个已有运行时仍要求确认。接受只删除 Project
 元数据并将 Workspace 取消分组，保留全部成员 ID、目录、Context 与运行时，绝不组合 Close
 操作。显式 `project.dissolve` 保持兼容。
 
@@ -142,10 +152,10 @@ Context。借用式准入先执行普通授权、重放／容量、Site／revisi
 
 这是既有保留 Close 状态机的准入谓词细化，不引入第二个生命周期所有者：已接受的条件 Close
 进入相同的预留与发布转换。新 wire 判别值细化完整请求指纹；明确拒绝没有效果，之后仍需另行
-审阅无条件请求。已注册的重放与 Close 模型保留各自抽象范围；执行它们本身不能证明具体的
+审阅无条件请求。已注册的重放与 Close 模型保留各自抽象范围；执行它们本身不能证明新鲜进程／提示符分类、信号派发时的空闲门禁，或具体的
 从未创建谓词、完整 primary／child／Project 成员提取、具体 pending 条目与预提交 gate 互斥、跨语言
 解码，或新的 Client 绘制与请求 ID 升级。上述实现与 Site 见证分别承担这些义务，
-不声称已知当前进程退出状态。
+原生进程与提示符行为还要求 Host 回归及真实 TUI 见证。
 
 ## Close 命令与保留状态
 

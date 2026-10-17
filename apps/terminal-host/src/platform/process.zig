@@ -27,6 +27,8 @@ pub const Process = switch (builtin.os.tag) {
 };
 
 pub const testing = if (builtin.is_test) struct {
+    pub const interactiveShellLaunchFn = @import("interactive_shell.zig").isInteractive;
+    pub const powershellArgumentsFn = @import("powershell_integration.zig").arguments;
     pub const process_query = @import("process_query_windows.zig").testing;
     pub const foregroundCommandActiveFn = posix_process.foregroundCommandActive;
     pub const posixExecutableCandidatesFn = posix_process.executableCandidatesForTesting;
