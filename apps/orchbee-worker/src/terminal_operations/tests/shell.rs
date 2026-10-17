@@ -70,6 +70,60 @@ fn editor_launch(id: u8, source: TerminalEditorSource) -> AuthorizedTerminalLaun
     .unwrap()
 }
 
+fn reply_editor_source_inventory(peer: &mut LocalStream, source: TerminalEditorSource) {
+    let bytes = record(peer);
+    let envelope = decode_transport_envelope(&bytes).unwrap();
+    let terminal::InventoryControl::ListTerminals(request) =
+        terminal::decode_inventory_control(envelope.kind, envelope.role, envelope.payload).unwrap()
+    else {
+        panic!("source lifecycle inventory before Attached")
+    };
+    assert_eq!(request.cursor, None);
+    assert_eq!(request.maximum_terminals, 128);
+    let inventory = terminal::encode_inventory_control(&terminal::InventoryControl::TerminalList(
+        terminal::TerminalList {
+            inventory_generation: NonZeroU64::MIN,
+            next_cursor: None,
+            terminals: vec![terminal::TerminalSummary::Running {
+                core: terminal::TerminalSummaryCore {
+                    configuration: terminal::TerminalConfiguration {
+                        scrollback_bytes: 0,
+                    },
+                    configuration_revision: 0,
+                    identity: terminal::TerminalIdentity {
+                        creation_id: terminal::CreationId::from_bytes([68; 16]).unwrap(),
+                        host_epoch: terminal::HostEpoch::from_bytes(source.host_epoch.as_bytes())
+                            .unwrap(),
+                        terminal_id: terminal::TerminalId::from_bytes(
+                            source.terminal_id.as_bytes(),
+                        )
+                        .unwrap(),
+                    },
+                    revision: source.revision,
+                    theme: terminal::TerminalThemeState {
+                        operation_id: None,
+                        revision: 0,
+                        terminal: terminal::TerminalTheme {
+                            color_scheme: terminal::ColorScheme::Dark,
+                            default_background_rgb: 0,
+                            default_cursor_rgb: None,
+                            default_foreground_rgb: 0xffffff,
+                            palette: vec![0; 256],
+                        },
+                    },
+                },
+                geometry: terminal::TerminalGeometry {
+                    columns: 80,
+                    rows: 24,
+                },
+                terminate_requested: false,
+            }],
+        },
+    ))
+    .unwrap();
+    reply(peer, &bytes, inventory.kind, &inventory.payload);
+}
+
 #[test]
 fn editor_source_launch_reaches_host_capture_with_literal_argv_and_retains_known_or_unknown_receipts()
  {
@@ -143,6 +197,7 @@ fn editor_source_launch_reaches_host_capture_with_literal_argv_and_retains_known
             )
             .unwrap();
             reply(&mut host_peer, &bytes, accepted.kind, &accepted.payload);
+            reply_editor_source_inventory(&mut host_peer, source);
             assert!(
                 matches!(node::read_message(&mut peer).unwrap(),CapabilityNodeMessage::TerminalViewerResult(result) if result.outcome==TerminalViewerOutcome::Attached)
             );
