@@ -168,6 +168,15 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             Role::SurfaceHover
                         };
                         let expected = theme.style(surface);
+                        assert_eq!(ys.len(), 2, "identity and supporting lines: {target:?}");
+                        let supporting_text: String = (0..40)
+                            .filter(|x| !hidden_by_candidate_wide_glyph(&buffer, *x, ys[1]))
+                            .map(|x| buffer[(x, ys[1])].symbol())
+                            .collect();
+                        assert!(
+                            supporting_text.contains(if owner { "feat/测试" } else { "codex" }),
+                            "expected branch/provider supporting line: {supporting_text}"
+                        );
                         for y in &ys {
                             for x in 0..40 {
                                 if hidden_by_candidate_wide_glyph(&buffer, x, *y) {
@@ -208,6 +217,8 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
         Theme::terminal_native(),
         Theme::one_light(),
         Theme::one_dark(),
+        Theme::one_dark().quantize(ColorLevel::Ansi16),
+        Theme::terminal_native().quantize(ColorLevel::Monochrome),
     ] {
         let theme = base.paired_pointer_surfaces();
         for surface in [
@@ -216,7 +227,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
             Role::SurfacePressed,
             Role::SurfaceSelection,
         ] {
-            for bold in [None, Some(false)] {
+            for bold in [None, Some(false), Some(true)] {
                 let identity = theme.sidebar_token_style(
                     Role::TextPrimary,
                     WindowsSidebarTokenStyle {
@@ -228,10 +239,42 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                     false,
                 );
                 let secondary = theme.style(Role::TextSecondary);
+                let supporting_token = |bold| {
+                    theme.sidebar_token_style(
+                        Role::TextSecondary,
+                        WindowsSidebarTokenStyle {
+                            bold,
+                            ..Default::default()
+                        },
+                        false,
+                        false,
+                    )
+                };
+                let state = theme.style(Role::StatusWorking);
                 let mut lines = vec![
-                    Line::from(Span::styled("Codex", identity)),
-                    Line::from(Span::styled("provider / branch", secondary)),
+                    Line::from(vec![
+                        Span::styled("Codex", identity),
+                        Span::styled("provider", secondary),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("provider / branch", secondary),
+                        Span::styled("explicit emphasis", supporting_token(Some(true))),
+                        Span::styled("explicit plain", supporting_token(Some(false))),
+                    ])
+                    .style(secondary.add_modifier(Modifier::BOLD)),
+                    Line::from(Span::styled("Working", state)),
                 ];
+                let mut provisional = lines.clone();
+                sidebar_text::compose_lines(&mut provisional, Some(surface), false, &theme);
+                assert_eq!(
+                    provisional[0].spans[0]
+                        .style
+                        .add_modifier
+                        .contains(Modifier::BOLD),
+                    bold == Some(true)
+                        || bold.is_none()
+                            && theme.style(surface).add_modifier.contains(Modifier::BOLD)
+                );
                 sidebar_text::compose_lines(&mut lines, Some(surface), true, &theme);
                 assert_eq!(lines[0].spans[0].style.fg, identity.fg);
                 assert_eq!(
@@ -242,13 +285,47 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
                     bold != Some(false)
                 );
                 assert!(
+                    !lines[0].spans[1]
+                        .style
+                        .add_modifier
+                        .contains(Modifier::BOLD)
+                );
+                assert!(
                     !lines[1].spans[0]
                         .style
                         .add_modifier
                         .contains(Modifier::BOLD)
                 );
+                assert!(
+                    lines[1].spans[1]
+                        .style
+                        .add_modifier
+                        .contains(Modifier::BOLD)
+                );
+                assert!(
+                    !lines[1].spans[2]
+                        .style
+                        .add_modifier
+                        .contains(Modifier::BOLD)
+                );
+                assert!(
+                    lines[1].spans[2]
+                        .style
+                        .sub_modifier
+                        .contains(Modifier::BOLD)
+                );
+                assert!(!lines[1].style.add_modifier.contains(Modifier::BOLD));
                 assert!(lines[1].style.sub_modifier.contains(Modifier::BOLD));
-                assert_eq!(lines[0].spans[0].style.bg, lines[1].spans[0].style.bg);
+                assert_eq!(lines[2].spans[0].style.fg, state.fg);
+                assert!(
+                    !lines[2].spans[0]
+                        .style
+                        .add_modifier
+                        .contains(Modifier::BOLD)
+                );
+                for span in lines.iter().skip(1).flat_map(|line| &line.spans) {
+                    assert_eq!(lines[0].spans[0].style.bg, span.style.bg);
+                }
             }
         }
     }

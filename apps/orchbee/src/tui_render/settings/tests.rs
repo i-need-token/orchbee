@@ -128,20 +128,32 @@ fn target_text(
 }
 
 fn line_text(terminal: &Terminal<TestBackend>, y: u16) -> String {
-    let buffer = terminal.backend().buffer();
-    (0..buffer.area.width)
-        .map(|x| buffer[(x, y)].symbol())
-        .collect()
+    region_text(
+        terminal,
+        Rect::new(0, y, terminal.backend().buffer().area.width, 1),
+    )
 }
 
 fn screen_text(terminal: &Terminal<TestBackend>) -> String {
-    terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect()
+    region_text(terminal, terminal.backend().buffer().area)
+}
+
+fn region_text(terminal: &Terminal<TestBackend>, area: Rect) -> String {
+    let buffer = terminal.backend().buffer();
+    let mut text = String::new();
+    for y in area.y..area.bottom() {
+        if y > area.y {
+            text.push('\n');
+        }
+        let mut x = area.x;
+        while x < area.right() {
+            let symbol = buffer[(x, y)].symbol();
+            text.push_str(symbol);
+            // A wide glyph owns its following cells; their placeholder blanks are not text.
+            x += u16::try_from(display_width(symbol).max(1)).unwrap();
+        }
+    }
+    text
 }
 
 fn without_cell_padding(text: &str) -> String {
@@ -164,7 +176,7 @@ fn search_and_section_landmarks_stay_secondary_without_index_or_preview_clutter(
                 let mut editor = editor_with(UserPreferencesValues::default());
                 editor.edit(Edit::Select(selected));
                 let view = editor.view().unwrap();
-                let View::Draft(draft) = view else {
+                let View::Draft(_) = view else {
                     panic!("draft")
                 };
                 let bounds = Rect::new(0, 0, 80, 24);
@@ -172,7 +184,7 @@ fn search_and_section_landmarks_stay_secondary_without_index_or_preview_clutter(
                 let (terminal, _, receipt) = render_once(&editor, 80, 24, locale, &theme);
                 assert!(matches!(receipt, ModalPresentation::Presented(_)));
                 let buffer = terminal.backend().buffer();
-                let regions = DraftRegions::resolve(layout.inner, draft).unwrap();
+                let regions = layout.draft.unwrap().regions;
                 let search = &buffer[(layout.inner.x, layout.inner.y)];
                 let detail = &buffer[(layout.inner.x, regions.detail.unwrap().y)];
                 assert!(!search.modifier.contains(Modifier::BOLD));
@@ -503,15 +515,19 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
     let mut editor = editor_with(UserPreferencesValues::default());
     select_and_present(&mut editor, Row::ResetAll, Locale::EnUs, &theme);
     editor.edit(Edit::Activate);
-    let (_, map, receipt) = render_once(&editor, 36, 10, Locale::EnUs, &theme);
+    let (_, map, receipt) = render_once(&editor, 35, 10, Locale::EnUs, &theme);
     assert!(matches!(receipt, ModalPresentation::NotPresented));
-    assert!((0..10).all(|y| (0..36).all(|x| map.hit_target_at(x, y).is_none())));
+    assert!((0..10).all(|y| (0..35).all(|x| map.hit_target_at(x, y).is_none())));
 }
 
 #[test]
 fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions() {
     let theme = Theme::one_dark();
     for (width, locale, admitted) in [
+        (35, Locale::EnUs, false),
+        (35, Locale::ZhCn, false),
+        (36, Locale::EnUs, true),
+        (36, Locale::ZhCn, true),
         (48, Locale::EnUs, true),
         (48, Locale::ZhCn, true),
         (60, Locale::EnUs, true),
@@ -522,13 +538,41 @@ fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions
         let (terminal, map, receipt) = render_once(&editor, width, 10, locale, &theme);
         assert_eq!(matches!(receipt, ModalPresentation::Presented(_)), admitted);
         if admitted {
+            let ModalPresentation::Presented(draw) = receipt else {
+                unreachable!();
+            };
             let View::Draft(draft) = editor.view().unwrap() else {
                 panic!("confirmation draft")
             };
-            assert!(
-                without_cell_padding(&screen_text(&terminal))
-                    .contains(&without_cell_padding(&locale.settings_detail(draft)))
+            let bounds = Rect::new(0, 0, width, 10);
+            let layout =
+                SettingsLayout::resolve(bounds, bounds, View::Draft(draft), locale, &theme)
+                    .unwrap();
+            let description = Rect::new(layout.inner.x, layout.inner.y + 1, layout.inner.width, 2);
+            // Read the decision slot: screen borders separate its wrapped lines, and wide-glyph
+            // continuation cells are not additional spaces in the localized decision.
+            assert_eq!(
+                without_cell_padding(&region_text(&terminal, description)),
+                without_cell_padding(&locale.settings_detail(draft))
             );
+            for (control, label, key) in [
+                (Control::Back, locale.settings_cancel(), "Esc"),
+                (Control::Accept, locale.settings_accept_button(), "Enter"),
+            ] {
+                let target = HitTarget::SettingsControl {
+                    token: draw.token(),
+                    control,
+                };
+                assert_eq!(
+                    without_cell_padding(&target_text(&terminal, &map, &target, false)),
+                    format!("[{label}{key}]")
+                );
+                assert!(
+                    cells_for(&map, &target, width, 10)
+                        .iter()
+                        .all(|&(_, y)| y >= description.bottom())
+                );
+            }
         } else {
             assert!((0..10).all(|y| (0..width).all(|x| map.hit_target_at(x, y).is_none())));
         }
@@ -973,22 +1017,42 @@ fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing
     let theme = Theme::one_dark();
     let mut editor = editor_with(UserPreferencesValues::default());
     let (_, _, first) = present_once(&mut editor, 36, 10, Locale::EnUs, &theme);
+    let View::Draft(draft) = editor.view().unwrap() else {
+        panic!("draft");
+    };
+    let entries = draft.entries();
+    let values = draft.values.clone();
+    let anchor = entries
+        .iter()
+        .position(|entry| *entry == Entry::Setting(Row::Language))
+        .unwrap();
+    let destination = entries
+        .iter()
+        .position(|entry| *entry == Entry::Setting(Row::CopyOnSelect))
+        .unwrap();
+    assert_eq!(
+        first.first_visible(),
+        Some(anchor),
+        "one visible row reveals the setting, not its category heading"
+    );
+    assert_eq!(first.visible_rows(), Some(1));
     let scrolled = editor
-        .scroll(first.token(), false, 5)
+        .scroll(first.token(), false, destination - anchor)
         .expect("painted list admits wheel scrolling");
     let (terminal, map, receipt) = render_once(&editor, 36, 10, Locale::EnUs, &theme);
     let ModalPresentation::Presented(draw) = receipt else {
         panic!("scrolled settings stays admitted");
     };
     assert_eq!(draw.token(), scrolled);
-    assert_eq!(draw.first_visible(), Some(5));
+    assert_eq!(draw.first_visible(), Some(destination));
     editor.presented(draw);
 
-    let visible_rows: Vec<_> = Page::General
-        .rows()
+    let visible_rows: Vec<_> = entries[destination..destination + draw.visible_rows().unwrap()]
         .iter()
-        .copied()
-        .filter_map(|row| {
+        .filter_map(|entry| {
+            let Entry::Setting(row) = *entry else {
+                return None;
+            };
             let target = HitTarget::SettingsRow {
                 token: draw.token(),
                 row,
@@ -998,9 +1062,28 @@ fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing
         })
         .collect();
     assert!(!visible_rows.is_empty());
+    assert!(
+        cells_for(
+            &map,
+            &HitTarget::SettingsRow {
+                token: draw.token(),
+                row: Row::Language
+            },
+            36,
+            10
+        )
+        .is_empty()
+    );
     for cells in visible_rows {
         let (x, y) = *cells.iter().min_by_key(|(x, _)| *x).unwrap();
         assert_eq!(terminal.backend().buffer()[(x, y)].symbol(), " ");
+        let geometry =
+            RowGeometry::new(Rect::new(x, y, u16::try_from(cells.len()).unwrap(), 1)).unwrap();
+        for x in geometry.primary.x..geometry.primary.right() {
+            let cell = &terminal.backend().buffer()[(x, y)];
+            assert!(!cell.modifier.contains(ratatui::style::Modifier::BOLD));
+            assert_eq!(cell.bg, theme.color(Role::SurfaceOverlay));
+        }
     }
 
     let before = editor.view().unwrap().token();
@@ -1010,13 +1093,24 @@ fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing
     };
     assert_eq!(draft.token, before);
     assert_eq!(draft.values.locale, PreferencesLocale::System);
+    assert_eq!(draft.values, &values);
+    assert_eq!(draft.selected, Row::Language);
+    assert!(
+        draft.picker.is_none(),
+        "the hidden anchor cannot open a selector"
+    );
 
     editor.edit(Edit::Next);
     let (_, _, receipt) = render_once(&editor, 36, 10, Locale::EnUs, &theme);
     let ModalPresentation::Presented(revealed) = receipt else {
         panic!("keyboard navigation remains admitted");
     };
-    assert_eq!(revealed.first_visible(), Some(2));
+    assert_eq!(
+        revealed.first_visible(),
+        entries
+            .iter()
+            .position(|entry| *entry == Entry::Setting(Row::Theme))
+    );
 }
 
 #[test]

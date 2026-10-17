@@ -43,6 +43,11 @@ boolean activation toggles its draft. A breadcrumb names a child editor or selec
 description and Cancel/Confirm footer replace root content and actions. Picker navigation changes
 only a provisional candidate; appearance candidates preview locally, while other choices have no
 runtime effect. Acceptance changes the parent draft, and cancellation restores its prior preview.
+Child footers measure complete localized Cancel/Confirm labels and their Esc/Enter bindings.
+When the pair cannot fit side by side, it occupies two fixed rows before the child viewport is
+allocated. A minimal picker retains at least one choice row, and a text editor retains its
+entry and cursor. Confirmations admit only their complete localized decision and both controls;
+unsupported geometry publishes no controls. Preflight and painting consume the same resolved regions.
 At compact height, picker wheel movement scrolls its own viewport and relocates only the
 provisional cursor to the nearest visible choice; it never accepts a value or moves the parent viewport.
 `Ctrl+s` invokes the fixed Save action only from root browsing, using the same painted authority as

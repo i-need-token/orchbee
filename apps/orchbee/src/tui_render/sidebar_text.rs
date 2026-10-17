@@ -48,17 +48,20 @@ pub(super) fn compose_lines(
             .content_on_surface(Role::SurfaceChrome, interaction, line_role, line.style)
             .remove_modifier(Modifier::BOLD);
         for span in &mut line.spans {
+            let content_bold = span.style.add_modifier.contains(Modifier::BOLD);
             let explicitly_plain = span.style.sub_modifier.contains(Modifier::BOLD);
             let role = semantic_role(span.style, theme);
             span.style =
                 theme.content_on_surface(Role::SurfaceChrome, interaction, role, span.style);
-            if explicitly_plain {
-                span.style = span.style.remove_modifier(Modifier::BOLD);
-            } else if emphasize_identity
-                && index == 0
+            // Modifier-only surfaces can add bold to each span as well as the Line. Preserve
+            // authored span emphasis and primary identity fallbacks, without promoting metadata.
+            let identity_bold = index == 0
                 && matches!(role, None | Some(Role::TextPrimary))
-            {
+                && (emphasize_identity || span.style.add_modifier.contains(Modifier::BOLD));
+            if !explicitly_plain && (content_bold || identity_bold) {
                 span.style = span.style.add_modifier(Modifier::BOLD);
+            } else {
+                span.style = span.style.remove_modifier(Modifier::BOLD);
             }
         }
     }

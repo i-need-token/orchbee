@@ -137,7 +137,13 @@ struct SettingsLayout {
     hints: Rect,
     actions: Rect,
     footer_actions: FooterActionGeometry,
-    draft: Option<SettingsDraw>,
+    draft: Option<DraftLayout>,
+}
+
+#[derive(Clone, Copy)]
+struct DraftLayout {
+    regions: DraftRegions,
+    draw: SettingsDraw,
 }
 
 impl SettingsLayout {
@@ -170,12 +176,24 @@ impl SettingsLayout {
             return None;
         }
         let close = super::controls::close_rect(bounds, area)?;
-        let action_height =
+        let mut action_height =
             if matches!(view, View::Draft(draft) if !is_child(draft)) && inner.width < 70 {
                 2
             } else {
                 1
             };
+        if matches!(view, View::Draft(draft) if is_child(draft))
+            && FooterActionGeometry::resolve(
+                bounds,
+                Rect::new(inner.x, inner.bottom().checked_sub(1)?, inner.width, 1),
+                view,
+                locale,
+                theme,
+            )
+            .is_none()
+        {
+            action_height = 2;
+        }
         let hints = Rect::new(
             inner.x,
             inner.bottom().checked_sub(action_height + 1)?,
@@ -194,7 +212,7 @@ impl SettingsLayout {
         let footer_actions = FooterActionGeometry::resolve(bounds, actions, view, locale, theme)?;
         let draft = match view {
             View::Draft(draft) => {
-                let regions = DraftRegions::resolve(inner, draft)?;
+                let regions = DraftRegions::resolve(inner, action_height)?;
                 let visible = usize::from(regions.list.height);
                 let draw = if let Some(picker) = draft.picker {
                     let visible = usize::from(regions.facts.y.saturating_sub(inner.y + 3))
@@ -205,9 +223,10 @@ impl SettingsLayout {
                 } else {
                     draft.presentation(visible)
                 };
-                draft_geometry_admitted(bounds, inner, draft, draw, locale, theme)
-                    .then_some(draw)?;
-                Some(draw)
+                if !draft_geometry_admitted(bounds, inner, regions, draft, draw, locale, theme) {
+                    return None;
+                }
+                Some(DraftLayout { regions, draw })
             }
             View::Loading { .. } | View::Saving { .. } => None,
         };
@@ -562,13 +581,12 @@ impl FooterActionGeometry {
                 second_spec = second_spec.with_shortcut(&shortcuts[1]);
             }
             let first = super::controls::action_rect(bounds, row, first_spec, theme)?;
-            let second_x = first.right().checked_add(2)?;
-            let second_area = Rect::new(
-                second_x,
-                row.y,
-                row.right().checked_sub(second_x)?,
-                row.height,
-            );
+            let (second_x, second_y) = if row.height > 1 {
+                (row.x, row.y.checked_add(1)?)
+            } else {
+                (first.right().checked_add(2)?, row.y)
+            };
+            let second_area = Rect::new(second_x, second_y, row.right().checked_sub(second_x)?, 1);
             let second = super::controls::action_rect(bounds, second_area, second_spec, theme)?;
             Some(Self::Pair {
                 first,
@@ -853,12 +871,12 @@ fn render_draft(
     frame: &mut Frame<'_>,
     inner: Rect,
     draft: DraftView<'_>,
-    draw: SettingsDraw,
+    layout: DraftLayout,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> SettingsDraw {
-    let regions = DraftRegions::resolve(inner, draft).expect("admitted draft slots");
+    let DraftLayout { regions, draw } = layout;
     if draft.text.is_some() || draft.confirmation.is_some() || draft.picker.is_some() {
         render_child(frame, inner, regions.facts.y, draft, locale, theme, hits);
         render_state_facts(frame, regions.facts, draft, locale, theme);
@@ -979,12 +997,7 @@ struct DraftRegions {
 }
 
 impl DraftRegions {
-    fn resolve(inner: Rect, draft: DraftView<'_>) -> Option<Self> {
-        let actions = if !is_child(draft) && inner.width < 70 {
-            2
-        } else {
-            1
-        };
+    fn resolve(inner: Rect, actions: u16) -> Option<Self> {
         let facts_y = inner.bottom().checked_sub(actions + 2)?;
         let with_detail = inner.height >= 12;
         let separator_y = facts_y.checked_sub(if with_detail { 2 } else { 1 })?;
@@ -1335,14 +1348,12 @@ impl RowGeometry {
 fn draft_geometry_admitted(
     bounds: Rect,
     inner: Rect,
+    regions: DraftRegions,
     draft: DraftView<'_>,
     draw: SettingsDraw,
     locale: Locale,
     theme: &Theme,
 ) -> bool {
-    let Some(regions) = DraftRegions::resolve(inner, draft) else {
-        return false;
-    };
     if draft.text.is_some() || draft.confirmation.is_some() || draft.picker.is_some() {
         if draft.confirmation.is_some() {
             let rows = Paragraph::new(locale.settings_detail(draft))

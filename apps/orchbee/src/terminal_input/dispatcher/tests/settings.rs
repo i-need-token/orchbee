@@ -327,13 +327,11 @@ fn settings_wheel_never_wraps_or_edits_values_and_keyboard_cancels_backlog() {
         else {
             panic!("loaded settings draft")
         };
-        let row = draft.page.rows()[draft.viewport];
+        // Category landmarks share the viewport with settings. Use the painted list owner,
+        // including its blank/scrollbar track, rather than indexing a separate settings catalog.
         target_cell(
             map,
-            &HitTarget::SettingsRow {
-                token: draft.token,
-                row,
-            },
+            &HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Settings(draft.token)),
             WIDTH,
             HEIGHT,
         )

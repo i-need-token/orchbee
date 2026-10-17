@@ -1130,9 +1130,17 @@ enum Trace {
     Sound,
     SaveRow,
     Activate,
+    NextChoice,
+    PreviousChoice,
     Cancel,
     Complete,
     StaleFrame,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ProvisionalChoice {
+    Theme(usize),
+    Reminders(bool),
 }
 
 /// An independent episode oracle tracks only semantic values and authorization,
@@ -1148,6 +1156,13 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
     let mut presented = false;
     let mut drawn = false;
     let mut saves = Vec::new();
+    let mut provisional = None;
+    let saved_values = UserPreferencesValues::default();
+    let names = [
+        ApplicationAppearance::System,
+        ApplicationAppearance::Light,
+        ApplicationAppearance::Dark,
+    ];
     for op in trace {
         match op {
             Trace::Open => {
@@ -1178,6 +1193,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                         row = Row::Theme;
                         presented = false;
                         drawn = false;
+                        provisional = None;
                     }
                 }
             }
@@ -1201,11 +1217,13 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                 if phase == 2 {
                     row = selected;
                     drawn = false;
+                    provisional = None;
                 }
             }
             Trace::Activate => {
                 let dirty = values != (1, false, false);
-                let expected = phase == 2 && row == Row::Save && drawn && dirty;
+                let expected =
+                    phase == 2 && provisional.is_none() && row == Row::Save && drawn && dirty;
                 let submission = editor.edit(Edit::Activate);
                 if submission.is_some() != expected {
                     return Err("save requires drawn dirty intent".into());
@@ -1220,11 +1238,6 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                     let NativeSettingsOperation::Save { changes, .. } = submission.operation else {
                         return Err("wrong operation".into());
                     };
-                    let names = [
-                        ApplicationAppearance::System,
-                        ApplicationAppearance::Light,
-                        ApplicationAppearance::Dark,
-                    ];
                     let expected = UserPreferencesValues {
                         application_theme: names[values.0],
                         agent_notification_mode: if values.1 {
@@ -1235,25 +1248,60 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                         sound_enabled: values.2,
                         ..UserPreferencesValues::default()
                     };
-                    if changes != UserPreferencesPatch::between(&basis().values, &expected) {
+                    if changes != UserPreferencesPatch::between(&saved_values, &expected) {
                         return Err("dirty leaves".into());
                     }
                 } else if phase == 2 && presented && row != Row::Save {
-                    match row {
-                        Row::Theme => values.0 = (values.0 + 1) % 3,
-                        Row::Reminders => values.1 = !values.1,
-                        Row::Sound => values.2 = !values.2,
-                        _ => {}
+                    if let Some(candidate) = provisional {
+                        // Enter opens a picker first. Only a subsequently drawn candidate can
+                        // cross its local acceptance boundary; the parent draft owns Save.
+                        if drawn {
+                            match candidate {
+                                ProvisionalChoice::Theme(index) => values.0 = index,
+                                ProvisionalChoice::Reminders(hidden) => values.1 = hidden,
+                            }
+                            provisional = None;
+                            drawn = false;
+                        }
+                    } else {
+                        match row {
+                            Row::Theme => provisional = Some(ProvisionalChoice::Theme(values.0)),
+                            Row::Reminders => {
+                                provisional = Some(ProvisionalChoice::Reminders(values.1))
+                            }
+                            Row::Sound => values.2 = !values.2,
+                            _ => {}
+                        }
+                        drawn = false;
+                    }
+                }
+            }
+            Trace::NextChoice | Trace::PreviousChoice => {
+                // These trace operations navigate an open choice episode; root row selection
+                // remains represented by the named Theme/Reminders/Sound/SaveRow operations.
+                if let Some(candidate) = &mut provisional {
+                    let forward = matches!(op, Trace::NextChoice);
+                    editor.edit(if forward { Edit::Next } else { Edit::Previous });
+                    match candidate {
+                        ProvisionalChoice::Theme(index) => {
+                            *index = (*index + if forward { 1 } else { 2 }) % 3;
+                        }
+                        ProvisionalChoice::Reminders(hidden) => *hidden = !*hidden,
                     }
                     drawn = false;
                 }
             }
             Trace::Cancel => {
                 editor.edit(Edit::Cancel);
-                visible = false;
-                presented = false;
-                if !matches!(phase, 1 | 3) {
-                    phase = 0;
+                if provisional.take().is_some() {
+                    // Local return restores the accepted parent appearance and retains its task.
+                    drawn = false;
+                } else {
+                    visible = false;
+                    presented = false;
+                    if !matches!(phase, 1 | 3) {
+                        phase = 0;
+                    }
                 }
             }
             Trace::Complete => {
@@ -1265,6 +1313,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                         phase = 0;
                         visible = false;
                         presented = false;
+                        provisional = None;
                     }
                 }
             }
@@ -1281,11 +1330,6 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
             return Err("surface ownership".into());
         }
         if let Some(View::Draft(draft)) = editor.view() {
-            let names = [
-                ApplicationAppearance::System,
-                ApplicationAppearance::Light,
-                ApplicationAppearance::Dark,
-            ];
             if draft.values.application_theme != names[values.0]
                 || (draft.values.agent_notification_mode == AgentReminderMode::Hidden) != values.1
                 || draft.values.sound_enabled != values.2
@@ -1293,6 +1337,37 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                 || draft.dirty != (values != (1, false, false))
             {
                 return Err("draft projection".into());
+            }
+            let expected_picker = provisional.map(|candidate| match candidate {
+                ProvisionalChoice::Theme(index) => {
+                    (Row::Theme, index, Choice::ApplicationTheme(names[values.0]))
+                }
+                ProvisionalChoice::Reminders(hidden) => (
+                    Row::Reminders,
+                    usize::from(hidden),
+                    Choice::AgentReminders(if values.1 {
+                        AgentReminderMode::Hidden
+                    } else {
+                        AgentReminderMode::Never
+                    }),
+                ),
+            });
+            if draft
+                .picker
+                .map(|picker| (picker.row(), picker.cursor(), picker.original()))
+                != expected_picker
+            {
+                return Err("provisional choice is distinct from the accepted parent".into());
+            }
+            let preview_theme = match provisional {
+                Some(ProvisionalChoice::Theme(index)) => names[index],
+                _ => names[values.0],
+            };
+            if editor.appearance_preview().unwrap().application_theme != preview_theme {
+                return Err("appearance preview projection".into());
+            }
+            if draft.basis_values != &saved_values || draft.effective_values != &saved_values {
+                return Err("local navigation changed saved or effective values".into());
             }
         }
     }
@@ -1326,17 +1401,68 @@ fn generated_settings_episodes_preserve_draft_authority_and_shrink_replayable_fa
         Trace::Complete,
         Trace::StaleFrame,
     ];
-    let mut seed = 0x827e_402a_616d_9147_u64;
-    for _ in 0..256 {
-        let mut trace = Vec::new();
-        for _ in 0..128 {
-            seed = seed
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            trace.push(choices[(seed >> 32) as usize % choices.len()]);
+    let mut picker_choices = choices.to_vec();
+    picker_choices.extend([Trace::NextChoice, Trace::PreviousChoice]);
+    // Preserve the original seeded traces and add a second cohort with provisional navigation.
+    for choices in [choices.as_slice(), picker_choices.as_slice()] {
+        let mut seed = 0x827e_402a_616d_9147_u64;
+        for _ in 0..256 {
+            let mut trace = Vec::new();
+            for _ in 0..128 {
+                seed = seed
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                trace.push(choices[(seed >> 32) as usize % choices.len()]);
+            }
+            if let Err(error) = replay(&trace) {
+                panic!("{error}; replay={:?}", shrink(trace));
+            }
         }
-        if let Err(error) = replay(&trace) {
-            panic!("{error}; replay={:?}", shrink(trace));
-        }
+    }
+}
+
+#[test]
+fn episode_oracle_keeps_provisional_accept_cancel_and_undrawn_acceptance_replayable() {
+    for tail in [
+        vec![Trace::Activate],
+        vec![Trace::Activate, Trace::NextChoice, Trace::Activate],
+        vec![
+            Trace::Activate,
+            Trace::NextChoice,
+            Trace::Draw,
+            Trace::Activate,
+            Trace::SaveRow,
+            Trace::Draw,
+            Trace::Activate,
+            Trace::Complete,
+        ],
+        vec![
+            Trace::Activate,
+            Trace::NextChoice,
+            Trace::Cancel,
+            Trace::Sound,
+            Trace::Activate,
+            Trace::SaveRow,
+            Trace::Draw,
+            Trace::Activate,
+            Trace::Complete,
+        ],
+        vec![
+            Trace::Reminders,
+            Trace::Activate,
+            Trace::NextChoice,
+            Trace::PreviousChoice,
+            Trace::NextChoice,
+            Trace::Draw,
+            Trace::Activate,
+            Trace::SaveRow,
+            Trace::Draw,
+            Trace::Activate,
+            Trace::Complete,
+        ],
+    ] {
+        let mut trace = vec![Trace::Open, Trace::Load, Trace::Draw];
+        trace.extend(tail);
+        assert_eq!(replay(&trace), Ok(()), "{trace:?}");
     }
 }

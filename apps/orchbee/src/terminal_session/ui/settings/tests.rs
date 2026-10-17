@@ -36,6 +36,25 @@ fn draft_basis() -> Basis {
     }
 }
 
+fn present_settings(ui: &mut NativeUi) {
+    let shell = ClientView::new(120);
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    let mut receipt = NativeDrawReceipt::default();
+    terminal
+        .draw(|frame| {
+            receipt = crate::tui_render::render_terminal_shell(
+                frame,
+                &shell,
+                crate::localization::Locale::EnUs,
+                Some(TerminalSessionView::Native(ui.view())),
+                &crate::tui_theme::Theme::terminal_native(),
+                &mut crate::tui_pointer::HitMapBuilder::new(),
+            );
+        })
+        .unwrap();
+    ui.after_close_draw(receipt);
+}
+
 #[test]
 fn settings_input_context_is_projected_once_from_the_current_session_view() {
     let mut ui = ready();
@@ -236,11 +255,43 @@ fn captures_whole_shell_settings_alignment_frames() {
 
 #[test]
 fn settings_enter_tab_and_release_follow_canonical_host_keys() {
+    use orchbee_workbench_protocol::PreferencesLocale;
+
     let mut ui = ready();
+    present_settings(&mut ui);
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL));
-    assert!(
-        matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.values.locale == orchbee_workbench_protocol::PreferencesLocale::EnUs)
+    assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
+            if draft.values.locale == PreferencesLocale::System
+                && !draft.dirty
+                && draft.picker.is_some_and(|picker| picker.row() == Row::Language && picker.cursor() == 0)));
+    present_settings(&mut ui);
+    ui.capture_settings_key(KeyEvent::press(KeyCode::Char('i'), Modifiers::CTRL));
+    assert_eq!(
+        ui.settings.editor.appearance_preview().unwrap().locale,
+        PreferencesLocale::EnUs
     );
+    assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
+            if draft.selected == Row::Language && draft.values.locale == PreferencesLocale::System && !draft.dirty));
+    let mut enter_release = KeyEvent::press(KeyCode::Enter, Modifiers::NONE);
+    enter_release.kind = crate::client_view::KeyKind::Release;
+    ui.capture_settings_key(enter_release);
+    assert!(
+        matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.picker.is_some() && !draft.dirty)
+    );
+    ui.capture_settings_key(KeyEvent::press(
+        KeyCode::Char('i'),
+        Modifiers::CTRL.with_shift(),
+    ));
+    assert_eq!(
+        ui.settings.editor.appearance_preview().unwrap().locale,
+        PreferencesLocale::System
+    );
+    ui.capture_settings_key(KeyEvent::press(KeyCode::Char('i'), Modifiers::CTRL));
+    present_settings(&mut ui);
+    ui.capture_settings_key(KeyEvent::press(KeyCode::Char('m'), Modifiers::CTRL));
+    assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
+        if draft.picker.is_none() && draft.dirty && draft.values.locale == PreferencesLocale::EnUs));
+    present_settings(&mut ui);
     ui.capture_settings_key(KeyEvent::press(KeyCode::Char('i'), Modifiers::CTRL));
     assert!(
         matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.selected == Row::Theme)
@@ -252,10 +303,12 @@ fn settings_enter_tab_and_release_follow_canonical_host_keys() {
     assert!(
         matches!(ui.settings.editor.view(), Some(View::Draft(draft)) if draft.selected == Row::Language)
     );
+    let before_release = ui.settings.editor.view().unwrap().token();
     let mut release = KeyEvent::press(KeyCode::Esc, Modifiers::NONE);
     release.kind = crate::client_view::KeyKind::Release;
     ui.capture_settings_key(release);
     assert!(ui.settings_active());
+    assert_eq!(ui.settings.editor.view().unwrap().token(), before_release);
 }
 #[test]
 fn conflict_and_unknown_receipts_stay_visible_while_the_user_inspects_the_retained_draft() {

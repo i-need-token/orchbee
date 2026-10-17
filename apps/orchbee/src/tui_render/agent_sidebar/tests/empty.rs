@@ -2,6 +2,20 @@ use super::*;
 use crate::terminal_session::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 use orchbee_workbench_protocol::SiteId;
 
+fn sidebar_display_text(buffer: &ratatui::buffer::Buffer, area: Rect) -> String {
+    let mut text = String::new();
+    for y in area.y..area.bottom() {
+        let mut x = area.x;
+        while x < area.right() {
+            let symbol = buffer[(x, y)].symbol();
+            text.push_str(symbol);
+            x += u16::try_from(display_width(symbol).max(1)).unwrap();
+        }
+        text.push('\n');
+    }
+    text
+}
+
 #[test]
 fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_filler() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (18, 4)] {
@@ -98,10 +112,12 @@ fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_
                             )))
                         );
                     } else if height >= 24 {
-                        let text: String =
-                            buffer.content().iter().map(|cell| cell.symbol()).collect();
-                        assert!(text.contains(locale.shell().workspaces));
-                        assert!(text.contains("Codex"));
+                        let text = sidebar_display_text(buffer, sidebar.area);
+                        assert!(
+                            text.contains(&format!("{} 1", locale.shell().workspaces)),
+                            "creation heading at {width}x{height}: {text}"
+                        );
+                        assert!(text.contains("Codex 工作区"), "creation label: {text}");
                     }
                 }
             }

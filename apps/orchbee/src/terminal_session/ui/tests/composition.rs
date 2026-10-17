@@ -189,7 +189,8 @@ fn settings_centers_on_the_host_independently_of_sidebar_visibility_and_width() 
                         })
                         .collect::<Vec<_>>();
                     let expected_width = width.min(92);
-                    let expected_height = (height - 1).min(26);
+                    // The owning Settings contract prefers 92×30, clamped above the status row.
+                    let expected_height = (height - 1).min(30);
                     let left = (width - expected_width) / 2;
                     let top = (height - 1 - expected_height) / 2;
                     assert_eq!(surface.iter().map(|cell| cell.0).min(), Some(left));
