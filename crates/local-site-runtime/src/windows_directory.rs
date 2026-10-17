@@ -1,17 +1,35 @@
 //! Windows terminal directory observations and process-local PowerShell synchronization.
 
+/// Frozen legacy argv fingerprint for retained-shell recognition, never new launches.
+pub const WINDOWS_DIRECTORY_PROMPT: &str = r"if ($null -eq $global:__OrchbeeDirectoryPrompt) { $global:__OrchbeeDirectoryPrompt = $function:prompt; function global:prompt { $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '; $loc = $ExecutionContext.SessionState.Path.CurrentLocation; if ($loc.Provider.Name -eq 'FileSystem') { try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {} }; $out } }";
+
+/// Recognizes only the exact historical directory-only or UTF-8/directory startup.
+/// Current launch authority remains the shared assets below.
+#[must_use]
+pub fn windows_legacy_powershell_initialization_matches(script: &str) -> bool {
+    script == WINDOWS_DIRECTORY_PROMPT
+        || script
+            == format!(
+                "$global:OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $global:OutputEncoding; {WINDOWS_DIRECTORY_PROMPT}"
+            )
+}
+
 // Invoke the original prompt first: preceding statements would overwrite `$?`
 // on Windows PowerShell 5.1. Single-quoted constant text also avoids that shell's
 // command-line quoting differences. No launch argument is interpolated here.
-pub const WINDOWS_DIRECTORY_PROMPT: &str = r"if ($null -eq $global:__OrchbeeDirectoryPrompt) { $global:__OrchbeeDirectoryPrompt = $function:prompt; function global:prompt { $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '; $loc = $ExecutionContext.SessionState.Path.CurrentLocation; if ($loc.Provider.Name -eq 'FileSystem') { try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {} }; $out } }";
+pub(super) const WINDOWS_POWERSHELL_INITIALIZATION: &str =
+    include_str!("windows_powershell_initialization.ps1");
 
 /// Fixed initialization for runtime-owned interactive PowerShell processes.
-/// UTF-8 governs native output decoding and pipeline input only in this child.
+/// Shared assets are also the Host's exact interactive-launch recognition input.
+/// Encoded command helpers use only the common initialization, without reader hooks.
 #[must_use]
 pub fn windows_interactive_powershell_initialization() -> String {
-    format!(
-        "$global:OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $global:OutputEncoding; {WINDOWS_DIRECTORY_PROMPT}"
+    concat!(
+        include_str!("windows_powershell_initialization.ps1"),
+        include_str!("windows_powershell_reader.ps1")
     )
+    .to_owned()
 }
 
 /// Decodes reported paths as observations; callers separately admit launchable path syntax.

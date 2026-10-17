@@ -975,9 +975,17 @@ Windows 根进程已退出但 Job 仍有后代时为 active。缺少提示符语
 命令 1 之后的旧提示符不能证明命令 2 已不再缓冲，后续提示符标记也不能清除此围栏。
 投影的重新分类及 epoch 保持原样，不能授权破坏性 Close。普通命令结束后仍活动的提示符要求确认。
 
-Windows 上交互 PowerShell 启动在正常 profile 执行后注入内嵌、仅当前进程的 `-NoExit -Command` bootstrap。
-它保存既有 `PSConsoleHostReadLine` ScriptBlock，在调用前发送 A/B，在 finally 中发送 C，
-保留返回输入和抛出的异常。不修改 prompt 函数（包括 mise）、PSReadLine 历史／键位钩子或任何
+Windows 上交互 PowerShell 启动在正常 profile 执行后使用 Local Site Runtime 共享、仅当前进程的
+`-NoExit -Command` bootstrap。Worker 准备的 argv 只有在命令操作数与共享公共初始化及 reader
+资产精确相等，且前面仅有已准入交互开关并包含 `-NoExit` 时，才视为交互启动。Host 保留该 argv，
+不重复注入；普通交互 argv 使用同一脚本。修改过的脚本、额外操作数与任意 `-Command`／`-File`
+启动仍视为程序。公共初始化保留 UTF-8，并在同步进程 cwd 之前调用原 profile prompt。
+reader 扩展要求标准 PSReadLine 模块／导出 ScriptBlock 身份，以及双参数 2.0.0 与保留状态的三参数
+2.4.5 包装定义的封闭 SHA-256 指纹；仅规范化 CRLF 与外围空白。未知或自定义定义保持原样，
+不发出空闲证明。独立调用的子作用域确保跳过或重复安装不会从外围初始化命令返回。
+包装的第一条语句捕获 `$?`，保留 StrictMode／调试器行为，然后发送 A/B。旧 reader 委托原
+ScriptBlock；已识别的现代适配器向原生 ReadLine 传入已保存状态与原模块执行上下文。
+两者都在 finally 中发送 C，保留输入／异常，保留 prompt 输出（包括 mise）、PSReadLine 历史／键位钩子和全部
 profile 文件。命令、脚本及未知 shell 不注入。缺失或受限制的 reader 支持不产生空闲证明。
 无集成的既有会话要求确认。[VS Code 的 PowerShell 集成](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1)
 也采用该 reader 钩子边界；Orchbee 只采用读行阶段标记，不采用命令文本、环境上报或键位重映射。
@@ -985,5 +993,6 @@ profile 文件。命令、脚本及未知 shell 不注入。缺失或受限制�
 Host owner 在接受带门禁的优雅信号派发前立即重新检查严格采样；拒绝不改变 Core 意图，也不
 发送信号。Server 保留迟到拒绝／部分结果，绝不强制执行未经确认的 Close。运行时／进程回归及
 持续运行的 `powershell-prompt.test.mjs` 检查覆盖排队输入的消费歧义、内建命令与提示符、直接 Agent 根进程、
-reader 输出／异常和保留钩子。真实启动、全部 Tab 成员及 OS 调度仍要求原生 TUI 证据；采样证据
+reader 输出／异常、自定义模块拒绝、初始化继续执行和保留钩子。真实 PSReadLine 预测反馈见证在
+原生 ReadLine 边界检查失败／成功命令状态。真实启动、全部 Tab 成员及 OS 调度仍要求原生 TUI 证据；采样证据
 不是原子的 OS 进程创建事务。

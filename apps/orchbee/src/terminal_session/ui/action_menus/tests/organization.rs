@@ -165,6 +165,166 @@ fn deleting_noncurrent_workspace_submits_only_conditional_admission_without_navi
 }
 
 #[test]
+fn workspace_delete_menu_reviews_only_a_known_resumable_guard_refusal() {
+    use crate::terminal_session::state::workspace_close::WorkspaceCloseResult;
+    use crate::terminal_session::ui::tests::workspace_close as close_ui;
+    use orchbee_workbench_protocol::{
+        WorkbenchSnapshotOutcome, WorkbenchTabCloseBlockedReason as Reason, WorkbenchTabClosePhase,
+        WorkbenchTabCloseStatus as Status, WorkbenchWorkspaceCloseReadOutcome,
+    };
+    for (status, conditional, recoverable) in [
+        (
+            Some(Status::CleanupBlocked {
+                reason: Reason::HostRefused,
+                resumable: true,
+            }),
+            true,
+            true,
+        ),
+        (
+            Some(Status::CleanupBlocked {
+                reason: Reason::HostRefused,
+                resumable: false,
+            }),
+            true,
+            false,
+        ),
+        (
+            Some(Status::CleanupBlocked {
+                reason: Reason::InventoryIncomplete,
+                resumable: true,
+            }),
+            true,
+            false,
+        ),
+        (
+            Some(Status::Closing {
+                phase: WorkbenchTabClosePhase::Queued,
+            }),
+            true,
+            false,
+        ),
+        (None, true, false),
+        (
+            Some(Status::CleanupBlocked {
+                reason: Reason::HostRefused,
+                resumable: true,
+            }),
+            false,
+            false,
+        ),
+    ] {
+        let (mut ui, mailbox, clock, snapshot) = close_ui::ready();
+        let target = ui.state.as_ref().unwrap().cache().location().clone();
+        let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+        let lease = if conditional {
+            let action = choose(
+                &mut ui,
+                MenuTarget::Workspace(target.clone()),
+                MenuAction::DeleteWorkspace,
+            );
+            ui.apply_client_action(action);
+            mailbox.try_recv().unwrap().unwrap()
+        } else {
+            close_ui::submit(&mut ui, &mailbox)
+        };
+        let QueuedCommand::Refresh(marker) = lease.record() else {
+            panic!("conditional Close");
+        };
+        let operation = marker.workspace_close().unwrap();
+        mailbox
+            .mark_refresh_in_flight(operation.generation)
+            .unwrap();
+        let mut result = close_ui::receipt(operation, false);
+        if let Some(status) = status {
+            let WorkspaceCloseResult::WorkspaceObserved { outcome, .. } = &mut result else {
+                unreachable!()
+            };
+            let WorkbenchWorkspaceCloseReadOutcome::Available {
+                status: retained, ..
+            } = outcome.as_mut()
+            else {
+                unreachable!()
+            };
+            *retained = status;
+        } else {
+            result = WorkspaceCloseResult::Unknown;
+        }
+        assert!(mailbox.retain_workspace_close_result(operation, result));
+        let wait = mailbox
+            .publish_event_before(
+                WorkerEvent::WorkspaceCloseResult {
+                    evidence: mailbox.workspace_close_worker_loss().unwrap(),
+                    outcome: Box::new(WorkbenchSnapshotOutcome::Available { snapshot }),
+                },
+                crate::terminal_session::mailbox::EventDeadline::PlacementOnly(
+                    operation.deadlines.forward_cutoff(),
+                ),
+                &clock,
+            )
+            .unwrap();
+        ui.tick();
+        assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+        mailbox.finish_lease(lease).unwrap();
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert_eq!(
+            ui.state
+                .as_ref()
+                .unwrap()
+                .can_confirm_guarded_workspace_close(&workspace),
+            recoverable
+        );
+        assert!(ui.open_action_menu(
+            MenuTarget::Drawn {
+                source: ui.view().action_menu_source().unwrap(),
+                target: Box::new(MenuTarget::Workspace(target)),
+            },
+            None,
+            false,
+        ));
+        let row = action_row(&ui, MenuAction::DeleteWorkspace);
+        assert_eq!(
+            ui.view().action_menu().unwrap().unavailable[row],
+            (!recoverable).then_some(MenuUnavailable::OperationBusy)
+        );
+        if recoverable {
+            let token = arm(&mut ui);
+            activate_row(&mut ui, token, row);
+            let action = ui.take_action_menu_action(false).unwrap();
+            assert_eq!(
+                action,
+                ClientAction::RequestWorkspaceCloseAt(workspace.clone())
+            );
+            ui.apply_client_action(action);
+            let prompt = ui.view().workspace_close_confirmation().unwrap();
+            assert!(!prompt.interactive());
+            assert!(
+                mailbox.try_recv().unwrap().is_none(),
+                "retry opens review before effects"
+            );
+            let token = prompt.token();
+            ui.after_workspace_close_draw(Some(ModalPresentation::Presented(token)));
+            ui.capture_confirmation_key(crate::client_view::ClientKey::Enter);
+            let lease = mailbox.try_recv().unwrap().unwrap();
+            let QueuedCommand::Refresh(marker) = lease.record() else {
+                panic!("explicit Close");
+            };
+            assert_eq!(
+                marker
+                    .workspace_close()
+                    .unwrap()
+                    .workspace_command()
+                    .unwrap()
+                    .action,
+                WorkbenchAction::WorkspaceClose {
+                    workspace_id: workspace
+                }
+            );
+        }
+    }
+}
+
+#[test]
 fn dissolving_noncurrent_project_submits_only_its_metadata_action() {
     let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let original = ui.state.as_ref().unwrap().cache().location().clone();

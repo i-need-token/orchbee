@@ -62,7 +62,7 @@ mod windows_directory;
 #[cfg(windows)]
 pub use windows_directory::{
     WINDOWS_DIRECTORY_PROMPT, windows_interactive_powershell_initialization,
-    windows_reported_directory,
+    windows_legacy_powershell_initialization_matches, windows_reported_directory,
 };
 #[cfg(windows)]
 mod windows_command;

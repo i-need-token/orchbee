@@ -771,6 +771,13 @@ InspectSource 解析包含源目录的检出；Open 允许主检出。Create 在
 保留这些开关，通过 `-NoExit -Command` 添加固定的进程内初始化。
 未知开关、脚本、命令字符串、其他程序和其他平台均保留原始启动参数。
 
+共享 Local Site Runtime 启动命令连接其公共初始化与交互 reader 资产。Host 构建消费同样字节，
+将精确准备的 argv 识别为交互 shell，且不重复注入。仅有 `-Command` 开关不能获得此分类：
+修改过的脚本、额外命令操作数或非交互开关仍视为程序。reader 仅准入标准 PSReadLine 模块／导出
+身份与已知定义指纹；自定义或不受支持的定义保持原样，受保护的 Close 按 unknown 处理。
+A/B/C 标记保留上条命令状态、reader 结果、历史和键位钩子。跳过或重复安装不会中止外围初始化。
+编码命令帮助函数只保留公共 UTF-8／目录初始化，不安装 reader 钩子。
+
 初始化将该子进程的原生输出解码与向外发送的管道编码设为无 BOM 的 UTF-8，
 使原生 CLI JSON 能在 PowerShell 5.1 与 7 的管道中正确传递，不改变外部 shell 或保存的 profile。
 包装捕获 profile 定义的 prompt，首先调用它，使依赖状态的 prompt 能看到上条命令的成功状态，

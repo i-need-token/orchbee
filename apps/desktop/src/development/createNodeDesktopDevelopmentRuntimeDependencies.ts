@@ -300,11 +300,20 @@ async function fileDigest(filePath: string): Promise<string> {
 		.digest('hex');
 }
 
-async function terminalHostInputDigest(terminalHostRoot: string): Promise<string> {
+/** @internal Exact source inputs consumed by the development Host build. */
+export async function terminalHostInputDigest(terminalHostRoot: string): Promise<string> {
 	const sourcePaths = await collectTerminalHostInputPaths(path.join(terminalHostRoot, 'src'));
 	const inputPaths = [
 		path.join(terminalHostRoot, 'build.zig'),
 		path.join(terminalHostRoot, 'build.zig.zon'),
+		path.resolve(
+			terminalHostRoot,
+			'../../crates/local-site-runtime/src/windows_powershell_initialization.ps1',
+		),
+		path.resolve(
+			terminalHostRoot,
+			'../../crates/local-site-runtime/src/windows_powershell_reader.ps1',
+		),
 		...sourcePaths,
 	].sort();
 	const hash = createHash('sha256');

@@ -43,6 +43,8 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
     for shell in ["powershell.exe", "pwsh.exe"] {
         for prompt in [
             orchbee_local_site_runtime::WINDOWS_DIRECTORY_PROMPT.to_owned(),
+            // Literal observation from the preceding Worker startup generation.
+            r"$global:OutputEncoding = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $global:OutputEncoding; if ($null -eq $global:__OrchbeeDirectoryPrompt) { $global:__OrchbeeDirectoryPrompt = $function:prompt; function global:prompt { $out = @(& $global:__OrchbeeDirectoryPrompt) -join ' '; $loc = $ExecutionContext.SessionState.Path.CurrentLocation; if ($loc.Provider.Name -eq 'FileSystem') { try { [Environment]::CurrentDirectory = $loc.ProviderPath } catch {} }; $out } }".to_owned(),
             orchbee_local_site_runtime::windows_interactive_powershell_initialization(),
         ] {
             let mut sample = TerminalProcessInfo {
@@ -56,7 +58,7 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
                     creation_time: 1,
                     image: Some(shell.into()),
                     command_line: Some(format!(
-                        "{shell} -NoLogo -NoProfile -NoExit -Command \"{prompt}\""
+                        "{shell} -NoLogo -NoProfile -NoExit -Command {}", quoted_windows_argument(&prompt)
                     )),
                     current_directory: None,
                 }],
@@ -67,16 +69,41 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
             );
             for command in [
                 format!("{shell} -NoExit -Command task"),
-                format!("{shell} -Command \"{prompt}\""),
-                format!("{shell} -NoExit -Command \"{prompt}; Start-Sleep 10\""),
-                format!("{shell} -NoExit -Command \"{prompt}\" extra"),
-                format!("{shell} -ExecutionPolicy Bypass -NoExit -Command \"{prompt}\""),
+                format!("{shell} -Command {}", quoted_windows_argument(&prompt)),
+                format!("{shell} -NoExit -Command {}", quoted_windows_argument(&format!("{prompt}; Start-Sleep 10"))),
+                format!("{shell} -NoExit -Command {} extra", quoted_windows_argument(&prompt)),
+                format!("{shell} -ExecutionPolicy Bypass -NoExit -Command {}", quoted_windows_argument(&prompt)),
             ] {
                 sample.processes[0].command_line = Some(command.clone());
                 assert!(idle_shell(&sample).is_err(), "unsafe shell: {command}");
             }
         }
     }
+}
+
+// Model the real CreateProcess argv boundary, including quotes in the reader asset.
+fn quoted_windows_argument(value: &str) -> String {
+    let mut quoted = String::from("\"");
+    let mut slashes = 0;
+    for character in value.chars() {
+        if character == '\\' {
+            slashes += 1;
+        } else {
+            quoted.extend(std::iter::repeat_n(
+                '\\',
+                if character == '"' {
+                    slashes * 2 + 1
+                } else {
+                    slashes
+                },
+            ));
+            quoted.push(character);
+            slashes = 0;
+        }
+    }
+    quoted.extend(std::iter::repeat_n('\\', slashes * 2));
+    quoted.push('"');
+    quoted
 }
 
 #[test]

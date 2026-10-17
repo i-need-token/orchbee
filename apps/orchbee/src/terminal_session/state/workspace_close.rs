@@ -350,11 +350,14 @@ impl NativeSessionState {
         workspace: &WorkbenchWorkspaceId,
     ) -> bool {
         self.workspace_close_quiet()
+            && self.invariant_holds()
             && self.workspace_close.confirmation.is_none()
             && self.workspace_close.pending.is_none()
             && self.workspace_close.evidence.as_ref().is_some_and(|evidence| {
                 evidence.operation.conditional
+                    && evidence.operation.destructive
                     && evidence.operation.target.workspace_id() == Some(workspace)
+                    && evidence.operation.target.matches_snapshot(&self.cache)
                     && matches!(&evidence.result, WorkspaceCloseResult::WorkspaceObserved { outcome, .. }
                         if matches!(outcome.as_ref(), WorkbenchWorkspaceCloseReadOutcome::Available {
                             status: WorkbenchTabCloseStatus::CleanupBlocked {

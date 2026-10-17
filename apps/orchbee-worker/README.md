@@ -868,6 +868,16 @@ with no arguments or at most three exact case-insensitive `-NoLogo`, `-NoProfile
 initialization through `-NoExit -Command`. Unknown flags, scripts, command strings,
 other executables and other platforms retain verbatim launch arguments.
 
+The shared Local Site Runtime startup concatenates its common initialization and interactive
+reader assets. Host builds consume those same bytes and recognize the exact prepared argv as an
+interactive shell without injecting it twice. The `-Command` switch alone never grants this
+classification: a modified script, extra command operand or noninteractive flag remains a program.
+The reader admits only standard PSReadLine module/export identity and known definition fingerprints;
+custom or unsupported definitions remain untouched and unknown for guarded Close. A/B/C markers
+preserve the preceding command's status, reader results, history and key hooks. Skipped or repeated
+installation cannot abort surrounding initialization. Encoded command helpers retain only
+the common UTF-8/directory initialization, with no reader hook.
+
 Initialization sets this child's native-output decoding and outgoing pipeline encoding to
 UTF-8 without a BOM. Native CLI JSON therefore survives PowerShell pipelines on both 5.1
 and 7. It changes no external shell or stored profile. The wrapper captures the profile-defined prompt, invokes it first so status-aware prompts

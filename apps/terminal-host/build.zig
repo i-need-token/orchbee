@@ -25,6 +25,23 @@ const envelope_fixture_max_bytes = contract.Limits.transport_record_bytes;
 // packed format's per-record protocol limit.
 const packed_projection_conformance_fixture_max_bytes = 256 * 1024;
 
+// The Worker and Host consume the same owned startup bytes. Arbitrary -Command
+// text must never become an interactive-shell exception through a second copy.
+fn powershellStartupModule(builder: *std.Build) *std.Build.Module {
+    const files = builder.addWriteFiles();
+    for ([_][]const u8{ "initialization", "reader" }) |name| {
+        _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(builder.fmt(
+            "../../crates/local-site-runtime/src/windows_powershell_{s}.ps1",
+            .{name},
+        )) }, builder.fmt("{s}.ps1", .{name}));
+    }
+    // Copy steps register watch inputs; script-only edits must rebuild the Host.
+    return builder.createModule(.{ .root_source_file = files.add("startup.zig",
+        \\pub const script: []const u8 = @embedFile("initialization.ps1") ++ @embedFile("reader.ps1");
+        \\
+    ) });
+}
+
 fn readFixture(
     builder: *std.Build,
     option_name: []const u8,
@@ -111,6 +128,7 @@ pub fn build(builder: *std.Build) void {
     conpty_options.addOption([]const u8, "dll_sha256", conpty_files.get("dll").?.object.get("sha256").?.string);
     conpty_options.addOption([]const u8, "console_sha256", conpty_files.get("console").?.object.get("sha256").?.string);
     platform_module.addOptions("windows-conpty-options", conpty_options);
+    platform_module.addImport("powershell-startup-options", powershellStartupModule(builder));
     const engine_module = builder.createModule(.{
         .root_source_file = builder.path("src/engine/root.zig"),
         .target = target,

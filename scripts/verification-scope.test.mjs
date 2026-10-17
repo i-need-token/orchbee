@@ -135,6 +135,23 @@ test('real workspace selection retains foreign fixture, resource, process and di
 	);
 });
 
+test('shared PowerShell startup assets select the Host and its native process consumers', () => {
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	for (const name of ['initialization', 'reader']) {
+		const asset = `crates/local-site-runtime/src/windows_powershell_${name}.ps1`;
+		const selected = selectVerificationScope(actual, [asset]);
+		assert.equal(selected.all, false, selected.reasons.join('\n'));
+		assert.ok(selected.pnpm.includes('@orchbee/terminal-host'), asset);
+		assert.ok(selected.pnpm.includes('@orchbee/desktop'), asset);
+		for (const consumer of ['orchbee', 'orchbee-server', 'orchbee-worker'])
+			assert.ok(selected.cargo.includes(consumer), `${asset} must select ${consumer}`);
+		assert.equal(
+			selectVerificationScope(actual, [asset + '.bak']).pnpm.includes('@orchbee/terminal-host'),
+			false,
+		);
+	}
+});
+
 test('paired TUI standards and changed pairing receipts retain native ownership without selecting every suite', () => {
 	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
 	const receipt = (digest) => ({ englishSha256: digest.repeat(64), zhCnSha256: 'b'.repeat(64) });

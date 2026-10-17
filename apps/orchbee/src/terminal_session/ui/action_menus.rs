@@ -186,10 +186,15 @@ fn action_availability(
                 MenuAction::CloseWorkspace | MenuAction::DeleteWorkspace
             ))
     {
+        let available = state.is_some_and(|state| {
+            state.close_scope_available()
+                || matches!(target,
+                    Target::Workspace {
+                        location: NativeContextLocation::Workspace { workspace_id, .. }, ..
+                    } if state.can_confirm_guarded_workspace_close(workspace_id))
+        });
         return ActionAvailability::from_disabled_reason(
-            state
-                .is_none_or(|state| !state.close_scope_available())
-                .then_some(MenuUnavailable::OperationBusy),
+            (!available).then_some(MenuUnavailable::OperationBusy),
         );
     }
     if (matches!(target, Target::Project { .. })
@@ -1613,6 +1618,19 @@ impl NativeUi {
             _ => None,
         };
         let action = match (&intent.target, action) {
+            (
+                Target::Workspace {
+                    location: NativeContextLocation::Workspace { workspace_id, .. },
+                    ..
+                },
+                MenuAction::DeleteWorkspace,
+            ) if self
+                .state
+                .as_ref()?
+                .can_confirm_guarded_workspace_close(workspace_id) =>
+            {
+                ClientAction::RequestWorkspaceCloseAt(workspace_id.clone())
+            }
             (
                 Target::Workspace {
                     location: NativeContextLocation::Workspace { workspace_id, .. },

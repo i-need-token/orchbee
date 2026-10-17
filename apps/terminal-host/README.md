@@ -257,6 +257,11 @@ presentations, retires the old Host, and starts the captured binary as a new pro
 state, VT history, and Host identities therefore do not cross a Zig source update. Packaged Host
 lifecycle and protocol behavior are unchanged.
 
+The build requires the repository's two `crates/local-site-runtime/src/windows_powershell_*.ps1`
+startup assets. Tracked copy steps embed their exact concatenation, so asset-only edits wake Zig
+watch and change the Host module. Desktop's Host input digest includes these same two files;
+encoded command helpers consume only the common initialization asset.
+
 Run from the repository root:
 
 ```sh

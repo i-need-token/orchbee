@@ -468,12 +468,27 @@ stop processes, acquire lifecycle authority, or perform automatic recovery.
 
 ## Windows directory primitives
 
-The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `WINDOWS_DIRECTORY_PROMPT` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Both ordinary Worker shells and encoded resume shells use this single hook.
+The shared pure `windows_reported_directory` decoder preserves valid terminal-reported drive/UNC observations; callers separately enforce narrower launch path bounds. `windows_powershell_initialization.ps1` synchronizes PowerShell process cwd after the original prompt, preserving status and leaving non-filesystem providers unchanged. Both ordinary Worker shells and encoded resume shells use this single hook and child-local UTF-8 native-output decoding and outgoing pipeline encoding.
 
-`windows_interactive_powershell_initialization` combines that hook with child-local UTF-8
-native-output decoding and outgoing pipeline encoding. Worker interactive shells and encoded
-launch/resume shells use the same fixed initialization. It writes no profile and changes no
-external PowerShell process; actual 5.1/7 pipeline and prompt witnesses cover the managed path.
+`windows_interactive_powershell_initialization` concatenates that common asset with
+`windows_powershell_reader.ps1`, which wraps the existing interactive reader with semantic
+read-phase markers. The Worker prepares this exact startup for admitted plain PowerShell argv;
+the Host build reads the same two assets, in the same order, for injection and exact recognition.
+Encoded launch/resume helpers use only the common initialization and install no reader hook.
+Neither asset writes a profile or changes an external PowerShell process. Actual 5.1/7 pipeline,
+prompt and PTY startup witnesses cover the managed path; arbitrary startup scripts remain outside it.
+
+Reader admission requires standard PSReadLine module/export identity and a recognized definition
+fingerprint; custom and unsupported definitions stay untouched and unknown. Repeated/skipped reader
+installation cannot abort the enclosing initializer. The modern adapter preserves the preceding
+command's status before marker output, and passes it to native ReadLine with the original module
+context; the legacy reader retains its original two-argument behavior.
+
+`WINDOWS_DIRECTORY_PROMPT` is a frozen legacy argv fingerprint, never current launch source.
+`windows_legacy_powershell_initialization_matches` recognizes exactly that historical directory-only
+script and the preceding UTF-8/directory script. CLI retained-shell admission combines this
+compatibility predicate with the current shared startup; arbitrary suffixes and extra argv remain
+refused. New initialization and encoded helpers consume only the owned assets.
 
 ## Windows user settings
 

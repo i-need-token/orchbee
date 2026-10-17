@@ -389,11 +389,22 @@ Windows 停止细化将仅不可变启动尝试的解释改为同一个已准入
 
 ## Windows 目录原语
 
-共享纯函数 `windows_reported_directory` 解码并保留有效终端上报的驱动器／UNC 观察；调用方单独执行更窄的启动路径约束。`WINDOWS_DIRECTORY_PROMPT` 在原提示符之后同步 PowerShell 进程 cwd，保留状态且不改变非文件系统 provider。普通 Worker shell 与编码恢复 shell 使用同一钩子。
+共享纯函数 `windows_reported_directory` 解码并保留有效终端上报的驱动器／UNC 观察；调用方单独执行更窄的启动路径约束。`windows_powershell_initialization.ps1` 在原提示符之后同步 PowerShell 进程 cwd，保留状态且不改变非文件系统 provider。普通 Worker shell 与编码恢复 shell 使用同一钩子，以及子进程内的 UTF-8 原生输出解码与向外发送的管道编码。
 
-`windows_interactive_powershell_initialization` 将此钩子与子进程内的 UTF-8 原生输出解码和向外
-发送的管道编码组合。Worker 交互 shell 与编码启动／恢复 shell 使用同一固定初始化。
-它不写 profile、不改变外部 PowerShell 进程；实际 5.1／7 管道与 prompt 证据覆盖托管路径。
+`windows_interactive_powershell_initialization` 将该公共资产与 `windows_powershell_reader.ps1`
+连接，后者包装既有交互 reader 并发送语义读行阶段标记。Worker 为已准入的普通 PowerShell argv
+准备这一精确启动命令；Host 构建按同样顺序读取这两个资产，用于注入和精确识别。
+编码启动／恢复帮助函数只使用公共初始化，不安装 reader 钩子。两个资产均不写 profile，也不改变
+外部 PowerShell 进程。实际 5.1／7 管道、prompt 与 PTY 启动证据覆盖托管路径；任意启动脚本不在范围内。
+
+reader 准入要求标准 PSReadLine 模块／导出身份和已识别的定义指纹；自定义或不受支持的定义保持
+原样，状态为 unknown。重复或跳过 reader 安装不会中止外围初始化。现代适配器在输出标记前保留
+上条命令状态，再将其与原模块上下文传给原生 ReadLine；旧 reader 保留原双参数行为。
+
+`WINDOWS_DIRECTORY_PROMPT` 是冻结的旧 argv 指纹，绝不是当前启动源码。
+`windows_legacy_powershell_initialization_matches` 精确识别该历史目录脚本与上一版 UTF-8／目录
+脚本。CLI 保留 shell 准入将此兼容谓词与当前共享启动命令组合；任意后缀与额外 argv 仍被拒绝。
+新初始化与编码帮助函数只消费所属资产。
 
 ## Windows 用户设置
 

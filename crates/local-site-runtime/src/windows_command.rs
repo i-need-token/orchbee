@@ -20,7 +20,7 @@ pub fn windows_encoded_command(program: &str, args: &[String]) -> Option<String>
         .join(",");
     let script = format!(
         "{}; & {{ $ErrorActionPreference='Stop';$c=Get-Command {} -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1;$a=@({values});{} }}",
-        crate::windows_interactive_powershell_initialization(),
+        crate::windows_directory::WINDOWS_POWERSHELL_INITIALIZATION,
         literal(program),
         include_str!("windows_command.ps1")
     );

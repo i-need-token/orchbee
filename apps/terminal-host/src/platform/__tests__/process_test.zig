@@ -18,6 +18,7 @@ test "idle evidence distinguishes interactive shell launches from commands and s
     const classify = subject.testing.interactiveShellLaunchFn;
     try std.testing.expect(classify("C:\\Program Files\\PowerShell\\7\\pwsh.exe", &.{}));
     try std.testing.expect(classify("powershell.exe", &.{ "-NoLogo", "-NoProfile" }));
+    try std.testing.expect(classify("pwsh.exe", &.{"-NoExit"}));
     try std.testing.expect(classify("/bin/zsh", &.{"-l"}));
     try std.testing.expect(!classify("codex.exe", &.{}));
     try std.testing.expect(!classify("/usr/bin/python", &.{"agent.py"}));
@@ -37,6 +38,8 @@ test "PowerShell prompt bootstrap is process local and only extends an interacti
     try std.testing.expectEqualStrings("-NoExit", injected[1]);
     try std.testing.expectEqualStrings("-Command", injected[2]);
     try std.testing.expect(std.mem.indexOf(u8, injected[3], "PSConsoleHostReadLine") != null);
+    try std.testing.expect(std.mem.indexOf(u8, injected[3], "__OrchbeeDirectoryPrompt") != null);
+    try std.testing.expect(std.mem.indexOf(u8, injected[3], "UTF8Encoding") != null);
     for ([_][]const u8{ "cmd.exe", "agent.exe" }) |executable| {
         try std.testing.expectEqual(@as(usize, 0), (try subject.testing.powershellArgumentsFn(arena.allocator(), executable, &.{})).len);
     }
@@ -44,6 +47,37 @@ test "PowerShell prompt bootstrap is process local and only extends an interacti
     const unchanged = try subject.testing.powershellArgumentsFn(arena.allocator(), "pwsh.exe", &command);
     try std.testing.expectEqual(command.len, unchanged.len);
     for (command, unchanged) |expected, actual| try std.testing.expectEqualStrings(expected, actual);
+}
+
+test "Worker canonical PowerShell startup is recognized exactly and is not injected twice" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const prepare = subject.testing.powershellArgumentsFn;
+    const classify = subject.testing.interactiveShellLaunchFn;
+    const startup = (try prepare(allocator, "pwsh.exe", &.{}))[2];
+    // This is the existing Worker handoff shape, not the original empty argv.
+    const worker = [_][]const u8{ "-NoProfile", "-nOeXiT", "-Command", startup };
+    try std.testing.expect(classify("pwsh.exe", &worker));
+    try std.testing.expect(classify("powershell.exe", &worker));
+    const retained = try prepare(allocator, "pwsh.exe", &worker);
+    try std.testing.expect(retained.ptr == worker[0..].ptr);
+    try std.testing.expectEqual(worker.len, retained.len);
+    const already_no_exit = try prepare(allocator, "pwsh.exe", &.{"-NoExit"});
+    try std.testing.expectEqual(@as(usize, 3), already_no_exit.len);
+    try std.testing.expect(classify("pwsh.exe", already_no_exit));
+    const modified = try std.mem.concat(allocator, u8, &.{ startup, "\nStart-Sleep 60" });
+    for ([_][]const []const u8{
+        &.{ "-Command", startup }, // No interactive lifetime.
+        &.{ "-NoExit", "-Command", modified }, // A script with a trusted prefix.
+        &.{ "-NonInteractive", "-NoExit", "-Command", startup },
+        &.{ "-NoExit", "-Command", startup, "extra" },
+        &.{ "-NoExit", "-File", "agent.ps1" },
+    }) |command| {
+        try std.testing.expect(!classify("pwsh.exe", command));
+        try std.testing.expectEqual(command.len, (try prepare(allocator, "pwsh.exe", command)).len);
+    }
+    try std.testing.expect(!classify("agent.exe", &worker));
 }
 const posixExecutableCandidates = subject.testing.posixExecutableCandidatesFn;
 const windowsCommandLine = subject.testing.windowsCommandLineFn;

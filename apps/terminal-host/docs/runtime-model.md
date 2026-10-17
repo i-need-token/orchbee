@@ -1974,11 +1974,23 @@ entries prove delivery, not consumption. ConPTY/PSReadLine may still hold later 
 cannot prove that command 2 is no longer buffered, and later prompt markers never clear this fence. Projection's reclassification and epochs remain unchanged and
 cannot authorize a destructive Close. Ordinary post-command live prompts require confirmation.
 
-On Windows, interactive PowerShell launches receive an embedded, process-local `-NoExit -Command` bootstrap
-after normal profile execution. It snapshots the existing `PSConsoleHostReadLine` ScriptBlock,
-emits A/B before invoking it and C in finally, preserving returned input and thrown exceptions.
-It leaves prompt functions (including mise), PSReadLine history/key hooks and all profile files
-untouched. Commands, scripts and unknown shells receive no bootstrap. Missing or restricted reader
+On Windows, interactive PowerShell launches receive the Local Site Runtime's shared, process-local
+`-NoExit -Command` bootstrap after normal profile execution. Worker-prepared argv is interactive
+only when the command operand exactly equals the shared common-initialization and reader assets,
+preceded solely by admitted interactive flags including `-NoExit`. The Host retains that argv
+without injecting it again; plain interactive argv receives the same script. Modified scripts,
+extra operands and arbitrary `-Command`/`-File` launches remain programs. The common initialization
+preserves UTF-8 and invokes the original profile prompt before synchronizing process cwd. The
+reader extension requires standard PSReadLine module/export ScriptBlock identity and closed
+SHA-256 definition fingerprints for the two-argument 2.0.0 and status-aware three-argument 2.4.5
+wrappers, normalizing only CRLF and outer whitespace. Unknown or custom definitions remain
+untouched and emit no idle proof. Its invoked child scope keeps skipped or repeated installation
+from returning out of the surrounding initializer. The wrapper captures `$?` as its first
+statement, retains StrictMode/debugger behavior, then emits A/B. The legacy reader delegates to
+the original ScriptBlock; the recognized modern adapter calls native ReadLine with saved status
+and the original module execution context. Both emit C in finally and preserve input/errors.
+It preserves prompt output (including mise), PSReadLine history/key hooks and all profile files.
+Commands, scripts and unknown shells receive no bootstrap. Missing or restricted reader
 support emits no idle proof. Existing sessions without integration require confirmation. The reader
 hook boundary also appears in [VS Code's PowerShell integration](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1);
 Orchbee adopts only read-phase markers, not command text, environment reporting or key remapping.
@@ -1987,6 +1999,8 @@ The Host owner rechecks this strict sample immediately before admitting guarded 
 refusal leaves Core intent unchanged and sends no signal. The Server retains late refusal/partial
 results and never forces an unconfirmed Close. Runtime/process regressions and the recurring
 `powershell-prompt.test.mjs` check cover queued-input consumption ambiguity, builtin-vs-prompt state, direct Agent roots,
-reader output/exceptions and preserved hooks. Native TUI evidence remains required for live startup,
+reader output/exceptions, custom-module refusal, initializer continuation and preserved hooks.
+A real PSReadLine prediction-feedback witness checks failed/successful command status at the
+native ReadLine boundary. Native TUI evidence remains required for live startup,
 all-Tab membership and actual OS scheduling; sampled evidence is not an atomic OS process-spawn
 transaction.

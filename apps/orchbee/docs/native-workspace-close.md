@@ -57,6 +57,9 @@ starting after inventory can therefore refuse the actual signal. Such late refus
 Close operation and any completed members; no implicit Force runs. Repeating Close on its known
 resumable refusal opens explicit confirmation, and the ordinary confirmed command resumes that
 same canonical operation. Unknown/in-flight effects remain fenced.
+Keyboard Close and Workspace menu Close/Delete share this exact-target recovery admission;
+other blocked reasons and nonresumable refusals stay disabled. Menu retry opens a fresh review
+and requires a complete draw and explicit confirmation before another effect.
 
 Project Delete uses `ProjectDissolveIfIdle` over the entire captured member scope and preserves all
 Workspaces and resources. It never invokes close-all. A definite same-base `confirmation-required`

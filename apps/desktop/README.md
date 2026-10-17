@@ -608,6 +608,11 @@ update coalescing, workspace cleanup, and captured-binary immutability. Forced o
 termination, compiler correctness, and PTY migration across a Host process remain outside these
 claims.
 
+The Host source digest includes the two shared Local Site Runtime PowerShell startup assets in
+addition to its native sources and build files. Zig's tracked copy inputs wake the existing build
+watch for either script; the Desktop watcher observes the resulting binary. A missing shared asset
+fails observation instead of treating stale startup bytes as the current generation.
+
 The development Host build watcher closes its file watcher, terminates the supervised build, and drains pending observation work even when an earlier step fails. It reports the first original failure; [build-watch cleanup tests](src/development/__tests__/NodeHostBuildWatch.unit.test.ts) cover synchronous watcher failures and later asynchronous termination failures.
 
 The development runtime removes inherited `PAGER` and `GIT_PAGER` overrides only from the supervised

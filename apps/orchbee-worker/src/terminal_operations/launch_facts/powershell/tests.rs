@@ -4,6 +4,9 @@ use std::{os::windows::process::CommandExt, path::PathBuf, process::Command};
 #[test]
 fn recognizes_only_plain_interactive_powershell_and_preserves_input_flags() {
     let prompt = windows_interactive_powershell_initialization();
+    assert!(prompt.contains("UTF8Encoding"));
+    assert!(prompt.contains("__OrchbeeDirectoryPrompt"));
+    assert!(prompt.contains("PSConsoleHostReadLine"));
     for executable in [
         r"C:\Windows\PowerShell.EXE",
         r"C:/Program Files/PowerShell/7/pwsh.exe",
