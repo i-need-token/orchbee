@@ -13,6 +13,37 @@ struct Port {
     saves: usize,
     calls: Rc<RefCell<Vec<Call>>>,
 }
+
+#[test]
+fn search_query_and_local_return_packets_never_edit_preferences_or_reach_a_pane() {
+    let mut port = Port::ready();
+    let before = match port.editor.view().unwrap() {
+        crate::native_settings::View::Draft(draft) => draft.values.clone(),
+        _ => panic!("draft"),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+    dispatcher.publish_hit_map(map);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"/sound");
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.searching && draft.query == "sound" && draft.values == &before)
+    );
+    let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+    dispatcher.publish_hit_map(map);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if !draft.searching && draft.selected == Row::Sound && draft.values == &before)
+    );
+    let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+    dispatcher.publish_hit_map(map);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+    assert!(
+        matches!(port.editor.view(), Some(crate::native_settings::View::Draft(draft)) if draft.query.is_empty() && draft.values == &before)
+    );
+    assert_eq!(port.saves, 0);
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
 impl Port {
     fn ready() -> Self {
         Self::ready_with(orchbee_workbench_protocol::UserPreferencesValues::default())

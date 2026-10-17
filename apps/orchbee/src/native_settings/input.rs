@@ -11,6 +11,10 @@ struct BindingSpec {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LocalBinding {
+    Search,
+    Save,
+    PageUp,
+    PageDown,
     AdjustLargeBackward,
     AdjustLargeForward,
     Exit,
@@ -34,6 +38,15 @@ enum LocalBinding {
 impl LocalBinding {
     const fn spec(self) -> BindingSpec {
         let (code, mods, edit, list_only) = match self {
+            Self::Search => (KeyCode::Char('/'), Modifiers::NONE, Edit::Search, true),
+            Self::Save => (
+                KeyCode::Char('s'),
+                Modifiers::NONE.with_ctrl(),
+                Edit::Save,
+                true,
+            ),
+            Self::PageUp => (KeyCode::PageUp, Modifiers::NONE, Edit::Page(false), true),
+            Self::PageDown => (KeyCode::PageDown, Modifiers::NONE, Edit::Page(true), true),
             Self::AdjustLargeBackward => (
                 KeyCode::Left,
                 Modifiers::NONE.with_shift(),
@@ -96,7 +109,11 @@ impl LocalBinding {
     }
 }
 
-const DISPATCH_ORDER: [LocalBinding; 18] = [
+const DISPATCH_ORDER: [LocalBinding; 22] = [
+    LocalBinding::Search,
+    LocalBinding::Save,
+    LocalBinding::PageUp,
+    LocalBinding::PageDown,
     LocalBinding::AdjustLargeBackward,
     LocalBinding::AdjustLargeForward,
     LocalBinding::Exit,
@@ -120,6 +137,8 @@ const DISPATCH_ORDER: [LocalBinding; 18] = [
 /// Semantic label paired with one locally effective Settings binding group.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsHintLabel {
+    Search,
+    Save,
     Close,
     Back,
     Cancel,
@@ -157,6 +176,8 @@ const PRIMARY: &[LocalBinding] = &[LocalBinding::Primary];
 const SELECT: &[LocalBinding] = &[LocalBinding::NextTab];
 const CHANGE: &[LocalBinding] = &[LocalBinding::AdjustBackward, LocalBinding::AdjustForward];
 const CLEAR: &[LocalBinding] = &[LocalBinding::Clear];
+const SEARCH: &[LocalBinding] = &[LocalBinding::Search];
+const SAVE: &[LocalBinding] = &[LocalBinding::Save];
 
 const LOADING_HINTS: &[SettingsFooterBinding] =
     &[SettingsFooterBinding::new(EXIT, SettingsHintLabel::Close)];
@@ -164,9 +185,15 @@ const SAVING_HINTS: &[SettingsFooterBinding] =
     &[SettingsFooterBinding::new(EXIT, SettingsHintLabel::Close)];
 const GENERAL_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Close),
+    SettingsFooterBinding::new(SAVE, SettingsHintLabel::Save),
     SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::ActivateEdit),
-    SettingsFooterBinding::new(SELECT, SettingsHintLabel::Select),
-    SettingsFooterBinding::new(CHANGE, SettingsHintLabel::Change),
+    SettingsFooterBinding::new(SEARCH, SettingsHintLabel::Search),
+];
+const FILTERED_HINTS: &[SettingsFooterBinding] = &[
+    SettingsFooterBinding::new(EXIT, SettingsHintLabel::Back),
+    SettingsFooterBinding::new(SAVE, SettingsHintLabel::Save),
+    SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::ActivateEdit),
+    SettingsFooterBinding::new(SEARCH, SettingsHintLabel::Search),
 ];
 const PROFILE_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(EXIT, SettingsHintLabel::Back),
@@ -183,6 +210,11 @@ const TEXT_HINTS: &[SettingsFooterBinding] = &[
     SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::Accept),
     SettingsFooterBinding::new(CLEAR, SettingsHintLabel::Clear),
 ];
+const PICKER_HINTS: &[SettingsFooterBinding] = &[
+    SettingsFooterBinding::new(EXIT, SettingsHintLabel::Cancel),
+    SettingsFooterBinding::new(PRIMARY, SettingsHintLabel::Accept),
+    SettingsFooterBinding::new(SELECT, SettingsHintLabel::Select),
+];
 
 /// Projects the effective local footer groups for the current Settings mode.
 pub(crate) fn footer_bindings(view: View<'_>) -> &'static [SettingsFooterBinding] {
@@ -191,7 +223,10 @@ pub(crate) fn footer_bindings(view: View<'_>) -> &'static [SettingsFooterBinding
         View::Saving { .. } => SAVING_HINTS,
         View::Draft(draft) if draft.confirmation.is_some() => CONFIRMATION_HINTS,
         View::Draft(draft) if draft.text.is_some() => TEXT_HINTS,
+        View::Draft(draft) if draft.searching => TEXT_HINTS,
+        View::Draft(draft) if draft.picker.is_some() => PICKER_HINTS,
         View::Draft(draft) if draft.page == Page::Profiles => PROFILE_HINTS,
+        View::Draft(draft) if !draft.query.is_empty() => FILTERED_HINTS,
         View::Draft(_) => GENERAL_HINTS,
     }
 }
@@ -200,7 +235,7 @@ pub(crate) fn footer_bindings(view: View<'_>) -> &'static [SettingsFooterBinding
 pub(crate) fn key_edit_for_view(event: KeyEvent, view: View<'_>) -> Option<Edit> {
     let edit = key_edit(
         event,
-        matches!(view, View::Draft(draft) if draft.text.is_some()),
+        matches!(view, View::Draft(draft) if draft.text.is_some() || draft.searching),
     )?;
     if matches!(view, View::Draft(draft) if draft.confirmation.is_some()) {
         match edit {

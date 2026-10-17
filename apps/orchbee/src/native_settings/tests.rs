@@ -3,6 +3,7 @@ use super::*;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use orchbee_workbench_protocol::{AgentReminderMode, ApplicationAppearance, PreferencesLocale};
 mod appearance;
+mod browse;
 
 fn basis() -> Basis {
     Basis {
@@ -58,7 +59,7 @@ fn shared_preference_metadata_is_complete_stable_and_feature_owned() {
     );
     assert_eq!(
         setting(PreferenceKey::CopyOnSelect).category,
-        SettingCategory::SelectionAndClipboard
+        SettingCategory::Terminal
     );
     assert_eq!(
         setting(PreferenceKey::LaunchProfiles).effect,
@@ -311,10 +312,9 @@ fn wheel_preserves_the_focus_anchor_and_painted_geometry_owns_row_activation() {
     };
     let first = following.first_visible(4);
     let selected = following
-        .page
-        .rows()
+        .entries()
         .iter()
-        .position(|row| *row == following.selected)
+        .position(|entry| *entry == Entry::Setting(following.selected))
         .unwrap();
     assert!(following.follow_selection);
     assert!((first..first + 4).contains(&selected));

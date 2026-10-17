@@ -8,13 +8,19 @@ use orchbee_workbench_protocol::PreferenceKey;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingCategory {
-    Language,
-    ApplicationAppearance,
-    TerminalColors,
-    SelectionAndClipboard,
-    History,
-    ShellIntegration,
+    Appearance,
+    Terminal,
+    Notifications,
     LaunchProfiles,
+}
+
+impl SettingCategory {
+    pub(crate) const ALL: &'static [Self] = &[
+        Self::Appearance,
+        Self::Terminal,
+        Self::Notifications,
+        Self::LaunchProfiles,
+    ];
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -70,7 +76,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::Locale,
         row: Row::Language,
-        category: SettingCategory::Language,
+        category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
         availability: SettingAvailability::Always,
         effect: SettingEffect::CurrentApplication,
@@ -78,7 +84,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::ApplicationTheme,
         row: Row::Theme,
-        category: SettingCategory::ApplicationAppearance,
+        category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
         availability: SettingAvailability::Always,
         effect: SettingEffect::CurrentApplication,
@@ -86,7 +92,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::TerminalDisplayTheme,
         row: Row::TerminalTheme,
-        category: SettingCategory::TerminalColors,
+        category: SettingCategory::Appearance,
         control: SettingControl::FiniteChoice,
         availability: SettingAvailability::Always,
         effect: SettingEffect::CurrentTerminalPresentation,
@@ -94,7 +100,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::CustomForeground,
         row: Row::Foreground,
-        category: SettingCategory::TerminalColors,
+        category: SettingCategory::Appearance,
         control: SettingControl::Color,
         availability: SettingAvailability::TerminalDisplayThemeCustom,
         effect: SettingEffect::CurrentTerminalPresentation,
@@ -102,7 +108,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::CustomBackground,
         row: Row::Background,
-        category: SettingCategory::TerminalColors,
+        category: SettingCategory::Appearance,
         control: SettingControl::Color,
         availability: SettingAvailability::TerminalDisplayThemeCustom,
         effect: SettingEffect::CurrentTerminalPresentation,
@@ -110,7 +116,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::CopyOnSelect,
         row: Row::CopyOnSelect,
-        category: SettingCategory::SelectionAndClipboard,
+        category: SettingCategory::Terminal,
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,
         effect: SettingEffect::SubsequentSelection,
@@ -118,7 +124,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::TrimTrailingBlankRowsForAgents,
         row: Row::TrimAgents,
-        category: SettingCategory::History,
+        category: SettingCategory::Terminal,
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,
         effect: SettingEffect::ExistingAgentPresentation,
@@ -126,7 +132,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::AgentNotificationMode,
         row: Row::Reminders,
-        category: SettingCategory::ShellIntegration,
+        category: SettingCategory::Notifications,
         control: SettingControl::FiniteChoice,
         availability: SettingAvailability::Always,
         effect: SettingEffect::FutureNotification,
@@ -134,7 +140,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::CompletionReminderMode,
         row: Row::CompletionReminders,
-        category: SettingCategory::ShellIntegration,
+        category: SettingCategory::Notifications,
         control: SettingControl::FiniteChoice,
         availability: SettingAvailability::Always,
         effect: SettingEffect::FutureNotification,
@@ -142,7 +148,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::CompletionReminderMinimumSeconds,
         row: Row::CompletionThreshold,
-        category: SettingCategory::ShellIntegration,
+        category: SettingCategory::Notifications,
         control: SettingControl::BoundedInteger {
             minimum: 1,
             maximum: 3_600,
@@ -156,7 +162,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::SoundEnabled,
         row: Row::Sound,
-        category: SettingCategory::ShellIntegration,
+        category: SettingCategory::Notifications,
         control: SettingControl::Boolean,
         availability: SettingAvailability::Always,
         effect: SettingEffect::FutureNotification,
@@ -164,7 +170,7 @@ pub(crate) static SETTINGS: [SettingMetadata; 13] = [
     SettingMetadata {
         key: PreferenceKey::ScrollbackBytes,
         row: Row::Scrollback,
-        category: SettingCategory::History,
+        category: SettingCategory::Terminal,
         control: SettingControl::BoundedInteger {
             minimum: 0,
             maximum: 1_000_000_000,

@@ -14,6 +14,7 @@ use orchbee_workbench_protocol::{
     PreferencesLocale, TerminalDisplayAppearance, UserPreferencesValues,
 };
 use ratatui::{Terminal, backend::TestBackend};
+mod browse;
 
 const MISSING_SOURCE: &str = "missing";
 const OTHER_SOURCE: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -149,7 +150,7 @@ fn without_cell_padding(text: &str) -> String {
 }
 
 #[test]
-fn category_heading_emphasis_does_not_promote_position_or_field_help() {
+fn search_and_section_landmarks_stay_secondary_without_index_or_preview_clutter() {
     use ratatui::style::Modifier;
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -162,22 +163,28 @@ fn category_heading_emphasis_does_not_promote_position_or_field_help() {
                 let mut editor = editor_with(UserPreferencesValues::default());
                 editor.edit(Edit::Select(selected));
                 let view = editor.view().unwrap();
+                let View::Draft(draft) = view else {
+                    panic!("draft")
+                };
                 let bounds = Rect::new(0, 0, 80, 24);
                 let layout = SettingsLayout::resolve(bounds, bounds, view, locale, &theme).unwrap();
                 let (terminal, _, receipt) = render_once(&editor, 80, 24, locale, &theme);
                 assert!(matches!(receipt, ModalPresentation::Presented(_)));
                 let buffer = terminal.backend().buffer();
-                let heading = &buffer[(layout.inner.x, layout.inner.y)];
-                let position_x = layout.inner.x
-                    + u16::try_from(display_width(locale.settings_category(selected)) + 2).unwrap();
-                let position = &buffer[(position_x, layout.inner.y)];
-                let detail = &buffer[(layout.inner.x, layout.inner.bottom() - 4)];
-                assert!(heading.modifier.contains(Modifier::BOLD));
-                assert_eq!(heading.fg, theme.style(Role::TextPrimary).fg.unwrap());
-                assert!(!position.modifier.contains(Modifier::BOLD));
-                assert_eq!(position.fg, theme.style(Role::TextSecondary).fg.unwrap());
+                let regions = DraftRegions::resolve(layout.inner, draft).unwrap();
+                let search = &buffer[(layout.inner.x, layout.inner.y)];
+                let detail = &buffer[(layout.inner.x, regions.detail.unwrap().y)];
+                assert!(!search.modifier.contains(Modifier::BOLD));
+                assert_eq!(search.fg, theme.style(Role::TextSecondary).fg.unwrap());
                 assert!(!detail.modifier.contains(Modifier::BOLD));
                 assert_eq!(detail.fg, theme.style(Role::TextSecondary).fg.unwrap());
+                let text = screen_text(&terminal);
+                assert!(
+                    !text.contains("/16")
+                        && !text.contains("Local preview;")
+                        && !text.contains("本地预览；保存后")
+                );
+                assert!(text.contains(locale.settings_category_name(SettingCategory::Appearance)));
             }
         }
     }
@@ -293,7 +300,7 @@ fn stepper_and_footer_actions_paint_their_complete_fixed_targets() {
 }
 
 #[test]
-fn general_action_rows_use_button_grammar_inside_the_whole_row_target() {
+fn fixed_actions_use_complete_button_targets_and_keep_save_primary() {
     let theme = Theme::one_dark();
     for width in [36, 40, 120] {
         for (locale, actions) in [
@@ -333,7 +340,15 @@ fn general_action_rows_use_button_grammar_inside_the_whole_row_target() {
                 let minimum = cells.iter().map(|(x, _)| *x).min().unwrap();
                 let maximum = cells.iter().map(|(x, _)| *x).max().unwrap();
                 assert_eq!(cells.len(), usize::from(maximum - minimum + 1));
-                assert!(cells.len() > display_width(expected));
+                assert!(cells.len() >= display_width(expected));
+                let expected = if row == Row::Save && width >= 44 {
+                    match locale {
+                        Locale::EnUs => "[SaveCtrl+s]",
+                        Locale::ZhCn => "[保存Ctrl+s]",
+                    }
+                } else {
+                    expected
+                };
                 assert!(
                     without_cell_padding(&line_text(&terminal, y)).contains(expected),
                     "{row:?} at {width}x10 {locale:?}"
@@ -354,7 +369,7 @@ fn general_action_rows_use_button_grammar_inside_the_whole_row_target() {
         .expect("disabled Save label");
     let disabled = theme.content_on_surface(
         Role::SurfaceOverlay,
-        Some(Role::SurfaceSelection),
+        None,
         Some(Role::TextDisabled),
         theme.style(Role::TextDisabled),
     );
@@ -374,7 +389,7 @@ fn general_action_rows_use_button_grammar_inside_the_whole_row_target() {
         .expect("enabled Save label");
     let enabled = theme.content_on_surface(
         Role::SurfaceOverlay,
-        Some(Role::SurfaceSelection),
+        None,
         Some(Role::AccentAction),
         theme.style(Role::AccentAction),
     );
@@ -385,9 +400,9 @@ fn general_action_rows_use_button_grammar_inside_the_whole_row_target() {
 fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
     let theme = Theme::one_dark();
     for (width, locale, expected) in [
-        (36, Locale::EnUs, "Enter activate/edit · Tab select"),
-        (40, Locale::EnUs, "Enter activate/edit · Tab select"),
-        (36, Locale::ZhCn, "Enter 操作／编辑 · Tab 选择"),
+        (36, Locale::EnUs, "Enter activate/edit · / search"),
+        (40, Locale::EnUs, "Enter activate/edit · / search"),
+        (36, Locale::ZhCn, "Enter 操作／编辑 · / 搜索"),
     ] {
         let editor = editor_with(UserPreferencesValues::default());
         let (terminal, _, receipt) = render_once(&editor, width, 10, locale, &theme);
@@ -401,7 +416,7 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
             without_cell_padding(&line).contains(expected.as_str()),
             "{width} {locale:?}: {line:?}"
         );
-        assert!(line.contains("Tab"));
+        assert!(line.contains('/'));
         assert!(!line.contains("Esc"), "exit belongs to its button");
         assert!(!line.contains('←'), "whole fourth item must be dropped");
 
@@ -432,7 +447,7 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
         .map(|y| line_text(&terminal, y))
         .find(|line| line.contains("Enter activate/edit"))
         .expect("simplified footer");
-    assert!(footer.contains("Left/Right change"));
+    assert!(footer.contains("/ search"));
     assert!(!footer.contains('←') && !footer.contains('→'));
 }
 
@@ -496,7 +511,7 @@ fn confirmation_bindings_are_inside_complete_action_targets_without_a_duplicate_
 fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions() {
     let theme = Theme::one_dark();
     for (width, locale, admitted) in [
-        (48, Locale::EnUs, false),
+        (48, Locale::EnUs, true),
         (48, Locale::ZhCn, true),
         (60, Locale::EnUs, true),
     ] {
@@ -540,6 +555,8 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
                         (0, Some(Edit::Adjust(false))) | (1, Some(Edit::Adjust(true)))
                     ),
                     SettingsHintLabel::Clear => matches!(edit, Some(Edit::Clear)),
+                    SettingsHintLabel::Search => matches!(edit, Some(Edit::Search)),
+                    SettingsHintLabel::Save => matches!(edit, Some(Edit::Save)),
                 };
                 assert!(
                     matches_intent,
@@ -564,17 +581,14 @@ fn footer_projection_uses_live_local_bindings_and_mode_semantics() {
     assert_eq!(footer_position(general_view, SettingsHintLabel::Close), 0);
     assert_eq!(
         footer_position(general_view, SettingsHintLabel::ActivateEdit),
-        1
+        2
     );
-    assert!(
-        footer_position(general_view, SettingsHintLabel::Select)
-            < footer_position(general_view, SettingsHintLabel::Change)
-    );
+    assert_eq!(footer_bindings(general_view).len(), 4);
     assert_eq!(
-        footer_bindings(general_view)[footer_position(general_view, SettingsHintLabel::Change)]
+        footer_bindings(general_view)[footer_position(general_view, SettingsHintLabel::Search)]
             .bindings()
             .len(),
-        2
+        1
     );
     assert_live(general_view, false);
 
@@ -687,7 +701,7 @@ fn unavailable_stepper_endpoint_stays_visible_and_consumes_its_cells() {
 }
 
 #[test]
-fn disabled_row_uses_the_frame_focus_and_one_navigation_cue_in_its_typed_extent() {
+fn current_setting_uses_a_neutral_band_and_preserves_its_disabled_identity() {
     let theme = Theme::one_dark();
     let values = UserPreferencesValues {
         terminal_display_theme: TerminalDisplayAppearance::Host,
@@ -703,16 +717,21 @@ fn disabled_row_uses_the_frame_focus_and_one_navigation_cue_in_its_typed_extent(
     let cells = cells_for(&map, &target, 120, 40);
     assert!(!cells.is_empty());
     let (row_x, row_y) = *cells.iter().min_by_key(|(x, _)| *x).unwrap();
-    assert_eq!(
-        terminal.backend().buffer()[(row_x, row_y)].symbol(),
-        theme.glyphs.navigation_marker
-    );
+    assert_eq!(terminal.backend().buffer()[(row_x, row_y)].symbol(), " ");
     assert_ne!(
         terminal.backend().buffer()[(row_x + 5, row_y)].symbol(),
         theme.glyphs.active_marker,
         "the enclosing frame owns focus; the row does not repeat its focus marker"
     );
     assert!(line_text(&terminal, row_y).contains("Foreground"));
+    let label = (row_x..120)
+        .find(|&x| terminal.backend().buffer()[(x, row_y)].symbol() == "F")
+        .unwrap();
+    assert!(
+        terminal.backend().buffer()[(label, row_y)]
+            .modifier
+            .contains(ratatui::style::Modifier::BOLD)
+    );
 }
 
 #[test]
@@ -734,7 +753,7 @@ fn boolean_focus_checked_and_changed_cues_remain_independent() {
     assert!(line_text(&off_terminal, row_y).contains("[ ] "));
     assert_eq!(
         off_terminal.backend().buffer()[(row_x, row_y)].symbol(),
-        theme.glyphs.navigation_marker
+        " "
     );
     assert_eq!(
         off_terminal.backend().buffer()[(row_x + 1, row_y)].symbol(),
@@ -754,10 +773,7 @@ fn boolean_focus_checked_and_changed_cues_remain_independent() {
     let on_cells = cells_for(&on_map, &on_target, 120, 40);
     let (row_x, row_y) = *on_cells.iter().min_by_key(|(x, _)| *x).unwrap();
     assert!(line_text(&on_terminal, row_y).contains("[x] "));
-    assert_eq!(
-        on_terminal.backend().buffer()[(row_x, row_y)].symbol(),
-        theme.glyphs.navigation_marker
-    );
+    assert_eq!(on_terminal.backend().buffer()[(row_x, row_y)].symbol(), " ");
     assert_eq!(
         on_terminal.backend().buffer()[(row_x + 1, row_y)].symbol(),
         "~"
@@ -784,8 +800,11 @@ fn choice_and_editor_boundaries_remain_visible_at_rest_and_during_editing() {
     };
     let y = cells_for(&choice_map, &target, 120, 40)[0].1;
     let choice = line_text(&choice_terminal, y);
-    assert!(choice.contains("[ Follow system"));
-    assert!(choice.contains(" > ]"));
+    assert!(choice.contains("Follow system >"));
+    assert!(
+        !choice.contains('['),
+        "a finite value is one calm row, not a nested button"
+    );
 
     open_profile_name_editor(&mut editor, Locale::EnUs, &theme);
     let (terminal, map, draw) = present_once(&mut editor, 120, 40, Locale::EnUs, &theme);
@@ -855,18 +874,12 @@ fn setting_category_copy_projects_the_closed_metadata_inventory() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for metadata in SETTINGS {
             let expected = match (locale, metadata.category) {
-                (Locale::EnUs, SettingCategory::Language) => "Language",
-                (Locale::ZhCn, SettingCategory::Language) => "语言",
-                (Locale::EnUs, SettingCategory::ApplicationAppearance) => "Application appearance",
-                (Locale::ZhCn, SettingCategory::ApplicationAppearance) => "应用外观",
-                (Locale::EnUs, SettingCategory::TerminalColors) => "Terminal colors",
-                (Locale::ZhCn, SettingCategory::TerminalColors) => "终端颜色",
-                (Locale::EnUs, SettingCategory::SelectionAndClipboard) => "Selection and clipboard",
-                (Locale::ZhCn, SettingCategory::SelectionAndClipboard) => "选择与剪贴板",
-                (Locale::EnUs, SettingCategory::History) => "History",
-                (Locale::ZhCn, SettingCategory::History) => "历史记录",
-                (Locale::EnUs, SettingCategory::ShellIntegration) => "Shell integration",
-                (Locale::ZhCn, SettingCategory::ShellIntegration) => "Shell 集成",
+                (Locale::EnUs, SettingCategory::Appearance) => "Appearance",
+                (Locale::ZhCn, SettingCategory::Appearance) => "外观",
+                (Locale::EnUs, SettingCategory::Terminal) => "Terminal",
+                (Locale::ZhCn, SettingCategory::Terminal) => "终端",
+                (Locale::EnUs, SettingCategory::Notifications) => "Notifications",
+                (Locale::ZhCn, SettingCategory::Notifications) => "通知",
                 (Locale::EnUs, SettingCategory::LaunchProfiles) => "Launch profiles",
                 (Locale::ZhCn, SettingCategory::LaunchProfiles) => "启动配置",
             };
@@ -1002,7 +1015,7 @@ fn manual_scroll_can_hide_the_anchor_without_painting_false_focus_or_authorizing
     let ModalPresentation::Presented(revealed) = receipt else {
         panic!("keyboard navigation remains admitted");
     };
-    assert_eq!(revealed.first_visible(), Some(1));
+    assert_eq!(revealed.first_visible(), Some(2));
 }
 
 #[test]

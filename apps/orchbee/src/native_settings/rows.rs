@@ -40,6 +40,17 @@ pub(crate) enum Page {
     Profiles,
 }
 impl Page {
+    pub(crate) fn content_rows(self) -> &'static [Row] {
+        let rows = self.rows();
+        &rows[..rows.len() - self.footer_rows().len()]
+    }
+
+    pub(crate) const fn footer_rows(self) -> &'static [Row] {
+        match self {
+            Self::General => &[Row::ResetAll, Row::Reload, Row::Save],
+            Self::Profiles => &[Row::ResetProfiles, Row::Back],
+        }
+    }
     pub(crate) const fn rows(self) -> &'static [Row] {
         match self {
             Self::General => &[
@@ -80,6 +91,50 @@ impl Page {
     }
 }
 impl Row {
+    pub(super) const fn mask(self) -> u32 {
+        const fn bit(row: Row) -> u32 {
+            let index = row as u32;
+            assert!(
+                index < u32::BITS,
+                "SettingsDraw painted mask capacity exceeded"
+            );
+            1_u32 << index
+        }
+        // Exhaustiveness requires new variants to join this mapping. Every bit is evaluated at
+        // compile time, so extending the enum past the receipt capacity cannot defer a bad shift.
+        match self {
+            Self::Language => const { bit(Row::Language) },
+            Self::Theme => const { bit(Row::Theme) },
+            Self::TerminalTheme => const { bit(Row::TerminalTheme) },
+            Self::Foreground => const { bit(Row::Foreground) },
+            Self::Background => const { bit(Row::Background) },
+            Self::CopyOnSelect => const { bit(Row::CopyOnSelect) },
+            Self::TrimAgents => const { bit(Row::TrimAgents) },
+            Self::Reminders => const { bit(Row::Reminders) },
+            Self::CompletionReminders => const { bit(Row::CompletionReminders) },
+            Self::CompletionThreshold => const { bit(Row::CompletionThreshold) },
+            Self::Sound => const { bit(Row::Sound) },
+            Self::Scrollback => const { bit(Row::Scrollback) },
+            Self::LaunchProfiles => const { bit(Row::LaunchProfiles) },
+            Self::ResetAll => const { bit(Row::ResetAll) },
+            Self::Reload => const { bit(Row::Reload) },
+            Self::Save => const { bit(Row::Save) },
+            Self::Profile => const { bit(Row::Profile) },
+            Self::ProfileName => const { bit(Row::ProfileName) },
+            Self::CommandType => const { bit(Row::CommandType) },
+            Self::Executable => const { bit(Row::Executable) },
+            Self::Login => const { bit(Row::Login) },
+            Self::Argument => const { bit(Row::Argument) },
+            Self::ArgumentValue => const { bit(Row::ArgumentValue) },
+            Self::AddArgument => const { bit(Row::AddArgument) },
+            Self::DeleteArgument => const { bit(Row::DeleteArgument) },
+            Self::SetDefault => const { bit(Row::SetDefault) },
+            Self::AddProfile => const { bit(Row::AddProfile) },
+            Self::DeleteProfile => const { bit(Row::DeleteProfile) },
+            Self::ResetProfiles => const { bit(Row::ResetProfiles) },
+            Self::Back => const { bit(Row::Back) },
+        }
+    }
     pub(crate) fn text_limit(self) -> Option<usize> {
         if let Some(metadata) = setting_for_row(self) {
             return match metadata.control {

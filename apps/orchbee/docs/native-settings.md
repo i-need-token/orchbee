@@ -17,7 +17,36 @@ those effects. Source comparison, atomic commit and reset behavior stay with the
 existing state and protocol owners. Workbench Protocol remains the value, default
 and validation owner.
 
-Tab/Up/Down moves between controls; Left/Right or Space changes a choice. Text
+The root surface groups settings into Appearance, Terminal, Notifications and Launch profiles.
+Each section has a quiet heading and divider; every setting has one stable label track and one
+value track. The current setting uses a neutral current-context band and bold label, while the
+modal frame identifies keyboard ownership. Checked booleans, `~` changed-draft markers, disabled
+values and picker navigation have independent cues. Reset all, Reload, Close and Save remain in
+a fixed action area below the list; they never appear among scrolling settings. The root keeps
+one contextual description and one state line rather than a persistent preview paragraph or
+row-index counter. A narrow surface removes the contextual description before any required action
+and uses two fixed action rows; labels truncate by display width and exact integers keep their value.
+
+`/` or the painted Search row starts global search. The bounded 256-byte query matches every term
+against English and Simplified Chinese category names, labels and concise descriptions in stable
+category order; values and user-authored profile text are excluded. Only categories with results
+remain. Search shows its result count and an explicit empty result. Enter or Tab leaves query entry
+and focuses the matching row without editing it; Enter with no result stays in search. Esc clears
+an active search or retained filter before closing the root. Filtering preserves the draft and
+saved source. A nonempty filter's Back button takes the same local step as Esc; header Close always
+closes the whole surface.
+
+Tab/Up/Down moves between settings and fixed actions; PageUp/PageDown moves by a page, and
+Home/End reaches the first/last focus target. Left/Right changes a finite choice or bounded value
+directly in the draft. Enter/Space or a row click opens a finite-choice selector in the same modal;
+boolean activation toggles its draft. A breadcrumb names a child editor or selector, whose concise
+description and Cancel/Confirm footer replace root content and actions. Picker navigation changes
+only a provisional candidate; appearance candidates preview locally, while other choices have no
+runtime effect. Acceptance changes the parent draft, and cancellation restores its prior preview.
+At compact height, picker wheel movement scrolls its own viewport and relocates only the
+provisional cursor to the nearest visible choice; it never accepts a value or moves the parent viewport.
+`Ctrl+s` invokes the fixed Save action only from root browsing, using the same painted authority as
+its button. Text
 fields use the [shared bounded line editor](native-line-editor.md), including Ctrl+W word deletion,
 and literal paste. Rendering projects the complete raw value once and maps its cursor to a visible
 grapheme boundary, so removing controls cannot leave the caret inside a painted cluster. Launch profiles
@@ -26,8 +55,9 @@ and confirmation before deleting a profile. Entering that child records the pare
 row, viewport and focus; Back restores them while retaining accepted draft edits. Custom colors are disabled unless
 Custom is selected; login shells are unavailable on Windows. The selected row
 is revealed by keyboard navigation and remains a stable navigation anchor while the
-pointer scrolls or the surface resizes. Category captions and setting
-names match the GUI's English/Simplified Chinese vocabulary.
+pointer scrolls or the surface resizes. Setting names preserve the GUI's
+English/Simplified Chinese vocabulary. Native category grouping and keyboard navigation adapt that
+shared inventory to the cell grid; GUI behavior is unchanged.
 
 An empty custom executable is marked Required. Launch-field details identify the
 profile, field and value requirements in both locales. A failed Save reveals the
@@ -45,7 +75,7 @@ Shift+Left/Right uses the large step outside a text child. Enter retains the exa
 bounded editor for direct values.
 
 Settings centers horizontally and vertically in the full host viewport above the transient status
-row, including the sidebar and top strip. Its preferred extent is 92 columns by 26 rows, clamped
+row, including the sidebar and top strip. Its preferred extent is 92 columns by 30 rows, clamped
 to that viewport; sidebar visibility or width does not shift it. Existing minimum-content admission,
 refusal and suspension preserve drafts and keep the status row uncovered. Placement does not resize
 PTYs. Root-compositor cases cover both locales, 120x40, 120x30, 100x24 and 80x24, hidden/visible
@@ -63,7 +93,7 @@ delivery. Wheel is admitted only inside the active list: three rows per notch,
 bounded per pass by its visible height, without wrapping or changing the selected
 row, semantic focus, draft or effective value. It changes the requested viewport
 and stops automatic selection following. The exact `SettingsDraw` receipt carries
-the surface token and actual painted row slice: an anchor that remains painted
+the surface token, category-list viewport and actual painted setting/action identities: an anchor that remains painted
 retains row activation, while a nonpainted anchor cannot activate. Keyboard
 navigation reveals that anchor again; a painted pointer target may establish a new
 one. Child editors and confirmations retain input and expose their own
@@ -74,8 +104,8 @@ never a confirmation. Explicitly modified Enter and key releases cannot confirm;
 legacy carriage return remains supported. Esc backs out of a child editor or confirmation before
 closing the root. Header Close closes the whole surface. Only an idle General
 draft admits a plain left press and matching release on the surrounding blank
-backdrop through that same exact painted Close target. Unsaved changes, text entry,
-the launch-profile child, confirmations, reconciliation and an in-flight read or
+backdrop through that same exact painted Close target. Unsaved changes, search/filter, text entry,
+a choice picker, the launch-profile child, confirmations, reconciliation and an in-flight read or
 save retain the surface and its task on an outside click. This guard uses the same
 active-task predicate that freezes the draft basis on external updates. Moving
 into the surface, a stale token, focus loss or a changed layout cancels a backdrop
@@ -98,7 +128,7 @@ confirmation. A visible pending Save keeps preview; hiding it releases preview w
 the accepted commit continues. An unknown result withdraws preview until an explicit
 matched read. A covering Client surface uses confirmed appearance and restores the
 retained preview when Settings becomes the active capture again.
-Enter or a click on the successfully drawn Save row consumes its
+Enter, `Ctrl+s` or a click on the successfully drawn Save button consumes its
 authority exactly once. Reset-all requires confirmation and remains a draft until
 Save; resetting claims all common keys even if their values are already defaults.
 The launch-profile page also offers a confirmed catalog-only reset, preserving
@@ -111,7 +141,7 @@ rendered context. A stale-source refusal or unknown outcome disables Save until 
 matched explicit Reload read succeeds; passive observations, redraws, cached snapshots
 and old read completions do not clear that requirement. No request is replayed automatically.
 
-Esc discards an unsubmitted draft; after submission it hides the surface while
+After child and search return steps, Esc discards an unsubmitted root draft; after submission it hides the surface while
 the accepted save can continue. Captured packet/paste tails remain owned through
 cancellation and the next redraw. The pane cursor stays hidden under Settings.
 The surface requires at least 36 columns by 10 rows and complete localized footer
@@ -230,6 +260,15 @@ host support; the TUI cannot promise delivery from a saved value. No new host mo
 restart, process launch or synthetic completion event is caused by appearance preview.
 
 ## Correctness and evidence
+
+The [browse/choice traces](../src/native_settings/tests/browse.rs) cover bilingual all-term search,
+value exclusion, atomic query bounds, empty results, exact one-leaf picker acceptance, cancelled
+appearance preview, external changes, stale pointer choices and filtered profile return. The
+[composition cases](../src/tui_render/settings/tests/browse.rs) pin the category/label/value body,
+fixed actions across scrolling and size tiers, hidden-hit removal, search cursor and same-modal
+picker acceptance in both locales. The [input packet cases](../src/terminal_input/dispatcher/tests/settings.rs)
+keep query entry and local return out of pane input and persistence. These local navigation changes
+do not change the shared commit/publication protocol.
 
 The [editor preview cases](../src/native_settings/tests/appearance.rs) cover every
 admitted key's exact one-key Save patch, frozen basis, child return, reset, invalid

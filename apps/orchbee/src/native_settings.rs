@@ -7,6 +7,10 @@ use orchbee_workbench_protocol::{
 };
 mod appearance;
 pub(crate) use appearance::AppearancePreview;
+mod browse;
+pub(crate) use browse::Entry;
+mod choices;
+pub(crate) use choices::{Choice, ChoicePicker};
 mod input;
 mod metadata;
 mod rows;
@@ -55,10 +59,23 @@ pub(crate) struct SettingsInputContext {
 pub(crate) struct SettingsDraw {
     token: Token,
     rows: Option<(usize, usize)>,
+    painted: u32,
 }
 impl SettingsDraw {
+    /// Records the painted slice of a finite-choice child, independently of parent rows.
+    pub(crate) const fn picker(token: Token, first: usize, visible: usize) -> Self {
+        Self {
+            token,
+            rows: Some((first, visible)),
+            painted: 0,
+        }
+    }
     pub(crate) const fn surface(token: Token) -> Self {
-        Self { token, rows: None }
+        Self {
+            token,
+            rows: None,
+            painted: 0,
+        }
     }
     pub(crate) const fn token(self) -> Token {
         self.token
@@ -93,6 +110,8 @@ pub(crate) enum Control {
     Accept,
     Back,
     Close,
+    Search,
+    Choose(Choice),
 }
 pub(crate) type Basis = UserPreferencesSnapshot;
 #[derive(Clone, Copy, Debug)]
@@ -112,6 +131,9 @@ pub(crate) enum Edit {
     Home,
     End,
     Clear,
+    Search,
+    Save,
+    Page(bool),
 }
 pub(crate) struct Submission {
     pub(crate) token: Token,
@@ -165,24 +187,58 @@ pub(crate) struct DraftView<'a> {
     /// attempt; `None` keeps the generic invalid-value copy.
     pub(crate) invalid_field: Option<(usize, UserLaunchField)>,
     pub(crate) confirmation: Option<Confirmation>,
+    pub(crate) query: &'a str,
+    pub(crate) search_cursor: usize,
+    pub(crate) searching: bool,
+    pub(crate) picker: Option<ChoicePicker>,
     reset_all: bool,
     reset_profiles: bool,
 }
 impl DraftView<'_> {
+    pub(crate) fn entries(self) -> Vec<Entry> {
+        browse::entries(self.page, self.query)
+    }
+
+    pub(crate) fn content_rows(self) -> Vec<Row> {
+        self.entries()
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Entry::Setting(row) => Some(row),
+                Entry::Heading(_) => None,
+            })
+            .collect()
+    }
+
+    fn navigation_rows(self) -> Vec<Row> {
+        self.content_rows()
+            .into_iter()
+            .chain(self.page.footer_rows().iter().copied())
+            .collect()
+    }
+
     pub(crate) fn first_visible(self, visible: usize) -> usize {
-        let rows = self.page.rows();
+        let entries = self.entries();
         let visible = visible.max(1);
-        let maximum = rows.len().saturating_sub(visible);
+        let maximum = entries.len().saturating_sub(visible);
         let requested = self.viewport.min(maximum);
         if !self.follow_selection {
             return requested;
         }
-        let selected = rows
+        let Some(selected) = entries
             .iter()
-            .position(|row| *row == self.selected)
-            .unwrap_or(0);
+            .position(|entry| *entry == Entry::Setting(self.selected))
+        else {
+            return requested;
+        };
+        // Keep a section title beside its first focused row whenever both fit.
+        let reveal =
+            if selected > 0 && matches!(entries[selected - 1], Entry::Heading(_)) && visible > 1 {
+                selected - 1
+            } else {
+                selected
+            };
         if selected < requested {
-            selected
+            reveal
         } else if selected >= requested.saturating_add(visible) {
             selected.saturating_add(1).saturating_sub(visible)
         } else {
@@ -191,10 +247,31 @@ impl DraftView<'_> {
     }
 
     pub(crate) fn presentation(self, visible: usize) -> SettingsDraw {
-        let visible = visible.max(1).min(self.page.rows().len());
+        let entries = self.entries();
+        let visible = visible.max(1).min(entries.len());
+        let first = self.first_visible(visible);
+        let painted = entries
+            .iter()
+            .skip(first)
+            .take(visible)
+            .filter_map(|entry| match entry {
+                Entry::Setting(row) => Some(*row),
+                Entry::Heading(_) => None,
+            })
+            .chain(
+                if self.searching {
+                    &[][..]
+                } else {
+                    self.page.footer_rows()
+                }
+                .iter()
+                .copied(),
+            )
+            .fold(0, |mask, row| mask | row.mask());
         SettingsDraw {
             token: self.token,
-            rows: Some((self.first_visible(visible), visible)),
+            rows: Some((first, visible)),
+            painted,
         }
     }
 
@@ -412,6 +489,16 @@ struct Draft {
     confirmation: Option<Confirmation>,
     reconciliation: Option<Reconciliation>,
     drawn: bool,
+    filter: LineEditor,
+    browse: BrowseMode,
+}
+
+#[derive(Clone, Copy, Default)]
+enum BrowseMode {
+    #[default]
+    Browse,
+    Search,
+    Picker(ChoicePicker),
 }
 #[derive(Clone, Copy)]
 struct Navigation {
@@ -420,6 +507,15 @@ struct Navigation {
     follow_selection: bool,
 }
 impl Draft {
+    fn reconcile_search(&mut self) {
+        let rows = self.project().content_rows();
+        if !rows.contains(&self.row) {
+            self.row = rows.first().copied().unwrap_or(Row::Save);
+        }
+        self.viewport = 0;
+        self.follow_selection = true;
+    }
+
     fn dirty(&self) -> bool {
         self.reset_all || self.reset_profiles || self.values != self.basis.values
     }
@@ -430,6 +526,8 @@ impl Draft {
             || self.confirmation.is_some()
             || self.page == Page::Profiles
             || self.reconciliation.is_some()
+            || !matches!(self.browse, BrowseMode::Browse)
+            || !self.filter.text().is_empty()
     }
 
     fn enter_profiles(&mut self) {
@@ -500,6 +598,13 @@ impl Draft {
             invalid: self.invalid,
             invalid_field: self.invalid_field,
             confirmation: self.confirmation,
+            query: self.filter.text(),
+            search_cursor: self.filter.cursor(),
+            searching: matches!(self.browse, BrowseMode::Search),
+            picker: match self.browse {
+                BrowseMode::Picker(picker) => Some(picker),
+                _ => None,
+            },
             reset_all: self.reset_all,
             reset_profiles: self.reset_profiles,
         }
@@ -580,6 +685,8 @@ impl Editor {
             confirmation: None,
             reconciliation: None,
             drawn: false,
+            filter: LineEditor::new(String::new(), LengthLimit::Bytes(256)),
+            browse: BrowseMode::Browse,
         }));
         true
     }
@@ -697,12 +804,16 @@ impl Editor {
             _ => return None,
         };
         (draft.reconciliation != Some(Reconciliation::OutcomeUnknown)).then(|| {
-            AppearancePreview::project(
+            let mut preview = AppearancePreview::project(
                 &draft.basis.values,
                 &draft.values,
                 &draft.effective.values,
                 draft.reset_all,
-            )
+            );
+            if let BrowseMode::Picker(picker) = draft.browse {
+                picker.candidate().preview(&mut preview);
+            }
+            preview
         })
     }
     pub(crate) fn view(&self) -> Option<View<'_>> {
@@ -741,12 +852,16 @@ impl Editor {
         self.surface_presented = true;
         if let State::Draft(draft) = &mut self.state {
             draft.drawn = true;
-            let rows = draft.page.rows();
-            let selected = rows.iter().position(|row| *row == draft.row).unwrap_or(0);
             if let Some((first, visible)) = draw.rows {
-                draft.viewport = first;
                 draft.visible_rows = visible;
-                draft.activation_ready = (first..first.saturating_add(visible)).contains(&selected);
+                if let BrowseMode::Picker(picker) = &mut draft.browse {
+                    picker.viewport = first;
+                    draft.activation_ready =
+                        (first..first.saturating_add(visible)).contains(&picker.cursor);
+                } else {
+                    draft.viewport = first;
+                    draft.activation_ready = draw.painted & draft.row.mask() != 0;
+                }
             } else {
                 draft.visible_rows = 0;
                 draft.activation_ready = false;
@@ -789,17 +904,25 @@ impl Editor {
     pub(crate) fn paste(&mut self, text: &str) {
         if self.surface_presented
             && let State::Draft(draft) = &mut self.state
-            && let Some(editor) = &mut draft.text
         {
+            let editor = if matches!(draft.browse, BrowseMode::Search) {
+                Some(&mut draft.filter)
+            } else {
+                draft.text.as_mut()
+            };
+            let Some(editor) = editor else { return };
             draft.invalid = text.contains('\0') || editor.insert(text).is_err();
             draft.invalid_field = None;
+            if matches!(draft.browse, BrowseMode::Search) {
+                draft.reconcile_search();
+            }
             self.redraw();
         }
     }
     pub(crate) fn reject_paste(&mut self) {
         if self.surface_presented
             && let State::Draft(draft) = &mut self.state
-            && draft.text.is_some()
+            && (draft.text.is_some() || matches!(draft.browse, BrowseMode::Search))
         {
             draft.invalid = true;
             draft.invalid_field = None;
@@ -808,6 +931,9 @@ impl Editor {
     }
     pub(crate) fn remaining_text_bytes(&self) -> usize {
         match &self.state {
+            State::Draft(draft) if matches!(draft.browse, BrowseMode::Search) => {
+                256_usize.saturating_sub(draft.filter.text().len())
+            }
             State::Draft(draft) => draft.text.as_ref().map_or(0, |text| {
                 draft
                     .row
@@ -844,8 +970,24 @@ impl Editor {
                     draft.confirmation = None;
                     self.redraw();
                 }
+                State::Draft(draft) if matches!(draft.browse, BrowseMode::Picker(_)) => {
+                    draft.browse = BrowseMode::Browse;
+                    self.redraw();
+                }
+                State::Draft(draft) if matches!(draft.browse, BrowseMode::Search) => {
+                    draft.browse = BrowseMode::Browse;
+                    draft.filter.clear();
+                    draft.invalid = false;
+                    draft.reconcile_search();
+                    self.redraw();
+                }
                 State::Draft(draft) if draft.page == Page::Profiles => {
                     draft.return_from_profiles();
+                    self.redraw();
+                }
+                State::Draft(draft) if !draft.filter.text().is_empty() => {
+                    draft.filter.clear();
+                    draft.reconcile_search();
                     self.redraw();
                 }
                 State::Loading { visible, .. } | State::Saving { visible, .. } => {
@@ -872,10 +1014,88 @@ impl Editor {
         if !self.surface_presented && !fixture_selection {
             return None;
         }
+        #[cfg(test)]
+        if fixture_selection {
+            draft.browse = BrowseMode::Browse;
+        }
         if draft.text.is_some() {
             values::edit_text(draft, edit);
             self.redraw();
             return None;
+        }
+        if draft.confirmation.is_none() {
+            if let BrowseMode::Picker(mut picker) = draft.browse {
+                match edit {
+                    Edit::Next | Edit::Adjust(true) => picker.navigate(true),
+                    Edit::Previous | Edit::Adjust(false) => picker.navigate(false),
+                    Edit::Home => picker.cursor = 0,
+                    Edit::End => picker.cursor = Choice::options(picker.row).len() - 1,
+                    Edit::Activate if draft.drawn => {
+                        picker.candidate().apply(&mut draft.values);
+                        draft.browse = BrowseMode::Browse;
+                        self.redraw();
+                        return None;
+                    }
+                    _ => return None,
+                }
+                draft.browse = BrowseMode::Picker(picker);
+                self.redraw();
+                return None;
+            }
+            if matches!(draft.browse, BrowseMode::Search) {
+                match edit {
+                    Edit::Activate if draft.project().content_rows().is_empty() => return None,
+                    Edit::Activate | Edit::Next | Edit::Previous => {
+                        draft.browse = BrowseMode::Browse;
+                        draft.reconcile_search();
+                    }
+                    Edit::Insert(character) => {
+                        draft.invalid = draft.filter.insert(&character.to_string()).is_err()
+                    }
+                    Edit::Backspace => {
+                        draft.filter.backspace();
+                        draft.invalid = false;
+                    }
+                    Edit::WordBack => {
+                        draft.filter.word_back();
+                        draft.invalid = false;
+                    }
+                    Edit::Delete => {
+                        draft.filter.delete();
+                        draft.invalid = false;
+                    }
+                    Edit::Adjust(false) => {
+                        draft.filter.left();
+                    }
+                    Edit::Adjust(true) => {
+                        draft.filter.right();
+                    }
+                    Edit::Home => draft.filter.home(),
+                    Edit::End => draft.filter.end(),
+                    Edit::Clear => {
+                        draft.filter.clear();
+                        draft.invalid = false;
+                    }
+                    _ => return None,
+                }
+                draft.reconcile_search();
+                self.redraw();
+                return None;
+            }
+            if matches!(edit, Edit::Search) && draft.page == Page::General {
+                draft.browse = BrowseMode::Search;
+                draft.invalid = false;
+                self.redraw();
+                return None;
+            }
+            if matches!(edit, Edit::Save) && draft.page == Page::General && draft.drawn {
+                if !draft.project().enabled(Row::Save) {
+                    return None;
+                }
+                draft.row = Row::Save;
+                draft.activation_ready = true;
+                return self.edit(Edit::Activate);
+            }
         }
         if let Some(confirmation) = draft.confirmation {
             if !matches!(edit, Edit::Activate) || !draft.drawn {
@@ -982,7 +1202,7 @@ impl Editor {
                 operation: NativeSettingsOperation::Save { source, changes },
             });
         }
-        let rows = draft.page.rows();
+        let rows = draft.project().navigation_rows();
         let index = rows.iter().position(|row| *row == draft.row).unwrap_or(0);
         draft.invalid = false;
         draft.invalid_field = None;
@@ -1003,6 +1223,16 @@ impl Editor {
                 draft.row = rows[rows.len() - 1];
                 draft.follow_selection = true;
             }
+            Edit::Page(forward) => {
+                let amount = draft.visible_rows.saturating_sub(1).max(1);
+                let next = if forward {
+                    index.saturating_add(amount).min(rows.len() - 1)
+                } else {
+                    index.saturating_sub(amount)
+                };
+                draft.row = rows[next];
+                draft.follow_selection = true;
+            }
             #[cfg(test)]
             Edit::Select(row) if rows.contains(&row) => {
                 draft.row = row;
@@ -1011,7 +1241,9 @@ impl Editor {
             Edit::Adjust(forward) => values::adjust(draft, forward, AdjustmentStep::Small),
             Edit::AdjustLarge(forward) => values::adjust(draft, forward, AdjustmentStep::Large),
             Edit::Activate => {
-                if let Some(limit) = draft.row.text_limit() {
+                if let Some(picker) = ChoicePicker::open(draft.row, &draft.values) {
+                    draft.browse = BrowseMode::Picker(picker);
+                } else if let Some(limit) = draft.row.text_limit() {
                     if let Some(value) = values::text(draft) {
                         draft.text = Some(LineEditor::new(value, LengthLimit::Bytes(limit)));
                     }
@@ -1028,10 +1260,30 @@ impl Editor {
         let State::Draft(draft) = &mut self.state else {
             return None;
         };
+        if draft.token == token
+            && draft.drawn
+            && let BrowseMode::Picker(picker) = &mut draft.browse
+        {
+            let visible = draft.visible_rows.max(1);
+            let maximum = Choice::options(picker.row).len().saturating_sub(visible);
+            let next = if up {
+                picker.viewport.saturating_sub(lines)
+            } else {
+                picker.viewport.saturating_add(lines).min(maximum)
+            };
+            if next == picker.viewport {
+                return Some(token);
+            }
+            picker.viewport = next;
+            picker.cursor = picker.cursor.clamp(next, next.saturating_add(visible - 1));
+            self.redraw();
+            return self.view().map(|view| view.token());
+        }
         if draft.token != token
             || !draft.drawn
             || draft.text.is_some()
             || draft.confirmation.is_some()
+            || !matches!(draft.browse, BrowseMode::Browse)
         {
             return None;
         }
@@ -1040,8 +1292,8 @@ impl Editor {
         } else {
             draft.viewport.saturating_add(lines).min(
                 draft
-                    .page
-                    .rows()
+                    .project()
+                    .entries()
                     .len()
                     .saturating_sub(draft.visible_rows.max(1)),
             )
@@ -1061,7 +1313,8 @@ impl Editor {
             && draft.drawn
             && draft.text.is_none()
             && draft.confirmation.is_none()
-            && draft.page.rows().contains(&row))
+            && !matches!(draft.browse, BrowseMode::Picker(_))
+            && draft.project().navigation_rows().contains(&row))
         {
             return None;
         }
@@ -1069,6 +1322,11 @@ impl Editor {
             draft.row = row;
             draft.follow_selection = false;
             draft.activation_ready = true;
+            if matches!(draft.browse, BrowseMode::Search) {
+                draft.browse = BrowseMode::Browse;
+                self.redraw();
+                return None;
+            }
         }
         self.edit(Edit::Activate)
     }
@@ -1092,9 +1350,32 @@ impl Editor {
             return None;
         }
         match control {
+            Control::Search
+                if draft.page == Page::General
+                    && draft.text.is_none()
+                    && draft.confirmation.is_none()
+                    && matches!(draft.browse, BrowseMode::Browse) =>
+            {
+                self.edit(Edit::Search)
+            }
+            Control::Choose(choice) if draft.text.is_none() && draft.confirmation.is_none() => {
+                let BrowseMode::Picker(mut picker) = draft.browse else {
+                    return None;
+                };
+                let Some(cursor) = Choice::options(picker.row)
+                    .iter()
+                    .position(|candidate| *candidate == choice)
+                else {
+                    return None;
+                };
+                picker.cursor = cursor;
+                draft.browse = BrowseMode::Picker(picker);
+                self.edit(Edit::Activate)
+            }
             Control::Adjust { row, forward }
                 if draft.text.is_none()
                     && draft.confirmation.is_none()
+                    && matches!(draft.browse, BrowseMode::Browse)
                     && draft.page.rows().contains(&row)
                     && draft.project().enabled(row)
                     && draft.project().adjustment(row).is_some_and(|adjustment| {
@@ -1110,7 +1391,11 @@ impl Editor {
                 draft.activation_ready = true;
                 self.edit(Edit::Adjust(forward))
             }
-            Control::Accept if draft.text.is_some() || draft.confirmation.is_some() => {
+            Control::Accept
+                if draft.text.is_some()
+                    || draft.confirmation.is_some()
+                    || !matches!(draft.browse, BrowseMode::Browse) =>
+            {
                 self.edit(Edit::Activate)
             }
             Control::Back => self.edit(Edit::Cancel),

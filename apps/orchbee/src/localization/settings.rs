@@ -2,7 +2,7 @@
 use super::Locale;
 use crate::{
     native_settings::{
-        Confirmation, DraftView, Page, Reconciliation, Row, SettingCategory, SettingUnit,
+        Choice, Confirmation, DraftView, Page, Reconciliation, Row, SettingCategory, SettingUnit,
         SettingsHintLabel, setting_for_row,
     },
     terminal_session::SettingsNotice,
@@ -111,19 +111,141 @@ impl Locale {
             _ => unreachable!("metadata-backed setting row resolved above"),
         }
     }
-    fn settings_category_name(self, category: SettingCategory) -> &'static str {
+    pub(crate) fn settings_category_name(self, category: SettingCategory) -> &'static str {
         match category {
-            SettingCategory::Language => self.setting("Language", "语言"),
-            SettingCategory::ApplicationAppearance => {
-                self.setting("Application appearance", "应用外观")
-            }
-            SettingCategory::TerminalColors => self.setting("Terminal colors", "终端颜色"),
-            SettingCategory::SelectionAndClipboard => {
-                self.setting("Selection and clipboard", "选择与剪贴板")
-            }
-            SettingCategory::History => self.setting("History", "历史记录"),
-            SettingCategory::ShellIntegration => self.setting("Shell integration", "Shell 集成"),
+            SettingCategory::Appearance => self.setting("Appearance", "外观"),
+            SettingCategory::Terminal => self.setting("Terminal", "终端"),
+            SettingCategory::Notifications => self.setting("Notifications", "通知"),
             SettingCategory::LaunchProfiles => self.setting("Launch profiles", "启动配置"),
+        }
+    }
+    pub(crate) fn settings_search_label(self) -> &'static str {
+        self.setting("Search", "搜索")
+    }
+    pub(crate) fn settings_search_idle(self) -> &'static str {
+        self.setting("Search settings  /", "搜索设置  /")
+    }
+    pub(crate) fn settings_no_results(self) -> &'static str {
+        self.setting(
+            "No matching settings. Clear the search to see all settings.",
+            "没有匹配的设置。清除搜索以查看全部设置。",
+        )
+    }
+    pub(crate) fn settings_search_count(self, count: usize) -> String {
+        match self {
+            Self::EnUs => format!("{count} found"),
+            Self::ZhCn => format!("{count} 项"),
+        }
+    }
+    pub(crate) fn settings_compact_state(self, draft: DraftView<'_>) -> &'static str {
+        match draft.reconciliation {
+            Some(Reconciliation::OutcomeUnknown) => {
+                self.setting("Save unknown; Reload required", "保存结果未知；请重新读取")
+            }
+            Some(Reconciliation::SourceChanged) => {
+                self.setting("Changed elsewhere; Reload", "已在其他位置更改；请重新读取")
+            }
+            None if draft.conflict => {
+                self.setting("Changed elsewhere; Reload", "已在其他位置更改；请重新读取")
+            }
+            None if draft.dirty => self.setting("Unsaved changes", "有未保存的更改"),
+            None => self.setting("No unsaved changes", "没有未保存的更改"),
+        }
+    }
+    pub(crate) fn settings_invalid_short(self) -> &'static str {
+        self.setting("Invalid value", "值无效")
+    }
+    pub(crate) fn settings_description(self, row: Row) -> &'static str {
+        match row {
+            Row::Language => self.setting(
+                "Language for application text; previews locally.",
+                "应用文字的语言；在本地预览。",
+            ),
+            Row::Theme => self.setting(
+                "Application appearance; previews locally.",
+                "应用外观主题；在本地预览。",
+            ),
+            Row::TerminalTheme => self.setting(
+                "Terminal default colors; program colors stay exact.",
+                "终端默认颜色；保留程序指定的颜色。",
+            ),
+            Row::Foreground | Row::Background => self.setting(
+                "Terminal colors in Custom; use #RRGGBB.",
+                "终端自定义颜色；使用 #RRGGBB。",
+            ),
+            Row::CopyOnSelect => self.setting(
+                "Copy completed selections after Save; needs host clipboard support.",
+                "保存后复制完成的选区；需要宿主剪贴板支持。",
+            ),
+            Row::TrimAgents => self.setting(
+                "Trim blank agent rows after Save; preserves active history and selection.",
+                "保存后裁剪 Agent 空白行；保留正在操作的历史和选区。",
+            ),
+            Row::Scrollback => self.setting(
+                "History budget in bytes for new terminals after Save.",
+                "保存后用于新终端的历史记录字节上限。",
+            ),
+            Row::Reminders => self.setting(
+                "Future hidden-agent notifications after Save; host and mute rules apply.",
+                "保存后用于后续隐藏 Agent 通知；遵循宿主与静音规则。",
+            ),
+            Row::CompletionReminders => self.setting(
+                "Future command reminders after Save; requires shell integration.",
+                "保存后用于后续命令完成提醒；需要 Shell 集成。",
+            ),
+            Row::CompletionThreshold => self.setting(
+                "Minimum command duration: 1–3600 seconds; applies after Save.",
+                "最短命令时长：1–3600 秒；保存后生效。",
+            ),
+            Row::Sound => self.setting(
+                "Sound for future reminders after Save; needs host support.",
+                "保存后用于后续提醒的声音；需要宿主支持。",
+            ),
+            Row::LaunchProfiles => self.setting(
+                "Shell and literal arguments for new default launches after Save.",
+                "保存后用于新的默认启动的 Shell 和字面参数。",
+            ),
+            _ => self.setting(
+                "Edits stay in this draft until Save.",
+                "编辑保留在此草稿中，保存后生效。",
+            ),
+        }
+    }
+    pub(crate) fn settings_choice(self, choice: Choice) -> &'static str {
+        match choice {
+            Choice::Locale(PreferencesLocale::System)
+            | Choice::ApplicationTheme(ApplicationAppearance::System) => {
+                self.setting("Follow system", "跟随系统")
+            }
+            Choice::Locale(PreferencesLocale::EnUs) => "English",
+            Choice::Locale(PreferencesLocale::ZhCn) => "简体中文",
+            Choice::ApplicationTheme(ApplicationAppearance::Light)
+            | Choice::TerminalTheme(TerminalDisplayAppearance::Light) => {
+                self.setting("Light", "浅色")
+            }
+            Choice::ApplicationTheme(ApplicationAppearance::Dark)
+            | Choice::TerminalTheme(TerminalDisplayAppearance::Dark) => {
+                self.setting("Dark", "深色")
+            }
+            Choice::TerminalTheme(TerminalDisplayAppearance::Host) => {
+                self.setting("Host default", "宿主默认")
+            }
+            Choice::TerminalTheme(TerminalDisplayAppearance::Custom) => {
+                self.setting("Custom", "自定义")
+            }
+            Choice::AgentReminders(AgentReminderMode::Never)
+            | Choice::CompletionReminders(CompletionReminderMode::Never) => {
+                self.setting("Never", "从不")
+            }
+            Choice::AgentReminders(AgentReminderMode::Hidden) => {
+                self.setting("When Agent location is hidden", "Agent 位置不可见时")
+            }
+            Choice::CompletionReminders(CompletionReminderMode::Unfocused) => {
+                self.setting("When terminal is unfocused", "终端未聚焦时")
+            }
+            Choice::CompletionReminders(CompletionReminderMode::Always) => {
+                self.setting("Always", "始终")
+            }
         }
     }
     pub(crate) fn settings_toggle(self, value: bool) -> &'static str {
@@ -241,6 +363,8 @@ impl Locale {
     }
     pub(crate) fn settings_hint_label(self, label: SettingsHintLabel) -> &'static str {
         match label {
+            SettingsHintLabel::Search => self.setting("search", "搜索"),
+            SettingsHintLabel::Save => self.setting("save", "保存"),
             SettingsHintLabel::Close => self.setting("close", "关闭"),
             SettingsHintLabel::Back => self.setting("back", "返回"),
             SettingsHintLabel::Cancel => self.setting("cancel", "取消"),

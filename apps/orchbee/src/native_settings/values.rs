@@ -1,9 +1,8 @@
 //! Pure scalar and catalog draft edits; executable paths and arguments remain literal data.
-use super::{AdjustmentStep, Confirmation, Draft, Edit, Row, SettingControl, setting};
-use orchbee_workbench_protocol::{
-    AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferenceKey,
-    PreferencesLocale, TerminalDisplayAppearance, UserLaunchCommand, UserLaunchProfile,
+use super::{
+    AdjustmentStep, ChoicePicker, Confirmation, Draft, Edit, Row, SettingControl, setting,
 };
+use orchbee_workbench_protocol::{PreferenceKey, UserLaunchCommand, UserLaunchProfile};
 
 fn integer_bounds(key: PreferenceKey) -> (u64, u64) {
     let SettingControl::BoundedInteger {
@@ -45,14 +44,14 @@ fn step_integer(current: u64, key: PreferenceKey, forward: bool, step: Adjustmen
     }
 }
 
-fn cycle<T: Copy + PartialEq>(current: &mut T, values: &[T], forward: bool) {
-    let index = values
-        .iter()
-        .position(|value| value == current)
-        .unwrap_or(0);
-    *current = values[(index + if forward { 1 } else { values.len() - 1 }) % values.len()];
-}
 pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
+    if step == AdjustmentStep::Small
+        && let Some(mut picker) = ChoicePicker::open(draft.row, &draft.values)
+    {
+        picker.navigate(forward);
+        picker.candidate().apply(&mut draft.values);
+        return;
+    }
     let values = &mut draft.values;
     match draft.row {
         Row::CompletionThreshold => {
@@ -74,52 +73,10 @@ pub(super) fn adjust(draft: &mut Draft, forward: bool, step: AdjustmentStep) {
             .expect("scrollback metadata fits u32");
         }
         _ if step == AdjustmentStep::Large => {}
-        Row::Language => cycle(
-            &mut values.locale,
-            &[
-                PreferencesLocale::System,
-                PreferencesLocale::EnUs,
-                PreferencesLocale::ZhCn,
-            ],
-            forward,
-        ),
-        Row::Theme => cycle(
-            &mut values.application_theme,
-            &[
-                ApplicationAppearance::System,
-                ApplicationAppearance::Light,
-                ApplicationAppearance::Dark,
-            ],
-            forward,
-        ),
-        Row::TerminalTheme => cycle(
-            &mut values.terminal_display_theme,
-            &[
-                TerminalDisplayAppearance::Host,
-                TerminalDisplayAppearance::Light,
-                TerminalDisplayAppearance::Dark,
-                TerminalDisplayAppearance::Custom,
-            ],
-            forward,
-        ),
         Row::CopyOnSelect => values.copy_on_select = !values.copy_on_select,
         Row::TrimAgents => {
             values.trim_trailing_blank_rows_for_agents = !values.trim_trailing_blank_rows_for_agents
         }
-        Row::Reminders => cycle(
-            &mut values.agent_notification_mode,
-            &[AgentReminderMode::Never, AgentReminderMode::Hidden],
-            forward,
-        ),
-        Row::CompletionReminders => cycle(
-            &mut values.completion_reminder_mode,
-            &[
-                CompletionReminderMode::Never,
-                CompletionReminderMode::Unfocused,
-                CompletionReminderMode::Always,
-            ],
-            forward,
-        ),
         Row::Sound => values.sound_enabled = !values.sound_enabled,
         Row::Profile => {
             let count = values.launch_profiles.profiles.len();
