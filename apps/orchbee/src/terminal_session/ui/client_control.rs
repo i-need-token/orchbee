@@ -276,9 +276,8 @@ impl NativeUi {
         } else {
             match state.phase_kind() {
                 SessionPhaseKind::Empty | SessionPhaseKind::Ready => ClientViewPhase::Ready,
-                SessionPhaseKind::SelectedWithoutAttachment if state.selected_is_unbound() => {
-                    ClientViewPhase::Ready
-                }
+                SessionPhaseKind::SelectedWithoutAttachment
+                | SessionPhaseKind::RetryableAttachUnavailable => ClientViewPhase::Ready,
                 SessionPhaseKind::Starting => ClientViewPhase::Starting,
                 SessionPhaseKind::Creating
                 | SessionPhaseKind::CreateCommittedNeedDetach

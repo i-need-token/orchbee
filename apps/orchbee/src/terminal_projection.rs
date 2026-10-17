@@ -11,6 +11,7 @@ use std::{collections::HashSet, sync::Arc};
 
 #[derive(Clone)]
 pub(crate) struct TerminalProjection {
+    end: Option<TerminalEnd>,
     attachment: AttachmentId,
     epoch: HostEpoch,
     host_terminal_id: Option<orchbee_client_server_protocol::HostTerminalId>,
@@ -19,9 +20,18 @@ pub(crate) struct TerminalProjection {
     blocked_revision: Option<u64>,
     frame: Option<Arc<TerminalTextFrame>>,
 }
+
+/// Host-reported settlement, independent of the retained terminal frame.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TerminalEnd {
+    Exited(orchbee_terminal_protocol::ExitResult),
+    Failed,
+}
+
 impl TerminalProjection {
     pub(crate) const fn new(attachment: AttachmentId, epoch: HostEpoch) -> Self {
         Self {
+            end: None,
             attachment,
             epoch,
             host_terminal_id: None,
@@ -30,6 +40,48 @@ impl TerminalProjection {
             blocked_revision: None,
             frame: None,
         }
+    }
+    pub(crate) const fn end(&self) -> Option<TerminalEnd> {
+        self.end
+    }
+
+    /// Lifecycle records never invalidate the final frame or mint frame feedback.
+    pub(crate) fn receive_lifecycle(&mut self, record: &[u8]) -> Result<bool, ()> {
+        use orchbee_terminal_protocol::{LifecycleControl, decode_lifecycle_control};
+        let envelope = decode_transport_envelope(record).map_err(|_| ())?;
+        if !matches!(envelope.kind, 15 | 19) {
+            return Ok(false);
+        }
+        if envelope.protocol != CURRENT_PROTOCOL_VERSION
+            || envelope.role != MessageRole::Event
+            || envelope.correlation_id.is_some()
+            || envelope.host_epoch != Some(self.epoch)
+            || envelope.optional_message
+            || envelope.payload_encoding != PayloadEncoding::ControlJson
+        {
+            return Err(());
+        }
+        let (identity, end) =
+            match decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload)
+                .map_err(|_| ())?
+            {
+                LifecycleControl::TerminalExited(event) => {
+                    (event.identity, TerminalEnd::Exited(event.exit))
+                }
+                LifecycleControl::TerminalFailed(event) => (event.identity, TerminalEnd::Failed),
+                _ => return Err(()),
+            };
+        if identity.host_epoch != self.epoch
+            || self
+                .host_terminal_id
+                .as_ref()
+                .is_none_or(|terminal| terminal.as_str() != identity.terminal_id.to_text())
+            || self.end.is_some_and(|previous| previous != end)
+        {
+            return Err(());
+        }
+        self.end = Some(end);
+        Ok(true)
     }
     pub(crate) fn frame(&self) -> Option<&TerminalTextFrame> {
         self.frame.as_deref()
@@ -87,6 +139,9 @@ impl TerminalProjection {
         record: &[u8],
         expected_geometry: Option<Geometry>,
     ) -> Result<Option<Feedback>, ()> {
+        if self.receive_lifecycle(record)? {
+            return Ok(None);
+        }
         let envelope = decode_transport_envelope(record).map_err(|_| ())?;
         if envelope.protocol != CURRENT_PROTOCOL_VERSION
             || envelope.role != MessageRole::Event

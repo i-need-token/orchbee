@@ -951,6 +951,19 @@ impl Locale {
         if let Some(status) = view.workspace_close_status() {
             return self.workspace_close_status(status);
         }
+        if view.retirement().is_none()
+            && (view.phase() == crate::terminal_session::NativeDisplayPhase::Ready
+                && view
+                    .focus_panel_id()
+                    .and_then(|panel| view.terminal_end(panel))
+                    .is_some()
+                || view.phase()
+                    == crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
+                    && view.selected_provenance()
+                        == Some(crate::terminal_session::NativeDisplayProvenance::Failed))
+        {
+            return self.native_phase_status(view);
+        }
         #[cfg(windows)]
         if view.notice().is_none()
             && view.retirement().is_none()
@@ -1009,6 +1022,14 @@ impl Locale {
         self,
         view: &crate::terminal_session::NativeSessionView<'_>,
     ) -> String {
+        if view.retirement().is_none()
+            && view.phase() == crate::terminal_session::NativeDisplayPhase::Ready
+            && let Some(end) = view
+                .focus_panel_id()
+                .and_then(|panel| view.terminal_end(panel))
+        {
+            return self.terminal_end(end);
+        }
         if let Some(recovery) = view.quick_workspace_recovery() {
             return self.quick_workspace_failure(
                 recovery.project,
@@ -1800,6 +1821,14 @@ impl Locale {
     ) -> &'static str {
         use crate::local_activation::StartupFailure;
         match (self, failure) {
+            #[cfg(windows)]
+            (Self::EnUs, StartupFailure::AlreadyInSession) => {
+                "You are already inside this Session. Return to the existing Client to navigate, or use --session <name> to open another Session. CLI subcommands remain available.\n"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, StartupFailure::AlreadyInSession) => {
+                "当前终端已在此会话内。请返回现有 Client 切换位置，或使用 --session <name> 进入其他会话。CLI 子命令仍可正常使用。\n"
+            }
             #[cfg(windows)]
             (Self::EnUs, StartupFailure::Configuration) => {
                 "Invalid Windows configuration. Run orchbee config check for details, correct the setting and retry.\n"

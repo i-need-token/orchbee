@@ -25,6 +25,51 @@ pub(super) fn location() -> io::Result<Location> {
     )
 }
 
+/// Same-Site nested TUIs would be able to select their own hosting terminal.
+/// CLI commands and explicit routes to another Site do not use this guard.
+pub(crate) fn inside_selected_session() -> io::Result<bool> {
+    inside_session(
+        SELECTED.get().and_then(Option::as_ref),
+        |key| std::env::var_os(key),
+        &orchbee_local_ipc::current_user_sid()?,
+        std::env::temp_dir(),
+    )
+}
+
+fn inside_session(
+    selected: Option<&WindowsSiteName>,
+    environment: impl Fn(&str) -> Option<OsString>,
+    sid: &str,
+    fallback: PathBuf,
+) -> io::Result<bool> {
+    let Some(scope) = environment("ORCHBEE_RUNTIME_SCOPE") else {
+        return Ok(false);
+    };
+    let hosted = environment("ORCHBEE_TERMINAL_ID")
+        .and_then(|value| {
+            value
+                .to_str()
+                .and_then(|value| orchbee_workbench_protocol::TerminalId::parse(value).ok())
+        })
+        .is_some()
+        && environment("ORCHBEE_WORKER_ID")
+            .and_then(|value| {
+                value
+                    .to_str()
+                    .and_then(|value| orchbee_workbench_protocol::WorkerId::parse(value).ok())
+            })
+            .is_some();
+    if !hosted {
+        return Ok(false);
+    }
+    Ok(scope.to_str()
+        == Some(
+            resolve(selected, environment, sid, fallback)?
+                .scope
+                .as_str(),
+        ))
+}
+
 fn resolve(
     selected: Option<&WindowsSiteName>,
     environment: impl Fn(&str) -> Option<OsString>,

@@ -102,7 +102,7 @@ stage 该帧的记录本身——pane 已离场的 pending draw 以无反馈结�
 仅由焦点 pane 决定，后台 pane 独立挂接与渲染。共享 HostViewers 容量上限 8 对所有可见
 pane 生效，只读 pane 绝不获取控制或 resize。
 
-精确存活 pane 收到类型化 `TerminalRuntimeUnavailable` 应答时，在本地处置该 viewer。
+精确存活 pane 收到 viewer 的类型化 `TerminalRuntimeUnavailable` 应答时，在本地处置该 viewer。
 对焦点 pane，仅结构所有者空闲的 `Ready` 且无刷新或仅有既存 publication 刷新时允许此行为；
 setup、变更、显式刷新、已武装的 panel-close 确认或恢复仍保留既有退役边界。既有 `ViewerLost` 故障令精确选中项驻留，
 不重新挂接。存活兄弟 pane 继续 poll，也可结算此前准入的 controlling resize。
@@ -129,3 +129,23 @@ setup、变更、显式刷新、已武装的 panel-close 确认或恢复仍保�
 `terminal_session/state/tests/generated.rs` 用生产 reducer 执行 `ReincarnationFence`。`state/tests.rs` 的 `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` 与 `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` 覆盖错误 incarnation 和错误 pane 的效果。Mailbox、connection、workbench-projection 测试负责面板操作结果、回执关联、成员修复、绘制确认和失败处理。这些详细组合由实现测试支撑，不属于 TLC 穷举声明。
 
 维护中的变异控制删除完成身份检查，必须触发 `FramesAreCurrent` 或 `EffectsUseCurrentIncarnation`。运行 `node scripts/tla/run-models.mjs --models native-client-pane-membership` 及所属 Cargo 测试。
+
+## 终端结束状态
+
+Host 的 `TerminalExited` 和 `TerminalFailed` 记录只送达该精确物理终端的 viewer。Server 校验
+Host epoch、terminal 和 creation 身份；Client 校验投影所属 epoch 与终端。结束状态独立于
+帧有效性：保留最终画面、历史和规范成员关系，已知退出码时显示本地化说明，并移除输入和
+resize 权限。控制权拒绝或类型化控制运行时不可用只降级控制权；viewer 轮询仍是判断可读
+输出是否存在的权威。
+CLI 帧读取消费结束记录时不会使画面失效，也不会输出 projection-blocked 流重置；已有输出
+schema 保持不变。
+
+setup 或已准入 Create 期间收到退出时，也须降级保留的选择并清除控制几何。因此，提交前
+拒绝不能在 Shell 已结束后恢复可控制选择。失败输入不重放。导航、从子成员返回主成员、
+新建和关闭继续使用既有所有者，包括当前仅有一个已结束 Tab 的情况。
+
+新 viewer 附件通过保留的 Host inventory 采样结束状态，因此分离并重新启动 Client 后仍
+保留已结束输出。Host 拒绝为已结束终端创建控制附件；Client 保留只读 viewer。确定的初始
+viewer 拒绝则停放为稳定导航视图，并进入普通命令循环。不会创建替代终端或删除历史。
+传输、协议、结果不明和清理失败沿用原边界。投影／状态测试覆盖精确目标结束与选择恢复；
+真实窗口评审覆盖 exit 0、非零退出、普通输入、返回主成员、重新进入及窄窗口状态展示。

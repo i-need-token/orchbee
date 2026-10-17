@@ -38,6 +38,20 @@ impl NativeUi {
             let Some(state) = state else {
                 return false;
             };
+            #[cfg(windows)]
+            if scope == Scope::Diagnostic {
+                return state.focus_pane_ref().as_ref() == Some(key)
+                    && state
+                        .view()
+                        .selected_provenance()
+                        .is_some_and(|provenance| {
+                            matches!(
+                                provenance,
+                                crate::terminal_session::state::CreateTerminalProvenance::Failed(_)
+                            )
+                        })
+                    && !state.close_suppresses_attachment(key.pane().anchor());
+            }
             if !state.pane_attached(key)
                 || state
                     .desired()
@@ -51,6 +65,8 @@ impl NativeUi {
                     return false;
                 }
                 match scope {
+                    #[cfg(windows)]
+                    Scope::Diagnostic => false,
                     Scope::Program { attachment, epoch } => {
                         *projection.value.attachment() == attachment
                             && *projection.value.epoch() == epoch

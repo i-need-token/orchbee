@@ -424,6 +424,11 @@ controller; Session disconnect or failed publication cleans all its viewers. The
 terminate or retarget retained terminals. Unknown exchanges are not replayed. Reattachment receives
 a fresh attachment identity and requires a snapshot.
 
+Poll also admits Host terminal settlement records (kinds 15 and 19) for its exact Host epoch,
+terminal and creation identity. They preserve the projection flight and require no frame
+acknowledgement. Worker seeds reattached viewers from retained inventory; Client keeps final
+output and downgrades control as described by [terminal settlement](../orchbee/docs/native-panel-lifecycle.md#terminal-settlement).
+
 No coordinator or registry lock spans Worker or Client I/O. Drop cleanup uses blocking admission to
 the existing one-entry Worker request queue, without waiting for a Client response or adding an
 unbounded queue. Retiring handlers retain their existing bounded Client Session/connection slots

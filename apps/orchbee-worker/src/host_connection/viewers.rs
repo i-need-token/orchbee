@@ -41,6 +41,7 @@ impl Default for HostViewers {
 struct Viewer {
     terminal_id: orchbee_capability_node_protocol::HostTerminalId,
     record: Option<Vec<u8>>,
+    lifecycle: Option<Vec<u8>>,
     events: VecDeque<Vec<u8>>,
     next_preference: PollSource,
     closed: bool,
@@ -93,6 +94,7 @@ impl HostViewers {
             Viewer {
                 terminal_id,
                 record: None,
+                lifecycle: None,
                 events: VecDeque::new(),
                 next_preference: PollSource::Record,
                 closed: false,
@@ -178,6 +180,10 @@ impl HostViewers {
         };
         if viewer.closed {
             return TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable);
+        }
+        if let Some(record) = viewer.lifecycle.take() {
+            self.retained_record_bytes -= record.len();
+            return TerminalViewerOutcome::Record(record);
         }
         // The preferred source wins when both are readable; a single readable
         // source is always served. Only a completed take flips the preference,
@@ -313,6 +319,37 @@ impl HostViewers {
         }
         if envelope.payload_encoding != PayloadEncoding::ControlJson {
             return Err(invalid("unexpected Host event encoding"));
+        }
+        if matches!(envelope.kind, 15 | 19) {
+            validate_event(&record, epoch)?;
+            let event = orchbee_terminal_protocol::decode_lifecycle_control(
+                envelope.kind,
+                envelope.role,
+                envelope.payload,
+            )
+            .map_err(invalid)?;
+            let terminal = match event {
+                orchbee_terminal_protocol::LifecycleControl::TerminalExited(event) => {
+                    event.identity.terminal_id
+                }
+                orchbee_terminal_protocol::LifecycleControl::TerminalFailed(event) => {
+                    event.identity.terminal_id
+                }
+                _ => return Err(invalid("unexpected lifecycle event")),
+            };
+            for viewer in self.viewers.values_mut().filter(|viewer| {
+                !viewer.closed && viewer.terminal_id.as_bytes() == *terminal.as_bytes()
+            }) {
+                let previous = viewer.lifecycle.as_ref().map_or(0, Vec::len);
+                let total = self.retained_record_bytes - previous;
+                if record.len() > self.retained_record_limit.saturating_sub(total) {
+                    self.retained_record_bytes -= viewer.close();
+                    continue;
+                }
+                self.retained_record_bytes = total + record.len();
+                viewer.lifecycle = Some(record.clone());
+            }
+            return Ok(());
         }
         if envelope.kind == 53 {
             let HistoryControl::HistoryChanged(event) =
@@ -471,7 +508,7 @@ impl Viewer {
             .drain(..)
             .map(|event| event.len())
             .sum::<usize>();
-        frame + events
+        frame + events + self.lifecycle.take().map_or(0, |record| record.len())
     }
 }
 

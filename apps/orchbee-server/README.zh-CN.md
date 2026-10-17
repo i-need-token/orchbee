@@ -370,6 +370,11 @@ Attach 在 Client publication 前提交。显式 detach 只释放所选 viewer �
 断连或 publication 失败清理其全部 viewer。这些操作不终止或重新指向 retained terminal。
 Unknown exchange 不重放；重新附着获得全新 attachment identity，并要求 snapshot。
 
+Poll 还接纳精确 Host epoch、terminal 和 creation 身份对应的 Host 终端结束记录（kind 15 和
+19）。它们保留 projection flight，不需要帧确认。Worker 从保留的 inventory 为重新附着的
+viewer 初始化结束状态；Client 按[终端结束状态](../orchbee/docs/native-panel-lifecycle.zh-CN.md#终端结束状态)
+保留最终输出并降级控制权。
+
 Coordinator 或 registry lock 均不跨越 Worker/Client I/O。Drop cleanup 阻塞准入现有的单项
 Worker request queue，不等待 Client response，也不增加无界队列。退役 handler 保留原有的
 有界 Client Session/connection slot，直到 cleanup 准入完成。Wire owner 在内部观察完成。

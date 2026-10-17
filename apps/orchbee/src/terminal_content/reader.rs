@@ -118,7 +118,15 @@ impl<'a, G: Guard> ReadSession<'a, G> {
                     return Err(Error::ProtocolInvalid);
                 }
             };
-        let frame = match poll_frame(client, guard, &viewer, attachment, epoch, deadline) {
+        let frame = match poll_frame(
+            client,
+            guard,
+            &viewer,
+            attachment,
+            epoch,
+            host_terminal.clone(),
+            deadline,
+        ) {
             Ok(frame) => frame,
             Err(error) => {
                 detach_viewer(client, guard, &viewer, &detach_request, deadline);
@@ -456,9 +464,11 @@ fn poll_frame<G: Guard>(
     viewer: &ViewerId,
     attachment: AttachmentId,
     epoch: HostEpoch,
+    host_terminal: orchbee_client_server_protocol::HostTerminalId,
     deadline: Instant,
 ) -> Result<TerminalTextFrame, Error<G::Error>> {
-    let mut projection = TerminalProjection::new(attachment, epoch);
+    let mut projection =
+        TerminalProjection::new(attachment, epoch).with_host_terminal(host_terminal);
     loop {
         guard.check(deadline).map_err(Error::Gate)?;
         let response = client

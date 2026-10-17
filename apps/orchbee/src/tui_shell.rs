@@ -1626,8 +1626,11 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
         // attached terminal. Preserve it when revisiting the cached machine.
         if let crate::terminal_session::TerminalSessionView::Native(view) = self.view()
             && view.retirement().is_none()
-            && view.phase()
-                == crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
+            && matches!(
+                view.phase(),
+                crate::terminal_session::NativeDisplayPhase::SelectedWithoutAttachment
+                    | crate::terminal_session::NativeDisplayPhase::RetryableAttachUnavailable
+            )
         {
             return true;
         }

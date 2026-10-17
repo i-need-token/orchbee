@@ -9,6 +9,12 @@ organization. Windows supports separate named Sessions through `--session <name>
 Agent IDs use `--agent-session <id>`. The [Session contract](docs/native-cli-query.md#sessions-and-background-services)
 defines terminology, supported boundaries and unchanged storage/protocol identities.
 
+Windows refuses a TUI launched from a terminal already inside the selected Session before opening
+another Client. The localized message returns to the current Shell; CLI subcommands and explicit
+routes to another Session remain usable. Failed and ended terminals retain navigation, creation
+and close paths; [terminal settlement](docs/native-panel-lifecycle.md#terminal-settlement) preserves
+final output and known exit codes.
+
 Windows `events subscribe` emits bounded NDJSON observations from an existing Session. `events wait`
 retains one connection and filter through wait slices, distinguishing match, known timeout,
 history loss, refusal and interruption. Use `--event tab.renamed`, a resource selector or a closed
@@ -21,7 +27,7 @@ the [event contract](../orchbee-server/docs/windows-events.md) owns behavior and
 Experimental native Rust CLI and TUI Client. On Windows and Linux, and in the Apple Silicon macOS
 development package, bare invocation connects or activates a local Session from a verified executable
 cohort and enters its TUI after the first validated terminal
-projection frame. Native Clients operate shared Workbench state while keeping independent selection and
+projection frame or a stable navigation view for an unavailable terminal. Native Clients operate shared Workbench state while keeping independent selection and
 retained terminal processes. Windows also supports saved-machine SSH command routing and live TUI
 switching, user configuration, and complete-cohort release installation and updates through the contracts
 linked below. The emitted `orchbee` participates in root Cargo verification. macOS packaging is an

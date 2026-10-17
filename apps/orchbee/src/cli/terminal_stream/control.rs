@@ -355,6 +355,13 @@ impl<'a, 'g> Session<'a, 'g> {
         )? {
             Outcome::Empty {} => Ok(()),
             Outcome::Record(record) => {
+                if self
+                    .projection
+                    .receive_lifecycle(&record)
+                    .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?
+                {
+                    return Ok(());
+                }
                 self.history.event(&record, &self.projection)?;
                 let feedback = self
                     .projection

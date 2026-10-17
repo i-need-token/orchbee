@@ -116,7 +116,7 @@ follows the focus pane alone while background panes attach and render independen
 shared HostViewers capacity of 8 applies across all visible panes, and read-only panes never
 acquire control or resize.
 
-A typed `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
+A typed viewer `TerminalRuntimeUnavailable` response for an exact live pane disposes that viewer
 locally. For the focused pane this is allowed only in structurally quiescent `Ready`, with
 no refresh or an existing publication refresh; a setup, mutation, explicit refresh, armed
 panel-close confirmation or recovery keeps the existing retirement boundary. The existing
@@ -147,3 +147,28 @@ other refusal reasons and transport/protocol failures retain their existing hand
 `terminal_session/state/tests/generated.rs` exercises `ReincarnationFence` against production reducers. `reincarnated_pane_fences_late_work_from_the_retired_attachment_incarnation` and `same_anchor_panes_fence_cross_pane_and_fabricated_incarnation_refs` in `state/tests.rs` cover wrong-incarnation and wrong-pane effects. Mailbox, connection and workbench-projection tests own panel-operation results, receipt correlation, membership repair, draw acknowledgements and failure handling. Those detailed compositions are implementation-test claims, not exhaustive TLC claims.
 
 The maintained mutation control removes the completion identity guard and must fail `FramesAreCurrent` or `EffectsUseCurrentIncarnation`. Run `node scripts/tla/run-models.mjs --models native-client-pane-membership` and the owning Cargo tests.
+
+## Terminal settlement
+
+Host `TerminalExited` and `TerminalFailed` records reach only viewers for that exact physical
+terminal. Server checks Host epoch, terminal and creation identities; Client checks its projection's
+epoch and terminal. Settlement is separate from frame validity: it preserves final pixels, history
+and canonical membership, displays the localized exit code when known, and removes input and resize
+authority. A controller refusal or typed control-runtime unavailability downgrades only control;
+viewer polling remains authoritative for whether readable output is still available.
+CLI frame readers consume settlement without invalidating pixels or emitting a projection-blocked
+stream reset; their existing output schemas stay unchanged.
+
+An exit arriving during setup or an admitted Create also downgrades the retained selection and
+clears its controller geometry. Precommit refusal therefore cannot restore a controlling selection
+after its Shell ended. No failed input is replayed. Navigation, child-to-primary selection, Create
+and Close continue through the existing owners, including with only one ended Tab.
+
+New viewer attachments sample retained Host inventory for settlement, so detaching and starting a
+Client again preserves ended output. Host rejects controller attachment to a settled terminal; the
+Client keeps the read-only viewer. A definite initial viewer refusal instead parks a stable
+navigation view and starts the ordinary command loop. It never creates a replacement terminal or
+deletes history. Transport, protocol, unknown-outcome and cleanup failures retain their existing
+boundaries. Projection/state tests cover exact-target settlement and selection restoration;
+real-window review covers exit 0, nonzero exit, ordinary input, child return, reentry and narrow
+status presentation.

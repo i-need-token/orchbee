@@ -304,6 +304,14 @@ pub(crate) fn disconnected_origin() -> super::super::LocalClientOrigin {
     }
 }
 
+/// A typed remote origin without an SSH process, pipe or running writer.
+#[cfg(windows)]
+pub(crate) fn disconnected_remote_origin() -> super::super::LocalClientOrigin {
+    let mut origin = disconnected_origin();
+    origin.tunnel = Some(crate::machine_tunnel::Tunnel::disconnected_for_test());
+    origin
+}
+
 pub(crate) fn connect_with_gated_prewrite_clock(
     endpoint: &Path,
     cohort: &str,

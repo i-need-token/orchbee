@@ -31,6 +31,8 @@ pub(super) enum Kind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Scope {
+    #[cfg(windows)]
+    Diagnostic,
     Selection {
         generation: NonZeroU64,
         export: Option<NonZeroU64>,
@@ -186,6 +188,10 @@ pub(super) struct Queue {
     bytes: usize,
 }
 impl Queue {
+    #[cfg(windows)]
+    pub(super) fn enqueue_diagnostic(&mut self, key: PaneRef, text: String) -> bool {
+        self.enqueue(key, Scope::Diagnostic, Payload::Clipboard(text))
+    }
     pub(super) fn has_pending(&self) -> bool {
         !self.pending.is_empty()
     }

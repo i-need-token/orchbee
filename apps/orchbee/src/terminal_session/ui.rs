@@ -413,7 +413,45 @@ pub(crate) struct NativeSessionView<'a> {
     popup: Option<&'a super::independent_popup::Driver>,
 }
 
+/// Bounded launch facts for a failed member; no command arguments or environment.
+#[derive(Clone, Copy)]
+pub(crate) struct NativeLaunchFailure<'a> {
+    pub(crate) profile: NativeLaunchProfile<'a>,
+    pub(crate) executable: Option<&'a str>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum NativeLaunchProfile<'a> {
+    Named(&'a str),
+    SystemDefault,
+    Unknown,
+}
+
 impl<'a> NativeSessionView<'a> {
+    pub(crate) fn launch_failure(
+        &self,
+        panel: &super::NativePanel,
+    ) -> Option<NativeLaunchFailure<'a>> {
+        let state = self.state.as_ref()?;
+        let failed = state.pane_by_panel(panel.panel_id()).is_some_and(|record| {
+            matches!(record.provenance(), CreateTerminalProvenance::Failed(_))
+        }) || (self.focus == Some(panel.panel_id())
+            && self.selected_provenance() == Some(NativeDisplayProvenance::Failed));
+        if !failed || self.retirement.is_some() {
+            return None;
+        }
+        let description = state.launch_description(panel);
+        Some(NativeLaunchFailure {
+            profile: match description {
+                Some(description) => description.profile_name.as_deref().map_or(
+                    NativeLaunchProfile::SystemDefault,
+                    NativeLaunchProfile::Named,
+                ),
+                None => NativeLaunchProfile::Unknown,
+            },
+            executable: description.and_then(|description| description.executable.as_deref()),
+        })
+    }
     /// A shell-local projection never changes the cache or canonical layout inspection.
     pub(crate) fn set_resize_projection(
         &mut self,
@@ -697,6 +735,13 @@ impl<'a> NativeSessionView<'a> {
     /// rendering uses [`Self::pane_projection`] per leaf.
     pub(crate) fn projection(&self) -> Option<&'a TerminalProjection> {
         self.focus.and_then(|panel| self.pane_projection(panel))
+    }
+
+    pub(crate) fn terminal_end(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<crate::terminal_projection::TerminalEnd> {
+        self.pane_projection(panel)?.end()
     }
 
     /// The live projection installed for one panel's exact pane incarnation,
@@ -1135,6 +1180,8 @@ enum ActionBuildError {
 
 pub(super) struct NativeUi {
     settings: settings::Coordinator,
+    #[cfg(windows)]
+    launch_profiles: launch_profiles::Coordinator,
     preferences: orchbee_workbench_protocol::UserPreferencesValues,
     completion_reminders: super::completion_reminders::State,
     notification_base: (u64, orchbee_local_site_runtime::NativeNotificationSettings),
@@ -1267,6 +1314,8 @@ impl NativeUi {
             #[cfg(windows)]
             menus: action_menus::Coordinator::default(),
             settings: settings::Coordinator::default(),
+            #[cfg(windows)]
+            launch_profiles: launch_profiles::Coordinator::default(),
             preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
             completion_reminders: super::completion_reminders::State::default(),
             notification_base: (
@@ -1472,7 +1521,9 @@ impl NativeUi {
                 || self.state.as_ref().is_some_and(|state| {
                     matches!(
                         state.phase_kind(),
-                        SessionPhaseKind::Empty | SessionPhaseKind::SelectedWithoutAttachment
+                        SessionPhaseKind::Empty
+                            | SessionPhaseKind::SelectedWithoutAttachment
+                            | SessionPhaseKind::RetryableAttachUnavailable
                     )
                 }))
     }
@@ -2862,13 +2913,54 @@ impl NativeUi {
         &mut self,
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     ) -> SessionActionDisposition {
-        self.create_tab_launch(placement, None)
+        let (launch, description) = self.default_create_launch();
+        self.create_tab_launch(placement, launch, description)
+    }
+
+    fn default_create_launch(
+        &self,
+    ) -> (
+        Option<orchbee_workbench_protocol::LaunchSelection>,
+        Option<super::state::LaunchDescription>,
+    ) {
+        let profile = self
+            .preferences
+            .launch_profiles
+            .profiles
+            .iter()
+            .find(|profile| profile.id == self.preferences.launch_profiles.default_profile_id);
+        let Some(profile) = profile else {
+            return (None, None);
+        };
+        let (executable, arguments) = match &profile.command {
+            orchbee_workbench_protocol::UserLaunchCommand::CustomExecutable {
+                executable,
+                arguments,
+            } => (executable.clone(), arguments.clone()),
+            orchbee_workbench_protocol::UserLaunchCommand::SystemShell { .. } => {
+                // Only the executing Worker can resolve its system shell and defaults.
+                // An unpinned request must not claim this Client's cached profile.
+                return (None, None);
+            }
+        };
+        let Ok(launch) = orchbee_workbench_protocol::LaunchSelection::new(executable, arguments)
+        else {
+            // Saved defaults have a wider value budget than explicit launches.
+            // Preserve Worker resolution without claiming unpinned launch facts.
+            return (None, None);
+        };
+        let description = super::state::LaunchDescription {
+            profile_name: profile.name.clone(),
+            executable: Some(launch.executable().to_owned()),
+        };
+        (Some(launch), Some(description))
     }
 
     fn create_tab_launch(
         &mut self,
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
         launch: Option<orchbee_workbench_protocol::LaunchSelection>,
+        description: Option<super::state::LaunchDescription>,
     ) -> SessionActionDisposition {
         #[cfg(windows)]
         if self.view().no_current_workspace() {
@@ -2909,7 +3001,15 @@ impl NativeUi {
         let result = mailbox.try_enqueue_create_for(
             state,
             |state, generation, request_id| {
-                build_create_launch(state, generation, request_id, deadlines, placement, launch)
+                build_create_launch(
+                    state,
+                    generation,
+                    request_id,
+                    deadlines,
+                    placement,
+                    launch,
+                    description,
+                )
             },
             finish_action,
         );
@@ -3378,6 +3478,15 @@ impl NativeUi {
                         .is_some_and(|state| state.settle_pane_detached(&key))
                 }
                 WorkerEvent::PaneFailed { key, fault } => {
+                    if self.state.as_ref().is_some_and(|state| {
+                        state
+                            .pane_record(key.pane())
+                            .is_none_or(|record| record.pane_ref() != key)
+                    }) {
+                        // The exact incarnation already departed; a late loss fact
+                        // cannot retire the selection that replaced it.
+                        return false;
+                    }
                     let applied = self
                         .state
                         .as_mut()
@@ -3975,6 +4084,30 @@ impl NativeUi {
                 return true;
             }
         }
+        match self.projections[index].value.receive_lifecycle(&record) {
+            Ok(true) => {
+                if self.projections[index].value.end().is_some()
+                    && let Some(state) = &mut self.state
+                {
+                    state.settle_pane_fault(
+                        poll_key.pane_ref(),
+                        super::state::PaneFault::ControlLost,
+                    );
+                }
+                self.pending_draws.push(PendingDraw {
+                    poll_key,
+                    settlement: CausalSettlement::NoFeedback,
+                    frame: None,
+                    ordinary,
+                });
+                return true;
+            }
+            Ok(false) => {}
+            Err(()) => {
+                self.retire(CarrierFailure::Protocol);
+                return true;
+            }
+        }
         let result = self.projections[index]
             .value
             .receive_for_geometry(&record, expected);
@@ -4368,7 +4501,9 @@ fn build_create(
     deadlines: OperationDeadlines,
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
 ) -> Result<CreateMarker, ActionBuildError> {
-    build_create_launch(state, generation, request_id, deadlines, placement, None)
+    build_create_launch(
+        state, generation, request_id, deadlines, placement, None, None,
+    )
 }
 
 fn build_create_launch(
@@ -4378,6 +4513,7 @@ fn build_create_launch(
     deadlines: OperationDeadlines,
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     launch: Option<orchbee_workbench_protocol::LaunchSelection>,
+    description: Option<super::state::LaunchDescription>,
 ) -> Result<CreateMarker, ActionBuildError> {
     if !state.invariant_holds() {
         return Err(ActionBuildError::Protocol);
@@ -4427,8 +4563,14 @@ fn build_create_launch(
         deadlines,
     )
     .with_placement(placement.clone())
+    .with_launch_description(description)
     .with_origin(if state.phase_kind() == SessionPhaseKind::Empty {
         super::state::CreateOriginKind::Empty
+    } else if matches!(
+        state.phase_kind(),
+        SessionPhaseKind::SelectedWithoutAttachment | SessionPhaseKind::RetryableAttachUnavailable
+    ) {
+        super::state::CreateOriginKind::Unattached
     } else {
         super::state::CreateOriginKind::Ready
     });

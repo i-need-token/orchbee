@@ -2,6 +2,53 @@ use super::*;
 use crate::terminal_session::workbench_projection::NativeContextLocation;
 use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspaceId, Workspace};
 
+#[test]
+fn unattached_terminal_can_create_and_precommit_refusal_restores_its_exact_selection() {
+    for retryable in [false, true] {
+        for tab_count in [1, 2] {
+            let mut state = state(tab_count);
+            let selected = state.active().unwrap().clone();
+            state.phase = if retryable {
+                SessionPhase::RetryableAttachUnavailable(selected.clone())
+            } else {
+                SessionPhase::SelectedWithoutAttachment(selected.clone())
+            };
+            let original_phase = state.phase_kind();
+            let operation =
+                create_operation(&state, 4, 30, "new").with_origin(CreateOriginKind::Unattached);
+            let key = operation.key().clone();
+            assert!(state.begin_create(operation));
+            assert!(state.invariant_holds());
+            assert_eq!(state.active(), Some(&selected));
+            assert!(!state.restore_precommit(&key, Some(geometry(80))));
+            assert!(state.restore_precommit(&key, None));
+            assert_eq!(state.phase_kind(), original_phase);
+            assert_eq!(state.active(), Some(&selected));
+            assert!(state.invariant_holds());
+            if tab_count > 1 {
+                assert!(matches!(
+                    state.plan_selection(ClientAction::SelectTab(2)),
+                    SelectionPlan::Switch { index: 1 }
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn shell_exit_during_create_refusal_cannot_restore_controller_authority() {
+    let mut state = ready(1);
+    let pane = state.focus_pane_ref().unwrap();
+    let operation = create_operation(&state, 4, 30, "new");
+    let key = operation.key().clone();
+    assert!(state.begin_create(operation));
+    assert!(state.settle_pane_fault(&pane, PaneFault::ControlLost));
+    assert!(state.invariant_holds());
+    assert!(state.restore_precommit(&key, None));
+    assert_eq!(state.controller_mode(), Some(&ControllerMode::ReadOnly));
+    assert!(state.invariant_holds());
+}
+
 fn removal_snapshot(tab_count: usize, revision: u64) -> Snapshot {
     Snapshot {
         navigation: Navigation {

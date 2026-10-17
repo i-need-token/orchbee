@@ -2,7 +2,7 @@
 
 `src/host_connection/viewers.rs` owns the Worker-side bounds for Server-issued
 terminal viewers: at most `MAXIMUM_VIEWERS` (24) admitted attachments, at most
-one retained Host record per viewer, and an aggregate
+one retained projection record, four FIFO events and one terminal-settlement record per viewer, and an aggregate
 `MAXIMUM_RETAINED_VIEWER_RECORD_BYTES` (128 MiB) budget over retained record
 payloads. `src/host_connection/controllers.rs` keeps the separate
 `MAXIMUM_CONTROLLERS` (8) grant bound, and `src/host_connection/target_cleanup.rs`
@@ -14,7 +14,7 @@ release performance budgets and not a process RSS limit.
 ## Budget domain
 
 - Counted: the logical `len()` of each `Vec<u8>` retained in a viewer's `record`
-  slot — both `TerminalFrame` and `ProjectionBlocked` records. `Vec` capacity
+  slot, event FIFO and lifecycle slot — including `TerminalFrame` and `ProjectionBlocked` records. `Vec` capacity
   beyond `len` is not counted.
 - Not counted: `flight` route metadata (it holds no payload), the temporary
   incoming `record: Vec<u8>` before the store decision (it remains governed by
@@ -22,7 +22,7 @@ release performance budgets and not a process RSS limit.
   records already handed to a session by `poll`, row-window reads, and any
   session-side or protocol-codec copy.
 - `retained_record_bytes` is a private `HostViewers` counter; only owner code
-  mutates it, always paired with a `record` slot transition. The ceiling lives
+  mutates it, always paired with a record, event or lifecycle slot transition. The ceiling lives
   in a private owner field defaulting to the constant so tests may exercise a
   smaller budget only through the real check — never by poking the counter.
 
@@ -64,6 +64,23 @@ release performance budgets and not a process RSS limit.
 - Equality retains: `retained + incoming == ceiling` stores; only `>` retires.
   A single record can never self-retire because the wire record bound is far
   below the budget.
+
+## Terminal settlement delivery
+
+Kinds 15 and 19 are validated Host terminal facts, fanned out only to viewers of that terminal.
+Each viewer keeps one replaceable lifecycle slot, charged to the aggregate budget and polled before
+frame/event delivery without touching the frame flight. Replacement releases the old charge before
+admitting the new one; poll, close and remove release it exactly once. Pressure retires only the
+affected viewer. The four-event FIFO remains independent, so a burst cannot bury settlement behind
+ordinary events or consume an additional unbounded queue.
+
+After Host attach and projection-demand admission, the Worker reads bounded retained inventory
+under its existing two-second observation budget, with at most eight pages of 128 entries. A settled
+summary seeds the same lifecycle slot using the Host's identity, exit result and final revision.
+The read validates page generation, cursor progress, unique terminal/creation identities and Host
+epoch. It never changes terminal state. This supplies reentry evidence even when the original exit
+notification preceded attachment. A missing or invalid target fails the exchange; it is never
+presented as a running shell.
 
 ## Retired-target propagation
 

@@ -194,6 +194,17 @@ fn apply(
             if accepted.attachment_id != id || accepted.demand != ProjectionDemand::Active {
                 return Err(invalid("Host projection demand acknowledgement disagrees").into());
             }
+            if let Some(record) = lifecycle::snapshot(
+                host,
+                server,
+                orchbee_capability_node_protocol::HostTerminalId::from_bytes(
+                    *terminal_id.as_bytes(),
+                )?,
+            )? {
+                host.viewers
+                    .borrow_mut()
+                    .receive(record, host.host_epoch())?;
+            }
             Ok(TerminalViewerOutcome::Attached)
         }
         TerminalViewerAction::Poll => Ok(host.viewers.borrow_mut().poll(request.attachment_id)),

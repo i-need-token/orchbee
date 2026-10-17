@@ -14,6 +14,77 @@ use std::{error::Error, num::NonZeroU64};
 type TestResult = Result<(), Box<dyn Error>>;
 
 #[test]
+fn settlement_is_terminal_scoped_and_releases_its_budget_without_settling_a_frame() -> TestResult {
+    use orchbee_terminal_protocol::{
+        CreationId, ExitResult, LifecycleControl, TerminalExited, TerminalIdentity,
+        encode_lifecycle_control,
+    };
+    let mut viewers = HostViewers::default();
+    let first = request(1)?;
+    let sibling = request(2)?;
+    let mut other = request(3)?;
+    other.action = TerminalViewerAction::Attach {
+        host_epoch: orchbee_capability_node_protocol::HostEpoch::from_bytes([3; 16])?,
+        terminal_id: HostTerminalId::from_bytes([5; 16])?,
+    };
+    for request in [&first, &sibling, &other] {
+        viewers.admit(request).map_err(|e| format!("{e:?}"))?;
+    }
+    let epoch = HostEpoch::from_bytes([3; 16])?;
+    let frame = frame(1, 1, epoch)?;
+    viewers.receive(frame.clone(), epoch)?;
+    let event = encode_lifecycle_control(&LifecycleControl::TerminalExited(TerminalExited {
+        identity: TerminalIdentity {
+            creation_id: CreationId::from_bytes([6; 16])?,
+            host_epoch: epoch,
+            terminal_id: orchbee_terminal_protocol::TerminalId::from_bytes([4; 16])?,
+        },
+        exit: ExitResult::ExitCode(7),
+        final_revision: 5,
+    }))?;
+    let event = envelope(
+        event.kind,
+        PayloadEncoding::ControlJson,
+        &event.payload,
+        epoch,
+    )?;
+    viewers.receive(event.clone(), epoch)?;
+    viewers.receive(event.clone(), epoch)?;
+    assert_eq!(
+        viewers.retained_record_bytes(),
+        frame.len() + 2 * event.len()
+    );
+    assert_eq!(
+        viewers.poll(other.attachment_id),
+        TerminalViewerOutcome::Empty
+    );
+    viewers.remove(sibling.attachment_id);
+    assert_eq!(
+        viewers.poll(first.attachment_id),
+        TerminalViewerOutcome::Record(event)
+    );
+    let feedback = TerminalViewerRequest {
+        action: TerminalViewerAction::FrameApplied {
+            sequence: NonZeroU64::MIN,
+            generation: NonZeroU64::MIN,
+            revision: 5,
+        },
+        ..first
+    };
+    assert_eq!(
+        viewers.feedback(&feedback),
+        Err(ViewerRejection::FeedbackMismatch)
+    );
+    assert_eq!(
+        viewers.poll(first.attachment_id),
+        TerminalViewerOutcome::Record(frame)
+    );
+    viewers.feedback(&feedback).map_err(|e| format!("{e:?}"))?;
+    assert_eq!(viewers.retained_record_bytes(), 0);
+    Ok(())
+}
+
+#[test]
 fn delivery_requires_exact_feedback_and_does_not_stall_another_attachment() -> TestResult {
     let mut viewers = HostViewers::default();
     let first = request(1)?;

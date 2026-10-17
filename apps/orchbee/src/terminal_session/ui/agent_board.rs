@@ -32,6 +32,8 @@ impl NativeUi {
         &mut self,
         origin: crate::local_client::LocalClientOrigin,
     ) {
+        #[cfg(windows)]
+        self.launch_profiles.set_origin(&origin);
         self.attention.set_origin(origin.clone());
         #[cfg(windows)]
         self.reports.set_origin(origin.clone());

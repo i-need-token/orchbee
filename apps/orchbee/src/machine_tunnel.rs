@@ -23,6 +23,17 @@ pub(crate) struct Tunnel {
     stop: Arc<AtomicBool>,
     task: Option<JoinHandle<io::Result<()>>>,
 }
+
+#[cfg(test)]
+impl Tunnel {
+    pub(crate) fn disconnected_for_test() -> Arc<Self> {
+        Arc::new(Self {
+            stop: Arc::new(AtomicBool::new(true)),
+            task: None,
+        })
+    }
+}
+
 impl Drop for Tunnel {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);

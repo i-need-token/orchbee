@@ -40,7 +40,10 @@ The global menu also exposes the new-Tab submenu for keyboard users.
 The new-Tab submenu retains quick default creation and also lists the confirmed device launch
 profiles, including System default. Each saved choice names its profile and creates one Tab with
 that profile's literal executable and arguments; it never changes the shared default. System shell
-uses the native system-shell resolver, independently of the configured default profile. The chosen
+uses the native system-shell resolver only after the current origin establishes a direct local
+Session, independently of the configured default profile. A tunneled or unknown origin refuses
+that one-time system-shell choice; ordinary quick default creation still resolves on the executing
+Worker. Custom choices retain their literal paths and arguments. The chosen
 name appears in the creation notice. Removed, changed, invalid or unsupported choices refuse with
 a Settings recovery notice, without falling back or creating a replacement. Profile choices in an
 empty compatibility slot require selecting or creating a Workspace first. Esc and the existing

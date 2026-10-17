@@ -1,9 +1,16 @@
 use super::{
     CarrierFailure, CommittedTabCreate, CreateOperationKey, CreateProjectionDecision,
-    NativeContextTabs, NativeSessionState, ReadyAttachment, SessionPhase, WorkbenchSnapshotOutcome,
-    validate_created_tab,
+    NativeContextTabs, NativeSessionState, ReadyAttachment, SelectedTab, SessionPhase,
+    WorkbenchSnapshotOutcome, validate_created_tab,
 };
 use crate::terminal_session::workbench_projection::ValidatedCreatedProjection;
+
+/// Safe creation facts for failure feedback; arguments and environment are never retained here.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::terminal_session) struct LaunchDescription {
+    pub(in crate::terminal_session) profile_name: Option<String>,
+    pub(in crate::terminal_session) executable: Option<String>,
+}
 
 #[derive(Debug)]
 pub(in crate::terminal_session) enum PreparedCreateSnapshot {
@@ -133,12 +140,17 @@ impl NativeSessionState {
 pub(in crate::terminal_session) enum CreateOriginKind {
     Ready,
     Empty,
+    Unattached,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum CreateAnchor {
     Ready(ReadyAttachment),
     Empty,
+    Unattached {
+        selected: SelectedTab,
+        retryable: bool,
+    },
 }
 
 impl CreateAnchor {
@@ -146,11 +158,20 @@ impl CreateAnchor {
         match self {
             Self::Ready(_) => CreateOriginKind::Ready,
             Self::Empty => CreateOriginKind::Empty,
+            Self::Unattached { .. } => CreateOriginKind::Unattached,
         }
     }
     pub(super) const fn ready(&self) -> Option<&ReadyAttachment> {
         match self {
             Self::Ready(ready) => Some(ready),
+            Self::Empty | Self::Unattached { .. } => None,
+        }
+    }
+
+    pub(super) const fn selected(&self) -> Option<&SelectedTab> {
+        match self {
+            Self::Ready(ready) => Some(&ready.selected),
+            Self::Unattached { selected, .. } => Some(selected),
             Self::Empty => None,
         }
     }

@@ -53,6 +53,12 @@ pub(crate) struct LocalClientOrigin {
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 impl LocalClientOrigin {
+    /// Direct Windows IPC stays on this device; remote origins retain their tunnel on reconnect.
+    #[cfg(windows)]
+    pub(crate) fn is_local(&self) -> bool {
+        self.tunnel.is_none()
+    }
+
     pub(crate) fn reconnect_before(
         &self,
         deadline: Instant,

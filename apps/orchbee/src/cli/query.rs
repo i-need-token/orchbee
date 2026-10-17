@@ -1233,7 +1233,8 @@ pub(super) fn attach_viewer_cancellable_with_host(
                 attachment,
                 epoch,
                 host_terminal,
-                TerminalProjection::new(attachment, epoch),
+                TerminalProjection::new(attachment, epoch)
+                    .with_host_terminal(host_terminal_id.clone()),
             ))
         }
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),

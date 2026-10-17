@@ -27,6 +27,10 @@ use std::{
 pub(crate) use crate::local_activation::StartupFailure;
 
 pub(crate) fn run(locale: Locale, mouse: bool) -> Result<(), StartupFailure> {
+    #[cfg(windows)]
+    if local_activation::inside_selected_session().map_err(|_| StartupFailure::Runtime)? {
+        return Err(StartupFailure::AlreadyInSession);
+    }
     let deadline = Instant::now() + Duration::from_secs(20);
     #[cfg(windows)]
     let startup_cwd = std::env::current_dir().ok();

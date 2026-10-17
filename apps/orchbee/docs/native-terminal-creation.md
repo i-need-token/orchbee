@@ -134,3 +134,29 @@ cohort; rollback does not rewrite user profiles or existing terminal processes.
 ## Plugin overlays
 
 Windows plugin overlay creation uses an active-Client horizontal split and one guarded focus/zoom handoff. A passive member read pins the return Panel’s actual primary/child Presentation and binding before creation. Creation v5 records the overlay request; v2–v4 retain their original embedded Client-control v1 contract. Only v5 admits the additive Overlay control v8 answer. A stale member, failed focus handoff or unknown reply preserves known creation and never repeats it. [Windows plugins](windows-plugins.md#overlay-lifecycle-model) owns transient return chains, natural settlement, canonical removal and popup exclusions.
+
+## TUI failed launches
+
+A stable selected member without a viewer can create a Tab, navigate and close through the normal
+structural owners. Create captures either a Ready, Empty or Unattached origin. A definite precommit
+refusal restores the exact original selection and unattached phase. A known commit still cleans
+every old sibling attachment before installing its new selection. Failure never authorizes a replay.
+Client view readiness describes workspace operations independently of terminal input availability.
+
+TUI Tab creation captures the observed profile name from the current default or the one-shot
+creation choice, and pins a custom executable and its literal arguments into the existing launch
+selection when they fit its bounds. Larger saved defaults and ordinary SystemShell defaults
+retain Worker resolution and generic feedback. Failure feedback retains only the name and
+executable, keyed by the created Presentation; it does not retain arguments, environment or raw
+errors. Changing settings cannot relabel an earlier failure. These Client-local descriptions are
+bounded by known canonical membership and disappear with the Client; other failures use generic
+guidance when no captured description exists, without claiming a known profile identity.
+
+The failed page wraps the profile, executable-path guidance and Settings → Launch profiles repair
+steps. It displays effective Settings and copy-mode bindings; invoking copy mode here copies the
+diagnostic text through the existing bounded clipboard queue. Its exact pane identity fences queued
+delivery, and leaving the failed selection cancels undispatched copies. Repairing a launch profile
+or selecting a working default lets the user create directly from this page, including when it is
+the only Tab. Close keeps its existing
+confirmation path. The state membership and projection tests own these transitions; real-window
+review covers both locales, narrow wrapping, copying and recovery.

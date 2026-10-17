@@ -123,6 +123,7 @@ mod tab_close;
 mod tab_rename;
 mod tabs;
 mod terminal_cells;
+mod terminal_failure;
 #[cfg(test)]
 pub(crate) mod test_capture;
 mod viewport;
@@ -392,7 +393,12 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                         .map(|reminder| locale.command_completion_reminder(reminder))
                 });
             sidebar_status = phase_status.to_owned();
-            if native.phase() == NativeDisplayPhase::Ready {
+            if native.phase() == NativeDisplayPhase::Ready
+                && native
+                    .focus_panel_id()
+                    .and_then(|panel| native.terminal_end(panel))
+                    .is_none()
+            {
                 sidebar_status_role = Role::StatusSuccess;
             }
             status_text = status;
@@ -1424,8 +1430,13 @@ fn render_native_workbench(
         && !client_view.navigator_active()
         && !client_view.machines.sidebar_navigation_active()
         && !client_view.machines.open;
-    let input_enabled =
-        pane_focused && client_view.overlay().is_none() && !client_view.prefix_active();
+    let input_enabled = pane_focused
+        && client_view.overlay().is_none()
+        && !client_view.prefix_active()
+        && native
+            .focus_panel_id()
+            .and_then(|panel| native.terminal_end(panel))
+            .is_none();
     let panel_area = areas.panel;
     let location = native_location_label(native, locale);
     render_tab_strip(
@@ -1512,6 +1523,12 @@ fn render_native_workbench(
             ))
         })
         .unwrap_or(frame_title);
+    let frame_title = native
+        .focus_panel_id()
+        .and_then(|panel| native.terminal_end(panel))
+        .map_or(frame_title, |end| {
+            Line::styled(locale.terminal_end(end), theme.style(Role::StatusWarning))
+        });
     if framed {
         if split_visible {
             frame.render_widget(
@@ -1556,6 +1573,7 @@ fn render_native_workbench(
                 locale,
                 history_key.as_deref(),
                 native,
+                client_view,
                 theme,
                 hits,
             );
@@ -1771,6 +1789,11 @@ fn render_native_workbench(
                     hits.record_link_source(painted, source);
                 }
             }
+        } else if let Some(failure) = active_tab
+            .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
+            .and_then(|panel| native.launch_failure(panel))
+        {
+            terminal_failure::render(frame, content_area, failure, client_view, locale, theme);
         } else if let Some(retained) = native.focus_panel_id().and_then(|panel| {
             native.retained_pane_frame(panel, content_area.width, content_area.height)
         }) {
@@ -2126,6 +2149,7 @@ fn render_leaf(
     locale: Locale,
     history_key: Option<&str>,
     native: &NativeSessionView<'_>,
+    client_view: &ClientView,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> Option<Rect> {
@@ -2211,6 +2235,11 @@ fn render_leaf(
         truncate_display(&title, usize::from(title_area.width), theme.glyphs.ellipsis),
         title_style,
     ));
+    let header = panel
+        .and_then(|panel| native.terminal_end(panel.panel_id()))
+        .map_or(header, |end| {
+            Line::styled(locale.terminal_end(end), theme.style(Role::StatusWarning))
+        });
     frame.render_widget(Paragraph::new(header), title_area);
     if let Some(selector) = &selector {
         selector.paint(frame, theme, hits);
@@ -2296,6 +2325,8 @@ fn render_leaf(
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
             theme.style(Role::SurfaceSelection),
         );
+    } else if let Some(failure) = panel.and_then(|panel| native.launch_failure(panel)) {
+        terminal_failure::render(frame, content, failure, client_view, locale, theme);
     } else if let Some(retained) = panel.and_then(|panel| {
         native.retained_pane_frame(panel.panel_id(), content.width, content.height)
     }) {

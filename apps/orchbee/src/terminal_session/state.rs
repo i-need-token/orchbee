@@ -51,6 +51,7 @@ mod switch_membership;
 mod tab_close;
 pub(super) mod tab_rename;
 use create_membership::CreateAnchor;
+pub(super) use create_membership::LaunchDescription;
 pub(super) use create_membership::{CreateOriginKind, PreparedCreateSnapshot};
 #[cfg(test)]
 pub(super) use membership::PreparedMembershipInstall;
@@ -85,6 +86,27 @@ pub(super) use tab_close::{CloseSetKind, close_set_targets};
 
 pub(super) const OPERATION_TOTAL: Duration = Duration::from_secs(50);
 pub(super) const CLEANUP_RESERVE: Duration = Duration::from_secs(5);
+
+fn contains_presentation(
+    node: &orchbee_workbench_protocol::PanelNode,
+    id: &orchbee_workbench_protocol::TerminalPresentationId,
+) -> bool {
+    match node {
+        orchbee_workbench_protocol::PanelNode::Panel {
+            primary_presentation,
+            child_presentations,
+            ..
+        } => {
+            &primary_presentation.presentation_id == id
+                || child_presentations
+                    .iter()
+                    .any(|member| &member.presentation_id == id)
+        }
+        orchbee_workbench_protocol::PanelNode::Split { children, .. } => children
+            .iter()
+            .any(|child| contains_presentation(&child.node, id)),
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AttachmentKey {
@@ -295,6 +317,9 @@ impl PaneRecord {
         self.observed_geometry
     }
 
+    pub(super) const fn provenance(&self) -> &CreateTerminalProvenance {
+        &self.provenance
+    }
     pub(super) const fn binding(&self) -> &NativeTerminalBinding {
         &self.binding
     }
@@ -617,6 +642,7 @@ impl CreateOperationKey {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct CreateOperation {
+    launch_description: Option<LaunchDescription>,
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     automatic_label: bool,
     origin: CreateOriginKind,
@@ -640,6 +666,7 @@ impl CreateOperation {
         deadlines: OperationDeadlines,
     ) -> Self {
         Self {
+            launch_description: None,
             origin: CreateOriginKind::Ready,
             placement: None,
             automatic_label: false,
@@ -663,6 +690,14 @@ impl CreateOperation {
 
     pub(super) const fn with_origin(mut self, origin: CreateOriginKind) -> Self {
         self.origin = origin;
+        self
+    }
+
+    pub(super) fn with_launch_description(
+        mut self,
+        description: Option<LaunchDescription>,
+    ) -> Self {
+        self.launch_description = description;
         self
     }
 
@@ -784,8 +819,8 @@ impl CommittedTabCreate {
             || barrier.operation.key.reserved_generation
                 <= barrier
                     .anchor
-                    .ready()
-                    .map_or(0, |ready| ready.selected.key.anchor().generation())
+                    .selected()
+                    .map_or(0, |selected| selected.key.anchor().generation())
         {
             return Err(Box::new(barrier));
         }
@@ -1079,6 +1114,10 @@ impl PendingRefreshFlight {
 }
 
 pub(super) struct NativeSessionState {
+    launch_descriptions: std::collections::HashMap<
+        orchbee_workbench_protocol::TerminalPresentationId,
+        LaunchDescription,
+    >,
     cache: NativeContextTabs,
     context_selection: Option<context_selection::ContextSelection>,
     retained_contexts: Vec<context_selection::RetainedContext>,
@@ -1229,6 +1268,7 @@ impl NativeSessionState {
     }
     fn initial(cache: NativeContextTabs, geometry: Geometry) -> Self {
         Self {
+            launch_descriptions: std::collections::HashMap::new(),
             context_selection: None,
             retained_contexts: Vec::new(),
             navigation_memory: navigation_memory::NavigationMemory::default(),
@@ -1453,10 +1493,10 @@ impl NativeSessionState {
             | SessionPhase::ReconcilingMembership(selected)
             | SessionPhase::RetryableAttachUnavailable(selected) => Some(selected),
             SessionPhase::Ready(ready) => Some(&ready.selected),
-            SessionPhase::Creating(barrier) => barrier.anchor.ready().map(|ready| &ready.selected),
+            SessionPhase::Creating(barrier) => barrier.anchor.selected(),
             SessionPhase::CreateCommittedNeedDetach(committed)
             | SessionPhase::ProjectionUnavailableBeforeCleanup(committed) => {
-                committed.anchor.ready().map(|ready| &ready.selected)
+                committed.anchor.selected()
             }
             SessionPhase::Switching(setup) => Some(&setup.target.selected),
             SessionPhase::Retired(retired) => retired.diagnostic_active.as_ref(),
@@ -2005,6 +2045,7 @@ impl NativeSessionState {
                 }
                 PaneFault::ControlLost => {
                     record.mode = Some(ControllerMode::ReadOnly);
+                    record.last_accepted_geometry = None;
                 }
                 _ => {}
             }
@@ -2016,11 +2057,29 @@ impl NativeSessionState {
         // a failed setup: parked until an explicit new selection retries.
         if self.desired.as_ref() == Some(&pane) {
             match fault {
-                PaneFault::ControlLost => {
-                    if let SessionPhase::Ready(ready) = &mut self.phase {
-                        ready.mode = ControllerMode::ReadOnly;
+                PaneFault::ControlLost => match &mut self.phase {
+                    SessionPhase::Ready(ready) => ready.mode = ControllerMode::ReadOnly,
+                    SessionPhase::Starting(setup) => {
+                        setup.mode = Some(ControllerMode::ReadOnly);
+                        setup.accepted_geometry = None;
                     }
-                }
+                    SessionPhase::Switching(setup) => {
+                        setup.mode = Some(ControllerMode::ReadOnly);
+                        setup.accepted_geometry = None;
+                    }
+                    SessionPhase::Creating(barrier) => {
+                        if let CreateAnchor::Ready(ready) = &mut barrier.anchor {
+                            ready.mode = ControllerMode::ReadOnly;
+                        }
+                    }
+                    SessionPhase::CreateCommittedNeedDetach(committed)
+                    | SessionPhase::ProjectionUnavailableBeforeCleanup(committed) => {
+                        if let CreateAnchor::Ready(ready) = &mut committed.anchor {
+                            ready.mode = ControllerMode::ReadOnly;
+                        }
+                    }
+                    _ => {}
+                },
                 PaneFault::ViewerLost => {
                     self.clear_pane_attachment(&pane);
                     if let Some(selected) = self.active().cloned() {
@@ -2175,9 +2234,9 @@ impl NativeSessionState {
             // Their geometry may precede a newer admission on this same pane.
             SessionPhase::Creating(barrier)
                 if background_resize
-                    && barrier.anchor.ready().is_some_and(|ready| {
-                        self.desired.as_ref() == Some(&ready.selected.key)
-                            && key.anchor() == ready.selected.key.anchor()
+                    && barrier.anchor.selected().is_some_and(|selected| {
+                        self.desired.as_ref() == Some(&selected.key)
+                            && key.anchor() == selected.key.anchor()
                     }) =>
             {
                 None
@@ -2504,6 +2563,18 @@ impl NativeSessionState {
                 CreateAnchor::Ready(ready.clone())
             }
             (SessionPhase::Empty, CreateOriginKind::Empty) => CreateAnchor::Empty,
+            (SessionPhase::SelectedWithoutAttachment(selected), CreateOriginKind::Unattached) => {
+                CreateAnchor::Unattached {
+                    selected: selected.clone(),
+                    retryable: false,
+                }
+            }
+            (SessionPhase::RetryableAttachUnavailable(selected), CreateOriginKind::Unattached) => {
+                CreateAnchor::Unattached {
+                    selected: selected.clone(),
+                    retryable: true,
+                }
+            }
             _ => return false,
         };
         let attachment_ok = match anchor.ready() {
@@ -2513,7 +2584,12 @@ impl NativeSessionState {
                         .focus_record()
                         .is_some_and(|record| record.attached && record.projected)
             }
-            None => self.desired.is_none() && self.panes.is_empty(),
+            None => {
+                anchor.selected().map(|selected| &selected.key) == self.desired.as_ref()
+                    && self
+                        .focus_record()
+                        .is_none_or(|record| !record.attached && !record.projected)
+            }
         };
         if !attachment_ok
             || self.pending_refresh.is_some()
@@ -2523,13 +2599,14 @@ impl NativeSessionState {
             || operation.geometry != self.latest_geometry
             || operation.key.reserved_generation
                 <= anchor
-                    .ready()
-                    .map_or(0, |ready| ready.selected.key.anchor().generation())
+                    .selected()
+                    .map_or(0, |selected| selected.key.anchor().generation())
         {
             return false;
         }
         self.remember_current_navigation();
         self.phase = SessionPhase::Creating(CreatingBarrier { operation, anchor });
+        self.notice = None;
         true
     }
 
@@ -2543,6 +2620,22 @@ impl NativeSessionState {
         };
         if barrier.operation.key != *operation {
             return false;
+        }
+        if let CreateAnchor::Unattached {
+            selected,
+            retryable,
+        } = &barrier.anchor
+        {
+            if applied_geometry.is_some() || self.desired.as_ref() != Some(&selected.key) {
+                return false;
+            }
+            self.phase = if *retryable {
+                SessionPhase::RetryableAttachUnavailable(selected.clone())
+            } else {
+                SessionPhase::SelectedWithoutAttachment(selected.clone())
+            };
+            self.notice = Some(SessionNotice::CreateNotCreated);
+            return true;
         }
         let Some(old_ready) = barrier.anchor.ready().cloned() else {
             if applied_geometry.is_some()
@@ -2603,6 +2696,22 @@ impl NativeSessionState {
             self.retire(CarrierFailure::Protocol);
             return false;
         };
+        // Keep only canonical members. The just-created identity is installed below.
+        let snapshot = self.cache.canonical_snapshot();
+        self.launch_descriptions.retain(|id, _| {
+            snapshot.terminal_contexts.iter().any(|context| {
+                context
+                    .tabs
+                    .iter()
+                    .any(|tab| contains_presentation(&tab.root, id))
+            })
+        });
+        if matches!(committed.provenance, CreateTerminalProvenance::Failed(_))
+            && let Some(description) = committed.operation.launch_description.clone()
+        {
+            self.launch_descriptions
+                .insert(committed.expectation.presentation_id().clone(), description);
+        }
         #[cfg(windows)]
         self.duplicate_commit_fact(&committed);
         self.phase = SessionPhase::CreateCommittedNeedDetach(committed);
@@ -2734,6 +2843,21 @@ impl NativeSessionState {
                 .desired
                 .clone()
                 .map(|desired| CleanupContinuation::Superseded { desired });
+        }
+        if let SessionPhase::Starting(setup) = &self.phase {
+            if setup.selected.key != *key.pane()
+                || setup.selected.index() != target_index
+                || self
+                    .live_pane_record(key)
+                    .is_none_or(|record| record.attached || record.projected)
+                || !self.pane_provenance_matches(key, target_index, target_provenance)
+            {
+                return None;
+            }
+            let selected = setup.selected.clone();
+            self.park_focus_pane();
+            self.phase = SessionPhase::RetryableAttachUnavailable(selected);
+            return Some(CleanupContinuation::Stable);
         }
         let SessionPhase::Switching(setup) = &self.phase else {
             return None;
@@ -3800,28 +3924,26 @@ impl NativeSessionState {
                     })
             }
             SessionPhase::Creating(barrier) => {
-                barrier.anchor.ready().map(|ready| &ready.selected.key) == self.desired.as_ref()
+                barrier.anchor.selected().map(|selected| &selected.key) == self.desired.as_ref()
                     && match barrier.anchor.ready() {
                         Some(_) => self
                             .focus_record()
                             .is_some_and(|record| record.attached && record.projected),
                         None => self
-                            .panes
-                            .iter()
-                            .all(|record| !record.attached && !record.projected),
+                            .focus_record()
+                            .is_none_or(|record| !record.attached && !record.projected),
                     }
             }
             SessionPhase::CreateCommittedNeedDetach(committed)
             | SessionPhase::ProjectionUnavailableBeforeCleanup(committed) => {
-                committed.anchor.ready().map(|ready| &ready.selected.key) == self.desired.as_ref()
+                committed.anchor.selected().map(|selected| &selected.key) == self.desired.as_ref()
                     && match committed.anchor.ready() {
                         Some(_) => self
                             .focus_record()
                             .is_some_and(|record| record.attached && record.projected),
                         None => self
-                            .panes
-                            .iter()
-                            .all(|record| !record.attached && !record.projected),
+                            .focus_record()
+                            .is_none_or(|record| !record.attached && !record.projected),
                     }
             }
             SessionPhase::Switching(setup) => {
@@ -3850,8 +3972,8 @@ impl NativeSessionState {
                     (Some(active), Some(committed)) => {
                         committed
                             .anchor
-                            .ready()
-                            .is_some_and(|ready| ready.selected == *active)
+                            .selected()
+                            .is_some_and(|selected| *selected == *active)
                             && Some(&active.key) == self.desired.as_ref()
                     }
                     (None, Some(committed)) => {
@@ -3983,6 +4105,15 @@ impl<'a> NativeSessionView<'a> {
                     .active()
                     .and_then(|selected| self.state.provenance(selected.index()))
             })
+    }
+
+    pub(super) fn launch_description(
+        &self,
+        panel: &super::NativePanel,
+    ) -> Option<&'a LaunchDescription> {
+        self.state
+            .launch_descriptions
+            .get(self.state.selected_presentation(panel).presentation_id())
     }
 
     pub(super) const fn notice(&self) -> Option<SessionNotice> {

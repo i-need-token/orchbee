@@ -589,7 +589,7 @@ pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) ->
     let Ok(envelope) = decode_transport_envelope(record) else {
         return false;
     };
-    if !matches!(envelope.kind, 53 | 55 | 56 | 62 | 65 | 67) {
+    if !matches!(envelope.kind, 15 | 19 | 53 | 55 | 56 | 62 | 65 | 67) {
         return viewer.projection.receive(record).is_ok();
     }
     if envelope.protocol != CURRENT_PROTOCOL_VERSION
@@ -601,6 +601,27 @@ pub(super) fn valid_poll_record(viewer: &mut ViewerAttachment, record: &[u8]) ->
         return false;
     }
     match envelope.kind {
+        15 | 19 => {
+            if envelope.payload_encoding != PayloadEncoding::ControlJson {
+                return false;
+            }
+            let identity = match orchbee_terminal_protocol::decode_lifecycle_control(
+                envelope.kind,
+                envelope.role,
+                envelope.payload,
+            ) {
+                Ok(orchbee_terminal_protocol::LifecycleControl::TerminalExited(event)) => {
+                    event.identity
+                }
+                Ok(orchbee_terminal_protocol::LifecycleControl::TerminalFailed(event)) => {
+                    event.identity
+                }
+                _ => return false,
+            };
+            identity.terminal_id.as_bytes() == &viewer.target.identity.terminal_id().as_bytes()
+                && identity.creation_id.as_bytes()
+                    == &viewer.target.identity.creation_id().as_bytes()
+        }
         55 | 56 => {
             envelope.payload_encoding == PayloadEncoding::ControlJson
                 && match decode_terminal_effect_event(

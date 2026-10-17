@@ -114,13 +114,14 @@ pub(crate) use ui::{
     NativeCaptureContext, NativeCloseConfirmationKind, NativeCloseConfirmationToken,
     NativeCloseConfirmationView, NativeCloseStatusKind, NativeCloseStatusToken,
     NativeCloseStatusView, NativeDisplayController, NativeDisplayPhase, NativeDisplayProvenance,
-    NativeDisplayRetirement, NativeDrawReceipt, NativeLocationLabelStatus,
-    NativeLocationLabelTarget, NativePanelCloseConfirmationToken, NativePanelCloseConfirmationView,
-    NativeProjectionStatus, NativeRefreshStatus, NativeRenameDraftToken, NativeRenameDraftView,
-    NativeRenameEdit, NativeSessionNotice, NativeSessionView, NativeSetupDraftView,
-    NativeSetupEdit, NativeSetupStage, NativeSetupStatus, NativeSetupToken, NativeTabView,
-    NativeViewportSurface, PresentationPlacement, WorkspaceCloseConfirmationView,
-    WorkspaceCloseStatus, WorkspaceCloseStatusView, WorkspaceCloseToken,
+    NativeDisplayRetirement, NativeDrawReceipt, NativeLaunchFailure, NativeLaunchProfile,
+    NativeLocationLabelStatus, NativeLocationLabelTarget, NativePanelCloseConfirmationToken,
+    NativePanelCloseConfirmationView, NativeProjectionStatus, NativeRefreshStatus,
+    NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit, NativeSessionNotice,
+    NativeSessionView, NativeSetupDraftView, NativeSetupEdit, NativeSetupStage, NativeSetupStatus,
+    NativeSetupToken, NativeTabView, NativeViewportSurface, PresentationPlacement,
+    WorkspaceCloseConfirmationView, WorkspaceCloseStatus, WorkspaceCloseStatusView,
+    WorkspaceCloseToken,
 };
 #[cfg(test)]
 pub(crate) use ui::{

@@ -9,6 +9,78 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 mod routing;
 
 #[test]
+fn shell_exit_keeps_final_pixels_and_requires_the_exact_terminal_and_epoch() -> TestResult {
+    use orchbee_terminal_protocol::{
+        CreationId, ExitResult, LifecycleControl, TerminalExited, TerminalId, TerminalIdentity,
+        encode_lifecycle_control,
+    };
+    let route = inspect_terminal_frame_route(SNAPSHOT)?;
+    let terminal = TerminalId::from_bytes([8; 16])?;
+    for code in [0, 7] {
+        let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch)
+            .with_host_terminal(orchbee_client_server_protocol::HostTerminalId::parse(
+                &terminal.to_text(),
+            )?);
+        projection
+            .receive(&record(SNAPSHOT)?)
+            .map_err(|()| "initial frame")?;
+        let retained = projection.share_frame().ok_or("retained frame")?;
+        for wrong_terminal in [true, false] {
+            let lifecycle =
+                encode_lifecycle_control(&LifecycleControl::TerminalExited(TerminalExited {
+                    identity: TerminalIdentity {
+                        creation_id: CreationId::from_bytes([9; 16])?,
+                        host_epoch: route.host_epoch,
+                        terminal_id: if wrong_terminal {
+                            TerminalId::from_bytes([7; 16])?
+                        } else {
+                            terminal
+                        },
+                    },
+                    final_revision: route.revision,
+                    exit: ExitResult::ExitCode(code),
+                }))?;
+            let bytes = encode_transport_envelope(&Envelope {
+                protocol: CURRENT_PROTOCOL_VERSION,
+                role: MessageRole::Event,
+                kind: lifecycle.kind,
+                payload_encoding: PayloadEncoding::ControlJson,
+                host_epoch: Some(route.host_epoch),
+                correlation_id: None,
+                optional_message: false,
+                payload: &lifecycle.payload,
+            })?;
+            let mut foreign_epoch = *route.host_epoch.as_bytes();
+            foreign_epoch[0] ^= 1;
+            let wrong_epoch = encode_transport_envelope(&Envelope {
+                protocol: CURRENT_PROTOCOL_VERSION,
+                role: MessageRole::Event,
+                kind: lifecycle.kind,
+                payload_encoding: PayloadEncoding::ControlJson,
+                host_epoch: Some(HostEpoch::from_bytes(foreign_epoch)?),
+                correlation_id: None,
+                optional_message: false,
+                payload: &lifecycle.payload,
+            })?;
+            assert_eq!(projection.receive_lifecycle(&wrong_epoch), Err(()));
+            if wrong_terminal {
+                assert_eq!(projection.receive_lifecycle(&bytes), Err(()));
+                assert_eq!(projection.end(), None);
+            } else {
+                assert_eq!(projection.receive_lifecycle(&bytes), Ok(true));
+                assert_eq!(
+                    projection.end(),
+                    Some(TerminalEnd::Exited(ExitResult::ExitCode(code)))
+                );
+                assert_eq!(projection.receive_lifecycle(&bytes), Ok(true));
+            }
+            assert!(Arc::ptr_eq(&retained, &projection.share_frame().unwrap()));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn retained_pixels_are_immutable_and_outlive_only_their_actual_consumers() -> TestResult {
     let route = inspect_terminal_frame_route(SNAPSHOT)?;
     let mut projection = TerminalProjection::new(route.attachment_id, route.host_epoch);

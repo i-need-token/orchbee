@@ -515,8 +515,8 @@ impl NativeSessionState {
             .ok_or(CarrierFailure::Protocol)?;
         if self
             .create_membership_commit()
-            .and_then(|committed| committed.anchor.ready())
-            .is_none_or(|ready| ready.selected.key().anchor() != &old)
+            .and_then(|committed| committed.anchor.selected())
+            .is_none_or(|selected| selected.key().anchor() != &old)
         {
             return Err(CarrierFailure::Protocol);
         }

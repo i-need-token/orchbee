@@ -23,6 +23,79 @@ pub(super) fn read(
             ViewerRejection::AttachmentUnavailable,
         ));
     }
+    let found = inventory(
+        host,
+        server,
+        &target.terminal_id().as_bytes(),
+        Some(&target.creation_id().as_bytes()),
+    )?;
+    Ok(match found {
+        Some(summary) => {
+            let (core, phase) = crate::terminal_lifecycle_operation::summary_observation(&summary);
+            TerminalViewerOutcome::LifecycleObserved {
+                target,
+                revision: core.revision,
+                settled: matches!(
+                    phase,
+                    LifecycleTerminalPhase::Exited { .. } | LifecycleTerminalPhase::Failed
+                ),
+            }
+        }
+        None => TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable),
+    })
+}
+
+/// Seed newly attached viewers from retained inventory, including after a Client restart.
+/// No running process is inferred from a missing notification.
+pub(super) fn snapshot(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    terminal: orchbee_capability_node_protocol::HostTerminalId,
+) -> Result<Option<Vec<u8>>, Box<dyn Error>> {
+    use orchbee_terminal_protocol::{
+        LifecycleControl, TerminalExited, TerminalFailed, TerminalSummary, encode_lifecycle_control,
+    };
+    let event = match inventory(host, server, &terminal.as_bytes(), None)? {
+        Some(TerminalSummary::Exited { core, exit, .. }) => {
+            LifecycleControl::TerminalExited(TerminalExited {
+                identity: core.identity,
+                final_revision: core.revision,
+                exit,
+            })
+        }
+        Some(TerminalSummary::Failed {
+            core,
+            failure,
+            process,
+            ..
+        }) => LifecycleControl::TerminalFailed(TerminalFailed {
+            identity: core.identity,
+            final_revision: core.revision,
+            failure,
+            process,
+        }),
+        Some(_) => return Ok(None),
+        None => return Err(invalid("lifecycle target absent after attach").into()),
+    };
+    let event = encode_lifecycle_control(&event)?;
+    Ok(Some(encode_transport_envelope(&Envelope {
+        protocol: CURRENT_PROTOCOL_VERSION,
+        host_epoch: Some(host.host_epoch()),
+        correlation_id: None,
+        optional_message: false,
+        kind: event.kind,
+        role: MessageRole::Event,
+        payload_encoding: PayloadEncoding::ControlJson,
+        payload: &event.payload,
+    })?))
+}
+
+fn inventory(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    terminal: &[u8; 16],
+    creation: Option<&[u8; 16]>,
+) -> Result<Option<orchbee_terminal_protocol::TerminalSummary>, Box<dyn Error>> {
     let mut exchange = HostExchange::new(host, server, Duration::from_secs(2))
         .ok_or_else(|| invalid("lifecycle observation budget"))?;
     exchange
@@ -72,21 +145,14 @@ pub(super) fn read(
         validate_page(
             &page,
             cursor,
-            target,
+            (host.host_epoch(), terminal, creation),
             &mut terminals,
             &mut creations,
             &mut found,
         )?;
         cursor = page.next_cursor;
         if cursor.is_none() {
-            return Ok(match found {
-                Some((revision, settled)) => TerminalViewerOutcome::LifecycleObserved {
-                    target,
-                    revision,
-                    settled,
-                },
-                None => TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable),
-            });
+            return Ok(found);
         }
     }
     Err(invalid("lifecycle observation page limit").into())
@@ -95,11 +161,16 @@ pub(super) fn read(
 fn validate_page(
     page: &orchbee_terminal_protocol::TerminalList,
     cursor: Option<orchbee_terminal_protocol::TerminalInventoryCursor>,
-    target: HostTerminalIdentity,
+    target: (
+        orchbee_terminal_protocol::HostEpoch,
+        &[u8; 16],
+        Option<&[u8; 16]>,
+    ),
     terminals: &mut BTreeSet<[u8; 16]>,
     creations: &mut BTreeSet<[u8; 16]>,
-    found: &mut Option<(u64, bool)>,
+    found: &mut Option<orchbee_terminal_protocol::TerminalSummary>,
 ) -> Result<(), io::Error> {
+    let (epoch, target_terminal, target_creation) = target;
     let offset = cursor.map_or(0, |c| c.offset);
     if page.terminals.len() > 128
         || cursor.is_some_and(|c| c.inventory_generation != page.inventory_generation)
@@ -112,31 +183,23 @@ fn validate_page(
         return Err(invalid("lifecycle observation cursor"));
     }
     for summary in &page.terminals {
-        let (core, phase) = crate::terminal_lifecycle_operation::summary_observation(summary);
+        let (core, _) = crate::terminal_lifecycle_operation::summary_observation(summary);
         let terminal = *core.identity.terminal_id.as_bytes();
         let creation = *core.identity.creation_id.as_bytes();
-        if core.identity.host_epoch.as_bytes() != &target.host_epoch().as_bytes()
+        if core.identity.host_epoch != epoch
             || !terminals.insert(terminal)
             || !creations.insert(creation)
         {
             return Err(invalid("lifecycle observation identity"));
         }
-        if terminal == target.terminal_id().as_bytes()
-            || creation == target.creation_id().as_bytes()
-        {
-            if terminal != target.terminal_id().as_bytes()
-                || creation != target.creation_id().as_bytes()
+        if &terminal == target_terminal || target_creation == Some(&creation) {
+            if &terminal != target_terminal
+                || target_creation.is_some_and(|expected| expected != &creation)
                 || found.is_some()
             {
                 return Err(invalid("lifecycle observation target"));
             }
-            *found = Some((
-                core.revision,
-                matches!(
-                    phase,
-                    LifecycleTerminalPhase::Exited { .. } | LifecycleTerminalPhase::Failed
-                ),
-            ));
+            *found = Some(summary.clone());
         }
     }
     Ok(())

@@ -1,7 +1,7 @@
 # 查看附件容量与保留记录预算
 
 `src/host_connection/viewers.rs` 拥有 Worker 侧 Server 签发终端查看附件的边界：最多
-`MAXIMUM_VIEWERS`（24）个已准入附件、每个查看附件最多一条保留 Host 记录，以及覆盖全部
+`MAXIMUM_VIEWERS`（24）个已准入附件，每个查看附件最多一条投影记录、四条 FIFO 事件和一条终端结束记录，以及覆盖全部
 保留记录载荷的 `MAXIMUM_RETAINED_VIEWER_RECORD_BYTES`（128 MiB）聚合预算。
 `src/host_connection/controllers.rs` 保持独立的 `MAXIMUM_CONTROLLERS`（8）授权边界，
 `src/host_connection/target_cleanup.rs` 用同一个 `MAXIMUM_VIEWERS` 常量确定每个
@@ -11,13 +11,13 @@ RSS 上限。
 
 ## 预算域
 
-- 计入：每个查看附件 `record` 槽中保留的 `Vec<u8>` 的逻辑 `len()`——包括
+- 计入：每个查看附件 `record` 槽、事件 FIFO 和 lifecycle 槽中保留的 `Vec<u8>` 的逻辑 `len()`——包括
   `TerminalFrame` 与 `ProjectionBlocked` 两种记录。超出 `len` 的 `Vec` capacity 不计入。
 - 不计入：`flight` 路由元数据（不持载荷）、做出存储决定前的临时传入 `record: Vec<u8>`
   （仍由 wire `MAXIMUM_VIEWER_RECORD_BYTES` 限制管辖，返回后即释放）、已被 `poll`
   移交给 session 的记录、row-window 读取，以及任何 session 侧或协议 codec 副本。
 - `retained_record_bytes` 是 `HostViewers` 的私有计数器；只有 owner 代码修改它，且始终
-  与 `record` 槽转换配对。上限保存在默认等于常量的私有 owner 字段中，测试只能通过
+  与记录、事件或 lifecycle 槽转换配对。上限保存在默认等于常量的私有 owner 字段中，测试只能通过
   真实检查路径使用更小预算——绝不直接篡改计数器。
 
 ## 转换与恰一次记帐
@@ -47,6 +47,20 @@ RSS 上限。
   查看附件，Host 与 retained 终端均不受伤害。
 - 相等即保留：`retained + incoming == ceiling` 时存储；仅 `>` 才退役。单条记录永远不
   会自我退役，因为 wire 记录上限远低于预算。
+
+## 终端结束状态交付
+
+kind 15 和 19 是经校验的 Host 终端事实，仅分发给该终端的 viewer。每个 viewer 保留一个
+可替换的 lifecycle 槽，计入聚合预算，并在 frame／event 之前轮询交付，不触碰 frame flight。
+替换先释放旧记录费用再接纳新记录；poll、close 和 remove 恰一次释放。预算压力只退役受
+影响的 viewer。四事件 FIFO 保持独立，因此事件突发不能把结束状态埋在普通事件之后，也
+不会增加无界队列。
+
+Host attach 和 projection-demand 准入之后，Worker 在已有两秒观察预算内读取有界保留
+inventory，最多八页、每页 128 项。已结束 summary 使用 Host 的身份、退出结果和最终修订
+初始化同一 lifecycle 槽。读取校验页代际、cursor 进展、终端／creation 身份唯一性及 Host
+epoch，不改变终端状态。因此，即使原退出通知先于附着，也能提供重新进入的状态证据。
+目标缺失或无效使 exchange 失败，绝不显示为运行中的 Shell。
 
 ## Retired-target 传播
 

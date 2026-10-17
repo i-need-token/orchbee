@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn nested_tui_guard_is_route_specific_and_requires_product_terminal_identity() {
+    let current = WindowsSiteName::parse("work").unwrap();
+    let other = WindowsSiteName::parse("other").unwrap();
+    let scope = current.scope_for_user("sid");
+    for selected in [None, Some(&current), Some(&other)] {
+        for hosted in [false, true] {
+            for _ in 0..2 {
+                let guarded = inside_session(
+                    selected,
+                    |key| match key {
+                        "ORCHBEE_RUNTIME_SCOPE" => Some(scope.clone().into()),
+                        "ORCHBEE_TERMINAL_ID" if hosted => {
+                            Some("11111111111111111111111111111111".into())
+                        }
+                        "ORCHBEE_WORKER_ID" if hosted => {
+                            Some("22222222222222222222222222222222".into())
+                        }
+                        _ => None,
+                    },
+                    "sid",
+                    PathBuf::from("C:/runtime"),
+                )
+                .unwrap();
+                assert_eq!(guarded, hosted && selected != Some(&other));
+            }
+        }
+    }
+}
+
+#[test]
 fn explicit_default_overrides_inherited_scope_and_name_without_reading_them() {
     let default = WindowsSiteName::parse("default").unwrap();
     let location = resolve(

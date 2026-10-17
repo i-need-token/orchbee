@@ -376,6 +376,31 @@ impl NativeUi {
 
     pub(super) fn enter_copy_mode(&mut self) -> crate::client_view::SessionActionDisposition {
         use crate::client_view::SessionActionDisposition;
+        if self.retirement_failure.is_none() && !self.modal_owns_input() {
+            let view = self.view();
+            let failure = view
+                .active_position()
+                .and_then(|position| view.tab(position - 1))
+                .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
+                .and_then(|panel| view.launch_failure(panel));
+            if let Some(failure) = failure {
+                use orchbee_workbench_protocol::PreferencesLocale;
+                let locale = match self.preferences.locale {
+                    PreferencesLocale::EnUs => crate::localization::Locale::EnUs,
+                    PreferencesLocale::ZhCn => crate::localization::Locale::ZhCn,
+                    PreferencesLocale::System => {
+                        crate::localization::select_locale(|name| std::env::var_os(name))
+                    }
+                };
+                let text = locale.terminal_launch_failure(failure);
+                if let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref())
+                    && !self.effects.enqueue_diagnostic(key, text)
+                {
+                    self.copy_notice(SessionNotice::CopyFailed);
+                }
+                return SessionActionDisposition::DismissNavigator;
+            }
+        }
         if self.copy_mode.active() {
             return SessionActionDisposition::DismissNavigator;
         }

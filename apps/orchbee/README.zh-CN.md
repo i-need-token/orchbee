@@ -8,6 +8,10 @@
 Agent 标识使用 `--agent-session <id>`。[会话契约](docs/native-cli-query.zh-CN.md#会话与后台服务)
 规定术语、支持边界以及保持原样的存储／协议身份。
 
+Windows 在所选会话内的终端再次启动 TUI 时，会在打开另一个 Client 前拒绝进入，并显示本地化
+说明后返回当前 Shell；CLI 子命令及显式进入其他会话仍可使用。失败和已结束终端保留导航、
+新建和关闭入口；[终端结束状态](docs/native-panel-lifecycle.zh-CN.md#终端结束状态)保留最终输出与已知退出码。
+
 Windows `events subscribe` 从已有 Session 输出有界 NDJSON 观察。`events wait` 在等待片段间保留
 同一连接及过滤器，区分匹配、确定超时、历史丢失、拒绝与中断。使用 `--event tab.renamed`、
 资源选择器或封闭 `--filter` JSON；`--after-cursor` 固定保留日志历史。输出／滚动探测保留真实
@@ -18,7 +22,7 @@ Windows `events subscribe` 从已有 Session 输出有界 NDJSON 观察。`event
 
 实验性的原生 Rust CLI 与 TUI Client。在 Windows、Linux 以及 Apple Silicon macOS 开发包中，
 裸命令从已校验的可执行文件 cohort
-连接或启动本地 Session，取得第一个已校验的终端 projection frame 后进入 TUI。原生 Client 操作共享
+连接或启动本地 Session，取得第一个已校验的终端 projection frame，或不可用终端的稳定导航视图后进入 TUI。原生 Client 操作共享
 Workbench 状态，同时保持独立选择与保留的终端进程。Windows 还支持已保存机器的 SSH 命令路由和
 TUI 实时切换、用户配置，以及完整 cohort 的版本安装与更新，具体契约见下方链接。
 产物名为 `orchbee`，参与根 Cargo 验证。macOS 包是未签名、按用户隔离的 Apple Silicon 开发 cohort；

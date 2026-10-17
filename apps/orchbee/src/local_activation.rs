@@ -15,6 +15,8 @@ use std::{io, path::PathBuf, thread, time::Instant};
 #[cfg(windows)]
 mod windows_selection;
 #[cfg(windows)]
+pub(crate) use windows_selection::inside_selected_session;
+#[cfg(windows)]
 pub(crate) use windows_selection::select_site;
 
 /// The single local-startup verdict vocabulary, owned here by the shared
@@ -26,6 +28,8 @@ pub(crate) use windows_selection::select_site;
 /// in this one enum so both callers classify the same verdict type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum StartupFailure {
+    #[cfg(windows)]
+    AlreadyInSession,
     Terminal,
     Cohort,
     Runtime,

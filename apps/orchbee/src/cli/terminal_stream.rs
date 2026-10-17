@@ -191,6 +191,12 @@ fn observe_frames(
         match outcome {
             Outcome::Empty {} => std::thread::sleep(Duration::from_millis(25)),
             Outcome::Record(record) => {
+                if projection
+                    .receive_lifecycle(&record)
+                    .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?
+                {
+                    continue;
+                }
                 let feedback = projection
                     .receive_for_geometry(&record, None)
                     .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?;

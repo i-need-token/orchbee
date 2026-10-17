@@ -177,6 +177,11 @@ const PUBLICATION_PROBE_INTERVAL: Duration = Duration::from_millis(250);
 /// spent off the lease so queued live work runs first.
 const RECONCILE_BUSY_RETRY: Duration = Duration::from_millis(10);
 
+fn settled_record(record: &[u8]) -> bool {
+    orchbee_terminal_protocol::decode_transport_envelope(record)
+        .is_ok_and(|envelope| matches!(envelope.kind, 15 | 19))
+}
+
 #[derive(Clone)]
 struct SetupTarget {
     key: PaneRef,
@@ -366,7 +371,7 @@ impl NativeExecutor {
                 },
                 SetupEntryExpiry::Retire,
             )?,
-            SetupCompletion::Ready
+            SetupCompletion::Ready | SetupCompletion::StableWithoutViewer
         ) {
             return Err(CarrierFailure::Protocol);
         }
@@ -533,9 +538,7 @@ impl NativeExecutor {
             return match outcome {
                 TerminalViewerOutcome::Rejected { .. }
                 | TerminalViewerOutcome::Unavailable { .. } => {
-                    if matches!(owner, SetupOwner::Startup { .. }) {
-                        Err(CarrierFailure::Transport)
-                    } else if !self.setup_is_current(owner, &target.key)? {
+                    if !self.setup_is_current(owner, &target.key)? {
                         Ok(SetupCompletion::Superseded)
                     } else if target.fault_on_failure {
                         self.settle_attach_fault(&target, &outcome, forward_cutoff)
@@ -658,6 +661,8 @@ impl NativeExecutor {
             return Err(CarrierFailure::Deadline);
         }
 
+        // Settled Host terminals retain readable viewers but refuse controller
+        // attachment. That refusal must not retire the Client's navigation.
         let acquire = self
             .control_for_setup(
                 owner,
@@ -673,18 +678,17 @@ impl NativeExecutor {
                 ControllerMode::Controlling(controller_id)
             }
             TerminalControlOutcome::Rejected {
-                reason: ControlRejectedReason::ControllerBusy,
+                reason: ControlRejectedReason::ControllerBusy | ControlRejectedReason::HostRejected,
+            }
+            | TerminalControlOutcome::Unavailable {
+                reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
             } => ControllerMode::ReadOnly,
             TerminalControlOutcome::Rejected { .. }
-            | TerminalControlOutcome::Unavailable { .. } => {
-                return Err(CarrierFailure::Deadline);
-            }
+            | TerminalControlOutcome::Unavailable { .. } => return Err(CarrierFailure::Deadline),
             TerminalControlOutcome::InputAccepted {}
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
-            | TerminalControlOutcome::Cleared { .. } => {
-                return Err(CarrierFailure::Protocol);
-            }
+            | TerminalControlOutcome::Cleared { .. } => return Err(CarrierFailure::Protocol),
             TerminalControlOutcome::OutcomeUnknown {} => {
                 return Err(CarrierFailure::OutcomeUnknown);
             }
@@ -742,6 +746,11 @@ impl NativeExecutor {
                     return Err(CarrierFailure::Deadline);
                 }
             };
+            if record.as_deref().is_some_and(settled_record) {
+                self.set_attached_mode(&target.key, ControllerMode::ReadOnly)?;
+                self.attached_mut(&target.key)?.accepted_geometry = None;
+                self.publish_setup_configuration(&target.key, forward_cutoff)?;
+            }
             self.mailbox
                 .publish_poll_result_before(
                     poll_key.clone(),
@@ -963,14 +972,18 @@ impl NativeExecutor {
                 Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown))
             }
             TerminalControlOutcome::Rejected {
-                reason: ControlRejectedReason::NotController,
+                reason:
+                    ControlRejectedReason::NotController
+                    | ControlRejectedReason::HostInputUnavailable
+                    | ControlRejectedReason::HostRejected
+                    | ControlRejectedReason::ViewerUnavailable,
             } => self.settle_pane_control_lost(lease, key, deadline),
             TerminalControlOutcome::Rejected { .. } => {
                 Err(ReadyFlowError::Carrier(CarrierFailure::Protocol))
             }
             TerminalControlOutcome::Unavailable {
                 reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
-            } => self.dispose_lost_viewer(lease, key, deadline),
+            } => self.settle_pane_control_lost(lease, key, deadline),
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::Resized { .. }
             | TerminalControlOutcome::Pasted { .. }
@@ -1016,7 +1029,10 @@ impl NativeExecutor {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::OutcomeUnknown));
             }
             TerminalControlOutcome::Rejected {
-                reason: ControlRejectedReason::NotController,
+                reason:
+                    ControlRejectedReason::NotController
+                    | ControlRejectedReason::HostRejected
+                    | ControlRejectedReason::ViewerUnavailable,
             } => {
                 return self.settle_pane_control_lost(lease, &key, deadline);
             }
@@ -1026,7 +1042,7 @@ impl NativeExecutor {
             TerminalControlOutcome::Unavailable {
                 reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
             } => {
-                return self.dispose_lost_viewer(lease, &key, deadline);
+                return self.settle_pane_control_lost(lease, &key, deadline);
             }
             TerminalControlOutcome::Acquired { .. }
             | TerminalControlOutcome::InputAccepted {}
@@ -1433,6 +1449,9 @@ impl NativeExecutor {
                 return Err(ReadyFlowError::Carrier(CarrierFailure::Protocol));
             }
         };
+        if current && record.as_deref().is_some_and(settled_record) {
+            self.settle_pane_control_lost(lease, &key, deadline)?;
+        }
         // Publish even a now-stale Record/Empty result so the mailbox retains its exact discard.
         // The publication probe rides on the poll so a peer Client's committed Workbench changes
         // surface through the ordinary refresh path without a separate event loop.
@@ -1677,6 +1696,7 @@ impl NativeExecutor {
                     .ok_or(CarrierFailure::Protocol)?
                     .accepted_geometry
             }
+            crate::terminal_session::state::CreateOriginKind::Unattached => None,
             crate::terminal_session::state::CreateOriginKind::Empty => {
                 if !self.attachments.is_empty() {
                     return Err(CarrierFailure::Protocol);
@@ -2352,6 +2372,17 @@ impl NativeExecutor {
         };
         match outcome {
             TerminalControlOutcome::Resized { geometry: actual } if actual == geometry => {}
+            TerminalControlOutcome::Rejected {
+                reason: ControlRejectedReason::HostRejected,
+            }
+            | TerminalControlOutcome::Unavailable {
+                reason: ControlUnavailableReason::TerminalRuntimeUnavailable,
+            } => {
+                self.set_attached_mode(key, ControllerMode::ReadOnly)?;
+                self.attached_mut(key)?.accepted_geometry = None;
+                self.publish_setup_configuration(key, cutoff)?;
+                return Ok(true);
+            }
             TerminalControlOutcome::Rejected { .. }
             | TerminalControlOutcome::Unavailable { .. } => return Ok(false),
             TerminalControlOutcome::Acquired { .. }
@@ -2892,6 +2923,7 @@ impl NativeExecutor {
     ) -> ReadyResult<()> {
         if let Ok(attached) = self.attached_mut(key) {
             attached.mode = Some(ControllerMode::ReadOnly);
+            attached.accepted_geometry = None;
         }
         self.publish_pane_fault(lease, key, PaneFault::ControlLost, deadline)
     }

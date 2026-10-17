@@ -6,7 +6,7 @@ use super::{
 use crate::terminal_session::{
     SidebarWorktreeTarget,
     state::worktree_launch::{
-        Removal, WorktreeMode, WorktreeNotice,
+        Removal, WorktreeNotice,
         addressed::{AddressedWorktreeSource, SidebarDiscovery},
     },
     worktree_lane::Action,
