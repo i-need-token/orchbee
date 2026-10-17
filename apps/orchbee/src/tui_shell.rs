@@ -490,6 +490,36 @@ struct Chrome<'a> {
     theme: &'a crate::tui_theme::Theme,
 }
 
+fn frame_appearance(
+    view: &ClientView,
+    chrome: Chrome<'_>,
+    session: Option<crate::terminal_session::TerminalSessionView<'_>>,
+) -> (crate::tui_theme::Theme, Locale) {
+    let preview = match session.as_ref() {
+        Some(crate::terminal_session::TerminalSessionView::Native(native))
+            if crate::tui_composition::project_capture(
+                client_capture_claims(view),
+                native.capture_claims(),
+            ) == Some(crate::tui_composition::CaptureOwner::Native(
+                crate::tui_composition::NativeCaptureOwner::Settings,
+            )) =>
+        {
+            native.settings_appearance_preview()
+        }
+        _ => None,
+    };
+    match preview {
+        Some(values) => (
+            view.preview_theme(values),
+            view.presentation_locale(chrome.locale, Some(values.locale)),
+        ),
+        None => (
+            view.configured_theme().unwrap_or(*chrome.theme),
+            view.effective_locale(chrome.locale),
+        ),
+    }
+}
+
 #[cfg(test)]
 #[expect(clippy::too_many_arguments)]
 fn run_event_loop<B: Backend + ResizableBackend>(
@@ -964,11 +994,12 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
     measurements: &Measurements,
 ) -> Result<bool, LoopFailure<B::Error>> {
     let mut frame_measurement = measurements.frame();
-    // Copy one complete cached palette for this frame, including every overlay and notice.
-    let configured_theme = view.configured_theme();
+    // One reversible projection reaches every painter, including background panes and native
+    // chrome. Runtime effects still consume only the separately confirmed preferences.
+    let (theme, locale) = frame_appearance(view, chrome, surface.view());
     let chrome = Chrome {
-        theme: configured_theme.as_ref().unwrap_or(chrome.theme),
-        locale: view.effective_locale(chrome.locale),
+        theme: &theme,
+        locale,
     };
     #[cfg(windows)]
     surface.observe_client_viewport(view, terminal.get_frame().area());

@@ -175,7 +175,9 @@ final drawing correctness. Never add application-specific text coloring to hide 
 
 ## Publication and reload
 
-The ordered Settings lane reads the shared authority on startup and polls once per second. Only a complete confirmed snapshot updates cached preferences and theme roles. Invalid sources and lost replies preserve last confirmed values and expose an issue. GUI edits and TUI saves use this same path without restarting terminals. Renderers read cached values, never files or environment. Legacy configuration reload remains responsible for its unrelated fields and cannot replace confirmed common preferences.
+The ordered Settings lane reads the shared authority on startup and polls once per second. Only a complete confirmed snapshot updates cached preferences and their resolved theme. Invalid sources and lost replies preserve last confirmed values and expose an issue. GUI edits and TUI saves use this same path without restarting terminals. Renderers read owned state, never files or environment. Legacy configuration reload remains responsible for its unrelated fields and cannot replace confirmed common preferences.
+
+[Settings appearance drafts](native-settings.md#apply-timing-and-capability-boundaries) supply a separate reversible palette and locale to the whole-frame compositor, including background chrome and terminal default markers. This projection never publishes runtime policy or replaces the confirmed cache; closing reveals the newest confirmed appearance, and program colors retain their independent authority.
 
 ## Correctness and evidence
 

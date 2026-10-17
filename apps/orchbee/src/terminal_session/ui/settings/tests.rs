@@ -7,6 +7,7 @@ use crate::{
     tui_presentation::PresentationPhase,
 };
 use ratatui::{Terminal, backend::TestBackend};
+mod appearance;
 fn ready() -> NativeUi {
     let (mut ui, _, _, _) = super::super::tests::workspace_setup::ready(true);
     let token = ui.settings.editor.open().unwrap();

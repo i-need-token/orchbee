@@ -83,7 +83,22 @@ gesture. Explicit Close and Esc retain their existing local exit behavior;
 deliberately closing hides an accepted save without cancelling it.
 
 Save is the only write action. Opening, editing, cancelling and resizing do not
-apply a draft. Enter or a click on the successfully drawn Save row consumes its
+publish runtime policy. Language, application theme and terminal default colors
+preview locally across the whole frame, including background chrome, live and
+retained terminal rows, and hints. Explicit program colors and terminal bytes
+remain owned by the program. Invalid color text keeps the last accepted draft
+color. Closing restores the newest confirmed appearance; accepting a color field
+or returning from the launch-profile child retains the parent preview.
+
+Preview carries only appearance fields. Locally changed leaves overlay the newest
+confirmed effective appearance without rebasing the saved basis; unrelated external
+updates therefore do not erase preview. A same-key conflict keeps the local preview
+and existing conflict/Reload gate. Reset-all previews every default only after its
+confirmation. A visible pending Save keeps preview; hiding it releases preview while
+the accepted commit continues. An unknown result withdraws preview until an explicit
+matched read. A covering Client surface uses confirmed appearance and restores the
+retained preview when Settings becomes the active capture again.
+Enter or a click on the successfully drawn Save row consumes its
 authority exactly once. Reset-all requires confirmation and remains a draft until
 Save; resetting claims all common keys even if their values are already defaults.
 The launch-profile page also offers a confirmed catalog-only reset, preserving
@@ -125,7 +140,7 @@ A replacement Session/editor episode cannot inherit an old completion.
 | Inputs       | Frozen configuration identity, complete confirmed snapshot, exact source token, typed dirty patch, painted-row receipt, explicit save/reset intent.                                                           |
 | Authority    | Workbench Protocol owns values/bounds; Local Session Runtime owns the private record/lock/commit; the native Session and matched Desktop helper use that same store.                                          |
 | State        | Newest effective runtime values, independently frozen draft basis, local changes, viewport/focus anchor and painted activation authority, one admitted exchange, and explicit refusal/unknown reconciliation. |
-| Effects      | Only confirmed snapshots update locale, chrome, terminal presentation, copy policy and future feedback; launch/default changes affect new terminal creation.                                                  |
+| Effects      | Confirmed snapshots govern runtime preferences; an independent reversible projection previews only authored copy, chrome and terminal default colors. Launch/default changes affect new terminal creation.    |
 | Refusal      | Invalid or unsafe source, scope mismatch, stale source, unsupported launch choice, busy lane or unavailable persistence preserves existing data and confirmed behavior.                                       |
 
 The Session freezes its native configuration identity at startup. Clients send no
@@ -138,14 +153,14 @@ values. See [scope and persistence](../../../crates/workbench-protocol/docs/user
 | Transition           | Required behavior                                                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Hidden → open        | Read a complete snapshot and freeze its source.                                                                                       |
-| Draft → edit / draw  | Keep edits local and revoke old drawing authority.                                                                                    |
+| Draft → edit / draw  | Keep edits local, project reversible appearance to the whole frame, and revoke old drawing authority.                                 |
 | Draft → save         | Require a current successful draw, freeze a nonempty patch and consume submission before dispatch.                                    |
 | Submit → commit      | Lock the shared record, compare source, validate the complete candidate and atomically publish; preserve omitted keys.                |
 | Commit → effective   | Publish only the confirmed values; do not reinterpret a disk receipt as Host application acknowledgment.                              |
 | External update      | Publish newest effective values and refresh clean views; preserve active edits or child tasks and their frozen basis with a conflict. |
 | Refused / unknown    | Preserve the visible draft and effective values; require a matched explicit read before another stale-source or unknown Save.         |
 | Geometry unavailable | Refuse an unpainted incarnation; suspend and retain an admitted one until a successful frame resumes it.                              |
-| Cancel / close       | Discard only unsubmitted edits; hiding after submission cannot roll back a commit.                                                    |
+| Cancel / close       | Discard unsubmitted edits and reveal newest confirmed appearance; hiding after submission cannot roll back a commit.                  |
 
 Application themes change chrome independently of terminal colors. Host terminal
 colors use the frame/window's captured defaults; Light/Dark/Custom change only
@@ -164,7 +179,69 @@ scrollbar use and manual history navigation take ownership of the displayed wind
 automatic following cannot move active selection/export work. The
 [viewport contract](native-terminal-viewport.md) governs the underlying lease.
 
+## Apply timing and capability boundaries
+
+Every shared key persists through the same atomic Save and private record. The
+[shared inventory](../../../crates/workbench-protocol/docs/user-preferences.md#inventory-and-effect)
+owns values, validation and defaults. The native editor exposes these effect
+horizons in localized row help:
+
+| Key                                | Draft behavior                                                                | Effect after confirmed Save or external observation                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `locale`                           | Whole-frame authored-copy preview; System uses the startup locale environment | Current application copy and later localized feedback; program bytes are unchanged                                      |
+| `applicationTheme`                 | Whole-frame chrome preview                                                    | Current chrome; independent of terminal display theme                                                                   |
+| `terminalDisplayTheme`             | Host/Light/Dark/Custom default-color preview                                  | Existing live and retained terminal presentation; explicit program colors remain exact                                  |
+| `customForeground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked foregrounds in Custom; retained while other display themes are selected                         |
+| `customBackground`                 | Accepted valid color previews in Custom only                                  | Existing default-marked backgrounds in Custom; retained while other display themes are selected                         |
+| `copyOnSelect`                     | Draft only                                                                    | Later gesture completion, including a gesture already in progress; explicit Copy remains available                      |
+| `trimTrailingBlankRowsForAgents`   | Draft only                                                                    | Existing detected Agents through the exact retained-window/acknowledgment owner; user selection/history retains control |
+| `agentNotificationMode`            | Draft only                                                                    | Future eligible hidden-Agent transitions, without replay; host delivery and per-Agent mute still apply                  |
+| `completionReminderMode`           | Draft only                                                                    | Future fresh command completions; requires shell integration and respects focus policy                                  |
+| `completionReminderMinimumSeconds` | Draft only                                                                    | Later completion evaluation at the new duration threshold                                                               |
+| `soundEnabled`                     | Draft only                                                                    | Eligible later reminders; host sound capability and per-Agent mute still apply                                          |
+| `scrollbackBytes`                  | Draft only                                                                    | Newly created terminals capture the limit; existing/restored terminals keep theirs                                      |
+| `launchProfiles`                   | Child edits remain in the parent draft                                        | Subsequent default launches capture the catalog/default; existing programs keep their launch facts                      |
+
+Native host configuration is a separate admitted surface, not extra shared-editor
+rows. Windows TOML changes require an explicit `server reload-config` (default
+prefix F5), followed by the Client's 500 ms configuration observer. Shared preferences
+are observed independently once per second, including while Settings is closed.
+Neither publication is an acknowledgment from every connected Client.
+
+| Admitted native configuration or Client state                                                                                     | Actual application policy                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keys.prefix`, implemented action overrides, `keys.commands`                                                                      | Complete admitted reload updates dispatch and its help/hints together; clears pending prefix; does not execute configured commands merely by loading them |
+| `ui.sidebar.agents.rows`, `rows_by_agent`, `row_gap`; `ui.sidebar.spaces.rows`, `row_gap` and their admitted token/rule fields    | Complete reload changes existing sidebar projections; layout and interaction remain with their sidebar owners                                             |
+| `ui.window_title`                                                                                                                 | Live title subscription uses the admitted template after reload; enclosing-host title delivery remains a capability                                       |
+| `ui.toast.delivery`, legacy `enabled`, `agent_delivery`, `delay_seconds`, `herdr.position`; `ui.sound.enabled`, `ui.sound.agents` | Reload updates manual delivery and later automatic feedback; confirmed shared Agent mode/global sound remain authoritative; per-Agent mute is preserved   |
+| Legacy `theme.name`                                                                                                               | Seeds unclaimed shared appearance once; cannot overwrite confirmed common preferences on later TOML reloads                                               |
+| `terminal.default_shell`, `terminal.shell_mode`                                                                                   | Reload changes later launch preparation only; confirmed shared launch profiles take precedence; Windows common profiles reject login shells               |
+| `terminal.new_cwd`, `worktrees.directory`                                                                                         | Windows CLI reads them on the next relevant creation invocation; do not move an existing process                                                          |
+| `session.resume_agents_on_restore`                                                                                                | Startup-only policy; reload reports `restartRequired` and does not rerun restore                                                                          |
+| `update.manifest_check`                                                                                                           | Reload updates the existing rule-check scheduler; automatic checks retain their managed-release/capability restrictions                                   |
+| `update.channel`                                                                                                                  | Consumed by subsequent release/update operations; does not recolor or restart the current TUI                                                             |
+| Pointer capture (`--mouse off`, default prefix `m`), sidebar visibility/width                                                     | Immediate Client-local interaction state; these actions do not persist a shared preference                                                                |
+
+`ui.mouse_capture`, `ui.mouse_scroll_lines`, Herdr sidebar-width fields and other
+recognized unsupported keys remain reported as unsupported; loading them does not
+change Client behavior. Fonts, pixel size, opacity and physical Option-key handling
+belong to the enclosing host. Clipboard, terminal/OS notifications and sound need
+host support; the TUI cannot promise delivery from a saved value. No new host mode,
+restart, process launch or synthetic completion event is caused by appearance preview.
+
 ## Correctness and evidence
+
+The [editor preview cases](../src/native_settings/tests/appearance.rs) cover every
+admitted key's exact one-key Save patch, frozen basis, child return, reset, invalid
+color entry, conflict projection, unknown result and episode retirement. The
+[whole-frame cases](../src/terminal_session/ui/settings/tests/appearance.rs) drive
+the real Shell drawing boundary with an existing native terminal, both locales,
+80x24/120x40 and truecolor/256/16/monochrome capability. They compare background
+chrome, default and explicit program cells, cancellation, external updates and
+covering Client capture. These deterministic witnesses do not establish clipboard,
+notification, sound or physical emulator delivery. The configuration watcher cases
+also retain confirmed shared appearance and pointer-release state while updating
+live bindings, their hints and both sidebar profiles together.
 
 `SettingsCommitPublication.tla/.cfg` bounds two independently prepared OS-process
 writers, separate Main/renderer imports, explicit edit/reset values, and one

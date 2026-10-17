@@ -535,6 +535,19 @@ impl ClientView {
         self.theme
     }
 
+    /// Resolves only chrome and terminal default colors from a reversible local draft.
+    pub(crate) fn preview_theme(
+        &self,
+        preview: crate::native_settings::AppearancePreview<'_>,
+    ) -> crate::tui_theme::Theme {
+        crate::tui_theme::Theme::application(preview.application_theme, self.color_level)
+            .with_terminal_appearance(
+                preview.terminal_display_theme,
+                preview.custom_foreground,
+                preview.custom_background,
+            )
+    }
+
     pub(crate) fn apply_user_preferences(
         &mut self,
         values: orchbee_workbench_protocol::UserPreferencesValues,
@@ -550,8 +563,17 @@ impl ClientView {
         &self,
         fallback: crate::localization::Locale,
     ) -> crate::localization::Locale {
+        self.presentation_locale(fallback, None)
+    }
+
+    /// Resolves authored copy only; terminal bytes and notification policy remain confirmed.
+    pub(crate) fn presentation_locale(
+        &self,
+        fallback: crate::localization::Locale,
+        preview: Option<orchbee_workbench_protocol::PreferencesLocale>,
+    ) -> crate::localization::Locale {
         use orchbee_workbench_protocol::PreferencesLocale;
-        match self.user_preferences.as_ref().map(|values| values.locale) {
+        match preview.or_else(|| self.user_preferences.as_ref().map(|values| values.locale)) {
             Some(PreferencesLocale::EnUs) => crate::localization::Locale::EnUs,
             Some(PreferencesLocale::ZhCn) => crate::localization::Locale::ZhCn,
             _ => fallback,

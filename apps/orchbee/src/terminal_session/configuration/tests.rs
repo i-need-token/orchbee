@@ -30,6 +30,68 @@ fn snapshot(revision: u64, profile: &str) -> ConfigurationSnapshot {
 }
 
 #[test]
+fn native_reload_keeps_shared_appearance_while_updating_hints_and_sidebars() {
+    use crate::{client_view::ClientAction, localization::Locale};
+    use orchbee_workbench_protocol::{
+        ApplicationAppearance, PreferencesLocale, UserPreferencesValues,
+    };
+    let (_reader, wake) = LocalStream::pair().unwrap();
+    let mut watcher = Watcher {
+        shared: Arc::new((Mutex::new(Handoff::default()), Condvar::new())),
+        wake,
+        task: None,
+        revision: None,
+        applied_snapshot: None,
+        notification_update: None,
+    };
+    let mut view = ClientView::new(120);
+    let preferences = UserPreferencesValues {
+        application_theme: ApplicationAppearance::Dark,
+        locale: PreferencesLocale::ZhCn,
+        ..Default::default()
+    };
+    view.apply_user_preferences(preferences.clone());
+    view.settle_pointer_released(true);
+    let theme = view.configured_theme();
+    let mut published = snapshot(1, "[keys]\nprefix='ctrl+a'\nsettings='prefix+f6'");
+    published.theme_name = orchbee_workbench_protocol::ConfigurationThemeName::OneLight;
+    published.agent_sidebar_profile = r#"{"rows":[],"rows_by_agent":{},"row_gap":2}"#.into();
+    published.spaces_sidebar_profile = r#"{"rows":[],"row_gap":3}"#.into();
+    published.notification_profile = "[ui.toast]\ndelivery='orchbee'".into();
+    watcher.shared.0.lock().unwrap().snapshot = Some(published);
+    assert!(watcher.tick(&mut view));
+    assert_eq!(view.configured_theme(), theme);
+    assert_eq!(view.effective_locale(Locale::EnUs), Locale::ZhCn);
+    assert_eq!(view.user_preferences.as_ref(), Some(&preferences));
+    assert!(view.pointer_released());
+    assert_eq!(view.machines.sidebar_settings().row_gap(), 2);
+    assert_eq!(view.machines.space_settings().row_gap(), 3);
+    assert!(view.notifications.card_delivery());
+    let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
+        KeyCode::Char('a'),
+        Modifiers::CTRL,
+    )));
+    view.commit(prefix, SessionActionDisposition::KeepNavigator);
+    assert!(view.prefix_active());
+    assert_eq!(
+        view.decide(PrefixInput::Key(KeyEvent::press(
+            KeyCode::F(6),
+            Modifiers::NONE
+        )))
+        .action(),
+        Some(ClientAction::OpenSettings)
+    );
+    assert_eq!(
+        view.bindings()
+            .action_labels(crate::client_view::PrefixAction::Client(
+                ClientAction::OpenSettings
+            )),
+        ["Ctrl+a F6"],
+        "discovery uses the effective configured action"
+    );
+}
+
+#[test]
 fn bad_sidebar_publication_retains_keys_notifications_layout_and_revision_atomically() {
     let (_reader, wake) = LocalStream::pair().unwrap();
     let mut watcher = Watcher {

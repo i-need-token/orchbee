@@ -5,6 +5,8 @@ use orchbee_workbench_protocol::{
     NativeSettingsOperation, NativeSettingsSource, PreferenceKey, UserLaunchField,
     UserPreferencesPatch, UserPreferencesSnapshot, UserPreferencesValues,
 };
+mod appearance;
+pub(crate) use appearance::AppearancePreview;
 mod input;
 mod metadata;
 mod rows;
@@ -679,6 +681,29 @@ impl Editor {
     pub(crate) fn retire(&mut self) {
         self.state = State::Closed;
         self.surface_presented = false;
+    }
+    /// Borrows reversible presentation values without publishing runtime preferences.
+    ///
+    /// Locally edited leaves overlay the newest confirmed appearance without rebasing the
+    /// frozen draft. Hidden/replaced episodes and an unknown Save have no preview authority.
+    /// A visible accepted Save retains preview until its confirmed snapshot arrives.
+    pub(crate) fn appearance_preview(&self) -> Option<AppearancePreview<'_>> {
+        let draft = match &self.state {
+            State::Draft(draft)
+            | State::Saving {
+                draft,
+                visible: true,
+            } => draft,
+            _ => return None,
+        };
+        (draft.reconciliation != Some(Reconciliation::OutcomeUnknown)).then(|| {
+            AppearancePreview::project(
+                &draft.basis.values,
+                &draft.values,
+                &draft.effective.values,
+                draft.reset_all,
+            )
+        })
     }
     pub(crate) fn view(&self) -> Option<View<'_>> {
         match &self.state {

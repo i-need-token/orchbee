@@ -2,6 +2,7 @@
 use super::*;
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use orchbee_workbench_protocol::{AgentReminderMode, ApplicationAppearance, PreferencesLocale};
+mod appearance;
 
 fn basis() -> Basis {
     Basis {

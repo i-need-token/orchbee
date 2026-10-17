@@ -420,10 +420,52 @@ impl Locale {
                 "参数按原文传递；新终端使用已保存的默认配置。",
             );
         }
-        self.setting(
-            "Shared on this device/configuration; font and opacity belong to your terminal.",
-            "在此设备／配置范围共享；字体和透明度由宿主终端管理。",
-        )
+        if draft.reconciliation == Some(Reconciliation::OutcomeUnknown) {
+            return self.setting(
+                "Preview paused; reload to check the unknown Save result.",
+                "预览已暂停；请重新读取以核对未知的保存结果。",
+            );
+        }
+        match draft.selected {
+            Row::Language | Row::Theme | Row::TerminalTheme | Row::Foreground | Row::Background => {
+                self.setting(
+                    "Local preview; Save keeps changes. Close discards the draft.",
+                    "本地预览；保存后保留更改，关闭则丢弃草稿。",
+                )
+            }
+            Row::CopyOnSelect => self.setting(
+                "After Save: later selection completion. Clipboard delivery needs host support.",
+                "保存后用于后续选区完成；剪贴板交付需要宿主支持。",
+            ),
+            Row::TrimAgents => self.setting(
+                "After Save: existing detected agents; active selection and history stay put.",
+                "保存后用于现有已检测 Agent；保留正在操作的选区和历史视图。",
+            ),
+            Row::Reminders => self.setting(
+                "After Save: future hidden-agent events; host delivery and per-agent mute apply.",
+                "保存后用于后续隐藏 Agent 事件；仍遵循宿主交付与各 Agent 静音设置。",
+            ),
+            Row::CompletionReminders | Row::CompletionThreshold => self.setting(
+                "After Save: future command completions; requires shell integration; no replay.",
+                "保存后用于后续命令完成；需要 Shell 集成，不补发历史事件。",
+            ),
+            Row::Sound => self.setting(
+                "After Save: eligible future reminders; host sound and per-agent mute apply.",
+                "保存后用于后续符合条件的提醒；仍遵循宿主声音能力与各 Agent 静音设置。",
+            ),
+            Row::Scrollback => self.setting(
+                "After Save: new terminals only. Existing terminals keep their captured limit.",
+                "保存后仅用于新终端；现有终端保留创建时的回滚上限。",
+            ),
+            Row::LaunchProfiles => self.setting(
+                "After Save: new default launches. Existing programs keep running unchanged.",
+                "保存后用于新的默认启动；现有程序继续运行。",
+            ),
+            _ => self.setting(
+                "Shared on this device/configuration; font and opacity belong to your terminal.",
+                "在此设备／配置范围共享；字体和透明度由宿主终端管理。",
+            ),
+        }
     }
     pub(crate) fn settings_notice(self, notice: SettingsNotice) -> &'static str {
         use SettingsNotice::*;

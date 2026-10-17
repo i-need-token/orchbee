@@ -90,9 +90,15 @@ impl Coordinator {
         true
     }
 }
-impl NativeSessionView<'_> {
+impl<'a> NativeSessionView<'a> {
     pub(crate) fn settings(&self) -> Option<View<'_>> {
         self.settings.and_then(|settings| settings.editor.view())
+    }
+    /// Supplies presentation-only draft values to the whole-frame compositor.
+    pub(crate) fn settings_appearance_preview(
+        &self,
+    ) -> Option<crate::native_settings::AppearancePreview<'a>> {
+        self.settings?.editor.appearance_preview()
     }
     pub(crate) fn settings_input_context(&self) -> Option<SettingsInputContext> {
         self.settings?.editor.input_context()

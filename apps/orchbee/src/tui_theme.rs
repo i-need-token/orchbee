@@ -735,21 +735,34 @@ impl Theme {
 
     /// Client terminal colors are independent of application chrome and explicit program SGR.
     pub(crate) fn with_terminal_preferences(
-        mut self,
+        self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self {
+        self.with_terminal_appearance(
+            values.terminal_display_theme,
+            &values.custom_foreground,
+            &values.custom_background,
+        )
+    }
+
+    /// Accepts only validated display preferences, with no runtime behavior policy.
+    pub(crate) fn with_terminal_appearance(
+        mut self,
+        appearance: orchbee_workbench_protocol::TerminalDisplayAppearance,
+        custom_foreground: &str,
+        custom_background: &str,
+    ) -> Self {
         use orchbee_workbench_protocol::TerminalDisplayAppearance;
-        self.terminal_uses_host_colors =
-            values.terminal_display_theme == TerminalDisplayAppearance::Host;
-        let colors = match values.terminal_display_theme {
+        self.terminal_uses_host_colors = appearance == TerminalDisplayAppearance::Host;
+        let colors = match appearance {
             TerminalDisplayAppearance::Host | TerminalDisplayAppearance::Light => {
                 (0x141414, 0xfcfcfc)
             }
             TerminalDisplayAppearance::Dark => (0xd4d4d4, 0x1e1e1e),
             TerminalDisplayAppearance::Custom => (
-                u32::from_str_radix(&values.custom_foreground[1..], 16)
+                u32::from_str_radix(&custom_foreground[1..], 16)
                     .expect("validated preference color"),
-                u32::from_str_radix(&values.custom_background[1..], 16)
+                u32::from_str_radix(&custom_background[1..], 16)
                     .expect("validated preference color"),
             ),
         };
