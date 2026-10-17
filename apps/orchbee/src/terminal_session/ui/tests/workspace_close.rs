@@ -24,6 +24,79 @@ pub(in crate::terminal_session) fn ready()
 -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     ready_with_background_target(false)
 }
+
+/// Settles the guarded IfIdle route as a resumable host refusal so tests can
+/// exercise the explicit destructive confirmation that follows that outcome.
+pub(in crate::terminal_session) fn ready_after_guard_refusal()
+-> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+    let (mut ui, mailbox, clock, snapshot) = ready();
+    let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
+    assert_eq!(
+        ui.apply_client_action(crate::client_view::ClientAction::RequestWorkspaceClose),
+        crate::client_view::SessionActionDisposition::DismissNavigator
+    );
+    assert!(ui.view().workspace_close_confirmation().is_none());
+    let lease = mailbox
+        .try_recv()
+        .unwrap()
+        .expect("the idle check is submitted before explicit confirmation");
+    let QueuedCommand::Refresh(marker) = lease.record() else {
+        panic!("conditional Workspace close refresh");
+    };
+    let operation = marker
+        .workspace_close()
+        .expect("conditional Workspace close");
+    assert_eq!(
+        operation.workspace_command().unwrap().action,
+        WorkbenchAction::WorkspaceCloseIfIdle {
+            workspace_id: workspace.clone()
+        }
+    );
+    assert_eq!(
+        mailbox
+            .mark_refresh_in_flight(operation.generation)
+            .unwrap(),
+        MutationResult::Applied
+    );
+    let mut result = receipt(operation, false);
+    let WorkspaceCloseResult::WorkspaceObserved { outcome, .. } = &mut result else {
+        panic!("guarded Workspace close observation");
+    };
+    let WorkbenchWorkspaceCloseReadOutcome::Available { status, .. } = outcome.as_mut() else {
+        panic!("available guarded Workspace close observation");
+    };
+    *status = WorkbenchTabCloseStatus::CleanupBlocked {
+        reason: WorkbenchTabCloseBlockedReason::HostRefused,
+        resumable: true,
+    };
+    assert!(mailbox.retain_workspace_close_result(operation, result));
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::WorkspaceCloseResult {
+                evidence: mailbox.workspace_close_worker_loss().unwrap(),
+                outcome: Box::new(WorkbenchSnapshotOutcome::Available {
+                    snapshot: snapshot.clone(),
+                }),
+            },
+            super::super::super::mailbox::EventDeadline::PlacementOnly(
+                operation.deadlines.forward_cutoff(),
+            ),
+            &clock,
+        )
+        .unwrap();
+    assert!(ui.tick());
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    mailbox.finish_lease(lease).unwrap();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(
+        ui.state
+            .as_ref()
+            .unwrap()
+            .can_confirm_guarded_workspace_close(&workspace)
+    );
+    (ui, mailbox, clock, snapshot)
+}
+
 fn ready_with_background_target(
     background: bool,
 ) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
@@ -659,7 +732,8 @@ fn dispatch(
 #[test]
 fn workspace_close_dispatcher_requires_draw_and_consumes_the_whole_confirmation_packet() {
     for cancel in [false, true] {
-        let (mut ui, mailbox, _, _) = ready();
+        let (mut ui, mailbox, _, snapshot) = ready_after_guard_refusal();
+        let workspace = snapshot.navigation.workspaces[0].workspace_id.clone();
         let mut view = ClientView::new(120);
         let mut dispatcher = InputDispatcher::default();
         let mut forwarded = Vec::new();
@@ -707,7 +781,24 @@ fn workspace_close_dispatcher_requires_draw_and_consumes_the_whole_confirmation_
         assert!(forwarded.is_empty());
         assert!(ui.view().workspace_close_confirmation().is_none());
         assert!(ui.view().setup_draft().is_none());
-        assert_eq!(mailbox.try_recv().unwrap().is_some(), !cancel);
+        let submitted = mailbox.try_recv().unwrap();
+        assert_eq!(submitted.is_some(), !cancel);
+        if let Some(lease) = submitted {
+            let QueuedCommand::Refresh(marker) = lease.record() else {
+                panic!("explicit Workspace close refresh");
+            };
+            assert_eq!(
+                marker
+                    .workspace_close()
+                    .unwrap()
+                    .workspace_command()
+                    .unwrap()
+                    .action,
+                WorkbenchAction::WorkspaceClose {
+                    workspace_id: workspace
+                }
+            );
+        }
         assert!(mailbox.try_recv().unwrap().is_none());
     }
 }

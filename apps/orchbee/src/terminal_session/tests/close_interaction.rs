@@ -77,6 +77,12 @@ fn draw_close(
     Ok(text)
 }
 
+fn compact_display_text(text: &str) -> String {
+    text.chars()
+        .filter(|character| !character.is_whitespace())
+        .collect()
+}
+
 fn draw_close_frame(
     session: &mut TerminalSession,
     view: &ClientView,
@@ -474,7 +480,7 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
     dispatch_close_input(&mut session, &mut view, b"\x02x");
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let rendered = draw_close(&mut session, &view, locale, 120, 40)?;
-        let compact = rendered.replace([' ', '\n'], "");
+        let compact = compact_display_text(&rendered);
         // Wrapped rows contain borders between label segments. Reconstruct only target
         // scalars and their sanitization replacements, preserving their displayed order.
         // The finite modal no longer covers the whole frame — the tab strip shows
@@ -485,7 +491,7 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
             .filter(|character| matches!(character, '界' | '\u{fffd}'))
             .collect();
         assert!(visible_target.contains(&safe));
-        assert!(compact.contains(&locale.close_warning().replace(' ', "")));
+        assert!(compact.contains(&compact_display_text(locale.close_warning())));
         assert!(!rendered.contains('\x1b'));
     }
     dispatch_close_input(&mut session, &mut view, b"n");
@@ -584,9 +590,7 @@ fn raw_close_packet_requires_actual_localized_draw_and_emits_one_command() -> Te
         assert_eq!(commands.load(Ordering::SeqCst), 0);
         let rendered = draw_close(&mut session, &view, locale, 120, 32)?;
         assert!(
-            rendered
-                .replace(' ', "")
-                .contains(&locale.close_warning().replace(' ', ""))
+            compact_display_text(&rendered).contains(&compact_display_text(locale.close_warning()))
         );
         dispatch_close_input(&mut session, &mut view, b"\ryy\x02q");
         spin(&mut session, |session| {

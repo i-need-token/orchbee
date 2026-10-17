@@ -245,7 +245,7 @@ fn setup_choice_cell(
 fn workspace_close_action_roundtrips_hover_release_and_geometry_cancellation() {
     let theme = Theme::rgb_test_dark();
 
-    let (mut ui, mailbox, _, _) = super::workspace_close::ready();
+    let (mut ui, mailbox, _, _) = super::workspace_close::ready_after_guard_refusal();
     assert_eq!(
         ui.apply_client_action(ClientAction::RequestWorkspaceClose),
         SessionActionDisposition::DismissNavigator
@@ -285,7 +285,7 @@ fn workspace_close_action_roundtrips_hover_release_and_geometry_cancellation() {
     assert!(mailbox.try_recv().unwrap().is_none());
     assert!(harness.forwarded.is_empty());
 
-    let (mut ui, mailbox, _, _) = super::workspace_close::ready();
+    let (mut ui, mailbox, _, _) = super::workspace_close::ready_after_guard_refusal();
     assert_eq!(
         ui.apply_client_action(ClientAction::RequestWorkspaceClose),
         SessionActionDisposition::DismissNavigator
@@ -385,16 +385,28 @@ fn visible_row(buffer: &Buffer, y: u16) -> String {
 }
 
 fn text_position(buffer: &Buffer, text: &str) -> (u16, u16) {
-    (buffer.area.y..buffer.area.bottom())
-        .find_map(|y| {
-            let row = visible_row(buffer, y);
-            let offset = row.find(text)?;
-            Some((
-                u16::try_from(crate::terminal_text::display_width(&row[..offset])).unwrap(),
-                y,
-            ))
-        })
-        .unwrap_or_else(|| panic!("missing popup text {text:?}"))
+    let compact: String = text
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect();
+    let mut painted = String::new();
+    let mut positions = Vec::new();
+    for y in buffer.area.y..buffer.area.bottom() {
+        for x in buffer.area.x..buffer.area.right() {
+            for character in buffer[(x, y)]
+                .symbol()
+                .chars()
+                .filter(|character| !character.is_whitespace())
+            {
+                painted.push(character);
+                positions.push((x, y));
+            }
+        }
+    }
+    let offset = painted
+        .find(&compact)
+        .unwrap_or_else(|| panic!("missing popup text {text:?}"));
+    positions[painted[..offset].chars().count()]
 }
 
 #[test]

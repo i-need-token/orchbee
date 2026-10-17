@@ -1092,7 +1092,7 @@ fn assert_projected_text_cursor(raw: &str, glyph: &str, right_column: u16, end_c
         (Edit::End, end_column),
     ] {
         editor.edit(edit);
-        let (mut terminal, _, _) = present_once(&mut editor, 40, 12, Locale::EnUs, &theme);
+        let (mut terminal, _, _) = present_once(&mut editor, 58, 12, Locale::EnUs, &theme);
         let buffer = terminal.backend().buffer();
         let index = buffer
             .content
