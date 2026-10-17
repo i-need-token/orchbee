@@ -1802,12 +1802,22 @@ fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
                             super::render_popup(frame, area, &popup, locale, &theme, &mut hits)
                         }));
                         let buffer = terminal.backend().buffer();
-                        for x in outer.x..outer.right() {
-                            assert_eq!(buffer[(x, outer.y)].bg, theme.color(Role::SurfaceOverlay));
-                            assert_eq!(
-                                buffer[(x, outer.bottom() - 1)].bg,
-                                theme.color(Role::SurfaceOverlay)
-                            );
+                        for y in [outer.y, outer.bottom() - 1] {
+                            let mut x = outer.x;
+                            while x < outer.right() {
+                                let cell = &buffer[(x, y)];
+                                // One wide glyph paints its full footprint with the head's style.
+                                // Ratatui excludes its reset continuation cells from backend diffs.
+                                assert_eq!(
+                                    cell.bg,
+                                    theme.color(Role::SurfaceOverlay),
+                                    "{} {level:?} {locale:?} at ({x}, {y})",
+                                    theme.name,
+                                );
+                                let width = ratatui::buffer::CellWidth::cell_width(cell).max(1);
+                                assert!(x + width <= outer.right());
+                                x += width;
+                            }
                         }
                         for y in outer.y..outer.bottom() {
                             assert_eq!(buffer[(outer.x, y)].bg, theme.color(Role::SurfaceOverlay));

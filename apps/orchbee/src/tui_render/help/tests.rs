@@ -75,11 +75,15 @@ fn rows(buffer: &Buffer) -> Vec<String> {
 }
 
 fn glyph_rows(buffer: &Buffer) -> Vec<String> {
-    (buffer.area.y..buffer.area.bottom())
+    glyph_rows_in(buffer, buffer.area)
+}
+
+fn glyph_rows_in(buffer: &Buffer, area: Rect) -> Vec<String> {
+    (area.y..area.bottom())
         .map(|y| {
             let mut row = String::new();
-            let mut x = buffer.area.x;
-            while x < buffer.area.right() {
+            let mut x = area.x;
+            while x < area.right() {
                 let symbol = buffer[(x, y)].symbol();
                 row.push_str(symbol);
                 x = x.saturating_add(u16::try_from(display_width(symbol).max(1)).unwrap());
@@ -113,11 +117,13 @@ fn detach_lifecycle_explanation_survives_help_wrapping_and_matches_the_menu() {
             for _ in 0..128 {
                 let (buffer, map, placed) =
                     render_panel(width, height, &view, locale, &Theme::one_light());
-                assert!(
-                    placed.is_some(),
-                    "the complete help remains available at {width}x{height}"
-                );
-                found |= compact(&glyph_rows(&buffer).join(" ")).contains(&compact(explanation));
+                let area = placed.unwrap_or_else(|| {
+                    panic!("the complete help remains available at {width}x{height}")
+                });
+                // Only content joins across wrapped lines; frame glyphs do not belong to prose.
+                let content = Rect::new(area.x + 3, area.y + 1, area.width - 6, area.height - 4);
+                found |= compact(&glyph_rows_in(&buffer, content).join(" "))
+                    .contains(&compact(explanation));
                 let HelpDrawSource::Presented { page, last, .. } = *map.help_draw_source().unwrap()
                 else {
                     panic!("the lifecycle explanation must be pageable");

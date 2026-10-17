@@ -8,6 +8,17 @@ use orchbee_terminal_protocol::{RowWindowDetail, TerminalRowWindowRoute};
 use ratatui::{Terminal, backend::TestBackend};
 use std::sync::Arc;
 
+fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
+    let mut text = String::new();
+    let mut x = buffer.area.x;
+    while x < buffer.area.right() {
+        let cell = &buffer[(x, y)];
+        text.push_str(cell.symbol());
+        x += cell.cell_width().max(1);
+    }
+    text
+}
+
 #[test]
 fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_terminal_appearance() {
     use crate::{
@@ -182,6 +193,8 @@ fn crop_header_preserves_occupied_cells_without_moving_live_content_or_cursor() 
     .unwrap();
     source.geometry.columns = 104;
     source.geometry.rows = 36;
+    source.alternate_screen = false;
+    source.interaction = orchbee_terminal_protocol::TerminalInteraction::default();
     source.cursor.visible = true;
     source.cursor.column = 0;
     source.cursor.row = 35;
@@ -256,6 +269,8 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
     .unwrap();
     source.geometry.rows = 36;
     source.geometry.columns = 104;
+    source.alternate_screen = false;
+    source.interaction = orchbee_terminal_protocol::TerminalInteraction::default();
     source.cursor.column = 0;
     source.cursor.row = 35;
     source.cursor.visible = true;
@@ -300,9 +315,7 @@ fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
                     ratatui::layout::Position::new(0, prompt_y)
                 );
                 if crop.clipped {
-                    let text: String = (0..columns)
-                        .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
-                        .collect();
+                    let text = row_text(terminal.backend().buffer(), 0);
                     assert!(
                         text.contains(locale.terminal_live_crop())
                             || text.contains(locale.terminal_live_crop_compact()),

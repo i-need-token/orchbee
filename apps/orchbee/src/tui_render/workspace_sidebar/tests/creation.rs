@@ -227,13 +227,13 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                 site: &site,
                 label: Some("created workspace"),
                 project_id: Some(&project),
-                committed: Some((&workspace, WorkbenchRevision::new(2))),
+                committed: Some((&workspace, WorkbenchRevision::new(3))),
                 phase: WorkspaceCreationPhase::Committed,
                 current: true,
             };
             // The same ID is first absent in the older checkpoint, then really
             // observed at its commit revision, then removed at a newer revision.
-            for (revision, present) in [(1, false), (2, true), (3, false)] {
+            for (revision, present) in [(2, false), (3, true), (4, false)] {
                 view.machines.observe_spaces(vec![(
                     Choice::Local,
                     crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
@@ -275,14 +275,17 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                     })
                     .unwrap();
                 let text = rendered_text(terminal.backend().buffer());
-                assert!(text.starts_with(&format!(
-                    "{} {}",
-                    locale.shell().workspaces,
-                    if revision < 3 { 2 } else { 1 },
-                )));
+                assert!(
+                    text.starts_with(&format!(
+                        "{} {}",
+                        locale.shell().workspaces,
+                        if revision < 4 { 2 } else { 1 },
+                    )),
+                    "revision {revision}, collapsed {collapsed}: {text}"
+                );
                 assert_eq!(
                     text.matches("created workspace").count(),
-                    usize::from(revision < 3 && !collapsed),
+                    usize::from(revision < 4 && !collapsed),
                     "revision {revision}, collapsed {collapsed}: {text}",
                 );
                 let buffer = terminal.backend().buffer();
@@ -295,7 +298,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                     .collect();
                 assert_eq!(
                     current_bands.len(),
-                    usize::from(revision < 3),
+                    usize::from(revision < 4),
                     "revision {revision}, collapsed {collapsed}: {text}",
                 );
                 if let Some(y) = current_bands.first() {
