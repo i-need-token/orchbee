@@ -6,10 +6,11 @@ use crate::{
         SettingsHintLabel, setting_for_row,
     },
     terminal_session::SettingsNotice,
+    terminal_text::{sanitize_terminal_text, truncate_display},
 };
 use orchbee_workbench_protocol::{
     AgentReminderMode, ApplicationAppearance, CompletionReminderMode, PreferencesLocale,
-    TerminalDisplayAppearance, UserLaunchCommand,
+    TerminalDisplayAppearance, UserLaunchCommand, UserLaunchField,
 };
 impl Locale {
     pub(crate) fn settings_back_button(self) -> &'static str {
@@ -207,6 +208,9 @@ impl Locale {
                 _ => self.setting("Custom executable", "自定义可执行文件"),
             },
             Row::Executable => match &profile.command {
+                UserLaunchCommand::CustomExecutable { executable, .. } if executable.is_empty() => {
+                    self.setting("Required", "必填")
+                }
                 UserLaunchCommand::CustomExecutable { executable, .. } => executable,
                 _ => "—",
             },
@@ -288,7 +292,55 @@ impl Locale {
                 .into(),
         }
     }
-    pub(crate) fn settings_detail(self, draft: DraftView<'_>) -> &'static str {
+    pub(crate) fn settings_detail(self, draft: DraftView<'_>) -> String {
+        if draft.confirmation.is_none() {
+            let field = draft.invalid_field.or_else(|| {
+                if draft.page != Page::Profiles || !draft.enabled(draft.selected) {
+                    return None;
+                }
+                let field = match draft.selected {
+                    Row::ProfileName => UserLaunchField::Name,
+                    Row::Executable => UserLaunchField::Executable,
+                    Row::ArgumentValue => UserLaunchField::Argument(draft.argument),
+                    _ => return None,
+                };
+                Some((draft.profile, field))
+            });
+            if let Some((index, field)) = field {
+                let profile = &draft.values.launch_profiles.profiles[index];
+                let name = profile.name.as_deref().unwrap_or_else(|| {
+                    if profile.id == "system-default" {
+                        self.setting("System default", "系统默认")
+                    } else {
+                        &profile.id
+                    }
+                });
+                let name = truncate_display(&sanitize_terminal_text(name), 18, "…");
+                let requirement = match field {
+                    UserLaunchField::Name if profile.id == "system-default" => self.setting(
+                        "Name: max 512 UTF-8 bytes; trim spaces; blank uses system name.",
+                        "名称：最多 512 个 UTF-8 字节，无首尾空格；留空使用系统名称。",
+                    ),
+                    UserLaunchField::Name => self.setting(
+                        "Name: required, max 512 UTF-8 bytes, no surrounding spaces/NUL.",
+                        "名称：必填，最多 512 个 UTF-8 字节，无首尾空格或 NUL。",
+                    ),
+                    UserLaunchField::Executable => self.setting(
+                        "Executable: absolute path required (max 32 KiB, no NUL).",
+                        "可执行文件：必填绝对路径（最多 32 KiB，无 NUL）。",
+                    ),
+                    UserLaunchField::Argument(_) => self.setting(
+                        "Argument: max 32 KiB, no NUL; empty is allowed.",
+                        "参数：最多 32 KiB，无 NUL；允许为空。",
+                    ),
+                };
+                return format!("{name} → {requirement}");
+            }
+        }
+        self.settings_detail_text(draft).into()
+    }
+
+    fn settings_detail_text(self, draft: DraftView<'_>) -> &'static str {
         if let Some(confirmation) = draft.confirmation {
             return match confirmation {
                 Confirmation::ResetAll => self.setting(

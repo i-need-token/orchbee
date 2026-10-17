@@ -256,6 +256,7 @@ pub(super) fn edit_text(draft: &mut Draft, edit: Edit) {
         return;
     };
     draft.invalid = false;
+    draft.invalid_field = None;
     match edit {
         Edit::Insert(character) if !character.is_control() => {
             draft.invalid = editor.insert(&character.to_string()).is_err()

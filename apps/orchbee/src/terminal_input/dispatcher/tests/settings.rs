@@ -1030,3 +1030,227 @@ fn settings_ctrl_w_edits_the_captured_word_without_saving_or_forwarding() {
     assert_eq!(port.saves, 0);
     assert!(forwarded_bytes(&port.calls).is_empty());
 }
+
+#[test]
+fn settings_backdrop_retains_drafts_children_confirmations_and_inflight_operations() {
+    use crate::native_settings::{Confirmation, Control, View};
+
+    for task in 0..13 {
+        let mut port = Port::ready();
+        if !matches!(task, 0 | 2 | 3 | 7 | 12) {
+            port.editor.edit(Edit::Select(Row::Language));
+            port.editor.edit(Edit::Adjust(false));
+            port.editor.edit(Edit::Select(Row::Save));
+            port.editor.draw(port.editor.view().unwrap().token());
+        }
+        let mut accepted = None;
+        match task {
+            0 => {} // Dirty root.
+            1 => {
+                port.editor.edit(Edit::Select(Row::CompletionThreshold));
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Clear);
+                port.editor.paste("17");
+            }
+            2 | 3 => {
+                port.editor.edit(Edit::Select(Row::LaunchProfiles));
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Select(Row::AddProfile));
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Select(Row::ProfileName));
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Clear);
+                port.editor.paste("Temporary command · unsaved");
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Select(Row::CommandType));
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Select(Row::Executable));
+                port.editor.edit(Edit::Activate);
+                port.editor.paste(if cfg!(windows) {
+                    "C:\\tools\\shell.exe"
+                } else {
+                    "/bin/sh"
+                });
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Select(Row::AddArgument));
+                port.editor.edit(Edit::Activate);
+                port.editor.edit(Edit::Activate);
+                port.editor.paste("-NoProfile");
+                port.editor.edit(Edit::Activate);
+                if task == 3 {
+                    port.editor.edit(Edit::Select(Row::ResetProfiles));
+                    port.editor.edit(Edit::Activate);
+                }
+            }
+            4..=6 | 8 => {
+                port.editor.edit(Edit::Select(if task == 8 {
+                    Row::Reload
+                } else {
+                    Row::ResetAll
+                }));
+                port.editor.edit(Edit::Activate);
+                if task == 6 || task == 8 {
+                    port.editor.draw(port.editor.view().unwrap().token());
+                    accepted = port
+                        .editor
+                        .edit(Edit::Activate)
+                        .map(|submission| submission.token);
+                } else if task == 5 {
+                    port.editor.edit(Edit::Cancel);
+                    port.editor.edit(Edit::Select(Row::Reload));
+                    port.editor.edit(Edit::Activate);
+                }
+            }
+            7 | 12 => {
+                accepted = Some(
+                    port.editor
+                        .edit(Edit::Activate)
+                        .expect("accepted Save")
+                        .token,
+                );
+                if task == 12 {
+                    assert!(port.editor.failed(
+                        accepted.unwrap(),
+                        Some(crate::native_settings::Reconciliation::OutcomeUnknown)
+                    ));
+                }
+            }
+            9 => {
+                port.editor.retire();
+                accepted = port.editor.open();
+            }
+            10 | 11 => {
+                port.editor.edit(Edit::Select(Row::LaunchProfiles));
+                port.editor.edit(Edit::Activate);
+                if task == 11 {
+                    port.editor.edit(Edit::Select(Row::ResetProfiles));
+                    port.editor.edit(Edit::Activate);
+                }
+            }
+            _ => unreachable!(),
+        }
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+                Ok::<(), io::Error>(())
+            })
+            .unwrap();
+        let snapshot = |view: View<'_>| match view {
+            View::Draft(draft) => Some((
+                draft.values.clone(),
+                draft.basis_source.to_owned(),
+                draft.selected,
+                draft.page,
+                draft.profile,
+                draft.argument,
+                draft.text.map(|(text, cursor)| (text.to_owned(), cursor)),
+                draft.confirmation,
+            )),
+            _ => None,
+        };
+        let before = port.editor.view().unwrap();
+        if matches!(task, 1 | 4 | 5 | 10 | 11) {
+            assert!(
+                matches!(before, View::Draft(draft) if !draft.dirty),
+                "task {task} protects a clean active task"
+            );
+        }
+        assert!(!before.allows_backdrop_close(), "task {task}");
+        let token = before.token();
+        let retained = snapshot(before);
+        let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+        dispatcher.publish_hit_map(map);
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &primary_packet((0, 0), false),
+        );
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &primary_packet((0, 0), true),
+        );
+        let after = port.editor.view().expect("outside click retains Settings");
+        assert_eq!(after.token(), token, "task {task}");
+        assert_eq!(snapshot(after), retained, "task {task}");
+        assert_eq!(port.saves, 0, "outside click cannot submit or replay work");
+        assert!(forwarded_bytes(&port.calls).is_empty());
+
+        if task == 7 {
+            assert!(port.editor.saving(), "Save remains visible and in flight");
+            assert!(port.editor.open().is_none());
+            assert!(port.editor.failed(accepted.unwrap(), None));
+            assert!(matches!(port.editor.view(), Some(View::Draft(draft)) if draft.dirty));
+        } else if task == 8 || task == 9 {
+            assert!(matches!(port.editor.view(), Some(View::Loading { .. })));
+            assert!(port.editor.loaded(
+                accepted.unwrap(),
+                Basis {
+                    source: "missing".into(),
+                    values: Default::default(),
+                    claimed: Default::default(),
+                    desktop_imported: false,
+                    desktop_main_imported: false,
+                }
+            ));
+            assert!(matches!(port.editor.view(), Some(View::Draft(draft)) if !draft.dirty));
+        } else if task == 3 || task == 4 || task == 5 {
+            let expected = match task {
+                3 => Confirmation::ResetProfiles,
+                4 => Confirmation::ResetAll,
+                _ => Confirmation::Reload,
+            };
+            assert!(
+                matches!(port.editor.view(), Some(View::Draft(draft)) if draft.confirmation == Some(expected))
+            );
+        }
+        let current = port.editor.view().unwrap().token();
+        port.editor.control(current, Control::Close);
+        assert!(
+            !port.editor.visible(),
+            "explicit Close still exits task {task}"
+        );
+    }
+}
+
+#[test]
+fn settings_clean_backdrop_still_closes_but_a_new_edit_revokes_an_armed_close() {
+    for edit_after_press in [false, true] {
+        let mut port = Port::ready();
+        port.editor.edit(Edit::Select(Row::Language));
+        port.editor.edit(Edit::Adjust(false));
+        assert!(port.editor.view().unwrap().allows_backdrop_close());
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        dispatcher.set_pointer_capture(&mut view, &mut port, true);
+        dispatcher
+            .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+                Ok::<(), io::Error>(())
+            })
+            .unwrap();
+        let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+        dispatcher.publish_hit_map(map);
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            &primary_packet((0, 0), false),
+        );
+        if edit_after_press {
+            port.editor.edit(Edit::Select(Row::Sound));
+            port.editor.edit(Edit::Activate);
+            let map = render_settings_map(&dispatcher, &mut port, 120, 40);
+            dispatcher.publish_hit_map(map);
+        }
+        let mut release = primary_packet((0, 0), true);
+        release.extend_from_slice(b"must-not-reach-pane");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, &release);
+        assert_eq!(port.editor.visible(), edit_after_press);
+        assert!(forwarded_bytes(&port.calls).is_empty());
+        assert_eq!(port.saves, 0);
+    }
+}

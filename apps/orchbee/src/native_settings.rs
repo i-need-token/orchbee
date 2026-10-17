@@ -2,8 +2,8 @@
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use orchbee_workbench_protocol::{
-    NativeSettingsOperation, NativeSettingsSource, PreferenceKey, UserPreferencesPatch,
-    UserPreferencesSnapshot, UserPreferencesValues,
+    NativeSettingsOperation, NativeSettingsSource, PreferenceKey, UserLaunchField,
+    UserPreferencesPatch, UserPreferencesSnapshot, UserPreferencesValues,
 };
 mod input;
 mod metadata;
@@ -23,6 +23,14 @@ pub(crate) use rows::{Page, Row};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Token(u64);
+/// The Settings row that presents a launch-profile field, for Save-failure focus.
+fn invalid_row(field: UserLaunchField) -> Row {
+    match field {
+        UserLaunchField::Name => Row::ProfileName,
+        UserLaunchField::Executable => Row::Executable,
+        UserLaunchField::Argument(_) => Row::ArgumentValue,
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsInputReadiness {
     Recovery,
@@ -138,6 +146,8 @@ pub(crate) struct DraftView<'a> {
     pub(crate) effective_source: &'a str,
     pub(crate) selected: Row,
     pub(crate) dirty: bool,
+    /// Projected from the draft owner's external-update and dismissal guard.
+    pub(crate) active_task: bool,
     pub(crate) conflict: bool,
     pub(crate) reconciliation: Option<Reconciliation>,
     pub(crate) page: Page,
@@ -149,6 +159,9 @@ pub(crate) struct DraftView<'a> {
     pub(crate) argument: usize,
     pub(crate) text: Option<(&'a str, usize)>,
     pub(crate) invalid: bool,
+    /// The profile and field of the first invalid value found by the last Save
+    /// attempt; `None` keeps the generic invalid-value copy.
+    pub(crate) invalid_field: Option<(usize, UserLaunchField)>,
     pub(crate) confirmation: Option<Confirmation>,
     reset_all: bool,
     reset_profiles: bool,
@@ -363,6 +376,11 @@ pub(crate) enum View<'a> {
     Saving { token: Token },
 }
 impl View<'_> {
+    /// Only an idle root draft may expose its painted Close action to the backdrop.
+    pub(crate) fn allows_backdrop_close(self) -> bool {
+        matches!(self, Self::Draft(draft) if !draft.active_task)
+    }
+
     pub(crate) const fn token(self) -> Token {
         match self {
             Self::Loading { token } | Self::Saving { token } => token,
@@ -386,6 +404,7 @@ struct Draft {
     argument: usize,
     text: Option<LineEditor>,
     invalid: bool,
+    invalid_field: Option<(usize, UserLaunchField)>,
     reset_all: bool,
     reset_profiles: bool,
     confirmation: Option<Confirmation>,
@@ -466,6 +485,7 @@ impl Draft {
             effective_source: &self.effective.source,
             selected: self.row,
             dirty: self.dirty(),
+            active_task: self.has_active_task(),
             conflict: self.basis.source != self.effective.source
                 || self.basis.values != self.effective.values,
             reconciliation: self.reconciliation,
@@ -476,6 +496,7 @@ impl Draft {
             argument: self.argument,
             text: self.text.as_ref().map(|text| (text.text(), text.cursor())),
             invalid: self.invalid,
+            invalid_field: self.invalid_field,
             confirmation: self.confirmation,
             reset_all: self.reset_all,
             reset_profiles: self.reset_profiles,
@@ -551,6 +572,7 @@ impl Editor {
             argument: 0,
             text: None,
             invalid: false,
+            invalid_field: None,
             reset_all: false,
             reset_profiles: false,
             confirmation: None,
@@ -592,6 +614,7 @@ impl Editor {
         draft.values = effective.values.clone();
         draft.basis = effective.clone();
         draft.invalid = false;
+        draft.invalid_field = None;
         self.redraw();
         Observation::Refreshed
     }
@@ -744,6 +767,7 @@ impl Editor {
             && let Some(editor) = &mut draft.text
         {
             draft.invalid = text.contains('\0') || editor.insert(text).is_err();
+            draft.invalid_field = None;
             self.redraw();
         }
     }
@@ -753,6 +777,7 @@ impl Editor {
             && draft.text.is_some()
         {
             draft.invalid = true;
+            draft.invalid_field = None;
             self.redraw();
         }
     }
@@ -787,6 +812,7 @@ impl Editor {
                 State::Draft(draft) if draft.text.is_some() => {
                     draft.text = None;
                     draft.invalid = false;
+                    draft.invalid_field = None;
                     self.redraw();
                 }
                 State::Draft(draft) if draft.confirmation.is_some() => {
@@ -831,6 +857,8 @@ impl Editor {
                 return None;
             }
             draft.confirmation = None;
+            draft.invalid = false;
+            draft.invalid_field = None;
             match confirmation {
                 Confirmation::Reload => {
                     let token = draft.token;
@@ -896,6 +924,22 @@ impl Editor {
             }
             if draft.values.validate().is_err() {
                 draft.invalid = true;
+                draft.invalid_field = draft.values.launch_profiles.invalid_field();
+                if let Some((index, field)) = draft.invalid_field {
+                    let row = invalid_row(field);
+                    if draft.page != Page::Profiles {
+                        draft.enter_profiles();
+                    }
+                    draft.profile = index;
+                    draft.argument = match field {
+                        UserLaunchField::Argument(index) => index,
+                        _ => 0,
+                    };
+                    draft.row = row;
+                    draft.follow_selection = true;
+                    self.redraw();
+                    return None;
+                }
                 self.redraw();
                 return None;
             }
@@ -916,6 +960,7 @@ impl Editor {
         let rows = draft.page.rows();
         let index = rows.iter().position(|row| *row == draft.row).unwrap_or(0);
         draft.invalid = false;
+        draft.invalid_field = None;
         match edit {
             Edit::Next => {
                 draft.row = rows[(index + 1) % rows.len()];

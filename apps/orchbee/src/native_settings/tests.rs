@@ -968,6 +968,157 @@ fn profile_arguments_are_literal_and_deleting_the_default_selects_an_existing_pr
     );
 }
 
+fn invalid_nondefault_profile() -> Editor {
+    let mut editor = ready();
+    editor.edit(Edit::Select(Row::Sound));
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Select(Row::LaunchProfiles));
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Select(Row::AddProfile));
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Select(Row::ProfileName));
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Clear);
+    editor.paste("Broken profile");
+    editor.edit(Edit::Activate);
+    editor.edit(Edit::Select(Row::CommandType));
+    editor.edit(Edit::Activate);
+    // Return while a different valid profile is selected, as in the reported failure.
+    editor.edit(Edit::Select(Row::Profile));
+    editor.edit(Edit::Adjust(false));
+    editor.edit(Edit::Cancel);
+    editor.edit(Edit::Select(Row::Save));
+    draw(&mut editor);
+    editor
+}
+
+#[test]
+fn save_locates_the_nondefault_executable_and_correction_preserves_the_complete_draft() {
+    let mut editor = invalid_nondefault_profile();
+    let View::Draft(before) = editor.view().unwrap() else {
+        panic!("draft")
+    };
+    let values = before.values.clone();
+    let stale = before.token;
+    assert!(
+        editor.edit(Edit::Activate).is_none(),
+        "invalid Save cannot dispatch"
+    );
+    let View::Draft(error) = editor.view().unwrap() else {
+        panic!("draft")
+    };
+    assert_eq!(error.values, &values);
+    assert_eq!(error.basis_source, "missing");
+    assert_eq!(error.page, Page::Profiles);
+    assert_eq!(error.profile, 1);
+    assert_eq!(error.selected, Row::Executable);
+    assert_eq!(error.invalid_field, Some((1, UserLaunchField::Executable)));
+    assert!(error.invalid && error.follow_selection && error.text.is_none());
+    assert_ne!(error.token, stale);
+    editor.control(stale, Control::Close);
+    assert!(editor.visible());
+    draw(&mut editor);
+    editor.edit(Edit::Activate);
+    editor.paste(if cfg!(windows) {
+        "C:\\tools\\shell.exe"
+    } else {
+        "/bin/sh"
+    });
+    editor.edit(Edit::Activate);
+    let View::Draft(corrected) = editor.view().unwrap() else {
+        panic!("draft")
+    };
+    assert!(!corrected.invalid);
+    assert_eq!(corrected.invalid_field, None);
+    assert_eq!(corrected.profile, 1);
+    assert_eq!(
+        corrected.values.launch_profiles.default_profile_id,
+        "system-default"
+    );
+    assert!(corrected.values.sound_enabled);
+    editor.edit(Edit::Cancel);
+    let View::Draft(parent) = editor.view().unwrap() else {
+        panic!("draft")
+    };
+    assert_eq!(
+        parent.selected,
+        Row::Save,
+        "validation return restores its parent"
+    );
+    draw(&mut editor);
+    let submission = editor
+        .edit(Edit::Activate)
+        .expect("corrected draft saves directly");
+    let NativeSettingsOperation::Save { changes, .. } = submission.operation else {
+        panic!("save")
+    };
+    let saved = changes.apply(&basis().values).unwrap();
+    assert!(saved.sound_enabled);
+    assert_eq!(saved.launch_profiles.profiles.len(), 2);
+    assert_eq!(
+        saved.launch_profiles.profiles[1].name.as_deref(),
+        Some("Broken profile")
+    );
+    assert!(editor.complete(submission.token));
+    let reopened = editor.open().unwrap();
+    assert!(editor.loaded(
+        reopened,
+        Basis {
+            values: saved,
+            ..basis()
+        }
+    ));
+    assert!(
+        matches!(editor.view(), Some(View::Draft(draft)) if !draft.invalid && draft.invalid_field.is_none() && !draft.dirty)
+    );
+}
+
+#[test]
+fn removing_resetting_or_reloading_an_invalid_profile_retires_its_diagnostic() {
+    for action in [
+        Row::DeleteProfile,
+        Row::ResetProfiles,
+        Row::ResetAll,
+        Row::Reload,
+    ] {
+        let mut editor = invalid_nondefault_profile();
+        assert!(editor.edit(Edit::Activate).is_none());
+        if matches!(action, Row::ResetAll | Row::Reload) {
+            editor.edit(Edit::Cancel);
+        }
+        editor.edit(Edit::Select(action));
+        editor.edit(Edit::Activate);
+        draw(&mut editor);
+        let operation = editor.edit(Edit::Activate);
+        if action == Row::Reload {
+            let reload = operation.expect("explicit reload");
+            assert!(editor.loaded(reload.token, basis()));
+        } else {
+            assert!(operation.is_none(), "delete/reset remains local");
+        }
+        let View::Draft(draft) = editor.view().unwrap() else {
+            panic!("draft")
+        };
+        assert!(!draft.invalid);
+        assert_eq!(draft.invalid_field, None);
+        assert_eq!(draft.profile, 0);
+        assert!(draft.values.validate().is_ok());
+        assert_eq!(
+            draft.values.sound_enabled,
+            matches!(action, Row::DeleteProfile | Row::ResetProfiles)
+        );
+        if action != Row::Reload {
+            if draft.page == Page::Profiles {
+                editor.edit(Edit::Cancel);
+            }
+            assert!(matches!(
+                submit(&mut editor).operation,
+                NativeSettingsOperation::Save { .. }
+            ));
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 enum Trace {
     Open,

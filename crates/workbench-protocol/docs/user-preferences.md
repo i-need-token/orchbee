@@ -37,6 +37,13 @@ may have a null name. Custom executable paths must be absolute for the local
 platform. Windows rejects login shells. Saving does not prove a program is
 installed or that a future Host creation envelope can carry the launch.
 
+Rust catalog validation also projects an optional in-memory profile/field location
+from the same checks used for admission, including the literal argument index.
+Invalid collection structure (version, counts, identities, default membership or
+encoded size) has no field location. This diagnostic does not change serialized
+catalogs, request/result shapes or the existing refusal vocabulary. Clients still
+own localized correction guidance and local-platform path admission.
+
 Desktop and Worker use the same native automatic-shell resolver. A custom launch
 does not depend on automatic shell discovery. System-shell discovery runs for a
 new default launch; failure refuses that creation without inventing another

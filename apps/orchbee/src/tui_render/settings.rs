@@ -49,7 +49,7 @@ pub(super) fn render(
         super::overlay_surface(theme, true, Padding::horizontal(1)).title(locale.settings_title());
     frame.render_widget(Clear, layout.area);
     frame.render_widget(block, layout.area);
-    let painted_close = render_close(frame, layout.close, view.token(), theme, hits);
+    let painted_close = render_close(frame, layout.close, view, theme, hits);
     debug_assert_eq!(painted_close, Some(layout.close));
     let draw = if let View::Draft(draft) = view {
         render_draft(
@@ -302,12 +302,12 @@ fn action_spec(
 fn render_close(
     frame: &mut Frame<'_>,
     rect: Rect,
-    token: crate::native_settings::Token,
+    view: View<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> Option<Rect> {
     let target = InteractionTarget::SettingsControl {
-        token,
+        token: view.token(),
         control: Control::Close,
     };
     let spec = interaction_spec(true);
@@ -327,7 +327,9 @@ fn render_close(
     if painted != rect {
         return None;
     }
-    hits.record_overlay_dismissal(&target);
+    if view.allows_backdrop_close() {
+        hits.record_overlay_dismissal(&target);
+    }
     hits.record_interaction(HitLayer::Overlay, painted, painted, target, spec);
     Some(painted)
 }
@@ -767,7 +769,7 @@ fn draft_geometry_admitted(
         return false;
     }
     if draft.confirmation.is_some()
-        && display_width(locale.settings_detail(draft)) > usize::from(detail.width)
+        && display_width(&locale.settings_detail(draft)) > usize::from(detail.width)
     {
         return false;
     }
@@ -1314,11 +1316,15 @@ fn render_state_facts(
     theme: &Theme,
 ) {
     let facts = locale.settings_state_facts(draft);
-    let (glyph, glyph_role, text) = if draft.invalid && draft.text.is_some() {
+    let (glyph, glyph_role, text) = if draft.invalid {
         (
             "!",
             Role::StatusError,
-            format!("{} · {facts}", locale.settings_detail(draft)),
+            if draft.text.is_some() {
+                format!("{} · {facts}", locale.settings_detail(draft))
+            } else {
+                facts
+            },
         )
     } else if draft.conflict || draft.reconciliation.is_some() {
         ("!", Role::StatusWarning, facts)

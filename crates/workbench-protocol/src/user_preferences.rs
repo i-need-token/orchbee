@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod launch;
-pub use launch::{UserLaunchCommand, UserLaunchProfile, UserLaunchProfiles};
+pub use launch::{UserLaunchCommand, UserLaunchField, UserLaunchProfile, UserLaunchProfiles};
 
 /// Includes the existing 1 MiB launch-profile catalog and the bounded preference envelope.
 pub const MAXIMUM_USER_PREFERENCES_BYTES: usize = 2 * 1024 * 1024;

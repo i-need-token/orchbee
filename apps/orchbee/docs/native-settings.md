@@ -29,6 +29,14 @@ is revealed by keyboard navigation and remains a stable navigation anchor while 
 pointer scrolls or the surface resizes. Category captions and setting
 names match the GUI's English/Simplified Chinese vocabulary.
 
+An empty custom executable is marked Required. Launch-field details identify the
+profile, field and value requirements in both locales. A failed Save reveals the
+first invalid profile field, including a non-default profile and the exact literal
+argument, without changing other draft values, the saved basis or the default
+profile. Back restores the Save location; correction or confirmed removal/reset
+allows another intentional Save. Editing, removal, reset and matched Reload retire
+old validation feedback. Catalog structure failures retain the generic refusal.
+
 The completion threshold stepper uses 1-second small and 10-second large steps.
 Scrollback uses 1,000,000-byte small and 10,000,000-byte large steps. Steps preserve
 the exact current value, saturate at the owned domain bounds and never round to a
@@ -64,10 +72,15 @@ Cancel/Confirm buttons in secondary, normal-weight text, without a duplicate hin
 row. Only unmodified Enter confirms; Space remains a list choice or text input,
 never a confirmation. Explicitly modified Enter and key releases cannot confirm;
 legacy carriage return remains supported. Esc backs out of a child editor or confirmation before
-closing the root. Header Close closes the whole surface. A plain left press and
-matching release on the surrounding blank backdrop invokes that same exact
-painted Close target; moving into the surface, a stale token, focus loss or a
-changed layout cancels it. Closing hides an accepted save without cancelling it.
+closing the root. Header Close closes the whole surface. Only an idle General
+draft admits a plain left press and matching release on the surrounding blank
+backdrop through that same exact painted Close target. Unsaved changes, text entry,
+the launch-profile child, confirmations, reconciliation and an in-flight read or
+save retain the surface and its task on an outside click. This guard uses the same
+active-task predicate that freezes the draft basis on external updates. Moving
+into the surface, a stale token, focus loss or a changed layout cancels a backdrop
+gesture. Explicit Close and Esc retain their existing local exit behavior;
+deliberately closing hides an accepted save without cancelling it.
 
 Save is the only write action. Opening, editing, cancelling and resizing do not
 apply a draft. Enter or a click on the successfully drawn Save row consumes its
@@ -172,7 +185,8 @@ reset/claim preservation across migration, committed publication, complete value
 immutable publication identities and nonreplayed unknown outcomes. Negative
 controls remove the final source comparison and the import claim guard, and must
 produce overwrite/reset-resurrection counterexamples. Protocol conformance,
-storage/helper tests, GUI/TUI draft tests, launch capture, terminal presentation
+storage/helper tests, GUI/TUI draft tests, field-focused correction and guarded
+outside-click lifetimes, launch capture, terminal presentation
 and input tests cover concrete boundaries. Actual bidirectional GUI/TUI edits,
 reopen, reset, errors and visible effects remain acceptance requirements.
 

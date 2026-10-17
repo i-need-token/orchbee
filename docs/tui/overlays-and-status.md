@@ -91,10 +91,12 @@ pickers, confirmations and global action discovery.
   packet containing that decision remains owned and is consumed through its end, so trailing bytes
   never reach the new owner. Only a subsequent, separately decoded input event is resolved by the
   new owner; it is never delivered to the dismissed surface.
-- A visible popup can also be dismissed from its outside backdrop. Reuse its exact painted close
-  action, respect the current capture owner, and consume the complete dismissal gesture and packet
-  tail. Body padding and wheel reports do not dismiss or fall through. This has the same draft and
-  accepted-work policy as the close action.
+- A visible popup may admit dismissal from its outside backdrop. Its feature owner may withhold
+  that route to retain an active draft, child task, required decision or pending operation while
+  keeping an explicit close or return path. An admitted dismissal reuses its exact painted close
+  action, respects the current capture owner, and consumes the complete gesture and packet tail.
+  Body padding and wheel reports do not dismiss or fall through. An admitted dismissal has the
+  same draft and accepted-work policy as the close action.
   A compact context menu without a close control instead uses its exact successfully painted
   surface, target and token proof for that same local dismissal; it invents no invisible X target.
 - A surface that stops fitting after it opened is suspended, not implicitly dismissed. Preserve its

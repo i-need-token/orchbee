@@ -478,7 +478,7 @@ fn confirmation_admission_keeps_the_complete_localized_decision_and_both_actions
             };
             assert!(
                 without_cell_padding(&screen_text(&terminal))
-                    .contains(&without_cell_padding(locale.settings_detail(draft)))
+                    .contains(&without_cell_padding(&locale.settings_detail(draft)))
             );
         } else {
             assert!((0..10).all(|y| (0..width).all(|x| map.hit_target_at(x, y).is_none())));
@@ -1162,5 +1162,104 @@ fn settings_refuses_incomplete_geometry_and_delays_pending_copy() {
             })
             .unwrap();
         assert_eq!(screen_text(&terminal).contains("[..] Opening"), pending);
+    }
+}
+
+#[test]
+fn invalid_nondefault_executable_renders_its_profile_required_field_and_correction_in_both_locales()
+{
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::one_light()] {
+            let mut editor = editor_with(UserPreferencesValues::default());
+            editor.edit(Edit::Select(Row::LaunchProfiles));
+            editor.edit(Edit::Activate);
+            editor.edit(Edit::Select(Row::AddProfile));
+            editor.edit(Edit::Activate);
+            editor.edit(Edit::Select(Row::ProfileName));
+            editor.edit(Edit::Activate);
+            editor.edit(Edit::Clear);
+            editor.paste("Broken profile");
+            editor.edit(Edit::Activate);
+            editor.edit(Edit::Select(Row::CommandType));
+            editor.edit(Edit::Activate);
+            select_and_present(&mut editor, Row::Executable, locale, &theme);
+            let View::Draft(field) = editor.view().unwrap() else {
+                panic!("profile field")
+            };
+            assert_eq!(
+                locale.settings_value(field, Row::Executable),
+                match locale {
+                    Locale::EnUs => "Required",
+                    Locale::ZhCn => "必填",
+                }
+            );
+            editor.edit(Edit::Cancel);
+            select_and_present(&mut editor, Row::Save, locale, &theme);
+            assert!(editor.edit(Edit::Activate).is_none());
+
+            for (width, height) in [(120, 40), (80, 24), (58, 12), (36, 10)] {
+                let (terminal, map, draw) =
+                    present_once(&mut editor, width, height, locale, &theme);
+                let View::Draft(draft) = editor.view().unwrap() else {
+                    panic!("retained profile")
+                };
+                assert_eq!(draft.profile, 1);
+                assert_eq!(draft.selected, Row::Executable);
+                let rows = Page::Profiles.rows();
+                let selected = rows.iter().position(|row| *row == Row::Executable).unwrap();
+                assert!(
+                    (draw.first_visible().unwrap()
+                        ..draw.first_visible().unwrap() + draw.visible_rows().unwrap())
+                        .contains(&selected)
+                );
+                assert!(
+                    !cells_for(
+                        &map,
+                        &HitTarget::SettingsRow {
+                            token: draft.token,
+                            row: Row::Executable
+                        },
+                        width,
+                        height
+                    )
+                    .is_empty()
+                );
+                let screen = without_cell_padding(&screen_text(&terminal));
+                assert!(screen.contains(match locale {
+                    Locale::EnUs => "Required",
+                    Locale::ZhCn => "必填",
+                }));
+                if width >= 80 {
+                    assert!(screen.contains(match locale {
+                        Locale::EnUs => "Brokenprofile→Executable:absolutepathrequired",
+                        Locale::ZhCn => "Brokenprofile→可执行文件：必填绝对路径",
+                    }));
+                    assert!(!screen.contains(match locale {
+                        Locale::EnUs => "Invalidvalue;thedraftwaskept.",
+                        Locale::ZhCn => "值无效；草稿已保留。",
+                    }));
+                }
+                assert!(
+                    terminal
+                        .backend()
+                        .buffer()
+                        .content
+                        .iter()
+                        .any(|cell| cell.symbol() == "!"
+                            && cell.fg == theme.color(Role::StatusError))
+                );
+            }
+            // A relative value is refused locally and keeps the same actionable feedback.
+            editor.edit(Edit::Activate);
+            editor.paste("relative-program");
+            editor.edit(Edit::Activate);
+            let (terminal, _, _) = present_once(&mut editor, 120, 40, locale, &theme);
+            let screen = without_cell_padding(&screen_text(&terminal));
+            assert!(screen.contains("relative-program"));
+            assert!(screen.contains(match locale {
+                Locale::EnUs => "absolutepathrequired",
+                Locale::ZhCn => "必填绝对路径",
+            }));
+        }
     }
 }
