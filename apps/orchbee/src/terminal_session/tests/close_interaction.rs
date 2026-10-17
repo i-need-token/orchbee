@@ -207,7 +207,6 @@ fn assert_complete_close_frame(
     view: &ClientView,
 ) {
     let (shell, outer, inner) = close_modal_geometry(buffer, hits, view);
-    let modal_scope = crate::tui_layout::overlay_area(&shell);
     // OverlaySurface is also the separately owned status-strip blocker. The
     // shared geometry helper clips modal text to this dialog's exact hit scope.
     let left = outer.x;
