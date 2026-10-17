@@ -393,16 +393,14 @@ pub(crate) const fn terminal_area(panel: Rect, framed: bool) -> Rect {
     }
 }
 
-/// A single terminal (including zoom) uses one title row and a scrollbar gutter.
-/// Split trees retain their shared outer frame. Paint, PTY geometry and layout
-/// queries consume this projection rather than independently subtracting chrome.
+/// A single terminal (including zoom) uses the full panel height and a scrollbar
+/// gutter. Split trees retain their shared outer frame and leaf titles. Paint,
+/// PTY geometry and layout queries all consume this projection.
 pub(crate) const fn native_terminal_area(panel: Rect, framed: bool, split: bool) -> Rect {
-    if framed && !split {
-        pane_content(panel)
-    } else if !framed || !split {
-        scrollbar_content(terminal_area(panel, framed))
-    } else {
+    if framed && split {
         terminal_area(panel, framed)
+    } else {
+        scrollbar_content(panel)
     }
 }
 

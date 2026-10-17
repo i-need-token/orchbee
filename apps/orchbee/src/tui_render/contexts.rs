@@ -113,10 +113,6 @@ pub(super) fn render_navigator<'a, C>(
     }
 }
 
-pub(super) fn location_label(context: ContextDisplay<'_>) -> String {
-    context_label(context)
-}
-
 fn navigator_projection<'a>(
     width: usize,
     height: usize,
@@ -210,7 +206,7 @@ fn context_row(
     ])
 }
 
-fn context_label(context: ContextDisplay<'_>) -> String {
+pub(super) fn context_label(context: ContextDisplay<'_>) -> String {
     match (context.project_label, context.workspace_label) {
         (Some(project), Some(workspace)) => format!(
             "{} / {}",

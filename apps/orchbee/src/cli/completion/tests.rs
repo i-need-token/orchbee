@@ -18,6 +18,30 @@ fn switches_do_not_consume_the_next_completion_word() {
 }
 
 #[test]
+fn completion_and_help_admit_the_same_command_paths() {
+    let grammar = super::grammar::build();
+    let completed = grammar["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|command| {
+            command["words"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|word| word.as_str().unwrap())
+                .collect::<Vec<_>>()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let documented = crate::invocation::help_paths()
+        .iter()
+        .filter(|path| matches!(path.topic(), crate::invocation::HelpTopic::Command(_)))
+        .map(|path| path.words().to_vec())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(completed, documented);
+}
+
+#[test]
 fn scripts_cover_the_implemented_surface() {
     for shell in [
         CompletionShell::Bash,
@@ -45,6 +69,8 @@ fn scripts_cover_the_implemented_surface() {
             assert!(script.contains(flag), "{shell:?} lacks {flag}");
         }
         assert!(script.contains("--format"));
+        assert!(script.contains("-v"), "{shell:?} lacks -v");
+        assert!(script.contains("-V"), "{shell:?} lacks -V");
         assert_eq!(script.contains("--default-config"), cfg!(windows));
         assert!(script.contains("--mouse"), "{shell:?} lacks --mouse");
         for value in FORMAT_VALUES {

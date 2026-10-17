@@ -86,7 +86,10 @@ pub(crate) fn root(locale: Locale) -> String {
     }
     let mut options = vec![
         row("-h, --help", locale.cli_help_text(HelpText::ShowHelp)),
-        row("--version", locale.cli_help_text(HelpText::ShowVersion)),
+        row(
+            "-v, -V, --version",
+            locale.cli_help_text(HelpText::ShowVersion),
+        ),
         row("--skill", locale.cli_help_text(HelpText::ShowSkill)),
     ];
     if cfg!(windows) {
@@ -173,6 +176,17 @@ pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
             },
         ];
     }
+    sections.insert(
+        if topic == HelpTopic::Family(Family::Completion) {
+            1
+        } else {
+            2
+        },
+        Section::Rows {
+            heading: locale.cli_help_text(HelpText::Options).into(),
+            rows: vec![row("-h, --help", locale.cli_help_text(HelpText::ShowHelp))],
+        },
+    );
     #[cfg(windows)]
     {
         let notes = match topic {

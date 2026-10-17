@@ -7,7 +7,7 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
-fn automatic_tab_chrome_uses_localized_positions_and_keeps_fixed_names_and_pane_titles() {
+fn automatic_tab_chrome_keeps_localized_and_fixed_names_without_a_second_title_row() {
     use crate::{
         client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
     };
@@ -82,7 +82,7 @@ fn automatic_tab_chrome_uses_localized_positions_and_keeps_fixed_names_and_pane_
                         }
                         assert!(!strip.contains(&locale.automatic_tab_label(3)), "{strip}");
                         assert!(
-                            row(1).contains(&format!("{} 1", locale.shell().panel_title)),
+                            !row(1).contains(&format!("{} 1", locale.shell().panel_title)),
                             "{}",
                             row(1)
                         );
@@ -97,7 +97,7 @@ fn automatic_tab_chrome_uses_localized_positions_and_keeps_fixed_names_and_pane_
 }
 
 #[test]
-fn tab_strip_omits_equal_location_but_retains_context_for_a_distinct_tab_label() {
+fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
     use crate::{
         client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
     };
@@ -135,7 +135,17 @@ fn tab_strip_omits_equal_location_but_retains_context_for_a_distinct_tab_label()
                     x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
                 }
                 assert!(strip.contains(label), "{strip}");
-                assert_eq!(strip.matches(location).count(), 1, "{strip}");
+                assert_eq!(
+                    strip.matches(location).count(),
+                    if cfg!(windows) {
+                        usize::from(repeats_location)
+                    } else {
+                        1
+                    },
+                    "{strip}"
+                );
+                #[cfg(windows)]
+                assert!(strip.contains(locale.menu_title()), "{strip}");
                 if !repeats_location {
                     assert!(strip.contains("Editor"));
                 }
@@ -205,7 +215,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
         .map(|cell| cell.symbol())
         .collect();
     assert!(
-        text.contains("child shell") && text.contains("[2/2]"),
+        text.contains("[2/2]") && !text.contains("child shell"),
         "{text}"
     );
 }
@@ -440,6 +450,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         let (x,y) = (0..40).flat_map(|y| (0..120).map(move |x| (x,y))).find(|&(x,y)| {
             matches!(hits.hit_target_at(x,y), Some(HitTarget::Presentation(target)) if target.presentation() == &destination)
         }).unwrap();
+        assert_eq!(y, if layout == 1 { 2 } else { 0 });
         // The whole three-cell [>] glyph is clickable; surrounding cells cannot select.
         assert_eq!(buffer[(x, y)].symbol(), "[");
         assert_eq!(
@@ -452,7 +463,12 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
                 matches!(hits.hit_target_at(x+offset,y), Some(HitTarget::Presentation(target)) if target.presentation() == &destination)
             );
         }
-        for (cx, cy) in [(x - 1, y), (x + 3, y), (x, y + 1), (x, y - 1)] {
+        for (cx, cy) in [
+            (x - 1, y),
+            (x + 3, y),
+            (x, y + 1),
+            (x, y.checked_sub(1).unwrap_or(u16::MAX)),
+        ] {
             assert!(!matches!(
                 hits.hit_target_at(cx, cy),
                 Some(HitTarget::Presentation(_))
@@ -507,7 +523,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
                 .iter()
                 .map(|cell| cell.symbol())
                 .collect();
-            assert!(selected_text.contains("child"), "{selected_text}");
+            assert!(selected_text.contains("[2/3]"), "{selected_text}");
         }
     }
 }

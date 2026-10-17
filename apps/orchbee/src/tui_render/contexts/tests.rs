@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use ratatui::{Terminal, backend::TestBackend};
 
-use super::{ContextDisplay, MAX_VISIBLE_CONTEXTS, location_label, render_navigator};
+use super::{ContextDisplay, MAX_VISIBLE_CONTEXTS, context_label, render_navigator};
 
 #[derive(Clone, Copy)]
 struct TestContext<'a> {
@@ -153,9 +153,9 @@ fn server_labels_are_sanitized_without_mutating_the_source() {
 }
 
 #[test]
-fn location_label_handles_standalone_and_workspace_locations() {
+fn navigator_label_handles_standalone_and_workspace_locations() {
     assert_eq!(
-        location_label(ContextDisplay {
+        context_label(ContextDisplay {
             position: 1,
             active: true,
             project_label: None,
@@ -165,7 +165,7 @@ fn location_label_handles_standalone_and_workspace_locations() {
         "Standalone terminal"
     );
     assert_eq!(
-        location_label(ContextDisplay {
+        context_label(ContextDisplay {
             position: 2,
             active: false,
             project_label: Some("Project"),

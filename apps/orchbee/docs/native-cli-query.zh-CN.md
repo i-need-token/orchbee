@@ -12,6 +12,10 @@
 **Agent 会话** 标识一个 Agent 对话／运行时记录，通过 `--agent-session <id>` 或普通 Agent 目标选择。
 协议中的 **Client Session** 标识一次已准入的连接，不代表另一套工作环境。
 
+用 `orchbee server -h` 查看服务命令，用 `orchbee server stop -h` 查看需确认的关闭操作及恢复选项。
+在 PowerShell 中，从可执行文件所在目录使用 `.\orchbee.exe server -h`；未加入 `PATH` 时，
+也可通过完整路径调用。
+
 | 旧拼写                     | 规范拼写                         |
 | -------------------------- | -------------------------------- |
 | `--site <name>`            | `--session <name>`               |
@@ -782,7 +786,9 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
 - `--adapter-source <abs>`：带值 flag，单次使用，仅 `agent integration` 命令受理；
   一个字面绝对路径，指向开发/测试用的 adapter 负载，替换本次调用内打包的 cohort
   来源。相对路径或重复使用均为 `invalid-usage`。
-- `--version`：仅在独占根调用时合法；其他位置或与其他参数并存都是 usage。
+- `-v`、`-V`、`--version` 是等价版本选项，仅在独占根调用时合法；均离线输出相同的
+  `orchbee <version>` 行并以 `0` 退出。组合使用或添加命令、帮助开关、输出格式均是 usage。
+  选项值与 `--` 后的 token 保持数据含义。
 - `-h`/`--help`：`--` 前任意位置的单个开关，选择精确族路径或最长的已识别命令路径，
   忽略操作数和业务必需条件且不产生效果。
 - `--` 之后的位置参数：`--` 之后的 token 只作位置参数，故 `orchbee -- status` 查询 status，
@@ -793,7 +799,7 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
 ```
 orchbee                         # 裸调用 → TUI（不变）
 orchbee tui [--mouse off|on]    # TUI
-orchbee --version               # 版本行（不变）
+orchbee -v|-V|--version         # 版本行
 orchbee -h|--help | orchbee help   # 根帮助
 orchbee status
 orchbee status server | status client
@@ -854,15 +860,16 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-帮助主题：根级；`client`、`project`、`workspace`、`worktree`、`tab`、`panel`、`terminal`、`launch-profile`、`agent`、
-`agent integration`、`api`、`site`、
-`config`、`completion` 等族；以及包括 `tui` 在内的每条完整命令路径。`help` 只接受已识别的路径（不带
-过滤器、不带 format）。`--` 前的单个 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
+帮助主题包含根级、构建接纳的每个命令族和完整命令路径（包括 `tui`），以及 `agent integration`、
+`terminal session` 和 Windows `panel graphics` 等嵌套命令族。
+`help` 只接受已识别的路径（不带过滤器、不带 format）；`help -h` 与 `help --help` 显示根帮助，
+`help <path> -h|--help` 保留该精确路径及选项范围。
+`--` 前的单个 `-h` 或 `--help` 是同一路径上的同一请求：`orchbee --help`、
 `project --help`、`project get --help` 输出的内容与 `help`、`help project`、`help project get`
 完全相同。开关 help 也接受已提供的操作数和已识别的选项（`project get x --format json --help`
 以文本描述 `project get`），绝不应用这些选项或读取运行时状态。未知选项、缺值、重复选项和
 未知族动词仍是 usage。未列出的
-目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`--version`、
+目标如 `help help`、`help version`、`help --version` 按未知路径 → usage。Help、`-v`/`-V`/`--version`、
 `--skill`、`completion`、不带 `--output` 的 `api schema` 与 Windows `--default-config` 绝不触碰平台、运行、cohort 或 Session 状态。显式 Windows schema 导出仅操作调用者选择的文件目标及自有同目录临时文件。
 帮助在 `en-US` 和 `zh-CN` 中均分为三个信息层级：
 
@@ -870,6 +877,8 @@ orchbee <recognized path> -h|--help
   并说明全局选项及如何进入下一级帮助。
 - 命令族帮助说明该资源，并列出每个直接子命令及其用途。`agent view`、`panel graphics`
   等嵌套命令族有独立目录；子命令语法放在其专页。`completion` 列出受支持的 Shell。
+  每个命令族与命令页面均显示 `-h, --help`；`server` 目录包含 `stop` 与 `stop-status`，
+  并在 `stop` 上标明必须提供 `--confirm`。
 - 具体命令帮助包含完整语法、位置参数、已接纳的选项、示例，以及该命令的默认值、
   效果和限制。`status` 还会列出其子命令。
 
@@ -879,8 +888,10 @@ orchbee <recognized path> -h|--help
 输出为无样式的 UTF-8，以换行结束；按显示单元格对齐，在 78 格处换行且不拆分字素簇。
 长标签独占一行。示例标明所用 Shell，保留完整的带引号操作数，并在跨行时使用 PowerShell 或 POSIX Shell 续行符。终端和重定向输出使用同一确定宽度：帮助不查询终端，不读取 `COLUMNS`，
 也不读取配置或运行时状态。窄于 78 列的宿主可能自行再次折行。
-测试覆盖两种语言、所有已接纳的帮助路径与选项、命令目录覆盖、40／78／120 格的渲染输入，
-并验证示例可被解析，不执行其效果。
+测试覆盖两种语言、所有已接纳路径每个位置上的两种帮助开关、补全与帮助命令集合一致性、
+命令目录覆盖、40／78／120 格的渲染输入，并验证示例可被解析而不执行其效果。
+`cli_windows_site_stop` 还用不可用的运行时根目录，运行真实二进制，检查版本别名、嵌套帮助
+及停止缺少确认的拒绝行为；既有停止回执测试继续保护生命周期安全性。
 
 在 Windows 上，`--default-config` 必须是根命令的唯一参数，直接从构建输出规范 UTF-8 TOML，不读取用户配置或运行时选择环境。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
@@ -905,7 +916,7 @@ Windows ConPTY 证据单独检查实际交互注册与加载。这证明静态�
 `[<geometry>]` 代表可选的全有或全无组 `--cols <n> --rows <n> --cell-width <n>
 --cell-height <n>`；省略时命令请求默认的 80x24 网格与未知单元像素 (0,0)。
 
-`help`、`completion`、`tui`、`--version`、`--skill`、裸调用与 Windows `--default-config` 是固定文本输出，不接受 `--format`；一个合法
+`help`、`completion`、`tui`、`-v`/`-V`/`--version`、`--skill`、裸调用与 Windows `--default-config` 是固定文本输出，不接受 `--format`；一个合法
 `--format=json` 会把随后产生的语法失败变成 JSON `invalid-usage` 失败文档，而 text/默认失败仍
 保持 stdout 为空。数据命令（`status`、全部 `list`/`get`、`workspace close-status`、`agent explain`、`agent doctor`、`agent wait`、
 `api snapshot`、`api schema`、`server start`、`server stop`、`server stop-status`、`server diagnose`、`config check`，以及全部四条 `agent integration` 命令）与全部 mutation 命令接受 `--format`。`api` 命令是机器面：`api snapshot` 或 `api schema` 成功时在
@@ -1992,7 +2003,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 ## 不变量
 
 - 语法非法的调用绝不触碰文件系统、cohort 或 socket。
-- 离线命令（`help`、`--version`、`--skill`、`completion`、`api schema` 与 Windows
+- 离线命令（`help`、`-v`/`-V`/`--version`、`--skill`、`completion`、`api schema` 与 Windows
   `--default-config`）绝不执行平台、运行、cohort 或 Session 发现。
 - 网络查询不创建任何事物：无目录、锁、标记、终端、viewer、控制授权或第二个请求——唯一
   例外是 `terminal read`/`terminal wait-output`，其只读能力 viewer attachment 是唯一被

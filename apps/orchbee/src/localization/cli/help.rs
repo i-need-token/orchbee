@@ -768,8 +768,8 @@ impl Locale {
                 "查看 Agent 识别规则的更新状态。",
             ),
             HelpTopic::Command(CommandPath::SiteStop) => (
-                "Stop a local session and its terminals.",
-                "停止本地会话及其终端。",
+                "Stop the selected local session and its terminals; requires --confirm.",
+                "停止所选本地会话及其终端；必须提供 --confirm。",
             ),
             HelpTopic::Command(CommandPath::SiteStopStatus) => {
                 ("Check a session stop request.", "查看会话停止请求的状态。")

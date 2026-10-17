@@ -2042,7 +2042,7 @@ impl PartialEq for ParseFailure {
 enum Token {
     Word(String),
     HelpFlag(&'static str),
-    VersionFlag,
+    VersionFlag(&'static str),
     SkillFlag,
     #[cfg(windows)]
     DefaultConfigFlag,
@@ -2762,8 +2762,12 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                 }));
                 index += 1;
             }
-            "--version" => {
-                positionals.push(Token::VersionFlag);
+            "--version" | "-v" | "-V" => {
+                positionals.push(Token::VersionFlag(match token.as_str() {
+                    "-v" => "-v",
+                    "-V" => "-V",
+                    _ => "--version",
+                }));
                 index += 1;
             }
             "--skill" => {
@@ -3049,8 +3053,8 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
         reject_extras(&options, UsageContext::Literal("orchbee --skill"), envelope)?;
         return Ok(Request::Skill);
     }
-    // `--version` is legal only as the sole root invocation.
-    if positionals.len() == 1 && matches!(positionals[0], Token::VersionFlag) {
+    // Every version spelling is legal only as the sole root invocation.
+    if positionals.len() == 1 && matches!(positionals[0], Token::VersionFlag(_)) {
         reject_extras(
             &options,
             UsageContext::Literal("orchbee --version"),
@@ -3081,7 +3085,7 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
         .iter()
         .map(|token| match token {
             Token::Word(word) => word.as_str(),
-            Token::HelpFlag(_) | Token::VersionFlag | Token::SkillFlag => {
+            Token::HelpFlag(_) | Token::VersionFlag(_) | Token::SkillFlag => {
                 unreachable!("flags excluded above")
             }
             #[cfg(windows)]
@@ -3094,7 +3098,7 @@ fn resolve(positionals: Vec<Token>, options: Options) -> Result<Request, ParseFa
 fn flag_literal(token: &Token) -> Option<&'static str> {
     match token {
         Token::HelpFlag(literal) => Some(literal),
-        Token::VersionFlag => Some("--version"),
+        Token::VersionFlag(literal) => Some(literal),
         Token::SkillFlag => Some("--skill"),
         #[cfg(windows)]
         Token::DefaultConfigFlag => Some("--default-config"),
@@ -3105,7 +3109,7 @@ fn flag_literal(token: &Token) -> Option<&'static str> {
 fn word_literal(token: &Token) -> Option<&str> {
     match token {
         Token::Word(word) => Some(word.as_str()),
-        Token::HelpFlag(_) | Token::VersionFlag | Token::SkillFlag => None,
+        Token::HelpFlag(_) | Token::VersionFlag(_) | Token::SkillFlag => None,
         #[cfg(windows)]
         Token::DefaultConfigFlag => None,
     }
@@ -3140,6 +3144,9 @@ fn resolve_help_flag(
             UsageReason::MisplacedFlag { context, flag },
             envelope,
         ));
+    }
+    if let Some(rest) = words.strip_prefix(&["help"]) {
+        return resolve_help_path(rest, options, envelope);
     }
     if words.is_empty() {
         reject_filters(options, UsageContext::Root, envelope)?;

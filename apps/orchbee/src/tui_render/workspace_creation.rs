@@ -1,6 +1,6 @@
 //! Pending Workspace chrome projects one local launch without inventing actionable resource IDs.
 
-use super::{Frame, Locale, Paragraph, Rect, Role, Span, Theme, tabs};
+use super::{Frame, Locale, Paragraph, Role, Span, Theme, tabs};
 use crate::{
     machine_picker::SidebarCommand,
     terminal_session::WorkspaceCreationPreview,
@@ -44,18 +44,6 @@ pub(super) fn render(
             &mut |_, _, _, _| {},
         ),
     );
-    if areas.tier.shows_panel_frame() {
-        frame.render_widget(
-            Paragraph::new(format!(" {} 1 ", locale.shell().panel_title))
-                .style(theme.style(Role::TextSecondary)),
-            Rect::new(
-                areas.panel.x,
-                areas.panel.y,
-                areas.panel.width,
-                1.min(areas.panel.height),
-            ),
-        );
-    }
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(

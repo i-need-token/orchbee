@@ -1,3 +1,4 @@
+#[cfg(not(windows))]
 use crate::terminal_text::sanitize_terminal_text;
 use ratatui::{
     Frame,
@@ -378,7 +379,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             let status = native.workspace_close_status().map_or_else(
                 || {
                     close.as_ref().map_or_else(
-                        || locale.native_status(native),
+                        || locale.native_status(native, areas.status.width),
                         |status| locale.native_close_status(status),
                     )
                 },
@@ -1435,17 +1436,6 @@ fn render_native_workbench(
             .and_then(|panel| native.terminal_end(panel))
             .is_none();
     let panel_area = areas.panel;
-    let location = native_location_label(native, locale);
-    render_tab_strip(
-        frame,
-        areas.tabs,
-        native,
-        location.as_deref(),
-        locale,
-        theme,
-        hits,
-    );
-
     let active_tab = native
         .active_position()
         .and_then(|p| p.checked_sub(1))
@@ -1453,98 +1443,46 @@ fn render_native_workbench(
     let framed = areas.tier.shows_panel_frame();
     let split_visible =
         framed && active_tab.is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
-    let content_area = native_terminal_area(panel_area, framed, split_visible);
-    let panel_title = text.panel_title.to_owned();
-    let outer_header = Rect::new(
-        panel_area.x,
-        panel_area.y,
-        panel_area.width,
-        1.min(panel_area.height),
-    );
     let selector = active_tab
-        .filter(|tab| framed && (tab.panel_count() == 1 || native.zoom_active()))
+        .filter(|_| framed && !split_visible)
         .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
         .and_then(|panel| {
-            presentation_selector::PresentationSelector::new(outer_header, panel, native)
+            presentation_selector::PresentationSelector::new(areas.tabs, panel, native)
         });
-    #[cfg(windows)]
-    let outer_title = selector
+    let tabs_area = selector
         .as_ref()
-        .map_or(outer_header, |s| s.title_area(outer_header));
-    let frame_title = Line::from(Span::styled(
-        format!(" {panel_title} "),
-        if pane_focused {
-            theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
-        } else {
-            theme.style(Role::TextSecondary)
-        },
-    ));
-    #[cfg(windows)]
-    let frame_title = active_tab
-        .filter(|tab| tab.panel_count() == 1 || native.zoom_active())
-        .and_then(|tab| {
-            let index = tab.active_panel()?;
-            let panel = tab.panel(index)?;
-            let presentation = native.selected_presentation(panel);
-            let report = native.panel_report(panel);
-            let repeats_tab = presentation.custom_label().is_none()
-                && presentation.display_label() == tab.tab_label().as_ref()
-                && !matches!(report, crate::terminal_session::PanelReportView::Ready(row)
-                    if row.metadata.title.is_some());
-            let title = if repeats_tab {
-                format!(" {} {} ", text.panel_title, index + 1)
-            } else {
-                panel_reports::title(presentation, index + 1, text.panel_title, report, theme)
-            };
-            let title = if panel.presentation_count() > 1 && selector.is_none() {
-                let position = panel
-                    .presentation_index(native.selected_presentation(panel).presentation_id())
-                    .unwrap_or(0)
-                    + 1;
-                format!("{title} [{position}/{}]", panel.presentation_count())
-            } else {
-                title
-            };
-            Some(panel_reports::header(
-                title,
-                native.panel_report(panel),
-                usize::from(outer_title.width),
-                locale,
-                theme,
-                if pane_focused {
-                    theme.style(Role::AccentFocus).add_modifier(Modifier::BOLD)
-                } else {
-                    theme.style(Role::TextSecondary)
-                },
-                native.panel_unseen_count(panel.panel_id()) > 0,
-            ))
-        })
-        .unwrap_or(frame_title);
-    let frame_title = native
-        .focus_panel_id()
-        .and_then(|panel| native.terminal_end(panel))
-        .map_or(frame_title, |end| {
-            Line::styled(locale.terminal_end(end), theme.style(Role::StatusWarning))
-        });
-    if framed {
-        if split_visible {
-            frame.render_widget(
-                Block::new()
-                    .borders(Borders::ALL)
-                    .style(theme.style(Role::SurfaceCanvas))
-                    .border_style(theme.style(Role::FrameUnfocused))
-                    .border_type(theme.corners),
-                panel_area,
-            );
-        } else {
-            frame.render_widget(
-                Paragraph::new(frame_title).style(theme.style(Role::SurfaceChrome)),
-                outer_header,
-            );
-        }
-        if let Some(selector) = &selector {
-            selector.paint(frame, theme, hits);
-        }
+        .map_or(areas.tabs, |selector| selector.title_area(areas.tabs));
+    render_tab_strip(
+        frame,
+        tabs_area,
+        native,
+        #[cfg(not(windows))]
+        native_location_label(native, locale).as_deref(),
+        locale,
+        theme,
+        hits,
+    );
+    if let Some(selector) = &selector {
+        selector.paint(frame, theme, hits);
+    }
+
+    if native.no_current_workspace()
+        && native.phase() == NativeDisplayPhase::Empty
+        && native.retirement().is_none()
+    {
+        return;
+    }
+
+    let content_area = native_terminal_area(panel_area, framed, split_visible);
+    if split_visible {
+        frame.render_widget(
+            Block::new()
+                .borders(Borders::ALL)
+                .style(theme.style(Role::SurfaceCanvas))
+                .border_style(theme.style(Role::FrameUnfocused))
+                .border_type(theme.corners),
+            panel_area,
+        );
     }
     // Under zoom the drawn set narrows to the focused leaf: the single-pane
     // path below paints it across the whole content area and records the
@@ -1767,9 +1705,8 @@ fn render_native_workbench(
             if input_enabled && let Some(copy) = native.copy_mode() {
                 copy_mode::paint_surface(frame, content_area, copy, native, theme, hits);
             }
-            // The title band stays Client chrome. The terminal owns every
-            // content cell, including its edges; the hit region carries the
-            // pane's exact live incarnation.
+            // Only the tab strip stays above the terminal. Every content cell
+            // carries the pane's exact live incarnation, including the edges.
             if let Some(pane) = active_tab
                 .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
                 .and_then(|panel| native.pane_ref_for_panel(panel.panel_id()))
@@ -1813,20 +1750,13 @@ fn render_native_workbench(
             } else {
                 phase_status
             };
-            let directory_guidance = if native.no_current_workspace()
-                && native.phase() == NativeDisplayPhase::Empty
-                && native.retirement().is_none()
-            {
-                Some(workspace_setup::no_workspace_guidance(locale))
-            } else {
-                workspace_setup::directory_guidance(
-                    locale,
-                    native.phase(),
-                    native.retirement().is_some(),
-                    native.workspace_directory_path(),
-                    native.workspace_directory_unconfigured(),
-                )
-            };
+            let directory_guidance = workspace_setup::directory_guidance(
+                locale,
+                native.phase(),
+                native.retirement().is_some(),
+                native.workspace_directory_path(),
+                native.workspace_directory_unconfigured(),
+            );
             if let Some(guidance) = directory_guidance {
                 #[cfg(windows)]
                 let content_area = crate::tui_layout::guidance_area(content_area, global_action);
@@ -1935,7 +1865,7 @@ fn render_tab_strip(
     frame: &mut Frame<'_>,
     tabs_area: Rect,
     native: &NativeSessionView<'_>,
-    location: Option<&str>,
+    #[cfg(not(windows))] location: Option<&str>,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -1944,43 +1874,49 @@ fn render_tab_strip(
     if tabs_area.is_empty() {
         return;
     }
-    let location = location.filter(|location| {
-        !native
-            .active_position()
-            .and_then(|position| position.checked_sub(1))
-            .and_then(|index| native.tab(index))
-            .is_some_and(|tab| {
-                sanitize_terminal_text(tab.display_label(locale).as_ref()).as_ref() == *location
-            })
-    });
-    let title = location.map_or_else(String::new, |location| {
-        format!(
-            "{} ",
-            truncate_display(
-                location,
-                usize::from(tabs_area.width / 2).saturating_sub(1),
-                theme.glyphs.ellipsis
+    #[cfg(windows)]
+    let strip = tabs_area;
+    #[cfg(not(windows))]
+    let (strip, title_area, title) = {
+        let location = location.filter(|location| {
+            !native
+                .active_position()
+                .and_then(|position| position.checked_sub(1))
+                .and_then(|index| native.tab(index))
+                .is_some_and(|tab| {
+                    sanitize_terminal_text(tab.display_label(locale).as_ref()).as_ref() == *location
+                })
+        });
+        let title = location.map_or_else(String::new, |location| {
+            format!(
+                "{} ",
+                truncate_display(
+                    location,
+                    usize::from(tabs_area.width / 2).saturating_sub(1),
+                    theme.glyphs.ellipsis
+                )
             )
-        )
-    });
-    let title_width = u16::try_from(Line::raw(title.as_str()).width()).unwrap_or(u16::MAX);
-    let (strip, title_area) = if title_width > 0 && title_width < tabs_area.width {
-        (
-            Rect::new(
-                tabs_area.x,
-                tabs_area.y,
-                tabs_area.width - title_width - 1,
-                tabs_area.height,
-            ),
-            Some(Rect::new(
-                tabs_area.x + tabs_area.width - title_width,
-                tabs_area.y,
-                title_width,
-                tabs_area.height,
-            )),
-        )
-    } else {
-        (tabs_area, None)
+        });
+        let title_width = u16::try_from(Line::raw(title.as_str()).width()).unwrap_or(u16::MAX);
+        if title_width > 0 && title_width < tabs_area.width {
+            (
+                Rect::new(
+                    tabs_area.x,
+                    tabs_area.y,
+                    tabs_area.width - title_width - 1,
+                    tabs_area.height,
+                ),
+                Some(Rect::new(
+                    tabs_area.right() - title_width,
+                    tabs_area.y,
+                    title_width,
+                    tabs_area.height,
+                )),
+                title,
+            )
+        } else {
+            (tabs_area, None, title)
+        }
     };
     #[cfg(windows)]
     let tab_source = native.tab_create_target();
@@ -2125,6 +2061,7 @@ fn render_tab_strip(
             }
         }
     }
+    #[cfg(not(windows))]
     if let Some(title_area) = title_area {
         frame.render_widget(
             Paragraph::new(title)
@@ -2488,13 +2425,14 @@ fn native_tab<'a>(
     })
 }
 
+#[cfg(not(windows))]
 fn native_location_label(native: &NativeSessionView<'_>, locale: Locale) -> Option<String> {
     native
         .active_context_position()
         .and_then(|position| position.checked_sub(1))
         .and_then(|index| native.context_at(index))
         .map(|context| {
-            contexts::location_label(contexts::ContextDisplay {
+            contexts::context_label(contexts::ContextDisplay {
                 position: context.position(),
                 active: context.active(),
                 project_label: context.project_label(),
@@ -2525,6 +2463,10 @@ fn status_overlay_visible(
         || session.is_some_and(|session| match session {
             TerminalSessionView::Native(native) => {
                 let visible = native.phase() != NativeDisplayPhase::Ready
+                    || native
+                        .focus_panel_id()
+                        .and_then(|panel| native.terminal_end(panel))
+                        .is_some()
                     || native.controller() == Some(NativeDisplayController::ReadOnly)
                     || native.notice().is_some()
                     || native.takeover_status().is_some()

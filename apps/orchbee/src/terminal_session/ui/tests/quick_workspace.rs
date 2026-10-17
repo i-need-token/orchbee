@@ -408,12 +408,15 @@ fn empty_compatibility_create_tab_uses_workspace_launch_and_cancel_never_resurre
 }
 
 #[test]
-fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locales_and_size_tiers() {
+fn no_workspace_screen_keeps_content_blank_and_creation_controls_available_across_size_tiers() {
     use crate::{
-        client_view::ClientView, localization::Locale, terminal_session::TerminalSessionView,
-        tui_pointer::HitMapBuilder, tui_theme::Theme,
+        client_view::ClientView,
+        localization::Locale,
+        terminal_session::TerminalSessionView,
+        tui_pointer::{HitMapBuilder, HitTarget},
+        tui_theme::Theme,
     };
-    use ratatui::{Terminal, backend::TestBackend};
+    use ratatui::{Terminal, backend::TestBackend, layout::Rect};
     let (ui, mailbox, _, _) = no_workspace();
     for available in [false, true] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
@@ -422,6 +425,11 @@ fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locale
                     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                     let mut view = ClientView::new(width);
                     view.machines.available = available;
+                    let areas = crate::tui_layout::project_shell_areas(
+                        Rect::new(0, 0, width, height),
+                        view.sidebar_surface(),
+                    );
+                    let mut hits = HitMapBuilder::new();
                     terminal
                         .draw(|frame| {
                             crate::tui_render::render_terminal_shell(
@@ -430,7 +438,7 @@ fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locale
                                 locale,
                                 Some(TerminalSessionView::Native(ui.view())),
                                 &theme,
-                                &mut HitMapBuilder::new(),
+                                &mut hits,
                             );
                         })
                         .unwrap();
@@ -441,12 +449,53 @@ fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locale
                         .chars()
                         .filter(|c| !c.is_whitespace())
                         .collect();
-                    assert_eq!(
-                        compact.contains(&expected),
-                        width >= 20,
+                    assert!(
+                        !compact.contains(&expected),
                         "{width}x{height} machines={available}: {text}"
                     );
                     assert!(!text.contains(locale.shell().standalone), "{text}");
+                    let hits = hits.finish();
+                    let presentable = areas.tier != crate::tui_layout::ViewportTier::TooSmall;
+                    let has_target = |target: HitTarget| {
+                        (0..height)
+                            .flat_map(|y| (0..width).map(move |x| (x, y)))
+                            .any(|(x, y)| hits.hit_target_at(x, y) == Some(&target))
+                    };
+                    assert_eq!(has_target(HitTarget::MenuButton), presentable);
+                    if available {
+                        for target in [
+                            HitTarget::NewWorkspaceButton,
+                            HitTarget::SearchButton,
+                            HitTarget::SettingsButton,
+                        ] {
+                            assert_eq!(has_target(target), areas.sidebar.is_some());
+                        }
+                    }
+                    if presentable {
+                        for y in areas.panel.y..areas.status.y {
+                            for x in areas.panel.x..areas.panel.right() {
+                                if areas
+                                    .sidebar
+                                    .is_some_and(|sidebar| sidebar.area.contains((x, y).into()))
+                                    || matches!(
+                                        hits.hit_target_at(x, y),
+                                        Some(HitTarget::MenuButton)
+                                    )
+                                {
+                                    continue;
+                                }
+                                assert_eq!(
+                                    terminal.backend().buffer()[(x, y)].symbol(),
+                                    " ",
+                                    "{width}x{height} at ({x},{y}): {text}"
+                                );
+                                assert!(
+                                    hits.hit_target_at(x, y).is_none(),
+                                    "empty content cannot expose a stale target"
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -455,7 +504,7 @@ fn no_workspace_screen_exposes_creation_without_legacy_navigation_in_both_locale
 }
 
 #[test]
-fn effective_create_binding_renders_and_invokes_workspace_or_empty_canonical_tab_by_exact_scope() {
+fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_only_for_the_latter() {
     use crate::{
         client_view::{ClientView, KeyCode, KeyEvent, Modifiers, PrefixDesc, PrefixInput},
         localization::Locale,
@@ -526,7 +575,11 @@ fn effective_create_binding_renders_and_invokes_workspace_or_empty_canonical_tab
             } else {
                 locale.status().create_workspace
             };
-            assert!(text.contains(&format!("Ctrl+a n {label}")), "{text}");
+            assert_eq!(
+                text.contains(&format!("Ctrl+a n {label}")),
+                canonical,
+                "{text}"
+            );
             if !canonical {
                 assert!(!text.contains(locale.status().create_tab), "{text}");
             }

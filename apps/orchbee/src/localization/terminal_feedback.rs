@@ -38,6 +38,33 @@ impl Locale {
         }
     }
 
+    /// Keeps the exit result intact when the retained-output detail cannot fit.
+    pub(crate) fn terminal_end_compact(
+        self,
+        end: crate::terminal_projection::TerminalEnd,
+    ) -> String {
+        use crate::terminal_projection::TerminalEnd;
+        use orchbee_terminal_protocol::ExitResult;
+        match (self, end) {
+            (Self::EnUs, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
+                format!("Exited {code}")
+            }
+            (Self::ZhCn, TerminalEnd::Exited(ExitResult::ExitCode(code))) => {
+                format!("已退出 {code}")
+            }
+            (Self::EnUs, TerminalEnd::Exited(ExitResult::Signal(signal))) => {
+                format!("Signal {signal}")
+            }
+            (Self::ZhCn, TerminalEnd::Exited(ExitResult::Signal(signal))) => {
+                format!("信号 {signal}")
+            }
+            (Self::EnUs, TerminalEnd::Exited(ExitResult::Unknown(_))) => "Exit code unknown".into(),
+            (Self::ZhCn, TerminalEnd::Exited(ExitResult::Unknown(_))) => "退出码未知".into(),
+            (Self::EnUs, TerminalEnd::Failed) => "Terminal failed".into(),
+            (Self::ZhCn, TerminalEnd::Failed) => "终端运行故障".into(),
+        }
+    }
+
     pub(crate) fn terminal_launch_failure(
         self,
         failure: crate::terminal_session::NativeLaunchFailure<'_>,

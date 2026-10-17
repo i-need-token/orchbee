@@ -76,6 +76,64 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn version_and_nested_help_are_offline_and_stop_still_requires_confirmation() {
+    let fixture = Fixture::new();
+    let blocked_runtime = fixture.0.join("runtime-is-a-file");
+    fs::write(&blocked_runtime, b"untouched").unwrap();
+    for locale in ["en_US.UTF-8", "zh_CN.UTF-8"] {
+        let run = |arguments: &[&str]| {
+            Command::new(env!("CARGO_BIN_EXE_orchbee"))
+                .args(arguments)
+                .env("ORCHBEE_RUNTIME_BASE", &blocked_runtime)
+                .env("ORCHBEE_SESSION", "invalid/session")
+                .env("LC_ALL", locale)
+                .stdin(Stdio::null())
+                .output()
+                .unwrap()
+        };
+        for flag in ["-v", "-V", "--version"] {
+            let output = run(&[flag]);
+            assert_eq!(output.status.code(), Some(0), "{flag}: {output:?}");
+            assert!(output.stderr.is_empty());
+            assert_eq!(
+                output.stdout,
+                concat!("orchbee ", env!("CARGO_PKG_VERSION"), "\n").as_bytes()
+            );
+        }
+        for path in [
+            &["server"][..],
+            &["server", "stop"][..],
+            &["server", "stop-status"][..],
+            &["terminal", "session", "control"][..],
+        ] {
+            let reference = run(&std::iter::once("help")
+                .chain(path.iter().copied())
+                .collect::<Vec<_>>());
+            assert_eq!(reference.status.code(), Some(0), "{path:?}: {reference:?}");
+            assert!(!reference.stdout.is_empty());
+            assert!(reference.stderr.is_empty());
+            for flag in ["-h", "--help"] {
+                let output = run(&path.iter().copied().chain([flag]).collect::<Vec<_>>());
+                assert_eq!(output.status.code(), Some(0), "{path:?}: {output:?}");
+                assert!(output.stderr.is_empty());
+                assert_eq!(output.stdout, reference.stdout);
+            }
+        }
+        let output = run(&["server", "stop", "--format=json"]);
+        assert_eq!(output.status.code(), Some(2));
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(document["failure"]["kind"], "invalid-usage");
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("--confirm")
+        );
+    }
+    assert_eq!(fs::read(&blocked_runtime).unwrap(), b"untouched");
+    assert_eq!(fs::read_dir(&fixture.0).unwrap().count(), 1);
+}
+
+#[test]
 fn missing_receipt_query_and_invalid_destructive_argv_have_no_runtime_effects() {
     let fixture = Fixture::new();
     assert_eq!(fixture.query()["result"]["outcome"], "not-recorded");

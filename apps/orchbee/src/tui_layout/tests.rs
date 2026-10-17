@@ -8,8 +8,8 @@ use crate::{client_view::SidebarSurface, terminal_session::NativePanelTree};
 
 use super::{
     LeafArea, SidebarLayer, SidebarWidth, ViewportTier, centered_overlay, divide_panes,
-    divider_glyph, overlay_area, pane_content, place_overlay, project_panel_tree,
-    project_shell_areas, terminal_area,
+    divider_glyph, native_terminal_area, overlay_area, pane_content, place_overlay,
+    project_panel_tree, project_shell_areas, terminal_area,
 };
 
 #[test]
@@ -227,6 +227,32 @@ fn reserves_a_title_row_and_scrollbar_column_inside_each_leaf() {
     let leaf = Rect::new(3, 2, 12, 7);
     assert_eq!(pane_content(leaf), Rect::new(3, 3, 11, 6));
     assert_eq!(pane_content(Rect::new(0, 0, 1, 2)), Rect::new(0, 1, 1, 1));
+}
+
+#[test]
+fn single_and_zoomed_terminals_keep_every_panel_row_while_split_frames_keep_their_geometry() {
+    for panel in [
+        Rect::new(30, 1, 90, 39),
+        Rect::new(0, 1, 80, 23),
+        Rect::new(0, 1, 60, 11),
+        Rect::new(0, 0, 50, 10),
+        Rect::new(7, 9, 1, 2),
+        Rect::new(7, 9, 0, 0),
+    ] {
+        let content = Rect::new(
+            panel.x,
+            panel.y,
+            panel.width.saturating_sub(u16::from(panel.width > 1)),
+            panel.height,
+        );
+        assert_eq!(native_terminal_area(panel, true, false), content);
+        assert_eq!(native_terminal_area(panel, false, false), content);
+        assert_eq!(native_terminal_area(panel, false, true), content);
+        assert_eq!(
+            native_terminal_area(panel, true, true),
+            terminal_area(panel, true)
+        );
+    }
 }
 
 #[test]

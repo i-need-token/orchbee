@@ -1970,6 +1970,8 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         "worktree",
         "--help",
         "--version",
+        "-v",
+        "-V",
         "--format",
         "--format=",
     ] {

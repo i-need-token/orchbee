@@ -5,6 +5,41 @@ use crate::client_view::{BackendAction, Notice};
 use super::{Locale, ShellText, select_locale};
 
 #[test]
+fn compact_terminal_end_copy_keeps_complete_results_within_twenty_cells_in_both_locales() {
+    use crate::terminal_projection::TerminalEnd;
+    use orchbee_terminal_protocol::ExitResult;
+    for (end, english, chinese) in [
+        (
+            TerminalEnd::Exited(ExitResult::ExitCode(0)),
+            "Exited 0",
+            "已退出 0",
+        ),
+        (
+            TerminalEnd::Exited(ExitResult::ExitCode(u32::MAX)),
+            "Exited 4294967295",
+            "已退出 4294967295",
+        ),
+        (
+            TerminalEnd::Exited(ExitResult::Signal(u32::MAX)),
+            "Signal 4294967295",
+            "信号 4294967295",
+        ),
+        (
+            TerminalEnd::Exited(ExitResult::Unknown(0)),
+            "Exit code unknown",
+            "退出码未知",
+        ),
+        (TerminalEnd::Failed, "Terminal failed", "终端运行故障"),
+    ] {
+        for (locale, expected) in [(Locale::EnUs, english), (Locale::ZhCn, chinese)] {
+            let text = locale.terminal_end_compact(end);
+            assert_eq!(text, expected);
+            assert!(crate::terminal_text::display_width(&text) <= 20);
+        }
+    }
+}
+
+#[test]
 fn agent_start_preserves_the_caller_context_usage_hint() {
     let mut failure = crate::cli::Failure::new(crate::cli::FailureKind::InvalidUsage)
         .failure_schema("orchbee.cli.failure.agent-start");

@@ -6,16 +6,25 @@ use std::ffi::OsString;
 fn every_help_path_parses_and_renders_in_both_languages() {
     let declared_flag = regex::Regex::new(r"--[a-z][a-z-]*").unwrap();
     for path in help_paths() {
-        for words in [
+        let mut invocations = vec![
             std::iter::once("help")
                 .chain(path.words().iter().copied())
                 .collect::<Vec<_>>(),
-            path.words()
-                .iter()
-                .copied()
-                .chain(std::iter::once("--help"))
-                .collect(),
-        ] {
+        ];
+        for flag in ["-h", "--help"] {
+            for index in 0..=path.words().len() {
+                let mut words = path.words().to_vec();
+                words.insert(index, flag);
+                invocations.push(words);
+            }
+            invocations.push(
+                std::iter::once("help")
+                    .chain(path.words().iter().copied())
+                    .chain([flag])
+                    .collect(),
+            );
+        }
+        for words in invocations {
             assert_eq!(
                 parse_request(words.iter().map(OsString::from)),
                 Ok(Request::Help(path.topic())),
@@ -27,6 +36,7 @@ fn every_help_path_parses_and_renders_in_both_languages() {
             assert!(!text.contains('\x1b'));
             assert!(!text.contains('\t'));
             assert!(text.ends_with('\n'));
+            assert!(text.contains("-h, --help"), "{text}");
             assert!(
                 text.lines()
                     .all(|line| ratatui::text::Line::from(line).width() <= 78),
@@ -140,10 +150,34 @@ fn root_help_uses_the_same_bounded_plain_text_sink() {
         assert!(text.starts_with("Orchbee\n"));
         assert!(text.contains("orchbee workspace create"));
         assert!(text.contains("--skill"));
+        assert!(text.contains("-v, -V, --version"));
         assert!(!text.contains('\x1b'));
         assert!(
             text.lines()
                 .all(|line| ratatui::text::Line::from(line).width() <= 78)
+        );
+    }
+}
+
+#[test]
+fn server_help_exposes_existing_stop_and_its_confirmation_boundary() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let page = help(HelpTopic::Family(crate::invocation::Family::Server), locale);
+        assert!(page.contains("stop"), "{page}");
+        assert!(page.contains("stop-status"), "{page}");
+        assert!(page.contains("--confirm"), "{page}");
+        let command = help(HelpTopic::Command(CommandPath::SiteStop), locale);
+        assert!(
+            command.contains("orchbee server stop --confirm"),
+            "{command}"
+        );
+        assert!(
+            command
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .contains("server stop-status <id>"),
+            "{command}"
         );
     }
 }

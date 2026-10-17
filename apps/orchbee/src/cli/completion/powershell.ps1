@@ -45,7 +45,7 @@ __ORCHBEE_GRAMMAR__
             $pending = ''
             continue
         }
-        if ($word -cin @('--help', '-h', '--version', '--skill'__ORCHBEE_DEFAULT_CONFIG_PS__)) { return }
+        if ($word -cin @('--help', '-h', '--version', '-v', '-V', '--skill'__ORCHBEE_DEFAULT_CONFIG_PS__)) { return }
         if ($word.StartsWith('-') -and $word.Length -gt 1) {
             $pair = $word.Split([char[]]@('='), 2, [System.StringSplitOptions]::None)
             $flag = $pair[0]
@@ -202,7 +202,7 @@ __ORCHBEE_GRAMMAR__
                 if ($machine) {
                     $candidates.Add('help')
                 } else {
-                    $candidates.AddRange([string[]]@('help', 'completion', '--version', '--skill'))
+                    $candidates.AddRange([string[]]@('help', 'completion', '--version', '-v', '-V', '--skill'))
                     __ORCHBEE_DEFAULT_CONFIG_OFFER_PS__
                 }
             }

@@ -1,6 +1,14 @@
 //! Shared observable completion obligations, independent of shell syntax.
 
 pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
+    ("orchbee -", "-v", true),
+    ("orchbee -", "-V", true),
+    ("orchbee server -", "-v", false),
+    ("orchbee server stop -", "-V", false),
+    ("orchbee --format json -", "-v", false),
+    ("orchbee -v ", "server", false),
+    ("orchbee -V ", "server", false),
+    ("orchbee -- -", "-v", false),
     #[cfg(windows)]
     (
         "orchbee session attach audit --mouse off --h",

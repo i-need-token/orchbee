@@ -56,7 +56,9 @@ fn command(path: CommandPath, locale: Locale) -> Document {
             .map(|flag| {
                 let (value, description) = locale.cli_help_option(path, flag);
                 Row {
-                    label: if value.is_empty() {
+                    label: if flag == "--help" {
+                        "-h, --help".into()
+                    } else if value.is_empty() {
                         flag.to_owned()
                     } else {
                         format!("{flag} {value}")

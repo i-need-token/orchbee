@@ -948,6 +948,7 @@ impl Locale {
     pub(crate) fn native_status(
         self,
         view: &crate::terminal_session::NativeSessionView<'_>,
+        columns: u16,
     ) -> String {
         #[cfg(windows)]
         if let Some(notice) = view.worktree_notice() {
@@ -970,7 +971,15 @@ impl Locale {
                     && view.selected_provenance()
                         == Some(crate::terminal_session::NativeDisplayProvenance::Failed))
         {
-            return self.native_phase_status(view);
+            let status = self.native_phase_status(view);
+            if crate::terminal_text::display_width(&status) > usize::from(columns)
+                && let Some(end) = view
+                    .focus_panel_id()
+                    .and_then(|panel| view.terminal_end(panel))
+            {
+                return self.terminal_end_compact(end);
+            }
+            return status;
         }
         #[cfg(windows)]
         if view.notice().is_none()

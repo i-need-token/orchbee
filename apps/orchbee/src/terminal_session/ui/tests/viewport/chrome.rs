@@ -192,6 +192,11 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
                 )
                 .unwrap();
                 assert_eq!(
+                    pane.y, areas.panel.y,
+                    "no single-pane title row is reserved"
+                );
+                assert_eq!(pane.height, areas.panel.height);
+                assert_eq!(
                     pane.bottom(),
                     height,
                     "ordinary content reaches the host bottom"
@@ -222,6 +227,11 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
                 };
                 let hits = paint(&mut terminal, &view);
                 let ordinary = terminal.backend().buffer().clone();
+                assert_eq!(ordinary[(pane.x, pane.y)].symbol(), "x");
+                assert!(matches!(
+                    hits.hit_target_at(pane.x, pane.y),
+                    Some(HitTarget::Pane { content, .. }) if content == &pane
+                ));
                 assert_eq!(ordinary[(pane.x, height - 1)].symbol(), "x");
                 assert!(matches!(
                     hits.hit_target_at(pane.x, height - 1),
@@ -265,6 +275,123 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
                     "the complete terminal and settings row restore"
                 );
                 assert_eq!(project_shell_areas(area, view.sidebar_surface()), areas);
+            }
+        }
+    }
+}
+
+#[test]
+fn ended_single_terminal_keeps_exit_feedback_in_status_without_restoring_a_title_row() {
+    use orchbee_terminal_protocol::{
+        CURRENT_PROTOCOL_VERSION, CreationId, Envelope, ExitResult, LifecycleControl, MessageRole,
+        PayloadEncoding, TerminalExited, TerminalId, TerminalIdentity, encode_lifecycle_control,
+        encode_transport_envelope,
+    };
+
+    for code in [0, 7, u32::MAX] {
+        for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (20, 5)] {
+            for locale in [Locale::EnUs, Locale::ZhCn] {
+                for theme in [Theme::terminal_native(), Theme::one_light()] {
+                    let (mut ui, _, _, _) = controlling_ui();
+                    let mut view = ClientView::new(width);
+                    view.machines.available = true;
+                    let areas =
+                        project_shell_areas(Rect::new(0, 0, width, height), view.sidebar_surface());
+                    let pane = crate::tui_shell::active_pane_area(
+                        &areas,
+                        Some(TerminalSessionView::Native(ui.view())),
+                    )
+                    .unwrap();
+                    let key = install_projection(&mut ui, None, 0);
+                    let projection = projection_at(&mut ui, &key);
+                    let mut content = frame(&projection.value, 0, false, pane.height);
+                    content.geometry.columns = pane.width;
+                    content.geometry.rows = pane.height;
+                    projection.value.install_frame_for_test(content);
+                    let end = encode_lifecycle_control(&LifecycleControl::TerminalExited(
+                        TerminalExited {
+                            identity: TerminalIdentity {
+                                creation_id: CreationId::from_bytes([9; 16]).unwrap(),
+                                host_epoch: *projection.value.epoch(),
+                                terminal_id: TerminalId::from_bytes(7_003u128.to_be_bytes())
+                                    .unwrap(),
+                            },
+                            final_revision: 1,
+                            exit: ExitResult::ExitCode(code),
+                        },
+                    ))
+                    .unwrap();
+                    let record = encode_transport_envelope(&Envelope {
+                        protocol: CURRENT_PROTOCOL_VERSION,
+                        role: MessageRole::Event,
+                        kind: end.kind,
+                        payload_encoding: PayloadEncoding::ControlJson,
+                        host_epoch: Some(*projection.value.epoch()),
+                        correlation_id: None,
+                        optional_message: false,
+                        payload: &end.payload,
+                    })
+                    .unwrap();
+                    assert_eq!(projection.value.receive_lifecycle(&record), Ok(true));
+                    assert_eq!(
+                        ui.view().phase(),
+                        crate::terminal_session::NativeDisplayPhase::Ready
+                    );
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    for _ in 0..2 {
+                        let mut hits = HitMapBuilder::new();
+                        terminal
+                            .draw(|frame| {
+                                crate::tui_render::render_terminal_shell(
+                                    frame,
+                                    &view,
+                                    locale,
+                                    Some(TerminalSessionView::Native(ui.view())),
+                                    &theme,
+                                    &mut hits,
+                                );
+                            })
+                            .unwrap();
+                        let end = crate::terminal_projection::TerminalEnd::Exited(
+                            ExitResult::ExitCode(code),
+                        );
+                        let full = locale.terminal_end(end);
+                        let expected = if crate::terminal_text::display_width(&full)
+                            <= usize::from(areas.status.width)
+                        {
+                            full
+                        } else {
+                            locale.terminal_end_compact(end)
+                        };
+                        let buffer = terminal.backend().buffer();
+                        let mut status = String::new();
+                        let mut x = areas.status.x;
+                        while x < areas.status.right() {
+                            let symbol = buffer[(x, areas.status.y)].symbol();
+                            status.push_str(symbol);
+                            x += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
+                                .unwrap();
+                        }
+                        assert!(
+                            status.contains(&expected),
+                            "{locale:?} {width}x{height}: {status}"
+                        );
+                        assert_eq!(buffer[(pane.x, pane.y)].symbol(), "x");
+                        assert_eq!(pane.y, areas.panel.y);
+                        assert!(!terminal.backend().cursor_visible());
+                        assert!(matches!(
+                            hits.finish().hit_target_at(pane.x, areas.status.y),
+                            Some(HitTarget::OverlaySurface)
+                        ));
+                        assert_eq!(
+                            crate::tui_shell::active_pane_area(
+                                &areas,
+                                Some(TerminalSessionView::Native(ui.view()))
+                            ),
+                            Some(pane)
+                        );
+                    }
+                }
             }
         }
     }

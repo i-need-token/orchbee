@@ -1,4 +1,3 @@
-use super::super::tests::move_membership::ready_ui;
 use super::super::*;
 use crate::{
     client_view::ClientView,
@@ -146,11 +145,17 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                 let hits = hits.finish();
                 let area = area.unwrap();
                 assert_eq!(area.x, areas.panel.x);
+                assert_eq!(area.y, areas.panel.y);
                 assert_eq!(area.width + 1, areas.panel.width);
+                assert_eq!(area.height, areas.panel.height);
                 assert_eq!(area.bottom(), height);
                 if areas.tier.shows_panel_frame() {
-                    assert_eq!(area.y, areas.panel.y + 1);
                     assert_eq!(text.matches("orchbee").count(), 1, "{text}");
+                    assert!(
+                        !text.contains(&format!("{} 1", locale.shell().panel_title)),
+                        "{text}"
+                    );
+                    assert!(text.contains(locale.menu_title()), "{text}");
                     let tab_x = (areas.tabs.x..areas.tabs.right())
                         .find(|x| {
                             matches!(
@@ -214,11 +219,18 @@ fn paint(
         .collect()
 }
 #[test]
-fn actual_single_panel_header_paints_reports_and_rejects_stale_workbench_scope() {
-    let (mut ui, _, _, _) = ready_ui();
+fn split_panel_headers_paint_reports_and_reject_stale_workbench_scope() {
+    let mut source = super::super::tests::publication_hint::split_snapshot(1);
+    let orchbee_workbench_protocol::PanelNode::Split { orientation, .. } =
+        &mut source.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    *orientation = orchbee_workbench_protocol::PanelOrientation::Vertical;
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row=PanelReport { report:Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null,"session":null})).unwrap()),
-        metadata:serde_json::from_value(json!({"title":"Approval title","displayAgent":"Review Agent","stateLabels":{"blocked":"Review needed"}})).unwrap(),tokens:serde_json::from_value(json!({"branch":"test"})).unwrap() };
+        metadata:serde_json::from_value(json!({"title":"Approval title","displayAgent":"Agent","stateLabels":{"blocked":"Review needed"}})).unwrap(),tokens:serde_json::from_value(json!({"branch":"test"})).unwrap() };
     let rows = scope
         .panels
         .iter()
@@ -243,7 +255,7 @@ fn actual_single_panel_header_paints_reports_and_rejects_stale_workbench_scope()
                 (19, 4, false),
             ] {
                 let text = paint(&ui, width, height, locale, &theme);
-                for label in ["Approval title", "Review needed", "Review Agent"] {
+                for label in ["Approval title", "Review needed", "Agent"] {
                     assert_eq!(text.contains(label), framed, "{width}x{height}: {text}");
                 }
                 if width == 120 {
@@ -271,14 +283,66 @@ fn actual_single_panel_header_paints_reports_and_rejects_stale_workbench_scope()
 }
 
 #[test]
+fn single_panel_reports_stay_observable_without_a_title_or_metadata_header() {
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
+    let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
+    let row = PanelReport {
+        report: Some(serde_json::from_value(json!({"agent":"grok","state":"blocked","authoritySource":null,"message":null,"session":null})).unwrap()),
+        metadata: serde_json::from_value(json!({"title":"Approval title","displayAgent":"Review Agent","stateLabels":{"blocked":"Review needed"}})).unwrap(),
+        tokens: serde_json::from_value(json!({"branch":"test"})).unwrap(),
+    };
+    ui.reports.publish_for_test(Round {
+        rows: scope
+            .panels
+            .iter()
+            .map(|panel| (panel.panel_id.clone(), row.clone()))
+            .collect(),
+        scope,
+    });
+    let native = ui.view();
+    assert!(
+        matches!(native.panel_report(native.tab(0).unwrap().panel(0).unwrap()),
+        crate::terminal_session::PanelReportView::Ready(observed)
+        if observed.metadata.title.as_ref().unwrap().as_str() == "Approval title")
+    );
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [
+            crate::tui_theme::Theme::terminal_native(),
+            crate::tui_theme::Theme::one_light(),
+        ] {
+            for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (19, 4)] {
+                let text = paint(&ui, width, height, locale, &theme);
+                for label in [
+                    "Approval title",
+                    "Review Agent",
+                    "Review needed",
+                    "branch=test",
+                ] {
+                    assert!(!text.contains(label), "{width}x{height}: {text}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn child_selection_discards_primary_report_and_paints_its_own_exact_observation() {
     use orchbee_workbench_protocol::{PanelNode, Presentation, TerminalPresentationId};
-    let mut source = super::super::tests::membership::snapshot(2, 1);
+    let mut source = super::super::tests::publication_hint::split_snapshot(1);
     let child_id = TerminalPresentationId::parse(&format!("{:032x}", 9000)).unwrap();
+    let PanelNode::Split {
+        children,
+        orientation,
+        ..
+    } = &mut source.terminal_contexts[0].tabs[0].root
+    else {
+        unreachable!()
+    };
+    *orientation = orchbee_workbench_protocol::PanelOrientation::Vertical;
     let PanelNode::Panel {
         child_presentations,
         ..
-    } = &mut source.terminal_contexts[0].tabs[0].root
+    } = &mut children[0].node
     else {
         unreachable!()
     };

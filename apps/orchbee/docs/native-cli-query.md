@@ -14,6 +14,10 @@ background service. An **Agent session** identifies one Agent conversation/runti
 uses `--agent-session <id>` or an ordinary Agent target. A protocol **Client Session** identifies
 one admitted connection; it is not a separate work environment.
 
+Use `orchbee server -h` to list service commands and `orchbee server stop -h` for confirmed
+shutdown and recovery options. In PowerShell, use `.\orchbee.exe server -h` from the binary's
+directory, or invoke its full path when it is not on `PATH`.
+
 | Previous spelling          | Canonical spelling               |
 | -------------------------- | -------------------------------- |
 | `--site <name>`            | `--session <name>`               |
@@ -972,7 +976,9 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   `agent integration` commands; a literal absolute path to a development/test
   adapter payload that replaces the packaged cohort source for that invocation.
   A relative path or a repeat is `invalid-usage`.
-- `--version`: legal only as the sole root invocation; any other position or company is usage.
+- `-v`, `-V`, `--version`: equivalent version options, legal only as the sole root invocation;
+  each prints the same `orchbee <version>` line and exits `0` offline. Combining them or adding
+  a command, help flag or output format is usage. Option values and tokens after `--` stay data.
 - `-h`/`--help`: one flag anywhere before `--`; selects an exact family or the longest
   recognized command path, ignoring operands and business requirements without effects.
 - `--` positionals: tokens after `--` are positional only, so `orchbee -- status` queries
@@ -983,7 +989,7 @@ Command paths (fixed words, no abbreviations or aliases):
 ```
 orchbee                         # bare → TUI (unchanged)
 orchbee tui [--mouse off|on]    # TUI
-orchbee --version               # version line (unchanged)
+orchbee -v|-V|--version         # version line
 orchbee -h|--help | orchbee help   # root help
 orchbee status
 orchbee status server | status client
@@ -1044,24 +1050,27 @@ orchbee help <recognized path>
 orchbee <recognized path> -h|--help
 ```
 
-Help topics: root; families `client`, `project`, `workspace`, `worktree`, `tab`, `panel`, `terminal`, `launch-profile`, `agent`,
-`agent integration`, `api`,
-`site`, `config`, `completion`; and every complete command path including `tui`. `help` takes only a recognized
-path (no filters, no format). A single `-h` or `--help` before `--` is the same request on the same path:
+Help topics include the root, every build-admitted family and complete command path including
+`tui`, and nested families such as `agent integration`, `terminal session`, and Windows `panel graphics`.
+`help` takes only a recognized path (no filters, no format); `help -h` and `help --help` show root
+help, and `help <path> -h|--help` preserves that exact path and option scope.
+A single `-h` or `--help` before `--` is the same request on the same path:
 `orchbee --help`, `project --help`, and `project get --help` emit exactly what `help`,
 `help project`, and `help project get` emit. Flag help also accepts supplied operands and
 recognized options (`project get x --format json --help` describes `project get` as text).
 It never applies those options or reads runtime state. Unknown options, missing values,
 duplicate options and unknown family verbs remain usage failures. Unlisted
 targets such as `help help`, `help version`, `help --version` are unknown paths → usage. Help,
-`--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `--default-config` never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
+`-v`/`-V`/`--version`, `--skill`, `completion`, `api schema` without `--output`, and Windows `--default-config` never touch platform, runtime, cohort, or Session state. Explicit Windows schema export touches only the caller-selected file destination and its owned sibling temporary.
 Help has three information levels, in both `en-US` and `zh-CN`:
 
 - Root help introduces Orchbee, shows a small set of common examples, groups each admitted
   top-level command once, and explains global options and how to descend.
 - Family help describes that resource and lists each direct child with its purpose. Nested
   families such as `agent view` and `panel graphics` have their own directories; child syntax
-  belongs on the child page. `completion` lists its supported shells.
+  belongs on the child page. `completion` lists its supported shells. Every family and command
+  page displays `-h, --help`; the `server` directory includes `stop` and `stop-status`, with
+  `--confirm` identified on `stop`.
 - Command help contains complete syntax, positional arguments, admitted options, an example,
   and the command's defaults, effects and constraints. `status` also links its child commands.
 
@@ -1073,8 +1082,11 @@ with a trailing newline, aligned by display cells and wrapped without splitting 
 clusters at 78 cells. Long labels use their own row. Examples identify their Shell, keep quoted operands intact, and use PowerShell or POSIX Shell continuation when a command spans rows. This width is deterministic in terminals
 and redirected output: help does not query a terminal, inspect `COLUMNS`, or read configuration
 or runtime state. Hosts narrower than 78 columns may wrap the text further themselves.
-Tests cover both locales, every admitted help path and option, directory coverage, 40/78/120-cell
-renderer inputs, and parsing the illustrative command examples without executing their effects.
+Tests cover both locales, both help flags at every position of every admitted path, completion/help
+command agreement, directory coverage, 40/78/120-cell renderer inputs, and parsing illustrative
+examples without executing their effects. `cli_windows_site_stop` additionally exercises the real
+binary's version aliases, nested help and missing stop confirmation with an unusable runtime base;
+the existing stop receipt witnesses retain the lifecycle safety checks.
 
 On Windows, `--default-config` must be the sole root argument and emits canonical UTF-8 TOML from the build without reading user configuration or runtime-selection environment.
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
@@ -1105,7 +1117,7 @@ loading. This proves static completion, not runtime target discovery or other op
 --cell-width <n> --cell-height <n>`; omitted, the command requests the default 80x24
 grid with unknown cell pixels (0,0).
 
-`help`, `completion`, `tui`, `--version`, `--skill`, the bare invocation, and Windows `--default-config` are fixed text outputs that do
+`help`, `completion`, `tui`, `-v`/`-V`/`--version`, `--skill`, the bare invocation, and Windows `--default-config` are fixed text outputs that do
 not accept `--format`; a single valid `--format=json` turns the resulting syntax failure into a
 JSON `invalid-usage` failure document, while a text/default failure keeps stdout empty. Data
 commands (`status`, all `list`/`get`, `workspace close-status`, `agent explain`,
@@ -2382,7 +2394,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 ## Invariants
 
 - A syntactically invalid invocation never touches the filesystem, cohort, or socket.
-- Offline commands (`help`, `--version`, `--skill`, `completion`, `api schema`, and Windows `--default-config`) never perform platform,
+- Offline commands (`help`, `-v`/`-V`/`--version`, `--skill`, `completion`, `api schema`, and Windows `--default-config`) never perform platform,
   runtime, cohort, or Session discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`/`terminal wait-output`, whose read-capability

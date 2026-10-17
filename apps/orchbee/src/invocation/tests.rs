@@ -405,6 +405,70 @@ fn accepts_legacy_root_forms() {
 }
 
 #[test]
+fn version_aliases_share_root_grammar_and_preserve_literal_diagnostics() {
+    for flag in ["-v", "-V", "--version"] {
+        assert_eq!(parse(&[flag]), Ok(Request::Version), "{flag}");
+        for arguments in [
+            vec![flag, "status"],
+            vec!["server", flag],
+            vec![flag, "--help"],
+            vec!["--help", flag],
+            vec![flag, flag],
+            vec![flag, "--version"],
+        ] {
+            let failure = parse(&arguments).unwrap_err();
+            assert!(
+                matches!(failure.usage, Some(UsageReason::MisplacedFlag { flag: literal, .. }) if literal == flag),
+                "{arguments:?}: {failure:?}"
+            );
+        }
+        for arguments in [
+            vec![flag, "--format=json"],
+            vec!["--format=json", flag],
+            vec![flag, "--confirm"],
+            vec![flag, "--mouse=off"],
+        ] {
+            assert!(parse(&arguments).is_err(), "{arguments:?}");
+        }
+        assert_eq!(
+            parse(&["project", "get", "--", flag]),
+            Ok(query(
+                QueryCommand::ProjectGet(Target::Label(flag.into())),
+                OutputFormat::Text
+            ))
+        );
+        assert_eq!(
+            parse(&["project", "rename", ID, "--label", flag]),
+            Ok(Request::Mutation {
+                command: MutationCommand::ProjectRename {
+                    target: Target::Id(ID.into()),
+                    label: label(flag),
+                },
+                format: OutputFormat::Text,
+            })
+        );
+    }
+}
+
+#[test]
+fn help_command_accepts_help_flags_without_relaxing_its_path_or_option_scope() {
+    for flag in ["-h", "--help"] {
+        assert_eq!(parse(&["help", flag]), Ok(Request::RootHelp));
+        assert_eq!(parse(&[flag, "help"]), Ok(Request::RootHelp));
+        for arguments in [
+            vec!["help", "help", flag],
+            vec!["help", "server", "stpo", flag],
+            vec!["help", "server", "stop", "extra", flag],
+            vec!["help", "server", "--format=json", flag],
+            vec!["help", "--", flag],
+            vec!["help", flag, flag],
+        ] {
+            assert!(parse(&arguments).is_err(), "{arguments:?}");
+        }
+    }
+}
+
+#[test]
 fn tui_mouse_option_parses_on_the_explicit_route() {
     assert_eq!(
         parse(&["tui", "--mouse", "off"]),
@@ -869,7 +933,6 @@ fn text_and_unselected_syntax_failures_stay_silent() {
         &["-x"],
         &["--unknown"],
         &["status", "--unknown"],
-        &["help", "--help"],
         &["help", "help"],
         &["help", "version"],
         &["help", "--version"],
