@@ -30,6 +30,17 @@ raw Ctrl+C 仍是应用输入。原生就绪计数与随后的一条记录读取
 针对外部消费者的原子预留。因此，有界读取契约要求外部读取器不得在两者之间排空同一控制台
 输入缓冲区；Client 的权威读取器在进程内部保证这个条件。
 
+UTF-16 文本先完成组装，再编码为 UTF-8。高代理项跨读取边界及无字符的键盘记录保持待定，
+包括修饰键和 IME/process-key 记录；ConPTY 携带字符的 Alt 释放记录与零虚拟键码文本共用
+同一组装路径。完整代理对按其重复次数输出一个标量，绝不输出两个替换字符。
+孤立低代理项、高代理项之后出现另一个文本／按键边界，或重复次数／修饰键元数据不一致时，
+读取以 `InvalidData` 拒绝，并走已有的本地化界面失败路径；非法输入不会成为保存的标签或
+Shell payload。空闲轮询不会完成或替换待定高代理项。用户直接输入的 U+FFFD 仍是普通文本。
+`windows_console_input/records/tests/unicode.rs` 覆盖原生记录分段、无字符记录交错及有界 UTF-8
+重复尾部；`terminal_session/ui/tests/input_provenance.rs` 和
+`terminal_session/state/tests/location_labels.rs` 覆盖精确重命名请求、字素编辑、取消及位置标签
+发布。这些受控实现见证不提供穷尽 TLC 保证，也不能证明真实窗口的字形渲染效果。
+
 raw mode 保持 `ENABLE_VIRTUAL_TERMINAL_INPUT` 开启并关闭 cooked 处理。关闭 VT 输入会让
 ConPTY 丢弃粘贴边界；用键盘布局查询解释零键码 ESC 也会丢失边界。指针租约单独拥有原生
 鼠标输入位及 VT 上报写入，因此 `--mouse off` 的 raw 准入不捕获鼠标。

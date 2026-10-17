@@ -147,7 +147,9 @@ impl History {
         }
         core.command_admitted();
         let effect = match step {
-            ViewportStep::Enter => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+            ViewportStep::Enter | ViewportStep::EnterTail => {
+                return Err(Failure::new(FailureKind::ProtocolInvalid));
+            }
             ViewportStep::Read {
                 origin,
                 row_count,

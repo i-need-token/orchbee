@@ -1061,8 +1061,14 @@ impl NativeExecutor {
         }
         let attachment_id = self.viewer_id_for(&key)?;
         let outcome = match step {
-            ViewportStep::Enter => {
-                let Some(outcome) = self.viewport_enter(lease, &key, &attachment_id, deadline)?
+            ViewportStep::Enter | ViewportStep::EnterTail => {
+                let demand = if step == ViewportStep::EnterTail {
+                    ProjectionDemand::Active
+                } else {
+                    ProjectionDemand::Paused
+                };
+                let Some(outcome) =
+                    self.viewport_enter(lease, &key, &attachment_id, demand, deadline)?
                 else {
                     return Ok(());
                 };
@@ -1276,7 +1282,8 @@ impl NativeExecutor {
         }
     }
 
-    /// `Enter`'s demand pair: `ViewingHistory` then `Paused`. A refused first
+    /// Entry's demand pair: `ViewingHistory` then the requested projection demand.
+    /// Manual history pauses frames; automatic tail must keep them active. A refused first
     /// leg settles `applied:false` without the second; a failed second leg
     /// runs the single reset leg (`FollowingBottom`), and a reset that fails
     /// or comes back unavailable faults the pane instead of guessing.
@@ -1285,6 +1292,7 @@ impl NativeExecutor {
         lease: &CommandLease,
         key: &PaneRef,
         attachment_id: &orchbee_client_server_protocol::ViewerId,
+        projection_demand: ProjectionDemand,
         deadline: Instant,
     ) -> ReadyResult<Option<ViewportOutcome>> {
         let applied = self.viewport_leg(
@@ -1304,7 +1312,7 @@ impl NativeExecutor {
                 key,
                 TerminalViewerAction::SetProjectionDemand {
                     attachment_id: attachment_id.clone(),
-                    demand: ProjectionDemand::Paused,
+                    demand: projection_demand,
                 },
                 deadline,
             )? {

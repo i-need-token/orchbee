@@ -1,7 +1,12 @@
 use super::*;
+use crate::{
+    client_view::ClientView, localization::Locale, terminal_session::TerminalSessionView,
+    tui_pointer::HitMapBuilder, tui_theme::Theme,
+};
 use orchbee_terminal_protocol::{
     HistoryAnchorStatus, HistoryChanged, TerminalTextFrame, TerminalTextStyle,
 };
+use ratatui::{Terminal, backend::TestBackend, style::Color};
 use std::num::NonZeroU64;
 
 fn fixture() -> (NativeUi, PaneRef, Arc<CommandMailbox>) {
@@ -33,6 +38,12 @@ fn fixture() -> (NativeUi, PaneRef, Arc<CommandMailbox>) {
 
 fn install_tail(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>) {
     assert!(ui.drive_terminal_tails(mailbox));
+    let lease = mailbox.try_recv().unwrap().expect("tail entry");
+    assert!(matches!(
+        lease.record(),
+        QueuedCommand::Viewport(tagged) if tagged.key() == key && tagged.value() == &ViewportStep::EnterTail
+    ));
+    mailbox.finish_lease(lease).unwrap();
     let frame = ui.projections[0].value.frame().unwrap().clone();
     let core = ui.projections[0].viewport.as_mut().unwrap();
     core.enter_outcome(true);
@@ -44,26 +55,54 @@ fn install_tail(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>)
         anchor_status: HistoryAnchorStatus::Valid,
         total_rows: frame.scrollback_rows + u64::from(frame.geometry.rows),
     });
+    serve_tail_window(ui, key, mailbox);
+}
+
+fn serve_tail_window(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>) {
+    let frame = ui.projections[0].value.frame().unwrap().clone();
+    let target = Target::capture(&frame).unwrap();
+    let core = ui.projections[0].viewport.as_mut().unwrap();
+    let step = if let Some(step) = core.peek_command() {
+        core.command_admitted();
+        step
+    } else {
+        let lease = mailbox.try_recv().unwrap().expect("admitted tail read");
+        let QueuedCommand::Viewport(tagged) = lease.record() else {
+            panic!("viewport read");
+        };
+        assert_eq!(tagged.key(), key);
+        let step = *tagged.value();
+        mailbox.finish_lease(lease).unwrap();
+        step
+    };
     let ViewportStep::Read {
-        request_sequence, ..
-    } = core.peek_command().unwrap()
+        request_sequence,
+        revision,
+        ..
+    } = step
     else {
         panic!("read");
     };
-    core.command_admitted();
+    assert_eq!(revision, frame.route.revision);
     let mut rows = frame.rows.clone();
-    for row in &mut rows {
-        row.cells[0].text = "h".into();
+    for (index, row) in rows.iter_mut().enumerate() {
+        if index < usize::try_from(target.rows_before).unwrap() {
+            row.cells[0].text = "h".into();
+        } else {
+            row.cells = frame.rows[index - usize::try_from(target.rows_before).unwrap()]
+                .cells
+                .clone();
+        }
     }
     let window = ViewportWindow {
         route: orchbee_terminal_protocol::TerminalRowWindowRoute {
             attachment_id: frame.route.attachment_id,
             host_epoch: frame.route.host_epoch,
             sequence: request_sequence,
-            revision: 1,
+            revision: frame.route.revision,
             generation: frame.route.generation,
-            total_rows: 33,
-            start_row: 0,
+            total_rows: frame.scrollback_rows + u64::from(frame.geometry.rows),
+            start_row: frame.scrollback_rows - u64::from(target.rows_before),
             columns: 80,
             row_count: 24,
             detail: orchbee_terminal_protocol::RowWindowDetail::Render,
@@ -85,6 +124,90 @@ fn install_tail(ui: &mut NativeUi, key: &PaneRef, mailbox: &Arc<CommandMailbox>)
     ));
     core.command_admitted();
     core.ack_outcome(request_sequence, true);
+}
+
+fn paint(ui: &NativeUi, locale: Locale, theme: &Theme) -> ratatui::buffer::Buffer {
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    terminal
+        .draw(|frame| {
+            crate::tui_render::render_terminal_shell(
+                frame,
+                &ClientView::new(120),
+                locale,
+                Some(TerminalSessionView::Native(ui.view())),
+                theme,
+                &mut HitMapBuilder::new(),
+            );
+        })
+        .unwrap();
+    terminal.backend().buffer().clone()
+}
+
+#[test]
+fn in_place_text_and_color_updates_replace_a_cropped_frame_without_manual_refresh() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
+            let (mut ui, key, mailbox) = fixture();
+            let mut frame = ui.projections[0].value.frame().unwrap().clone();
+            frame.rows[0].cells[0].text = "2".into();
+            frame.rows[0].cells[0].style.foreground = 0xff0000;
+            ui.projections[0]
+                .value
+                .install_frame_for_test(frame.clone());
+            install_tail(&mut ui, &key, &mailbox);
+            assert!(
+                paint(&ui, locale, &theme)
+                    .content
+                    .iter()
+                    .any(|cell| { cell.symbol() == "2" && cell.fg == Color::Rgb(255, 0, 0) })
+            );
+
+            frame.route.revision = 2;
+            frame.route.sequence = NonZeroU64::new(2).unwrap();
+            frame.rows[0].cells[0].text = "3".into();
+            frame.rows[0].cells[0].style.foreground = 0x00ff00;
+            ui.projections[0]
+                .value
+                .install_frame_for_test(frame.clone());
+            ui.projections[0]
+                .viewport
+                .as_mut()
+                .unwrap()
+                .facts(HistoryChanged {
+                    attachment_id: frame.route.attachment_id,
+                    sequence: NonZeroU64::new(2).unwrap(),
+                    revision: frame.route.revision,
+                    generation: frame.route.generation,
+                    anchor_status: HistoryAnchorStatus::Valid,
+                    total_rows: frame.scrollback_rows + u64::from(frame.geometry.rows),
+                });
+            assert!(ui.view().pane_tail_window(key.pane().panel()).is_none());
+            assert!(ui.drive_terminal_tails(&mailbox));
+            // The old window cannot paint while a current crop is being acquired.
+            let pending = paint(&ui, locale, &theme);
+            assert!(
+                pending
+                    .content
+                    .iter()
+                    .any(|cell| { cell.symbol() == "3" && cell.fg == Color::Rgb(0, 255, 0) })
+            );
+            assert!(
+                !pending
+                    .content
+                    .iter()
+                    .any(|cell| { cell.symbol() == "2" && cell.fg == Color::Rgb(255, 0, 0) })
+            );
+
+            serve_tail_window(&mut ui, &key, &mailbox);
+            assert!(ui.view().pane_tail_window(key.pane().panel()).is_some());
+            assert!(
+                paint(&ui, locale, &theme)
+                    .content
+                    .iter()
+                    .any(|cell| { cell.symbol() == "3" && cell.fg == Color::Rgb(0, 255, 0) })
+            );
+        }
+    }
 }
 
 #[test]

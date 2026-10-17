@@ -10,6 +10,15 @@ Bundled TOML files are retained under `resources/agent-detection` with their Apa
 
 The bundled Devin Thinking rule requires an anchored live footer with elapsed time and an interrupt hint; a transcript mention or the word Thinking alone is insufficient. Screen manifests reject `done` and `error`: those outcomes require explicit state authority, not text inference.
 
+The bundled Grok rules extend the pinned reference with browser authentication chrome from Grok
+Build `2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8`. An anchored approval/login waiting caption plus
+authentication context is a visible blocker and outranks idle or busy OSC signals. A caption
+without that context stays unknown through `browser_login_unconfirmed`, rather than claiming
+readiness from a generic title. Replacing the login screen with the ready composer permits idle
+again; process exit keeps its existing precedence. `agent_screen/tests.rs` covers context, clipped
+context, separate OSC conflicts, transcript mentions and the ready-screen replacement. This is
+physical-screen fallback and never creates or changes a canonical Agent Session.
+
 ## Deterministic decisions
 
 | Input or match                          | Result                                                                                                    |

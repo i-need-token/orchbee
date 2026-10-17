@@ -156,10 +156,17 @@ impl Pending {
 
 #[derive(Default)]
 struct Codec {
-    high: Option<u16>,
+    high: Option<Surrogate>,
     prefix_down: bool,
     buttons: u8,
 }
+
+struct Surrogate {
+    unit: u16,
+    repeat: u16,
+    modifiers: KeyModifiers,
+}
+
 impl Codec {
     fn record(
         &mut self,
@@ -169,14 +176,14 @@ impl Codec {
         let mut bytes = Vec::new();
         match record {
             InputRecord::Key(key) => {
-                return Ok(self.key(
+                return self.key(
                     key.virtual_key_code,
                     key.utf16_unit,
                     key.key_down,
                     key.repeat_count,
                     modifiers(key.control_key_state),
                     key.control_key_state & 1 != 0 && key.control_key_state & 12 != 0,
-                ));
+                );
             }
             InputRecord::Focus(focused) => encode(
                 if focused {
@@ -287,46 +294,53 @@ impl Codec {
         repeat: u16,
         mut mods: KeyModifiers,
         alt_graph: bool,
-    ) -> Option<Pending> {
+    ) -> io::Result<Option<Pending>> {
         if vk == 0x42 && !down {
             self.prefix_down = false;
         }
         let alt_code = vk == 0x12 && !down && unit != 0;
         if !down && !alt_code {
-            return None;
+            return Ok(None);
         }
         if matches!(vk, 0x10..=0x12) && !alt_code {
-            return None;
+            return Ok(None);
         }
         let is_prefix = vk == 0x42 && unit == 2;
         if is_prefix && std::mem::replace(&mut self.prefix_down, true) {
-            return None;
+            return Ok(None);
         }
         let mut bytes = Vec::new();
         // VK=0 denotes already translated VT characters, including literal C0.
         if vk == 0 || alt_graph || alt_code {
             mods = KeyModifiers::NONE;
         }
+        let repeat = repeat.max(1);
         if (0xd800..=0xdbff).contains(&unit) {
-            if self.high.replace(unit).is_some() {
-                bytes.extend_from_slice("�".as_bytes());
+            if self.high.take().is_some() {
+                return Err(io::ErrorKind::InvalidData.into());
             }
-            return Pending::new(bytes, 1);
+            self.high = Some(Surrogate {
+                unit,
+                repeat,
+                modifiers: mods,
+            });
+            return Ok(None);
         }
         if (0xdc00..=0xdfff).contains(&unit) {
-            let ch = self
-                .high
-                .take()
-                .and_then(|high| char::decode_utf16([high, unit]).next()?.ok())
-                .unwrap_or('�');
+            let high = self.high.take().ok_or(io::ErrorKind::InvalidData)?;
+            if high.repeat != repeat || high.modifiers != mods {
+                return Err(io::ErrorKind::InvalidData.into());
+            }
+            // Both ranges were checked, so decoding must yield exactly one scalar.
+            let ch = char::decode_utf16([high.unit, unit])
+                .next()
+                .expect("checked surrogate pair")
+                .expect("checked high and low surrogate ranges");
             encode(
                 Event::Key(KeyEvent::new(KeyCode::Char(ch), mods)),
                 &mut bytes,
             );
-            return Pending::new(bytes, repeat.max(1));
-        }
-        if self.high.take().is_some() {
-            bytes.extend_from_slice("�".as_bytes());
+            return Ok(Pending::new(bytes, repeat));
         }
         let special = match vk {
             8 => Some(KeyCode::Backspace),
@@ -347,21 +361,25 @@ impl Codec {
             112..=123 => Some(KeyCode::F((vk - 111) as u8)),
             _ => None,
         };
-        if let Some(key) = special {
-            encode(Event::Key(KeyEvent::new(key, mods)), &mut bytes);
+        let code = if let Some(key) = special {
+            key
         } else if unit != 0
             || vk == 0
             || (mods.contains(KeyModifiers::CONTROL) && matches!(vk, 32 | 50))
         {
-            encode(
-                Event::Key(KeyEvent::new(
-                    KeyCode::Char(char::from_u32(u32::from(unit)).expect("non-surrogate u16")),
-                    mods,
-                )),
-                &mut bytes,
-            );
+            KeyCode::Char(char::from_u32(u32::from(unit)).expect("non-surrogate u16"))
+        } else {
+            // A key record without text or a supported key is metadata, not a
+            // Unicode boundary. IME/process-key records may separate a pair.
+            return Ok(None);
+        };
+        if self.high.take().is_some() {
+            // Never manufacture replacement text that a pane or editor could
+            // accept. The existing input-error path refuses this read instead.
+            return Err(io::ErrorKind::InvalidData.into());
         }
-        Pending::new(bytes, if is_prefix { 1 } else { repeat.max(1) })
+        encode(Event::Key(KeyEvent::new(code, mods)), &mut bytes);
+        Ok(Pending::new(bytes, if is_prefix { 1 } else { repeat }))
     }
 }
 fn modifiers(state: u32) -> KeyModifiers {

@@ -15,6 +15,7 @@ mod startup_directory;
 mod startup_preference;
 mod switch_membership;
 mod tab_move;
+mod viewport;
 mod workspace_close;
 mod workspace_setup;
 

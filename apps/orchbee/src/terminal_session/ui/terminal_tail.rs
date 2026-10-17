@@ -118,7 +118,7 @@ impl NativeUi {
             let (columns, rows) = (frame.geometry.columns, frame.geometry.rows);
             match mailbox.try_enqueue(QueuedCommand::Viewport(Tagged::new(
                 key.clone(),
-                ViewportStep::Enter,
+                ViewportStep::EnterTail,
             ))) {
                 Ok(_) => {
                     let projection = &mut self.projections[index];

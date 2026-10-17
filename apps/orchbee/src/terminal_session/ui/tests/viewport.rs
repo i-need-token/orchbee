@@ -354,6 +354,7 @@ fn recv_wire(mailbox: &CommandMailbox) -> Vec<WireCmd> {
         match lease.record() {
             QueuedCommand::Viewport(tagged) => commands.push(match tagged.value() {
                 ViewportStep::Enter => WireCmd::Enter(tagged.key().clone()),
+                ViewportStep::EnterTail => panic!("manual history must pause live projection"),
                 ViewportStep::Recover => WireCmd::Recover(tagged.key().clone()),
                 ViewportStep::Read {
                     request_sequence, ..

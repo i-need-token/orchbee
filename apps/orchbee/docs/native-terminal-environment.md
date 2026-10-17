@@ -36,6 +36,20 @@ external consumer. The bounded-read contract therefore requires that no outside 
 same console input buffer between them; the canonical Client reader enforces that condition inside
 the process.
 
+UTF-16 text is assembled before UTF-8 encoding. A high surrogate stays pending across read
+boundaries and character-free key records, including modifier and IME/process-key records;
+ConPTY's character-bearing Alt releases use the same assembly path as zero-virtual-key text.
+The completed pair emits one scalar with its repeat count, never two replacement characters.
+An unpaired low surrogate, a high surrogate followed by another text/key boundary, or mismatched
+repeat/modifier metadata refuses the read with `InvalidData` through the existing localized
+interface-failure path; malformed input cannot become a saved label or shell payload. An idle
+poll does not complete or replace a pending high surrogate. A literal user-supplied U+FFFD remains
+ordinary text. `windows_console_input/records/tests/unicode.rs` covers native record splits,
+character-free interleaving and bounded UTF-8 repeat tails; `terminal_session/ui/tests/input_provenance.rs`
+and `terminal_session/state/tests/location_labels.rs` cover exact rename requests, grapheme editing,
+cancel and location-label publication. These controlled implementation witnesses do not provide
+exhaustive TLC assurance or establish real-window glyph rendering.
+
 Raw mode keeps `ENABLE_VIRTUAL_TERMINAL_INPUT` enabled and disables cooked processing. Turning VT
 input off lets ConPTY discard paste delimiters; interpreting its zero-key-code ESC through a
 keyboard-layout lookup also loses the boundary. The pointer lease separately owns the native

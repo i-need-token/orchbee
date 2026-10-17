@@ -96,7 +96,7 @@ fn location_rename_prefills_canonical_text_and_cancel_does_not_change_target_or_
         );
         state.acknowledge_setup_draw(Some(token));
         state.edit_setup_draft(token, Edit::Clear);
-        state.edit_setup_draft(token, Edit::Append(&"雪".repeat(512)));
+        state.edit_setup_draft(token, Edit::Append(&"🚀".repeat(512)));
         assert_eq!(state.setup_draft().unwrap().token(), token);
         assert!(!state.setup_draft().unwrap().faulted());
         state.edit_setup_draft(token, Edit::Append("x"));
@@ -197,12 +197,22 @@ fn location_label_receipts_require_exact_owner_original_text_and_checked_revisio
 }
 #[test]
 fn exact_location_label_snapshot_changes_only_the_named_label_and_preserves_ready_viewer() {
+    let label = "  A中𠮷🚀B  ";
     for target in [Target::Project, Target::Workspace] {
         for changed in [false, true] {
             let mut state = live(1, 1);
             let old = state.desired().cloned();
             let frame = state.focus_accepted_frame().clone();
-            let operation = operation(&mut state, target, changed.then_some("  renamed 雪  "), 1);
+            let operation = operation(&mut state, target, changed.then_some(label), 1);
+            if changed {
+                match &operation.command.action {
+                    WorkbenchAction::ProjectRename { label: value, .. }
+                    | WorkbenchAction::WorkspaceRename { label: value, .. } => {
+                        assert_eq!(value.as_str(), label);
+                    }
+                    _ => panic!("a location rename request"),
+                }
+            }
             let known = operation
                 .known_commit(receipt(target, if changed { 2 } else { 1 }, !changed))
                 .unwrap();
@@ -210,7 +220,7 @@ fn exact_location_label_snapshot_changes_only_the_named_label_and_preserves_read
             state.retain_setup_worker(SetupWorkerEvidence::Known(known));
             let mut snapshot = workspace_snapshot(if changed { 2 } else { 1 }, 1);
             if changed {
-                set_label(&mut snapshot, target, "  renamed 雪  ");
+                set_label(&mut snapshot, target, label);
             }
             assert_eq!(
                 finish(&mut state, snapshot, 1),

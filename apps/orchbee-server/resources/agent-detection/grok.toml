@@ -1,7 +1,7 @@
 id = "grok"
-version = "2026.09.18.2"
+version = "2026.10.16.1"
 min_engine_version = 3
-updated_at = "2026-09-18T00:00:00Z"
+updated_at = "2026-10-16T00:00:00Z"
 aliases = ["grok-build"]
 
 # Evidence: Grok Build 0.2.101 source and 1.0.34 live pane reads.
@@ -36,6 +36,34 @@ priority = 1300
 region = "osc_title"
 visible_blocker = true
 contains = ["Action Required"]
+
+# Orchbee extension: Grok Build 2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8,
+# welcome/mod.rs render_browser_status_arm and minimal auth.rs render_auth.
+# Login clears busy OSC signals before the composer is ready. Require the
+# anchored waiting caption plus authentication chrome, rather than a generic
+# mention of approval in conversation or an idle OSC title/progress signal.
+[[rules]]
+id = "browser_login_blocked"
+state = "blocked"
+priority = 1250
+region = "whole_recent"
+visible_blocker = true
+line_regex = ['^\s*Waiting for (?:approval(?:\.{3}|…)|login to complete\.{3})\s*$']
+any = [
+	{ contains = ["Approve in your browser to finish signing in."] },
+	{ contains = ["A browser window will open for authentication."] },
+	{ contains = ["Sign in to Grok"] },
+	{ contains = ["ctrl+q", "go back"] },
+]
+
+# A clipped login screen can lose its context. Do not turn the remaining
+# waiting caption into readiness merely because the title still says grok.
+[[rules]]
+id = "browser_login_unconfirmed"
+state = "unknown"
+priority = 1240
+region = "whole_recent"
+line_regex = ['^\s*Waiting for (?:approval(?:\.{3}|…)|login to complete\.{3})\s*$']
 
 [[rules]]
 id = "option_dialog_blocked"

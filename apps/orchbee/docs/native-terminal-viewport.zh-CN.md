@@ -34,12 +34,17 @@ Windows 快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定
 提示标记、光标行、带样式的背景／下划线及图形阻止裁剪。
 返回窗口必须匹配实时 attachment、epoch、generation、revision、几何与预期起始行，才可绘制。
 过期、待处理或失败读取保持精确实时网格；未变的失败目标不重试。
+自动进入时保持投影 demand 为 `Active`：保留行租约存在期间，原地文字、选项、颜色与动画
+变化必须继续传递实时帧。每个新实时帧都会使旧裁剪失效，直到精确当前窗口被确认。
 
 自动尾部持有保留行租约，但不消费普通终端键，也不显示手动历史标记。
 显式滚动、复制模式或准入的选择将核心移交手动历史。
 活动选择与导出阻止自动导航。关闭偏好或失去资格时通过已有 demand 所有者恢复。
 不调整 PTY 尺寸或删除历史。核心模型覆盖 demand/read/ack/recovery；
 目标准入及光标／复制坐标属于实现义务，由针对性的尾部与绘制测试覆盖。
+自动租约转为手动历史后保持活动投影 demand；手动呈现面与输入所有者仍使用 committed
+历史窗口。执行器的 `tests/viewport.rs` 检查进入时的 demand 选择与部分进入的复位；
+`ui/terminal_tail/tests.rs` 检查替换裁剪前后的新文字／颜色、两种语言／主题及过期窗口排除。
 
 ## 状态机
 
@@ -79,6 +84,8 @@ Live 滚动条观察已验证帧的 `scrollback_rows + geometry.rows`，并检�
   或不可用 → 发布 `ViewportOutcome::Enter{applied:false}` 且不走第二腿。第二腿失败或结果
   未知 → 执行一次复位腿（`SetHistoryDemand(FollowingBottom)`）；复位失败或不可用 →
   窗格判错。完全受理 → 发布 `ViewportOutcome::Enter{applied:true}`。
+- `EnterTail` — 沿用相同的进入与失败／复位契约，以 `SetProjectionDemand(Active)`
+  替代 `Paused`，确保自动裁剪不会冻结实时 Agent 画面。
 - `Read{origin,row_count,revision,generation,request_sequence,maximum_bytes}` — 租约约束的
   `ReadViewportRows` 动作。worker 校验完整的 kind-46 Response 封装（当前协议、必需的
   correlation、非 optional 的 row-window 编码、请求的载荷上限及封装/数据体 epoch 一致），
@@ -269,7 +276,7 @@ Home、End 和 Esc。
 
 ## 源码对应
 
-`TerminalViewportCoordination.tla/.cfg` 抽象一个 pane、两次进入/读取尝试、两个匿名输入命令和容量为二的 FIFO。`Enter`、`Read`、`Recover` 对应 viewport 暂存命令；`Admit`、`Execute` 对应 mailbox/worker FIFO；`Consume` 对应结果消费；`Detach` 使 pane epoch 失效。故障注入只能破坏已有窗口响应，不能制造独立结果生产者。
+`TerminalViewportCoordination.tla/.cfg` 抽象一个 pane、两次进入/读取尝试、两个匿名输入命令和容量为二的 FIFO。`Enter`（含 `EnterTail`）、`Read`、`Recover` 对应 viewport 暂存命令；`Admit`、`Execute` 对应 mailbox/worker FIFO；`Consume` 对应结果消费；`Detach` 使 pane epoch 失效。进入抽象不区分活动与暂停的投影 demand；该区别由执行器及尾部绘制测试负责。故障注入只能破坏已有窗口响应，不能制造独立结果生产者。
 
 检查范围为有界队列所有权、单一读取 flight、当前 epoch 的显示、恢复时保留已接纳命令，以及在接纳、执行、消费弱公平假设下进入/恢复最终收敛。这是更小的协议抽象，不是所有 viewport 操作的等价证明。实际行边界、导航、期限、滚动条手势和代际/序号校验由 `terminal_session/terminal_viewport/tests.rs`、`window.rs` 及 projection/connection 测试负责。
 

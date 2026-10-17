@@ -11,6 +11,59 @@ fn input(screen: &str) -> ScreenInput<'_> {
 }
 
 #[test]
+fn grok_browser_login_blocks_idle_signals_until_the_ready_screen_replaces_it() {
+    let engine = ScreenDetector::bundled().unwrap();
+    for screen in [
+        "Approve in your browser to finish signing in.\n\nWaiting for approval...\nctrl+q  go back",
+        "A browser window will open for authentication.\n\nWaiting for login to complete...\nctrl+q  go back",
+        "Sign in to Grok\nOpen this URL in your browser to approve:\n\nWaiting for approval…",
+        // Narrow chrome may wrap the header; the anchored caption and local return hint remain.
+        "Approve in your browser to\nfinish signing in.\nWaiting for approval...\nctrl+q  go back",
+    ] {
+        for title in ["grok", "session - grok", "⠋ grok"] {
+            for progress in ["4;0;0", "4;1;-1", ""] {
+                let sample = ScreenInput {
+                    screen,
+                    title,
+                    progress,
+                };
+                let detected = engine.detect(Some(Provider::Grok), sample).unwrap();
+                assert_eq!(detected.state, Blocked, "{sample:?}");
+                assert!(detected.visible_blocker && !detected.visible_idle);
+                let explanation = engine.explain(Provider::Grok, sample).unwrap();
+                assert_eq!(explanation.state, detected.state);
+                assert_eq!(
+                    explanation.matched_rule.unwrap().id,
+                    "browser_login_blocked"
+                );
+            }
+        }
+    }
+    for (screen, expected) in [
+        ("Waiting for approval...", Unknown), // No authentication context.
+        ("Waiting for login to complete...", Unknown),
+        (
+            "Sign in to Grok\nThe transcript says Waiting for approval...",
+            Idle,
+        ),
+        ("Ctrl+.:shortcuts", Idle), // Authentication completed; composer replaces the blocker.
+    ] {
+        let result = engine
+            .detect(
+                Some(Provider::Grok),
+                ScreenInput {
+                    screen,
+                    title: "grok",
+                    progress: "4;0;0",
+                },
+            )
+            .unwrap();
+        assert_eq!(result.state, expected, "{screen}");
+        assert!(!result.visible_blocker);
+    }
+}
+
+#[test]
 fn devin_thinking_footer_is_working_and_missing_evidence_is_unknown() {
     let engine = ScreenDetector::bundled().unwrap();
     for (screen, expected) in [

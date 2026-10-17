@@ -38,6 +38,9 @@ tracking, available retained rows, and a proved empty suffix. Prompt markers, cu
 styled backgrounds/underlines and graphics prevent trimming. A returned window must match the live
 attachment, epoch, generation, revision, geometry and expected row start before painting.
 Stale, pending or failed reads keep the exact live grid; unchanged failed targets do not retry.
+Automatic entry keeps projection demand `Active`: in-place text, selection, color and animation
+changes must continue delivering live frames while the retained-row lease exists. Every new live
+frame invalidates an older crop until an exact current window has been acknowledged.
 
 Automatic tail owns a retained-row lease but does not consume ordinary terminal keys or display a
 manual-history badge. Explicit scrolling, copy mode or admitted selection transfers the core to
@@ -45,6 +48,10 @@ manual history. Active selection and export fence automatic navigation. Disablin
 or losing eligibility recovers through the existing demand owner. No PTY resize or history deletion
 occurs. The core model covers demand/read/ack/recovery; target admission and cursor/copy coordinates
 are implementation obligations covered by focused tail and painter tests.
+An automatic lease transferred to manual history retains its active projection demand; the manual
+surface and input owner still use the committed history window. The executor's `tests/viewport.rs`
+checks entry demand selection and partial-entry reset; `ui/terminal_tail/tests.rs` checks fresh
+text/colors before and after a replacement crop, both locales/themes, and stale-window exclusion.
 
 ## State machine
 
@@ -88,6 +95,8 @@ and recovery on reaching the live tail. Entry refusal leaves the pane Live witho
   failed or unknown second leg runs one reset leg (`SetHistoryDemand(FollowingBottom)`); reset
   failure or an unavailable outcome faults the pane. A fully applied entry publishes
   `ViewportOutcome::Enter{applied:true}`.
+- `EnterTail` — the same entry and failure/reset contract, with `SetProjectionDemand(Active)`
+  instead of `Paused`, so automatic cropping cannot freeze the live Agent screen.
 - `Read{origin,row_count,revision,generation,request_sequence,maximum_bytes}` — a
   `ReadViewportRows` lease-bound action. The worker validates the complete kind-46 Response
   envelope (current protocol, required correlation, nonoptional row-window encoding, requested
@@ -315,7 +324,7 @@ recovery. The retained viewport core checks only the coordination properties in 
 
 ## Source correspondence
 
-`TerminalViewportCoordination.tla/.cfg` abstracts one pane, two entry/read attempts, two anonymous input commands and a two-slot FIFO. `Enter`, `Read` and `Recover` correspond to the viewport's staged commands; `Admit` and `Execute` represent the mailbox/worker FIFO; `Consume` represents outcome intake; `Detach` invalidates the pane epoch. Fault injection may corrupt an existing window response but cannot manufacture an independent producer.
+`TerminalViewportCoordination.tla/.cfg` abstracts one pane, two entry/read attempts, two anonymous input commands and a two-slot FIFO. `Enter` (including `EnterTail`), `Read` and `Recover` correspond to the viewport's staged commands; `Admit` and `Execute` represent the mailbox/worker FIFO; `Consume` represents outcome intake; `Detach` invalidates the pane epoch. The entry abstraction does not distinguish active versus paused projection demand; executor and tail-render tests own that distinction. Fault injection may corrupt an existing window response but cannot manufacture an independent producer.
 
 The checked claims are bounded queue ownership, one read flight, current-epoch presentation, admitted-command preservation during recovery, and entry/recovery settlement under weak fairness of admission, execution and consumption. This is a smaller protocol abstraction, not an equivalence proof of every viewport operation. Concrete row bounds, navigation, deadlines, scrollbar gestures and generation/sequence validation remain obligations of `terminal_session/terminal_viewport/tests.rs`, `window.rs` and the projection/connection tests.
 

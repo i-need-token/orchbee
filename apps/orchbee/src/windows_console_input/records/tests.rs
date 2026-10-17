@@ -1,6 +1,8 @@
 use super::*;
 use std::cell::Cell;
 
+mod unicode;
+
 struct EmptyConsole<'a> {
     origin: Instant,
     elapsed: Duration,
@@ -113,17 +115,14 @@ fn mouse_bytes(codec: &mut Codec, buttons: u32, flags: u32, modifiers: KeyModifi
 #[test]
 fn zero_virtual_key_keeps_paste_delimiters_and_literal_control_characters() {
     let mut codec = Codec::default();
-    let paste = "\x1b[200~中\x02q\x1b[201~";
+    let paste = "\x1b[200~A中𠮷🚀B\x02q\x1b[201~";
     let mut actual = Vec::new();
     for unit in paste.encode_utf16() {
-        actual.extend(bytes(codec.key(
-            0,
-            unit,
-            true,
-            1,
-            KeyModifiers::NONE,
-            false,
-        )));
+        actual.extend(bytes(
+            codec
+                .key(0, unit, true, 1, KeyModifiers::NONE, false)
+                .unwrap(),
+        ));
     }
     assert_eq!(actual, paste.as_bytes());
 }
@@ -133,14 +132,20 @@ fn surrogate_state_and_large_repeats_survive_poll_boundaries_without_reordering(
     assert!(
         codec
             .key(0, 0xd83d, true, 1, KeyModifiers::NONE, false)
+            .unwrap()
             .is_none()
     );
     assert_eq!(
-        bytes(codec.key(0, 0xde00, true, 1, KeyModifiers::NONE, false)),
+        bytes(
+            codec
+                .key(0, 0xde00, true, 1, KeyModifiers::NONE, false)
+                .unwrap()
+        ),
         "😀".as_bytes()
     );
     let mut pending = codec
         .key(0, u16::from(b'x'), true, 5000, KeyModifiers::NONE, false)
+        .unwrap()
         .unwrap();
     let mut first = Vec::new();
     pending.drain(&mut first);
@@ -206,36 +211,54 @@ fn button_free_motion_records_encode_the_sgr_hover_report_when_admitted() {
 fn physical_prefix_repeat_does_not_become_a_second_press_and_alt_graph_is_text() {
     let mut codec = Codec::default();
     assert_eq!(
-        bytes(codec.key(0x42, 2, true, 5, KeyModifiers::CONTROL, false)),
+        bytes(
+            codec
+                .key(0x42, 2, true, 5, KeyModifiers::CONTROL, false)
+                .unwrap()
+        ),
         [2]
     );
     assert!(
         codec
             .key(0x42, 2, true, 1, KeyModifiers::CONTROL, false)
+            .unwrap()
             .is_none()
     );
     assert!(
         codec
             .key(0x42, 2, false, 1, KeyModifiers::CONTROL, false)
+            .unwrap()
             .is_none()
     );
     assert_eq!(
-        bytes(codec.key(0x42, 2, true, 1, KeyModifiers::CONTROL, false)),
+        bytes(
+            codec
+                .key(0x42, 2, true, 1, KeyModifiers::CONTROL, false)
+                .unwrap()
+        ),
         [2]
     );
     assert_eq!(
-        bytes(codec.key(
-            0x51,
-            u16::from(b'@'),
-            true,
-            1,
-            KeyModifiers::CONTROL | KeyModifiers::ALT,
-            true
-        )),
+        bytes(
+            codec
+                .key(
+                    0x51,
+                    u16::from(b'@'),
+                    true,
+                    1,
+                    KeyModifiers::CONTROL | KeyModifiers::ALT,
+                    true
+                )
+                .unwrap()
+        ),
         b"@"
     );
     assert_eq!(
-        bytes(codec.key(0x26, 0, true, 1, KeyModifiers::CONTROL, false)),
+        bytes(
+            codec
+                .key(0x26, 0, true, 1, KeyModifiers::CONTROL, false)
+                .unwrap()
+        ),
         b"\x1b[1;5A"
     );
 }

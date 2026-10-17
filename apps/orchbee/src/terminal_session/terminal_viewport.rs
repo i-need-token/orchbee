@@ -115,6 +115,8 @@ enum InflightNav {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportStep {
     Enter,
+    /// Automatic cropping borrows history while live frames continue to update.
+    EnterTail,
     Read {
         origin: ViewportRowOrigin,
         row_count: u16,
@@ -295,7 +297,7 @@ impl TerminalViewport {
                 self.refresh = false;
                 self.facts_deadline = None;
             }
-            Some(ViewportStep::Enter) | None => {}
+            Some(ViewportStep::Enter | ViewportStep::EnterTail) | None => {}
         }
         self.drive_emissions();
     }

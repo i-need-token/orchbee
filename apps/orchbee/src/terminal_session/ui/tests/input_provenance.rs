@@ -393,3 +393,93 @@ fn lone_esc_cancels_only_after_the_wait_expires() {
     );
     assert!(!armed(&ui), "ticked lone Esc cancels");
 }
+
+#[test]
+fn supplementary_paste_reaches_the_exact_tab_rename_request_at_every_utf8_split() {
+    let label = "A中𠮷🚀B";
+    let paste = format!("\x1b[200~{label}\x1b[201~").into_bytes();
+    for split in 0..=paste.len() {
+        let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+        let token = ui.request_rename_draft().unwrap();
+        ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(120);
+        let mut forwarded = Vec::new();
+        let now = Instant::now();
+        for packet in [&b"\x15"[..], &paste[..split], &paste[split..]] {
+            dispatch(
+                &mut dispatcher,
+                &mut view,
+                &mut ui,
+                packet,
+                now,
+                &mut forwarded,
+            );
+        }
+        assert_eq!(
+            ui.state.as_ref().unwrap().rename_draft().unwrap().text(),
+            label
+        );
+        // Backspace deletes the emoji as one grapheme, then ordinary typed
+        // supplementary text restores it without touching the extended Han.
+        for packet in [&b"\x7f\x7f"[..], "🚀B".as_bytes(), &b"\r"[..]] {
+            dispatch(
+                &mut dispatcher,
+                &mut view,
+                &mut ui,
+                packet,
+                now,
+                &mut forwarded,
+            );
+        }
+        assert!(forwarded.is_empty());
+        let lease = mailbox.try_recv().unwrap().unwrap();
+        let QueuedCommand::Rename(marker) = lease.record() else {
+            panic!("one exact rename request");
+        };
+        assert_eq!(marker.operation().label().as_str(), label);
+    }
+}
+
+#[test]
+fn cancelling_a_supplementary_rename_preserves_the_original_label_and_pane_input() {
+    let (mut ui, mailbox, _clock, _elapsed) = ready_ui();
+    let original = ui.state.as_ref().unwrap().cache().clone();
+    let token = ui.request_rename_draft().unwrap();
+    ui.after_rename_draw(Some(ModalPresentation::Presented(token)));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(120);
+    let mut forwarded = Vec::new();
+    let now = Instant::now();
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        "\x15\x1b[200~🚀输入𠮷检查\x1b[201~".as_bytes(),
+        now,
+        &mut forwarded,
+    );
+    assert_eq!(
+        ui.state.as_ref().unwrap().rename_draft().unwrap().text(),
+        "🚀输入𠮷检查"
+    );
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        b"\x1b",
+        now,
+        &mut forwarded,
+    );
+    synchronize(
+        &mut dispatcher,
+        &mut view,
+        &mut ui,
+        now + Duration::from_millis(60),
+        &mut forwarded,
+    );
+    assert!(ui.state.as_ref().unwrap().rename_draft().is_none());
+    assert_eq!(ui.state.as_ref().unwrap().cache(), &original);
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(forwarded.is_empty());
+}

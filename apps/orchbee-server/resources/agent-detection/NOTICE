@@ -3,5 +3,6 @@ Source: https://github.com/herdrdev/herdr
 Revision: e0507237ad8d41f60aece10d00ef29ce2339ca34
 Original paths: src/detect/manifests/*.toml
 License: Apache-2.0 (see LICENSE).
-The bundled TOML files are unmodified. Orchbee owns its parser and sampling integration.
+Orchbee owns local rule corrections, its parser and sampling integration.
+grok.toml adds browser-authentication blockers and an uncertain-login guard, with updated version metadata.
 The region matching implementation is adapted from src/detect/manifest.rs, with UTF-8-safe CRLF offsets.
