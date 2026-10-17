@@ -8,7 +8,7 @@ pub(crate) use crate::terminal_session::state::worktree_launch::{
 };
 use crate::terminal_session::{
     state::worktree_launch::{Launcher, Origin, Plan, Preparation, addressed::SidebarDiscovery},
-    worktree_lane::{Action, Job, Lane, Reply},
+    worktree_lane::{Action, Exchange, Job, Lane, Reply},
 };
 use orchbee_workbench_protocol::WorkbenchRequestId;
 use std::sync::Arc;
@@ -247,6 +247,16 @@ impl NativeUi {
         if self.worktrees.launcher.token() != Some(token) {
             return;
         }
+        if self.worktrees.launcher.cancel_remove_resume() {
+            return;
+        }
+        if self.worktrees.launcher.view().is_some_and(|view| {
+            view.can_resume_remove()
+                || (view.removal_target().is_some() && view.notice() == WorktreeNotice::Unknown)
+        }) {
+            self.worktrees.launcher.dismiss();
+            return;
+        }
         if self.worktrees.launcher.terminal_result() {
             self.worktrees.launcher.forget_terminal();
             self.worktrees.entry = None;
@@ -276,6 +286,24 @@ impl NativeUi {
         }
     }
     pub(in crate::terminal_session) fn submit_worktree(&mut self, token: WorktreeToken) {
+        if self.worktrees.launcher.prepare_remove_resume(token) {
+            return;
+        }
+        if let Some((plan, expected_attempt)) = self.worktrees.launcher.confirm_remove_resume(token)
+        {
+            let operation = plan.operation_id.clone();
+            self.worktrees.read_at = None;
+            self.worktrees.observation_until = Some(self.clock.now() + Duration::from_secs(120));
+            if !self.issue_worktree(Action::Resume {
+                plan: Box::new(plan),
+                expected_attempt,
+            }) {
+                self.worktrees
+                    .launcher
+                    .resume_settled(&operation, Err(false));
+            }
+            return;
+        }
         let Some(origin) = self.state.as_ref().and_then(|s| s.worktree_origin()) else {
             return;
         };
@@ -393,16 +421,30 @@ impl NativeUi {
                 }
                 Reply::Operation {
                     operation,
-                    start,
+                    exchange,
                     result,
                     snapshot,
                 } => {
-                    let applied = if start {
-                        self.worktrees.launcher.start_settled(&operation, result)
-                    } else {
-                        self.worktrees.launcher.observed(&operation, result)
+                    let applied = match exchange {
+                        Exchange::Resume => {
+                            self.worktrees.launcher.resume_settled(&operation, result)
+                        }
+                        Exchange::Start => {
+                            self.worktrees.launcher.start_settled(&operation, result)
+                        }
+                        Exchange::Read => self.worktrees.launcher.observed(&operation, result),
                     };
                     if applied {
+                        if self.worktrees.launcher.terminal_result()
+                            && self
+                                .worktrees
+                                .launcher
+                                .operation()
+                                .is_some_and(|op| op.plan.removal.is_some())
+                            && let Some(state) = self.state.as_mut()
+                        {
+                            state.note_publication_hint();
+                        }
                         if self.worktrees.launcher.pending() {
                             self.worktrees.read_at =
                                 Some(self.clock.now() + Duration::from_millis(100));

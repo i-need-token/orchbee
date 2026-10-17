@@ -12,6 +12,7 @@ use orchbee_workbench_protocol::{
 };
 use std::time::Instant;
 
+pub(in crate::terminal_session) mod removal;
 mod replacement;
 
 fn request(n: u128) -> WorkbenchRequestId {

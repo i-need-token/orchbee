@@ -52,17 +52,51 @@ update retained facts in the background; it cannot reopen the shell, submit anot
 focus. Reopening after a refused attempt creates a new presentation attempt for that retained
 operation, and a successful draw restores its newest operation status.
 
-Header X and Cancel use the current stage's cancellation or hide behavior. Editable branch/base fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. Waiting/result surfaces expose Read status and Hide/Close; these never replay Start or cancel accepted Server work.
+Header X and Cancel use the current stage's cancellation or hide behavior. Editable branch/base fields and their Open/Create button share the keyboard owner. Checkout rows act on matching plain-left release; list-only wheel moves three choices per notch, capped by visible two-line choices per pass without wrapping. Selection changes revoke submission until a fresh draw. Waiting/result surfaces expose Read status and Hide/Close, plus explicit recovery for eligible Remove failures; these never replay Start or cancel accepted Server work.
+
+## Safe removal
+
+A Workspace's Worktree submenu offers **Remove Worktree…** after its checkout choices when the
+read-only listing proves that Workspace's exact primary directory is an associated linked,
+non-bare checkout on the same Worker. Project and creation menus do not infer a removal target.
+The destructive action has no default shortcut and never falls back to the selected Client's cwd.
+The confirmation names the Workspace, full checkout path, affected terminal count and retained
+branch. It reuses the existing Worktree modal, action controls, draw authority and capture owner.
+Unmodified Enter or the matching Remove button submits once; Esc or X before submission changes
+nothing. If the complete confirmation cannot fit, no removal is submitted.
+
+Remove submits `projectId: null`, `force: false` and `trustRepository: false` through the existing
+Server operation. Addressed Workspace, directory, terminal scope, Worker and checkout facts are
+revalidated before Start. The Server retains dirty/untracked-file, main/bare-checkout and other
+Workspace-association guards, terminal disposal, publication hold, Git deletion and shell recovery.
+Successful removal closes the Workspace and preserves the branch. Ordinary Workspace Close keeps
+its existing independent meaning and never deletes a checkout. This native Windows TUI addition
+uses the same domain operation as the CLI; Desktop removal remains outside this delivery scope.
+
+The surface shows readable failure reasons and retained Workspace/shell-restoration facts.
+For a known resumable failure, **Resume removal…** opens a new confirmation for the original
+target; cancelling it restores the failure receipt. Confirming sends one Resume with the original
+operation ID and exact failed attempt, followed only by reads. No ID transcription is needed.
+A new draw is required before that confirmation can act. Attempt exhaustion, unknown results and
+nonresumable failures never offer Resume. A lost Resume handoff retains the receipt and fences old
+attempts; it never sends another Start or automatically retries Resume.
+
+`r` reads the retained operation. Esc hides running observation or a resumable/unknown result
+without cancelling it; W, O or another addressed removal entry reopens that retained task.
+Completion and shell recovery request the existing canonical publication refresh. They never
+reopen the surface or select another Workspace. After the removed current Workspace disappears,
+the ordinary membership owner chooses the surviving navigation context. Closing a completed result
+releases its local receipt; the Server's existing retention limit is unchanged.
 
 ## Model and ownership
 
-| Record       | Contract                                                                                                                                |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs       | Exact origin context/member, primary directory or primary root cwd, canonical snapshot, bounded Git listing, geometry and configuration |
-| Data         | Opening token, immutable Start plan, retained operation ID and known checkout/Workspace result; local focus permission is separate      |
-| Outputs      | Read-only preparation, one Worktree Start, bounded reads and optional exact terminal entry                                              |
-| Shared owner | Server coordinates Git facts, current Project membership, Workspace launch and retained operation status                                |
-| Client owner | The initiating Client owns capture, observation and revocable entry permission                                                          |
+| Record       | Contract                                                                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs       | Exact origin context/member, primary directory or primary root cwd, canonical snapshot, bounded Git listing, geometry and configuration                   |
+| Data         | Opening token, immutable target/Start plan, retained operation ID, fenced attempt and known checkout/Workspace result; local focus permission is separate |
+| Outputs      | Read-only preparation, one Worktree Start, explicitly confirmed Resume, bounded reads and optional exact terminal entry                                   |
+| Shared owner | Server coordinates Git facts, current Project membership, Workspace launch/removal and retained operation status                                          |
+| Client owner | The initiating Client owns capture, observation and revocable entry permission                                                                            |
 
 The app-private lane uses its own authenticated Workbench Client and a wakeable bounded worker.
 It never holds the UI lock during IPC. Shutdown stops admission, wakes I/O and joins its thread.
@@ -153,11 +187,15 @@ has the [existing retention limit](windows-worktrees.md#retained-continuation).
 
 Maintain witnesses for default one-step creation, checkout selection, current-group attachment,
 closed/closing source refusal, cancellation, exact draw authority, ambiguous handoff, known partial
-facts, Start/Read separation, target replacement and bounded Viewer release.
+facts, Start/Read separation, target replacement and bounded Viewer release. Removal witnesses cover
+exact linked targets, no automatic submission, full bilingual confirmation, dirty failure, cancelled
+recovery, fenced Resume/Read separation, stale attempts and no focus stealing after hidden completion.
 
 Owning suites include `state/worktree_launch/tests.rs`,
 `connection/native/worktree_launch/tests.rs`, `ui/tests/worktree_launch.rs` and adjacent
-state, transport, input and rendering suites. Run
+state, transport, input and rendering suites. `state/worktree_launch/tests/removal.rs` owns the
+Remove transitions, `worktree_lane/tests.rs` owns exact Resume exchanges and `ui/tests/worktree_launch.rs`
+owns composed confirmation and recovery rendering. Run
 `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
 This workflow has no separate TLA model. Named implementation traces do not establish exhaustive
 interleavings or physical terminal usability; real mouse/keyboard experience is separate evidence.

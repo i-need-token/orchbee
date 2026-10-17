@@ -25,6 +25,8 @@ pub(crate) enum WorktreeStage {
     Branch,
     Base,
     Checkout,
+    Remove,
+    ResumeRemove,
     Waiting,
     Result,
 }
@@ -49,6 +51,7 @@ pub(crate) enum WorktreeEdit<'a> {
     ScrollChoices { up: bool, lines: usize },
 }
 pub(super) struct Draft {
+    pub removal: Option<super::Removal>,
     pub sidebar: Option<Box<super::addressed::SidebarDiscovery>>,
     pub token: WorktreeToken,
     pub origin: Origin,
@@ -86,12 +89,13 @@ impl Draft {
         discovery: Discovery,
         mode: WorktreeMode,
     ) -> Self {
-        let stage = if mode == WorktreeMode::Create {
-            WorktreeStage::Branch
-        } else {
-            WorktreeStage::Checkout
+        let stage = match mode {
+            WorktreeMode::Create => WorktreeStage::Branch,
+            WorktreeMode::Open => WorktreeStage::Checkout,
+            WorktreeMode::Remove => WorktreeStage::Remove,
         };
         Self {
+            removal: None,
             sidebar: None,
             token: WorktreeToken(0),
             origin,
@@ -127,6 +131,9 @@ impl Draft {
         }
     }
     pub fn edit(&mut self, edit: WorktreeEdit<'_>) -> Result<bool, WorktreeNotice> {
+        if self.stage == WorktreeStage::Remove {
+            return Ok(false);
+        }
         match edit {
             WorktreeEdit::Completeness(complete) => {
                 self.complete = complete;
@@ -261,8 +268,14 @@ impl Draft {
                     trust_repository: false,
                 }
             }
+            WorktreeMode::Remove => WorktreeIntent::Remove {
+                workspace_id: self.removal.as_ref()?.workspace_id.clone(),
+                force: false,
+                trust_repository: false,
+            },
         };
         Some(Plan {
+            removal: self.removal.clone(),
             sidebar: self.sidebar.clone(),
             operation_id,
             origin: self.origin.clone(),
@@ -271,6 +284,7 @@ impl Draft {
             project: self
                 .sidebar
                 .as_ref()
+                .filter(|_| self.mode != WorktreeMode::Remove)
                 .filter(|_| matches!(self.source, WorktreeSource::Directory { .. }))
                 .and_then(|source| source.addressed.cache.project_id().cloned()),
             intent,
@@ -305,7 +319,8 @@ impl<'a> WorktreeView<'a> {
         match &self.launcher.phase {
             Phase::Preparing(_) | Phase::Querying { .. } => WorktreeStage::Preparing,
             Phase::Draft(d) => d.stage,
-            Phase::Starting(_) | Phase::Observing(_) => WorktreeStage::Waiting,
+            Phase::ConfirmResume(_) => WorktreeStage::ResumeRemove,
+            Phase::Starting(_) | Phase::Observing(_) | Phase::Resuming(_) => WorktreeStage::Waiting,
             _ => WorktreeStage::Result,
         }
     }
@@ -426,9 +441,9 @@ impl<'a> WorktreeView<'a> {
     }
 }
 fn intent_mode(intent: &WorktreeIntent) -> WorktreeMode {
-    if matches!(intent, WorktreeIntent::Open { .. }) {
-        WorktreeMode::Open
-    } else {
-        WorktreeMode::Create
+    match intent {
+        WorktreeIntent::Open { .. } => WorktreeMode::Open,
+        WorktreeIntent::Create { .. } => WorktreeMode::Create,
+        WorktreeIntent::Remove { .. } => WorktreeMode::Remove,
     }
 }

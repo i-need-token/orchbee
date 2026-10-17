@@ -212,7 +212,10 @@ fn action_availability(
     }
     if matches!(
         action,
-        MenuAction::WorkspaceWorktrees | MenuAction::OpenWorktreeAt(_) | MenuAction::NewWorktree
+        MenuAction::WorkspaceWorktrees
+            | MenuAction::OpenWorktreeAt(_)
+            | MenuAction::NewWorktree
+            | MenuAction::RemoveWorktree
     ) && matches!(target, Target::Workspace { .. } | Target::Project { .. })
     {
         return ActionAvailability::from_disabled_reason(
@@ -1198,6 +1201,7 @@ impl NativeUi {
                         | MenuAction::LeaveWorkspaceProject
                         | MenuAction::JoinWorkspaceProject(_)
                         | MenuAction::DeleteWorkspace
+                        | MenuAction::RemoveWorktree
                         | MenuAction::NewWorktree
                         | MenuAction::OpenWorktreeAt(_)
                 ) =>
@@ -1316,6 +1320,7 @@ impl NativeUi {
                                     | MenuAction::LeaveWorkspaceProject
                                     | MenuAction::JoinWorkspaceProject(_)
                                     | MenuAction::DeleteWorkspace
+                                    | MenuAction::RemoveWorktree
                                     | MenuAction::NewWorktree
                                     | MenuAction::OpenWorktreeAt(_)
                             )
@@ -1510,7 +1515,7 @@ impl NativeUi {
         }
         if matches!(
             action,
-            MenuAction::NewWorktree | MenuAction::OpenWorktreeAt(_)
+            MenuAction::NewWorktree | MenuAction::OpenWorktreeAt(_) | MenuAction::RemoveWorktree
         ) && matches!(
             intent.entry,
             MenuTarget::Worktrees(_) | MenuTarget::Create(_)
@@ -1524,7 +1529,11 @@ impl NativeUi {
             self.menus.intent = None;
             self.menus.parents.clear();
             self.menus.sidebar = None;
-            self.open_sidebar_worktree(discovery, checkout);
+            if action == MenuAction::RemoveWorktree {
+                self.remove_sidebar_worktree(discovery);
+            } else {
+                self.open_sidebar_worktree(discovery, checkout);
+            }
             return None;
         }
         if let Target::Tab { tab, .. } = &intent.target {

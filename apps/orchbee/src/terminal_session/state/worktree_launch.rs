@@ -3,6 +3,7 @@
 pub(in crate::terminal_session) mod addressed;
 mod draft;
 mod origin;
+mod removal;
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 use draft::Draft;
 pub(crate) use draft::{WorktreeEdit, WorktreeStage, WorktreeToken, WorktreeView};
@@ -12,12 +13,14 @@ use orchbee_workbench_protocol::{
     WorktreeSource,
 };
 pub(in crate::terminal_session) use origin::{Origin, Preparation};
+pub(in crate::terminal_session) use removal::Removal;
 
 /// The requested everyday Worktree operation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WorktreeMode {
     Create,
     Open,
+    Remove,
 }
 /// A presentation reason, independent of transport diagnostic text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,6 +38,7 @@ pub(crate) enum WorktreeNotice {
     Unknown,
     Failed,
     Opened,
+    Removed,
     EntryDeferred,
     EntryPending,
     EntryFailed,
@@ -56,12 +60,14 @@ pub(in crate::terminal_session) struct Plan {
     pub discovery: Discovery,
     pub project: Option<WorkbenchProjectId>,
     pub intent: WorktreeIntent,
+    pub removal: Option<Removal>,
 }
 #[derive(Clone, Debug)]
 pub(in crate::terminal_session) struct Operation {
     pub plan: Plan,
     pub outcome: Option<WorkbenchWorktreeOutcome>,
     pub focus_allowed: bool,
+    pub attempt: u32,
 }
 enum Phase {
     Idle,
@@ -74,6 +80,8 @@ enum Phase {
     Starting(Box<Plan>),
     Observing(Box<Operation>),
     Result(Box<Operation>),
+    ConfirmResume(Box<Operation>),
+    Resuming(Box<Operation>),
 }
 pub(in crate::terminal_session) struct Launcher {
     phase: Phase,
@@ -124,6 +132,12 @@ impl Launcher {
             sidebar.discovery.clone(),
             mode,
         );
+        if mode == WorktreeMode::Remove {
+            let Some(removal) = Removal::capture(&sidebar) else {
+                return false;
+            };
+            draft.removal = Some(removal);
+        }
         if let Some(checkout) = checkout {
             let Some(index) = sidebar.discovery.entries.iter().position(|entry| {
                 matches!(&entry.checkout.path, orchbee_workbench_protocol::WorktreeEntryText::Utf8(path) if path == checkout.as_str())
@@ -401,7 +415,11 @@ impl Launcher {
         let settlement = self.presentation.geometry_blocked();
         let accepted = matches!(
             &self.phase,
-            Phase::Starting(_) | Phase::Observing(_) | Phase::Result(_)
+            Phase::Starting(_)
+                | Phase::Observing(_)
+                | Phase::Result(_)
+                | Phase::ConfirmResume(_)
+                | Phase::Resuming(_)
         );
         if accepted {
             self.suppress_focus();
@@ -439,6 +457,15 @@ impl Launcher {
             return None;
         };
         if !draft.origin.unchanged(origin) {
+            self.fail(WorktreeNotice::SourceChanged);
+            return None;
+        }
+        if draft.removal.is_some()
+            && draft.sidebar.as_ref().is_none_or(|source| {
+                !source.valid(origin.cache.canonical_snapshot())
+                    || Removal::capture(source) != draft.removal
+            })
+        {
             self.fail(WorktreeNotice::SourceChanged);
             return None;
         }
@@ -502,13 +529,17 @@ impl Launcher {
             plan,
             outcome: None,
             focus_allowed,
+            attempt: 1,
         };
         self.phase = Phase::Observing(Box::new(op));
         self.observed(operation, result)
     }
     pub fn operation(&self) -> Option<&Operation> {
         match &self.phase {
-            Phase::Observing(op) | Phase::Result(op) => Some(op),
+            Phase::Observing(op)
+            | Phase::Result(op)
+            | Phase::ConfirmResume(op)
+            | Phase::Resuming(op) => Some(op),
             _ => None,
         }
     }
@@ -521,9 +552,16 @@ impl Launcher {
             op.focus_allowed = false;
             self.phase = Phase::Observing(op);
         }
-        self.operation().map(|op| op.plan.clone())
+        match &self.phase {
+            Phase::Observing(op) => Some(op.plan.clone()),
+            _ => None,
+        }
     }
     pub fn carrier_lost(&mut self) -> bool {
+        if let Phase::Resuming(op) = &self.phase {
+            let operation = op.plan.operation_id.clone();
+            return self.resume_settled(&operation, Err(true));
+        }
         if matches!(self.phase, Phase::Starting(_)) {
             self.fail(WorktreeNotice::Unknown);
             return true;
@@ -560,10 +598,14 @@ impl Launcher {
             }
             Ok(outcome) => {
                 if let WorkbenchWorktreeOutcome::Available {
-                    project_id, status, ..
+                    project_id,
+                    attempt,
+                    status,
                 } = &outcome
                 {
-                    if project_id != &op.plan.project {
+                    if project_id != &op.plan.project
+                        || (op.plan.removal.is_some() && *attempt != op.attempt)
+                    {
                         self.notice = WorktreeNotice::Unknown;
                         return true;
                     }
@@ -575,6 +617,7 @@ impl Launcher {
                             terminal = true;
                             op.focus_allowed &= focus_effect_allowed;
                             let path_matches = match &op.plan.intent {
+                                WorktreeIntent::Remove { .. } => false,
                                 WorktreeIntent::Open {
                                     selector:
                                         orchbee_workbench_protocol::WorktreeSelector::Path { path },
@@ -597,6 +640,17 @@ impl Launcher {
                                 }
                             } else {
                                 op.focus_allowed = false;
+                                WorktreeNotice::SourceChanged
+                            };
+                        }
+                        WorktreeOperationStatus::Removed { path, workspace_id } => {
+                            terminal = true;
+                            op.focus_allowed = false;
+                            self.notice = if op.plan.removal.as_ref().is_some_and(|target| {
+                                &target.path == path && &target.workspace_id == workspace_id
+                            }) {
+                                WorktreeNotice::Removed
+                            } else {
                                 WorktreeNotice::SourceChanged
                             };
                         }
@@ -667,8 +721,12 @@ impl Launcher {
                 plan: plan.as_ref().clone(),
                 outcome: None,
                 focus_allowed: false,
+                attempt: 1,
             }),
-            Phase::Observing(op) | Phase::Result(op) => Some(op.as_ref().clone()),
+            Phase::Observing(op)
+            | Phase::Result(op)
+            | Phase::ConfirmResume(op)
+            | Phase::Resuming(op) => Some(op.as_ref().clone()),
             _ => None,
         };
         self.phase = operation.map_or(Phase::Idle, |op| Phase::Result(Box::new(op)));

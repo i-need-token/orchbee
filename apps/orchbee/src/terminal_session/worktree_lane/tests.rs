@@ -101,10 +101,13 @@ fn reads_use_retained_operation_and_reject_foreign_or_missing_replies_without_st
         .unwrap();
         let mut lane = lane(&server);
         assert!(lane.submit(job(Action::Read(Box::new(plan())))));
-        let Reply::Operation { start, result, .. } = take(&lane) else {
+        let Reply::Operation {
+            exchange, result, ..
+        } = take(&lane)
+        else {
             panic!("operation reply")
         };
-        assert!(!start);
+        assert_eq!(exchange, Exchange::Read);
         if fault == 0 {
             assert_eq!(result.unwrap(), unknown());
         } else {
@@ -113,6 +116,70 @@ fn reads_use_retained_operation_and_reject_foreign_or_missing_replies_without_st
         assert!(lane.close());
         server.finish().unwrap();
     }
+}
+
+#[test]
+fn removal_resume_sends_one_fenced_resume_and_reads_without_source_discovery_or_start_replay() {
+    let (mut launcher, origin, _) =
+        crate::terminal_session::state::worktree_launch::tests::removal::fixture();
+    let plan = confirm(&mut launcher, &origin).unwrap();
+    let operation = plan.operation_id.clone();
+    let expected = operation.clone();
+    let outcome = crate::terminal_session::state::worktree_launch::tests::removal::failure(2, true);
+    let reply = outcome.clone();
+    let server = FakeServer::start_connections(2, move |index, mut stream| {
+        handshake(&mut stream, index as u64 + 1)?;
+        if index == 0 {
+            return Ok(());
+        }
+        for resume in [true, false] {
+            let WorkbenchRequest::WorktreeOperation(request) =
+                read_workbench_request(&mut stream).map_err(io::Error::other)?
+            else {
+                panic!("recovery must not sample a Viewer, list Git or read unrelated snapshots");
+            };
+            assert_eq!(
+                request.action,
+                if resume {
+                    WorkbenchWorktreeAction::Resume {
+                        operation_id: expected.clone(),
+                        expected_attempt: 1,
+                    }
+                } else {
+                    WorkbenchWorktreeAction::Read {
+                        operation_id: expected.clone(),
+                    }
+                }
+            );
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::WorktreeOperation(WorkbenchWorktreeResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    operation_id: expected.clone(),
+                    outcome: reply.clone(),
+                }),
+            )
+            .map_err(io::Error::other)?;
+        }
+        assert_eq!(stream.read(&mut [0])?, 0);
+        Ok(())
+    })
+    .unwrap();
+    let mut lane = lane(&server);
+    assert!(lane.submit(job(Action::Resume {
+        plan: Box::new(plan.clone()),
+        expected_attempt: 1
+    })));
+    assert!(
+        matches!(take(&lane), Reply::Operation { exchange: Exchange::Resume, result: Ok(ref result), .. } if result == &outcome)
+    );
+    assert!(lane.submit(job(Action::Read(Box::new(plan)))));
+    assert!(
+        matches!(take(&lane), Reply::Operation { exchange: Exchange::Read, result: Ok(ref result), .. } if result == &outcome)
+    );
+    assert!(lane.close());
+    server.finish().unwrap();
 }
 
 #[test]
@@ -199,7 +266,7 @@ fn known_worktree_receipt_survives_a_lost_followup_snapshot() {
     let mut lane = lane(&server);
     assert!(lane.submit(job(Action::Read(Box::new(plan)))));
     let Reply::Operation {
-        start,
+        exchange,
         result,
         snapshot,
         ..
@@ -207,7 +274,7 @@ fn known_worktree_receipt_survives_a_lost_followup_snapshot() {
     else {
         panic!("retained receipt")
     };
-    assert!(!start);
+    assert_eq!(exchange, Exchange::Read);
     assert_eq!(result.unwrap(), outcome);
     assert!(snapshot.is_none());
     assert!(lane.close());
@@ -297,16 +364,22 @@ fn uncertain_start_reconnects_for_read_without_replaying_start() {
     .unwrap();
     let mut lane = lane(&server);
     assert!(lane.submit(job(Action::Start(Box::new(plan.clone())))));
-    let Reply::Operation { start, result, .. } = take(&lane) else {
+    let Reply::Operation {
+        exchange, result, ..
+    } = take(&lane)
+    else {
         panic!("start reply")
     };
-    assert!(start);
+    assert_eq!(exchange, Exchange::Start);
     assert!(result.unwrap_err());
     assert!(lane.submit(job(Action::Read(Box::new(plan)))));
-    let Reply::Operation { start, result, .. } = take(&lane) else {
+    let Reply::Operation {
+        exchange, result, ..
+    } = take(&lane)
+    else {
         panic!("read reply")
     };
-    assert!(!start);
+    assert_eq!(exchange, Exchange::Read);
     assert_eq!(result.unwrap(), unknown());
     assert!(lane.close());
     server.finish().unwrap();

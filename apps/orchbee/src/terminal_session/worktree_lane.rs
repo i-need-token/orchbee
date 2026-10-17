@@ -16,6 +16,13 @@ use std::{
 };
 mod sidebar;
 use super::state::worktree_launch::addressed::{AddressedWorktreeSource, SidebarDiscovery};
+/// The single exchange whose receipt is settling; Read never submits a mutation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Exchange {
+    Start,
+    Read,
+    Resume,
+}
 pub(super) enum Action {
     SidebarQuery {
         episode: u64,
@@ -28,6 +35,10 @@ pub(super) enum Action {
     },
     Start(Box<Plan>),
     Read(Box<Plan>),
+    Resume {
+        plan: Box<Plan>,
+        expected_attempt: u32,
+    },
 }
 pub(super) struct Job {
     pub action: Action,
@@ -46,7 +57,7 @@ pub(super) enum Reply {
     },
     Operation {
         operation: WorkbenchRequestId,
-        start: bool,
+        exchange: Exchange,
         result: Result<WorkbenchWorktreeOutcome, bool>,
         snapshot: Option<Snapshot>,
     },
@@ -281,12 +292,18 @@ fn execute(
             })();
             Reply::Query { token, result }
         }
-        action @ (Action::Start(_) | Action::Read(_)) => {
-            let (plan, start) = match action {
-                Action::Start(p) => (p, true),
-                Action::Read(p) => (p, false),
+        action @ (Action::Start(_) | Action::Read(_) | Action::Resume { .. }) => {
+            let (plan, exchange, expected_attempt) = match action {
+                Action::Start(p) => (p, Exchange::Start, None),
+                Action::Read(p) => (p, Exchange::Read, None),
+                Action::Resume {
+                    plan,
+                    expected_attempt,
+                } => (plan, Exchange::Resume, Some(expected_attempt)),
                 _ => unreachable!(),
             };
+            let start = exchange == Exchange::Start;
+            let resume = exchange == Exchange::Resume;
             let operation = plan.operation_id.clone();
             if start && let Some(addressed) = &plan.sidebar {
                 let checked = sidebar::discover(
@@ -307,10 +324,14 @@ fn execute(
                         || current.discovery.source != addressed.discovery.source
                         || current.discovery.worker != addressed.discovery.worker
                         || current.discovery.configured_root != addressed.discovery.configured_root
+                        || plan.removal.as_ref().is_some_and(|target| {
+                            super::state::worktree_launch::Removal::capture(current).as_ref()
+                                != Some(target)
+                        })
                 }) {
                     return Reply::Operation {
                         operation,
-                        start,
+                        exchange,
                         result: Err(false),
                         snapshot: None,
                     };
@@ -319,8 +340,8 @@ fn execute(
             let Some(client) = client.as_mut() else {
                 return Reply::Operation {
                     operation,
-                    start,
-                    result: Err(!start),
+                    exchange,
+                    result: Err(!start && !resume),
                     snapshot: None,
                 };
             };
@@ -360,7 +381,12 @@ fn execute(
                         return Err(false);
                     }
                 }
-                let action = if start {
+                let action = if let Some(expected_attempt) = expected_attempt {
+                    WorkbenchWorktreeAction::Resume {
+                        operation_id: operation.clone(),
+                        expected_attempt,
+                    }
+                } else if start {
                     WorkbenchWorktreeAction::Start {
                         operation_id: operation.clone(),
                         project_id: plan.project.clone(),
@@ -387,7 +413,7 @@ fn execute(
                         Some(wake.as_local_io()),
                     )
                     .map(|r| r.outcome)
-                    .map_err(|e| if start { e.submitted } else { true })
+                    .map_err(|e| if start || resume { e.submitted } else { true })
             })();
             let fresh = if matches!(&result, Ok(WorkbenchWorktreeOutcome::Available { status, .. })
                 if matches!(status.as_ref(), orchbee_workbench_protocol::WorktreeOperationStatus::Opened { .. }))
@@ -408,7 +434,7 @@ fn execute(
             };
             Reply::Operation {
                 operation,
-                start,
+                exchange,
                 result,
                 snapshot: fresh,
             }

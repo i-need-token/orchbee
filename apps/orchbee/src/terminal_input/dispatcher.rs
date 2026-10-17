@@ -2558,6 +2558,14 @@ impl InputDispatcher {
             }
             return;
         }
+        if matches!(context.stage, S::Remove | S::ResumeRemove) {
+            match event {
+                ModalInputEvent::Submit => port.submit_worktree(token),
+                ModalInputEvent::Cancel => port.dismiss_worktree(token),
+                _ => {}
+            }
+            return;
+        }
         let selecting = matches!(context.stage, S::Checkout);
         // Choice lists own framed reports in the decoder and have no partial
         // text to submit. A mouse/focus CSI must not revoke its own painted token.

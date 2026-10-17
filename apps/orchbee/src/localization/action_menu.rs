@@ -241,6 +241,8 @@ impl Locale {
             (Self::ZhCn, JoinWorkspaceProject(_)) => "移入项目",
             (Self::EnUs, OpenWorktreeAt(_)) => "Open Worktree",
             (Self::ZhCn, OpenWorktreeAt(_)) => "打开 Worktree",
+            (Self::EnUs, RemoveWorktree) => "Remove Worktree…",
+            (Self::ZhCn, RemoveWorktree) => "移除 Worktree…",
             (Self::EnUs, DeleteWorkspace | DeleteProject) => "Delete",
             (Self::ZhCn, DeleteWorkspace | DeleteProject) => "删除",
             (Self::EnUs, CloseProjectWorkspaces) => "Close all Workspaces…",

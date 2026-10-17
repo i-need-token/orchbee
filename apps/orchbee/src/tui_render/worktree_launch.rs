@@ -157,7 +157,7 @@ fn resolve_worktree_layout(
 fn notice_role(notice: WorktreeNotice) -> Role {
     match notice {
         WorktreeNotice::Preparing | WorktreeNotice::Pending => Role::StatusPending,
-        WorktreeNotice::Opened => Role::StatusSuccess,
+        WorktreeNotice::Opened | WorktreeNotice::Removed => Role::StatusSuccess,
         WorktreeNotice::EntryPending => Role::StatusWorking,
         WorktreeNotice::InvalidInput
         | WorktreeNotice::InputLimit
@@ -183,12 +183,22 @@ fn render_form(
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<WorktreeToken>) {
     let stage = view.stage();
+    let removal = view.removal_target();
+    let confirming = matches!(stage, WorktreeStage::Remove | WorktreeStage::ResumeRemove);
     let budget = usize::from(content.width.saturating_sub(10)).min(72);
     let mut lines = vec![
         Line::from(locale.worktree_title(view.mode())),
         Line::from(""),
     ];
-    if let Some(source) = view.source_path() {
+    if let Some((label, path, branch, terminals)) = removal {
+        lines[0] = Line::from(locale.worktree_remove_title(&sanitize_terminal_text(label)));
+        // The complete exact path must fit before a destructive decision can be armed.
+        lines.push(Line::from(sanitize_terminal_text(path).into_owned()));
+        lines.push(Line::from(locale.worktree_remove_scope(terminals)));
+        lines.push(Line::from(locale.worktree_remove_branch(
+            branch.map(sanitize_terminal_text).as_deref(),
+        )));
+    } else if let Some(source) = view.source_path() {
         lines.push(Line::from(path_text(source, budget, theme.glyphs.ellipsis)));
     }
     let mut field_labels = None;
@@ -212,7 +222,7 @@ fn render_form(
             theme.glyphs.ellipsis,
         )));
     }
-    if let Some(workspace) = view.workspace() {
+    if let Some(workspace) = view.workspace().filter(|_| removal.is_none()) {
         lines.push(Line::from(truncate_display(
             &format!(
                 "{}: {}",
@@ -224,10 +234,23 @@ fn render_form(
         )));
     }
     if view.notice() != WorktreeNotice::Preparing || stage == WorktreeStage::Preparing {
-        lines.push(
-            Line::from(locale.worktree_stage_notice(view.notice(), stage))
-                .style(theme.style(notice_role(view.notice()))),
-        );
+        let notice = if removal.is_some() && view.notice() == WorktreeNotice::Failed {
+            view.removal_failure().map_or_else(
+                || locale.worktree_stage_notice(view.notice(), stage),
+                |reason| locale.worktree_remove_failure(reason),
+            )
+        } else {
+            locale.worktree_stage_notice(view.notice(), stage)
+        };
+        lines.push(Line::from(notice).style(theme.style(notice_role(view.notice()))));
+    }
+    if let Some(progress) = view.removal_progress() {
+        lines.push(Line::from(
+            locale.worktree_remove_workspace_state(&progress.workspace),
+        ));
+        if let Some(restoration) = &progress.restoration {
+            lines.push(Line::from(locale.worktree_remove_restoration(restoration)));
+        }
     }
     lines.extend([Line::from(""), Line::from(""), Line::from("")]);
 
@@ -254,20 +277,42 @@ fn render_form(
             super::controls::KeyHint::new(&refresh, locale.worktree_submit_hint(stage)),
         ),
         WorktreeStage::Preparing => {}
+        WorktreeStage::Remove | WorktreeStage::ResumeRemove => hints.clear(),
         WorktreeStage::Checkout => unreachable!("checkout has its own picker surface"),
     }
-    let cancel = ModalAction::new(
+    let mut cancel = ModalAction::new(
         locale.worktree_cancel_label(stage),
         super::controls::ActionKind::Secondary,
         true,
     );
     let submit = (stage != WorktreeStage::Preparing).then(|| {
+        if removal.is_some() {
+            let resume = view.can_resume_remove();
+            let label = locale.worktree_remove_submit(stage, resume);
+            let action = ModalAction::new(label, super::controls::ActionKind::Primary, true);
+            return if confirming || resume {
+                action
+                    .with_shortcut(&enter)
+                    .with_tone(crate::action_projection::ActionTone::Destructive)
+            } else {
+                action
+            };
+        }
         ModalAction::new(
             locale.worktree_submit_label(stage),
             super::controls::ActionKind::Primary,
             true,
         )
     });
+    if confirming {
+        cancel = cancel.with_shortcut(&escape);
+    }
+    if view.can_resume_remove() {
+        hints.push(super::controls::KeyHint::new(
+            &enter,
+            locale.worktree_remove_submit(stage, true),
+        ));
+    }
     let placeholder = Text::from(lines);
     let Some(candidate) = resolve_worktree_layout(
         frame.area(),
@@ -400,12 +445,17 @@ fn render_form(
         theme,
         hits,
     );
-    let rendered_hints = super::controls::render_key_hints(frame, layout.hints(), &hints, theme)
-        .expect("admitted worktree hints must paint");
-    debug_assert!(layout.hints().intersection(rendered_hints) == rendered_hints);
+    if !hints.is_empty() {
+        let rendered_hints =
+            super::controls::render_key_hints(frame, layout.hints(), &hints, theme)
+                .expect("admitted worktree hints must paint");
+        debug_assert!(layout.hints().intersection(rendered_hints) == rendered_hints);
+    }
     match layout {
         WorktreeLayout::Pair(layout) => {
-            let primary = if matches!(stage, WorktreeStage::Waiting | WorktreeStage::Result) {
+            let primary = if matches!(stage, WorktreeStage::Waiting | WorktreeStage::Result)
+                && !view.can_resume_remove()
+            {
                 ModalControl::Refresh
             } else {
                 ModalControl::Submit

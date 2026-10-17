@@ -27,6 +27,7 @@ fn case_with_mode(mode: WorktreeMode) -> (NativeUi, Plan, Snapshot) {
             crate::localization::Locale::EnUs,
         ),
         WorktreeMode::Open => ui.worktrees.launcher.confirm(token, operation, &origin),
+        WorktreeMode::Remove => unreachable!("entry is only for Create/Open"),
     }
     .unwrap();
     let directory = WorkbenchDirectoryId::parse(&format!("{:032x}", 280)).unwrap();

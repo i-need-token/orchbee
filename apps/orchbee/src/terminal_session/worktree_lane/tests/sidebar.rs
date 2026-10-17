@@ -131,7 +131,7 @@ fn changed_first_root_at_start_is_no_effect_and_never_queries_the_replacement_re
     assert!(matches!(
         take(&lane),
         Reply::Operation {
-            start: true,
+            exchange: Exchange::Start,
             result: Err(false),
             snapshot: None,
             ..

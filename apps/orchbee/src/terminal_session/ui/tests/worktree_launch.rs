@@ -467,3 +467,135 @@ fn unknown_worktree_result_retains_one_operation_and_can_be_hidden_without_repla
     );
     assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
 }
+
+#[test]
+fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto_submitting() {
+    for (locale, title, branch, cancel, remove) in [
+        (
+            crate::localization::Locale::EnUs,
+            "Remove worktree: Task 猫",
+            "Branch kept: same",
+            "Cancel",
+            "Remove",
+        ),
+        (
+            crate::localization::Locale::ZhCn,
+            "移除 Worktree：Task 猫",
+            "保留分支：same",
+            "取消",
+            "移除",
+        ),
+    ] {
+        for theme in [
+            crate::tui_theme::Theme::terminal_native(),
+            crate::tui_theme::Theme::rgb_test_dark(),
+        ] {
+            for (width, height, fits) in [
+                (120, 40, true),
+                (80, 24, true),
+                (80, 20, true),
+                (50, 18, true),
+                (50, 10, false),
+                (12, 3, false),
+            ] {
+                let (launcher, origin, _) =
+                    crate::terminal_session::state::worktree_launch::tests::removal::fixture();
+                let mut ui = ready(WorktreeMode::Open);
+                ui.worktrees.launcher = launcher;
+                let token = ui.worktrees.launcher.token().unwrap();
+                let drawn = draw_frame_with_theme(&mut ui, locale, width, height, &theme);
+                if fits {
+                    assert!(
+                        drawn.text.contains(&title.replace(' ', "")),
+                        "{locale:?} {width}x{height}: {}",
+                        drawn.text
+                    );
+                    assert!(drawn.text.contains("C:/trees/猫"));
+                    assert!(drawn.text.contains(&branch.replace(' ', "")));
+                    assert!(drawn.text.contains(&format!("[{cancel}Esc]")));
+                    assert!(drawn.text.contains(&format!("[{remove}Enter]")));
+                    assert_eq!(
+                        ui.worktrees.launcher.view().unwrap().stage(),
+                        WorktreeStage::Remove
+                    );
+                    assert!(ui.worktrees.launcher.operation().is_none());
+                    assert!(!ui.worktrees.launcher.sidebar_open_ready());
+                    assert!(
+                        ui.worktrees
+                            .launcher
+                            .confirm(
+                                token,
+                                WorkbenchRequestId::parse(&format!("{:032x}", 90)).unwrap(),
+                                &origin
+                            )
+                            .is_some()
+                    );
+                } else {
+                    assert!(ui.worktree_input_context().is_none());
+                    assert!(ui.worktrees.launcher.operation().is_none());
+                    assert_eq!(
+                        ui.worktrees.launcher.notice(),
+                        WorktreeNotice::PresentationUnavailable
+                    );
+                    for y in 0..height {
+                        for x in 0..width {
+                            assert!(!matches!(
+                                drawn.hits.hit_target_at(x, y),
+                                Some(HitTarget::Worktree { .. })
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn dirty_removal_offers_resume_and_canceling_resume_restores_the_retained_result() {
+    use crate::terminal_session::state::worktree_launch::tests::{confirm, removal};
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let (mut launcher, origin, _) = removal::fixture();
+        let plan = confirm(&mut launcher, &origin).unwrap();
+        assert!(launcher.start_settled(&plan.operation_id, Ok(removal::failure(1, true))));
+        let mut ui = ready(WorktreeMode::Open);
+        ui.worktrees.launcher = launcher;
+        let text = draw(&mut ui, locale, 120, 40);
+        let expected = match locale {
+            crate::localization::Locale::EnUs => "Checkout has changes or untracked files.",
+            crate::localization::Locale::ZhCn => "检出目录含修改或未跟踪文件。",
+        };
+        assert!(text.contains(&expected.replace(' ', "")));
+        let token = ui.worktrees.launcher.token().unwrap();
+        ui.submit_worktree(token);
+        assert_eq!(
+            ui.worktrees.launcher.view().unwrap().stage(),
+            WorktreeStage::ResumeRemove
+        );
+        let token = ui.worktrees.launcher.token().unwrap();
+        draw(&mut ui, locale, 120, 40);
+        ui.dismiss_worktree(token);
+        assert_eq!(
+            ui.worktrees.launcher.view().unwrap().stage(),
+            WorktreeStage::Result
+        );
+        assert_eq!(
+            ui.worktrees.launcher.operation().unwrap().outcome,
+            Some(removal::failure(1, true))
+        );
+        ui.dismiss_worktree(token);
+        assert!(ui.worktree_input_context().is_none());
+        assert_eq!(
+            ui.request_worktree(WorktreeMode::Open),
+            SessionActionDisposition::DismissNavigator
+        );
+        assert_eq!(
+            ui.worktrees.launcher.operation().unwrap().plan.operation_id,
+            plan.operation_id
+        );
+        assert!(ui.mailbox.as_ref().unwrap().try_recv().unwrap().is_none());
+    }
+}

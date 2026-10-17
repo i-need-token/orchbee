@@ -209,6 +209,31 @@ fn unicode_paste_uses_byte_budget_and_confirm_tail_stays_captured() {
     assert!(port.forwarded.is_empty());
 }
 
+#[test]
+fn removal_confirmations_ignore_text_paste_and_modified_enter_and_capture_confirm_tail() {
+    for stage in [WorktreeStage::Remove, WorktreeStage::ResumeRemove] {
+        let mut port = Port::new();
+        port.stage = stage;
+        port.paint();
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+        dispatch_all(
+            &mut dispatcher,
+            &mut view,
+            &mut port,
+            b"y \t\x1b[A\x1b[13;2u\x1b[200~\rforce\x1b[201~",
+        );
+        assert_eq!(port.submits, 0);
+        assert!(port.text.is_empty());
+        assert_eq!(port.stage, stage);
+        assert_eq!(port.serial, 1);
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r\rcommand");
+        assert_eq!(port.submits, 1);
+        assert!(port.text.is_empty());
+        assert!(port.forwarded.is_empty());
+    }
+}
+
 fn painted_choice(dispatcher: &mut InputDispatcher, port: &mut Port, index: usize) {
     use crate::tui_pointer::{
         HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ModalControl,

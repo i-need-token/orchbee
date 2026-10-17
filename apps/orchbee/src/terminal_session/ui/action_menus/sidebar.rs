@@ -6,7 +6,7 @@ use super::{
 use crate::terminal_session::{
     SidebarWorktreeTarget,
     state::worktree_launch::{
-        WorktreeNotice,
+        Removal, WorktreeMode, WorktreeNotice,
         addressed::{AddressedWorktreeSource, SidebarDiscovery},
     },
     worktree_lane::Action,
@@ -112,6 +112,9 @@ pub(super) fn actions(
             };
             let mut actions = vec![MenuAction::NewWorktree];
             actions.extend(checkout_actions(ready));
+            if Removal::capture(ready).is_some() {
+                actions.push(MenuAction::RemoveWorktree);
+            }
             actions
         }
         MenuTarget::Workspace(_) | MenuTarget::Project(_) => {
@@ -364,5 +367,27 @@ impl NativeUi {
         };
         self.worktrees
             .open_sidebar(origin, discovery, checkout.as_ref())
+    }
+
+    pub(super) fn remove_sidebar_worktree(&mut self, discovery: SidebarDiscovery) -> bool {
+        if self.modal_owns_input()
+            || self.retirement_failure.is_some()
+            || self.worktrees.entry.is_some()
+        {
+            return false;
+        }
+        let Some(origin) = self
+            .state
+            .as_ref()
+            .and_then(NativeSessionState::worktree_origin)
+        else {
+            return false;
+        };
+        if !self.worktrees.launcher.hidden_opened_result() && self.worktrees.launcher.reopen() {
+            return true;
+        }
+        self.worktrees
+            .launcher
+            .open_sidebar(origin, discovery, WorktreeMode::Remove, None)
     }
 }

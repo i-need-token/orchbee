@@ -1,6 +1,7 @@
 //! Localized Worktree forms, retained receipts and progress hints.
 use super::Locale;
 use crate::terminal_session::{WorktreeMode, WorktreeNotice, WorktreeStage};
+mod removal;
 
 impl Locale {
     pub(crate) fn worktree_cancel_label(self, stage: WorktreeStage) -> &'static str {
@@ -57,6 +58,8 @@ impl Locale {
             (Self::EnUs, WorktreeMode::Open) => "Open worktree",
             (Self::ZhCn, WorktreeMode::Create) => "创建 worktree",
             (Self::ZhCn, WorktreeMode::Open) => "打开 worktree",
+            (Self::EnUs, WorktreeMode::Remove) => "Remove worktree",
+            (Self::ZhCn, WorktreeMode::Remove) => "移除 worktree",
         }
     }
     pub(crate) fn worktree_field(self, stage: WorktreeStage) -> &'static str {
@@ -116,6 +119,8 @@ impl Locale {
             (Self::ZhCn, N::Failed) => "操作已停止。请查询状态；检出目录和工作区信息已保留。",
             (Self::EnUs, N::Opened) => "Workspace opened.",
             (Self::ZhCn, N::Opened) => "工作区已打开。",
+            (Self::EnUs, N::Removed) => "Worktree removed and Workspace closed. Branch kept.",
+            (Self::ZhCn, N::Removed) => "Worktree 已移除，工作区已关闭，分支已保留。",
             (Self::EnUs, N::EntryPending) => "Workspace opened; connecting its terminal…",
             (Self::ZhCn, N::EntryPending) => "工作区已打开，正在连接终端…",
             (Self::EnUs, N::EntryFailed) => {

@@ -118,6 +118,7 @@ pub(crate) enum MenuAction {
     LeaveWorkspaceProject,
     JoinWorkspaceProject(orchbee_workbench_protocol::WorkbenchProjectId),
     OpenWorktreeAt(orchbee_workbench_protocol::WorkbenchDirectoryPath),
+    RemoveWorktree,
     DeleteWorkspace,
     DeleteProject,
     CloseProjectWorkspaces,
@@ -241,6 +242,7 @@ impl MenuAction {
             | Self::LeaveWorkspaceProject
             | Self::JoinWorkspaceProject(_)
             | Self::OpenWorktreeAt(_)
+            | Self::RemoveWorktree
             | Self::DeleteWorkspace
             | Self::DeleteProject => return None,
         })
@@ -439,7 +441,10 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
         MenuAction::WorkspaceWorktrees => {
             return matches!(source, MenuTarget::Workspace(_));
         }
-        MenuAction::RenameWorkspace | MenuAction::DeleteWorkspace | MenuAction::DeleteProject => {
+        MenuAction::RenameWorkspace
+        | MenuAction::DeleteWorkspace
+        | MenuAction::DeleteProject
+        | MenuAction::RemoveWorktree => {
             return true;
         }
         _ => {}

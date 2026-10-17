@@ -167,3 +167,68 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
     assert!(!model.view().unwrap().separator_before(1));
     assert_eq!(model.view().unwrap().row_height(0, 1), 1);
 }
+
+#[test]
+fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_closing_it() {
+    let (mut ui, mailbox, _, _) = context_selection::ready(false);
+    let (_, origin, discovery) =
+        crate::terminal_session::state::worktree_launch::tests::removal::fixture();
+    ui.state = Some(crate::terminal_session::state::tests::ready_with_cache(
+        origin.cache.clone(),
+    ));
+    let location = discovery.addressed.cache.location().clone();
+    assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
+    let episode = ui.menus.sidebar.as_mut().unwrap();
+    episode.state = DiscoveryState::Querying;
+    let id = episode.id;
+    ui.settle_sidebar_worktrees(id, Ok(Box::new(discovery)));
+    let token = draw(&mut ui);
+    let (source, index) = {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        (
+            menu.source.clone(),
+            menu.actions
+                .iter()
+                .position(|action| action == &MenuAction::WorkspaceWorktrees)
+                .unwrap(),
+        )
+    };
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none());
+    let token = draw(&mut ui);
+    let (source, index) = {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        let index = menu
+            .actions
+            .iter()
+            .position(|action| action == &MenuAction::RemoveWorktree)
+            .unwrap();
+        assert!(menu.separator_before(index));
+        (menu.source.clone(), index)
+    };
+    ui.activate_action_menu_row(&source, token, index);
+    assert!(ui.take_action_menu_action(false).is_none());
+    assert!(!ui.action_menu_active());
+    assert_eq!(
+        ui.worktrees.launcher.view().unwrap().stage(),
+        crate::terminal_session::WorktreeStage::Remove
+    );
+    assert_eq!(
+        ui.worktrees
+            .launcher
+            .view()
+            .unwrap()
+            .removal_target()
+            .unwrap()
+            .1,
+        "C:/trees/猫"
+    );
+    assert!(ui.worktrees.launcher.operation().is_none());
+    assert_eq!(
+        ui.state.as_ref().unwrap().worktree_origin().unwrap(),
+        origin
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+}

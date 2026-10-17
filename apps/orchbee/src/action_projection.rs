@@ -450,6 +450,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
     let tone = if matches!(
         action,
         A::DeleteWorkspace
+            | A::RemoveWorktree
             | A::DeleteProject
             | A::CloseSelectedTabs
             | A::CloseOtherTabs
@@ -557,6 +558,7 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         A::OpenWorktree | A::OpenWorktreeAt(_) => {
             built_in("orchbee.native.worktree.open", C::Workspace, WORKTREE)
         }
+        A::RemoveWorktree => built_in("orchbee.native.worktree.remove", C::Workspace, WORKTREE),
         A::Reload => built_in(
             "orchbee.native.configuration.reload",
             C::Application,
