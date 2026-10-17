@@ -377,6 +377,29 @@ impl Theme {
             .fg(quantize_color(foreground, self.color_level))
             .bg(quantize_color(background, self.color_level))
     }
+
+    /// A neutral current or pointer surface replaces the entire group chip's contrast pair.
+    #[cfg(windows)]
+    pub(crate) fn tab_group_header_style(
+        &self,
+        color: orchbee_workbench_protocol::TabGroupColor,
+        surface: Option<Role>,
+    ) -> Style {
+        surface
+            .map_or_else(
+                || self.tab_group_style(color),
+                |surface| {
+                    self.content_on_surface(
+                        Role::SurfaceChrome,
+                        Some(surface),
+                        Some(Role::TextPrimary),
+                        self.style(Role::TextPrimary),
+                    )
+                },
+            )
+            .add_modifier(Modifier::BOLD)
+    }
+
     /// The default theme for an unknown host appearance or color level.
     /// Text and surface roles sit on `Color::Reset`; accent, status, and frame
     /// roles use named ANSI-16 colors; `text-secondary` uses `DIM`, not a gray.

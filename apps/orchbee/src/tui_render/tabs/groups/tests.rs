@@ -229,13 +229,13 @@ fn collapsed_group_reserves_the_current_marker_track() {
 
     assert_eq!(inactive_hits, active_hits);
     assert_eq!(inactive[(1, 0)].symbol(), " ");
-    assert_eq!(active[(1, 0)].symbol(), theme.current_context_marker());
+    assert_eq!(active[(1, 0)].symbol(), theme.glyphs.active_marker);
     assert_eq!(inactive[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
     assert_eq!(active[(2, 0)].symbol(), theme.glyphs.disclosure_closed);
 }
 
 #[test]
-fn pointer_surfaces_preserve_group_color_and_member_checked_current_tracks() {
+fn pointer_surfaces_pair_group_text_and_preserve_member_checked_current_tracks() {
     use crate::{
         tui_pointer::ProjectedPointer,
         tui_theme::{Role, Theme},
@@ -301,7 +301,7 @@ fn pointer_surfaces_preserve_group_color_and_member_checked_current_tracks() {
             );
             assert_eq!(
                 buffer[(target.x + 2, target.y)].style().fg,
-                theme.tab_group_style(TabGroupColor::Blue).fg
+                theme.style(Role::TextPrimary).fg
             );
         } else {
             assert_eq!(
@@ -316,6 +316,139 @@ fn pointer_surfaces_preserve_group_color_and_member_checked_current_tracks() {
                 buffer[(target.x, target.y)].fg,
                 theme.color(Role::AccentSelection)
             );
+        }
+    }
+}
+
+#[test]
+fn group_header_contrast_pairs_follow_pointer_transitions_and_current_context() {
+    let mut group = TabGroup {
+        group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
+        label: "Runtime".into(),
+        color: TabGroupColor::Blue,
+    };
+    for base in [
+        Theme::one_light(),
+        Theme::one_dark(),
+        Theme::terminal_native(),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = base.quantize(level);
+            for color in [
+                TabGroupColor::Blue,
+                TabGroupColor::Cyan,
+                TabGroupColor::Green,
+                TabGroupColor::Grey,
+                TabGroupColor::Orange,
+                TabGroupColor::Pink,
+                TabGroupColor::Purple,
+                TabGroupColor::Red,
+                TabGroupColor::Yellow,
+            ] {
+                group.color = color;
+                for (collapsed, active) in [(false, false), (true, false), (true, true)] {
+                    let tabs = [GroupTabDisplay {
+                        tab: TabDisplay {
+                            position: 1,
+                            active,
+                            label: "Log".into(),
+                        },
+                        group: Some(&group),
+                        collapsed,
+                        selected: true,
+                    }];
+                    let mut terminal = Terminal::new(TestBackend::new(80, 1)).unwrap();
+                    let mut resting = None;
+                    for pointer in [
+                        ProjectedPointer::Rest,
+                        ProjectedPointer::Hovered,
+                        ProjectedPointer::Pressed,
+                        ProjectedPointer::Rest,
+                    ] {
+                        let mut header = None;
+                        terminal
+                            .draw(|frame| {
+                                render(
+                                    frame,
+                                    frame.area(),
+                                    &tabs,
+                                    &theme,
+                                    "Unnamed group",
+                                    GroupInteractions::new(
+                                        &mut (),
+                                        &mut |_, _, is_header, _| {
+                                            if is_header {
+                                                pointer
+                                            } else {
+                                                ProjectedPointer::Rest
+                                            }
+                                        },
+                                        &mut |_, _, is_header, rect| {
+                                            if is_header {
+                                                header = Some(rect);
+                                            }
+                                        },
+                                    ),
+                                )
+                            })
+                            .unwrap();
+                        let header = header.expect("the group header remains visible");
+                        let surface = match pointer {
+                            ProjectedPointer::Rest => {
+                                (collapsed && active).then_some(Role::SurfaceCurrent)
+                            }
+                            ProjectedPointer::Hovered => Some(Role::SurfaceHover),
+                            ProjectedPointer::Pressed => Some(Role::SurfacePressed),
+                        };
+                        let expected = if let Some(surface) = surface {
+                            theme.content_on_surface(
+                                Role::SurfaceChrome,
+                                Some(surface),
+                                Some(Role::TextPrimary),
+                                theme.style(Role::TextPrimary),
+                            )
+                        } else {
+                            theme.tab_group_style(color)
+                        };
+                        let buffer = terminal.backend().buffer();
+                        assert_eq!(
+                            buffer[(header.x + 1, header.y)].symbol(),
+                            if collapsed && active {
+                                theme.glyphs.active_marker
+                            } else {
+                                " "
+                            },
+                            "pointer feedback never hides the current member"
+                        );
+                        for x in header.x..header.right() {
+                            let cell = &buffer[(x, header.y)];
+                            assert_eq!(cell.fg, expected.fg.unwrap());
+                            assert_eq!(cell.bg, expected.bg.unwrap());
+                            assert!(cell.modifier.contains(ratatui::style::Modifier::BOLD));
+                            assert_eq!(
+                                cell.modifier.contains(ratatui::style::Modifier::REVERSED),
+                                expected
+                                    .add_modifier
+                                    .contains(ratatui::style::Modifier::REVERSED)
+                            );
+                        }
+                        if pointer == ProjectedPointer::Rest {
+                            if let Some(resting) = &resting {
+                                assert_eq!(
+                                    buffer, resting,
+                                    "leaving the header restores the chip and context"
+                                );
+                            } else {
+                                resting = Some(buffer.clone());
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

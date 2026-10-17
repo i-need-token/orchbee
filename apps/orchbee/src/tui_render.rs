@@ -1195,14 +1195,11 @@ fn render_popup(
         };
     frame.render_widget(Clear, outer);
     frame.render_widget(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(truncate_display(
-                popup.title,
-                usize::from(outer.width.saturating_sub(5)),
-                theme.glyphs.ellipsis,
-            ))
-            .border_style(theme.style(Role::TextSecondary)),
+        overlay_surface(theme, true, Padding::ZERO).title(truncate_display(
+            popup.title,
+            usize::from(outer.width.saturating_sub(5)),
+            theme.glyphs.ellipsis,
+        )),
         outer,
     );
     let painted_close = controls::render_icon_action(

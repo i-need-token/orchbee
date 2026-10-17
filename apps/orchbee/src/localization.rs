@@ -150,7 +150,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ShowHelp => "Open or close this shortcut help",
         PrefixDesc::HelpPage => "Page this shortcut help while it is open",
         PrefixDesc::PointerCapture => "Release or restore mouse capture",
-        PrefixDesc::Exit => "Close this shell",
+        PrefixDesc::Exit => Locale::EnUs.client_detach_label(),
         PrefixDesc::LiteralPrefix => "Send the literal prefix to the terminal input port",
         PrefixDesc::DismissPrefix => "Dismiss the prefix without an action",
         PrefixDesc::OtherKeys => "Send to the terminal input port",
@@ -243,7 +243,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ShowHelp => "打开或关闭此快捷键帮助",
         PrefixDesc::HelpPage => "在帮助打开时翻看此快捷键帮助的页面",
         PrefixDesc::PointerCapture => "释放或恢复鼠标捕获",
-        PrefixDesc::Exit => "关闭此 shell",
+        PrefixDesc::Exit => Locale::ZhCn.client_detach_label(),
         PrefixDesc::LiteralPrefix => "向终端输入端口发送字面前缀",
         PrefixDesc::DismissPrefix => "取消前缀而不执行动作",
         PrefixDesc::OtherKeys => "发送到终端输入端口",
@@ -557,6 +557,14 @@ pub(crate) enum Locale {
 }
 
 impl Locale {
+    /// Help and the action menu share the current Client's detach lifecycle wording.
+    const fn client_detach_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Detach this Client; programs keep running",
+            Self::ZhCn => "分离当前 Client；终端程序继续运行",
+        }
+    }
+
     pub(crate) const fn tui_measurement_path_invalid(self) -> &'static str {
         match self {
             Self::EnUs => "ORCHBEE_TUI_MEASUREMENTS must name a new absolute file path",

@@ -38,6 +38,16 @@ selection overlays; renderers consume those roles without changing focus, geomet
 The light/dark roles distinguish canvas, chrome and raised overlays. System uses outer-host
 defaults; quantization may collapse surface differences while borders, labels and focus remain.
 Overlay frames share theme corner and focus roles; titles use independent primary bold text.
+Independent terminal popups use this complete overlay surface for the title, borders and pending
+body, even on a dark-default outer host. A received program frame replaces only the inner body
+with its independent terminal defaults and explicit program colors.
+
+Tab group headers keep the user's paired color chip at rest. A current, hover or pressed surface
+replaces both chip colors with `text-primary` on the corresponding semantic surface; it never keeps
+the chip's inverse foreground on a neutral fill. Disclosure, counts and current markers keep their
+own geometry, and leaving the header restores its resting chip or current surface. Reduced-color
+and monochrome hosts use the same role resolver and interaction fallbacks. A collapsed current
+group always retains its current marker when pointer feedback replaces the neutral current fill.
 
 The theme contract also provides `accent-action`, `surface-hover` and `surface-pressed`. For the
 shared Light and Dark application appearances, these roles adapt the public product color intent in

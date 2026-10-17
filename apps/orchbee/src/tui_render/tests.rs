@@ -1729,6 +1729,120 @@ fn popup_draw_uses_an_exact_shared_close_and_keeps_program_mouse_in_the_body() {
 
 #[cfg(windows)]
 #[test]
+fn popup_chrome_uses_the_overlay_pair_and_keeps_program_colors_independent() {
+    use crate::{
+        terminal_projection::TerminalProjection,
+        terminal_session::PopupView,
+        tui_pointer::HitMapBuilder,
+        tui_theme::{ColorLevel, Theme},
+    };
+    use orchbee_workbench_protocol::{
+        PluginPopupSize, TerminalDisplayAppearance, UserPreferencesValues, WorkbenchRequestId,
+    };
+    use ratatui::style::{Color, Modifier};
+
+    let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    source.foreground = 0x141414;
+    source.background = 0xfcfcfc;
+    source.cursor.visible = false;
+    source.rows.truncate(1);
+    source.rows[0].index = 0;
+    source.rows[0].cells.truncate(1);
+    let cell = &mut source.rows[0].cells[0];
+    cell.text = "P".into();
+    cell.width = 0;
+    cell.style.foreground = 0x123456;
+    cell.style.background = 0x654321;
+    cell.style.flags = 0;
+    let mut projection =
+        TerminalProjection::new(source.route.attachment_id, source.route.host_epoch);
+    projection.install_frame_for_test(source);
+    let id = WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap();
+    for base in [
+        Theme::one_light(),
+        Theme::one_dark(),
+        Theme::terminal_native(),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = base
+                .with_terminal_preferences(&UserPreferencesValues {
+                    terminal_display_theme: TerminalDisplayAppearance::Host,
+                    ..UserPreferencesValues::default()
+                })
+                .quantize(level);
+            for (locale, title) in [(Locale::EnUs, "Popup"), (Locale::ZhCn, "独立终端")] {
+                for (width, height) in [(80, 24), (135, 38)] {
+                    for ready in [false, true] {
+                        let popup = PopupView {
+                            id: &id,
+                            title,
+                            projection: ready.then_some(&projection),
+                            width: Some(PluginPopupSize::Cells(30)),
+                            height: Some(PluginPopupSize::Cells(8)),
+                            closing: false,
+                        };
+                        let area = Rect::new(0, 0, width, height);
+                        let (outer, inner) = crate::terminal_session::popup_geometry(
+                            popup.width,
+                            popup.height,
+                            area,
+                        )
+                        .unwrap();
+                        let mut terminal =
+                            infallible(Terminal::new(TestBackend::new(width, height)));
+                        let mut hits = HitMapBuilder::new();
+                        infallible(terminal.draw(|frame| {
+                            super::render_popup(frame, area, &popup, locale, &theme, &mut hits)
+                        }));
+                        let buffer = terminal.backend().buffer();
+                        for x in outer.x..outer.right() {
+                            assert_eq!(buffer[(x, outer.y)].bg, theme.color(Role::SurfaceOverlay));
+                            assert_eq!(
+                                buffer[(x, outer.bottom() - 1)].bg,
+                                theme.color(Role::SurfaceOverlay)
+                            );
+                        }
+                        for y in outer.y..outer.bottom() {
+                            assert_eq!(buffer[(outer.x, y)].bg, theme.color(Role::SurfaceOverlay));
+                            assert_eq!(
+                                buffer[(outer.right() - 1, y)].bg,
+                                theme.color(Role::SurfaceOverlay)
+                            );
+                        }
+                        let title_cell = &buffer[(outer.x + 1, outer.y)];
+                        assert_eq!(title_cell.fg, theme.color(Role::TextPrimary));
+                        assert!(title_cell.modifier.contains(Modifier::BOLD));
+                        assert_eq!(
+                            buffer[(outer.x, outer.y + 1)].fg,
+                            theme.color(Role::FrameFocused)
+                        );
+                        let blank = &buffer[(inner.right() - 1, inner.bottom() - 1)];
+                        if ready {
+                            let body_theme = theme.with_host_terminal_colors(0x141414, 0xfcfcfc);
+                            let (foreground, background) = body_theme.terminal_defaults();
+                            assert_eq!((blank.fg, blank.bg), (foreground, background));
+                            assert_eq!(buffer[(inner.x, inner.y)].symbol(), "P");
+                            assert_eq!(buffer[(inner.x, inner.y)].fg, Color::Rgb(0x12, 0x34, 0x56));
+                            assert_eq!(buffer[(inner.x, inner.y)].bg, Color::Rgb(0x65, 0x43, 0x21));
+                        } else {
+                            assert_eq!(blank.bg, theme.color(Role::SurfaceOverlay));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
 fn popup_draw_rejects_incomplete_geometry_before_clearing_or_publishing_targets() {
     use crate::{terminal_session::PopupView, tui_pointer::HitMapBuilder};
     use orchbee_workbench_protocol::WorkbenchRequestId;

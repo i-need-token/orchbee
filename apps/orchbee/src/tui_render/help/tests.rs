@@ -89,6 +89,54 @@ fn glyph_rows(buffer: &Buffer) -> Vec<String> {
         .collect()
 }
 
+#[cfg(windows)]
+#[test]
+fn detach_lifecycle_explanation_survives_help_wrapping_and_matches_the_menu() {
+    for (locale, explanation) in [
+        (Locale::EnUs, "Detach this Client; programs keep running"),
+        (Locale::ZhCn, "分离当前 Client；终端程序继续运行"),
+    ] {
+        assert_eq!(
+            locale.menu_action(&crate::action_menu::MenuAction::Detach),
+            explanation
+        );
+        let compact = |text: &str| {
+            text.chars()
+                .filter(|character| !character.is_whitespace())
+                .collect::<String>()
+        };
+        for (width, height) in [(60, 12), (80, 24), (120, 40)] {
+            let mut view = ClientView::new(width);
+            open_help(&mut view);
+            let mut found = false;
+            let mut reached_last_page = false;
+            for _ in 0..128 {
+                let (buffer, map, placed) =
+                    render_panel(width, height, &view, locale, &Theme::one_light());
+                assert!(
+                    placed.is_some(),
+                    "the complete help remains available at {width}x{height}"
+                );
+                found |= compact(&glyph_rows(&buffer).join(" ")).contains(&compact(explanation));
+                let HelpDrawSource::Presented { page, last, .. } = *map.help_draw_source().unwrap()
+                else {
+                    panic!("the lifecycle explanation must be pageable");
+                };
+                if page == last {
+                    reached_last_page = true;
+                    break;
+                }
+                page_forward(&mut view);
+            }
+            assert!(reached_last_page, "help paging must reach the final page");
+            assert!(
+                found,
+                "detach lifecycle copy was lost at {width}x{height} in {locale:?}"
+            );
+        }
+    }
+}
+
 #[test]
 fn complete_panel_publishes_exact_source_and_all_three_control_slots() {
     let mut view = ClientView::new(60);

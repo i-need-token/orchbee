@@ -302,8 +302,7 @@ impl Locale {
             (Self::ZhCn, AgentBoard) => "Agent 看板",
             (Self::EnUs, ReleasePointer) => "Release mouse",
             (Self::ZhCn, ReleasePointer) => "释放鼠标",
-            (Self::EnUs, Detach) => "Detach window",
-            (Self::ZhCn, Detach) => "分离当前窗口",
+            (_, Detach) => self.client_detach_label(),
         }
     }
 }

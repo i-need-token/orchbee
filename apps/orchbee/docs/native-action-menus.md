@@ -78,6 +78,10 @@ typed target, exact coordinator proof and owner-derived availability; metadata a
 grant no execution authority. Native command search is not present in this surface, so the alias
 metadata does not claim a search entry.
 
+Shortcut Help and the global Detach action share localized wording: only the current Client
+detaches, and terminal programs keep running. This differs from closing a Panel, Tab or Workspace;
+the existing detach/reconnect behavior and confirmation policy remain unchanged.
+
 Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
 label, with at least one blank cell between the label and chord. The chord remains complete;
 constrained rows truncate the label first and omit the whole chord only when the remaining row cannot

@@ -9,7 +9,6 @@ use orchbee_workbench_protocol::{TabGroup, TabGroupColor};
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Modifier,
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -74,7 +73,7 @@ pub(in crate::tui_render) fn render<C, P, R>(
                     label: format!(
                         " {}{} {} ({count}){} ",
                         if item.collapsed && active {
-                            theme.current_context_marker()
+                            theme.glyphs.active_marker
                         } else {
                             " "
                         },
@@ -185,13 +184,29 @@ pub(in crate::tui_render) fn render<C, P, R>(
         if cells == 0 {
             break;
         }
-        let mut style = token.color.map_or_else(
-            || compact_style(token.active, theme),
-            |color| theme.tab_group_style(color).add_modifier(Modifier::BOLD),
+        let rect = Rect::new(
+            area.x
+                .saturating_add(u16::try_from(used).unwrap_or(u16::MAX)),
+            area.y,
+            u16::try_from(cells).unwrap_or(u16::MAX),
+            1,
         );
-        if token.active && token.color.is_some() {
-            style = theme.current_context_style(style);
-        }
+        let pointer = if frame.area().intersection(rect) == rect {
+            interactions.project(token.index, token.color.is_some(), rect)
+        } else {
+            ProjectedPointer::Rest
+        };
+        let style = token.color.map_or_else(
+            || compact_style(token.active, theme),
+            |color| {
+                let surface = match pointer {
+                    ProjectedPointer::Rest => token.active.then_some(Role::SurfaceCurrent),
+                    ProjectedPointer::Hovered => Some(Role::SurfaceHover),
+                    ProjectedPointer::Pressed => Some(Role::SurfacePressed),
+                };
+                theme.tab_group_header_style(color, surface)
+            },
+        );
         if token.checked
             && let Some(rest) = label.strip_prefix(theme.glyphs.active_marker)
         {
@@ -206,19 +221,12 @@ pub(in crate::tui_render) fn render<C, P, R>(
         } else {
             spans.push(Span::styled(label, style));
         }
-        let rect = Rect::new(
-            area.x
-                .saturating_add(u16::try_from(used).unwrap_or(u16::MAX)),
-            area.y,
-            u16::try_from(cells).unwrap_or(u16::MAX),
-            1,
-        );
         if frame.area().intersection(rect) == rect {
             painted.push(PaintedToken {
                 index: token.index,
                 group_header: token.color.is_some(),
                 rect,
-                pointer: interactions.project(token.index, token.color.is_some(), rect),
+                pointer,
             });
         }
         used += cells;
@@ -228,7 +236,9 @@ pub(in crate::tui_render) fn render<C, P, R>(
     }
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
     for token in painted {
-        if paint_token_pointer(frame, token.rect, token.pointer, theme).is_some() {
+        if token.group_header
+            || paint_token_pointer(frame, token.rect, token.pointer, theme).is_some()
+        {
             interactions.record(token.index, token.group_header, token.rect);
         }
     }

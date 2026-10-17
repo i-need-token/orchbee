@@ -80,7 +80,9 @@ The localized wording distinguishes selected members from a whole group without 
 Collapsed state remains Client-local, matching the authority in
 `packages/workbench/src/workbench/document/workbench-client-view.ts`. Header disclosure does not
 select a member, submit a command, advance a shared revision or hide members from the navigator.
-Group colors are user-selected paired foreground/background chips; monochrome preserves names,
+Group colors are user-selected paired foreground/background chips at rest; current and pointer
+surfaces replace the complete pair through the [theme owner](native-themes.md#selection-and-ownership).
+Monochrome preserves names,
 counts, disclosure and active markers. Names pass through the existing terminal-text sanitizer and
 cell-width clipping. Pointer regions come from the same paint as the header and member tokens.
 
