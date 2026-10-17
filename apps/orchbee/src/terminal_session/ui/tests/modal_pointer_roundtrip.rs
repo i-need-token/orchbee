@@ -403,11 +403,14 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
     use ratatui::style::Modifier;
 
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for theme in [
-            Theme::terminal_native(),
-            Theme::one_light(),
-            Theme::one_dark().quantize(ColorLevel::Ansi16),
-            Theme::terminal_native().quantize(ColorLevel::Monochrome),
+        for (profile, theme) in [
+            ("native", Theme::terminal_native()),
+            ("light", Theme::one_light()),
+            ("ansi16", Theme::one_dark().quantize(ColorLevel::Ansi16)),
+            (
+                "monochrome",
+                Theme::terminal_native().quantize(ColorLevel::Monochrome),
+            ),
         ] {
             for (width, height) in [(120, 40), (80, 24), (60, 18), (48, 11), (15, 4)] {
                 for fault in [false, true] {
@@ -425,8 +428,7 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                         ui.edit_setup_draft(token, NativeSetupEdit::Fault);
                     }
                     let capture = format!(
-                        "popup-project-name-{locale:?}-{}-{width}x{height}-fault-{fault}",
-                        theme.name
+                        "popup-project-name-{locale:?}-{profile}-{width}x{height}-fault-{fault}"
                     );
                     let drawn = harness.render_locale(
                         &mut ui,
