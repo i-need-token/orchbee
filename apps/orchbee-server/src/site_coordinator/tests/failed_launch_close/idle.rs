@@ -47,8 +47,8 @@ fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_
                 )
             }
             .unwrap();
-            match kind {
-                0 | 1 => {
+            match (project, kind) {
+                (_, 0 | 1) => {
                     if project {
                         assert!(matches!(
                             result.outcome,
@@ -80,26 +80,49 @@ fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_
                         assert!(snapshot(&mut coordinator).navigation.workspaces.is_empty());
                     }
                 }
-                2 => assert!(matches!(
-                    result.outcome,
-                    WorkbenchCommandOutcome::Rejected {
-                        reason: WorkbenchRejectionReason::ConfirmationRequired,
-                        ..
-                    }
-                )),
-                3 | 5 => assert!(matches!(
-                    result.outcome,
-                    WorkbenchCommandOutcome::Unavailable {
-                        reason: WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable
-                    }
-                )),
-                4 => assert!(matches!(
-                    result.outcome,
-                    WorkbenchCommandOutcome::Unavailable {
-                        reason: WorkbenchCommandUnavailableReason::TerminalBusy
-                    }
-                )),
+                (_, 2) | (false, 3 | 5) => assert!(
+                    matches!(
+                        result.outcome,
+                        WorkbenchCommandOutcome::Rejected {
+                            reason: WorkbenchRejectionReason::ConfirmationRequired,
+                            ..
+                        }
+                    ),
+                    "project={project}, kind={kind}: {result:?}"
+                ),
+                (true, 3 | 5) => assert!(
+                    matches!(
+                        result.outcome,
+                        WorkbenchCommandOutcome::Unavailable {
+                            reason: WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable
+                        }
+                    ),
+                    "project={project}, kind={kind}: {result:?}"
+                ),
+                (_, 4) => assert!(
+                    matches!(
+                        result.outcome,
+                        WorkbenchCommandOutcome::Unavailable {
+                            reason: WorkbenchCommandUnavailableReason::TerminalBusy
+                        }
+                    ),
+                    "project={project}, kind={kind}: {result:?}"
+                ),
                 _ => unreachable!(),
+            }
+            if !project && matches!(kind, 2 | 3 | 5) {
+                assert_eq!(
+                    coordinator
+                        .execute_workspace_close(
+                            command.clone(),
+                            Some(worker(1)),
+                            true,
+                            Instant::now(),
+                        )
+                        .unwrap(),
+                    result,
+                    "a later Worker cannot upgrade the retained confirmation refusal"
+                );
             }
             if kind >= 2 {
                 assert_eq!(snapshot(&mut coordinator), before);
