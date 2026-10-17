@@ -597,9 +597,10 @@ fn link_fixture() -> (
 }
 
 #[cfg(windows)]
-fn notification_covered_link_map(
+fn notification_shielded_link_map(
     source: &crate::terminal_link_activation::PaintedLinkSource,
     content: Rect,
+    shield: Option<Rect>,
 ) -> FrameHitMap {
     let mut hits = HitMapBuilder::new();
     hits.record(
@@ -611,26 +612,103 @@ fn notification_covered_link_map(
         },
     );
     hits.record_link_source(content, source.clone());
-    hits.suppress_link_sources();
+    if let Some(shield) = shield {
+        hits.record(HitLayer::Notification, shield, HitTarget::OverlaySurface);
+    }
     hits.finish()
 }
 
 #[cfg(windows)]
 #[test]
-fn notification_card_keeps_plain_pane_hit_but_suppresses_the_hidden_link_source() {
+fn notification_card_shields_its_painted_cells_and_releases_them_with_the_next_frame() {
     let content = Rect::new(4, 3, 10, 5);
     let source = painted_link_source(pane_ref(1, 1, 1, 0), content.width, content.height);
-    let map = notification_covered_link_map(&source, content);
+    let shield = Rect::new(content.x + 1, content.y + 1, 4, 2);
+    let map = notification_shielded_link_map(&source, content, Some(shield));
 
+    for y in shield.y..shield.bottom() {
+        for x in shield.x..shield.right() {
+            assert!(
+                matches!(
+                    map.hit(x, y),
+                    HitResolution::Region(HitTarget::OverlaySurface)
+                ),
+                "shielded cell {x},{y}"
+            );
+        }
+    }
+    // Outside the card the same frame keeps the pane and its link source.
     assert!(matches!(
-        map.hit(content.x + 2, content.y + 1),
-        HitResolution::Region(HitTarget::Pane { pane, content: painted })
-            if pane == &source.pane && *painted == content
+        map.hit(content.x, content.y),
+        HitResolution::Region(HitTarget::Pane { pane, .. }) if pane == &source.pane
     ));
     assert_eq!(
-        map.link_source(&source.pane, content.x + 2, content.y + 1),
-        None
+        map.link_source(&source.pane, content.x, content.y),
+        Some(&source)
     );
+
+    // The next frame without the card releases the same cells back to the pane.
+    let released = notification_shielded_link_map(&source, content, None);
+    assert!(matches!(
+        released.hit(shield.x, shield.y),
+        HitResolution::Region(HitTarget::Pane { .. })
+    ));
+}
+
+#[cfg(windows)]
+#[test]
+fn notification_card_shields_a_covered_sidebar_control_until_the_card_expires() {
+    let button = Rect::new(2, 4, 8, 2);
+    let card = Rect::new(0, 3, 16, 4);
+    let target = InteractionTarget::Fixture(HitTarget::SearchButton);
+    let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+    let frame = |shield: Option<Rect>| {
+        let mut hits = HitMapBuilder::new();
+        hits.record_interaction(HitLayer::Chrome, button, button, target.clone(), spec);
+        if let Some(card) = shield {
+            hits.record(HitLayer::Notification, card, HitTarget::OverlaySurface);
+        }
+        hits.finish()
+    };
+    let cell = (button.x + 1, button.y);
+
+    let covered = frame(Some(card));
+    assert!(matches!(
+        covered.hit(cell.0, cell.1),
+        HitResolution::Region(HitTarget::OverlaySurface)
+    ));
+    assert!(
+        covered.interaction_at(cell.0, cell.1).is_none(),
+        "the covered control cannot hover, arm, or activate through the card"
+    );
+    let mut pointer = PointerState::default();
+    pointer.set_capture(true);
+    pointer.publish(covered);
+    let mut view = ClientView::new(80);
+    let mut port = RecordingPort::default();
+    assert_eq!(
+        pointer.event(&mut view, &mut port, now(), press(cell.0, cell.1)),
+        PointerOutcome::Ignored
+    );
+    assert_eq!(
+        pointer.event(
+            &mut view,
+            &mut port,
+            now(),
+            event(MouseAction::Release, MouseButton::Left, cell.0, cell.1),
+        ),
+        PointerOutcome::Ignored
+    );
+    assert!(matches!(pointer.gesture, Gesture::Idle));
+    assert!(port.actions.is_empty() && port.forwarded.is_empty() && port.selections.is_empty());
+
+    // The frame after the card expires hands the same cell back to the control.
+    let released = frame(None);
+    assert!(matches!(
+        released.hit(cell.0, cell.1),
+        HitResolution::Region(HitTarget::SearchButton)
+    ));
+    assert!(released.interaction_at(cell.0, cell.1).is_some());
 }
 
 #[cfg(windows)]
@@ -651,7 +729,11 @@ fn notification_frame_cancels_a_pressed_link_and_its_release_stays_swallowed() {
         })
     ));
 
-    pointer.publish(notification_covered_link_map(&source, content));
+    pointer.publish(notification_shielded_link_map(
+        &source,
+        content,
+        Some(content),
+    ));
     assert!(matches!(
         &pointer.gesture,
         Gesture::Link(LinkGesture {

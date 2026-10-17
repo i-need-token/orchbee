@@ -27,11 +27,11 @@ pub(crate) enum Control {
     Clear,
 }
 
-struct AgentAction<'a> {
-    area: Rect,
-    control: Control,
-    label: &'a str,
-    kind: ActionKind,
+pub(super) struct AgentAction<'a> {
+    pub(super) area: Rect,
+    pub(super) control: Control,
+    pub(super) label: &'a str,
+    pub(super) kind: ActionKind,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -377,7 +377,7 @@ impl Picker {
         self.agent_control(control);
         true
     }
-    fn render_agent_action(
+    pub(super) fn render_agent_action(
         &self,
         frame: &mut Frame<'_>,
         action: AgentAction<'_>,

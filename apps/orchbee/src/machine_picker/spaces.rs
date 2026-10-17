@@ -148,12 +148,95 @@ impl Picker {
         &mut self,
         observations: Vec<(Choice, crate::machine_spaces::Observation)>,
     ) -> bool {
-        if self.space_observations == observations {
+        use crate::machine_spaces::Observation;
+        if self.space_updates == observations
+            && (!observations.is_empty()
+                || self.wants_spaces()
+                || self.space_observations.is_empty())
+        {
             return false;
         }
-        self.space_observations = observations;
-        self.rebuild_workspaces(self.selection());
+        self.space_updates = observations.clone();
+        let mut stale = Vec::new();
+        let mut next = Vec::new();
+        for (choice, observation) in observations {
+            let known = self
+                .space_observations
+                .iter()
+                .find_map(|(machine, observation)| match observation {
+                    Observation::Ready(checkpoint) if machine == &choice => Some(checkpoint),
+                    _ => None,
+                });
+            let observation = match (observation, known) {
+                (Observation::Ready(checkpoint), Some(known))
+                    if checkpoint.site_id == known.site_id
+                        && (checkpoint.revision < known.revision
+                            || checkpoint.metadata_revision < known.metadata_revision) =>
+                {
+                    stale.push(choice.clone());
+                    Observation::Ready(known.clone())
+                }
+                (Observation::Ready(checkpoint), Some(known)) => {
+                    Observation::Ready(std::sync::Arc::new(checkpoint.retaining_git(known)))
+                }
+                (Observation::Loading | Observation::Unavailable, Some(known)) => {
+                    stale.push(choice.clone());
+                    Observation::Ready(known.clone())
+                }
+                (observation, _) => observation,
+            };
+            next.push((choice, observation));
+        }
+        // A temporarily unreachable source is not a canonical deletion. Removing or replacing its
+        // saved endpoint explicitly retires the checkpoint through the catalog owner.
+        if self.wants_spaces() {
+            for (choice, observation) in &self.space_observations {
+                if matches!(observation, Observation::Ready(_))
+                    && !next.iter().any(|(machine, _)| machine == choice)
+                    && self
+                        .rows
+                        .iter()
+                        .any(|row| row.enabled && &row.choice == choice)
+                {
+                    next.push((choice.clone(), observation.clone()));
+                    stale.push(choice.clone());
+                }
+            }
+        }
+        if self.space_observations == next && self.space_stale == stale {
+            return false;
+        }
+        let selected = self.selection();
+        self.space_observations = next;
+        self.space_stale = stale;
+        self.rebuild_workspaces(selected);
         true
+    }
+    /// Endpoint replacement revokes retained presentation before its replacement can answer.
+    pub(crate) fn forget_space_observations(&mut self, machine: &Choice) {
+        let selected = self.selection();
+        self.space_observations
+            .retain(|(choice, _)| choice != machine);
+        self.space_updates.retain(|(choice, _)| choice != machine);
+        self.space_stale.retain(|choice| choice != machine);
+        self.rebuild_workspaces(selected);
+    }
+
+    pub(crate) fn space_checkpoint_stale(&self, row: &Row) -> bool {
+        self.space_stale.contains(&row.choice)
+            || self
+                .space_checkpoint_row(row)
+                .is_some_and(|row| row.git_stale)
+    }
+
+    pub(super) fn workspace_row_available(&self, row: &Row) -> bool {
+        row.enabled
+            && (row.context.is_none()
+                || row.choice == Choice::Local
+                || self.rows.iter().any(|machine| {
+                    machine.choice == row.choice
+                        && matches!(machine.observation, Some(super::Observation::Online(_)))
+                }))
     }
     #[cfg(test)]
     pub(crate) fn space_rows(&self) -> &[Row] {
@@ -298,10 +381,12 @@ impl Picker {
     }
     pub(crate) fn show_workspaces(&mut self) {
         self.cancel_sidebar_scroll();
+        self.workspace_query.clear();
+        self.filter_workspaces(None);
         self.show();
         self.set_mode(Mode::Workspaces);
         self.selected = self
-            .workspace_rows
+            .workspace_matches
             .iter()
             .position(|r| self.current_workspace(r))
             .unwrap_or(0);
@@ -311,7 +396,7 @@ impl Picker {
             return None;
         }
         self.workspace_rows.iter().position(|r| {
-            r.enabled
+            self.workspace_row_available(r)
                 && r.context.is_some()
                 && &r.selection() == selected
                 && r.sidebar_target().is_some_and(|target| {

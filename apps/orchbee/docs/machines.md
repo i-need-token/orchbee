@@ -140,9 +140,9 @@ cancellation owner; stale completion cannot switch the active machine.
 
 The picker header names its current Machines, Workspaces or Agents mode. While
 open, it owns the bottom status row and displays that mode with direct navigation,
-Enter, Tab and Escape hints, replacing pane-prefix hints. Search editing names
+Enter, Tab and Escape hints, replacing pane-prefix hints. Agent search editing names
 Search there and states that Escape finishes editing rather than closing the
-picker. Short widths drop the full hint before the short exit hint, then retain
+picker. Workspace search instead keeps Enter Open and Escape Close. Short widths drop the full hint before the short exit hint, then retain
 the Escape key; all choices use display width and keep each segment whole.
 If the mode label and key cannot fit together, the key remains alone. Closing
 restores the covered terminal cells. A closed picker paints no footer or pointer region.
@@ -227,7 +227,14 @@ local IPC fixtures do not establish remote SSH authentication or network recover
 ## Cross-machine workspace navigation
 
 The machine picker has Machines, Workspaces and Agents modes, switched with Tab or their
-painted mode controls. Workspaces combines Local's last accepted canonical
+painted mode controls. The sidebar Search entry opens Workspaces with an empty, focused name query,
+so existing Workspaces remain discoverable without any Agents. Typing filters Workspace names with
+Unicode lowercase matching, including spaces and parentheses; printable `j`/`k` are text, while
+Up/Down move the provisional result. Enter opens its exact target and Escape closes directly.
+The shared line editor supports grapheme editing, cursor movement and atomic paste, with a visible
+refusal beyond 128 scalars or for control-bearing text. Query changes preserve a matching selected
+identity and invalidate old painted targets; filtering never changes the main sidebar. The query
+field's position does not move when the number of matches changes. Workspaces combines Local's last accepted canonical
 navigation with fresh enabled remote observations; rows carry machine identity,
 Session ID and either a standalone context ID or a stable Workspace/context ID pair.
 Nullable Project membership is metadata, not part of selection identity. Labels
@@ -466,10 +473,9 @@ view and Client-local status, scope, ordering and search still define eligibilit
 The first nine eligible entries retain their global filtered-list ordinals even
 when other parents are collapsed. The focused physical member is marked.
 [Sidebar navigation](tui-shell-layout.md#sidebar-navigation-model) owns disclosure
-and the shared tree window. The header's filter action opens the existing Agents
-picker for keyboard navigation, filtering, search, source status and complete
-details; the configured machine-picker binding followed by Tab twice reaches that same
-mode. Loading, unavailable, empty and no-match placeholders remain in the picker;
+and the shared tree window. Search opens Workspace-name filtering; its Agents mode retains
+keyboard navigation, filters, Agent search, source status and complete details. The configured
+machine-picker binding followed by Tab twice also reaches Agents. Loading, unavailable, empty and no-match placeholders remain in the picker;
 they never become nested Agent rows, ordinals or navigation targets.
 Sidebar rows are navigation entries: a left press
 freezes their painted endpoint/member/physical identity, re-resolves eligibility,
@@ -641,6 +647,19 @@ expansion. Session membership, directory and Worker generation are checked befor
 and after I/O. Branch text is control-free UTF-8 capped at 1024 bytes;
 ahead/behind counts are uint32. Metadata reads retain their own revision and an empty final
 fence; topology is rechecked before admitting a complete candidate.
+
+Client presentation retains its last accepted Workspace checkpoint while a refresh is loading,
+unavailable, expired or temporarily missing. Project disclosure, current identity and the manual
+scroll window remain stable. A newer complete checkpoint replaces canonical membership; decreasing
+Workbench or metadata revisions from the same Session cannot overwrite it. A partial Git failure
+retains only the last result for the exact Workspace/context, directory ID, path and Worker.
+An observed null branch confirms absence and clears the old branch; a changed directory or Session
+never inherits it. Retained Git text reserves a two-cell freshness track (` ?` when stale), and the
+Workspace picker reports Stale. Endpoint replacement/removal invalidates its retained checkpoint;
+hiding the last Workspace consumer releases it. No retained fact grants navigation or effect authority.
+`src/machine_picker/tests/spaces.rs` covers failed/missing and out-of-order rounds, stable grouping,
+scroll/current identity, partial Git failure, confirmed absence and source replacement. These are
+controlled implementation traces, not exhaustive TLC assurance or real multi-Client host evidence.
 
 Agent and workspace observations share the bounded job lifecycle, with separate
 four-job pools (at most eight combined), five-second operation budgets,

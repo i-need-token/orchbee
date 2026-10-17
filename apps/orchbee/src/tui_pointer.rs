@@ -93,6 +93,8 @@ const ARROWS_PER_NOTCH: usize = 3;
 /// press that hits nothing inside it dismisses instead of falling through.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HitLayer {
+    /// A noncapturing notification card shields only its painted cells.
+    Notification,
     /// A transient status row occludes pane cells without capturing the whole viewport.
     Status,
     /// Actionable overlay controls — navigator rows. Tested first.
@@ -424,6 +426,7 @@ impl FrameHitMap {
             return HitRegionResolution::OverlayBackdrop;
         }
         for layer in [
+            HitLayer::Notification,
             HitLayer::Status,
             #[cfg(windows)]
             HitLayer::Chrome,
@@ -1019,13 +1022,6 @@ impl HitMapBuilder {
         if !rect.is_empty() {
             self.map.link_sources.push((rect, source));
         }
-    }
-
-    /// A noncapturing surface covered terminal content after it was painted.
-    /// Keep ordinary pane hits, but publish no terminal link source through it.
-    #[cfg(windows)]
-    pub(crate) fn suppress_link_sources(&mut self) {
-        self.map.link_sources.clear();
     }
 
     /// Exact positive-size pane content recorded by this paint pass.

@@ -36,13 +36,11 @@ fn checkpoint_recovery_precedes_the_persistent_configuration_warning() {
     view.startup_notice(Notice::CheckpointEmpty);
     view.configuration_warning(true);
     assert_eq!(view.notice(), Some(Notice::CheckpointEmpty));
-    assert!(view.has_transient_notice());
 
     enter_prefix(&mut view);
     let transition = commit(&mut view, plain('n'));
     assert_eq!(transition.action(), Some(ClientAction::SelectNextTab));
     assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
-    assert!(!view.has_transient_notice());
 
     view.configuration_warning(false);
     assert_eq!(view.notice(), None);

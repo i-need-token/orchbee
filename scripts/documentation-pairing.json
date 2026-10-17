@@ -170,12 +170,12 @@
 			"zhCnSha256": "dab709b92593a088d423cf8163cb229341ff9e6bcfb666c1b3ae9365d72c4b62"
 		},
 		"apps/orchbee/docs/machines.md": {
-			"englishSha256": "4597a5fee8fcfb63b0a9888193e9f4c23812b7069364d5ef877dcdb0ad06f196",
-			"zhCnSha256": "58202456edc706b9c03f4f11905e26c856b42836bad051d0048843564410f3ac"
+			"englishSha256": "6ea83f6dd3ddc456de49ccf3691a3883faf6ef04e950db111b031453494e3201",
+			"zhCnSha256": "b7b7d10a3ab27608bb4c2a45fd4a64aef7073623c135a7704f53f75311cd641b"
 		},
 		"apps/orchbee/docs/native-action-menus.md": {
-			"englishSha256": "f155dcf9bba08f5db7694369853ee5f949d1109e713d371b6ec383494b67c5de",
-			"zhCnSha256": "0b75650c1482eb0d55987c1300bfb5e375db065208994dc5d06ca72f897b1411"
+			"englishSha256": "520f69ecefd6953e827930e4f5967bef68396940d86d8ecf4e041bbb3426e297",
+			"zhCnSha256": "002b896f24cac5523a8dbaeef142f181595aa6ee672d32d3f152427f4810d2ad"
 		},
 		"apps/orchbee/docs/native-agent-navigation.md": {
 			"englishSha256": "c49344ce1b1c6b8279a0e9b21a4ea229772c67a3507e08f88754b63e55b47579",
@@ -326,8 +326,8 @@
 			"zhCnSha256": "dd13179b0d28bf9ead5f59a8c816fe78e0e6915f938e817dca3312ce276b503a"
 		},
 		"apps/orchbee/docs/tui-shell-layout.md": {
-			"englishSha256": "08f65b0a3d07f97c0055b21afc577f9bb1afa4aaae7945eab3ac3f0a3c9900bf",
-			"zhCnSha256": "e1e32c814b97f8a1399b9003bb33fc3348f967db52634ac4a72d4ae996193c17"
+			"englishSha256": "d0cadc7bee0f150ca9d178532a6acef7d8dc0f7317883f51b3ed2db974a5c0c0",
+			"zhCnSha256": "072f8ffd9bd5a8b8ce1145e8d3db6380504e3079fce3100f0300e4e68eff83a0"
 		},
 		"apps/orchbee/docs/windows-agent-integrations.md": {
 			"englishSha256": "7eda870ed69796c0e789f8ec54cf1dbb3d1939211b06bc7e79d760180cca9683",
@@ -358,8 +358,8 @@
 			"zhCnSha256": "d5c3a8910070e8e0f2756ebfc24d17f68009a87328ad9bef3d9147d9edcc88d0"
 		},
 		"apps/orchbee/docs/windows-notifications.md": {
-			"englishSha256": "85aa2464e054108f7795124d365614a1040a313cf7ae4fd91cd1357e6448cab2",
-			"zhCnSha256": "77d446c239eee44ce7da2aa394e616d0da2b722faeab927e925fe287184a2d48"
+			"englishSha256": "92706df96d9ad2d793483dd0f70238a0744213ce7f69f1e1ad2dc2744c43a4b2",
+			"zhCnSha256": "accb3e78ad25d173fa28a8c0e6e77a2e29bec5e6f012912df953a1f72a455a23"
 		},
 		"apps/orchbee/docs/windows-panel-agent-reports.md": {
 			"englishSha256": "25acfa6b9d6711770a080bae5e2a1a9aadeef3fd52eefbaa49896a1503b8892c",

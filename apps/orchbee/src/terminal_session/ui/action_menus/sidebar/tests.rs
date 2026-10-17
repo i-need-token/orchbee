@@ -51,18 +51,19 @@ fn project_target(ui: &NativeUi) -> MenuTarget {
 }
 
 #[test]
-fn async_git_choices_replace_the_menu_token_and_require_a_fresh_draw_without_navigation() {
+fn async_git_availability_preserves_action_slots_and_requires_a_fresh_draw_without_navigation() {
     let (mut ui, mailbox, _, _) = context_selection::ready(false);
     let original = Origin::capture(ui.state.as_ref());
     let target = project_target(&ui);
     assert!(ui.open_action_menu(target, Some((8, 5)), false));
     assert!(
-        !ui.view()
+        ui.view()
             .action_menu()
             .unwrap()
             .actions
             .contains(&MenuAction::WorkspaceWorktrees)
     );
+    let before = ui.view().action_menu().unwrap().actions.to_vec();
     let old = draw(&mut ui);
     let episode = ui.menus.sidebar.as_mut().unwrap();
     episode.state = DiscoveryState::Querying;
@@ -82,6 +83,7 @@ fn async_git_choices_replace_the_menu_token_and_require_a_fresh_draw_without_nav
         )
     };
     assert_ne!(current, old);
+    assert_eq!(ui.view().action_menu().unwrap().actions, before);
     assert!(!ui.action_menu_input_context().unwrap().activation_ready());
     ui.activate_action_menu_row(&source, old, row);
     assert!(ui.take_action_menu_action(false).is_none());
@@ -130,12 +132,20 @@ fn cancelled_or_replaced_episode_cannot_reopen_or_populate_a_new_menu() {
     ui.settle_sidebar_worktrees(cancelled_id, Ok(Box::new(stale)));
     assert_eq!(ui.view().action_menu().unwrap().token, token);
     assert!(
-        !ui.view()
+        ui.view()
             .action_menu()
             .unwrap()
             .actions
             .contains(&MenuAction::WorkspaceWorktrees)
     );
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
+    let row = menu
+        .actions
+        .iter()
+        .position(|action| action == &MenuAction::WorkspaceWorktrees)
+        .unwrap();
+    assert!(menu.unavailable[row].is_some());
     assert!(matches!(
         ui.menus.sidebar.as_ref().unwrap().state,
         DiscoveryState::Querying

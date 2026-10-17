@@ -120,7 +120,7 @@ Workspace 禁用目录配置；当前 Workspace 同时应用原有空状态及 s
 准入守卫。鼠标捕获已释放时禁用释放鼠标捕获。未知异步前提继续交给原 owner；
 菜单不根据只读机器观察推断 Git 支持、Worker 可达性或操作结果。
 
-Project 菜单提供新建 Workspace、重命名、有条件出现的 Worktree 子菜单，以及分隔后的删除。
+Project 菜单提供新建 Workspace、重命名、固定位置的 Worktree 子菜单，以及分隔后的删除。
 新建 Workspace 经由 [setup owner](native-workspace-setup.zh-CN.md#创建默认值与结果归属) 接受准确的
 已绘制 Project，包括空和非当前 Project。它与未分组 Workspace 使用同一立即创建路径，没有
 Project 选择器。重命名与删除同样直接针对已绘制 Project，不进入子 Workspace。Project 删除只
@@ -130,10 +130,17 @@ Project 选择器。重命名与删除同样直接针对已绘制 Project，不�
 无关的当前 Workspace。有类型证明经过 ClientView 与 InputDispatcher 保留。Setup 保留当前来源
 与焦点，准入时核对原菜单截止时间，并使用有界准备，不对可选的人工编辑计时。
 
-Workspace 菜单包含 Project、有条件出现的 Worktree、重命名和删除各段。Project 子菜单对未分组
+Workspace 菜单包含 Project、Worktree、重命名和删除各段。Project 子菜单对未分组
 Workspace 提供新建 Project，对已分组 Workspace 提供离开 Project，再按规范顺序列出已有 Project。
-选项保留准确 ID，包括标签重复的情况。新建只询问一个名称，并原子创建 Project 与移动 Workspace。
-组织操作不会选择非当前 Workspace。空条件段不发布孤立分隔线。
+选项保留准确 ID，包括标签重复的情况。净化或按显示宽度截断后重名的选项，采用侧栏相同的最短唯一
+ID 尾部后缀：至少八位十六进制字符，每次增加四位，直至完整 ID。截断名称前先为完整后缀留空间；
+无法完整显示后缀的几何拒绝呈现界面。新建只询问一个名称，并原子创建 Project 与移动 Workspace。
+组织操作不会选择非当前 Workspace。空条件创建段不发布孤立分隔线。
+
+Workspace 和 Project 菜单在发现等待、非 Git、失败及就绪时均保留 Worktree 行与分隔线。
+等待与不可用行禁用，并提供本地化原因。成功后仍预留原因行，使靠边钳制后的完整菜单框与已有动作
+坐标保持稳定。完成只以新菜单 token 更新可用性并要求重新绘制；不在已按下的指针下插入动作，
+也不改变所选动作的身份。
 
 保留的原有工作区使用既有 Context 身份与兼容动作列表，包括新建 Tab。规范目录、重命名、组织
 以及整个 Workspace 关闭入口继续禁用，并显示本地化的原有工作区说明。简化的上下文构件仍保留
@@ -148,7 +155,7 @@ Workspace 提供新建 Project，对已分组 Workspace 提供离开 Project，�
 侧栏 `+` 入口使用 `MenuTarget::Create` 表达全局或准确 Project 创建上下文。Project 入口把快速
 Workspace 放在首位。已有 Worktree 路径及前置分隔线只在来源发现得到可打开条目后显示；空或
 未解析列表两者都不产生。独立 Worktree 子菜单另外包含新建 Worktree 与已有路径。非 Git、未解析
-或无已寻址来源时省略整个组。异步组合成功时分配新菜单 token，要求重新完整绘制；迟到回复不能
+或无已寻址来源时，其父级固定入口保持禁用。异步组合成功时分配新菜单 token，要求重新完整绘制；迟到回复不能
 重开已取消菜单或重新定位另一个 episode。[Shell 布局](tui-shell-layout.zh-CN.md#快捷创建控件)
 拥有入口几何及 Tab 顶栏直接创建手势。
 
@@ -329,5 +336,9 @@ Context Refresh 与 Tab attachment generation 使用不同类型的导航键，�
 子菜单或执行动作。
 
 在 `src/action_menu/tests.rs`、`src/terminal_session/ui/action_menus/tests.rs`、`src/terminal_input/dispatcher/tests/action_menu.rs`、`src/tui_render/tests.rs` 及相邻的状态、carrier、输入和渲染套件中维护实际证据。流程具有多种结果时，使用受控完成/时钟顺序及生成轨迹重放。
+
+`src/terminal_session/ui/action_menus/sidebar/tests.rs` 覆盖异步 token 替换与已取消轮次。
+`src/tui_render/action_menu/tests/sidebar.rs` 覆盖靠窗口边缘时不同探测结果的行坐标稳定性，
+以及两种语言下重名或截断 Project 的完整后缀。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features`。此流程不另设 TLA 模型。证据覆盖命名/生成的实现轨迹，不证明全部交错、物理终端外观或未测试平台。共享身份、所有权和提交协议仍由单独注册的核心模型负责。

@@ -59,6 +59,12 @@ fn view(width: u16, height: u16) -> ClientView {
                 .into(),
             )
             .unwrap(),
+            directory: Some(Directory {
+                directory_id: WorkbenchDirectoryId::parse(&id(200)).unwrap(),
+                worker_id: WorkerId::parse(&id(201)).unwrap(),
+                path: WorkbenchDirectoryPath::parse("C:/repo").unwrap(),
+            }),
+            git_stale: false,
             git: Some(crate::machine_spaces::Git {
                 branch: Some("feat/测试".into()),
                 divergence: Some(GitDivergence {

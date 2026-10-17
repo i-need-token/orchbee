@@ -813,6 +813,10 @@ impl InputDispatcher {
                     view.machines.key(key);
                     regions_changed = true;
                 }
+                DecodedKind::Paste { text, .. } => {
+                    view.machines.paste_workspace_query(&text);
+                    regions_changed = true;
+                }
                 DecodedKind::Mouse(event) if self.pointer.capture_enabled() => {
                     self.pointer.external_capture_event(event);
                     match self.pointer.machine_picker_event(event) {
@@ -1588,7 +1592,7 @@ impl InputDispatcher {
                     crate::machine_picker::SidebarIntent::Search => {
                         view.machines.leave_sidebar_navigation();
                         view.dismiss_overlay();
-                        view.machines.show_agent_search();
+                        view.machines.show_workspaces();
                         self.machine_packet = true;
                         self.keys.capture_pending();
                         self.pointer.invalidate_map_with_port(port);
@@ -1855,7 +1859,7 @@ impl InputDispatcher {
                                         Some(SidebarFixedActivation::Search) => {
                                             view.machines.leave_sidebar_navigation();
                                             view.dismiss_overlay();
-                                            view.machines.show_agent_search();
+                                            view.machines.show_workspaces();
                                             self.machine_packet = true;
                                             self.reconcile(view, port, now);
                                             after_layout(view, port)?;

@@ -150,6 +150,8 @@ pub(crate) enum MenuUnavailable {
     PointerReleased,
     NoMatchingTabs,
     NoRecentGroup,
+    WorktreeChecking,
+    WorktreeUnavailable,
 }
 
 impl MenuAction {

@@ -558,12 +558,6 @@ impl ClientView {
         }
     }
 
-    /// Persistent configuration health does not suppress transient Agent notifications. A
-    /// higher-priority notice still does, while the warning returns to the status line afterward.
-    pub(crate) const fn has_transient_notice(&self) -> bool {
-        self.notice.is_some()
-    }
-
     pub(crate) const fn overlay(&self) -> Option<Overlay> {
         self.overlay
     }

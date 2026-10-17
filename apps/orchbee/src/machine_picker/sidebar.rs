@@ -166,6 +166,7 @@ impl Picker {
         self.show();
         self.set_mode(Mode::Agents);
     }
+    #[cfg(test)]
     pub(crate) fn show_agent_search(&mut self) {
         self.show_agents();
         self.agent_control(super::Control::Search);

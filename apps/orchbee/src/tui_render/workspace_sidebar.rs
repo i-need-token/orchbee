@@ -56,6 +56,7 @@ struct Context<'a> {
     role: Role,
     standalone: &'static str,
     unnamed: &'static str,
+    git_stale: bool,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
@@ -70,6 +71,7 @@ impl<'a> Context<'a> {
             role,
             standalone: locale.shell().standalone,
             unnamed: locale.unnamed_workspace(),
+            git_stale: view.machines.space_checkpoint_stale(row),
         }
     }
     fn value(&self, kind: Kind<'_>) -> Option<&str> {
@@ -172,6 +174,11 @@ fn lines(
                         .map_or(" ", |state| sidebar_text::state_glyph(state, theme))
                         .to_owned(),
                     Kind::GitStatus => git_text(&context, theme),
+                    Kind::Branch => format!(
+                        "{}{}",
+                        display_label(context.value(kind).expect("visible branch")),
+                        if context.git_stale { " ?" } else { "  " }
+                    ),
                     _ => display_label(context.value(kind).expect("visible value")),
                 };
                 Some((kind, style.expect("visible style"), text))
@@ -224,7 +231,18 @@ fn lines(
                 current_identity = CurrentIdentityEmphasis::ExplicitPlain;
             }
             let fixed = matches!(kind, Kind::StateIcon | Kind::GitStatus);
-            let text = if fixed {
+            let text = if kind == Kind::Branch {
+                let marker = if context.git_stale { " ?" } else { "  " };
+                format!(
+                    "{}{}",
+                    truncate_display(
+                        &display_label(context.value(kind).expect("visible branch")),
+                        budgets[i].saturating_sub(2),
+                        theme.glyphs.ellipsis
+                    ),
+                    if budgets[i] >= 2 { marker } else { "" }
+                )
+            } else if fixed {
                 text
             } else {
                 truncate_display(&text, budgets[i], theme.glyphs.ellipsis)
@@ -357,7 +375,18 @@ fn label(row: &SidebarRow<'_>, locale: Locale) -> String {
     })
 }
 
-fn annotations(view: &ClientView, rows: &[SidebarRow<'_>], locale: Locale) -> Vec<String> {
+fn annotations(
+    context: EntryMeasureContext<'_>,
+    rows: &[SidebarRow<'_>],
+    width: u16,
+) -> Vec<String> {
+    let EntryMeasureContext {
+        view,
+        source,
+        locale,
+        sidebar_width,
+        theme,
+    } = context;
     let mut groups = std::collections::BTreeMap::new();
     for (index, row) in rows.iter().enumerate() {
         let target = row.target();
@@ -379,25 +408,24 @@ fn annotations(view: &ClientView, rows: &[SidebarRow<'_>], locale: Locale) -> Ve
                     SidebarRow::Context { .. } => 1,
                     SidebarRow::Agent { .. } => 2,
                 },
-                label(row, locale),
+                if matches!(row, SidebarRow::Project { .. }) {
+                    truncate_display(
+                        &label(row, locale),
+                        entry_width(view, source, row, width, sidebar_width),
+                        theme.glyphs.ellipsis,
+                    )
+                } else {
+                    label(row, locale)
+                },
             ))
             .or_insert_with(Vec::new)
             .push((index, identity(&target).to_owned()));
     }
     let mut annotations = vec![String::new(); rows.len()];
     for peers in groups.values().filter(|peers| peers.len() > 1) {
-        let mut counts = std::collections::BTreeMap::new();
-        for (_, id) in peers {
-            for length in (8..=32).step_by(4) {
-                *counts.entry(&id[id.len() - length..]).or_insert(0) += 1;
-            }
-        }
+        let identities = peers.iter().map(|(_, id)| id.as_str()).collect::<Vec<_>>();
         for (index, id) in peers {
-            let length = (8..=32)
-                .step_by(4)
-                .find(|length| counts[&id[id.len() - length..]] == 1)
-                .unwrap_or(32);
-            annotations[*index] = format!(" [{}]", &id[id.len() - length..]);
+            annotations[*index] = crate::terminal_text::unique_identity_suffix(id, &identities);
         }
     }
     annotations
@@ -547,7 +575,6 @@ fn minimum_height(
     sidebar_width: u16,
     theme: &Theme,
 ) -> u16 {
-    let annotations = annotations(view, rows, locale);
     let measure = EntryMeasureContext {
         view,
         source,
@@ -555,6 +582,7 @@ fn minimum_height(
         sidebar_width,
         theme,
     };
+    let annotations = annotations(measure, rows, width);
     rows.iter()
         .position(|row| {
             view.machines
@@ -1108,7 +1136,6 @@ pub(super) fn render(
         area.height - header_rows - 1,
     );
     let insertion = extra_creation.map(|preview| creation_insertion(view, rows, preview));
-    let annotations = annotations(view, rows, locale);
     let measure = EntryMeasureContext {
         view,
         source,
@@ -1116,6 +1143,7 @@ pub(super) fn render(
         sidebar_width,
         theme,
     };
+    let annotations = annotations(measure, rows, area.width);
     let mut heights: Vec<_> = rows
         .iter()
         .zip(&annotations)

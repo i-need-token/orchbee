@@ -1,7 +1,7 @@
 //! Sidebar composition projects exact typed organization choices, never labels as identity.
 use super::{
     Duration, Instant, MenuAction, MenuTarget, NativeContextLocation, NativeMenuContextSource,
-    NativeSessionState, NativeUi, Stage, Target, action_availability, visible_unavailable,
+    NativeSessionState, NativeUi, Stage, Target, visible_unavailable,
 };
 use crate::terminal_session::{
     SidebarWorktreeTarget,
@@ -99,7 +99,7 @@ fn checkout_actions(discovery: &SidebarDiscovery) -> Vec<MenuAction> {
 
 pub(super) fn actions(
     entry: &MenuTarget,
-    mut actions: Vec<MenuAction>,
+    actions: Vec<MenuAction>,
     episode: Option<&Episode>,
 ) -> Vec<MenuAction> {
     let ready = episode
@@ -117,12 +117,7 @@ pub(super) fn actions(
             }
             actions
         }
-        MenuTarget::Workspace(_) | MenuTarget::Project(_) => {
-            if ready.is_none() {
-                actions.retain(|action| action != &MenuAction::WorkspaceWorktrees);
-            }
-            actions
-        }
+        MenuTarget::Workspace(_) | MenuTarget::Project(_) => actions,
         MenuTarget::Create(project) => {
             let mut actions = vec![if project.is_some() {
                 MenuAction::QuickWorkspace
@@ -138,6 +133,27 @@ pub(super) fn actions(
             actions
         }
         _ => actions,
+    }
+}
+
+pub(super) fn unavailable(
+    entry: &MenuTarget,
+    episode: Option<&Episode>,
+    action: &MenuAction,
+) -> Option<crate::action_menu::MenuUnavailable> {
+    use crate::action_menu::MenuUnavailable;
+    if action != &MenuAction::WorkspaceWorktrees {
+        return None;
+    }
+    match episode
+        .filter(|episode| belongs(entry, episode))
+        .map(|episode| &episode.state)
+    {
+        Some(DiscoveryState::Ready(_)) => None,
+        Some(DiscoveryState::Waiting | DiscoveryState::Querying) => {
+            Some(MenuUnavailable::WorktreeChecking)
+        }
+        Some(DiscoveryState::Absent) | None => Some(MenuUnavailable::WorktreeUnavailable),
     }
 }
 
@@ -316,7 +332,13 @@ impl NativeUi {
         };
         let actions = actions(&intent.entry, base, self.menus.sidebar.as_ref());
         if actions == menu.actions {
-            return false;
+            return self.menus.menu.refresh_availability(|action| {
+                visible_unavailable(intent.availability(
+                    self.state.as_ref(),
+                    self.menus.sidebar.as_ref(),
+                    action,
+                ))
+            });
         }
         if actions.is_empty() {
             self.fail_action_menu();
@@ -339,12 +361,10 @@ impl NativeUi {
         });
         self.menus.menu.select_action(selected);
         self.menus.menu.refresh_availability(|action| {
-            visible_unavailable(action_availability(
+            visible_unavailable(intent.availability(
                 self.state.as_ref(),
-                &intent.target,
+                self.menus.sidebar.as_ref(),
                 action,
-                intent.pointer_released,
-                intent.resume_permit.as_ref(),
             ))
         });
         true
@@ -370,10 +390,7 @@ impl NativeUi {
     }
 
     pub(super) fn remove_sidebar_worktree(&mut self, discovery: SidebarDiscovery) -> bool {
-        if self.modal_owns_input()
-            || self.retirement_failure.is_some()
-            || self.worktrees.entry.is_some()
-        {
+        if self.modal_owns_input() || self.retirement_failure.is_some() {
             return false;
         }
         let Some(origin) = self
@@ -383,11 +400,6 @@ impl NativeUi {
         else {
             return false;
         };
-        if !self.worktrees.launcher.hidden_opened_result() && self.worktrees.launcher.reopen() {
-            return true;
-        }
-        self.worktrees
-            .launcher
-            .open_sidebar(origin, discovery, WorktreeMode::Remove, None)
+        self.worktrees.remove_sidebar(origin, discovery)
     }
 }

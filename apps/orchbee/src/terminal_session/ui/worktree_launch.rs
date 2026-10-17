@@ -35,6 +35,17 @@ pub(super) struct Coordinator {
     entry: Option<Entry>,
 }
 impl Coordinator {
+    pub(super) fn remove_sidebar(&mut self, origin: Origin, discovery: SidebarDiscovery) -> bool {
+        if self.entry.is_some() {
+            return false;
+        }
+        if !self.launcher.hidden_opened_result() && self.launcher.reopen() {
+            return true;
+        }
+        self.launcher
+            .open_sidebar(origin, discovery, WorktreeMode::Remove, None)
+    }
+
     pub(super) fn open_sidebar(
         &mut self,
         origin: Origin,

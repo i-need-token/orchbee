@@ -29,7 +29,10 @@ pub(crate) struct Row {
     pub(crate) project_id: Option<WorkbenchProjectId>,
     pub(crate) label: Option<String>,
     pub(crate) tokens: MetadataTokens,
+    /// Canonical directory identity fences reuse of a last known Git observation.
+    pub(crate) directory: Option<orchbee_workbench_protocol::Directory>,
     pub(crate) git: Option<Git>,
+    pub(crate) git_stale: bool,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ProjectSummary {
@@ -47,6 +50,36 @@ pub(crate) struct Checkpoint {
 }
 pub(crate) type Observation = crate::machine_observation::Observation<Checkpoint>;
 pub(crate) type Collector = crate::machine_observation::Collector<Checkpoint>;
+
+impl Checkpoint {
+    /// Missing reads retain facts only for the same exact Workspace and canonical source.
+    pub(crate) fn retaining_git(&self, previous: &Self) -> Self {
+        let mut checkpoint = self.clone();
+        if self.site_id != previous.site_id
+            || self
+                .rows
+                .iter()
+                .all(|row| row.git.is_some() || row.directory.is_none())
+        {
+            return checkpoint;
+        }
+        let mut rows = self.rows.to_vec();
+        for row in &mut rows {
+            if row.git.is_none()
+                && row.directory.is_some()
+                && let Some(known) = previous
+                    .rows
+                    .iter()
+                    .find(|known| known.target == row.target && known.directory == row.directory)
+            {
+                row.git.clone_from(&known.git);
+                row.git_stale = row.git.is_some();
+            }
+        }
+        checkpoint.rows = rows.into();
+        checkpoint
+    }
+}
 struct Reader<'a> {
     client: &'a mut LocalClient,
     before: Snapshot,
@@ -175,7 +208,9 @@ impl Reader<'_> {
                 project_id: None,
                 label: None,
                 tokens: MetadataTokens::default(),
+                directory: None,
                 git: None,
+                git_stale: false,
             });
         }
         // Equal canonical directories share one Git job within this topology-fenced round.
@@ -184,9 +219,10 @@ impl Reader<'_> {
             let directory = self
                 .before
                 .navigation
-                .workspace_directory(&workspace.workspace_id);
+                .workspace_directory(&workspace.workspace_id)
+                .cloned();
             let git = if git_requested {
-                if let Some(directory) = directory {
+                if let Some(directory) = directory.as_ref() {
                     let key = (
                         directory.worker_id.clone(),
                         directory.path.as_str().to_owned(),
@@ -215,7 +251,9 @@ impl Reader<'_> {
                 project_id: workspace.project_id,
                 label: Some(workspace.label),
                 tokens: metadata.remove(&workspace.workspace_id).ok_or(())?,
+                directory,
                 git,
+                git_stale: false,
             });
         }
         // An empty read fences expiration/report changes after every Workspace and Git batch.

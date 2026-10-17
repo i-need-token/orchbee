@@ -64,6 +64,14 @@ impl Locale {
         compact: bool,
     ) -> &'static str {
         match (self, reason, compact) {
+            (Self::EnUs, MenuUnavailable::WorktreeChecking, false) => "Checking Git source…",
+            (Self::ZhCn, MenuUnavailable::WorktreeChecking, false) => "正在识别 Git 来源…",
+            (Self::EnUs, MenuUnavailable::WorktreeChecking, true) => "Checking Git…",
+            (Self::ZhCn, MenuUnavailable::WorktreeChecking, true) => "识别 Git 中",
+            (Self::EnUs, MenuUnavailable::WorktreeUnavailable, false) => "No available Git source",
+            (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, false) => "暂无可用的 Git 来源",
+            (Self::EnUs, MenuUnavailable::WorktreeUnavailable, true) => "Git unavailable",
+            (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, true) => "Git 不可用",
             (_, MenuUnavailable::LegacyWorkspace, false) => {
                 self.legacy_workspace_action_unavailable()
             }

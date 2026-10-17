@@ -172,6 +172,16 @@ impl Locale {
             (Self::ZhCn, "agent-source") => "视图",
             (Self::EnUs, "agent-search") => "Search",
             (Self::ZhCn, "agent-search") => "搜索",
+            (Self::EnUs, "workspace-search") => "Search Workspaces",
+            (Self::ZhCn, "workspace-search") => "搜索工作区",
+            (Self::EnUs, "workspaces-no-matches") => "No matching Workspaces.",
+            (Self::ZhCn, "workspaces-no-matches") => "暂无匹配的工作区。",
+            (Self::EnUs, "workspace-query-limit") => "Search is limited to 128 characters.",
+            (Self::ZhCn, "workspace-query-limit") => "搜索词最多 128 个字符。",
+            (Self::EnUs, "workspace-query-invalid") => {
+                "Search accepts single-line text without controls."
+            }
+            (Self::ZhCn, "workspace-query-invalid") => "搜索词须为不含控制字符的单行文本。",
             (Self::EnUs, "agent-all-states") => "All states",
             (Self::ZhCn, "agent-all-states") => "全部状态",
             (Self::EnUs, "agent-scope-all") => "All machines",

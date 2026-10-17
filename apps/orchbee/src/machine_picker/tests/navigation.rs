@@ -97,7 +97,9 @@ fn checkpoint(site: u8) -> crate::machine_spaces::Observation {
             project_id: Some(WorkbenchProjectId::parse(&format!("{:032x}", 1)).unwrap()),
             label: Some("same 工作区".into()),
             tokens: Default::default(),
+            directory: None,
             git: None,
+            git_stale: false,
         }]
         .into(),
     }))

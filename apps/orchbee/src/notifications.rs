@@ -133,7 +133,6 @@ pub(crate) fn available(view: &ClientView, session: Option<TerminalSessionView<'
     project_capture(client_claims, native.capture_claims()).is_none()
         && !view.prefix_active()
         && view.overlay().is_none()
-        && !view.has_transient_notice()
         && native.notice().is_none()
 }
 pub(crate) fn sound(kind: NotificationSound) {
@@ -153,9 +152,18 @@ pub(crate) fn sound(kind: NotificationSound) {
         let _ = output.write_all(b"\x07").and_then(|()| output.flush());
     }
 }
-pub(crate) fn render(frame: &mut Frame<'_>, state: &State, theme: &Theme) -> bool {
+/// Paint the one visible card and record its exact painted extent as a
+/// noncapturing hit shield. Covered controls cannot hover, arm, or activate
+/// through the card, while cells outside it keep their ordinary policy.
+/// Returns the painted card rectangle only when this frame drew it.
+pub(crate) fn render(
+    frame: &mut Frame<'_>,
+    state: &State,
+    theme: &Theme,
+    hits: &mut crate::tui_pointer::HitMapBuilder,
+) -> Option<Rect> {
     let Some(visible) = &state.visible else {
-        return false;
+        return None;
     };
     let bounds = frame.area();
     // Reserve the persistent status row and one top chrome row.
@@ -166,7 +174,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &State, theme: &Theme) -> boo
         bounds.height.saturating_sub(2),
     );
     if area.width < 8 || area.height < 3 {
-        return false;
+        return None;
     }
     let title = crate::cli::escape::escape(&visible.message.title);
     let body = visible
@@ -225,7 +233,12 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &State, theme: &Theme) -> boo
         Paragraph::new(lines).style(theme.style(Role::SurfaceOverlay)),
         inner,
     );
-    true
+    hits.record(
+        crate::tui_pointer::HitLayer::Notification,
+        rect,
+        crate::tui_pointer::HitTarget::OverlaySurface,
+    );
+    Some(rect)
 }
 #[cfg(test)]
 mod tests;

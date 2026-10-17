@@ -3,7 +3,7 @@ use unicode_segmentation::UnicodeSegmentation;
 /// The protocol length budget for one editable field: a scalar count for
 /// workbench labels or a UTF-8 byte count for filesystem paths. The budget is
 /// checked against the exact resulting text, never against grapheme clusters.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LengthLimit {
     Scalars(usize),
     Bytes(usize),
@@ -14,8 +14,8 @@ pub(crate) enum LengthLimit {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct LengthLimitReached;
 
-/// A pure single-line text editor shared by the settings, rename and workspace-setup
-/// drafts.
+/// A pure single-line text editor shared by settings, rename, workspace-setup drafts and
+/// picker queries.
 ///
 /// - `text` preserves the exact UTF-8 bytes supplied by prefill and edits; the
 ///   editor never normalizes, filters, or ANSI-parses input (character
@@ -26,7 +26,7 @@ pub(crate) struct LengthLimitReached;
 /// The editor holds no I/O, clock, or session state. The horizontal window a
 /// draft field shows is a pure consumer projection over this state measured
 /// in the chrome-safe display space — the core does not own display layout.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LineEditor {
     text: String,
     cursor: usize,

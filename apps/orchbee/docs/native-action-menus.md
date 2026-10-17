@@ -166,7 +166,7 @@ pointer capture. Unknown asynchronous prerequisites continue through their origi
 owners; the menu does not infer Git support, worker reachability or an operation
 outcome from read-only machine observations.
 
-Project menus expose New Workspace, Rename, a conditional Worktree submenu, then a separated Delete.
+Project menus expose New Workspace, Rename, a fixed Worktree submenu slot, then a separated Delete.
 New Workspace accepts the exact drawn Project, including empty and noncurrent Projects, through the
 [setup owner](native-workspace-setup.md#creation-defaults-and-result-ownership). It uses the same
 immediate path as an ungrouped Workspace without a Project picker. Rename and Delete also target the
@@ -178,11 +178,20 @@ it never borrows an unrelated current Workspace. Typed proofs survive ClientView
 Setup retains the current source and focus, checks the original menu deadline at admission, and uses
 bounded preparation without timing optional human editing.
 
-Workspace menus contain Project, conditional Worktree, Rename and Delete sections. Project opens
+Workspace menus contain Project, Worktree, Rename and Delete sections. Project opens
 New Project for an ungrouped Workspace or Leave Project for a grouped one, followed by existing
-Projects in canonical order. Choices retain exact IDs, including duplicate labels. New Project asks
+Projects in canonical order. Choices retain exact IDs, including duplicate labels. Names that collide
+after sanitization or display-width truncation receive the sidebar's shortest unique trailing ID
+suffix: at least eight hexadecimal characters, extended by four up to the full ID. The complete suffix
+is budgeted before truncating the name; geometry that cannot show it refuses the surface. New Project asks
 for one name and atomically creates the Project and moves the Workspace. Organization never selects
-a noncurrent Workspace. Empty conditional sections publish no orphan separator.
+a noncurrent Workspace. Empty conditional creation sections publish no orphan separator.
+
+Workspace and Project menus retain the Worktree row and its separator while discovery is pending,
+non-Git, failed or ready. Pending and unavailable rows are disabled with localized reasons. The reason
+row is reserved even after success, keeping the complete edge-clamped frame and existing action
+coordinates stable. Completion changes availability under a fresh menu token and requires repaint;
+it never inserts an action under an armed pointer or changes the selected action's identity.
 
 The retained Legacy workspace uses its existing Context identity and compatibility action list,
 including New Tab. Canonical directory, rename, organization and whole-Workspace Close entries stay
@@ -200,7 +209,7 @@ The sidebar `+` entries use `MenuTarget::Create` for the global or exact-Project
 The Project entry puts Quick Workspace first. Existing Worktree paths and their preceding separator
 appear only after source discovery yields openable entries; an empty or unresolved list contributes
 neither. The dedicated Worktree submenu independently contains New Worktree and existing paths.
-Its group is omitted for non-Git, unresolved or absent addressed sources. Successful asynchronous
+Its parent slot remains disabled for non-Git, unresolved or absent addressed sources. Successful asynchronous
 composition mints a fresh menu token and requires a new complete draw; late replies cannot reopen
 cancelled menus or retarget another episode. The [shell layout](tui-shell-layout.md#quick-creation-controls)
 owns the entry geometry and direct Tab-strip create gesture.
@@ -418,5 +427,9 @@ witnesses cover successive pre-paint motions, keyboard continuation, disabled an
 source and token refusal, viewport retention, pointer leave, and no implicit submenu or action.
 
 Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_session/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
+
+`src/terminal_session/ui/action_menus/sidebar/tests.rs` covers asynchronous token replacement and
+cancelled episodes. `src/tui_render/action_menu/tests/sidebar.rs` covers stable probe-outcome row
+coordinates at window edges and complete duplicate/truncated Project suffixes in both locales.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.

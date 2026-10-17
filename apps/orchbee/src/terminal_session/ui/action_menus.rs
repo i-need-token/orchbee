@@ -324,6 +324,32 @@ struct Intent {
     project_choices: Option<Vec<orchbee_workbench_protocol::Project>>,
 }
 
+impl Intent {
+    fn availability(
+        &self,
+        state: Option<&NativeSessionState>,
+        sidebar: Option<&sidebar::Episode>,
+        action: MenuAction,
+    ) -> ActionAvailability<MenuUnavailable> {
+        let availability = action_availability(
+            state,
+            &self.target,
+            action.clone(),
+            self.pointer_released,
+            self.resume_permit.as_ref(),
+        );
+        if availability.is_enabled() {
+            ActionAvailability::from_disabled_reason(sidebar::unavailable(
+                &self.entry,
+                sidebar,
+                &action,
+            ))
+        } else {
+            availability
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Coordinator {
     pub(super) menu: ActionMenu,
@@ -887,13 +913,7 @@ impl NativeUi {
             }
         }
         self.menus.menu.refresh_availability(|action| {
-            visible_unavailable(action_availability(
-                state,
-                &intent.target,
-                action,
-                intent.pointer_released,
-                intent.resume_permit.as_ref(),
-            ))
+            visible_unavailable(intent.availability(state, self.menus.sidebar.as_ref(), action))
         });
         if !self.menus.menu.active() {
             return false;
@@ -1271,39 +1291,31 @@ impl NativeUi {
             Stage::Open => {
                 if self.menus.menu.view().is_some_and(|menu| {
                     menu.actions.iter().any(|action| {
-                        action_availability(
-                            self.state.as_ref(),
-                            &intent.target,
-                            action.clone(),
-                            intent.pointer_released,
-                            intent.resume_permit.as_ref(),
-                        )
-                        .is_hidden()
+                        intent
+                            .availability(
+                                self.state.as_ref(),
+                                self.menus.sidebar.as_ref(),
+                                action.clone(),
+                            )
+                            .is_hidden()
                     })
                 }) {
                     self.fail_action_menu();
                     return true;
                 }
                 changed = self.menus.menu.refresh_availability(|action| {
-                    visible_unavailable(action_availability(
+                    visible_unavailable(intent.availability(
                         self.state.as_ref(),
-                        &intent.target,
+                        self.menus.sidebar.as_ref(),
                         action,
-                        intent.pointer_released,
-                        intent.resume_permit.as_ref(),
                     ))
                 });
             }
             Stage::Confirmed(deadline) => {
                 if self.menus.menu.confirmed().is_some_and(|action| {
-                    !action_availability(
-                        self.state.as_ref(),
-                        &intent.target,
-                        action,
-                        intent.pointer_released,
-                        intent.resume_permit.as_ref(),
-                    )
-                    .is_enabled()
+                    !intent
+                        .availability(self.state.as_ref(), self.menus.sidebar.as_ref(), action)
+                        .is_enabled()
                 }) {
                     self.fail_action_menu();
                     return true;
@@ -1444,6 +1456,7 @@ impl NativeUi {
         let action = self.menus.menu.confirmed()?;
         if !self.target_valid(&intent.target)
             || !self.menu_target_selected(&intent.target, action.clone())
+            || sidebar::unavailable(&intent.entry, self.menus.sidebar.as_ref(), &action).is_some()
             || !action_availability(
                 self.state.as_ref(),
                 &intent.target,

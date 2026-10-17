@@ -7,6 +7,7 @@ use crate::{
 use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
 
+mod sidebar;
 mod tab_scope;
 
 #[test]

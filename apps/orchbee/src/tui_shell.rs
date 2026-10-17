@@ -1055,7 +1055,8 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
                 != crate::tui_layout::ViewportTier::TooSmall;
         if notifications_presentable && crate::notifications::available(view, surface.view()) {
             notification_painted =
-                crate::notifications::render(frame, &view.notifications, chrome.theme);
+                crate::notifications::render(frame, &view.notifications, chrome.theme, &mut hits)
+                    .is_some();
         }
         #[cfg(windows)]
         render_machine_surface(
@@ -1106,11 +1107,8 @@ fn draw_measured_surface<B: Backend + ResizableBackend>(
         return Err(LoopFailure::Terminal(error));
     }
     if notification_painted {
-        // The card is intentionally noncapturing, so ordinary pane clicks
-        // keep their existing policy. Its covered cells must not expose a
-        // terminal link source or preserve an earlier link effect handoff.
-        #[cfg(windows)]
-        hits.suppress_link_sources();
+        // Settle sound only after the card and its matching hit shield were
+        // included in the successfully flushed frame.
         crate::notifications::sound(view.notifications.take_sound_after_draw());
     }
     let help_draw = dispatcher.publish_hit_map_with_help(hits.finish());

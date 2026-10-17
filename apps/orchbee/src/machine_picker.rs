@@ -34,6 +34,7 @@ mod agents;
 mod navigation;
 mod sidebar;
 mod spaces;
+mod workspace_query;
 pub(crate) use agents::Control;
 use agents::Navigation;
 pub(crate) use navigation::{
@@ -120,6 +121,7 @@ struct PickerCatalog {
     episode: PickerEpisode,
     mode: Mode,
     agent: Option<PickerAgentBasis>,
+    workspace_query: Option<(String, usize)>,
     rows: Box<[PickerCatalogRow]>,
 }
 
@@ -177,19 +179,21 @@ impl PickerSource {
         match action {
             PickerAction::Close | PickerAction::Mode(_) => true,
             PickerAction::Control(control) => {
-                self.0.mode == Mode::Agents
-                    && match control {
-                        Control::Done => self
-                            .0
-                            .agent
-                            .as_ref()
-                            .is_some_and(|basis| basis.editing_query),
-                        Control::State
-                        | Control::Scope
-                        | Control::Order
-                        | Control::Search
-                        | Control::Clear => true,
-                    }
+                (self.0.mode == Mode::Workspaces
+                    && matches!(control, Control::Search | Control::Clear))
+                    || self.0.mode == Mode::Agents
+                        && match control {
+                            Control::Done => self
+                                .0
+                                .agent
+                                .as_ref()
+                                .is_some_and(|basis| basis.editing_query),
+                            Control::State
+                            | Control::Scope
+                            | Control::Order
+                            | Control::Search
+                            | Control::Clear => true,
+                        }
             }
             PickerAction::Row(index) => index < self.0.rows.len(),
         }
@@ -345,6 +349,8 @@ pub(crate) struct Picker {
     pub(crate) current_context: Option<NativeContextTarget>,
     local_contexts: std::sync::Arc<[Context]>,
     workspace_rows: std::sync::Arc<[Row]>,
+    workspace_matches: std::sync::Arc<[Row]>,
+    workspace_query: crate::terminal_text::line_editor::LineEditor,
     agent_rows: std::sync::Arc<[Row]>,
     agent_observations: Vec<(Choice, crate::machine_agents::Observation)>,
     agent_sources: Vec<(Choice, crate::machine_agents::Observation)>,
@@ -358,6 +364,8 @@ pub(crate) struct Picker {
     sidebar_width: crate::tui_layout::SidebarWidth,
     navigation: navigation::SidebarNavigation,
     space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
+    space_updates: Vec<(Choice, crate::machine_spaces::Observation)>,
+    space_stale: Vec<Choice>,
     editing_query: bool,
     current_member: Option<NativeMemberTarget>,
     pending_navigation: Option<Navigation>,
@@ -388,6 +396,11 @@ impl Default for Picker {
             current_context: None,
             local_contexts: std::sync::Arc::from([]),
             workspace_rows: std::sync::Arc::from([]),
+            workspace_matches: std::sync::Arc::from([]),
+            workspace_query: crate::terminal_text::line_editor::LineEditor::new(
+                String::new(),
+                crate::terminal_text::line_editor::LengthLimit::Scalars(128),
+            ),
             agent_rows: std::sync::Arc::from([]),
             agent_observations: Vec::new(),
             agent_sources: Vec::new(),
@@ -401,6 +414,8 @@ impl Default for Picker {
             sidebar_width: crate::tui_layout::SidebarWidth::DEFAULT,
             navigation: navigation::SidebarNavigation::default(),
             space_observations: Vec::new(),
+            space_updates: Vec::new(),
+            space_stale: Vec::new(),
             editing_query: false,
             current_member: None,
             pending_navigation: None,
@@ -413,7 +428,7 @@ impl Picker {
     fn visible_rows(&self) -> &[Row] {
         match self.mode {
             Mode::Machines => &self.rows,
-            Mode::Workspaces => &self.workspace_rows,
+            Mode::Workspaces => &self.workspace_matches,
             Mode::Agents => &self.agent_rows,
         }
     }
@@ -459,7 +474,7 @@ impl Picker {
             .iter()
             .map(|row| PickerCatalogRow {
                 selection: row.selection(),
-                enabled: row.enabled,
+                enabled: self.workspace_row_available(row),
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
@@ -467,6 +482,12 @@ impl Picker {
             episode,
             mode: self.mode,
             agent,
+            workspace_query: (self.mode == Mode::Workspaces).then(|| {
+                (
+                    self.workspace_query.text().to_owned(),
+                    self.workspace_query.cursor(),
+                )
+            }),
             rows,
         })))
     }
@@ -510,6 +531,12 @@ impl Picker {
         match target.action() {
             PickerAction::Close => self.close_picker(),
             PickerAction::Mode(mode) => self.set_mode(mode),
+            PickerAction::Control(control) if self.mode == Mode::Workspaces => {
+                if control == Control::Clear {
+                    self.workspace_query.clear();
+                    self.filter_workspaces(self.selection());
+                }
+            }
             PickerAction::Control(control) => self.agent_control(control),
             PickerAction::Row(index) => {
                 let Some(catalog_row) = source.0.rows.get(index) else {
@@ -595,6 +622,7 @@ impl Picker {
         }
         self.cancel_sidebar_scroll();
         self.workspace_rows = rows.into();
+        self.filter_workspaces(selected.clone());
         self.reconcile_sidebar_navigation();
         self.rebuild_agents();
         self.selected = selected
@@ -732,6 +760,21 @@ impl Picker {
         }));
         if rows != self.rows {
             self.rows = rows;
+            self.space_observations.retain(|(choice, _)| {
+                self.rows
+                    .iter()
+                    .any(|row| row.enabled && &row.choice == choice)
+            });
+            self.space_updates.retain(|(choice, _)| {
+                self.rows
+                    .iter()
+                    .any(|row| row.enabled && &row.choice == choice)
+            });
+            self.space_stale.retain(|choice| {
+                self.rows
+                    .iter()
+                    .any(|row| row.enabled && &row.choice == choice)
+            });
             self.rebuild_workspaces(selected);
         }
     }
@@ -811,6 +854,9 @@ impl Picker {
         if self.agent_key(code, mods) {
             return;
         }
+        if self.workspace_query_key(code, mods) {
+            return;
+        }
         if (code == KeyCode::Char('i') && mods == Modifiers::CTRL)
             || (code == KeyCode::Tab && mods == Modifiers::NONE)
         {
@@ -826,8 +872,14 @@ impl Picker {
         }
         match code {
             KeyCode::Esc => self.close_picker(),
-            KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Up => self.selected = self.selected.saturating_sub(1),
+            KeyCode::Char('k') if self.mode != Mode::Workspaces => {
+                self.selected = self.selected.saturating_sub(1)
+            }
+            KeyCode::Down => {
+                self.selected = (self.selected + 1).min(self.visible_rows().len().saturating_sub(1))
+            }
+            KeyCode::Char('j') if self.mode != Mode::Workspaces => {
                 self.selected = (self.selected + 1).min(self.visible_rows().len().saturating_sub(1))
             }
             KeyCode::Home => self.selected = 0,
@@ -838,7 +890,7 @@ impl Picker {
     }
     fn choose(&mut self, index: usize) {
         if let Some(row) = self.visible_rows().get(index) {
-            if row.enabled {
+            if self.workspace_row_available(row) {
                 let selection = row.selection();
                 if self.begin_selection(SelectionOrigin::Picker) {
                     self.request = Some(selection);
@@ -858,7 +910,9 @@ impl Picker {
         frame.render_widget(Clear, status);
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), status);
         let editing = self.mode == Mode::Agents && self.editing_query;
-        let label = if editing {
+        let label = if self.mode == Mode::Workspaces {
+            locale.machine_picker_text("workspace-search")
+        } else if editing {
             locale.machine_picker_text("agent-search")
         } else {
             self.mode.label(locale)
@@ -941,8 +995,16 @@ impl Picker {
         hits.start_modal();
         let width = area.width.saturating_sub(4).min(72);
         let height = area.height.saturating_sub(3).min(
-            (self.visible_rows().len() + if self.mode == Mode::Agents { 13 } else { 10 }).min(24)
-                as u16,
+            ((if self.mode == Mode::Workspaces {
+                self.workspace_rows.len()
+            } else {
+                self.visible_rows().len()
+            }) + match self.mode {
+                Mode::Agents => 13,
+                Mode::Workspaces => 11,
+                Mode::Machines => 10,
+            })
+            .min(24) as u16,
         );
         if width < 5 || height == 0 {
             let _ = render_picker_close(frame, area, &source, theme, hits);
@@ -1042,6 +1104,7 @@ impl Picker {
             inner.y += 1;
             inner.height -= 1;
         }
+        self.render_workspace_query(frame, &mut inner, locale, theme, &source, hits);
         self.render_agent_controls(frame, &mut inner, locale, theme, &source, hits);
         let details = if inner.height >= 9 { 5 } else { 0 };
         let count = usize::from(inner.height.saturating_sub(2 + details));
@@ -1054,6 +1117,7 @@ impl Picker {
             .skip(window.top)
             .take(count)
         {
+            let enabled = self.workspace_row_available(row);
             let rect = Rect::new(
                 inner.x,
                 inner.y + (index - window.top) as u16,
@@ -1103,8 +1167,10 @@ impl Picker {
                     .state_label()
                     .map(display_label)
                     .unwrap_or_else(|| fallback.into())
-            } else if !row.enabled {
+            } else if !enabled {
                 locale.machine_picker_text("disabled").to_owned()
+            } else if row.context.is_some() && self.space_checkpoint_stale(row) {
+                locale.machine_picker_text("stale").to_owned()
             } else if let Some(observation) = &row.observation {
                 locale.machine_picker_text(observation.key()).to_owned()
             } else if row.choice == self.current {
@@ -1155,7 +1221,7 @@ impl Picker {
                 &target,
                 spec,
             ));
-            let primary_role = if row.enabled {
+            let primary_role = if enabled {
                 Role::TextPrimary
             } else {
                 Role::TextDisabled
@@ -1177,7 +1243,7 @@ impl Picker {
                 Paragraph::new(format!("{id}{name}")).style(theme.style(primary_role)),
                 primary_rect,
             );
-            let status_role = if !row.enabled {
+            let status_role = if !enabled {
                 Role::TextDisabled
             } else if row.agent.as_ref().is_some_and(|agent| {
                 matches!(
@@ -1206,7 +1272,7 @@ impl Picker {
                 Paragraph::new(suffix).style(theme.style(status_role)),
                 status_rect,
             );
-            let availability = if row.enabled {
+            let availability = if enabled {
                 Availability::Enabled
             } else {
                 Availability::Disabled
@@ -1267,10 +1333,16 @@ impl Picker {
                 HitTarget::ListScroll(ListScrollTarget::MachinePicker(list_source)),
             );
         }
-        if self.mode == Mode::Workspaces && self.workspace_rows.is_empty() && count > 0 {
+        if self.mode == Mode::Workspaces && self.workspace_matches.is_empty() && count > 0 {
             frame.render_widget(
-                Paragraph::new(locale.machine_picker_text("no-workspaces"))
-                    .style(theme.style(Role::TextSecondary)),
+                Paragraph::new(locale.machine_picker_text(
+                    if self.workspace_query.text().is_empty() {
+                        "no-workspaces"
+                    } else {
+                        "workspaces-no-matches"
+                    },
+                ))
+                .style(theme.style(Role::TextSecondary)),
                 Rect::new(inner.x, inner.y, inner.width, 1),
             );
         }

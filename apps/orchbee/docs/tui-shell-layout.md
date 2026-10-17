@@ -276,8 +276,11 @@ Missing or incomplete observations do not become zero counts. Zero totals are om
 positive waiting counts use the warning role. Current-Workspace styling remains on the
 Context or its collapsed Project, without changing the active terminal.
 
-The fixed Search row opens the existing Agents picker directly in query editing. It retains
-that picker's Agent scope and filter controls; it does not claim Web's broader All-search catalog.
+The fixed Search row opens the Workspaces picker with its name query focused. Existing Workspaces
+are immediately visible even without Agents; typing filters names, Enter opens the selected exact
+target and Esc returns to the terminal. Machine and Agent modes remain available through Tab or
+their painted controls; Agent scope and filters retain their existing semantics. See the
+[workspace search owner](machines.md#cross-machine-workspace-navigation).
 Within explicit sidebar keyboard ownership, `Shift+N` invokes the same
 New workspace action and `/` enters the same search editor; F1 lists these bindings. The fixed
 actions show those local key labels only while that owner is active, and derive them from

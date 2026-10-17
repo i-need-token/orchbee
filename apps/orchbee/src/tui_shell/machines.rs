@@ -445,6 +445,16 @@ impl Manager {
                         .iter()
                         .any(|p| p.enabled && same_endpoint(p, old))
                 }) {
+                    for old in self.profiles.iter().filter(|old| {
+                        old.enabled
+                            && !catalog
+                                .profiles
+                                .iter()
+                                .any(|profile| profile.enabled && same_endpoint(profile, old))
+                    }) {
+                        view.machines
+                            .forget_space_observations(&Choice::Remote(old.id.clone()));
+                    }
                     self.agents.clear();
                     self.spaces.clear();
                 }

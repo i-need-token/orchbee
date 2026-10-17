@@ -324,7 +324,6 @@ fn warning_reload_keeps_the_agent_notification_surface_available() {
         thread::sleep(Duration::from_millis(5));
     }
     assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
-    assert!(!view.has_transient_notice());
     assert!(crate::notifications::available(
         &view,
         Some(crate::terminal_session::TerminalSessionView::Native(
@@ -436,8 +435,7 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
         thread::sleep(Duration::from_millis(5));
     }
     assert_eq!(view.notice(), Some(Notice::ConfigurationRestart));
-    assert!(view.has_transient_notice());
-    assert!(!crate::notifications::available(
+    assert!(crate::notifications::available(
         &view,
         Some(crate::terminal_session::TerminalSessionView::Native(
             crate::terminal_session::NativeSessionView::notification_test_view(),
@@ -455,7 +453,6 @@ fn warning_reload_reports_restart_then_restores_warning_and_notification_availab
     )));
     view.commit(dismiss, SessionActionDisposition::KeepNavigator);
     assert_eq!(view.notice(), Some(Notice::ConfigurationWarning));
-    assert!(!view.has_transient_notice());
     assert!(crate::notifications::available(
         &view,
         Some(crate::terminal_session::TerminalSessionView::Native(

@@ -129,7 +129,7 @@ impl Coordinator {
         true
     }
 
-    fn active(&self) -> bool {
+    pub(super) fn active(&self) -> bool {
         self.episode.is_some()
     }
 

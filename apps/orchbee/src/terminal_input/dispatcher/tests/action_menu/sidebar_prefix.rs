@@ -120,11 +120,13 @@ fn sidebar_fixed_creation_and_search_entries_share_keyboard_and_pointer_capture(
                 assert!(port.calls.borrow().is_empty());
                 dispatcher.publish_hit_map(HitMapBuilder::new().finish());
                 dispatch_all(&mut dispatcher, &mut view, &mut port, b"\r");
-                assert!(
-                    view.machines.open,
-                    "Enter finishes query editing without activating a row"
+                assert_eq!(
+                    view.machines.request.as_ref().unwrap().context,
+                    Some(sidebar_context().into()),
+                    "Enter opens the selected Workspace directly from search"
                 );
-                assert!(view.machines.request.is_none());
+                view.machines.show_workspaces();
+                dispatcher.publish_hit_map(HitMapBuilder::new().finish());
                 dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
                 assert!(!view.machines.open);
                 assert!(forwarded_bytes(&port.calls).is_empty());
