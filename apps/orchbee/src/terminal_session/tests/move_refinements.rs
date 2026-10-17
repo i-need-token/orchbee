@@ -17,11 +17,17 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
         Ok(())
     })?;
     let phase = Arc::new(AtomicU8::new(0));
+    // Windows preserves reading positions through a view that samples settings
+    // and reminder notices before Move captures its budget and attempts the lock.
+    #[cfg(windows)]
+    let safe_samples = 4;
+    #[cfg(not(windows))]
+    let safe_samples = 2;
     let mut client = connect_with_ui_sample_expiry_clock(
         server.endpoint(),
         "test-cohort",
         Arc::clone(&phase),
-        2,
+        safe_samples,
     )?;
     client.set_submission_deadline(Some(
         client.operation_clock().now() + Duration::from_secs(5),
@@ -55,7 +61,7 @@ fn native_ui_move_expiry_returns_while_the_contended_mailbox_remains_locked() ->
         holder.join().unwrap(),
         "Move refusal reacquired the contended mailbox after expiry"
     );
-    assert_eq!(phase.load(Ordering::SeqCst), 4);
+    assert_eq!(phase.load(Ordering::SeqCst), safe_samples + 2);
     assert_eq!(session.status(), TerminalStatus::Controlling);
     assert_eq!(
         render_native_session(&session, &ClientView::new(120))?,

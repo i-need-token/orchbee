@@ -324,6 +324,7 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
         WireKind::Workbench, // Close
         WireKind::Obcs,      // already admitted input on the closed pane
         WireKind::Obcs,      // already admitted sibling Resize
+        WireKind::Obcs,      // viewer Poll confirms runtime loss independently of control
         WireKind::Workbench, // publication read before removal appears
         WireKind::Workbench, // canonical removal
     ]);
@@ -340,7 +341,7 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
     harness.ui.move_panel_focus_to_pane(&right_panel)?;
     let right = harness.ui.state().focus_pane_ref().unwrap();
     let operation = harness.ui.admit_panel(PanelRequestKind::Close)?;
-    // Both commands precede any membership read. Losing the closed pane must
+    // All commands precede any membership read. Losing the closed pane must
     // not retire the sibling or pretend the queued input was accepted.
     harness
         .ui
@@ -356,6 +357,10 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
         .mailbox
         .try_enqueue(QueuedCommand::Resize(Tagged::new(left.clone(), resized)))
         .map_err(|error| test_error(&format!("sibling resize: {error:?}")))?;
+    harness
+        .mailbox
+        .try_enqueue(QueuedCommand::Poll(Tagged::new(right.clone(), ())))
+        .map_err(|error| test_error(&format!("closed pane poll: {error:?}")))?;
     respond_command(
         &harness,
         &operation,
@@ -387,21 +392,24 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
                 },
             ),
         ))?;
-    let failed = harness.ui.take_next()?;
+    let control_lost = harness.ui.take_next()?;
     assert!(
-        matches!(failed.event(), WorkerEvent::PaneFailed { key, fault: PaneFault::ViewerLost } if key == &right)
+        matches!(control_lost.event(), WorkerEvent::PaneFailed { key, fault: PaneFault::ControlLost } if key == &right)
     );
     assert!(matches!(
-        harness.ui.settle_taken(failed, FrameCut::None)?,
+        harness.ui.settle_taken(control_lost, FrameCut::None)?,
         UiEvent::PaneFailed
     ));
     assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(harness.ui.state().phase_kind(), SessionPhaseKind::Ready);
     assert_eq!(
-        harness.ui.state().phase_kind(),
-        SessionPhaseKind::RetryableAttachUnavailable
+        harness.ui.state().controller_mode(),
+        Some(&ControllerMode::ReadOnly)
     );
     assert_eq!(harness.ui.state().desired(), Some(right.pane()));
-    assert!(!harness.ui.state().pane_attached(&right));
+    assert!(harness.ui.state().pane_attached(&right));
+    assert!(harness.ui.state().pane_projected(&right));
+    assert_eq!(harness.ui.state().last_accepted_geometry(&right), None);
     assert!(harness.ui.state().pane_attached(&left));
 
     let ClientMessage::TerminalControl(resize) = harness.carrier.take_obcs()? else {
@@ -430,6 +438,44 @@ fn panel_close_runtime_loss_before_publication_preserves_the_survivor() -> TestR
         Some(resized)
     );
     assert_eq!(harness.ui.state().focus_pane_ref(), Some(right.clone()));
+
+    // A control refusal cannot prove that final output disappeared. Only the
+    // viewer's own typed runtime loss authorizes removal of this attachment.
+    let ClientMessage::TerminalViewer(poll) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the read-only viewer must keep its queued Poll"));
+    };
+    assert_eq!(
+        poll.action(),
+        &TerminalViewerAction::Poll {
+            attachment_id: right_viewer,
+        }
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                poll.request_id().clone(),
+                TerminalViewerOutcome::Unavailable {
+                    reason: ViewerUnavailableReason::TerminalRuntimeUnavailable,
+                },
+            ),
+        ))?;
+    let failed = harness.ui.take_next()?;
+    assert!(
+        matches!(failed.event(), WorkerEvent::PaneFailed { key, fault: PaneFault::ViewerLost } if key == &right)
+    );
+    assert!(matches!(
+        harness.ui.settle_taken(failed, FrameCut::None)?,
+        UiEvent::PaneFailed
+    ));
+    assert_eq!(harness.mailbox.is_closed(), None);
+    assert_eq!(
+        harness.ui.state().phase_kind(),
+        SessionPhaseKind::RetryableAttachUnavailable
+    );
+    assert_eq!(harness.ui.state().desired(), Some(right.pane()));
+    assert!(!harness.ui.state().pane_attached(&right));
+    assert!(harness.ui.state().pane_attached(&left));
 
     for revision in [1, 2] {
         let mailbox = Arc::clone(&harness.mailbox);

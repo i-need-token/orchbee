@@ -98,6 +98,12 @@ fn workspace_search_keeps_its_field_and_selection_identity_across_query_and_chec
     picker.key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
     let selected = picker.selection();
     picker.paste_workspace_query("same 工作区");
+    for (code, cursor) in [(KeyCode::Home, 0), (KeyCode::End, "same 工作区".len())] {
+        picker.key(KeyEvent::press(code, Modifiers::NONE));
+        assert_eq!(picker.workspace_query.cursor(), cursor);
+        assert_eq!(picker.selection(), selected, "Home/End belong to the query");
+        assert!(picker.request.is_none());
+    }
     let mut source = contexts(3);
     source.reverse();
     picker.observe_local(source);
@@ -190,7 +196,10 @@ fn failed_and_missing_workspace_rounds_retain_git_groups_scroll_and_current_iden
             assert!(picker.toggle_sidebar_project(&project));
         } else {
             picker.queue_space_scroll(window(&picker, &[1; 4], 2, 0), false);
-            picker.settle_sidebar_scroll();
+            assert!(picker.settle_sidebar_scroll());
+            // Finish the coalesced notch at the end of the list. The stable-window
+            // contract retains the viewport, not work owned by an older painted source.
+            assert!(!picker.settle_sidebar_scroll());
         }
         let before = picker
             .sidebar_navigation_rows()

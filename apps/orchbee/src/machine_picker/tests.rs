@@ -347,7 +347,9 @@ fn workspace_mode_routes_full_local_remote_identity_and_preserves_selection_on_r
     assert_eq!(picker.mode, Mode::Workspaces);
     assert_eq!(picker.visible_rows().len(), 5);
     assert!(paint(&picker, Locale::EnUs, 90, 26).contains("same workspace"));
-    picker.key(KeyEvent::press(KeyCode::End, Modifiers::NONE));
+    for _ in 1..picker.visible_rows().len() {
+        picker.key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+    }
     picker.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE));
     let expected = Selection {
         machine: Choice::Remote(b.id.clone()),
@@ -393,7 +395,9 @@ fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
     let painted = paint(&picker, Locale::EnUs, 80, 24);
     let workspaces = painted.target(PickerAction::Mode(Mode::Workspaces));
     assert!(picker.activate_drawn_picker(&workspaces));
-    picker.key(KeyEvent::press(KeyCode::End, Modifiers::NONE));
+    for _ in 1..picker.visible_rows().len() {
+        picker.key(KeyEvent::press(KeyCode::Down, Modifiers::NONE));
+    }
     let text = paint(&picker, Locale::EnUs, 80, 24);
     assert!(text.contains("30/30"));
     let last = text.target(PickerAction::Row(29));
