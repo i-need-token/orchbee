@@ -2606,7 +2606,6 @@ impl NativeSessionState {
         }
         self.remember_current_navigation();
         self.phase = SessionPhase::Creating(CreatingBarrier { operation, anchor });
-        self.notice = None;
         true
     }
 
