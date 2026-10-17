@@ -14,8 +14,9 @@ The default result is ungrouped. New Workspace on an exact Project row uses that
 empty and noncurrent Projects. Creating a Workspace never starts an AI provider automatically.
 
 Accepted Windows TUI creation immediately displays a pending sidebar item and current top Tab,
-before directory preparation or terminal startup finishes. A localized New workspace label gives
-way to the prepared default name; progress appears in the content region without a modal.
+before directory preparation or terminal startup finishes. The sidebar's localized New workspace
+label gives way to the prepared Workspace name; the top Tab uses the localized automatic Tab 1
+title from [Tab labels](native-tab-labels.md). Progress appears in the content region without a modal.
 This feedback improvement is scoped to the Windows TUI. GUI creation retains its existing
 activation owner and the same canonical creation semantics.
 

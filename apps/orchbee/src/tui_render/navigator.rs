@@ -247,7 +247,7 @@ pub(super) fn render(
         native.tab_count(),
         native.active_position(),
         tabs_focus,
-        |index| native_tab(native, index, text.pinned_tab),
+        |index| native_tab(native, index, locale, text.pinned_tab),
         theme,
         hits,
         &mut |hits, index, rect| {

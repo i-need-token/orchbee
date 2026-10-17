@@ -185,15 +185,17 @@ pub(in crate::terminal_session::ui) fn launched(
     snapshot.revision = WorkbenchRevision::new(snapshot.revision.value() + 1);
     let mut fresh = super::super::tests::membership::snapshot(2, 1);
     let mut tab = fresh.terminal_contexts[0].tabs.pop().unwrap();
-    tab.label = label.as_str().to_owned();
+    tab.label = "1".to_owned();
+    tab.automatic_label = true;
     let PanelNode::Panel {
         panel_id,
         primary_presentation,
         ..
-    } = &tab.root
+    } = &mut tab.root
     else {
         panic!("first shell")
     };
+    primary_presentation.label = "1".to_owned();
     let commit = crate::local_client::workbench::workspace_launch::WorkspaceLaunchCommit {
         revision: snapshot.revision,
         project_id,

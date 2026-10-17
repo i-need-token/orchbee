@@ -4180,6 +4180,10 @@ impl<'a> NativeTabView<'a> {
         self.tab.display_label(self.position - 1)
     }
 
+    pub(super) const fn automatic_label(&self) -> bool {
+        self.tab.automatic_label()
+    }
+
     pub(super) fn panel_count(&self) -> usize {
         self.tab.panel_count()
     }

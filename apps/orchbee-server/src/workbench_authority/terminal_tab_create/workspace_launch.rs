@@ -175,7 +175,7 @@ impl WorkbenchAuthority {
         WorkbenchTabCreateBegin::Admitted(Box::new(WorkbenchTabCreateAdmission {
             authority: self,
             command,
-            label: label.as_str().to_owned(),
+            label: "1".to_owned(),
             staged: StagedWorkbenchTabCreateMetadata {
                 revision,
                 terminal_context_id,

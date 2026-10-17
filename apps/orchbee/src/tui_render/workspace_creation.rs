@@ -30,7 +30,7 @@ pub(super) fn render(
             tab: tabs::TabDisplay {
                 position: 1,
                 active: true,
-                label: format!("{} · {progress}", label(preview, locale)).into(),
+                label: format!("{} · {progress}", locale.automatic_tab_label(1)).into(),
             },
             group: None,
             collapsed: false,

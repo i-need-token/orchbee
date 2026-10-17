@@ -340,6 +340,7 @@ fn commit_publishes_exact_simple_tab_and_pending_then_final_replay_is_fixed() {
     assert_eq!(snapshot.revision, WorkbenchRevision::new(1));
     let tab = &snapshot.terminal_contexts[0].tabs[0];
     assert_eq!(tab.label, " exact label ");
+    assert!(!tab.automatic_label);
     assert!(!tab.pinned);
     assert_eq!(tab.group_id, None);
     let PanelNode::Panel {
@@ -1321,7 +1322,24 @@ fn workspace_launch_commits_one_revision_and_replays_pending_and_failed_terminal
         after.navigation.directories.len(),
         before.navigation.directories.len() + 1
     );
-    assert_eq!(after.terminal_contexts.last().unwrap().tabs.len(), 1);
+    let context = after.terminal_contexts.last().unwrap();
+    assert_eq!(context.tabs.len(), 1);
+    let tab = &context.tabs[0];
+    assert!(tab.automatic_label);
+    assert_eq!(tab.label, "1");
+    assert_eq!(tab.display_label(0), "1");
+    let PanelNode::Panel {
+        primary_presentation,
+        ..
+    } = &tab.root
+    else {
+        panic!("first shell");
+    };
+    assert_eq!(primary_presentation.label, "1");
+    assert_eq!(
+        after.navigation.workspaces.last().unwrap().label,
+        "launched"
+    );
     assert_eq!(
         &after.terminal_contexts[..before.terminal_contexts.len()],
         before.terminal_contexts.as_slice()

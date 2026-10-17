@@ -245,13 +245,20 @@ fn loading_projection_renders_both_locales_and_all_tiers_without_a_modal_or_old_
                     !text.contains(locale.setup_cancel_label()),
                     "creation has no modal cancel surface"
                 );
+                if width >= 60 {
+                    let title = match locale {
+                        Locale::EnUs => "Tab 1",
+                        Locale::ZhCn => "标签页 1",
+                    };
+                    assert!(text.lines().next().unwrap().contains(title), "{text}");
+                }
                 if width == 120 {
                     let name = locale.sidebar_navigation_action(
                         crate::machine_picker::SidebarCommand::NewWorkspace,
                     );
                     assert!(
-                        text.matches(name).count() >= 2,
-                        "top Tab and sidebar both project the new Workspace"
+                        text.contains(name),
+                        "the sidebar retains its Workspace name"
                     );
                     assert!(text.contains(
                         locale.workspace_creation_progress(WorkspaceCreationPhase::Preparing)

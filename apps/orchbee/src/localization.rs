@@ -1732,6 +1732,14 @@ impl Locale {
         }
     }
 
+    /// Labels a one-based automatic Tab position without changing its canonical name.
+    pub(crate) fn automatic_tab_label(self, position: usize) -> String {
+        match self {
+            Self::EnUs => format!("Tab {position}"),
+            Self::ZhCn => format!("标签页 {position}"),
+        }
+    }
+
     fn native_connecting(self, position: usize) -> String {
         match self {
             Self::EnUs => format!("Tab {position} · Connecting…"),

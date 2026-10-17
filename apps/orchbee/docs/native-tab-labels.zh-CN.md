@@ -5,8 +5,9 @@
 Server 拥有 `Tab.label` 和可选布尔值 `Tab.automaticLabel`。省略表示 `false`；序列化省略
 `false`。旧 Tab 保留精确名称，包括显式选择的数字。读取者不能根据文本推断自动命名。
 
-Windows `tab create` 省略 `--label`、原生 TUI 创建 Tab 以及首个隐式独立 Tab 均请求自动命名。
-显式标签、Workspace 启动标签及 Panel 迁移标签保留现有固定名称行为。`tab.create` 携带相同
+Windows `tab create` 省略 `--label`、原生 TUI 创建 Tab、首个隐式独立 Tab，以及 `workspace.launch`
+的首个 Tab 均请求自动命名。Workspace 启动保留独立的工作区标签，并将 Tab 及主 Presentation
+的原始标签初始化为 `1`。显式 Tab 标签及 Panel 迁移标签保留现有固定名称行为。`tab.create` 携带相同
 的可选布尔值；请求指纹包含该字段。提供的有界非空 `label` 仍同时初始化原始 Tab 标签和主
 Presentation 标签。Duplicate placement 则复制精确源原始标签及自动／固定模式，
 新 Presentation 也使用该原始标签，绝不把自动显示序号转为固定名称。普通组内／新组创建仍为自动命名。
@@ -14,6 +15,10 @@ Presentation 标签。Duplicate placement 则复制精确源原始标签及自�
 每个终端上下文内，自动命名 Tab 显示当前从一开始的位置序号，固定名称 Tab 显示原始标签。
 这是规范有序向量的纯投影，在移动或关闭后同样成立；不会重命名幸存者，也不会额外提交修订。
 重排不改变原始标签、身份、Presentation 标签和绑定。允许显示名称重复。
+
+原生标签栏与导航器将自动编号本地化：`en-US` 显示 `Tab 1`、`Tab 2` 等，`zh-CN` 显示
+`标签页 1`、`标签页 2` 等。创建工作区期间的临时首个 Tab 使用相同标题。包括数字名称在内的
+固定名称保持精确不变。规范序号标签、CLI 选择器、重命名草稿和启动配置选择保留现有语义。
 
 `tab rename` 总是选择固定名称。将自动命名 Tab 重命名为相同的可见或原始文本也是真实变更：
 关闭自动命名并递增一次修订。对固定名称 Tab 重复相同重命名则不变。空名称重置和终端标题

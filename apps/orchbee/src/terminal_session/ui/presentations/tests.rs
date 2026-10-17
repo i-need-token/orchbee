@@ -7,6 +7,87 @@ use orchbee_workbench_protocol::{
 };
 
 #[test]
+fn automatic_tab_chrome_uses_localized_positions_and_keeps_fixed_names_and_pane_titles() {
+    use crate::{
+        client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,
+    };
+    for (locale, first, second) in [
+        (Locale::EnUs, "Tab 1", "Tab 2"),
+        (Locale::ZhCn, "标签页 1", "标签页 2"),
+    ] {
+        for fixed in ["3", "Review 中文"] {
+            let mut source = super::super::tests::membership::snapshot(3, 1);
+            for (index, tab) in source.terminal_contexts[0].tabs.iter_mut().enumerate() {
+                tab.automatic_label = index < 2;
+                tab.label = if index < 2 {
+                    (index + 1).to_string()
+                } else {
+                    fixed.into()
+                };
+                let PanelNode::Panel {
+                    primary_presentation,
+                    ..
+                } = &mut tab.root
+                else {
+                    unreachable!();
+                };
+                primary_presentation.label = tab.label.clone();
+            }
+            let (ui, mailbox, _, _) =
+                super::super::tests::move_membership::ready_ui_with_snapshot(source);
+            for theme in [Theme::terminal_native(), Theme::one_light()] {
+                for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
+                    let mut terminal =
+                        ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height))
+                            .unwrap();
+                    terminal
+                        .draw(|frame| {
+                            crate::tui_render::render_terminal_shell(
+                                frame,
+                                &ClientView::new(width),
+                                locale,
+                                Some(crate::terminal_session::TerminalSessionView::Native(
+                                    ui.view(),
+                                )),
+                                &theme,
+                                &mut HitMapBuilder::new(),
+                            );
+                        })
+                        .unwrap();
+                    let row = |y| {
+                        let buffer = terminal.backend().buffer();
+                        let mut text = String::new();
+                        let mut x = 0;
+                        while x < width {
+                            let symbol = buffer[(x, y)].symbol();
+                            text.push_str(symbol);
+                            x += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
+                                .unwrap();
+                        }
+                        text
+                    };
+                    if width >= 60 {
+                        let strip = row(0);
+                        assert!(strip.contains(first), "{strip}");
+                        assert!(strip.contains(second), "{strip}");
+                        assert!(strip.contains(fixed), "{strip}");
+                        assert!(!strip.contains(&locale.automatic_tab_label(3)), "{strip}");
+                        assert!(
+                            row(1).contains(&format!("{} 1", locale.shell().panel_title)),
+                            "{}",
+                            row(1)
+                        );
+                    } else {
+                        assert!(!row(0).contains(first), "hidden strips cannot paint a Tab");
+                    }
+                }
+            }
+            mailbox.close(crate::terminal_session::state::CarrierFailure::WorkerExited);
+        }
+    }
+}
+
+#[test]
 fn tab_strip_omits_equal_location_but_retains_context_for_a_distinct_tab_label() {
     use crate::{
         client_view::ClientView, localization::Locale, tui_pointer::HitMapBuilder, tui_theme::Theme,

@@ -13,7 +13,8 @@ Workspace，不要求先建 Project、填写名称表单或再次确认。默认
 创建 Workspace 不会自动启动 AI 提供商。
 
 Windows TUI 接受创建后，立即显示待创建侧栏项和当前顶部 Tab，不等待目录准备或终端启动完成。
-本地化的“新建工作区”名称在准备完成后替换为默认名称，进度在内容区显示，不打开模态框。
+侧栏本地化的“新建工作区”名称在准备完成后替换为工作区名称；顶部 Tab 使用
+[Tab 标签](native-tab-labels.zh-CN.md)规定的本地化自动名称“标签页 1”。进度在内容区显示，不打开模态框。
 此反馈改进限定于 Windows TUI。GUI 保留既有激活所有者，并沿用相同的规范创建语义。
 
 普通 Workspace 与基于 worktree 的 Workspace 同级。每个 Workspace 可以包含多个 Agent，并直接在其下列出。

@@ -6,9 +6,11 @@ Server owns `Tab.label` and optional boolean `Tab.automaticLabel`. Omission mean
 serialization omits `false`. A legacy Tab keeps its exact name, including an explicitly chosen
 number. Readers never infer automatic naming from text.
 
-Windows `tab create` without `--label`, native TUI Tab creation, and the first implicit standalone
-Tab request automatic naming. Explicit labels, Workspace launch labels, and Panel relocation
-labels keep their existing fixed-name behavior. `tab.create` carries the same optional boolean;
+Windows `tab create` without `--label`, native TUI Tab creation, the first implicit standalone
+Tab, and the first Tab of `workspace.launch` request automatic naming. Workspace launch keeps its
+Workspace label separate and initializes the Tab and primary Presentation with raw label `1`.
+Explicit Tab labels and Panel relocation labels keep their existing fixed-name behavior.
+`tab.create` carries the same optional boolean;
 the request fingerprint includes it. The supplied nonempty bounded `label` still initializes
 both the raw Tab label and primary Presentation label. Duplicate placement instead copies the exact
 source raw label and automatic/fixed mode, using that raw label for its fresh Presentation; it never
@@ -19,6 +21,11 @@ Tab displays its raw label. This is a pure projection of the canonical ordered v
 after move or close; it never renames a survivor or commits another revision. Raw labels,
 identities, Presentation labels and bindings remain unchanged by reordering. Duplicate display
 names are permitted.
+
+Native Tab-strip and navigator chrome localize automatic positions as `Tab 1`, `Tab 2`, … in
+`en-US` and `标签页 1`, `标签页 2`, … in `zh-CN`. The provisional first Tab uses the same title during
+Workspace creation. Fixed names, including numeric names, remain exact. Canonical ordinal labels,
+CLI selectors, rename drafts, and launch-profile selection keep their existing semantics.
 
 `tab rename` always chooses a fixed name. Renaming an automatic Tab to the same visible or raw
 text is a real change: it clears automatic naming and advances one revision. Repeating that

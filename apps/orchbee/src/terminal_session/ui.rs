@@ -354,6 +354,18 @@ impl<'a> NativeTabView<'a> {
         self.inner.tab_label()
     }
 
+    /// Localizes automatic Tab chrome while retaining exact fixed names.
+    pub(crate) fn display_label(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> std::borrow::Cow<'a, str> {
+        if self.inner.automatic_label() {
+            locale.automatic_tab_label(self.position()).into()
+        } else {
+            self.tab_label()
+        }
+    }
+
     pub(crate) fn panel_count(&self) -> usize {
         self.inner.panel_count()
     }

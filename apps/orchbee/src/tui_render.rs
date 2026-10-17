@@ -1441,7 +1441,7 @@ fn render_native_workbench(
         areas.tabs,
         native,
         location.as_deref(),
-        text,
+        locale,
         theme,
         hits,
     );
@@ -1936,10 +1936,11 @@ fn render_tab_strip(
     tabs_area: Rect,
     native: &NativeSessionView<'_>,
     location: Option<&str>,
-    text: ShellText,
+    locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
+    let text = locale.shell();
     if tabs_area.is_empty() {
         return;
     }
@@ -1949,7 +1950,7 @@ fn render_tab_strip(
             .and_then(|position| position.checked_sub(1))
             .and_then(|index| native.tab(index))
             .is_some_and(|tab| {
-                sanitize_terminal_text(tab.tab_label().as_ref()).as_ref() == *location
+                sanitize_terminal_text(tab.display_label(locale).as_ref()).as_ref() == *location
             })
     });
     let title = location.map_or_else(String::new, |location| {
@@ -1998,7 +1999,7 @@ fn render_tab_strip(
         tab_area,
         native.tab_count(),
         native.active_position(),
-        |index| native_tab(native, index, text.pinned_tab),
+        |index| native_tab(native, index, locale, text.pinned_tab),
         theme,
         tabs::CompactInteractions::new(
             hits,
@@ -2040,7 +2041,7 @@ fn render_tab_strip(
                         position: tab.position(),
                         active: tab.active(),
                         label: tabs::label_with_metadata(
-                            tab.tab_label(),
+                            tab.display_label(locale),
                             tab.pinned().then_some(text.pinned_tab),
                             None,
                         ),
@@ -2472,6 +2473,7 @@ fn render_dividers(
 fn native_tab<'a>(
     native: &NativeSessionView<'a>,
     index: usize,
+    locale: Locale,
     pinned_label: &str,
 ) -> Option<tabs::TabDisplay<'a>> {
     let tab: NativeTabView<'a> = native.tab(index)?;
@@ -2479,7 +2481,7 @@ fn native_tab<'a>(
         position: tab.position(),
         active: tab.active(),
         label: tabs::label_with_metadata(
-            tab.tab_label(),
+            tab.display_label(locale),
             tab.pinned().then_some(pinned_label),
             tab.group_label(),
         ),
@@ -2750,7 +2752,7 @@ fn render_native_workbench_navigator(
         native.tab_count(),
         native.active_position(),
         None,
-        |index| native_tab(native, index, text.pinned_tab),
+        |index| native_tab(native, index, locale, text.pinned_tab),
         theme,
         hits,
         &mut |hits, index, rect| {

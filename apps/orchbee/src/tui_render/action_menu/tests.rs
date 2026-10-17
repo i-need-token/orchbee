@@ -11,6 +11,103 @@ mod sidebar;
 mod tab_scope;
 
 #[test]
+fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
+    use crate::{action_menu::MenuTarget, terminal_session::NativeContextLocation};
+    use orchbee_workbench_protocol::{
+        WorkbenchProjectId, WorkbenchTabId, WorkbenchTerminalContextId, WorkbenchWorkspaceId,
+    };
+
+    let tab = WorkbenchTabId::parse(&format!("{:032x}", 1)).unwrap();
+    let cases = [
+        (
+            MenuTarget::Workspace(NativeContextLocation::Workspace {
+                workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 2)).unwrap(),
+                terminal_context_id: WorkbenchTerminalContextId::parse(&format!("{:032x}", 3))
+                    .unwrap(),
+            }),
+            MenuAction::RenameWorkspace,
+        ),
+        (
+            MenuTarget::Project(WorkbenchProjectId::parse(&format!("{:032x}", 4)).unwrap()),
+            MenuAction::RenameProject,
+        ),
+        (MenuTarget::Tab(tab.clone()), MenuAction::RenameTab),
+        (
+            MenuTarget::TabGroups {
+                tab_id: tab,
+                colors: false,
+            },
+            MenuAction::RenameGroup,
+        ),
+    ];
+    for (target, action) in cases {
+        for (locale, expected) in [(Locale::EnUs, "Rename"), (Locale::ZhCn, "重命名")] {
+            for theme in [Theme::terminal_native(), Theme::one_light()] {
+                for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
+                    let mut menu = ActionMenu::default();
+                    assert!(menu.open_for(
+                        target.clone(),
+                        "Context".into(),
+                        vec![action.clone()],
+                        None
+                    ));
+                    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                    let mut hits = HitMapBuilder::new();
+                    let mut presentation = ModalPresentation::NotPresented;
+                    terminal
+                        .draw(|frame| {
+                            presentation = render(
+                                frame,
+                                frame.area(),
+                                menu.view().unwrap(),
+                                ClientView::new(width).bindings(),
+                                locale,
+                                &theme,
+                                &mut hits,
+                            );
+                        })
+                        .unwrap();
+                    let map = hits.finish();
+                    if width < 16 {
+                        assert_eq!(presentation, ModalPresentation::NotPresented);
+                        assert!(
+                            (0..height)
+                                .all(|y| (0..width).all(|x| map.hit_target_at(x, y).is_none()))
+                        );
+                        continue;
+                    }
+                    let ModalPresentation::Presented(draw) = presentation else {
+                        panic!("one rename row fits the context menu");
+                    };
+                    assert!(menu.presented(draw));
+                    let buffer = terminal.backend().buffer();
+                    let row = action_row_rect(&map, buffer.area, draw.token);
+                    let text: String = (row.x..row.right())
+                        .map(|x| buffer[(x, row.y)].symbol())
+                        .collect();
+                    let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+                    assert!(compact.contains(expected), "{text}");
+                    for suffix in [
+                        "Workspace",
+                        "Project",
+                        "Tab",
+                        "group",
+                        "工作区",
+                        "项目",
+                        "标签页",
+                        "分组",
+                        "…",
+                    ] {
+                        assert!(!compact.contains(suffix), "{text}");
+                    }
+                    assert_eq!(menu.view().unwrap().actions, std::slice::from_ref(&action));
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel() {
     use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile, UserLaunchProfiles};
     let custom = UserLaunchProfile {

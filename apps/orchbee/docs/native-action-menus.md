@@ -11,6 +11,10 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
+Workspace, Project, Tab and Tab Group context-menu rename entries use only `Rename` in `en-US`
+and `重命名` in `zh-CN`. The clicked object supplies the target context. Pane menus currently have no rename entry.
+Shortcut discovery and rename-dialog titles retain their object-specific names.
+
 Pointer opening anchors the frame to the triggering host cell, including sidebar
 rows and their action buttons. The frame clamps to the entire viewport above the
 status line; it can overlap navigation chrome. Keyboard opening remains centered

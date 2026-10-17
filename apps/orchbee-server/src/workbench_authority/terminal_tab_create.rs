@@ -283,7 +283,7 @@ impl<'a> WorkbenchTabCreateAdmission<'a> {
             WorkbenchAction::TabCreate {
                 automatic_label: true,
                 ..
-            }
+            } | WorkbenchAction::WorkspaceLaunch { .. }
         );
         let placement = match &command.action {
             WorkbenchAction::TabCreate { placement, .. } => placement.as_ref(),
