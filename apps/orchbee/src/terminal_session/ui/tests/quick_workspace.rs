@@ -97,11 +97,15 @@ fn cancelling_directory_review_keeps_the_source_and_submits_nothing() {
 }
 
 fn rendered_rows(buffer: &ratatui::buffer::Buffer) -> String {
-    (buffer.area.y..buffer.area.bottom())
+    rendered_area(buffer, buffer.area)
+}
+
+fn rendered_area(buffer: &ratatui::buffer::Buffer, area: ratatui::layout::Rect) -> String {
+    (area.y..area.bottom())
         .map(|y| {
             let mut row = String::new();
-            let mut x = buffer.area.x;
-            while x < buffer.area.right() {
+            let mut x = area.x;
+            while x < area.right() {
                 let symbol = buffer[(x, y)].symbol();
                 row.push_str(symbol);
                 x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
@@ -572,11 +576,15 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
             let buffer = terminal.backend().buffer();
             let text = rendered_rows(buffer);
             let areas = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
-            let main_text: String = (areas.panel.y..areas.panel.bottom())
-                .flat_map(|y| {
-                    (areas.panel.x..areas.panel.right()).map(move |x| buffer[(x, y)].symbol())
-                })
-                .collect();
+            // The status overlays the panel's final row; it is not authored empty-state content.
+            let main = ratatui::layout::Rect::new(
+                areas.panel.x,
+                areas.panel.y,
+                areas.panel.width,
+                areas.status.y.saturating_sub(areas.panel.y),
+            );
+            let main_text = rendered_area(buffer, main);
+            let status_text = rendered_area(buffer, areas.status);
             let label = if canonical {
                 (locale.shell().prefix_desc)(PrefixDesc::CreateTab)
             } else {
@@ -591,7 +599,7 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
                 assert!(!text.contains(locale.status().create_tab), "{text}");
                 assert!(main_text.trim().is_empty(), "{main_text}");
                 assert!(
-                    text.contains(&format!("Ctrl+a n {label}")),
+                    status_text.contains(&format!("Ctrl+a n {label}")),
                     "the fixed status hint still advertises the effective creation binding"
                 );
             }

@@ -71,6 +71,15 @@ fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_
                                     },
                                     Some(&mut builder),
                                 );
+                                if sidebar.layer == SidebarLayer::Overlay {
+                                    // The shell installs overlay ownership after the feature paints.
+                                    builder.mark_overlay_active();
+                                    builder.record(
+                                        HitLayer::OverlaySurface,
+                                        sidebar.area,
+                                        HitTarget::OverlaySurface,
+                                    );
+                                }
                             }
                         })
                         .unwrap();
@@ -92,7 +101,7 @@ fn empty_sidebar_keeps_actions_and_settings_without_site_business_or_zero_count_
                             (sidebar.area.y..sidebar.area.bottom())
                                 .any(|y| (sidebar.area.x..sidebar.area.right())
                                     .any(|x| hits.hit_target_at(x, y) == Some(&action))),
-                            "{action:?}"
+                            "{action:?} at {width}x{height}, {locale:?}, creating={creating}"
                         );
                     }
                     if !creating {
