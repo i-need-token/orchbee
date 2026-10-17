@@ -67,14 +67,18 @@ fn draw_close(
     height: u16,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let (buffer, _) = draw_close_frame(session, view, locale, width, height)?;
+    Ok(frame_text(&buffer))
+}
+
+fn frame_text(buffer: &Buffer) -> String {
     let mut text = String::new();
-    for row in buffer.content.chunks(usize::from(width)) {
+    for row in buffer.content.chunks(usize::from(buffer.area.width)) {
         for cell in row {
             text.push_str(cell.symbol());
         }
         text.push('\n');
     }
-    Ok(text)
+    text
 }
 
 fn compact_display_text(text: &str) -> String {
@@ -130,17 +134,13 @@ fn displayed_content_rows(buffer: &Buffer, area: Rect) -> Vec<String> {
         .collect()
 }
 
-fn assert_complete_close_frame(
+fn close_modal_geometry(
     buffer: &Buffer,
     hits: &FrameHitMap,
-    token: NativeCloseConfirmationToken,
-    locale: Locale,
     view: &ClientView,
-) {
+) -> (crate::tui_layout::ShellAreas, Rect, Rect) {
     let shell = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
     let modal_scope = crate::tui_layout::overlay_area(&shell);
-    // OverlaySurface is also the separately owned status-strip blocker. Its
-    // cells are outside this modal's paint scope and cannot define its border.
     assert!(!shell.status.is_empty());
     assert!((shell.status.y..shell.status.bottom()).all(|y| {
         (shell.status.x..shell.status.right())
@@ -148,19 +148,72 @@ fn assert_complete_close_frame(
     }));
     let surface: Vec<_> = (modal_scope.y..modal_scope.bottom())
         .flat_map(|y| (modal_scope.x..modal_scope.right()).map(move |x| (x, y)))
-        .filter(|(x, y)| matches!(hits.hit_target_at(*x, *y), Some(HitTarget::OverlaySurface)))
+        .filter(|(x, y)| {
+            !shell.status.contains((*x, *y).into())
+                && matches!(hits.hit_target_at(*x, *y), Some(HitTarget::OverlaySurface))
+        })
         .collect();
     let left = surface
         .iter()
         .map(|(x, _)| *x)
         .min()
-        .expect("complete modal surface");
+        .expect("painted close modal surface");
     let right = surface.iter().map(|(x, _)| *x).max().unwrap() + 1;
     let top = surface.iter().map(|(_, y)| *y).min().unwrap();
     let bottom = surface.iter().map(|(_, y)| *y).max().unwrap() + 1;
     let outer = Rect::new(left, top, right - left, bottom - top);
     assert_eq!(outer.intersection(modal_scope), outer);
     assert!(outer.intersection(shell.status).is_empty());
+    let inner = Rect::new(left + 3, top + 1, outer.width - 6, outer.height - 2);
+    (shell, outer, inner)
+}
+
+fn assert_modal_contains_text(
+    buffer: &Buffer,
+    hits: &FrameHitMap,
+    view: &ClientView,
+    expected: &str,
+) {
+    let (_, _, inner) = close_modal_geometry(buffer, hits, view);
+    let rows = displayed_content_rows(buffer, inner);
+    let expected = compact_display_text(expected);
+    let complete_text_is_painted = (0..rows.len()).any(|start| {
+        let mut candidate = String::new();
+        for row in &rows[start..] {
+            if row.is_empty() {
+                break;
+            }
+            candidate.push_str(&compact_display_text(row));
+            if candidate == expected {
+                return true;
+            }
+            if !expected.starts_with(&candidate) {
+                break;
+            }
+        }
+        false
+    });
+    assert!(
+        complete_text_is_painted,
+        "complete modal text {expected:?} must occupy consecutive rows inside {inner:?}: {rows:?}"
+    );
+}
+
+fn assert_complete_close_frame(
+    buffer: &Buffer,
+    hits: &FrameHitMap,
+    token: NativeCloseConfirmationToken,
+    locale: Locale,
+    view: &ClientView,
+) {
+    let (shell, outer, inner) = close_modal_geometry(buffer, hits, view);
+    let modal_scope = crate::tui_layout::overlay_area(&shell);
+    // OverlaySurface is also the separately owned status-strip blocker. The
+    // shared geometry helper clips modal text to this dialog's exact hit scope.
+    let left = outer.x;
+    let right = outer.right();
+    let top = outer.y;
+    let bottom = outer.bottom();
     let mut border = Buffer::empty(outer);
     Block::bordered()
         .border_type(crate::tui_theme::Theme::terminal_native().corners)
@@ -213,8 +266,6 @@ fn assert_complete_close_frame(
         ["[x]"]
     );
 
-    // The modal owner reserves a border cell plus two padding cells on each side.
-    let inner = Rect::new(left + 3, top + 1, outer.width - 6, outer.height - 2);
     let warning = Paragraph::new(locale.close_warning()).wrap(Wrap { trim: false });
     let warning_area = Rect::new(
         0,
@@ -479,8 +530,8 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
     let mut view = ClientView::new(120);
     dispatch_close_input(&mut session, &mut view, b"\x02x");
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let rendered = draw_close(&mut session, &view, locale, 120, 40)?;
-        let compact = compact_display_text(&rendered);
+        let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 120, 40)?;
+        let rendered = frame_text(&buffer);
         // Wrapped rows contain borders between label segments. Reconstruct only target
         // scalars and their sanitization replacements, preserving their displayed order.
         // The finite modal no longer covers the whole frame — the tab strip shows
@@ -491,7 +542,7 @@ fn actual_close_prompt_fits_a_sanitized_maximum_length_unicode_target() -> TestR
             .filter(|character| matches!(character, '界' | '\u{fffd}'))
             .collect();
         assert!(visible_target.contains(&safe));
-        assert!(compact.contains(&compact_display_text(locale.close_warning())));
+        assert_modal_contains_text(&buffer, &hits, &view, locale.close_warning());
         assert!(!rendered.contains('\x1b'));
     }
     dispatch_close_input(&mut session, &mut view, b"n");
@@ -588,10 +639,8 @@ fn raw_close_packet_requires_actual_localized_draw_and_emits_one_command() -> Te
         let mut view = ClientView::new(120);
         dispatch_close_input(&mut session, &mut view, b"\x02x\r");
         assert_eq!(commands.load(Ordering::SeqCst), 0);
-        let rendered = draw_close(&mut session, &view, locale, 120, 32)?;
-        assert!(
-            compact_display_text(&rendered).contains(&compact_display_text(locale.close_warning()))
-        );
+        let (buffer, hits) = draw_close_frame(&mut session, &view, locale, 120, 32)?;
+        assert_modal_contains_text(&buffer, &hits, &view, locale.close_warning());
         dispatch_close_input(&mut session, &mut view, b"\ryy\x02q");
         spin(&mut session, |session| {
             matches!(session.view(), TerminalSessionView::Native(view)

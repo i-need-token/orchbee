@@ -10,7 +10,13 @@ use crate::{
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl, MotionObservability},
     tui_theme::{Role, Theme},
 };
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, layout::Position, style::Color};
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    buffer::Buffer,
+    layout::{Position, Rect},
+    style::Color,
+};
 use std::{
     io,
     time::{Duration, Instant},
@@ -384,29 +390,74 @@ fn visible_row(buffer: &Buffer, y: u16) -> String {
     line
 }
 
-fn text_position(buffer: &Buffer, text: &str) -> (u16, u16) {
-    let compact: String = text
-        .chars()
-        .filter(|character| !character.is_whitespace())
+fn modal_inner_area(buffer: &Buffer, map: &FrameHitMap, view: &ClientView) -> Rect {
+    let shell = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
+    let modal_scope = crate::tui_layout::overlay_area(&shell);
+    let surface: Vec<_> = (modal_scope.y..modal_scope.bottom())
+        .flat_map(|y| (modal_scope.x..modal_scope.right()).map(move |x| (x, y)))
+        .filter(|(x, y)| {
+            !shell.status.contains((*x, *y).into())
+                && matches!(map.hit_target_at(*x, *y), Some(HitTarget::OverlaySurface))
+        })
         .collect();
+    let left = surface
+        .iter()
+        .map(|(x, _)| *x)
+        .min()
+        .expect("painted popup surface");
+    let right = surface.iter().map(|(x, _)| *x).max().unwrap() + 1;
+    let top = surface.iter().map(|(_, y)| *y).min().unwrap();
+    let bottom = surface.iter().map(|(_, y)| *y).max().unwrap() + 1;
+    let outer = Rect::new(left, top, right - left, bottom - top);
+    assert_eq!(outer.intersection(modal_scope), outer);
+    assert!(outer.intersection(shell.status).is_empty());
+    Rect::new(left + 3, top + 1, outer.width - 6, outer.height - 2)
+}
+
+fn compact_display_text(text: &str) -> String {
+    text.chars()
+        .filter(|character| !character.is_whitespace())
+        .collect()
+}
+
+fn text_position(buffer: &Buffer, area: Rect, text: &str) -> (u16, u16) {
+    let compact = compact_display_text(text);
     let mut painted = String::new();
     let mut positions = Vec::new();
-    for y in buffer.area.y..buffer.area.bottom() {
-        for x in buffer.area.x..buffer.area.right() {
-            for character in buffer[(x, y)]
-                .symbol()
+    let mut row_groups = Vec::new();
+    let mut group_start = 0;
+    for y in area.y..area.bottom() {
+        let row_start = positions.len();
+        let mut x = area.x;
+        while x < area.right() {
+            let symbol = buffer[(x, y)].symbol();
+            for character in symbol
                 .chars()
                 .filter(|character| !character.is_whitespace())
             {
                 painted.push(character);
                 positions.push((x, y));
             }
+            // A wide lead cell supplies its own display width; skip its continuation cell.
+            x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
+        }
+        if positions.len() == row_start {
+            if group_start < row_start {
+                row_groups.push((group_start, row_start));
+            }
+            group_start = row_start;
         }
     }
-    let offset = painted
-        .find(&compact)
-        .unwrap_or_else(|| panic!("missing popup text {text:?}"));
-    positions[painted[..offset].chars().count()]
+    if group_start < positions.len() {
+        row_groups.push((group_start, positions.len()));
+    }
+    for (start, end) in row_groups {
+        let group: String = painted.chars().skip(start).take(end - start).collect();
+        if let Some(offset) = group.find(&compact) {
+            return positions[start + group[..offset].chars().count()];
+        }
+    }
+    panic!("missing popup text {text:?} inside modal area {area:?}")
 }
 
 #[test]
@@ -462,12 +513,19 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                         continue;
                     }
 
-                    let title = text_position(&drawn.buffer, locale.setup_title(draft.stage()));
+                    let modal_inner = modal_inner_area(&drawn.buffer, &drawn.map, &harness.view);
+                    let title = text_position(
+                        &drawn.buffer,
+                        modal_inner,
+                        locale.setup_title(draft.stage()),
+                    );
                     let context = text_position(
                         &drawn.buffer,
+                        modal_inner,
                         &format!("{}: 项目 space 界", locale.shell().workspaces),
                     );
-                    let helper = text_position(&drawn.buffer, locale.setup_input_hint(false));
+                    let helper =
+                        text_position(&drawn.buffer, modal_inner, locale.setup_input_hint(false));
                     let cursor = drawn
                         .cursor
                         .expect("active field keeps its real terminal cursor");
@@ -491,6 +549,7 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
 
                     let action = text_position(
                         &drawn.buffer,
+                        modal_inner,
                         &format!("[ {}  Enter ]", locale.setup_submit_label()),
                     );
                     let actions = visible_row(&drawn.buffer, action.1);
@@ -511,6 +570,7 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                     if fault {
                         let feedback = text_position(
                             &drawn.buffer,
+                            modal_inner,
                             locale.setup_fault().split(['.', '。']).next().unwrap(),
                         );
                         assert_eq!(
