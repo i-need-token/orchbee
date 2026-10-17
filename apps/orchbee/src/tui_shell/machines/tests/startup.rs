@@ -164,6 +164,7 @@ fn attempt(server: &FakeServer, context: Option<NativeContextTarget>) -> Attempt
                 "test-cohort",
                 Instant::now() + Duration::from_secs(3),
             )
+            .map(PreparedSelection::Connection)
             .map_err(io::Error::other)
         })),
     }

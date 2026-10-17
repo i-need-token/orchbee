@@ -1070,8 +1070,12 @@ impl Editor {
                     Edit::Adjust(true) => {
                         draft.filter.right();
                     }
-                    Edit::Home => draft.filter.home(),
-                    Edit::End => draft.filter.end(),
+                    Edit::Home => {
+                        draft.filter.home();
+                    }
+                    Edit::End => {
+                        draft.filter.end();
+                    }
                     Edit::Clear => {
                         draft.filter.clear();
                         draft.invalid = false;

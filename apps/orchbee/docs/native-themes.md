@@ -112,7 +112,8 @@ clears inherited whole-row bold before applying identity emphasis, so supporting
 hierarchy. Pressed, provisional, hover, current and base surfaces retain that order; focus,
 operational state and unread markers remain independent. Hover and press do not select an entity.
 
-The theme's sidebar projection resolves reverse-video pointer fallbacks to an ANSI black/white pair.
+The theme's `paired_pointer_surfaces` projection, consumed by the sidebar and Settings, resolves
+reverse-video pointer fallbacks to an ANSI black/white pair.
 This prevents token foregrounds and inherited span backgrounds from becoming separate displayed
 backgrounds. Monochrome retains one host-relative reverse band. Navigation markers adopt the same
 contrast pair; status and explicit token colors retain their roles. Named RGB surfaces keep their

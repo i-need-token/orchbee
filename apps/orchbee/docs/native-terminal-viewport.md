@@ -287,6 +287,41 @@ The core's traces check fresh totals, content refusal before paint/ACK and the c
 canonical pruning and terminal/geometry refusal. These are implementation witnesses; the bounded
 coordination model continues to own the existing demand/read/ACK protocol.
 
+## Direct sidebar switching
+
+Windows sidebar Agent activation is immediate navigation intent, shared by a valid primary release
+and sidebar `Enter`. It keeps the Machines/Workspaces/Agents picker closed. A separate selection
+generation owns verification and waiting; opening Search explicitly retains its capturing picker
+contract and invalidates any unadmitted direct selection.
+
+| Transition                 | Owner and result                                                                                                                                                                                                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accept a visible Agent     | `machine_picker/sidebar.rs` revalidates the exact machine and physical target and creates a Sidebar selection generation; the input dispatcher captures the packet.                                                                                                                                               |
+| Verify and wait            | `tui_shell/machines.rs` uses a cancellable read-only connection to verify current membership and physical Agent identity within the original 60-second selection budget. On the current machine it reuses the active Session. A busy Session retains only the latest waiting target; Busy precedes exact-current. |
+| Select an exact member     | `ui/direct_navigation.rs` resolves Site, context, Tab, Panel, Presentation and binding again. Same-context selection reuses the switch transaction; cross-context selection carries an exact member through snapshot validation and cleanup, without visiting a default member.                                   |
+| Keep current or move focus | Both fast paths require a live exact pane incarnation whose attached Host epoch and terminal match the verified target. A missing or different physical identity takes the fenced switch path.                                                                                                                    |
+| Attach and paint           | The selected member and physical Host fence survive membership cleanup. An unexpected attached Host is detached before polling, control acquisition or frame intake. Input and feedback remain unavailable until the existing first-frame contract admits them.                                                   |
+| Cancel or fail             | Escape, a newer selection or explicit Search retires unadmitted work; stale verification cannot install or reopen a surface. Accepted Session work retains its own settlement. A direct failure reports a localized retry notice without opening a picker.                                                        |
+
+`ui/retained_frames.rs` owns the render-only image bank: at most eight panes and 16 MiB. Reuse requires
+exact Site/context/Tab/Panel/Presentation/binding and geometry. Agent selection additionally evicts
+images from a different or unknown Host terminal or epoch. Retained images grant no cursor,
+selection, graphics, input or frame acknowledgement authority; fresh validated frames take over
+through the existing projection path. Cross-machine and explicit-picker selection keep the
+[machine candidate handoff](machines.md#cross-machine-workspace-navigation).
+
+The controlled witnesses are `machine_picker/tests/sidebar.rs`,
+`terminal_input/dispatcher/tests/action_menu/sidebar_prefix.rs`,
+`tui_shell/machines/tests/direct_navigation.rs`, `ui/direct_navigation/tests.rs` and
+`state/tests/context_selection.rs`; `connection/native/tests/presentations.rs` checks unexpected
+Host cleanup before any poll or control. They cover packet ownership, no implicit picker, exact child
+landing, latest intent, cancellation, failure, stale results and physical replacement. The viewport
+witness uses the shared shell/pane geometry projection. These are implementation traces, not
+exhaustive TLC assurance or physical paint timing. Real-host acceptance samples same-tab,
+cross-tab and cross-workspace clicks frame by frame for transient navigation and wrong-target content.
+Herdr source `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `src/app/actions.rs` and
+`src/workspace.rs`, informs direct selection; it does not establish timing or source parity.
+
 ## Rendering
 
 A validated render window uses the same styled-cell painter as live output, bounded by the pane

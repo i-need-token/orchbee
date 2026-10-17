@@ -68,6 +68,7 @@ pub(in crate::terminal_session) struct PreparedMembershipCandidate {
     selected_index: Option<usize>,
     selected_panel: Option<usize>,
     presentation_override: Option<orchbee_workbench_protocol::TerminalPresentationId>,
+    expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
     retained_contexts: Option<Vec<super::context_selection::RetainedContext>>,
     setup_completion: Option<Box<super::workspace_setup::PreparedSetupCompletion>>,
     /// One-shot cross-context install authority minted by the removal
@@ -141,6 +142,46 @@ impl PreparedMembershipCandidate {
         self.selected_index = Some(tab_index);
         self.selected_panel = Some(panel_index);
         self.presentation_override = Some(member.presentation.clone());
+        true
+    }
+
+    /// An explicit bound target may name a child; absence or rebinding never falls back to memory.
+    pub(in crate::terminal_session) fn retarget_selected_bound_member(
+        &mut self,
+        location: &crate::terminal_session::NativeContextLocation,
+        selection: &crate::terminal_session::workbench_projection::NativeMemberSelection,
+    ) -> bool {
+        if self.candidate.location() != location {
+            return false;
+        }
+        let member = &selection.member;
+        let Some(tab_index) = self.candidate.tab_index(&member.tab) else {
+            return false;
+        };
+        let tab = &self.candidate.tabs()[tab_index];
+        let Some(panel_index) = tab.panel_index(&member.panel) else {
+            return false;
+        };
+        let Some(binding) = tab
+            .panel(panel_index)
+            .and_then(|panel| {
+                panel
+                    .presentation_index(&member.presentation)
+                    .and_then(|index| panel.presentation(index))
+            })
+            .and_then(|presentation| presentation.binding())
+        else {
+            return false;
+        };
+        if binding.worker_id() != &selection.binding.worker_id
+            || binding.terminal_id() != &selection.binding.terminal_id
+        {
+            return false;
+        }
+        self.selected_index = Some(tab_index);
+        self.selected_panel = Some(panel_index);
+        self.presentation_override = Some(member.presentation.clone());
+        self.expected_host = selection.expected_host.clone();
         true
     }
 
@@ -645,6 +686,7 @@ impl NativeSessionState {
             selected_index,
             selected_panel,
             presentation_override: None,
+            expected_host: None,
             context_removal,
         })
     }
@@ -845,6 +887,7 @@ impl NativeSessionState {
                     provenance,
                     deadlines: deadlines.ok_or(CarrierFailure::Deadline)?,
                     incarnation,
+                    expected_host: prepared.expected_host.clone(),
                 };
                 (
                     SessionPhase::Switching(SwitchSetup {
@@ -1011,6 +1054,7 @@ impl NativeSessionState {
             selected_index: prepared.selected_index,
             selected_panel: prepared.selected_panel,
             presentation_override: prepared.presentation_override.clone(),
+            expected_host: prepared.expected_host.clone(),
             retained_contexts: prepared.retained_contexts.clone(),
             setup_completion: prepared.setup_completion.clone(),
             context_removal: prepared.context_removal.clone(),

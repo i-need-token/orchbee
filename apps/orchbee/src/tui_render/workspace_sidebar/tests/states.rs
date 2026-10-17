@@ -134,7 +134,7 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
             Theme::one_dark().quantize(ColorLevel::Ansi16),
             Theme::terminal_native().quantize(ColorLevel::Monochrome),
         ] {
-            let theme = original.sidebar();
+            let theme = original.paired_pointer_surfaces();
             for navigate in [false, true] {
                 for owner in [false, true] {
                     let (mut view, workspace, agent) = current_agent_view();
@@ -209,7 +209,7 @@ fn explicit_identity_color_and_plain_override_survive_row_composition_without_pr
         Theme::one_light(),
         Theme::one_dark(),
     ] {
-        let theme = base.sidebar();
+        let theme = base.paired_pointer_surfaces();
         for surface in [
             Role::SurfaceCurrent,
             Role::SurfaceHover,

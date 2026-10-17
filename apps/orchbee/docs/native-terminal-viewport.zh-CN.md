@@ -241,6 +241,38 @@ unavailable 选择，以便明确反馈降级。Esc／End 或普通输入一旦�
 检查投影替换、上下文库交接、显式 Live、canonical 清理和终端／几何拒绝。这些是实现证据；
 有界协调模型继续负责已有 demand/read/ACK 协议。
 
+## 侧栏直接切换
+
+Windows 侧栏 Agent 激活是立即导航意图，有效的主键释放与侧栏 `Enter` 共用该路径。
+Machines/Workspaces/Agents 选择器保持关闭。独立的选择 generation 拥有验证和等待；
+显式打开 Search 保留其捕获式选择器契约，并使尚未准入的直接选择失效。
+
+| 转换                 | 拥有者与结果                                                                                                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 接受可见 Agent       | `machine_picker/sidebar.rs` 重新验证准确机器和物理目标，创建 Sidebar 选择 generation；输入分派器捕获输入包。                                                                                             |
+| 验证与等待           | `tui_shell/machines.rs` 使用可取消的只读连接，在原始 60 秒选择预算内验证当前成员关系和物理 Agent 身份。目标在当前机器时复用活动 Session。Session 忙碌时只保留最新等待目标；Busy 判断先于准确当前项判断。 |
+| 选择准确成员         | `ui/direct_navigation.rs` 再次解析 Site、上下文、Tab、Panel、Presentation 和绑定。同上下文选择复用切换事务；跨上下文选择将准确成员传过快照验证和清理，不先访问默认成员。                                 |
+| 保持当前项或移动焦点 | 两条快路径都要求准确窗格 incarnation 仍存活，其附着的 Host epoch 和终端与已验证目标一致。物理身份缺失或不同时走带围栏的切换路径。                                                                        |
+| 附着与绘制           | 选择的成员及物理 Host 围栏在成员清理后保持有效。附着返回意外 Host 时，在轮询、获取控制权或接收帧之前分离它。输入和反馈继续等待已有首帧契约准入。                                                         |
+| 取消或失败           | Escape、更新的选择或显式 Search 结束尚未准入的工作；过期验证不能安装或重新打开界面。已接受的 Session 工作保留自身结算契约。直接选择失败通过本地化重试提示反馈，不打开选择器。                            |
+
+`ui/retained_frames.rs` 拥有只用于绘制的图像库：最多八个窗格、16 MiB。复用要求
+Site／上下文／Tab／Panel／Presentation／绑定和几何完全一致。Agent 选择还会淘汰
+Host 终端或 epoch 不同、或终端身份未知的图像。保留图像不授予光标、选区、图形、输入
+或帧确认权威；新验证的帧通过既有投影路径接管。跨机器和显式选择器选择保留
+[机器候选交接](machines.zh-CN.md#跨机器工作区导航)。
+
+受控证据位于 `machine_picker/tests/sidebar.rs`、
+`terminal_input/dispatcher/tests/action_menu/sidebar_prefix.rs`、
+`tui_shell/machines/tests/direct_navigation.rs`、`ui/direct_navigation/tests.rs` 和
+`state/tests/context_selection.rs`；`connection/native/tests/presentations.rs` 检查在任何轮询或控制之前
+清理意外 Host。这些证据覆盖输入包归属、不隐式打开选择器、准确子成员落点、
+最新意图、取消、失败、过期结果和物理替换。视口证据使用共享 shell／窗格几何投影。
+这些是实现轨迹，不提供穷尽 TLC 保证或物理绘制时序证据。真实宿主验收逐帧采样同标签、
+跨标签和跨工作区点击，检查临时导航器及错误目标内容。
+Herdr 源码 `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `src/app/actions.rs` 和
+`src/workspace.rs` 为直接选择提供参考，不建立时序或源码等价声明。
+
 ## 呈现
 
 已验证的 render 窗口与实时输出共用样式单元格画笔，受窗格内容几何约束。颜色使用窗口

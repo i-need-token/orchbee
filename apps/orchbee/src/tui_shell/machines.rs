@@ -26,7 +26,14 @@ struct Attempt {
     profile: Option<Profile>,
     context: Option<NativeStartupTarget>,
     cancel: Arc<AtomicU8>,
-    task: Option<JoinHandle<io::Result<LocalClient>>>,
+    task: Option<JoinHandle<io::Result<PreparedSelection>>>,
+}
+enum PreparedSelection {
+    Connection(LocalClient),
+    Agent {
+        target: Box<crate::machine_agents::Target>,
+        deadline: Instant,
+    },
 }
 impl Drop for Attempt {
     fn drop(&mut self) {
@@ -57,8 +64,12 @@ fn choice(profile: Option<&Profile>) -> Choice {
 }
 struct Queued {
     profile: Option<Profile>,
-    context: Option<NativeStartupTarget>,
+    destination: Destination,
     deadline: Instant,
+}
+enum Destination {
+    Startup(Option<NativeStartupTarget>),
+    VerifiedAgent(Box<crate::machine_agents::Target>),
 }
 #[derive(Default)]
 pub(super) struct Change {
@@ -280,7 +291,7 @@ impl Manager {
                     }
                     self.queued = Some(Queued {
                         profile,
-                        context: request.context,
+                        destination: Destination::Startup(request.context),
                         deadline: now + Duration::from_secs(60),
                     });
                     view.machines.error = None;
@@ -306,26 +317,42 @@ impl Manager {
                 && self.selection_current(view)
                 && attempt.profile.as_ref().is_none_or(|p| self.valid(p))
             {
-                let startup_deadline = now + Duration::from_secs(30);
-                let candidate = result.and_then(|mut client| {
-                    let geometry = terminal_geometry(dimensions, &self.template, None)?
-                        .ok_or_else(|| io::Error::other("viewport too small"))?;
-                    client.set_submission_deadline(Some(startup_deadline));
-                    match attempt.context.clone() {
-                        Some(context) => TerminalSession::start_target(client, context, geometry),
-                        None => {
-                            TerminalSession::start(client, TerminalIntent::Standalone, geometry)
-                        }
-                    }
-                });
-                match candidate {
-                    Ok(session) => {
-                        self.candidate = Some(Candidate {
+                match result {
+                    Ok(PreparedSelection::Agent { target, deadline }) => {
+                        self.queued = Some(Queued {
                             profile: attempt.profile.clone(),
-                            session,
-                            targeted: attempt.context.is_some(),
-                            deadline: startup_deadline,
-                        })
+                            destination: Destination::VerifiedAgent(target),
+                            deadline,
+                        });
+                    }
+                    Ok(PreparedSelection::Connection(mut client)) => {
+                        let startup_deadline = now + Duration::from_secs(30);
+                        let candidate = (|| {
+                            let geometry = terminal_geometry(dimensions, &self.template, None)?
+                                .ok_or_else(|| io::Error::other("viewport too small"))?;
+                            client.set_submission_deadline(Some(startup_deadline));
+                            match attempt.context.clone() {
+                                Some(context) => {
+                                    TerminalSession::start_target(client, context, geometry)
+                                }
+                                None => TerminalSession::start(
+                                    client,
+                                    TerminalIntent::Standalone,
+                                    geometry,
+                                ),
+                            }
+                        })();
+                        match candidate {
+                            Ok(session) => {
+                                self.candidate = Some(Candidate {
+                                    profile: attempt.profile.clone(),
+                                    session,
+                                    targeted: attempt.context.is_some(),
+                                    deadline: startup_deadline,
+                                })
+                            }
+                            Err(_) => self.fail_selection(view, "failed"),
+                        }
                     }
                     Err(_) => self.fail_selection(view, "failed"),
                 }
@@ -348,7 +375,8 @@ impl Manager {
                 .selection_scope
                 .is_some_and(|scope| scope.origin == SelectionOrigin::Sidebar)
                 && same_machine_endpoint(self.current.as_ref(), queued.profile.as_ref())
-                && let Some(NativeStartupTarget::Context(target)) = &queued.context
+                && let Destination::Startup(Some(NativeStartupTarget::Context(target))) =
+                    &queued.destination
             {
                 // Reuse this Session's per-location tab/panel memory. One accepted
                 // transition settles before the latest queued intent is admitted.
@@ -361,20 +389,74 @@ impl Manager {
                     ContextNavigationAdmission::Busy => self.queued = Some(queued),
                     ContextNavigationAdmission::Unavailable => self.fail_selection(view, "failed"),
                 }
+            } else if let Destination::VerifiedAgent(target) = &queued.destination {
+                if !same_machine_endpoint(self.current.as_ref(), queued.profile.as_ref()) {
+                    self.fail_selection(view, "removed");
+                } else {
+                    match surface.active().navigate_agent(target) {
+                        ContextNavigationAdmission::Current => self.finish_selection(view),
+                        ContextNavigationAdmission::Admitted => {
+                            before_switch(surface.active());
+                            self.finish_selection(view);
+                        }
+                        ContextNavigationAdmission::Busy => self.queued = Some(queued),
+                        ContextNavigationAdmission::Unavailable => {
+                            self.fail_selection(view, "failed")
+                        }
+                    }
+                }
             } else if let Some(connection) = match &queued.profile {
                 Some(profile) => self.discovery.connection(profile, now),
                 None => self.local_source(surface),
             } {
                 let cancel = Arc::new(AtomicU8::new(0));
                 let worker_cancel = cancel.clone();
+                let Destination::Startup(context) = queued.destination else {
+                    unreachable!("verified Agent destinations are handled without a new Session");
+                };
+                let direct_agent = self
+                    .selection_scope
+                    .filter(|scope| scope.origin == SelectionOrigin::Sidebar)
+                    .filter(|_| {
+                        same_machine_endpoint(self.current.as_ref(), queued.profile.as_ref())
+                    })
+                    .and_then(|_| match &context {
+                        Some(NativeStartupTarget::Agent(target)) => Some(target.clone()),
+                        _ => None,
+                    });
                 match thread::Builder::new()
                     .name("orchbee-machine-connect".into())
-                    .spawn(move || connection.reconnect(queued.deadline, &worker_cancel))
-                {
+                    .spawn(move || {
+                        let mut client = connection.reconnect(queued.deadline, &worker_cancel)?;
+                        if let Some(target) = direct_agent {
+                            let snapshot = crate::machine_observation::snapshot(
+                                &mut client,
+                                queued.deadline,
+                                &worker_cancel,
+                            )
+                            .map_err(|()| {
+                                io::Error::other("Agent selection snapshot unavailable")
+                            })?;
+                            crate::machine_agents::verify(
+                                &mut client,
+                                &snapshot,
+                                &target,
+                                queued.deadline,
+                                &worker_cancel,
+                            )
+                            .map_err(|()| io::Error::other("Agent selection is stale"))?;
+                            Ok(PreparedSelection::Agent {
+                                target,
+                                deadline: queued.deadline,
+                            })
+                        } else {
+                            Ok(PreparedSelection::Connection(client))
+                        }
+                    }) {
                     Ok(task) => {
                         self.attempt = Some(Attempt {
                             profile: queued.profile,
-                            context: queued.context,
+                            context,
                             cancel,
                             task: Some(task),
                         })

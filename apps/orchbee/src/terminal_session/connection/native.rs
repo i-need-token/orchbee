@@ -197,6 +197,7 @@ struct SetupTarget {
     /// notices; operation targets use the focus-scoped `SetupWithoutAttachment`
     /// settlement, which only the Switching phase can consume.
     fault_on_failure: bool,
+    expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
 }
 
 impl SetupTarget {
@@ -213,6 +214,7 @@ impl SetupTarget {
             deadlines: None,
             geometry: None,
             fault_on_failure: false,
+            expected_host: None,
         })
     }
 
@@ -229,6 +231,7 @@ impl SetupTarget {
             deadlines: Some(target.deadlines()),
             geometry: None,
             fault_on_failure: false,
+            expected_host: target.expected_host,
         })
     }
 
@@ -244,6 +247,7 @@ impl SetupTarget {
             deadlines: Some(deadlines),
             geometry: Some(target.geometry()),
             fault_on_failure: true,
+            expected_host: None,
         })
     }
 }
@@ -565,6 +569,13 @@ impl NativeExecutor {
             next_sequence: 0,
             accepted_geometry: None,
         });
+        if target.expected_host.as_ref().is_some_and(|expected| {
+            host_epoch.as_str() != expected.host_epoch.as_str()
+                || host_terminal_id.as_str() != expected.host_terminal_id.as_str()
+        }) {
+            // No poll or projection was admitted for this unexpected physical terminal.
+            return self.cleanup_after_setup_failure(owner, &target);
+        }
         #[cfg(windows)]
         if matches!(owner, SetupOwner::Startup { .. })
             && let Some(NativeStartupTarget::Agent(expected)) = &self.initial_context

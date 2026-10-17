@@ -82,6 +82,13 @@ PTYs. Root-compositor cases cover both locales, 120x40, 120x30, 100x24 and 80x24
 sidebars and 24/30/60-column preferences; these are render/input-map checks rather than physical
 host gesture evidence.
 
+Settings preflight and painting consume the theme's `paired_pointer_surfaces` projection. Reverse-video
+hover/press fallbacks resolve to one neutral foreground/background pair across the complete row,
+including labels, values, markers and blank cells; picker choices and fixed footer actions use the
+same projection. Monochrome retains one host-relative reverse band. Named RGB surfaces and explicit
+content colors keep their existing roles. This local theme copy changes presentation without
+changing hit geometry, pointer admission, selection, the draft or save authority.
+
 The renderer projects typed shared actions, rows and value controls. Header Close,
 footer actions, rows and minus/plus controls publish the same generic
 activate-on-release interaction, including visible typed disabled targets that
@@ -269,6 +276,13 @@ fixed actions across scrolling and size tiers, hidden-hit removal, search cursor
 picker acceptance in both locales. The [input packet cases](../src/terminal_input/dispatcher/tests/settings.rs)
 keep query entry and local return out of pane input and persistence. These local navigation changes
 do not change the shared commit/publication protocol.
+
+The [composed pointer cases](../src/tui_render/settings/tests/pointer.rs) drive admitted motion and
+press reports through the painted Settings hit map. They check complete label/value, checkbox,
+bounded-number, picker and footer bands under native, named, ANSI-16 and monochrome themes in both
+locales, including a disabled decrement and secondary shortcut text. Pointer feedback retains the
+same draw receipt, hit geometry, selected setting and draft values; actual host presentation still
+requires separate screenshot review.
 
 The [editor preview cases](../src/native_settings/tests/appearance.rs) cover every
 admitted key's exact one-key Save patch, frozen basis, child return, reset, invalid

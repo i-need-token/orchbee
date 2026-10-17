@@ -361,13 +361,35 @@ impl NativeSessionState {
             .cache
             .project_snapshot(&snapshot)
             .map_err(|_| CarrierFailure::AuthorityDivergence)?;
-        self.prepare_membership_candidate(
+        let mut prepared = self.prepare_membership_candidate(
             candidate,
             Some(marker.anchor().tab_id()),
             Some(setup.target.selected.index()),
             None,
             None,
-        )
+        )?;
+        if let Some(expected_host) = &setup.target.expected_host {
+            let binding = setup
+                .target
+                .binding()
+                .ok_or(CarrierFailure::AuthorityDivergence)?;
+            let selection = crate::terminal_session::workbench_projection::NativeMemberSelection {
+                member: crate::terminal_session::NativeMemberTarget {
+                    tab: marker.anchor().tab_id().clone(),
+                    panel: marker.panel().clone(),
+                    presentation: (*setup.target.presentation_id).clone(),
+                },
+                binding: orchbee_workbench_protocol::PresentationBinding {
+                    worker_id: binding.worker_id().clone(),
+                    terminal_id: binding.terminal_id().clone(),
+                },
+                expected_host: Some(expected_host.clone()),
+            };
+            if !prepared.retarget_selected_bound_member(self.cache.location(), &selection) {
+                return Err(CarrierFailure::AuthorityDivergence);
+            }
+        }
+        Ok(prepared)
     }
 
     pub(in crate::terminal_session) fn prepare_switch_restore(

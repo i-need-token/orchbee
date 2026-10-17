@@ -41,6 +41,7 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> ModalPresentation<SettingsDraw> {
+    let theme = &theme.paired_pointer_surfaces();
     let Some(layout) = SettingsLayout::resolve(frame.area(), content, view, locale, theme) else {
         return ModalPresentation::NotPresented;
     };
@@ -147,6 +148,7 @@ impl SettingsLayout {
         locale: Locale,
         theme: &Theme,
     ) -> Option<Self> {
+        let theme = &theme.paired_pointer_surfaces();
         if content.width < 36 || content.height < 10 || bounds.intersection(content) != content {
             return None;
         }

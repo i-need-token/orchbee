@@ -2,6 +2,127 @@ use super::*;
 use crate::terminal_session::state::RefreshDecision;
 use orchbee_workbench_protocol::{PanelNode, WorkbenchSnapshotOutcome};
 
+#[cfg(windows)]
+#[test]
+fn direct_agent_switch_detaches_unexpected_host_before_poll_frame_or_control() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let source = setup::snapshot(2, 1);
+    let panel = source.terminal_contexts[0].tabs[0].root.clone();
+    let PanelNode::Panel {
+        panel_id,
+        primary_presentation,
+        ..
+    } = panel
+    else {
+        return Err(test_error("target panel"));
+    };
+    let mut expected = crate::machine_agents::tests::physical(1);
+    let TerminalViewerOutcome::Attached { host_epoch, .. } = attached_outcome()? else {
+        return Err(test_error("Host fixture"));
+    };
+    expected.host_epoch =
+        orchbee_agent_observation_protocol::AgentHostEpoch::parse(host_epoch.as_str())?;
+    expected.host_terminal_id =
+        orchbee_agent_observation_protocol::AgentHostTerminalId::parse(&format!("{:032x}", 999))?;
+    let mut harness = Harness::start(
+        vec![
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+        ],
+        geometry,
+    )?;
+    let old = drive_open_snapshot(&mut harness, source.clone())?;
+    drive_attach(&mut harness, 0)?;
+    super::commands::drive_controlling_after_attach(&mut harness, &old, geometry)?;
+    harness.ui.admit_fenced_presentation(
+        0,
+        panel_id,
+        primary_presentation.presentation_id,
+        expected,
+    )?;
+    let read = harness.carrier.take_read()?;
+    harness.carrier.respond_read(
+        &read,
+        WorkbenchSnapshotOutcome::Available { snapshot: source },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SwitchSnapshot {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("old viewer detach"));
+    };
+    assert!(matches!(
+        detach.action(),
+        TerminalViewerAction::Detach { .. }
+    ));
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::SwitchOldDetached {
+            continuation: SwitchDetachContinuation::Attach(_),
+            ..
+        }
+    ));
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("fenced attach"));
+    };
+    assert!(matches!(
+        attach.action(),
+        TerminalViewerAction::AttachBinding { .. }
+    ));
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
+        ))?;
+    let ClientMessage::TerminalViewer(cleanup) = harness.carrier.take_obcs()? else {
+        return Err(test_error(
+            "unexpected Host must detach before any control request",
+        ));
+    };
+    assert!(
+        matches!(cleanup.action(), TerminalViewerAction::Detach { .. }),
+        "the first action on the unexpected Host must be cleanup"
+    );
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                cleanup.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::CleanupSettled {
+            continuation: CleanupContinuation::Stable,
+            ..
+        }
+    ));
+    assert!(harness.ui.state().ready().is_none());
+    harness.finish()
+}
+
 #[test]
 fn actual_child_switch_detaches_old_viewer_before_attaching_exact_child_binding() -> TestResult {
     let geometry = fixture_geometry()?;

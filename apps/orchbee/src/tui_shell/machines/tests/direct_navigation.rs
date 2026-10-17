@@ -242,3 +242,196 @@ fn superseded_connection_completion_cannot_fail_or_replace_new_direct_navigation
     assert!(!view.machines.open);
     assert!(!view.machines.direct_selection_pending());
 }
+
+struct AgentSurface(Rc<RefCell<AgentNavigation>>);
+struct AgentNavigation {
+    current: crate::machine_agents::Target,
+    pending: Option<crate::machine_agents::Target>,
+    admitted: Vec<crate::machine_agents::Target>,
+    unavailable: bool,
+}
+impl crate::terminal_input::TerminalInputPort for AgentSurface {
+    fn forward(&mut self, _: &[u8]) -> Result<(), crate::terminal_input::TerminalInputUnavailable> {
+        Ok(())
+    }
+}
+impl TerminalSurface for AgentSurface {
+    fn navigate_agent(
+        &mut self,
+        target: &crate::machine_agents::Target,
+    ) -> ContextNavigationAdmission {
+        let mut state = self.0.borrow_mut();
+        if state.unavailable {
+            ContextNavigationAdmission::Unavailable
+        } else if state.pending.is_some() {
+            ContextNavigationAdmission::Busy
+        } else if state.current == *target {
+            ContextNavigationAdmission::Current
+        } else {
+            state.pending = Some(target.clone());
+            state.admitted.push(target.clone());
+            ContextNavigationAdmission::Admitted
+        }
+    }
+}
+fn prepare_agents() -> (
+    Manager,
+    ClientView,
+    SurfaceSlot<'static>,
+    Rc<RefCell<AgentNavigation>>,
+    Vec<crate::machine_agents::Target>,
+) {
+    let (manager, mut view, _) = setup();
+    let rows: Vec<_> = [23, 24, 25]
+        .into_iter()
+        .map(crate::machine_agents::tests::row)
+        .collect();
+    let targets: Vec<_> = rows.iter().map(|row| row.target.clone()).collect();
+    view.machines.observe_agent_sidebar(true);
+    view.machines.observe_local(vec![Context {
+        target: targets[0].context.clone(),
+        project_id: None,
+        project: None,
+        workspace: Some("same label".into()),
+    }]);
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(rows)),
+    )]);
+    let state = Rc::new(RefCell::new(AgentNavigation {
+        current: targets[0].clone(),
+        pending: None,
+        admitted: Vec::new(),
+        unavailable: false,
+    }));
+    (
+        manager,
+        view,
+        SurfaceSlot::Owned(Box::new(AgentSurface(state.clone()))),
+        state,
+        targets,
+    )
+}
+// The read lane's verification is a separate contract; these traces begin at its typed result.
+fn verified_agent(
+    manager: &mut Manager,
+    view: &mut ClientView,
+    target: &crate::machine_agents::Target,
+    now: Instant,
+) {
+    assert!(view.machines.activate_sidebar_agent(&Selection {
+        machine: Choice::Local,
+        context: Some(NativeStartupTarget::Agent(Box::new(target.clone())))
+    }));
+    view.machines.request.take().unwrap();
+    manager.cancel();
+    manager.selection_scope = view.machines.selection_scope();
+    manager.queued = Some(Queued {
+        profile: None,
+        destination: Destination::VerifiedAgent(Box::new(target.clone())),
+        deadline: now + Duration::from_secs(60),
+    });
+}
+
+#[test]
+fn direct_agent_reuses_session_serializes_admitted_switch_and_keeps_latest_waiting_target() {
+    let (mut manager, mut view, mut surface, state, targets) = prepare_agents();
+    let now = Instant::now();
+    verified_agent(&mut manager, &mut view, &targets[0], now);
+    tick(&mut manager, &mut view, &mut surface, now);
+    assert!(state.borrow().admitted.is_empty());
+    verified_agent(&mut manager, &mut view, &targets[1], now);
+    tick(&mut manager, &mut view, &mut surface, now);
+    assert_eq!(state.borrow().admitted, [targets[1].clone()]);
+    verified_agent(&mut manager, &mut view, &targets[2], now);
+    tick(&mut manager, &mut view, &mut surface, now);
+    verified_agent(&mut manager, &mut view, &targets[0], now);
+    tick(&mut manager, &mut view, &mut surface, now);
+    assert!(view.machines.busy);
+    assert_eq!(state.borrow().admitted.len(), 1);
+    {
+        let mut state = state.borrow_mut();
+        state.current = state.pending.take().unwrap();
+    }
+    tick(&mut manager, &mut view, &mut surface, now);
+    assert_eq!(
+        state.borrow().admitted,
+        [targets[1].clone(), targets[0].clone()]
+    );
+    assert!(!view.machines.busy);
+    assert!(!view.machines.direct_selection_pending());
+}
+
+#[test]
+fn direct_agent_cancel_search_failure_and_deadline_never_replace_session_or_open_navigator() {
+    for outcome in 0..4 {
+        let (mut manager, mut view, mut surface, state, targets) = prepare_agents();
+        let now = Instant::now();
+        verified_agent(&mut manager, &mut view, &targets[1], now);
+        match outcome {
+            0 => view.machines.cancel_selection(),
+            1 => view.machines.show_workspaces(),
+            2 => state.borrow_mut().unavailable = true,
+            _ => state.borrow_mut().pending = Some(targets[0].clone()),
+        }
+        manager.tick(&mut surface, &mut view, dimensions(), now, &mut |_| {});
+        if outcome == 3 {
+            manager.refresh = now + Duration::from_secs(120);
+            manager.tick(
+                &mut surface,
+                &mut view,
+                dimensions(),
+                now + Duration::from_secs(60),
+                &mut |_| {},
+            );
+        }
+        assert_eq!(view.machines.open, outcome == 1);
+        assert!(state.borrow().admitted.is_empty());
+        assert_eq!(state.borrow().current, targets[0]);
+        assert!(
+            manager.candidate.is_none() && manager.attempt.is_none() && manager.cached.is_empty()
+        );
+        assert!(!view.machines.busy && !view.machines.direct_selection_pending());
+        assert_eq!(view.notice().is_some(), outcome >= 2);
+    }
+}
+
+#[test]
+fn cancelled_verification_result_cannot_switch_or_reopen_explicit_navigator() {
+    for explicit in [false, true] {
+        let (mut manager, mut view, mut surface, state, targets) = prepare_agents();
+        let now = Instant::now();
+        verified_agent(&mut manager, &mut view, &targets[1], now);
+        manager.queued.take();
+        let target = Box::new(targets[1].clone());
+        let task = thread::spawn(move || {
+            Ok(PreparedSelection::Agent {
+                target,
+                deadline: now + Duration::from_secs(60),
+            })
+        });
+        while !task.is_finished() {
+            thread::yield_now();
+        }
+        let cancel = Arc::new(AtomicU8::new(0));
+        manager.attempt = Some(Attempt {
+            profile: None,
+            context: Some(NativeStartupTarget::Agent(Box::new(targets[1].clone()))),
+            cancel: cancel.clone(),
+            task: Some(task),
+        });
+        if explicit {
+            view.machines.show_workspaces();
+        } else {
+            view.machines.cancel_selection();
+        }
+        manager.tick(&mut surface, &mut view, dimensions(), now, &mut |_| {});
+        assert_eq!(cancel.load(Ordering::Acquire), 1);
+        assert!(state.borrow().admitted.is_empty());
+        assert_eq!(view.machines.open, explicit);
+        assert!(
+            manager.attempt.is_none() && manager.candidate.is_none() && manager.queued.is_none()
+        );
+        assert!(view.notice().is_none());
+    }
+}

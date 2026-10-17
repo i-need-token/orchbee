@@ -859,7 +859,7 @@ impl UiDriver {
     }
 
     pub(super) fn admit_switch(&mut self, index: usize) -> TestResult<AdmittedSwitch> {
-        self.admit_switch_target(index, None)
+        self.admit_switch_target(index, None, None)
     }
 
     pub(super) fn admit_presentation(
@@ -868,13 +868,25 @@ impl UiDriver {
         panel: WorkbenchPanelId,
         presentation: TerminalPresentationId,
     ) -> TestResult<AdmittedSwitch> {
-        self.admit_switch_target(index, Some((panel, presentation)))
+        self.admit_switch_target(index, Some((panel, presentation)), None)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn admit_fenced_presentation(
+        &mut self,
+        index: usize,
+        panel: WorkbenchPanelId,
+        presentation: TerminalPresentationId,
+        expected_host: orchbee_agent_observation_protocol::AgentLaunchBinding,
+    ) -> TestResult<AdmittedSwitch> {
+        self.admit_switch_target(index, Some((panel, presentation)), Some(expected_host))
     }
 
     fn admit_switch_target(
         &mut self,
         index: usize,
         presentation: Option<(WorkbenchPanelId, TerminalPresentationId)>,
+        expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
     ) -> TestResult<AdmittedSwitch> {
         let sampled_at = self.clock.now();
         let deadlines = OperationDeadlines::from_sample(sampled_at)
@@ -891,12 +903,13 @@ impl UiDriver {
                         .tab_id()
                         .clone();
                     let key = AttachmentKey::new(generation, tab_id);
-                    let target = match &presentation {
+                    let mut target = match &presentation {
                         Some((panel, member)) => state
                             .target_for_presentation(index, panel, member, generation, deadlines),
                         None => state.target_for_switch(index, key, deadlines),
                     }
                     .ok_or("invalid Switch target")?;
+                    target.expected_host = expected_host;
                     if !state.begin_switch(target.clone()) {
                         return Err("Switch reducer rejected target");
                     }

@@ -4,6 +4,20 @@ use crate::client_view::{BackendAction, Notice};
 
 use super::{Locale, ShellText, select_locale};
 
+#[cfg(windows)]
+#[test]
+fn direct_agent_and_workspace_navigation_failures_share_a_localized_retry_notice() {
+    let notice = Some(Notice::WorkspaceNavigationUnavailable);
+    assert_eq!(
+        Locale::EnUs.shell_notice(notice),
+        "Could not switch · select the destination again to retry"
+    );
+    assert_eq!(
+        Locale::ZhCn.shell_notice(notice),
+        "无法切换 · 请再次选择目标以重试"
+    );
+}
+
 #[test]
 fn compact_terminal_end_copy_keeps_complete_results_within_twenty_cells_in_both_locales() {
     use crate::terminal_projection::TerminalEnd;

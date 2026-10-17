@@ -26,8 +26,8 @@ fn sidebar_pointer_fallbacks_keep_one_background_and_readable_navigation() {
             ColorLevel::Ansi16,
             ColorLevel::Monochrome,
         ] {
-            let theme = base.quantize(level).sidebar();
-            assert_eq!(theme.sidebar(), theme);
+            let theme = base.quantize(level).paired_pointer_surfaces();
+            assert_eq!(theme.paired_pointer_surfaces(), theme);
             for surface in [Role::SurfaceHover, Role::SurfacePressed] {
                 let band = theme.style(surface);
                 for role in [
@@ -54,6 +54,35 @@ fn sidebar_pointer_fallbacks_keep_one_background_and_readable_navigation() {
                         assert_eq!(content.fg, Some(foreground));
                     }
                 }
+            }
+        }
+    }
+}
+
+#[test]
+fn paired_pointer_projection_preserves_other_roles_and_explicit_content_colors() {
+    for original in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
+        let theme = original.paired_pointer_surfaces();
+        for role in Role::ALL {
+            if !matches!(role, Role::SurfaceHover | Role::SurfacePressed)
+                || !original
+                    .style(role)
+                    .add_modifier
+                    .contains(Modifier::REVERSED)
+            {
+                assert_eq!(theme.style(role), original.style(role));
+            }
+        }
+        for surface in [Role::SurfaceHover, Role::SurfacePressed] {
+            let explicit = theme.style(Role::TextPrimary).fg(Color::Rgb(16, 32, 48));
+            for role in [None, Some(Role::TextPrimary)] {
+                let composed =
+                    theme.content_on_surface(Role::SurfaceOverlay, Some(surface), role, explicit);
+                assert_eq!(composed.fg, explicit.fg);
             }
         }
     }

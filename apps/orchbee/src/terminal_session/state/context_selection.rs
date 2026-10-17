@@ -4,8 +4,8 @@ use super::{
     context_removal::ContextRemovalPermit, validate_canonical_refresh,
 };
 use crate::terminal_session::workbench_projection::{
-    NativeContext, NativeContextLocation, NativeSimpleTab, project_native_context_tabs,
-    validate_canonical_candidate, validate_retained_context,
+    NativeContext, NativeContextLocation, NativeMemberSelection, NativeSimpleTab,
+    project_native_context_tabs, validate_canonical_candidate, validate_retained_context,
 };
 use orchbee_workbench_protocol::{MAXIMUM_TERMINAL_CONTEXTS, SiteId, Snapshot, WorkbenchRevision};
 
@@ -13,6 +13,7 @@ pub(super) struct ContextSelection {
     generation: u64,
     target: NativeContextLocation,
     deadlines: OperationDeadlines,
+    member: Option<NativeMemberSelection>,
 }
 
 #[derive(Clone, Debug)]
@@ -126,6 +127,7 @@ impl NativeSessionState {
             generation,
             target,
             deadlines,
+            member: None,
         });
         self.pending_refresh = Some(super::PendingRefreshFlight::recovery(generation));
         self.adopt_publication_debt();
@@ -144,6 +146,16 @@ impl NativeSessionState {
         generation: u64,
         index: usize,
         deadlines: OperationDeadlines,
+    ) -> bool {
+        self.start_context_selection_at_with_member(generation, index, deadlines, None)
+    }
+
+    pub(in crate::terminal_session) fn start_context_selection_at_with_member(
+        &mut self,
+        generation: u64,
+        index: usize,
+        deadlines: OperationDeadlines,
+        member: Option<NativeMemberSelection>,
     ) -> bool {
         #[cfg(windows)]
         self.cancel_duplicate_sequence();
@@ -171,6 +183,7 @@ impl NativeSessionState {
             generation,
             target,
             deadlines,
+            member,
         });
         self.pending_refresh = Some(super::PendingRefreshFlight::recovery(generation));
         self.adopt_publication_debt();
@@ -214,10 +227,21 @@ impl NativeSessionState {
                 baseline_revision: self.cache.revision(),
             };
         };
-        let preferred = self.navigation_memory.tab(candidate.location());
+        let preferred = intent
+            .member
+            .as_ref()
+            .map(|selection| &selection.member.tab)
+            .or_else(|| self.navigation_memory.tab(candidate.location()));
         match self.prepare_membership_candidate(candidate, preferred, None, None, None) {
             Ok(mut prepared) => {
-                if let Some(tab) = prepared.selected_tab() {
+                if let Some(selection) = &intent.member {
+                    if !prepared.retarget_selected_bound_member(&intent.target, selection) {
+                        return PreparedRefresh::DefiniteFailure {
+                            generation,
+                            baseline_revision: self.cache.revision(),
+                        };
+                    }
+                } else if let Some(tab) = prepared.selected_tab() {
                     let panel_index = self.navigation_memory.panel_index(&intent.target, tab);
                     prepared.retarget_selected_panel(panel_index);
                 }

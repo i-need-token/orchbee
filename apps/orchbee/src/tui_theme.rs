@@ -514,11 +514,10 @@ impl Theme {
         self.styles.style(role)
     }
 
-    /// Sidebar rows keep one displayed background even when tokens have different foregrounds.
+    /// Mixed-role controls keep one displayed background despite different content foregrounds.
     /// A reverse-video fallback would turn every token foreground into its own background patch.
     /// Resolve that fallback to a neutral pair; monochrome keeps one host-relative reverse band.
-    #[cfg(any(windows, test))]
-    pub(crate) fn sidebar(mut self) -> Self {
+    pub(crate) fn paired_pointer_surfaces(mut self) -> Self {
         for surface in [
             &mut self.styles.surface_hover,
             &mut self.styles.surface_pressed,

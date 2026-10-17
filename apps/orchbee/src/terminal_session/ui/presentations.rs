@@ -208,6 +208,16 @@ impl NativeUi {
         panel: &WorkbenchPanelId,
         presentation: &TerminalPresentationId,
     ) -> bool {
+        self.select_presentation_with_host(index, panel, presentation, None)
+    }
+
+    pub(super) fn select_presentation_with_host(
+        &mut self,
+        index: usize,
+        panel: &WorkbenchPanelId,
+        presentation: &TerminalPresentationId,
+        expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
+    ) -> bool {
         let Some(deadlines) = OperationDeadlines::from_sample(self.clock.now()) else {
             return false;
         };
@@ -228,9 +238,10 @@ impl NativeUi {
                 ) {
                     return Err(ActionBuildError::Busy);
                 }
-                let target = state
+                let mut target = state
                     .target_for_presentation(index, panel, presentation, generation, deadlines)
                     .ok_or(ActionBuildError::Busy)?;
+                target.expected_host = expected_host;
                 if !state.begin_switch(target.clone()) {
                     return Err(ActionBuildError::Busy);
                 }

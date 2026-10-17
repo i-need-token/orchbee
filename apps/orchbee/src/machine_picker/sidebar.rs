@@ -1,5 +1,5 @@
 //! Client-local window and input decisions for the shared Agent projection.
-use super::{Mode, NativeStartupTarget, Picker, Row, Selection, SidebarTarget};
+use super::{Mode, NativeStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SidebarWindow {
@@ -212,25 +212,19 @@ impl Picker {
         {
             return false;
         }
-        let Some(index) = self.agent_rows.iter().position(|row| {
+        if !self.agent_rows.iter().any(|row| {
             row.enabled && row.choice == selected.machine && row.agent.as_ref().is_some_and(|agent| {
                 matches!(&selected.context, Some(NativeStartupTarget::Agent(target)) if target.as_ref() == &agent.target)
             })
-        }) else { return false; };
-        let row = &self.agent_rows[index];
-        let current = row
-            .agent
-            .as_ref()
-            .is_some_and(|a| self.current_agent(&row.choice, a));
-        self.show_agents();
-        self.selected = index;
-        if current {
-            self.open = false;
-            self.request = None;
-            self.invalidate();
-        } else {
-            self.request = Some(selected.clone());
+        }) || !self.begin_selection(SelectionOrigin::Sidebar) {
+            return false;
         }
+        // The Session checks busy before exact-current. A click on A during A -> B
+        // is a new return intent, even while the sidebar still marks A current.
+        self.cancel_sidebar_scroll();
+        self.request = Some(selected.clone());
+        self.error = None;
+        self.invalidate();
         true
     }
     pub(crate) fn activate_sidebar_selection(&mut self, selected: &Selection) -> bool {

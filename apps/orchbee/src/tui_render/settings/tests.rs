@@ -15,6 +15,7 @@ use orchbee_workbench_protocol::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 mod browse;
+mod pointer;
 
 const MISSING_SOURCE: &str = "missing";
 const OTHER_SOURCE: &str = "0000000000000000000000000000000000000000000000000000000000000000";

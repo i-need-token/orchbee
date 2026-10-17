@@ -174,7 +174,7 @@ fn configured_agent_cycle_captures_packet_tail_and_never_acts_inside_picker() {
 }
 
 #[test]
-fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
+fn sidebar_pointer_navigation_defers_current_check_without_picker_and_captures_packet_tail() {
     use crate::machine_agents::{
         Observation as Agents,
         tests::{checkpoint, row},
@@ -269,11 +269,9 @@ fn sidebar_pointer_navigation_and_current_noop_capture_the_whole_packet_tail() {
             b"before\x1b[<0;3;3M\x1b[<0;3;3mtail\x03",
         );
         assert_eq!(*calls.borrow(), [Call::Forward(b"before".to_vec())]);
-        assert_eq!(
-            view.machines.request.take(),
-            if current { None } else { Some(selected) }
-        );
-        assert_eq!(view.machines.open, !current);
+        assert_eq!(view.machines.request.take(), Some(selected));
+        assert!(!view.machines.open);
+        assert!(view.machines.direct_selection_pending());
     }
 }
 

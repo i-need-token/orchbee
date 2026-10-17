@@ -1075,7 +1075,7 @@ pub(super) fn render(
     if rows.is_empty() && creation.is_none() {
         return;
     }
-    let theme = &theme.sidebar();
+    let theme = &theme.paired_pointer_surfaces();
     let extra_creation = creation.filter(|preview| {
         !rows
             .iter()

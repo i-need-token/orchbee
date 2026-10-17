@@ -140,6 +140,8 @@ pub(crate) use tab_rename::NativeRenameInputContext;
 pub(crate) use tab_rename::{NativeRenameDraftToken, NativeRenameDraftView, NativeRenameEdit};
 mod create_membership;
 #[cfg(windows)]
+mod direct_navigation;
+#[cfg(windows)]
 mod startup_preference;
 mod switch_membership;
 

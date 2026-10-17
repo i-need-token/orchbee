@@ -59,6 +59,7 @@ struct Pixels {
     identity: Identity,
     frame: Arc<TerminalTextFrame>,
     bytes: usize,
+    host_terminal: Option<Box<str>>,
 }
 
 #[derive(Clone, Default)]
@@ -89,10 +90,10 @@ impl RetainedFrames {
             .into_iter()
             .filter(|pixels| pixels.identity.remains_member(state))
         {
-            self.retain(pixels.identity, pixels.frame);
+            self.retain_host(pixels.identity, pixels.frame, pixels.host_terminal);
         }
         for pixels in newer {
-            self.retain(pixels.identity, pixels.frame);
+            self.retain_host(pixels.identity, pixels.frame, pixels.host_terminal);
         }
     }
 
@@ -100,6 +101,28 @@ impl RetainedFrames {
         if let Some(identity) = Identity::selected(state, panel) {
             self.entries.retain(|pixels| pixels.identity != identity);
         }
+    }
+
+    /// A verified physical replacement cannot reuse pixels from an earlier Host incarnation.
+    #[cfg(windows)]
+    pub(super) fn fence_selection(
+        &mut self,
+        context: &crate::terminal_session::NativeContextTarget,
+        selection: &crate::terminal_session::workbench_projection::NativeMemberSelection,
+    ) {
+        let Some(expected) = &selection.expected_host else {
+            return;
+        };
+        self.entries.retain(|pixels| {
+            let id = &pixels.identity;
+            id.site != context.site_id
+                || &id.context != context.location.terminal_context_id()
+                || id.tab != selection.member.tab
+                || id.panel != selection.member.panel
+                || id.presentation != selection.member.presentation
+                || (pixels.frame.route.host_epoch.as_str() == expected.host_epoch.as_str()
+                    && pixels.host_terminal.as_deref() == Some(expected.host_terminal_id.as_str()))
+        });
     }
 
     pub(super) fn after_draw(&mut self, state: &NativeSessionState, panes: &[KeyedProjection]) {
@@ -129,22 +152,37 @@ impl RetainedFrames {
             let Some(frame) = pane.value.share_frame() else {
                 continue;
             };
-            self.retain(identity, frame);
+            self.retain_host(
+                identity,
+                frame,
+                pane.value.host_terminal_id().map(Into::into),
+            );
         }
     }
 
+    #[cfg(test)]
     fn retain(&mut self, identity: Identity, frame: Arc<TerminalTextFrame>) {
-        if let Some(index) = self
-            .entries
-            .iter()
-            .position(|old| old.identity == identity && Arc::ptr_eq(&old.frame, &frame))
-        {
+        self.retain_host(identity, frame, None);
+    }
+
+    fn retain_host(
+        &mut self,
+        identity: Identity,
+        frame: Arc<TerminalTextFrame>,
+        host_terminal: Option<Box<str>>,
+    ) {
+        if let Some(index) = self.entries.iter().position(|old| {
+            old.identity == identity
+                && old.host_terminal == host_terminal
+                && Arc::ptr_eq(&old.frame, &frame)
+        }) {
             let pixels = self.entries.remove(index);
             self.entries.push(pixels);
             return;
         }
         self.entries.retain(|old| old.identity != identity);
-        let bytes = retained_bytes(&frame);
+        let bytes =
+            retained_bytes(&frame).saturating_add(host_terminal.as_ref().map_or(0, |id| id.len()));
         if bytes > MAXIMUM_BYTES {
             return;
         }
@@ -157,6 +195,7 @@ impl RetainedFrames {
             identity,
             frame,
             bytes,
+            host_terminal,
         });
     }
 

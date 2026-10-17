@@ -217,6 +217,19 @@ pub(crate) struct TerminalSession {
 }
 
 impl TerminalSession {
+    /// Reuse this Session for one physically verified, exact sidebar Agent destination.
+    #[cfg(windows)]
+    pub(crate) fn navigate_agent(
+        &mut self,
+        target: &crate::machine_agents::Target,
+    ) -> ContextNavigationAdmission {
+        self.backend
+            .native_mut()
+            .map_or(ContextNavigationAdmission::Unavailable, |native| {
+                native.navigate_agent(target)
+            })
+    }
+
     #[cfg(windows)]
     pub(crate) fn navigate_context(
         &mut self,

@@ -122,6 +122,14 @@ pub(crate) struct NativeMemberTarget {
     pub(crate) presentation: TerminalPresentationId,
 }
 
+/// An exact bound member, with an optional physical Host fence for Agent navigation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct NativeMemberSelection {
+    pub(super) member: NativeMemberTarget,
+    pub(super) binding: orchbee_workbench_protocol::PresentationBinding,
+    pub(super) expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
+}
+
 impl NativeContextLocation {
     pub(super) fn terminal_context_id(&self) -> &WorkbenchTerminalContextId {
         match self {

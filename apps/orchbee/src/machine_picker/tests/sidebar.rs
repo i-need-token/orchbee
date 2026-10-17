@@ -132,6 +132,8 @@ fn sidebar_activation_re_resolves_visible_physical_identity_after_reorder() {
     }
     picker.observe_agents(vec![(Choice::Local, reordered)]);
     assert!(picker.activate_sidebar_agent(&selected));
+    assert!(!picker.open, "direct activation never opens the navigator");
+    assert!(picker.direct_selection_pending());
     assert_eq!(picker.request.take(), Some(selected.clone()));
 
     picker.open = false;
@@ -150,7 +152,7 @@ fn sidebar_activation_re_resolves_visible_physical_identity_after_reorder() {
 }
 
 #[test]
-fn current_agent_is_a_captured_noop_and_hidden_nested_rows_cannot_activate() {
+fn current_agent_defers_busy_and_noop_to_session_and_hidden_rows_cannot_activate() {
     let mut picker = sidebar_picker(1);
     let owner = owner(&picker);
     assert!(picker.sidebar_context_agents_expanded(&owner));
@@ -167,10 +169,35 @@ fn current_agent_is_a_captured_noop_and_hidden_nested_rows_cannot_activate() {
     );
     assert!(picker.activate_sidebar_agent(&selected));
     assert!(!picker.open);
-    assert!(picker.request.is_none());
+    assert_eq!(picker.request.take(), Some(selected.clone()));
+    assert!(picker.direct_selection_pending());
     picker.observe_agent_sidebar(false);
     assert!(!picker.activate_sidebar_agent(&selected));
     assert!(picker.request.is_none());
+}
+
+#[test]
+fn direct_agent_selection_replaces_unadmitted_intent_and_explicit_search_retires_it() {
+    let mut picker = sidebar_picker(2);
+    let first = picker.agent_rows[0].selection();
+    let second = picker.agent_rows[1].selection();
+    assert!(picker.activate_sidebar_agent(&first));
+    let first_scope = picker.selection_scope().unwrap();
+    assert!(picker.activate_sidebar_agent(&second));
+    assert!(!picker.selection_current(first_scope));
+    assert_eq!(picker.request.as_ref(), Some(&second));
+    assert!(!picker.open);
+
+    let direct = picker.selection_scope().unwrap();
+    picker.show_agent_search();
+    assert!(!picker.selection_current(direct));
+    assert!(picker.request.is_none());
+    assert!(picker.open && picker.editing_query);
+    assert_eq!(picker.mode, Mode::Agents);
+    assert_eq!(
+        picker.selection_scope().unwrap().origin,
+        SelectionOrigin::Picker
+    );
 }
 
 #[test]

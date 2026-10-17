@@ -2,6 +2,76 @@
 use super::*;
 
 #[test]
+fn painted_sidebar_agent_click_and_enter_capture_packet_tail_without_centered_navigator() {
+    for pointer in [false, true] {
+        let (mut reference, _) = sidebar_view_with_agent();
+        assert!(reference.machines.enter_sidebar_navigation());
+        let agent = reference
+            .machines
+            .sidebar_navigation_rows()
+            .iter()
+            .find_map(|row| match row {
+                crate::machine_picker::SidebarRow::Agent { .. } => Some(row.target()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(reference.machines.focus_sidebar_target(&agent));
+        let expected = agent.selection().unwrap();
+        let map = rendered_sidebar_map(&reference);
+        let cell = (0..40)
+            .find_map(|y| {
+                (0..30).find_map(|x| {
+                    matches!(
+                        map.hit_target_at(x, y),
+                        Some(HitTarget::MachineAgentRow { .. })
+                    )
+                    .then_some((x, y))
+                })
+            })
+            .unwrap();
+        let input = if pointer {
+            format!(
+                "\x1b[<0;{};{}M\x1b[<0;{};{}m",
+                cell.0 + 1,
+                cell.1 + 1,
+                cell.0 + 1,
+                cell.1 + 1
+            )
+            .into_bytes()
+        } else {
+            b"\r".to_vec()
+        };
+        for split in 0..input.len() {
+            let (mut view, _) = sidebar_view_with_agent();
+            let mut port = Port::new(MenuAction::Help);
+            let mut dispatcher = InputDispatcher::default();
+            dispatcher.set_pointer_capture(&mut view, &mut port, true);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+            assert!(view.machines.focus_sidebar_target(&agent));
+            dispatcher.publish_hit_map(rendered_sidebar_map(&view));
+            let mut packet = input.clone();
+            packet.extend_from_slice(b"tail\x1b[200~literal\x1b[201~");
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &packet[..split]);
+            dispatch_all(&mut dispatcher, &mut view, &mut port, &packet[split..]);
+            assert_eq!(view.machines.request.as_ref(), Some(&expected));
+            assert!(forwarded_bytes(&port.calls).is_empty());
+            assert!(!view.machines.open && !view.machines.sidebar_navigation_active());
+            assert!(view.machines.picker_source().is_none());
+            assert!(view.machines.direct_selection_pending());
+            dispatcher.publish_hit_map(rendered_sidebar_map(&view));
+            dispatch_all(
+                &mut dispatcher,
+                &mut view,
+                &mut port,
+                b"\x1b[27uescape-tail",
+            );
+            assert!(!view.machines.direct_selection_pending());
+            assert!(forwarded_bytes(&port.calls).is_empty());
+        }
+    }
+}
+
+#[test]
 fn sidebar_workspace_activation_and_pending_escape_capture_tail_without_opening_picker() {
     for pointer in [false, true] {
         let mut reference = sidebar_view();

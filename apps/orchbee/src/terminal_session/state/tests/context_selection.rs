@@ -1,6 +1,110 @@
 use super::*;
 use orchbee_workbench_protocol::{Project, WorkbenchProjectId, WorkbenchWorkspaceId, Workspace};
 
+#[test]
+fn exact_context_member_refuses_missing_or_rebound_child_before_cleanup_and_preserves_old_selection()
+ {
+    use crate::terminal_session::{
+        NativeMemberTarget,
+        workbench_projection::{NativeMemberSelection, project_native_context_tabs},
+    };
+    for change in 0..4 {
+        let mut snapshot = contexts(2, 1);
+        let PanelNode::Panel {
+            primary_presentation: child,
+            ..
+        } = tab(99).root
+        else {
+            panic!("child fixture");
+        };
+        let PanelNode::Panel {
+            child_presentations,
+            ..
+        } = &mut snapshot.terminal_contexts[1].tabs[1].root
+        else {
+            panic!("target panel");
+        };
+        child_presentations.push(child.clone());
+        let mut state = ready_with_cache(project_native_standalone_tabs(&snapshot).unwrap());
+        let original = state.desired().cloned();
+        let location = state.cache.navigation()[1].location.clone();
+        let target = project_native_context_tabs(&snapshot, &location).unwrap();
+        let tab = &target.tabs()[1];
+        let panel = tab.panel(0).unwrap();
+        let selection = NativeMemberSelection {
+            member: NativeMemberTarget {
+                tab: tab.tab_id().clone(),
+                panel: panel.panel_id().clone(),
+                presentation: child.presentation_id.clone(),
+            },
+            binding: child.binding.clone().unwrap(),
+            expected_host: None,
+        };
+        assert!(state.start_context_selection_at_with_member(
+            1,
+            1,
+            deadlines(),
+            Some(selection.clone())
+        ));
+        if change != 0 {
+            snapshot.revision = WorkbenchRevision::new(2);
+            let PanelNode::Panel {
+                child_presentations,
+                ..
+            } = &mut snapshot.terminal_contexts[1].tabs[1].root
+            else {
+                panic!("target panel");
+            };
+            match change {
+                1 => {
+                    child_presentations.clear();
+                }
+                2 => {
+                    child_presentations[0].binding.as_mut().unwrap().terminal_id = terminal_id(999)
+                }
+                _ => {
+                    snapshot.terminal_contexts[1].tabs.remove(1);
+                }
+            }
+        }
+        let prepared = state.prepare_refresh(1, WorkbenchSnapshotOutcome::Available { snapshot });
+        assert_eq!(
+            state.desired().cloned(),
+            original,
+            "no optimistic context commit"
+        );
+        if change != 0 {
+            assert!(matches!(prepared, PreparedRefresh::DefiniteFailure { .. }));
+            assert!(state.pending_membership.is_none());
+            continue;
+        }
+        let PreparedRefresh::Membership { prepared, .. } = prepared else {
+            panic!("exact candidate");
+        };
+        let cleanup = state
+            .stage_refresh_membership_cleanup(1, prepared, deadlines())
+            .unwrap();
+        let prepared = state
+            .prepare_cleaned_membership_candidate(&cleanup, cleanup.old())
+            .unwrap();
+        let desired = AttachmentKey::new(11, selection.member.tab.clone());
+        let MembershipInstallDecision::Attach(attach) = state
+            .prepare_cleaned_membership_install(&cleanup, prepared, Some(desired))
+            .unwrap()
+            .commit()
+        else {
+            panic!("exact member attach");
+        };
+        assert_eq!(*attach.presentation_id, selection.member.presentation);
+        assert_eq!(
+            attach.binding().unwrap().terminal_id(),
+            &selection.binding.terminal_id
+        );
+        assert_eq!(state.cache().location(), &location);
+        assert!(state.invariant_holds());
+    }
+}
+
 #[cfg(windows)]
 #[test]
 fn worktree_entry_exact_primary_override_survives_cleanup_and_does_not_change_ordinary_memory() {

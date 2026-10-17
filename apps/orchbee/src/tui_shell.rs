@@ -1509,6 +1509,13 @@ pub(crate) fn pane_geometries(
 
 trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     #[cfg(windows)]
+    fn navigate_agent(
+        &mut self,
+        _target: &crate::machine_agents::Target,
+    ) -> crate::terminal_session::ContextNavigationAdmission {
+        crate::terminal_session::ContextNavigationAdmission::Unavailable
+    }
+    #[cfg(windows)]
     fn navigate_context(
         &mut self,
         _target: &crate::terminal_session::NativeContextTarget,
@@ -1599,6 +1606,13 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
 }
 impl TerminalSurface for UnavailableTerminalInputPort {}
 impl TerminalSurface for crate::terminal_session::TerminalSession {
+    #[cfg(windows)]
+    fn navigate_agent(
+        &mut self,
+        target: &crate::machine_agents::Target,
+    ) -> crate::terminal_session::ContextNavigationAdmission {
+        self.navigate_agent(target)
+    }
     #[cfg(windows)]
     fn navigate_context(
         &mut self,

@@ -766,9 +766,10 @@ fn regroup_and_dissolve_preserve_focused_agent_and_exact_activation() {
     }
     // Mouse activation resolves the same existing Tab / Panel / presentation as Enter.
     assert!(picker.activate_sidebar_agent(&expected));
+    assert_eq!(picker.request.as_ref(), Some(&expected));
     assert!(
-        picker.request.is_none(),
-        "the already current Agent remains a no-op"
+        !picker.open,
+        "the Session owns busy and exact-current admission"
     );
 }
 
