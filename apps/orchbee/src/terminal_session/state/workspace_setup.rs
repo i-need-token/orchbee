@@ -373,7 +373,7 @@ impl NativeSessionState {
                 else {
                     return None;
                 };
-                let label = WorkbenchLabel::parse(draft.editor.text()).ok()?;
+                let label = WorkbenchLabel::parse_workspace(draft.editor.text()).ok()?;
                 WorkbenchAction::WorkspaceRename {
                     workspace_id: workspace_id.clone(),
                     label,
@@ -410,11 +410,13 @@ impl NativeSessionState {
                     matches!(
                         operation.command.action,
                         WorkbenchAction::WorkspaceLaunch { .. }
-                    ) && matches!(
+                    ) && (matches!(
                         self.setup.project_quick_entry,
                         Some(quick::ProjectQuickEntry::Preparing(token))
                             if self.setup.draft.as_ref().is_some_and(|draft| draft.token == token)
-                    )
+                    ) || self.setup.draft.as_ref().is_some_and(|draft| {
+                        draft.quick.is_some() && draft.continuation.is_none() && draft.shown
+                    }))
                 })
                 .map(|_| quick::ProjectQuickEntry::Submitted(operation.generation));
         }

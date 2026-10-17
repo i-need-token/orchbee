@@ -17,6 +17,128 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
 }
 
 #[test]
+fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_handoff() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for grouped in [false, true] {
+            for count in [2, 20] {
+                let mut view = view(120, 40);
+                configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
+                let template = view
+                    .machines
+                    .space_checkpoint_row(&view.machines.space_rows()[0])
+                    .unwrap()
+                    .clone();
+                let site = template.target.site_id.clone();
+                let project = WorkbenchProjectId::parse(&id(70)).unwrap();
+                let canonical: Vec<_> = (0..=count)
+                    .map(|index| {
+                        let mut row = template.clone();
+                        row.target.location = NativeContextLocation::Workspace {
+                            workspace_id: WorkbenchWorkspaceId::parse(&id(100 + index)).unwrap(),
+                            terminal_context_id: WorkbenchTerminalContextId::parse(
+                                &id(200 + index),
+                            )
+                            .unwrap(),
+                        };
+                        row.project_id = grouped.then_some(project.clone());
+                        row.label = Some(if index == count {
+                            "new 工作区".into()
+                        } else {
+                            format!("old-{index:02}")
+                        });
+                        row
+                    })
+                    .collect();
+                let workspace = WorkbenchWorkspaceId::parse(&id(100 + count)).unwrap();
+                let mut positions = Vec::new();
+                for phase in [
+                    WorkspaceCreationPhase::Preparing,
+                    WorkspaceCreationPhase::Starting,
+                    WorkspaceCreationPhase::Committed,
+                ] {
+                    let committed = phase == WorkspaceCreationPhase::Committed;
+                    view.machines.observe_spaces(vec![(
+                        Choice::Local,
+                        crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+                            crate::machine_spaces::Checkpoint {
+                                site_id: site.clone(),
+                                revision: WorkbenchRevision::new(if committed { 2 } else { 1 }),
+                                metadata_revision: WorkbenchRevision::new(2),
+                                git_requested: true,
+                                projects: if grouped {
+                                    vec![crate::machine_spaces::ProjectSummary {
+                                        project_id: project.clone(),
+                                        label: "Repo".into(),
+                                    }]
+                                } else {
+                                    Vec::new()
+                                }
+                                .into(),
+                                rows: canonical
+                                    [..usize::try_from(count).unwrap() + usize::from(committed)]
+                                    .to_vec()
+                                    .into(),
+                            },
+                        )),
+                    )]);
+                    let source = view.machines.sidebar_source();
+                    let rows = view.machines.sidebar_navigation_rows();
+                    let preview = WorkspaceCreationPreview {
+                        site: &site,
+                        label: Some("new 工作区"),
+                        project: grouped.then_some("Repo"),
+                        project_id: grouped.then_some(&project),
+                        committed: committed.then_some((&workspace, WorkbenchRevision::new(2))),
+                        phase,
+                        current: true,
+                    };
+                    let mut terminal = Terminal::new(TestBackend::new(50, 10)).unwrap();
+                    terminal
+                        .draw(|frame| {
+                            render(
+                                frame,
+                                frame.area(),
+                                RenderContext {
+                                    view: &view,
+                                    locale,
+                                    theme: &Theme::terminal_native(),
+                                    layer: HitLayer::Chrome,
+                                    sidebar_width: 50,
+                                    owns_keyboard: false,
+                                    source: &source,
+                                    creation: Some(preview),
+                                },
+                                &rows,
+                                None,
+                            )
+                        })
+                        .unwrap();
+                    let text = rendered_text(terminal.backend().buffer());
+                    let location = text
+                        .lines()
+                        .enumerate()
+                        .filter_map(|(y, line)| {
+                            if line.contains("new 工作区") {
+                                Some(("new".to_owned(), y))
+                            } else {
+                                (0..count).find_map(|index| {
+                                    line.contains(&format!("old-{index:02}"))
+                                        .then(|| (format!("old-{index:02}"), y))
+                                })
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    assert!(location.iter().any(|(label, _)| label == "new"), "{text}");
+                    positions.push(location);
+                }
+                assert_eq!(positions[0], positions[1]);
+                assert_eq!(positions[1], positions[2]);
+            }
+        }
+    }
+}
+
+#[test]
 fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplication_or_ghosts() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
@@ -73,7 +195,7 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
                     )),
                     "{case}: {text}"
                 );
-                assert_eq!(text.contains("Repo / same 工作区"), extra, "{case}");
+                assert!(!text.contains("Repo / same 工作区"), "{case}");
             }
         }
     }
@@ -163,7 +285,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                 )));
                 assert_eq!(
                     text.matches("created workspace").count(),
-                    usize::from(revision == 1 || revision == 2 && !collapsed),
+                    usize::from(revision < 3 && !collapsed),
                     "revision {revision}, collapsed {collapsed}: {text}",
                 );
                 let buffer = terminal.backend().buffer();
@@ -183,9 +305,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
                     let label: String = (0..buffer.area.width)
                         .map(|x| buffer[(x, *y)].symbol())
                         .collect();
-                    let expected = if revision == 1 {
-                        "Repo / created workspace"
-                    } else if collapsed {
+                    let expected = if collapsed {
                         "Repo"
                     } else {
                         "created workspace"

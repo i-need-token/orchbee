@@ -55,6 +55,10 @@ Worker 验证字面目录并启动配置的默认 shell。准入失败不发布�
 仍将该确切 Workspace 归属于它时显示当前标记。名称从不用于合并创建项，
 先前回执也不能为后一次启动提供身份。
 
+临时行从首帧起就位于最终机器和 Project 分组的末尾插入位置，与规范列表共用行间距和视口
+窗口。前台创建在确切 ID 交接前后始终将窗口锚定到同一位置。目标 Project 折叠时由其父行
+显示当前标记，不把临时子项暴露到分组外。
+
 ## 可选 Project 组织
 
 右键 Workspace 并打开 Project 子菜单。未分组 Workspace 提供新建 Project，已分组的提供离开
@@ -109,6 +113,16 @@ revision 和完整 Navigation；释放或键盘准入复核该源，并要求已
 
 ## 显式目录与标签编辑
 
+Windows 创建菜单和全局动作菜单还提供 **在指定目录新建工作区…**。
+此入口复用相同的只读准备，随后在既有双字段草稿中显示采样路径和生成名称，并聚焦目录。
+明确确认已绘制的 Submit／Enter 前不提交；Esc 取消且不创建资源。Project 创建菜单保留确切
+Project 目标。编辑后的目录和名称仅用于本次启动。一键创建及既有快捷键仍立即提交。
+
+草稿说明默认值来自终端进程目录。普通 `cd` 后，PowerShell 逻辑 `$PWD` 可能与之不同；
+不把该路径宣称为逻辑位置。用户可检查实际采样路径，并指定包含 Unicode 和空格的已有
+文件夹，无需修改全局 shell profile。此目录检查入口限定于 Windows TUI；GUI 创建保留
+既有目录选择所有者与共享启动契约。
+
 Workspace Directory 动作（默认为 `Ctrl+B e`）只为 Empty 且未配置目录的 Workspace 接受首个目录。
 路径必须是现有绝对目录，不进行 shell 展开、文件系统创建或主目录回退。接受目录本身不启动 shell。
 Empty 工作台引导把目录保留为本地化事实，并且仅在没有输入捕获所有者时，通过共享按键提示组件呈现
@@ -134,6 +148,8 @@ Empty 工作台引导把目录保留为本地化事实，并且仅在没有输�
 `connection/native/tests/quick_workspace` 和 `terminal_input/dispatcher/tests/workspace_setup`。
 `ui/tests/workspace_setup/responsive` 控制准备、启动、焦点、拒绝及恢复的完成顺序；
 `tui_render/workspace_sidebar/tests/creation` 检查基于确切身份的观察器交接。这些本地实现轨迹不提供穷尽 TLC 保证。
+这些侧栏轨迹包含多个 Workspace 的末尾插入位置和滚动窗口稳定性；
+`ui/tests/quick_workspace` 覆盖目录检查、取消和精确的编辑路径提交。
 
 运行 `cargo test --locked -p orchbee --all-targets --all-features` 及适用根门禁。
 此工作流没有独立 TLA 模型。实现轨迹与进程测试不能替代真实终端的鼠标／键盘、视口、首帧与交互评审。

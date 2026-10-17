@@ -209,6 +209,11 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Workspace,
             WORKSPACE,
         ),
+        PrefixAction::Client(A::RequestWorkspaceAtDirectory(_)) => built_in(
+            "orchbee.native.workspace.create-in-directory",
+            C::Workspace,
+            WORKSPACE,
+        ),
         #[cfg(windows)]
         PrefixAction::Client(A::RequestWorktreeCreate) => {
             built_in("orchbee.native.worktree.create", C::Workspace, WORKTREE)
@@ -507,6 +512,11 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         }
         A::QuickWorkspace => built_in(
             "orchbee.native.workspace.quick-create",
+            C::Workspace,
+            WORKSPACE,
+        ),
+        A::WorkspaceAtDirectory => built_in(
+            "orchbee.native.workspace.create-in-directory",
             C::Workspace,
             WORKSPACE,
         ),

@@ -14,6 +14,12 @@ Backspace 删除、Ctrl+U 清空。每次打开分配新 token，并要求首次
 粘贴、fault 和 quiet-drain 规则不变。打开时捕获目标 ID、Session、revision 和原始标签；并发变化
 不能重新定向草稿或自动 rebase。
 
+Workspace 名称必须包含非空白 Unicode 标量。编辑器拒绝空白输入时保留窗口、草稿及规范标签，
+并显示本地化校验说明。有效名称的前导、尾随和内部空格均精确保留。共享命令边界在 Rust、
+TypeScript 与 JSON Schema 中将此规则应用于 Workspace 创建、启动和重命名。历史快照标签
+仍可读取：空白 Workspace 名称在导航和当前位置栏中显示本地化的“未命名工作区”，可通过
+普通重命名编辑器修复确切目标。Tab 和 Project 命名策略仍分别归属各自所有者。
+
 重命名保留位置身份、终端 binding、目录关联及 shell 执行。其他 Client 通过显式刷新观察新标签。
 导航至没有 Workspace 的 Project、删除、Project 或 Workspace 重排、目录重新绑定、Panel 布局、
 远程、持久化和打包不在本片范围内。既有 Tab 重命名保持独立。

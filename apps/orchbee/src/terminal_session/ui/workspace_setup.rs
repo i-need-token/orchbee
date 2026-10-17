@@ -208,6 +208,14 @@ impl NativeUi {
         &mut self,
         request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
     ) -> bool {
+        self.request_quick_workspace_with_review(request, false)
+    }
+
+    pub(super) fn request_quick_workspace_with_review(
+        &mut self,
+        request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
+        review_directory: bool,
+    ) -> bool {
         if self.retirement_failure.is_some() {
             return false;
         }
@@ -217,7 +225,17 @@ impl NativeUi {
         let (Some(mailbox), Some(state)) = (self.mailbox.as_ref(), self.state.as_mut()) else {
             return false;
         };
-        mailbox.try_enqueue_quick_preparation_for(state, deadlines, &self.clock, request)
+        if review_directory {
+            mailbox.try_enqueue_quick_preparation_with_review(
+                state,
+                deadlines,
+                &self.clock,
+                request,
+                true,
+            )
+        } else {
+            mailbox.try_enqueue_quick_preparation_for(state, deadlines, &self.clock, request)
+        }
     }
     pub(super) fn apply_quick_preparation_event(
         &mut self,

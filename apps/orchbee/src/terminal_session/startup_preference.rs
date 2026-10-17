@@ -12,6 +12,13 @@ pub(crate) struct Position {
     pub(super) member: Option<NativeMemberTarget>,
 }
 
+/// Startup advice and the resolver's result retained until the initial view settles.
+pub(super) struct Startup {
+    pub(super) fallback: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub(super) failed: bool,
+    pub(super) saved: Option<Position>,
+}
+
 pub(super) fn resolve(
     snapshot: &Snapshot,
     position: &Position,

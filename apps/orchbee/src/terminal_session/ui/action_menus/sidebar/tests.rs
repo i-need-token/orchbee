@@ -157,9 +157,13 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
     };
     let entry = MenuTarget::Create(Some(project));
     let composed = actions(&entry, Vec::new(), ui.menus.sidebar.as_ref());
-    assert_eq!(composed, vec![MenuAction::QuickWorkspace]);
+    assert_eq!(
+        composed,
+        vec![MenuAction::QuickWorkspace, MenuAction::WorkspaceAtDirectory]
+    );
     let mut model = ActionMenu::default();
     assert!(model.open_for(entry, String::new(), composed, None));
     assert!(!model.view().unwrap().separator_before(0));
+    assert!(!model.view().unwrap().separator_before(1));
     assert_eq!(model.view().unwrap().row_height(0, 1), 1);
 }

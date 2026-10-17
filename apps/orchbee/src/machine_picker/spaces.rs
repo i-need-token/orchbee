@@ -12,6 +12,11 @@ pub(crate) struct SidebarAgentCounts {
 }
 
 impl Picker {
+    /// A new foreground Workspace intent returns the viewport to following its current target.
+    pub(crate) fn reveal_sidebar_current(&mut self) {
+        self.spaces.reveal();
+    }
+
     /// A complete same-Session checkpoint at this revision supersedes a creation-only projection.
     pub(crate) fn workspace_checkpoint_covers(
         &self,
@@ -228,6 +233,27 @@ impl Picker {
         gaps: &[u16],
         cells: u16,
     ) -> SidebarWindow {
+        self.space_window_with_creation(
+            rows,
+            &heights[..heights.len().min(rows.len())],
+            &gaps[..gaps.len().min(rows.len())],
+            cells,
+            None,
+            None,
+        )
+    }
+
+    /// Measures an inert creation slot in its eventual canonical order, using
+    /// the same viewport anchor as the Workspace that will replace it.
+    pub(crate) fn space_window_with_creation(
+        &self,
+        rows: &[SidebarRow<'_>],
+        heights: &[u16],
+        gaps: &[u16],
+        cells: u16,
+        insertion: Option<usize>,
+        creation_current: Option<usize>,
+    ) -> SidebarWindow {
         let current = self
             .sidebar_focused_target()
             .cloned()
@@ -250,21 +276,20 @@ impl Picker {
                     .find(|row| self.current_workspace(row))
                     .and_then(Row::sidebar_target)
             });
-        self.spaces.window_with_gaps(
-            &heights[..heights.len().min(rows.len())],
-            &gaps[..gaps.len().min(rows.len())],
-            cells,
-            current.and_then(|target| {
-                let mut candidate = Some(target);
-                while let Some(target) = candidate {
-                    if let Some(position) = rows.iter().position(|row| row.target() == target) {
-                        return Some(position);
-                    }
-                    candidate = self.sidebar_parent(&target);
+        let current = current.and_then(|target| {
+            let mut candidate = Some(target);
+            while let Some(target) = candidate {
+                if let Some(position) = rows.iter().position(|row| row.target() == target) {
+                    return Some(
+                        position + usize::from(insertion.is_some_and(|slot| position >= slot)),
+                    );
                 }
-                None
-            }),
-        )
+                candidate = self.sidebar_parent(&target);
+            }
+            None
+        });
+        self.spaces
+            .window_with_gaps(heights, gaps, cells, creation_current.or(current))
     }
     pub(crate) fn queue_space_scroll(&mut self, window: SidebarWindow, up: bool) {
         if self.available && self.spaces.visible() && !self.open {

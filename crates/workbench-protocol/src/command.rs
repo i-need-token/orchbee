@@ -261,6 +261,18 @@ impl<'de> Deserialize<'de> for WorkbenchTabGroupLabel {
 }
 
 impl WorkbenchLabel {
+    /// Parses a recognizable Workspace name without changing the supplied text.
+    /// Historical snapshot labels retain the broader `parse` contract for recovery.
+    ///
+    /// # Errors
+    /// Rejects empty, whitespace-only, or overlong names.
+    pub fn parse_workspace(value: &str) -> Result<Self, ContractError> {
+        if value.trim().is_empty() {
+            return Err(ContractError::InvalidDocument);
+        }
+        Self::parse(value)
+    }
+
     pub fn parse(value: &str) -> Result<Self, ContractError> {
         if value.is_empty() || value.chars().count() > MAXIMUM_LABEL_LENGTH {
             return Err(ContractError::InvalidDocument);
@@ -1522,6 +1534,12 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
     let WorkbenchRequest::Command(command) = request else {
         return Ok(());
     };
+    if let WorkbenchAction::WorkspaceCreate { label, .. }
+    | WorkbenchAction::WorkspaceLaunch { label, .. }
+    | WorkbenchAction::WorkspaceRename { label, .. } = &command.action
+    {
+        WorkbenchLabel::parse_workspace(label.as_str())?;
+    }
     if let WorkbenchAction::SplitRatioSet { split, .. } = &command.action {
         split.validate()?;
     }

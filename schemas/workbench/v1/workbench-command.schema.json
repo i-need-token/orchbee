@@ -59,6 +59,10 @@
 		}
 	],
 	"$defs": {
+		"workspaceLabel": {
+			"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label",
+			"pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"
+		},
 		"action": {
 			"oneOf": [
 				{
@@ -107,7 +111,7 @@
 							]
 						},
 						"label": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+							"$ref": "#/$defs/workspaceLabel"
 						}
 					},
 					"required": ["kind", "projectId", "label"],
@@ -123,7 +127,7 @@
 							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/workspaceId"
 						},
 						"label": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+							"$ref": "#/$defs/workspaceLabel"
 						}
 					},
 					"required": ["kind", "workspaceId", "label"],
@@ -1270,7 +1274,7 @@
 							"const": "workspace.launch"
 						},
 						"label": {
-							"$ref": "urn:orchbee:schema:workbench:v1#/$defs/label"
+							"$ref": "#/$defs/workspaceLabel"
 						},
 						"geometry": {
 							"$ref": "#/$defs/terminalGeometry"

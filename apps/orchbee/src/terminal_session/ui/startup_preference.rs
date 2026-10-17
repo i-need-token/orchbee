@@ -60,9 +60,26 @@ impl NativeSessionView<'_> {
 }
 
 impl NativeUi {
+    pub(in crate::terminal_session) fn report_position_fallback(
+        &mut self,
+        saved: Option<&Position>,
+    ) {
+        if let Some(state) = self.state.as_mut() {
+            let moved = saved.is_none_or(|saved| &saved.location != state.cache().location());
+            state.set_notice(match (moved, state.cache().tabs().is_empty()) {
+                (false, false) => SessionNotice::PositionChanged,
+                (false, true) => SessionNotice::PositionChangedEmpty,
+                (true, false) => SessionNotice::PositionLocationChanged,
+                (true, true) => SessionNotice::PositionLocationChangedEmpty,
+            });
+        }
+    }
+
     pub(in crate::terminal_session) fn report_position_notice(&mut self, changed: bool) {
         if let Some(state) = self.state.as_mut() {
-            state.set_notice(if changed {
+            state.set_notice(if changed && state.cache().tabs().is_empty() {
+                SessionNotice::PositionChangedEmpty
+            } else if changed {
                 SessionNotice::PositionChanged
             } else {
                 SessionNotice::PositionUnavailable

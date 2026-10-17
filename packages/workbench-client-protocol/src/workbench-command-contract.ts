@@ -167,6 +167,9 @@ import {
 } from './workbench-semantic-contract';
 
 const WORKBENCH_MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES = 48 * 1024;
+
+// Match Rust's Unicode whitespace check while preserving exact accepted text.
+const WorkspaceLabelSchema = WorkbenchLabelSchema.refine((value) => /\P{White_Space}/u.test(value));
 export const WORKBENCH_MAXIMUM_ENCODED_SNAPSHOT_RESULT_BYTES =
 	WORKBENCH_MAXIMUM_ENCODED_PROJECTION_BYTES + 1024;
 export const WORKBENCH_MAXIMUM_RESULT_PUBLICATIONS = 64;
@@ -246,7 +249,7 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 	WorkbenchWorkspaceLaunchFieldsSchema.safeExtend({
 		kind: z.literal('workspace.launch'),
 		placement: WorkbenchWorkspacePlacementSchema,
-		label: WorkbenchLabelSchema,
+		label: WorkspaceLabelSchema,
 		geometry: WorkbenchTerminalGeometrySchema,
 	})
 		.transform((value) => {
@@ -265,14 +268,14 @@ export const WorkbenchActionSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('workspace.create'),
 			projectId: WorkbenchProjectIdSchema.nullable(),
-			label: WorkbenchLabelSchema,
+			label: WorkspaceLabelSchema,
 		})
 		.readonly(),
 	z
 		.strictObject({
 			kind: z.literal('workspace.rename'),
 			workspaceId: WorkbenchWorkspaceIdSchema,
-			label: WorkbenchLabelSchema,
+			label: WorkspaceLabelSchema,
 		})
 		.readonly(),
 	z

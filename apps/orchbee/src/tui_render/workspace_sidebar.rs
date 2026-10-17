@@ -55,6 +55,7 @@ struct Context<'a> {
     glyph_state: Option<orchbee_workbench_protocol::MetadataState>,
     role: Role,
     standalone: &'static str,
+    unnamed: &'static str,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
@@ -68,6 +69,7 @@ impl<'a> Context<'a> {
             glyph_state,
             role,
             standalone: locale.shell().standalone,
+            unnamed: locale.unnamed_workspace(),
         }
     }
     fn value(&self, kind: Kind<'_>) -> Option<&str> {
@@ -78,6 +80,13 @@ impl<'a> Context<'a> {
                 self.observed
                     .and_then(|r| r.label.as_deref())
                     .or_else(|| self.row.workspace_label())
+                    .map(|label| {
+                        if label.trim().is_empty() {
+                            self.unnamed
+                        } else {
+                            label
+                        }
+                    })
                     .unwrap_or(self.standalone),
             ),
             Kind::Branch => self.observed?.git.as_ref()?.branch.as_deref(),
@@ -586,25 +595,72 @@ fn creation_target_matches(
     row: &SidebarRow<'_>,
     preview: crate::terminal_session::WorkspaceCreationPreview<'_>,
 ) -> bool {
-    let Some((workspace, _)) = preview.committed else {
-        return false;
-    };
     let target = row.target();
     target.machine() == &view.machines.current
         && target.site_id() == preview.site
         && match target {
             SidebarTarget::Context { target, .. } => matches!(&target.location,
-                crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } if workspace_id == workspace),
+                crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. }
+                    if preview.committed.is_some_and(|(workspace, _)| workspace_id == workspace)),
             SidebarTarget::Project { project_id, .. } => {
                 preview.project_id == Some(&project_id)
-                    && view
-                        .machines
-                        .workspace_checkpoint_project(preview.site, workspace)
-                        == Some(&project_id)
+                    && preview.committed.is_none_or(|(workspace, revision)| {
+                        !view
+                            .machines
+                            .workspace_checkpoint_covers(preview.site, revision)
+                            || view
+                                .machines
+                                .workspace_checkpoint_project(preview.site, workspace)
+                                == Some(&project_id)
+                    })
                     && !view.machines.sidebar_project_expanded(&row.target())
             }
             SidebarTarget::Agent { .. } => false,
         }
+}
+
+fn creation_insertion(
+    view: &ClientView,
+    rows: &[SidebarRow<'_>],
+    preview: crate::terminal_session::WorkspaceCreationPreview<'_>,
+) -> usize {
+    let belongs = |row: &SidebarRow<'_>| {
+        let target = row.target();
+        target.machine() == &view.machines.current && target.site_id() == preview.site
+    };
+    if let Some(project) = preview.project_id
+        && let Some(parent) = rows.iter().position(|row| {
+            belongs(row)
+                && matches!(row, SidebarRow::Project { project_id, .. } if *project_id == project)
+        })
+    {
+        return rows.iter().enumerate().skip(parent + 1).find_map(|(index, row)| {
+            (!belongs(row) || matches!(row, SidebarRow::Project { .. })
+                || matches!(row, SidebarRow::Context { .. } if view.machines.sidebar_parent(&row.target()).is_none()))
+                .then_some(index)
+        }).unwrap_or(rows.len());
+    }
+    if let Some(index) = rows
+        .iter()
+        .rposition(|row| row.target().machine() == &view.machines.current)
+    {
+        return index + 1;
+    }
+    let machine_index = view
+        .machines
+        .rows
+        .iter()
+        .position(|machine| machine.choice == view.machines.current);
+    rows.iter()
+        .position(|row| {
+            view.machines
+                .rows
+                .iter()
+                .position(|machine| &machine.choice == row.target().machine())
+                .zip(machine_index)
+                .is_some_and(|(candidate, current)| candidate > current)
+        })
+        .unwrap_or(rows.len())
 }
 
 fn render_creation(
@@ -618,7 +674,7 @@ fn render_creation(
     let Some(tracks) = layout::Tracks::resolve_for_width(
         row,
         0,
-        0,
+        u16::from(preview.project_id.is_some()),
         sidebar_width,
         layout::AuxiliaryActions::default(),
         layout::RowKind::Owner,
@@ -626,13 +682,10 @@ fn render_creation(
         return;
     };
     let name = super::workspace_creation::label(preview, locale);
-    let name = preview
-        .project
-        .map_or_else(|| name.to_owned(), |project| format!("{project} / {name}"));
     let pending = preview.phase != crate::terminal_session::WorkspaceCreationPhase::Committed;
     let mut lines = vec![fit(
         Line::from(vec![
-            Span::styled(display_label(&name), theme.style(Role::TextPrimary)),
+            Span::styled(display_label(name), theme.style(Role::TextPrimary)),
             Span::styled(
                 if pending {
                     format!(" · {}", locale.workspace_creation_progress(preview.phase))
@@ -1020,7 +1073,14 @@ pub(super) fn render(
                     .workspace_checkpoint_covers(preview.site, revision)
             })
     });
-    let count = view.machines.sidebar_workspace_count() + usize::from(extra_creation.is_some());
+    let unobserved = creation.is_some_and(|preview| {
+        preview.committed.is_none_or(|(_, revision)| {
+            !view
+                .machines
+                .workspace_checkpoint_covers(preview.site, revision)
+        })
+    });
+    let count = view.machines.sidebar_workspace_count() + usize::from(unobserved);
     let header = Rect::new(area.x, area.y, area.width, 1);
     sidebar_text::section_heading(
         frame,
@@ -1041,24 +1101,13 @@ pub(super) fn render(
     } else {
         1
     };
-    let mut body = Rect::new(
+    let body = Rect::new(
         area.x,
         area.y + header_rows,
         area.width,
         area.height - header_rows - 1,
     );
-    if let Some(preview) = extra_creation {
-        render_creation(
-            frame,
-            Rect::new(body.x, body.y, body.width, 1),
-            sidebar_width,
-            preview,
-            locale,
-            theme,
-        );
-        body.y += 1;
-        body.height = body.height.saturating_sub(1);
-    }
+    let insertion = extra_creation.map(|preview| creation_insertion(view, rows, preview));
     let annotations = annotations(view, rows, locale);
     let measure = EntryMeasureContext {
         view,
@@ -1067,14 +1116,14 @@ pub(super) fn render(
         sidebar_width,
         theme,
     };
-    let heights: Vec<_> = rows
+    let mut heights: Vec<_> = rows
         .iter()
         .zip(&annotations)
         .map(|(row, suffix)| entry_height(measure, row, suffix, area.width))
         .collect();
     let space_gap = view.machines.space_settings().row_gap();
     let agent_gap = view.machines.sidebar_settings().row_gap();
-    let gaps: Vec<_> = rows
+    let mut gaps: Vec<_> = rows
         .iter()
         .enumerate()
         .map(|(index, _)| match rows.get(index + 1) {
@@ -1083,10 +1132,50 @@ pub(super) fn render(
             _ => space_gap,
         })
         .collect();
-    let window = view
-        .machines
-        .space_window_for_row_gaps(rows, &heights, &gaps, body.height);
-    if let Some(hits) = hits.as_deref_mut() {
+    if let Some(index) = insertion {
+        heights.insert(index, 1);
+        let following_gap = if index < rows.len() && starts_group(view, rows, index) {
+            space_gap.max(1)
+        } else {
+            space_gap
+        };
+        gaps.insert(index, following_gap);
+        if let Some(previous) = index.checked_sub(1) {
+            let starts_ungrouped = extra_creation
+                .is_some_and(|preview| preview.project_id.is_none())
+                && rows[..index]
+                    .iter()
+                    .rev()
+                    .find(|row| !matches!(row, SidebarRow::Agent { .. }))
+                    .is_some_and(|row| {
+                        matches!(row, SidebarRow::Project { .. })
+                            || view.machines.sidebar_parent(&row.target()).is_some()
+                    });
+            gaps[previous] = if starts_ungrouped {
+                space_gap.max(1)
+            } else {
+                space_gap
+            };
+        }
+    }
+    let window = view.machines.space_window_with_creation(
+        rows,
+        &heights,
+        &gaps,
+        body.height,
+        insertion,
+        creation
+            .filter(|preview| preview.current)
+            .and_then(|preview| {
+                insertion.or_else(|| {
+                    rows.iter()
+                        .position(|row| creation_target_matches(view, row, preview))
+                })
+            }),
+    );
+    if insertion.is_none()
+        && let Some(hits) = hits.as_deref_mut()
+    {
         hits.record_sidebar_reorder_paint(crate::tui_pointer::SidebarReorderPaint {
             viewport: frame.area(),
             layer,
@@ -1098,12 +1187,7 @@ pub(super) fn render(
     }
     let mut y = body.y;
 
-    for (index, row) in rows
-        .iter()
-        .enumerate()
-        .skip(window.top)
-        .take(window.capacity)
-    {
+    for index in window.top..window.end() {
         let leading_gap = if index == window.top {
             0
         } else {
@@ -1114,8 +1198,24 @@ pub(super) fn render(
         if content_height == 0 {
             break;
         }
+        if insertion == Some(index) {
+            if let Some(preview) = extra_creation {
+                render_creation(
+                    frame,
+                    Rect::new(body.x, y + leading_gap, body.width, content_height),
+                    sidebar_width,
+                    preview,
+                    locale,
+                    theme,
+                );
+            }
+            y += leading_gap + content_height;
+            continue;
+        }
+        let row_index = index - usize::from(insertion.is_some_and(|slot| index > slot));
+        let row = &rows[row_index];
         // Project separation is outside its row: it never paints or activates as that Project.
-        let group_gap = if starts_group(view, rows, index) {
+        let group_gap = if starts_group(view, rows, row_index) {
             leading_gap
         } else {
             0
@@ -1157,7 +1257,7 @@ pub(super) fn render(
         };
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
 
-        let suffix = &annotations[index];
+        let suffix = &annotations[row_index];
         let has_disclosure = source.has_part(&target, SidebarPart::Disclosure);
         let text_width = usize::from(tracks.text_width(has_disclosure));
         let inline = if suffix_rows(suffix, text_width) == 0 {

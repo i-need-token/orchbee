@@ -2028,6 +2028,7 @@ impl InputDispatcher {
                     | ClientAction::ToggleAgentBoard
                     | ClientAction::RequestWorkspaceCreate
                     | ClientAction::RequestQuickWorkspace
+                    | ClientAction::RequestWorkspaceAtDirectory(_)
                     | ClientAction::RequestProjectQuickWorkspace(_)
                     | ClientAction::RequestWorkspaceDirectory
                     | ClientAction::RequestWorkspaceRename

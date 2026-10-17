@@ -19,6 +19,11 @@ commands and all Close identities omit Project. The exact Close read bound is 1,
 Workspace events carry membership only inside the Workspace. All bindings, schemas and raw/canonical
 conformance fixtures move together within unpublished OBWP v1.
 
+Workspace create, launch and rename command labels require a non-whitespace Unicode scalar,
+matching Rust and JSON Schema. Validation preserves accepted text exactly, including surrounding
+spaces, and uses the shared command corpus for ASCII and Unicode whitespace. Snapshot labels
+remain readable for recovery of existing blank names; other label families keep their own rules.
+
 Strict command bindings also admit `workspace.close-if-idle {workspaceId}` and
 `project.dissolve-if-idle {projectId}`, reject caller-supplied idle assertions, and decode the
 definite no-effect `confirmation-required` rejection. Existing confirmed action shapes and

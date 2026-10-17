@@ -174,6 +174,9 @@ come from its validated snapshot.
 The renderer returns the stable position and focused pane incarnation only when the workbench is
 uncovered and drawable. Successful shell draw/flush precedes revalidation and publication.
 Covered, failed, stale and switching draws do not publish. Empty locations invent no member.
+An ordinary status-line notice does not cover an Empty location or suppress its publication.
+Thus closing the last Tab replaces the old member preference with the valid empty Workspace;
+after a removed-member fallback, the newly displayed empty position becomes the next preference.
 An app-private worker coalesces pending positions to one record, performs private locked atomic
 replacement off the input/draw path, and joins at shutdown. Windows keep independent live focus
 and read the preference only at startup. The latest atomic publication supplies the next startup
@@ -189,7 +192,9 @@ directory startup chooses eligible empty-Session creation or the same existing-W
 without Open. Invalid or unsupported records are preserved,
 disable preference writes for that invocation and produce a localized notice. Explicit context or
 Agent startup retains its exact target. Preferences never grant input, change Create provenance,
-launch, dispose, change checkpoint data or move another live Client.
+launch, dispose, change checkpoint data or move another live Client. An existing empty Workspace
+with an absent saved member is an exact restoration without a warning. A fallback to Empty
+reports that destination instead of claiming that a surviving member was opened.
 
 This contract separates durable advice, Client-local selection, pending draw proof and asynchronous storage publication. Exact membership and pane incarnation guard publication; restart resolves current membership before bootstrap. Failure preserves terminal state. Codec/resolution, private-cache and carrier tests cover stale/covered/failed draws, independent Clients, coalescing and atomic publication. Windows ConPTY detach/reopen and removed-member traces connect those cases to the carrier. These named implementation traces do not prove exhaustive interleavings or physical Windows Terminal appearance.
 

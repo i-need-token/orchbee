@@ -66,9 +66,12 @@ fn create_menu_omits_unresolved_worktree_and_reuses_exact_project_quick_workspac
     ));
     let view = ui.view();
     let menu = view.action_menu().unwrap();
-    assert_eq!(menu.actions, &[MenuAction::QuickWorkspace]);
+    assert_eq!(
+        menu.actions,
+        &[MenuAction::QuickWorkspace, MenuAction::WorkspaceAtDirectory]
+    );
     assert_eq!(menu.unavailable[0], None);
-    assert_eq!(menu.unavailable, &[None]);
+    assert_eq!(menu.unavailable, &[None, None]);
     let token = arm(&mut ui);
     let row = action_row(&ui, MenuAction::QuickWorkspace);
     activate_row(&mut ui, token, row);

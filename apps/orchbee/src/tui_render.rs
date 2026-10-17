@@ -300,10 +300,14 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         });
     }
     #[cfg(windows)]
-    let graphics_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(_))
+    let position_uncovered = matches!(session.as_ref(), Some(TerminalSessionView::Native(_))
         if tier != ViewportTier::TooSmall
-            && capture_owner.is_none() && !status_overlay_visible(view, session.as_ref(), capture_owner) && view.overlay().is_none()
+            && capture_owner.is_none() && !view.prefix_active() && view.overlay().is_none()
+            && !view.navigator_active() && !view.machines.sidebar_navigation_active() && !view.resize_pending
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
+    #[cfg(windows)]
+    let graphics_uncovered =
+        position_uncovered && !status_overlay_visible(view, session.as_ref(), capture_owner);
     #[cfg(windows)]
     if !graphics_uncovered && let Some(TerminalSessionView::Native(native)) = session.as_ref() {
         native.cover_graphics();
@@ -1133,7 +1137,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         receipt
     };
     #[cfg(windows)]
-    let receipt = receipt.with_position(if graphics_uncovered && tier != ViewportTier::TooSmall {
+    let receipt = receipt.with_position(if position_uncovered {
         match session.as_ref() {
             Some(TerminalSessionView::Native(native)) => native.position_draw(hits.painted_panes()),
             _ => None,
@@ -1418,7 +1422,7 @@ fn render_native_workbench(
     let input_enabled =
         pane_focused && client_view.overlay().is_none() && !client_view.prefix_active();
     let panel_area = areas.panel;
-    let location = native_location_label(native, text.standalone);
+    let location = native_location_label(native, locale);
     render_tab_strip(
         frame,
         areas.tabs,
@@ -2375,10 +2379,7 @@ fn native_tab<'a>(
     })
 }
 
-fn native_location_label(
-    native: &NativeSessionView<'_>,
-    standalone_label: &'static str,
-) -> Option<String> {
+fn native_location_label(native: &NativeSessionView<'_>, locale: Locale) -> Option<String> {
     native
         .active_context_position()
         .and_then(|position| position.checked_sub(1))
@@ -2388,8 +2389,10 @@ fn native_location_label(
                 position: context.position(),
                 active: context.active(),
                 project_label: context.project_label(),
-                workspace_label: context.workspace_label(),
-                standalone_label,
+                workspace_label: context
+                    .workspace_label()
+                    .map(|label| locale.workspace_display_label(label)),
+                standalone_label: locale.shell().standalone,
             })
         })
 }
@@ -2594,7 +2597,9 @@ fn render_native_workbench_navigator(
                 position: context.position(),
                 active: context.active(),
                 project_label: context.project_label(),
-                workspace_label: context.workspace_label(),
+                workspace_label: context
+                    .workspace_label()
+                    .map(|label| locale.workspace_display_label(label)),
                 standalone_label: text.standalone,
             })
     };

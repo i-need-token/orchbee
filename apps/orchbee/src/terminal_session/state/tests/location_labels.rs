@@ -23,6 +23,74 @@ fn live(revision: u64, count: usize) -> NativeSessionState {
         project_native_context_tabs(&workspace_snapshot(revision, count), &location()).unwrap(),
     )
 }
+
+#[test]
+fn workspace_rename_refuses_blank_names_preserving_draft_and_canonical_label() {
+    for value in ["", "   ", "\u{a0}\u{2003}\u{3000}"] {
+        let mut state = live(1, 1);
+        let baseline = state.cache().clone();
+        let desired = state.desired().cloned();
+        let token = state
+            .open_setup_draft(NativeSetupIntent::RenameLocation(Target::Workspace))
+            .unwrap();
+        state.acknowledge_setup_draw(Some(token));
+        state.edit_setup_draft(token, Edit::Clear);
+        state.edit_setup_draft(token, Edit::Append(value));
+        assert!(
+            state
+                .plan_setup(
+                    token,
+                    WorkbenchRequestId::parse(&id(999)).unwrap(),
+                    1,
+                    OperationDeadlines::from_sample(Instant::now()).unwrap()
+                )
+                .is_none()
+        );
+        assert_eq!(state.setup_draft().unwrap().text(), value);
+        assert!(state.setup_draft().unwrap().interactive());
+        assert_eq!(state.cache(), &baseline);
+        assert_eq!(state.desired(), desired.as_ref());
+        state.edit_setup_draft(token, Edit::Append("资料 Notes"));
+        let accepted = state
+            .plan_setup(
+                token,
+                WorkbenchRequestId::parse(&id(999)).unwrap(),
+                1,
+                OperationDeadlines::from_sample(Instant::now()).unwrap(),
+            )
+            .unwrap();
+        assert!(
+            matches!(accepted.command.action, WorkbenchAction::WorkspaceRename { label, .. }
+            if label.as_str() == format!("{value}资料 Notes"))
+        );
+    }
+}
+
+#[test]
+fn a_historical_blank_workspace_name_remains_readable_and_can_be_repaired() {
+    let mut snapshot = workspace_snapshot(1, 1);
+    snapshot.navigation.workspaces[0].label = "   ".into();
+    let mut state = ready_with_cache(project_native_context_tabs(&snapshot, &location()).unwrap());
+    let token = state
+        .open_setup_draft(NativeSetupIntent::RenameLocation(Target::Workspace))
+        .unwrap();
+    assert_eq!(state.setup_draft().unwrap().text(), "   ");
+    state.acknowledge_setup_draw(Some(token));
+    state.edit_setup_draft(token, Edit::Clear);
+    state.edit_setup_draft(token, Edit::Append("  资料 Notes  "));
+    let repaired = state
+        .plan_setup(
+            token,
+            WorkbenchRequestId::parse(&id(999)).unwrap(),
+            1,
+            OperationDeadlines::from_sample(Instant::now()).unwrap(),
+        )
+        .unwrap();
+    assert!(
+        matches!(repaired.command.action, WorkbenchAction::WorkspaceRename { label, .. }
+        if label.as_str() == "  资料 Notes  ")
+    );
+}
 fn operation(
     state: &mut NativeSessionState,
     target: Target,

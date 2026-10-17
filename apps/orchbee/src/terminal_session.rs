@@ -192,7 +192,7 @@ pub(crate) struct TerminalSession {
     #[cfg(windows)]
     position_writer: Option<startup_preference::Writer>,
     #[cfg(windows)]
-    position_startup: Option<(Arc<std::sync::atomic::AtomicBool>, bool)>,
+    position_startup: Option<startup_preference::Startup>,
     #[cfg(windows)]
     configuration: Option<configuration::Watcher>,
     #[cfg(windows)]
@@ -321,6 +321,7 @@ impl TerminalSession {
             directory: Box::new(directory),
         });
         let mut failed = preferences.failed;
+        let saved = preferences.position.clone();
         let writer = match preferences.writer() {
             Ok(writer) => writer,
             Err(_) => {
@@ -331,19 +332,23 @@ impl TerminalSession {
         let mut session =
             Self::start_with_context(client, TerminalIntent::Standalone, geometry, context)?;
         session.position_writer = writer;
-        session.position_startup = Some((fallback, failed));
+        session.position_startup = Some(startup_preference::Startup {
+            fallback,
+            failed,
+            saved,
+        });
         Ok(session)
     }
 
     #[cfg(windows)]
     pub(crate) fn finish_local_startup(&mut self) {
-        if let Some((fallback, failed)) = self.position_startup.take()
+        if let Some(startup) = self.position_startup.take()
             && let Some(native) = self.backend.native_mut()
         {
-            if failed {
+            if startup.failed {
                 native.report_position_notice(false);
-            } else if fallback.load(std::sync::atomic::Ordering::Acquire) {
-                native.report_position_notice(true);
+            } else if startup.fallback.load(std::sync::atomic::Ordering::Acquire) {
+                native.report_position_fallback(startup.saved.as_ref());
             }
         }
     }

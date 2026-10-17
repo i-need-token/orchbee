@@ -25,6 +25,12 @@ Results use `workspace-project-changed` with required-nullable `projectId`, or `
 Regrouping preserves Workspace IDs, directories, terminal identities and display order. Authoritative
 membership admission, revision CAS and atomic publication remain Server responsibilities.
 
+Workspace create, launch and rename commands require a label containing at least one non-whitespace
+Unicode scalar. Accepted text is preserved exactly within the existing 512-scalar bound. Rust,
+TypeScript and JSON Schema share this boundary and the command conformance cases; historical
+snapshot labels stay decodable so Clients can show a fallback and rename them. This does not
+change the independently owned Project, Tab or Tab-group naming rules.
+
 The additive `workspace.close-if-idle {workspaceId}` and `project.dissolve-if-idle {projectId}`
 actions keep the ordinary command envelope and existing accepted receipts, with distinct full
 fingerprints. They accept no caller idle flag. Only Server-owned complete-scope admission can

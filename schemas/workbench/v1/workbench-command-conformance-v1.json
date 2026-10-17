@@ -2,6 +2,22 @@
 	"contractVersion": 1,
 	"valid": [
 		{
+			"name": "create-workspace-exact-nonblank-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.create",
+					"projectId": "00000000000000000000000000000002",
+					"label": "  资料 Notes  "
+				}
+			}
+		},
+		{
 			"name": "read",
 			"direction": "request",
 			"document": {
@@ -7214,6 +7230,124 @@
 		}
 	],
 	"invalid": [
+		{
+			"name": "workspace.create-ascii-whitespace-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.create",
+					"projectId": "00000000000000000000000000000002",
+					"label": "   "
+				}
+			}
+		},
+		{
+			"name": "workspace.create-unicode-whitespace-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.create",
+					"projectId": "00000000000000000000000000000002",
+					"label": "\u0085\u00a0\u2003\u3000"
+				}
+			}
+		},
+		{
+			"name": "workspace.rename-ascii-whitespace-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.rename",
+					"workspaceId": "00000000000000000000000000000003",
+					"label": "   "
+				}
+			}
+		},
+		{
+			"name": "workspace.rename-unicode-whitespace-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"expectedRevision": "0",
+				"action": {
+					"kind": "workspace.rename",
+					"workspaceId": "00000000000000000000000000000003",
+					"label": "\u0085\u00a0\u2003\u3000"
+				}
+			}
+		},
+		{
+			"name": "workspace.launch-ascii-whitespace-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "workspace.launch",
+					"placement": {
+						"kind": "ungrouped"
+					},
+					"label": "   ",
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"cwd": "C:/repo"
+					}
+				}
+			}
+		},
+		{
+			"name": "workspace.launch-unicode-whitespace-name",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.command",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"siteId": "00000000000000000000000000000002",
+				"expectedRevision": "7",
+				"action": {
+					"kind": "workspace.launch",
+					"placement": {
+						"kind": "ungrouped"
+					},
+					"label": "\u0085\u00a0\u2003\u3000",
+					"geometry": {
+						"columns": 80,
+						"rows": 24,
+						"cellPixelWidth": 0,
+						"cellPixelHeight": 0
+					},
+					"options": {
+						"cwd": "C:/repo"
+					}
+				}
+			}
+		},
 		{
 			"name": "workspace-primary-directory-missing-path",
 			"direction": "request",

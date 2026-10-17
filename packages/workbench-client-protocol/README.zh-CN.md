@@ -17,6 +17,10 @@ primary-directory 命令及全部 Close 身份省略 Project。Close 读取结�
 Workspace 事件仅在 Workspace 内携带成员关系。所有绑定、schema 与原始／规范一致性语料在未发布
 OBWP v1 内共同升级。
 
+Workspace 创建、启动和重命名命令的标签必须包含非空白 Unicode 标量，与 Rust 和 JSON Schema
+保持一致。校验精确保留有效文本，包括两端空格，并通过共享命令语料覆盖 ASCII 和 Unicode
+空白。快照标签仍可读取，以便修复已有空白名称；其他标签类别维持各自规则。
+
 严格命令绑定还接受 `workspace.close-if-idle {workspaceId}` 和
 `project.dissolve-if-idle {projectId}`，拒绝调用方提供的空闲断言，并解码确定无效果的
 `confirmation-required` 拒绝。既有已确认动作和接受回执的形状不变；条件与已确认 kind

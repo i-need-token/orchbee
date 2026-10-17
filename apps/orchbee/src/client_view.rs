@@ -120,6 +120,7 @@ pub(crate) enum ClientAction {
     ReloadConfiguration,
     RequestWorkspaceCreate,
     RequestQuickWorkspace,
+    RequestWorkspaceAtDirectory(Option<Box<crate::terminal_session::ProjectQuickWorkspaceRequest>>),
     RequestProjectQuickWorkspace(Box<crate::terminal_session::ProjectQuickWorkspaceRequest>),
     #[cfg(windows)]
     RequestWorktreeCreate,
@@ -327,9 +328,9 @@ impl ClientAction {
             Self::TabMenu { .. } | Self::ToggleTabGroup(_) => None,
             Self::ReloadConfiguration => Some(BackendAction::ReloadConfiguration),
             Self::RequestWorkspaceCreate => Some(BackendAction::CreateWorkspace),
-            Self::RequestQuickWorkspace | Self::RequestProjectQuickWorkspace(_) => {
-                Some(BackendAction::QuickCreateWorkspace)
-            }
+            Self::RequestQuickWorkspace
+            | Self::RequestWorkspaceAtDirectory(_)
+            | Self::RequestProjectQuickWorkspace(_) => Some(BackendAction::QuickCreateWorkspace),
             #[cfg(windows)]
             Self::RequestWorktreeCreate => Some(BackendAction::CreateWorktree),
             #[cfg(windows)]
@@ -818,6 +819,7 @@ impl ClientView {
                 && self.overlay == Some(Overlay::BusinessSidebar),
         );
         self.machines.leave_sidebar_navigation();
+        self.machines.reveal_sidebar_current();
     }
 
     /// Row/disclosure presses acquire Picker focus without a ClientAction.
@@ -1114,6 +1116,7 @@ impl ClientView {
             if matches!(
                 action,
                 ClientAction::RequestWorkspaceCreate
+                    | ClientAction::RequestWorkspaceAtDirectory(_)
                     | ClientAction::RequestQuickWorkspace
                     | ClientAction::RequestProjectQuickWorkspace(_)
             ) {

@@ -196,6 +196,12 @@ pub(crate) enum NativeSessionNotice {
     #[cfg(windows)]
     PositionChanged,
     #[cfg(windows)]
+    PositionChangedEmpty,
+    #[cfg(windows)]
+    PositionLocationChanged,
+    #[cfg(windows)]
+    PositionLocationChangedEmpty,
+    #[cfg(windows)]
     PositionUnavailable,
     #[cfg(windows)]
     PopupUnavailable,
@@ -596,6 +602,14 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::BellUnknown => NativeSessionNotice::BellUnknown,
             #[cfg(windows)]
             SessionNotice::PositionChanged => NativeSessionNotice::PositionChanged,
+            #[cfg(windows)]
+            SessionNotice::PositionChangedEmpty => NativeSessionNotice::PositionChangedEmpty,
+            #[cfg(windows)]
+            SessionNotice::PositionLocationChanged => NativeSessionNotice::PositionLocationChanged,
+            #[cfg(windows)]
+            SessionNotice::PositionLocationChangedEmpty => {
+                NativeSessionNotice::PositionLocationChangedEmpty
+            }
             #[cfg(windows)]
             SessionNotice::PositionUnavailable => NativeSessionNotice::PositionUnavailable,
         })
@@ -2509,6 +2523,15 @@ impl NativeUi {
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace | ClientAction::RequestWorkspaceCreate => {
                 if self.request_quick_workspace() && self.workspace_creation_replaces_content() {
+                    SessionActionDisposition::LayoutChanged
+                } else {
+                    SessionActionDisposition::KeepNavigator
+                }
+            }
+            ClientAction::RequestWorkspaceAtDirectory(request) => {
+                if self.request_quick_workspace_with_review(request.map(|request| *request), true)
+                    && self.workspace_creation_replaces_content()
+                {
                     SessionActionDisposition::LayoutChanged
                 } else {
                     SessionActionDisposition::KeepNavigator

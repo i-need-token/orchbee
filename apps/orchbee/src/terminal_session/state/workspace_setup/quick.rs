@@ -243,7 +243,7 @@ impl QuickWorkspaceFields {
         let path = self.normalized_path()?;
         Some(QuickLaunchPlan {
             cwd: WorkbenchDirectoryPath::parse(&path).ok()?,
-            label: WorkbenchLabel::parse(self.name()).ok()?,
+            label: WorkbenchLabel::parse_workspace(self.name()).ok()?,
             project: self.project.clone(),
         })
     }
@@ -278,6 +278,7 @@ use crate::terminal_session::{
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::terminal_session) struct QuickPreparation {
+    pub(in crate::terminal_session) review_directory: bool,
     pub(in crate::terminal_session) target: Option<Box<QuickWorkspaceTarget>>,
     pub(in crate::terminal_session) generation: u64,
     pub(in crate::terminal_session) token: NativeSetupToken,
@@ -345,6 +346,16 @@ impl NativeSessionState {
         deadlines: OperationDeadlines,
         request: Option<ProjectQuickWorkspaceRequest>,
     ) -> Option<QuickPreparation> {
+        self.begin_quick_preparation_with_review(generation, deadlines, request, false)
+    }
+
+    pub(in crate::terminal_session) fn begin_quick_preparation_with_review(
+        &mut self,
+        generation: u64,
+        deadlines: OperationDeadlines,
+        request: Option<ProjectQuickWorkspaceRequest>,
+        review_directory: bool,
+    ) -> Option<QuickPreparation> {
         if !self.quick_workspace_available()
             || request
                 .as_ref()
@@ -368,6 +379,7 @@ impl NativeSessionState {
             .filter(|record| Some(&record.binding) == primary.as_ref())
             .map(super::super::PaneRecord::pane_ref);
         let preparation = QuickPreparation {
+            review_directory,
             target: request.map(|request| request.target),
             generation,
             token,
@@ -457,7 +469,9 @@ impl NativeSessionState {
             ),
             None => QuickWorkspaceFields::new(&self.cache, cwd, locale),
         };
-        let stage = if fields.project() == &QuickProject::Choose {
+        let stage = if preparation.review_directory {
+            NativeSetupStage::QuickDirectory
+        } else if fields.project() == &QuickProject::Choose {
             NativeSetupStage::QuickProject
         } else {
             NativeSetupStage::QuickName
@@ -488,7 +502,7 @@ impl NativeSessionState {
             complete: true,
             faulted: false,
             quick: Some(fields),
-            continuation: Some(preparation.deadlines),
+            continuation: (!preparation.review_directory).then_some(preparation.deadlines),
             parent: None,
         });
     }

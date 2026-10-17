@@ -168,7 +168,9 @@ fn action_availability(
     {
         return ActionAvailability::Disabled(MenuUnavailable::NoMatchingTabs);
     }
-    if matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace {
+    if matches!(action, MenuAction::WorkspaceAtDirectory)
+        || matches!(target, Target::Project { .. }) && action == MenuAction::QuickWorkspace
+    {
         return ActionAvailability::from_disabled_reason(
             state
                 .is_none_or(|state| !state.quick_workspace_available())
@@ -776,6 +778,7 @@ impl NativeUi {
                 matches!(
                     action,
                     MenuAction::NewWorkspace
+                        | MenuAction::WorkspaceAtDirectory
                         | MenuAction::QuickWorkspace
                         | MenuAction::NewWorktree
                         | MenuAction::OpenWorktree
@@ -1168,6 +1171,7 @@ impl NativeUi {
                 if matches!(
                     action,
                     MenuAction::QuickWorkspace
+                        | MenuAction::WorkspaceAtDirectory
                         | MenuAction::DeleteProject
                         | MenuAction::WorkspaceWorktrees
                         | MenuAction::NewWorktree
@@ -1655,13 +1659,20 @@ impl NativeUi {
                     tab_id: Some(tab.tab_id().clone()),
                 }
             }
-            (Target::Project { project, .. }, MenuAction::QuickWorkspace) => {
+            (
+                Target::Project { project, .. },
+                action @ (MenuAction::QuickWorkspace | MenuAction::WorkspaceAtDirectory),
+            ) => {
                 let request = crate::terminal_session::ProjectQuickWorkspaceRequest::capture(
                     self.state.as_ref()?,
                     project,
                     intent.stage.deadline()?,
                 )?;
-                ClientAction::RequestProjectQuickWorkspace(Box::new(request))
+                if action == MenuAction::WorkspaceAtDirectory {
+                    ClientAction::RequestWorkspaceAtDirectory(Some(Box::new(request)))
+                } else {
+                    ClientAction::RequestProjectQuickWorkspace(Box::new(request))
+                }
             }
             (Target::Project { project, .. }, MenuAction::RenameProject) => {
                 let request = crate::terminal_session::ProjectRenameRequest::capture(

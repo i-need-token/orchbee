@@ -69,6 +69,11 @@ it, including when that checkpoint removed the Workspace. A collapsed Project sh
 marker only while the checkpoint still places that exact Workspace in it. Labels never deduplicate creations, and
 a prior receipt never supplies a newer launch's identity.
 
+The provisional row occupies the append position in its eventual machine and Project group from
+the first frame. It shares the canonical list's row gaps and viewport window; foreground creation
+anchors that window to the same slot before and after the exact-ID handoff. A collapsed destination
+Project carries the current marker instead of exposing a temporary child outside the group.
+
 ## Optional Project organization
 
 Right-click a Workspace and open Project. An ungrouped Workspace offers New Project; a grouped one
@@ -133,6 +138,19 @@ surface is hidden; presentation never replays it.
 
 ## Explicit directory and label editing
 
+The Windows creation menu and global action menu also offer **New Workspace in directory…**.
+This uses the same read-only preparation, then displays the sampled path and generated name in
+the existing two-field draft with directory focus. It submits nothing until an explicit, drawn
+Submit/Enter; Esc cancels without creating resources. A Project creation menu retains its exact
+Project target. The edited directory and name belong only to this launch. One-click creation and
+its existing shortcuts continue to submit immediately.
+
+The draft explains that the default is the terminal process directory. PowerShell's logical `$PWD`
+can differ after ordinary `cd`; this path is not claimed to be that logical location. Users can
+review the actual sampled path and supply an existing folder, including Unicode and spaces,
+without changing a global shell profile. This directory-review entry is scoped to the Windows
+TUI; GUI creation keeps its existing directory-selection owner and the shared launch contract.
+
 The Workspace Directory action (`Ctrl+B e` by default) accepts the first directory only for an
 Empty, unconfigured Workspace. The path is an existing absolute directory; no shell expansion,
 filesystem creation or home fallback occurs. Directory acceptance alone does not launch a shell.
@@ -163,6 +181,8 @@ The owning suites include `state/workspace_setup`, `state/tests/workspace_setup`
 `ui/tests/workspace_setup/responsive` controls preparation, launch, focus, refusal and recovery order;
 `tui_render/workspace_sidebar/tests/creation` checks exact-identity observer handoff. These local
 implementation traces do not provide exhaustive TLC assurance.
+Those sidebar traces include append-position and scroll-window stability with multiple Workspaces;
+`ui/tests/quick_workspace` covers directory review, cancellation and exact edited-path submission.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features` and the applicable root gate.
 This workflow has no separate TLA model. Implementation traces and process tests do not replace

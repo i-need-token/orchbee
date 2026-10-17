@@ -7,6 +7,39 @@ use crate::{
 };
 use ratatui::{Terminal, backend::TestBackend};
 
+#[test]
+fn an_empty_workspace_publishes_its_exact_position_even_while_a_status_notice_is_visible() {
+    let snapshot = super::super::tests::context_selection::snapshot(true);
+    let (mut ui, _, _, snapshot) = super::super::tests::quick_workspace::empty_ui(snapshot);
+    assert_eq!(ui.view().phase(), NativeDisplayPhase::Empty);
+    let saved = Position {
+        location: ui.state.as_ref().unwrap().cache().location().clone(),
+        member: None,
+    };
+    ui.report_position_fallback(Some(&saved));
+    assert_eq!(
+        ui.view().notice(),
+        Some(super::super::NativeSessionNotice::PositionChangedEmpty)
+    );
+    let shell = ClientView::new(120);
+    for _ in 0..3 {
+        let receipt = draw(&ui, &shell, 120, 40);
+        let proof = receipt
+            .position()
+            .expect("displayed empty position survives status overlay");
+        assert!(proof.position.member.is_none());
+        assert!(ui.view().accepts_position_draw(proof));
+        let (restored, member, fallback) =
+            crate::terminal_session::startup_preference::resolve(&snapshot, &proof.position)
+                .unwrap();
+        assert_eq!(restored.location(), &proof.position.location);
+        assert!(restored.tabs().is_empty());
+        assert!(member.is_none());
+        assert!(!fallback);
+    }
+    assert!(draw(&ui, &shell, 2, 2).position().is_none());
+}
+
 fn draw(
     ui: &NativeUi,
     shell: &ClientView,

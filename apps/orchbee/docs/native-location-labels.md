@@ -16,6 +16,14 @@ a fresh token and requires a complete first draw. Shared modal UTF-8, paste, fau
 rules remain unchanged. Target IDs, Session, revision and original label are captured at opening;
 concurrent changes never retarget or automatically rebase a draft.
 
+Workspace names must contain a non-whitespace Unicode scalar. The editor refuses blank input
+without closing, changing its draft or changing the canonical label, and shows localized validation.
+Accepted names retain their exact leading, trailing and internal spaces. The shared command
+boundary applies this rule to Workspace create, launch and rename in Rust, TypeScript and JSON
+Schema. Historical snapshot labels remain readable: blank Workspace labels display as localized
+Unnamed Workspace in navigation and current-location chrome, and the normal rename editor can
+repair the exact target. Tab and Project naming policies remain independently owned.
+
 Renaming preserves location identity, terminal bindings, directory associations and live shell
 execution. Another Client observes new labels through explicit refresh. Zero-Workspace Project
 navigation, deletion, reordering Projects or Workspaces, directory rebinding, Panel layouts, remote,

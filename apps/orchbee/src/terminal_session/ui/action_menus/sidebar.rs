@@ -126,6 +126,7 @@ pub(super) fn actions(
             } else {
                 MenuAction::NewWorkspace
             }];
+            actions.push(MenuAction::WorkspaceAtDirectory);
             // Creation's conditional list is independent of the Worktree submenu's New action.
             // No entries means no list and no preceding separator.
             if let Some(ready) = ready {

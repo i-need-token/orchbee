@@ -1447,9 +1447,24 @@ impl Locale {
             #[cfg(windows)]
             NativeSessionNotice::PositionChanged => match self {
                 Self::EnUs => {
-                    "The saved position was removed; showing the first available member.".into()
+                    "The saved Tab or pane is unavailable; showing the first available member.".into()
                 }
-                Self::ZhCn => "上次位置已被删除；已打开首个可用成员。".into(),
+                Self::ZhCn => "上次的标签页或面板已不可用；已打开首个可用成员。".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::PositionChangedEmpty => match self {
+                Self::EnUs => "The saved Tab is unavailable; showing the empty Workspace.".into(),
+                Self::ZhCn => "上次的标签页已不可用；已打开原工作区的空视图。".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::PositionLocationChanged => match self {
+                Self::EnUs => "The saved location could not be restored; showing the first available Workspace.".into(),
+                Self::ZhCn => "无法恢复上次的位置；已打开首个可用工作区。".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::PositionLocationChangedEmpty => match self {
+                Self::EnUs => "The saved location could not be restored; showing an empty Workspace.".into(),
+                Self::ZhCn => "无法恢复上次的位置；已打开空工作区。".into(),
             },
             #[cfg(windows)]
             NativeSessionNotice::PositionUnavailable => match self {

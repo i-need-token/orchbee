@@ -286,7 +286,7 @@ pub(super) fn render(
                 &format!(
                     "{}: {}",
                     locale.shell().workspaces,
-                    sanitize_terminal_text(workspace)
+                    sanitize_terminal_text(locale.workspace_display_label(workspace))
                 ),
                 context_budget,
                 theme.glyphs.ellipsis,
@@ -306,7 +306,13 @@ pub(super) fn render(
                     locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath)
                 }
             },
-            |project| locale.location_rename_hint(project),
+            |project| {
+                if !project && draft.text().trim().is_empty() {
+                    locale.workspace_name_required()
+                } else {
+                    locale.location_rename_hint(project)
+                }
+            },
         )));
     }
     lines.push(Line::from(""));
@@ -778,6 +784,7 @@ fn render_quick(
         Line::from(locale.quick_workspace_directory()),
         Line::from(""),
         Line::from(""),
+        Line::from(locale.quick_workspace_directory_hint()),
     ];
     if draft.faulted() {
         lines.push(Line::from(locale.setup_fault()));

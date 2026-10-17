@@ -22,6 +22,11 @@ Workspace 的成员关系；`workspace.create-project` 原子创建 Project 并�
 `workspace-project-changed` 或 `project-dissolved`。重新分组保留 Workspace ID、目录、终端身份
 及显示顺序。权威成员准入、revision CAS 与原子发布仍由 Server 负责。
 
+Workspace 创建、启动和重命名命令要求名称至少包含一个非空白 Unicode 标量，
+有效文本在既有 512 标量上限内精确保留。Rust、TypeScript 和 JSON Schema 共用此边界及命令
+一致性案例；历史快照标签仍可解码，Client 可显示后备名称并重命名修复。此规则不改变
+独立归属的 Project、Tab 或 Tab 分组命名规则。
+
 新增 `workspace.close-if-idle {workspaceId}` 与 `project.dissolve-if-idle {projectId}` 动作
 保留普通命令信封及既有接受回执，使用独立完整指纹，不接受调用方空闲标志。只有 Server 拥有
 的完整范围准入才能接受；确定的 `rejected` 原因 `confirmation-required` 无效果，且不授权

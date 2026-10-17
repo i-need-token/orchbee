@@ -2,6 +2,28 @@ use super::Locale;
 use crate::terminal_session::{NativeLocationLabelStatus, NativeLocationLabelTarget};
 
 impl Locale {
+    pub(crate) const fn workspace_name_required(self) -> &'static str {
+        match self {
+            Self::EnUs => "Enter a Workspace name containing a non-whitespace character.",
+            Self::ZhCn => "工作区名称必须包含非空白字符。",
+        }
+    }
+
+    pub(crate) const fn unnamed_workspace(self) -> &'static str {
+        match self {
+            Self::EnUs => "Unnamed Workspace",
+            Self::ZhCn => "未命名工作区",
+        }
+    }
+
+    pub(crate) fn workspace_display_label(self, label: &str) -> &str {
+        if label.trim().is_empty() {
+            self.unnamed_workspace()
+        } else {
+            label
+        }
+    }
+
     pub(crate) const fn location_label_status(
         self,
         target: NativeLocationLabelTarget,

@@ -225,6 +225,8 @@ impl Locale {
             (Self::ZhCn, RenameTab) => "重命名此标签页…",
             (Self::EnUs, QuickWorkspace) => "New Workspace",
             (Self::ZhCn, QuickWorkspace) => "新建工作区",
+            (Self::EnUs, WorkspaceAtDirectory) => "New Workspace in directory…",
+            (Self::ZhCn, WorkspaceAtDirectory) => "在指定目录新建工作区…",
             (Self::EnUs, MoveWorkspace) => "Move to Project…",
             (Self::ZhCn, MoveWorkspace) => "移入项目…",
             (Self::EnUs, WorkspaceProjects) => "Project",

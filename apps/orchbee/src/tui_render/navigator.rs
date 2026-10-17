@@ -208,7 +208,9 @@ pub(super) fn render(
                     position: context.position(),
                     active: context.active(),
                     project_label: context.project_label(),
-                    workspace_label: context.workspace_label(),
+                    workspace_label: context
+                        .workspace_label()
+                        .map(|label| locale.workspace_display_label(label)),
                     standalone_label: text.standalone,
                 })
         },

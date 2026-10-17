@@ -11,7 +11,9 @@ fn no_workspace() -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapsh
     result
 }
 
-fn empty_ui(snapshot: Snapshot) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
+pub(in crate::terminal_session::ui) fn empty_ui(
+    snapshot: Snapshot,
+) -> (NativeUi, Arc<CommandMailbox>, LocalOperationClock, Snapshot) {
     let clock = crate::local_client::tests::server::adjustable_operation_clock(Arc::new(
         std::sync::atomic::AtomicU64::new(0),
     ));
@@ -42,6 +44,56 @@ fn empty_ui(snapshot: Snapshot) -> (NativeUi, Arc<CommandMailbox>, LocalOperatio
     ui.tick();
     mailbox.take_deposited_reply(&wait).unwrap().unwrap();
     (ui, mailbox, clock, snapshot)
+}
+
+#[test]
+fn directory_review_prepares_without_launching_and_submits_only_the_visible_edited_path() {
+    use orchbee_workbench_protocol::{WorkbenchAction, WorkbenchDirectoryPath};
+    let (mut ui, mailbox, clock, snapshot) = no_workspace();
+    assert_eq!(
+        ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory(None)),
+        SessionActionDisposition::LayoutChanged
+    );
+    finish_preparation_with_directory(
+        &mut ui,
+        &mailbox,
+        &clock,
+        &snapshot,
+        false,
+        Some(WorkbenchDirectoryPath::parse("C:/旧目录 项目").unwrap()),
+    );
+    assert!(mailbox.try_recv().unwrap().is_none());
+    let draft = ui.view().setup_draft().unwrap();
+    assert_eq!(draft.stage(), NativeSetupStage::QuickDirectory);
+    assert_eq!(draft.text(), "C:/旧目录 项目");
+    let token = draft.token();
+    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+    ui.edit_setup_draft(token, NativeSetupEdit::Clear);
+    ui.edit_setup_draft(token, NativeSetupEdit::Paste("C:/第二个 项目"));
+    ui.submit_setup_draft(token);
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
+        panic!("single Workspace launch")
+    };
+    assert!(
+        matches!(&marker.0.command.action, WorkbenchAction::WorkspaceLaunch { options, .. }
+        if options.cwd.as_ref().unwrap().as_str() == "C:/第二个 项目")
+    );
+    assert!(ui.view().workspace_creation_preview().unwrap().current);
+    assert!(ui.view().setup_draft().is_none());
+}
+
+#[test]
+fn cancelling_directory_review_keeps_the_source_and_submits_nothing() {
+    let (mut ui, mailbox, clock, snapshot) = no_workspace();
+    let source = ui.state.as_ref().unwrap().cache().clone();
+    ui.apply_client_action(ClientAction::RequestWorkspaceAtDirectory(None));
+    finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+    let token = ui.view().setup_draft().unwrap().token();
+    ui.cancel_setup_draft(token);
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(ui.view().setup_draft().is_none());
+    assert_eq!(ui.state.as_ref().unwrap().cache(), &source);
 }
 
 fn rendered_rows(buffer: &ratatui::buffer::Buffer) -> String {

@@ -251,6 +251,16 @@ impl Locale {
             Self::ZhCn => "目录",
         }
     }
+    pub(crate) const fn quick_workspace_directory_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "Uses the terminal process directory; PowerShell cd may differ. Choose an existing folder for this Workspace."
+            }
+            Self::ZhCn => {
+                "默认使用终端进程目录，可能与 PowerShell 的 cd 目录不同。可为本次工作区指定已有文件夹。"
+            }
+        }
+    }
     pub(crate) const fn quick_workspace_preparing_fact(self) -> &'static str {
         match self {
             Self::EnUs => "No Workspace has been created yet.",

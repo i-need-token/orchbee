@@ -1,6 +1,34 @@
 use super::*;
 use crate::{Navigation, Project, TerminalContext, Workspace};
 
+#[test]
+fn workspace_names_reject_unicode_whitespace_on_both_wire_directions_without_trimming() {
+    for value in ["   ", "\t\r\n", "\u{85}\u{a0}\u{2003}\u{3000}"] {
+        assert!(WorkbenchLabel::parse_workspace(value).is_err());
+        // Historical snapshot labels remain decodable so they can be renamed.
+        let label = WorkbenchLabel::parse(value).unwrap();
+        let request = WorkbenchRequest::Command(WorkbenchCommand {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
+            site_id: SiteId::parse(&format!("{:032x}", 2)).unwrap(),
+            expected_revision: WorkbenchRevision::new(1),
+            action: WorkbenchAction::WorkspaceRename {
+                workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
+                label,
+            },
+        });
+        assert!(serialize_workbench_request(&request).is_err());
+        let bytes = serde_json::to_vec(&request).unwrap();
+        assert!(parse_workbench_request(&bytes).is_err());
+    }
+    for value in ["  Notes  ", "资料 整理", "\u{feff}"] {
+        assert_eq!(
+            WorkbenchLabel::parse_workspace(value).unwrap().as_str(),
+            value
+        );
+    }
+}
+
 fn near_limit_snapshot() -> Snapshot {
     let id = |value: u128| format!("{value:032x}");
     let standalone = WorkbenchTerminalContextId::parse(&id(1)).unwrap();

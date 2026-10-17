@@ -31,6 +31,7 @@ fn preparation() -> TestResult<(QuickPreparation, WorkbenchSnapshotOutcome)> {
         .cloned();
     Ok((
         QuickPreparation {
+            review_directory: false,
             target: None,
             generation: 1,
             token: NativeSetupToken::for_test(1),

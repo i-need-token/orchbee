@@ -107,6 +107,7 @@ pub(crate) enum MenuAction {
     CloseTrailingTabs,
     CloseGroup,
     QuickWorkspace,
+    WorkspaceAtDirectory,
     WorkspaceDirectory,
     RenameWorkspace,
     RenameProject,
@@ -215,6 +216,7 @@ impl MenuAction {
             Self::NewTab => ClientAction::CreateTab,
             Self::RenameTab => ClientAction::RequestRenameTab,
             Self::QuickWorkspace => ClientAction::RequestQuickWorkspace,
+            Self::WorkspaceAtDirectory => ClientAction::RequestWorkspaceAtDirectory(None),
             Self::WorkspaceDirectory => ClientAction::RequestWorkspaceDirectory,
             Self::RenameWorkspace => ClientAction::RequestWorkspaceRename,
             Self::RenameProject => ClientAction::RequestProjectRename,
@@ -292,6 +294,7 @@ pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::TabCreation,
     MenuAction::NewWorkspace,
+    MenuAction::WorkspaceAtDirectory,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
     MenuAction::Reload,

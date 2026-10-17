@@ -513,6 +513,12 @@ pub(super) enum SessionNotice {
     #[cfg(windows)]
     PositionChanged,
     #[cfg(windows)]
+    PositionChangedEmpty,
+    #[cfg(windows)]
+    PositionLocationChanged,
+    #[cfg(windows)]
+    PositionLocationChangedEmpty,
+    #[cfg(windows)]
     PositionUnavailable,
 }
 

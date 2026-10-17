@@ -5,6 +5,31 @@ use crate::terminal_session::{
 };
 
 #[test]
+fn blank_workspace_names_have_localized_validation_and_recoverable_display_names() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for blank in ["", "   ", "\u{a0}\u{2003}\u{3000}"] {
+            assert_eq!(
+                locale.workspace_display_label(blank),
+                locale.unnamed_workspace()
+            );
+            assert!(!locale.workspace_name_required().trim().is_empty());
+        }
+        assert_eq!(
+            locale.workspace_display_label("  资料 Notes  "),
+            "  资料 Notes  "
+        );
+    }
+    assert_ne!(
+        Locale::EnUs.unnamed_workspace(),
+        Locale::ZhCn.unnamed_workspace()
+    );
+    assert_ne!(
+        Locale::EnUs.workspace_name_required(),
+        Locale::ZhCn.workspace_name_required()
+    );
+}
+
+#[test]
 fn location_label_results_name_the_target_and_distinguish_unchanged_from_renamed() {
     for (target, name) in [
         (Target::Project, "Project"),

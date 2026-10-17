@@ -39,6 +39,17 @@ impl CommandMailbox {
         clock: &LocalOperationClock,
         request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
     ) -> bool {
+        self.try_enqueue_quick_preparation_with_review(canonical, deadlines, clock, request, false)
+    }
+
+    pub(in crate::terminal_session) fn try_enqueue_quick_preparation_with_review(
+        &self,
+        canonical: &mut NativeSessionState,
+        deadlines: OperationDeadlines,
+        clock: &LocalOperationClock,
+        request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
+        review_directory: bool,
+    ) -> bool {
         let admission_cutoff = request
             .as_ref()
             .map_or(deadlines.forward_cutoff(), |request| {
@@ -59,10 +70,14 @@ impl CommandMailbox {
                 if clock.now() >= admission_cutoff {
                     return Err(());
                 }
-                canonical
-                    .begin_quick_preparation(generation, deadlines, request)
-                    .map(|p| super::RefreshPurpose::Quick(Box::new(p)))
-                    .ok_or(())
+                (if review_directory {
+                    canonical
+                        .begin_quick_preparation_with_review(generation, deadlines, request, true)
+                } else {
+                    canonical.begin_quick_preparation(generation, deadlines, request)
+                })
+                .map(|p| super::RefreshPurpose::Quick(Box::new(p)))
+                .ok_or(())
             },
             |_canonical, _result| {},
         )
