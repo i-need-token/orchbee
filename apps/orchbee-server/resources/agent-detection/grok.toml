@@ -50,10 +50,19 @@ region = "whole_recent"
 visible_blocker = true
 line_regex = ['^\s*Waiting for (?:approval(?:\.{3}|…)|login to complete\.{3})\s*$']
 any = [
-	{ contains = ["Approve in your browser to finish signing in."] },
-	{ contains = ["A browser window will open for authentication."] },
-	{ contains = ["Sign in to Grok"] },
-	{ contains = ["ctrl+q", "go back"] },
+	{ contains = [
+		"Approve in your browser to finish signing in.",
+	] },
+	{ contains = [
+		"A browser window will open for authentication.",
+	] },
+	{ contains = [
+		"Sign in to Grok",
+	] },
+	{ contains = [
+		"ctrl+q",
+		"go back",
+	] },
 ]
 
 # A clipped login screen can lose its context. Do not turn the remaining
