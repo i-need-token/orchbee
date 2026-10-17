@@ -230,6 +230,9 @@ impl NativeUi {
             deadline,
             state: DiscoveryState::Waiting,
         });
+        // Opening must publish the pending reason before its first paint or input snapshot.
+        // Otherwise the first input revises availability and invalidates its own menu proof.
+        self.recompose_sidebar_menu();
     }
 
     pub(super) fn sidebar_worktree_source_current(&self) -> bool {

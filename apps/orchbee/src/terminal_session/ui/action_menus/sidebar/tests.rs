@@ -64,7 +64,18 @@ fn async_git_availability_preserves_action_slots_and_requires_a_fresh_draw_witho
             .contains(&MenuAction::WorkspaceWorktrees)
     );
     let before = ui.view().action_menu().unwrap().actions.to_vec();
+    let worktrees = before
+        .iter()
+        .position(|action| action == &MenuAction::WorkspaceWorktrees)
+        .unwrap();
+    assert_eq!(
+        ui.view().action_menu().unwrap().unavailable[worktrees],
+        Some(crate::action_menu::MenuUnavailable::WorktreeChecking)
+    );
     let old = draw(&mut ui);
+    assert!(!ui.drive_action_menu());
+    assert_eq!(ui.view().action_menu().unwrap().token, old);
+    assert!(ui.action_menu_input_context().unwrap().activation_ready());
     let episode = ui.menus.sidebar.as_mut().unwrap();
     episode.state = DiscoveryState::Querying;
     let id = episode.id;
