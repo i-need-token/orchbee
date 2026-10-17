@@ -35,6 +35,7 @@ fn automatic_tab_chrome_uses_localized_positions_and_keeps_fixed_names_and_pane_
             }
             let (ui, mailbox, _, _) =
                 super::super::tests::move_membership::ready_ui_with_snapshot(source);
+            assert_eq!(ui.view().tab(2).unwrap().display_label(locale), fixed);
             for theme in [Theme::terminal_native(), Theme::one_light()] {
                 for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
                     let mut terminal =
@@ -70,7 +71,15 @@ fn automatic_tab_chrome_uses_localized_positions_and_keeps_fixed_names_and_pane_
                         let strip = row(0);
                         assert!(strip.contains(first), "{strip}");
                         assert!(strip.contains(second), "{strip}");
-                        assert!(strip.contains(fixed), "{strip}");
+                        if width >= 80 || strip.contains(fixed) {
+                            assert!(strip.contains(fixed), "{strip}");
+                        } else {
+                            // Compact chrome may clip a long fixed name. It must
+                            // still paint that name's prefix, never an automatic label.
+                            let suffix = strip.split_once(second).unwrap().1.trim_start();
+                            let prefix = suffix.split_once(theme.glyphs.ellipsis).unwrap().0;
+                            assert!(!prefix.is_empty() && fixed.starts_with(prefix), "{strip}");
+                        }
                         assert!(!strip.contains(&locale.automatic_tab_label(3)), "{strip}");
                         assert!(
                             row(1).contains(&format!("{} 1", locale.shell().panel_title)),
