@@ -1,16 +1,78 @@
 //! Styled retained rows reuse the live cell painter, with fenced history chrome.
 use orchbee_terminal_protocol::TerminalTextFrame;
 
-use ratatui::{Frame, layout::Rect, style::Style, widgets::Clear};
+use ratatui::{Frame, buffer::CellWidth, layout::Rect, style::Style, widgets::Clear};
 
 use crate::{
     localization::Locale,
+    terminal_live_view::LiveView,
     terminal_session::NativeViewportSurface,
     terminal_text::{display_width, truncate_display},
     tui_theme::{Role, Theme},
 };
 
-use super::terminal_cells;
+use super::{
+    controls::{KeyHint, measure_key_hints, render_key_hints},
+    terminal_cells,
+};
+
+/// A local live crop reserves its own first row, so the indicator never hides the prompt.
+#[expect(clippy::too_many_arguments)]
+pub(super) fn render_live(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    terminal: &TerminalTextFrame,
+    view: LiveView,
+    show_cursor: bool,
+    history_key: Option<&str>,
+    locale: Locale,
+    theme: &Theme,
+) {
+    terminal_cells::render_live(frame, area, terminal, view, show_cursor, theme);
+    if !view.clipped || area.height < 2 || area.width == 0 {
+        return;
+    }
+    let header = Rect::new(area.x, area.y, area.width, 1);
+    frame.render_widget(Clear, header);
+    frame
+        .buffer_mut()
+        .set_style(header, theme.style(Role::SurfaceChrome));
+    let label = locale.terminal_live_crop();
+    if let Some(key) = history_key.filter(|_| !terminal.alternate_screen) {
+        let hints = [KeyHint::new(key, locale.terminal_view_history())];
+        if let Some(width) = measure_key_hints(&hints, theme)
+            && display_width(label).saturating_add(width).saturating_add(2)
+                <= usize::from(area.width)
+        {
+            frame
+                .buffer_mut()
+                .set_string(area.x, area.y, label, theme.style(Role::TextSecondary));
+            // The complete hint was measured against this u16 rectangle.
+            let width = u16::try_from(width).expect("hint fits the pane");
+            let _ = render_key_hints(
+                frame,
+                Rect::new(area.right() - width, area.y, width, 1),
+                &hints,
+                theme,
+            );
+            return;
+        }
+    }
+    let compact = locale.terminal_live_crop_compact();
+    let text = if !terminal.alternate_screen
+        && terminal.interaction.mouse_tracking() == orchbee_terminal_protocol::MouseTracking::None
+        && display_width(compact) <= usize::from(area.width)
+    {
+        compact
+    } else {
+        label
+    };
+    if display_width(text) <= usize::from(area.width) {
+        frame
+            .buffer_mut()
+            .set_string(area.x, area.y, text, theme.style(Role::TextSecondary));
+    }
+}
 
 /// One non-Live surface paint. `Entering` keeps the last verified live
 /// frame beneath the badge; `Window` replaces the leaf with retained rows;
@@ -140,7 +202,7 @@ fn badge(frame: &mut Frame<'_>, area: Rect, label: &str, theme: &Theme) {
     let x = area.x + area.width - width;
     if x > area.x
         && let Some(cell) = frame.buffer_mut().cell_mut((x - 1, area.y))
-        && display_width(cell.symbol()) > 1
+        && cell.cell_width() > 1
     {
         cell.reset();
     }

@@ -16,6 +16,59 @@ mod project;
 mod quick_create;
 mod tab_scope;
 
+#[test]
+fn tab_creation_exposes_saved_profiles_and_cancel_has_no_effect() {
+    for cancel in [false, true] {
+        let (mut ui, mailbox, _, _) = tests::move_membership::ready_ui();
+        let profile = orchbee_workbench_protocol::UserLaunchProfile {
+            id: "test-shell".into(),
+            name: Some("测试 PowerShell".into()),
+            command: orchbee_workbench_protocol::UserLaunchCommand::CustomExecutable {
+                executable: r"C:\test\pwsh.exe".into(),
+                arguments: vec!["-NoProfile".into(), "a b".into()],
+            },
+        };
+        ui.preferences
+            .launch_profiles
+            .profiles
+            .push(profile.clone());
+        let saved = ui.preferences.clone();
+        let target = MenuTarget::TabCreate(ui.view().tab_create_target().unwrap());
+        assert!(ui.open_action_menu(target, None, false));
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        assert!(menu.actions.contains(&MenuAction::NewTab));
+        assert!(menu.actions.iter().any(|action| matches!(action, MenuAction::NewTabWithProfile(profile) if profile.id == "system-default")));
+        let row = action_row(
+            &ui,
+            MenuAction::NewTabWithProfile(Box::new(profile.clone())),
+        );
+        let token = arm(&mut ui);
+        if cancel {
+            ui.cancel_action_menu();
+            assert!(ui.take_action_menu_action(false).is_none());
+        } else {
+            activate_row(&mut ui, token, row);
+            let action = ui.take_action_menu_action(false).unwrap();
+            assert_eq!(
+                action,
+                ClientAction::TabMenu {
+                    action: MenuAction::NewTabWithProfile(Box::new(profile)),
+                    tab_id: None
+                }
+            );
+            assert!(
+                mailbox.try_recv().unwrap().is_none(),
+                "selection alone submits nothing"
+            );
+            ui.apply_client_action(action);
+            assert!(mailbox.try_recv().unwrap().is_some());
+        }
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert_eq!(ui.preferences, saved);
+    }
+}
+
 fn arm(ui: &mut NativeUi) -> MenuToken {
     let (token, selected, visible_rows) = {
         let view = ui.view();

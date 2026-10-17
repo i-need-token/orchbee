@@ -134,6 +134,7 @@ fn source() -> PaintedLinkSource {
             generation: NonZeroU64::MIN,
             revision: 1,
             columns: 80,
+            start_column: 0,
             total_rows: 24,
             start_row: 0,
             row_count: 24,

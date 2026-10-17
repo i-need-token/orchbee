@@ -2,6 +2,8 @@
 mod action_menus;
 mod agent_attention;
 #[cfg(windows)]
+mod launch_profiles;
+#[cfg(windows)]
 mod pane_graphics;
 pub(in crate::terminal_session) mod settings;
 #[cfg(windows)]
@@ -10,6 +12,14 @@ mod sidebar_reorder;
 mod tab_duplication;
 #[cfg(windows)]
 mod tab_groups;
+
+/// Display context for one local notice; it retains no executable text or launch authority.
+#[cfg(windows)]
+pub(crate) enum NativeNoticeContext {
+    /// A missing name is the localized built-in System default label.
+    LaunchProfile(Option<String>),
+    ConfiguredCommand(String),
+}
 #[cfg(all(windows, test))]
 pub(in crate::terminal_session) use agent_attention::tests::focused_physical_agent_fixture;
 #[cfg(windows)]
@@ -212,6 +222,12 @@ pub(crate) enum NativeSessionNotice {
     #[cfg(windows)]
     CommandUnknown,
     #[cfg(windows)]
+    CommandRefused(orchbee_workbench_protocol::ConfiguredCommandFailure),
+    #[cfg(windows)]
+    LaunchProfileSelected,
+    #[cfg(windows)]
+    LaunchProfileUnavailable,
+    #[cfg(windows)]
     LinkOpened,
     #[cfg(windows)]
     LinkHandled,
@@ -371,6 +387,8 @@ pub(crate) struct NativeSessionView<'a> {
     #[cfg(windows)]
     popup_failed: bool,
     command_notice: Option<NativeSessionNotice>,
+    #[cfg(windows)]
+    notice_context: Option<&'a NativeNoticeContext>,
     #[cfg(windows)]
     popup: Option<&'a super::independent_popup::Driver>,
 }
@@ -615,6 +633,26 @@ impl<'a> NativeSessionView<'a> {
         })
     }
 
+    /// Only the matching notice may use this retained operation context.
+    #[cfg(windows)]
+    pub(crate) fn notice_context(&self) -> Option<&NativeNoticeContext> {
+        match (self.notice()?, self.notice_context?) {
+            (
+                NativeSessionNotice::CommandAccepted
+                | NativeSessionNotice::CommandFailed
+                | NativeSessionNotice::CommandUnknown
+                | NativeSessionNotice::CommandRefused(_),
+                context @ NativeNoticeContext::ConfiguredCommand(_),
+            )
+            | (
+                NativeSessionNotice::LaunchProfileSelected
+                | NativeSessionNotice::LaunchProfileUnavailable,
+                context @ NativeNoticeContext::LaunchProfile(_),
+            ) => Some(context),
+            _ => None,
+        }
+    }
+
     pub(crate) fn refresh_status(&self) -> Option<NativeRefreshStatus> {
         self.state
             .as_ref()?
@@ -807,6 +845,7 @@ impl<'a> NativeSessionView<'a> {
                     generation: window.route.generation,
                     revision: window.route.revision,
                     columns: window.route.columns,
+                    start_column: 0,
                     total_rows: window.route.total_rows,
                     start_row: window.route.start_row,
                     row_count: window.route.row_count,
@@ -820,7 +859,13 @@ impl<'a> NativeSessionView<'a> {
             ) => return None,
             None => {
                 let frame = projection.frame()?;
-                (TerminalScreen::from_frame(frame), PaintedRows::live(frame)?)
+                let mut rows = PaintedRows::live(frame)?;
+                if let Some(crop) = self.pane_live_view(panel_id) {
+                    rows.start_column = crop.column;
+                    rows.start_row = rows.start_row.checked_add(u64::from(crop.row))?;
+                    rows.row_count = crop.rows;
+                }
+                (TerminalScreen::from_frame(frame), rows)
             }
         };
         Some(ContentSource {
@@ -846,6 +891,25 @@ impl<'a> NativeSessionView<'a> {
         panel_id: &WorkbenchPanelId,
     ) -> Option<crate::terminal_link_activation::PaintedLinkSource> {
         self.painted_content_source(panel_id)
+    }
+
+    /// The same local live rectangle used by paint, selection and content inspection.
+    pub(crate) fn pane_live_view(
+        &self,
+        panel: &WorkbenchPanelId,
+    ) -> Option<crate::terminal_live_view::LiveView> {
+        let record = self.state.as_ref()?.pane_by_panel(panel)?;
+        let projection = self.panes.iter().find(|p| p.key == record.pane_ref())?;
+        if projection.viewport.is_some() {
+            return None;
+        }
+        let frame = projection.value.frame()?;
+        let geometry = record.observed_geometry();
+        Some(crate::terminal_live_view::LiveView::new(
+            frame,
+            geometry.columns(),
+            geometry.rows(),
+        ))
     }
 
     /// The panel identity of the focus pane — the leaf that takes input,
@@ -928,6 +992,7 @@ impl<'a> NativeSessionView<'a> {
             graphics_surface: None,
             popup_failed: false,
             command_notice: None,
+            notice_context: None,
             popup: None,
         }
     }
@@ -971,6 +1036,8 @@ impl<'a> NativeSessionView<'a> {
             #[cfg(windows)]
             popup_failed: false,
             command_notice: None,
+            #[cfg(windows)]
+            notice_context: None,
             #[cfg(windows)]
             popup: None,
         }
@@ -1074,6 +1141,8 @@ pub(super) struct NativeUi {
     popup: super::independent_popup::Driver,
     #[cfg(windows)]
     command_notice: Option<(NativeSessionNotice, std::time::Instant)>,
+    #[cfg(windows)]
+    notice_context: Option<NativeNoticeContext>,
     /// `presentation_id → workbench placement` over the freshest observed
     /// canonical snapshot — a pure function of that snapshot, rebuilt
     /// whole on every snapshot-bearing event.
@@ -1196,6 +1265,8 @@ impl NativeUi {
             popup: super::independent_popup::Driver::new(clock.clone()),
             #[cfg(windows)]
             command_notice: None,
+            #[cfg(windows)]
+            notice_context: None,
             agent_index: super::agent_board::PresentationIndex::default(),
             clock,
             state: None,
@@ -1286,6 +1357,8 @@ impl NativeUi {
             #[cfg(windows)]
             popup_failed: self.popup.failed(),
             command_notice,
+            #[cfg(windows)]
+            notice_context: self.notice_context.as_ref(),
             #[cfg(windows)]
             popup: Some(&self.popup),
             #[cfg(windows)]
@@ -2016,15 +2089,20 @@ impl NativeUi {
             }
             return SessionActionDisposition::KeepNavigator;
         }
-        // History needs a live-tail anchor plus retained rows: a pane that
-        // never painted has no scrollback contract, an alternate screen has
-        // no retained history at all, and zero scrollback or zero readable
-        // rows means nothing exists to view. Every refusal is an honest
-        // notice — never a silent drop, never a fabricated Enter command.
+        // Readable retained rows or a cropped current screen need a live-tail
+        // anchor. An alternate screen or a missing/empty frame has no ordinary
+        // history contract. Refusal reports an honest notice and emits no Enter.
         let Some(frame) = self.projections[index].value.frame() else {
             return self.history_unavailable(&mailbox);
         };
-        if frame.scrollback_rows == 0 || frame.alternate_screen || frame.rows.is_empty() {
+        let clipped = self
+            .view()
+            .pane_live_view(key.pane().panel())
+            .is_some_and(|view| view.clipped);
+        if (frame.scrollback_rows == 0 && !clipped)
+            || frame.alternate_screen
+            || frame.rows.is_empty()
+        {
             return self.history_unavailable(&mailbox);
         }
         let (columns, row_count) = (frame.geometry.columns, frame.geometry.rows);
@@ -2149,7 +2227,11 @@ impl NativeUi {
                     !frame.alternate_screen
                         && frame.interaction.mouse_tracking()
                             == orchbee_terminal_protocol::MouseTracking::None
-                        && frame.scrollback_rows > 0
+                        && (frame.scrollback_rows > 0
+                            || self
+                                .view()
+                                .pane_live_view(key.pane().panel())
+                                .is_some_and(|view| view.clipped))
                         && !frame.rows.is_empty()
                 });
             if !eligible {
@@ -2715,6 +2797,14 @@ impl NativeUi {
         &mut self,
         placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
     ) -> SessionActionDisposition {
+        self.create_tab_launch(placement, None)
+    }
+
+    fn create_tab_launch(
+        &mut self,
+        placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
+        launch: Option<orchbee_workbench_protocol::LaunchSelection>,
+    ) -> SessionActionDisposition {
         #[cfg(windows)]
         if self.view().no_current_workspace() {
             if placement.is_some() {
@@ -2754,7 +2844,7 @@ impl NativeUi {
         let result = mailbox.try_enqueue_create_for(
             state,
             |state, generation, request_id| {
-                build_create(state, generation, request_id, deadlines, placement)
+                build_create_launch(state, generation, request_id, deadlines, placement, launch)
             },
             finish_action,
         );
@@ -4194,12 +4284,24 @@ const fn create_precommit_notice(outcome: &CreatePrecommitOutcome) -> SessionNot
     }
 }
 
+#[cfg(windows)]
 fn build_create(
     state: &mut NativeSessionState,
     generation: u64,
     request_id: orchbee_workbench_protocol::WorkbenchRequestId,
     deadlines: OperationDeadlines,
     placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
+) -> Result<CreateMarker, ActionBuildError> {
+    build_create_launch(state, generation, request_id, deadlines, placement, None)
+}
+
+fn build_create_launch(
+    state: &mut NativeSessionState,
+    generation: u64,
+    request_id: orchbee_workbench_protocol::WorkbenchRequestId,
+    deadlines: OperationDeadlines,
+    placement: Option<orchbee_workbench_protocol::TabCreationPlacement>,
+    launch: Option<orchbee_workbench_protocol::LaunchSelection>,
 ) -> Result<CreateMarker, ActionBuildError> {
     if !state.invariant_holds() {
         return Err(ActionBuildError::Protocol);
@@ -4268,7 +4370,7 @@ fn build_create(
             terminal_context_id: state.cache().terminal_context_id().clone(),
             label,
             geometry: workbench_geometry,
-            launch: None,
+            launch,
             profile: None,
             options: Default::default(),
         },

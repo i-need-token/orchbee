@@ -11,6 +11,62 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 #[test]
+fn read_only_crop_keeps_latest_prompt_above_status_and_never_resizes_the_controller() {
+    for (width, height) in [(80, 24), (40, 10)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let (mut ui, mailbox, _, _) = ready_ui();
+            let view = ClientView::new(width);
+            let area = Rect::new(0, 0, width, height);
+            let areas = project_shell_areas(area, view.sidebar_surface());
+            let pane = crate::tui_shell::active_pane_area(
+                &areas,
+                Some(TerminalSessionView::Native(ui.view())),
+            )
+            .unwrap();
+            ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
+            drain(&mailbox);
+            let key = install_projection(&mut ui, None, 0);
+            let projection = projection_at(&mut ui, &key);
+            let mut source = frame(&projection.value, 0, false, 36);
+            source.geometry.columns = 104;
+            source.geometry.rows = 36;
+            source.cursor.row = 35;
+            source.rows[35].cells[0].text = ">".into();
+            projection.value.install_frame_for_test(source);
+            let crop = ui.view().pane_live_view(key.pane().panel()).unwrap();
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &view,
+                        locale,
+                        Some(TerminalSessionView::Native(ui.view())),
+                        &Theme::terminal_native(),
+                        &mut HitMapBuilder::new(),
+                    );
+                })
+                .unwrap();
+            assert_eq!(
+                terminal.backend().buffer()[(pane.x, pane.bottom() - 2)].symbol(),
+                ">"
+            );
+            assert!(crop.clipped);
+            assert!(
+                mailbox.try_recv().unwrap().is_none(),
+                "paint never requests a physical resize"
+            );
+            assert!(
+                ui.history_wheel(&key, true),
+                "a clipped current grid is readable even without older scrollback"
+            );
+            assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+            mailbox.close(CarrierFailure::WorkerExited);
+        }
+    }
+}
+
+#[test]
 fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_packet() {
     use crate::terminal_input::{
         PointerSelectionAdmission, PointerSelectionCell, PointerSelectionIntent,

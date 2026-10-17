@@ -14,6 +14,7 @@ use std::{
     },
 };
 
+mod configured_invocation;
 mod split_ratios;
 
 #[test]
@@ -699,7 +700,11 @@ fn configured_command_actor_cancels_and_joins_with_truthful_delivery_receipt() {
         assert!(!handoff.invocation_pending);
         assert_eq!(
             handoff.invocation_result.take().unwrap().reply,
-            Err(!during_admission)
+            Err(if during_admission {
+                CommandFailure::NotSubmitted
+            } else {
+                CommandFailure::OutcomeUnknown
+            })
         );
         drop(handoff);
         server.finish().unwrap();

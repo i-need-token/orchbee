@@ -121,7 +121,9 @@ fn action_availability(
     }
     if matches!(
         action,
-        MenuAction::NewGroupWithTab | MenuAction::NewTabInRecentGroup
+        MenuAction::NewGroupWithTab
+            | MenuAction::NewTabInRecentGroup
+            | MenuAction::NewTabWithProfile(_)
     ) && state.is_some_and(|state| {
         matches!(
             state.cache().location(),
@@ -811,6 +813,13 @@ impl NativeUi {
                 MenuAction::NewTabInRecentGroup,
                 MenuAction::NewGroupWithTab,
             ];
+            actions.extend(
+                self.preferences
+                    .launch_profiles
+                    .profiles
+                    .iter()
+                    .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone()))),
+            );
         }
         actions.retain(|action| {
             !action_availability(

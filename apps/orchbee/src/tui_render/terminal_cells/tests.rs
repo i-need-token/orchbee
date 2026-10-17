@@ -9,6 +9,168 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::sync::Arc;
 
 #[test]
+fn captured_regional_indicator_cells_survive_paint_and_clear_their_entire_footprint() {
+    use ratatui::buffer::{Buffer, CellDiffOption, CellWidth};
+    let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    let mut style = frame.rows[0].cells[0].style;
+    style.background = 0x112233;
+    let cell = |text: &str, width| orchbee_terminal_protocol::TerminalTextCell {
+        text: text.into(),
+        width,
+        style,
+    };
+    frame.rows = vec![TerminalTextRow {
+        index: 0,
+        flags: 0,
+        prompt_class: 0,
+        cells: vec![
+            cell("|", 0),
+            cell("\u{1f1e8}", 1),
+            cell("", 2),
+            cell("\u{1f1f3}", 1),
+            cell("", 2),
+            cell("|", 0),
+        ],
+    }];
+    let mut terminal = Terminal::new(TestBackend::new(8, 2)).unwrap();
+    terminal
+        .draw(|surface| {
+            render(
+                surface,
+                Rect::new(0, 0, 6, 2),
+                &frame,
+                false,
+                &Theme::terminal_native(),
+            )
+        })
+        .unwrap();
+    let painted = terminal.backend().buffer().clone();
+    assert_eq!(painted[(1, 0)].symbol(), "\u{1f1e8}");
+    assert_eq!(painted[(3, 0)].symbol(), "\u{1f1f3}");
+    assert_eq!(painted[(1, 0)].cell_width(), 2);
+    assert!(matches!(
+        painted[(1, 0)].diff_option,
+        CellDiffOption::ForcedWidth(_)
+    ));
+    assert_eq!(painted[(5, 0)].symbol(), "|");
+    let cleared = Buffer::empty(Rect::new(0, 0, 8, 2));
+    let cleared_columns: Vec<_> = painted
+        .diff_iter(&cleared)
+        .filter(|(_, y, _)| *y == 0)
+        .map(|(x, _, _)| x)
+        .collect();
+    for column in 0..6 {
+        assert!(cleared_columns.contains(&column), "{cleared_columns:?}");
+    }
+}
+
+#[test]
+fn clipped_live_view_renders_latest_rows_cursor_and_complete_localized_hint() {
+    let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    source.geometry.rows = 36;
+    source.geometry.columns = 104;
+    source.cursor.column = 0;
+    source.cursor.row = 35;
+    source.cursor.visible = true;
+    let style = source.rows[0].cells[0].style;
+    source.rows = (0..36)
+        .map(|index| TerminalTextRow {
+            index,
+            flags: 0,
+            prompt_class: 0,
+            cells: vec![orchbee_terminal_protocol::TerminalTextCell {
+                text: if index == 35 { ">" } else { "x" }.into(),
+                width: 0,
+                style,
+            }],
+        })
+        .collect();
+    for theme in [Theme::terminal_native(), Theme::one_dark()] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for (columns, rows) in [(80, 24), (120, 40), (60, 12), (40, 10), (19, 4)] {
+                let mut terminal = Terminal::new(TestBackend::new(columns, rows)).unwrap();
+                let crop = LiveView::new(&source, columns, rows);
+                terminal
+                    .draw(|surface| {
+                        super::super::viewport::render_live(
+                            surface,
+                            Rect::new(0, 0, columns, rows),
+                            &source,
+                            crop,
+                            true,
+                            Some("Ctrl+B PgUp"),
+                            locale,
+                            &theme,
+                        )
+                    })
+                    .unwrap();
+                let content = crop.content(Rect::new(0, 0, columns, rows));
+                let prompt_y = content.y + 35 - crop.row;
+                assert_eq!(terminal.backend().buffer()[(0, prompt_y)].symbol(), ">");
+                assert_eq!(
+                    terminal.get_cursor_position().unwrap(),
+                    ratatui::layout::Position::new(0, prompt_y)
+                );
+                if crop.clipped {
+                    let text: String = (0..columns)
+                        .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
+                        .collect();
+                    assert!(
+                        text.contains(locale.terminal_live_crop())
+                            || text.contains(locale.terminal_live_crop_compact()),
+                        "{text}"
+                    );
+                    assert!(prompt_y > 0);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn cropping_into_a_wide_tail_erases_old_cells_without_painting_half_a_glyph() {
+    let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    source.cursor.visible = true;
+    source.cursor.column = 5;
+    source.cursor.row = 0;
+    let crop = LiveView::new(&source, 4, 4);
+    assert_eq!(crop.column, 2);
+    let mut terminal = Terminal::new(TestBackend::new(4, 4)).unwrap();
+    terminal
+        .draw(|frame| {
+            frame.buffer_mut().set_string(0, 1, "XXXX", Style::new());
+        })
+        .unwrap();
+    terminal
+        .draw(|frame| {
+            render_live(
+                frame,
+                Rect::new(0, 0, 4, 4),
+                &source,
+                crop,
+                false,
+                &Theme::one_light(),
+            )
+        })
+        .unwrap();
+    let content = crop.content(Rect::new(0, 0, 4, 4));
+    assert_eq!(terminal.backend().buffer()[(0, content.y)].symbol(), " ");
+    assert_eq!(
+        terminal.backend().buffer()[(1, content.y)].symbol(),
+        "e\u{301}"
+    );
+}
+
+#[test]
 fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
     let mut live = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
         "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"

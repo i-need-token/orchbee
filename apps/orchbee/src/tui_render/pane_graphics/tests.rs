@@ -16,6 +16,60 @@ fn layer(z_index: i32, placement: PaneGraphicsPlacement) -> PaneGraphicsLayer {
 const RED_BLUE: &[u8] = &[255, 0, 0, 255, 0, 0, 255, 255];
 
 #[test]
+fn cropped_raster_uses_the_same_source_offsets_and_keeps_the_indicator_clear() {
+    let mut buffer = Buffer::empty(Rect::new(0, 0, 5, 5));
+    let area = Rect::new(0, 1, 4, 3);
+    let metadata = layer(
+        0,
+        PaneGraphicsPlacement {
+            viewport_column: 12,
+            viewport_row: 22,
+            grid_columns: 1,
+            grid_rows: 1,
+        },
+    );
+    paint_layers_at(
+        &mut buffer,
+        RasterView {
+            area,
+            source_size: (104, 36),
+            origin: (10, 20),
+        },
+        &metadata,
+        RED_BLUE,
+        None,
+        &mut [false; 12],
+    );
+    assert_eq!(buffer[(2, 3)].symbol(), "▀");
+    assert_eq!(buffer[(2, 3)].fg, Color::Rgb(255, 0, 0));
+    assert_eq!(buffer[(2, 3)].bg, Color::Rgb(0, 0, 255));
+    assert_eq!(buffer[(2, 0)].symbol(), " ");
+    assert_eq!(buffer[(2, 4)].symbol(), " ");
+}
+
+#[test]
+fn graphics_preserve_a_regional_indicator_and_its_captured_tail() {
+    use std::num::NonZeroU16;
+    let area = Rect::new(0, 0, 2, 1);
+    let mut buffer = Buffer::empty(area);
+    buffer[(0, 0)]
+        .set_symbol("\u{1f1e8}")
+        .set_diff_option(CellDiffOption::ForcedWidth(NonZeroU16::new(2).unwrap()));
+    buffer[(1, 0)].set_diff_option(CellDiffOption::Skip);
+    let metadata = layer(
+        1,
+        PaneGraphicsPlacement {
+            grid_columns: 2,
+            grid_rows: 1,
+            ..Default::default()
+        },
+    );
+    paint(&mut buffer, area, &metadata, RED_BLUE);
+    assert_eq!(buffer[(0, 0)].symbol(), "\u{1f1e8}");
+    assert_eq!(buffer[(1, 0)].symbol(), " ");
+}
+
+#[test]
 fn negative_images_composite_in_z_order_without_stealing_a_terminal_half_block() {
     let area = Rect::new(0, 0, 2, 1);
     let mut buffer = Buffer::empty(area);

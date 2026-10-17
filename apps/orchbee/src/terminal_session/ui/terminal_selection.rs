@@ -184,6 +184,30 @@ impl NativeUi {
         {
             return PointerSelectionAdmission::Rejected;
         }
+        let intent = if let Some(crop) = self.view().pane_live_view(key.pane().panel()) {
+            let map = |mut cell: crate::terminal_input::PointerSelectionCell| {
+                cell.column = cell.column.saturating_add(crop.column);
+                cell.row = cell.row.saturating_add(crop.row);
+                cell
+            };
+            match intent {
+                PointerSelectionIntent::Start { click_count, cell } => {
+                    PointerSelectionIntent::Start {
+                        click_count,
+                        cell: map(cell),
+                    }
+                }
+                PointerSelectionIntent::Update { cell } => {
+                    PointerSelectionIntent::Update { cell: map(cell) }
+                }
+                PointerSelectionIntent::End { cell } => {
+                    PointerSelectionIntent::End { cell: map(cell) }
+                }
+                PointerSelectionIntent::Cancel => PointerSelectionIntent::Cancel,
+            }
+        } else {
+            intent
+        };
         let attachment = *self.projections[index].value.attachment();
         let driver = self.projections[index]
             .selection

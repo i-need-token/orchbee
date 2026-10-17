@@ -385,7 +385,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             );
             secondary_notice = native
                 .notice()
-                .map(|notice| locale.native_notice(notice))
+                .map(|notice| locale.native_notice_with_context(notice, native))
                 .or_else(|| {
                     native
                         .completion_reminder()
@@ -1413,6 +1413,11 @@ fn render_native_workbench(
     }
     let bound_text = locale.shell().bind(client_view);
     let text = bound_text.text();
+    let history_key = client_view
+        .bindings()
+        .action_labels(crate::client_view::PrefixAction::HelpPagePrevious)
+        .into_iter()
+        .next();
     let pane_focused = !native.capture_claims().exclusive_any();
     #[cfg(windows)]
     let pane_focused = pane_focused
@@ -1549,6 +1554,7 @@ fn render_native_workbench(
                 text,
                 phase_status,
                 locale,
+                history_key.as_deref(),
                 native,
                 theme,
                 hits,
@@ -1567,7 +1573,9 @@ fn render_native_workbench(
                     .pane_ref_for_panel(panel.panel_id())
                     .map(|pane| HitTarget::Pane {
                         pane,
-                        content: leaf.content,
+                        content: native
+                            .pane_live_view(panel.panel_id())
+                            .map_or(leaf.content, |crop| crop.content(leaf.content)),
                     })
                     .or_else(|| {
                         native
@@ -1592,7 +1600,10 @@ fn render_native_workbench(
                 );
                 #[cfg(windows)]
                 if let Some(source) = link_source {
-                    hits.record_link_source(leaf.content, source);
+                    let content = native
+                        .pane_live_view(panel.panel_id())
+                        .map_or(leaf.content, |crop| crop.content(leaf.content));
+                    hits.record_link_source(content, source);
                 }
             }
         }
@@ -1688,6 +1699,16 @@ fn render_native_workbench(
             let tail = native
                 .focus_panel_id()
                 .and_then(|panel| native.pane_tail_window(panel));
+            let crop = crate::terminal_live_view::LiveView::new(
+                terminal,
+                content_area.width,
+                content_area.height,
+            );
+            let painted = if tail.is_some() {
+                content_area
+            } else {
+                crop.content(content_area)
+            };
             if let Some((window, rows_before)) = tail {
                 terminal_cells::render_tail(
                     frame,
@@ -1699,14 +1720,25 @@ fn render_native_workbench(
                     theme,
                 );
             } else {
-                terminal_cells::render(frame, content_area, terminal, show_cursor, theme);
+                viewport::render_live(
+                    frame,
+                    content_area,
+                    terminal,
+                    crop,
+                    show_cursor,
+                    history_key.as_deref(),
+                    locale,
+                    theme,
+                );
             }
-            selection::paint(
+            selection::paint_cropped(
                 frame,
-                content_area,
-                tail.map_or(terminal.scrollback_rows, |(window, _)| {
-                    window.route.start_row
-                }),
+                painted,
+                tail.map_or(
+                    terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
+                    |(window, _)| window.route.start_row,
+                ),
+                if tail.is_some() { 0 } else { crop.column },
                 native
                     .focus_panel_id()
                     .and_then(|panel| native.pane_selection(panel)),
@@ -1728,7 +1760,7 @@ fn render_native_workbench(
                     content_area,
                     HitTarget::Pane {
                         pane,
-                        content: content_area,
+                        content: painted,
                     },
                 );
                 #[cfg(windows)]
@@ -1736,7 +1768,7 @@ fn render_native_workbench(
                     .focus_panel_id()
                     .and_then(|panel| native.painted_link_source(panel))
                 {
-                    hits.record_link_source(content_area, source);
+                    hits.record_link_source(painted, source);
                 }
             }
         } else if let Some(retained) = native.focus_panel_id().and_then(|panel| {
@@ -1838,11 +1870,34 @@ fn render_panel_graphics(
     {
         return;
     }
-    let physical = native.physical_graphics(panel, area);
+    let crop = native
+        .pane_live_view(panel.panel_id())
+        .filter(|crop| crop.clipped);
+    // Host graphics placements have no local camera transform. The raster
+    // fallback can share the exact text crop without covering its indicator.
+    let physical = crop
+        .is_none()
+        .then(|| native.physical_graphics(panel, area))
+        .flatten();
     if physical.is_none()
         && let Some(canvas) = native.panel_graphics(panel)
     {
-        pane_graphics::render(frame, area, canvas, native.graphics_cell_pixels().as_ref());
+        if let Some(crop) = crop
+            && let Some(source) = native
+                .pane_projection(panel.panel_id())
+                .and_then(|projection| projection.frame())
+        {
+            pane_graphics::render_cropped(
+                frame,
+                area,
+                canvas,
+                native.graphics_cell_pixels().as_ref(),
+                crop,
+                (source.geometry.columns, source.geometry.rows),
+            );
+        } else {
+            pane_graphics::render(frame, area, canvas, native.graphics_cell_pixels().as_ref());
+        }
     }
     if let Some(draw) = native.graphics_draw(panel) {
         draws.push(match physical {
@@ -2069,6 +2124,7 @@ fn render_leaf(
     text: ShellText,
     phase_status: &str,
     locale: Locale,
+    history_key: Option<&str>,
     native: &NativeSessionView<'_>,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -2200,6 +2256,13 @@ fn render_leaf(
         #[cfg(windows)]
         let show_cursor = show_cursor && native.copy_mode().is_none();
         let tail = panel.and_then(|panel| native.pane_tail_window(panel.panel_id()));
+        let crop =
+            crate::terminal_live_view::LiveView::new(terminal, content.width, content.height);
+        let painted = if tail.is_some() {
+            content
+        } else {
+            crop.content(content)
+        };
         if let Some((window, rows_before)) = tail {
             terminal_cells::render_tail(
                 frame,
@@ -2211,14 +2274,25 @@ fn render_leaf(
                 theme,
             );
         } else {
-            terminal_cells::render(frame, content, terminal, show_cursor, theme);
+            viewport::render_live(
+                frame,
+                content,
+                terminal,
+                crop,
+                show_cursor,
+                history_key,
+                locale,
+                theme,
+            );
         }
-        selection::paint(
+        selection::paint_cropped(
             frame,
-            content,
-            tail.map_or(terminal.scrollback_rows, |(window, _)| {
-                window.route.start_row
-            }),
+            painted,
+            tail.map_or(
+                terminal.scrollback_rows.saturating_add(u64::from(crop.row)),
+                |(window, _)| window.route.start_row,
+            ),
+            if tail.is_some() { 0 } else { crop.column },
             panel.and_then(|panel| native.pane_selection(panel.panel_id())),
             theme.style(Role::SurfaceSelection),
         );

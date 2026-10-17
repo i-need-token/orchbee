@@ -68,6 +68,8 @@ pub(crate) enum MenuAction {
     Takeover,
     ClosePane,
     NewTab,
+    /// A frozen saved choice; never changes the shared default profile.
+    NewTabWithProfile(Box<orchbee_workbench_protocol::UserLaunchProfile>),
     TabCreation,
     NewTabToRight,
     NewTabInGroup,
@@ -190,6 +192,7 @@ impl MenuAction {
             | Self::ClearTabSelection
             | Self::PinTab
             | Self::NewTabInGroup
+            | Self::NewTabWithProfile(_)
             | Self::NewTabInRecentGroup
             | Self::TabCreation
             | Self::NewTabToRight

@@ -743,6 +743,9 @@ fn action_label(
         || locale.menu_action(action).to_owned(),
         |scope| locale.menu_tab_action(action, scope),
     );
+    if let MenuAction::NewTabWithProfile(profile) = action {
+        return format!("{text} {separator} {}", locale.launch_profile_name(profile));
+    }
     let text = if let Some(label) = label {
         if choice {
             sanitize_terminal_text(label).into_owned()

@@ -2,12 +2,12 @@
 
 ## 范围与归属
 
-本参考规范原生 Client 的保留历史视口：以 `Ctrl+B PageUp`、primary 屏幕向上滚轮或滚动条进入的按窗格滚动回看模式、其
+本参考规范原生 Client 对实时网格的本地展示与保留历史视口：以 `Ctrl+B PageUp`、primary 屏幕向上滚轮或滚动条进入的按窗格滚动回看模式、其
 demand 双腿、行窗口 read/acknowledge 握手、导航意图、恢复，以及呈现面如何生成与围栏。
 与 `terminal_session/terminal_viewport.rs`、`terminal_session/mailbox.rs`、
 `terminal_session/connection/native.rs`、`terminal_session/ui.rs`、`terminal_input/dispatcher.rs`、
 `client_view.rs`、`client_view/bindings.rs`、`tui_pointer.rs`、`tui_render.rs` 及其
-`tui_render/viewport.rs` 画笔、`localization.rs`、`formal/tla/TerminalViewportCoordination.tla` 共同维护。
+`tui_render/viewport.rs` 画笔、`terminal_live_view.rs`、`tui_backend.rs`、`localization.rs`、`formal/tla/TerminalViewportCoordination.tla` 共同维护。
 协议契约归 `crates/terminal-protocol`（`row_window.rs`、`history.rs`、`row_access.rs`）
 与 `crates/client-server-protocol/src/viewer.rs`（`TerminalViewerAction` 面）所有；
 本文档消费该契约，绝不扩展它。
@@ -27,10 +27,30 @@ Windows 快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定
 捕获输入的 [Workbench 导航器](native-context-selection.zh-CN.md#windows-捕获输入的导航器)
 拥有输入期间，将这些键用于本地行翻页。
 
+## 较小的实时观察窗口
+
+原生 Client 的 `terminal_live_view::LiveView` 将物理网格投影到较小的本地窗格，不改变控制端、
+终端尺寸、进程或投影 demand。可见光标在行、列两个方向均保持可见；隐藏光标时跟随物理底部。
+清屏把光标移到顶部后，会显示新输出，而不是空白的底部后缀。这是原生单元格网格的适配；
+GUI 终端绘制仍由已有终端呈现器负责。
+
+裁切窗格在单元格上方显示本地化实时裁切标记，空间足够时展示有效历史入口绑定，窄窗口展示
+完整的向上滚动指引。本地最后一行保留给 shell 状态覆盖层，避免只读／控制反馈遮住当前提示符。
+这些本地查看行不会调整物理终端尺寸。选择与链接检查使用相同的可见来源行列偏移；跨过任一
+水平边界的宽字形绘为空白。栅格图形使用相同偏移和原始放置比例；裁切窗格使用该回退，
+不显示未经坐标变换的宿主图形。尺寸匹配的窗格保留完整的普通实时内容区。
+
+主屏幕向上滚轮或历史绑定进入已有手动历史核心；即使没有更早的 scrollback，被裁切的当前屏幕
+也可进入回看。新输出继续到达时，历史保持已提交的阅读锚点；Esc 显式返回跟随光标的实时内容。
+本地裁切不会创建新的共享视口，也不声称备用屏幕可进入历史。
+`terminal_live_view/tests`、`tui_render/terminal_cells/tests`、`terminal_content/source/tests`
+与 `ui/tests/viewport/chrome` 覆盖裁切边界、清屏／缩放、来源坐标，以及只读组合 chrome 下的提示符。
+宿主字体的验收仍依赖真实窗口证据。
+
 ## 自动 Agent 尾部展示
 
 通用裁剪偏好可借用同一核心显示保留实时输入的尾部窗口。
-准入要求精确当前 Agent 观察、无应用鼠标追踪的主屏幕、可用保留行及可证明为空的尾部。
+准入要求精确当前 Agent 观察、无应用鼠标追踪的主屏幕、未裁切的本地实时网格、可用保留行及可证明为空的尾部。
 提示标记、光标行、带样式的背景／下划线及图形阻止裁剪。
 返回窗口必须匹配实时 attachment、epoch、generation、revision、几何与预期起始行，才可绘制。
 过期、待处理或失败读取保持精确实时网格；未变的失败目标不重试。
@@ -49,7 +69,7 @@ Windows 快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定
 ## 状态机
 
 每个窗格拥有独立的 viewport 核心（`TerminalViewport`，每 `PaneRef` 一个；隐藏或后台
-窗格不受焦点窗格模式影响）。无 viewport 状态表示精确实时网格；自动尾部也可持有核心并保留实时输入；核心存在时其 `mode` 为：
+窗格不受焦点窗格模式影响）。无 viewport 状态表示必要时经过本地裁切的实时网格；自动尾部也可持有核心并保留实时输入；核心存在时其 `mode` 为：
 
 | 模式         | 含义                                                                  |
 | ------------ | --------------------------------------------------------------------- |
@@ -64,14 +84,14 @@ Windows 快捷键 Help 分别描述实际配置后的 PageUp 与 PageDown 绑定
 
 `Ctrl+B PageUp` 请求焦点窗格进入历史。除非该窗格最近一帧 live 帧满足以下全部条件，
 请求一律拒绝——显示诚实的本地化 `HistoryUnavailable` 提示，且线上发出零条 `Enter`
-命令：已知帧存在、`scrollback_rows > 0`、窗格不在备用屏幕、且帧至少携带一条可读行。
+命令：已知帧存在、有保留行或本地实时网格被裁切、窗格不在备用屏幕、且帧至少携带一条可读行。
 屏幕自身行绝不与保留历史混为一谈：历史窗口的 `total_rows` 只来自它服务过的 route。
 Live 滚动条观察已验证帧的 `scrollback_rows + geometry.rows`，并检查加法溢出；
 绝不以该和替代未知历史窗口的总量。
 
 焦点窗格未启用 tracking 的 primary 屏幕内容区内，非 Shift 滚轮从尾部向前回看三行，
-键盘入口仍回看一页。NativeUi 在受理 Enter 前复核精确焦点、当前帧与保留行。Live 状态
-向下滚动、历史缺失/为空、帧缺失或备用屏幕均无效果，不显示不可用提示。后续 notch
+键盘入口仍回看一页。NativeUi 在受理 Enter 前复核精确焦点、当前帧及保留行或被裁切的当前网格。Live 状态
+向下滚动、没有保留行且网格未裁切、帧缺失或备用屏幕均无效果，不显示不可用提示。后续 notch
 沿用核心的带符号三行导航，包括进入尚未完成时的意图合并及到达实时尾部时的恢复。
 入口拒绝保留 Live，不重放输入。
 
@@ -196,7 +216,13 @@ help 打开时 `PageUp` 仍归 help。
 ## 呈现
 
 已验证的 render 窗口与实时输出共用样式单元格画笔，受窗格内容几何约束。颜色使用窗口
-捕获的默认值，不取 TUI 主题或更新的实时帧。样式属性和宽字符／占位格沿用实时绘制行为；
+捕获的默认值，不取 TUI 主题或更新的实时帧。捕获网格拥有每格一列或两列的占位，包含被 Unicode
+宽度表计为不同宽度的区域指示符。画笔保留完整的安全单元格字符串，将捕获占位传给 Ratatui diff。
+输出后端在 supplementary scalar 与多 scalar 符号之后，显式定位下一次写入，不假定宿主按宽度表
+移动。宽字符替换为空白时清除完整捕获占位；普通 ASCII 仍连续输出。
+`tui_render/terminal_cells/tests` 与 `tui_backend/tests` 保护这些边界；物理字形可读性及缩放／接管／
+清屏验收仍需要匹配的真实宿主证据，不能推广为所有 emoji 均已验收。
+样式属性和宽字符／占位格沿用实时绘制行为；
 控制字符经过净化，被裁切的宽字符绘为空白。历史不显示光标。图形资源在解码时完整验证，
 但暂不显示，不能据此关闭图形历史义务。旧 generation 或旧
 列数的数据绝不绘制：surface 访问器每次绘制都以当前事实复核已安装窗口的 generation 与

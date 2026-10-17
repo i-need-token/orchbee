@@ -1,8 +1,8 @@
 //! One command exchange owner; Client heartbeats and popup delivery remain independent.
 use super::{
-    AsLocalIo, ClientViewAction, ClientViewControl, ClientViewIntent, CommandCompletion, Duration,
-    JoinHandle, LocalClientOrigin, LocalOperationClock, LocalStream, ProtocolVersion, Shared,
-    SiteId, WorkbenchRequestId, io, random_request_id, thread,
+    AsLocalIo, ClientViewAction, ClientViewControl, ClientViewIntent, CommandCompletion,
+    CommandFailure, Duration, JoinHandle, LocalClientOrigin, LocalOperationClock, LocalStream,
+    ProtocolVersion, Shared, SiteId, WorkbenchRequestId, io, random_request_id, thread,
 };
 
 pub(super) struct Invocation {
@@ -22,6 +22,7 @@ impl Invocation {
         let task = thread::Builder::new()
             .name("orchbee-configured-command".into())
             .spawn(move || {
+                let command_id = invocation.command_id.clone();
                 let result = origin.reconnect_before_cancellable(
                     clock.now() + Duration::from_secs(2),
                     clock.clone(),
@@ -37,7 +38,8 @@ impl Invocation {
                         invocation,
                     ),
                     Err(_) => CommandCompletion {
-                        reply: Err(false),
+                        command_id,
+                        reply: Err(CommandFailure::NotSubmitted),
                         focus: None,
                     },
                 };
@@ -73,6 +75,7 @@ fn exchange(
     registered: &orchbee_workbench_protocol::ClientViewRecord,
     invocation: orchbee_workbench_protocol::ConfiguredCommandInvocation,
 ) -> CommandCompletion {
+    let command_id = invocation.command_id.clone();
     let mut bytes = [0u8; 16];
     let reply = if getrandom::fill(&mut bytes).is_ok() {
         if let Ok(id) = WorkbenchRequestId::parse(&format!("{:032x}", u128::from_be_bytes(bytes))) {
@@ -89,12 +92,18 @@ fn exchange(
                     clock.now() + Duration::from_secs(10),
                     Some(wake.as_local_io()),
                 )
-                .map_err(|error| error.submitted)
+                .map_err(|error| {
+                    if error.submitted {
+                        CommandFailure::OutcomeUnknown
+                    } else {
+                        CommandFailure::NotSubmitted
+                    }
+                })
         } else {
-            Err(false)
+            Err(CommandFailure::NotSubmitted)
         }
     } else {
-        Err(false)
+        Err(CommandFailure::NotSubmitted)
     };
     let focus = reply.as_ref().ok().and_then(|reply| {
                 if let orchbee_workbench_protocol::ConfiguredCommandOutcome::Pane { result, .. } = &reply.outcome
@@ -111,5 +120,9 @@ fn exchange(
                     }, clock.now() + Duration::from_secs(2), Some(wake.as_local_io())).map_err(|error| !matches!(error, crate::local_client::workbench::client_view::ClientViewExchangeError::Encoding | crate::local_client::workbench::client_view::ClientViewExchangeError::Unavailable))))
                 } else { None }
             });
-    CommandCompletion { reply, focus }
+    CommandCompletion {
+        command_id,
+        reply,
+        focus,
+    }
 }

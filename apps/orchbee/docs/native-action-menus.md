@@ -37,6 +37,17 @@ while selection and movement use a separate submenu.
 Painted group headers and the new-Tab button open distinct menus through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 The global menu also exposes the new-Tab submenu for keyboard users.
+The new-Tab submenu retains quick default creation and also lists the confirmed device launch
+profiles, including System default. Each saved choice names its profile and creates one Tab with
+that profile's literal executable and arguments; it never changes the shared default. System shell
+uses the native system-shell resolver, independently of the configured default profile. The chosen
+name appears in the creation notice. Removed, changed, invalid or unsupported choices refuse with
+a Settings recovery notice, without falling back or creating a replacement. Profile choices in an
+empty compatibility slot require selecting or creating a Workspace first. Esc and the existing
+parent-return, scrolling, narrow-layout and draw-authority rules apply unchanged. The local adapter
+matches Desktop's saved-profile semantics; command catalog IDs and CLI `--profile` retain their
+separate existing catalog authority. Profile resolution, immutable-default and menu/render witnesses
+live in `src/terminal_session/ui/launch_profiles/tests.rs` and the adjacent menu suites.
 Sidebar Workspace/Project Delete and Tab Close/Resume intents declare `ActionTone::Destructive`;
 the shared metadata and action/row controls resolve that label through `accent-destructive`.
 The Tab Close confirmation uses the same intent tone. Cancel, metadata edits, Ungroup and color

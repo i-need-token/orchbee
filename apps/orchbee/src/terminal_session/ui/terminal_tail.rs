@@ -43,6 +43,17 @@ impl NativeSessionView<'_> {
             .filter_map(|index| tab.panel(index))
             .find(|panel| panel.panel_id() == panel_id)?;
         let projection = self.pane_projection(panel_id)?;
+        let frame = projection.frame()?;
+        let geometry = self
+            .state
+            .as_ref()?
+            .pane_by_panel(panel_id)?
+            .observed_geometry();
+        if crate::terminal_live_view::LiveView::new(frame, geometry.columns(), geometry.rows())
+            .clipped
+        {
+            return None;
+        }
         if !self.attention?.agent_in_terminal(
             self.selected_presentation(panel).presentation_id().as_str(),
             &projection.epoch().to_text(),
@@ -50,7 +61,7 @@ impl NativeSessionView<'_> {
         ) {
             return None;
         }
-        Target::capture(projection.frame()?)
+        Target::capture(frame)
     }
 }
 

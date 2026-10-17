@@ -290,6 +290,11 @@ pub(super) struct PaneRecord {
 }
 
 impl PaneRecord {
+    /// The local pane dimensions, including read-only observations that never resize the Host.
+    pub(super) const fn observed_geometry(&self) -> Geometry {
+        self.observed_geometry
+    }
+
     pub(super) const fn binding(&self) -> &NativeTerminalBinding {
         &self.binding
     }

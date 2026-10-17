@@ -2062,6 +2062,7 @@ fn dispatcher_link_source(
             generation: std::num::NonZeroU64::MIN,
             revision: 1,
             columns: 10,
+            start_column: 0,
             total_rows: 3,
             start_row: 0,
             row_count: 3,

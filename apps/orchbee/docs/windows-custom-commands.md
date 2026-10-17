@@ -16,6 +16,18 @@ Worker waits up to five seconds for physical shell-start confirmation, within th
 
 The TUI command exchange has a separate cancellable connection and joined thread, so waiting for a command cannot pause Client heartbeats or popup delivery. Only one command may be queued or awaiting its receipt. Empty Workspaces may invoke global shell/plugin actions; Pane/popup actions still require the exact bound source. Shortcut discovery sanitizes display text while preserving the literal command in configuration. Nested receipts must describe the declared action and match its request, Session and popup selector; an unrelated valid protocol result is refused.
 
+A shortcut queues its opaque installed command ID and exact Ready source observation, then publishes
+that observation through the normal Client heartbeat lane before binding the invocation to the
+acknowledged Client/view revision. An older in-flight Busy observation from the armed prefix cannot
+reject or authorize that invocation. A newer or different source refuses without retargeting. This
+same path applies to initial and reloaded bindings and needs no prior CLI catalog or invocation.
+Server-side command, source and permission checks remain unchanged. Refusal feedback includes the
+command ID and distinguishes busy, stale source, changed command/configuration, permission,
+unavailability and unknown effects, with the corresponding wait, return-live, reload, reconnect or
+inspect-before-retry guidance. Controlled lane witnesses live in
+`src/terminal_session/client_control/lane/tests/configured_invocation.rs`; popup input, close and
+return behavior remains with the existing independent-popup owner.
+
 ## Reference and evidence
 
 The reference is Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `app/custom_commands.rs` and `api/schema/commands.rs`: four configured actions, endpoint-issued IDs, optional target focus and revision-bound plugin selection. Native configuration profiles supply the command identity boundary; existing runtime owners supply process and physical terminal authority. Parser/profile checks establish the shared configuration foundation only. Completion additionally requires real catalog/invoke/keybinding consumers for every action, correlated refusal/unknown and lifecycle evidence, and final Windows workflow acceptance. No Desktop or other-platform command implementation is added by this model.

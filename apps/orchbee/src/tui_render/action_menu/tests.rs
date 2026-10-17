@@ -1,13 +1,107 @@
 use super::*;
 use crate::{
     action_menu::{ActionMenu, MenuToken},
-    client_view::{ClientAction, ClientView, PrefixAction},
+    client_view::{ClientAction, ClientView, KeyEvent, PrefixAction},
     tui_pointer::{FrameHitMap, HitLayer, HitTarget},
 };
 use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Style, text::Span};
 
 mod tab_scope;
+
+#[test]
+fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel() {
+    use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile, UserLaunchProfiles};
+    let custom = UserLaunchProfile {
+        id: "literal".into(),
+        name: Some("PowerShell 中文\u{1b}[31m".into()),
+        command: UserLaunchCommand::CustomExecutable {
+            executable: r"C:\test.exe".into(),
+            arguments: vec!["a b".into()],
+        },
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        assert_eq!(
+            action_label(
+                locale,
+                &MenuAction::NewTabWithProfile(Box::new(custom.clone())),
+                None,
+                None,
+                "·",
+                ">"
+            ),
+            format!(
+                "{} · PowerShell 中文",
+                locale.menu_action(&MenuAction::NewTab)
+            )
+        );
+        for (width, height) in [(120, 40), (80, 24), (72, 18), (48, 10), (14, 4)] {
+            for theme in [Theme::terminal_native(), Theme::one_light()] {
+                let client = ClientView::new(width);
+                let mut menu = ActionMenu::default();
+                assert!(menu.open_for(
+                    crate::action_menu::MenuTarget::Create(None),
+                    String::new(),
+                    vec![
+                        MenuAction::NewTabWithProfile(Box::new(
+                            UserLaunchProfiles::default().profiles.remove(0)
+                        )),
+                        MenuAction::NewTabWithProfile(Box::new(custom.clone())),
+                    ],
+                    None
+                ));
+                let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+                let mut hits = HitMapBuilder::new();
+                let mut presentation = ModalPresentation::NotPresented;
+                terminal
+                    .draw(|frame| {
+                        presentation = render(
+                            frame,
+                            frame.area(),
+                            menu.view().unwrap(),
+                            client.bindings(),
+                            locale,
+                            &theme,
+                            &mut hits,
+                        );
+                    })
+                    .unwrap();
+                assert_eq!(
+                    matches!(presentation, ModalPresentation::Presented(_)),
+                    width >= 16
+                );
+                if let ModalPresentation::Presented(draw) = presentation {
+                    assert_eq!(draw.visible_rows, 2);
+                    assert!(menu.presented(draw));
+                    if width >= 80 {
+                        let text = terminal
+                            .backend()
+                            .buffer()
+                            .content
+                            .iter()
+                            .map(|cell| cell.symbol())
+                            .collect::<String>();
+                        let visible: String = text
+                            .chars()
+                            .filter(|character| !character.is_whitespace())
+                            .collect();
+                        let system: String = locale
+                            .launch_profile_name(&UserLaunchProfiles::default().profiles[0])
+                            .chars()
+                            .filter(|character| !character.is_whitespace())
+                            .collect();
+                        assert!(visible.contains(&system));
+                        assert!(text.contains("PowerShell"));
+                        assert!(!text.contains('\u{1b}'));
+                    }
+                }
+                menu.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+                assert!(!menu.active());
+                assert!(menu.confirmed().is_none());
+            }
+        }
+    }
+}
 
 #[test]
 fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discovery() {

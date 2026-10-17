@@ -2,13 +2,13 @@
 
 ## Scope and ownership
 
-This reference governs the native Client's retained-history viewport: the per-pane scrollback
+This reference governs the native Client's local live-grid view and retained-history viewport: the per-pane scrollback
 reading mode entered with `Ctrl+B PageUp`, primary-screen wheel-up or the scrollbar, its demand legs, the row-window read/acknowledge
 handshake, navigation intent, recovery, and how the painted surface is produced and fenced.
 Maintain it with `terminal_session/terminal_viewport.rs`, `terminal_session/mailbox.rs`,
 `terminal_session/connection/native.rs`, `terminal_session/ui.rs`, `terminal_input/dispatcher.rs`,
 `client_view.rs`, `client_view/bindings.rs`, `tui_pointer.rs`, `tui_render.rs` and its
-`tui_render/viewport.rs` painter, `localization.rs`, and `formal/tla/TerminalViewportCoordination.tla`.
+`tui_render/viewport.rs` painter, `terminal_live_view.rs`, `tui_backend.rs`, `localization.rs`, and `formal/tla/TerminalViewportCoordination.tla`.
 The protocol contract is owned by `crates/terminal-protocol` (`row_window.rs`, `history.rs`,
 `row_access.rs`) and by `crates/client-server-protocol/src/viewer.rs` for the
 `TerminalViewerAction` surface; this document consumes that contract and never extends it.
@@ -30,11 +30,37 @@ copy/export, and ordinary Help's nonmodal input behavior remain unchanged. The c
 [Workbench navigator](native-context-selection.md#windows-capturing-navigator) consumes these
 keys for local row paging while it owns input.
 
+## Smaller live viewers
+
+The native Client's `terminal_live_view::LiveView` projects a physical grid into a smaller local
+pane without changing the controller, terminal size, process or projection demand. It follows the
+visible cursor on both axes; a hidden cursor follows the physical bottom. A clear that moves the
+cursor to the top therefore reveals the new output rather than an empty bottom suffix. This is a
+native cell-grid adaptation; GUI terminal rendering remains with its existing terminal presenter.
+
+A clipped pane keeps a localized live-crop indicator above its cells, with the effective history
+entry binding when it fits and a complete scroll-up instruction at narrow widths. The last local
+row remains available to the shell's status overlay, so read-only/control feedback cannot cover
+the current prompt. These local viewing rows never resize the physical terminal. Selection and
+link inspection use the same visible source row and column offsets; a wide glyph crossing either
+horizontal edge paints blank. Raster graphics use the same offsets and original placement scale;
+cropped panes use that fallback instead of untransformed host graphics. Exact-size panes retain
+their complete ordinary live content area.
+
+Primary-screen wheel-up or the history binding enters the existing manual-history core; a clipped
+current screen is eligible even without older scrollback. History holds its committed reading
+anchor while output continues, and Esc explicitly returns to cursor-following live content. The
+local crop does not create a new shared viewport or claim that clipped alternate-screen history
+is available. `terminal_live_view/tests`, `tui_render/terminal_cells/tests`,
+`terminal_content/source/tests` and `ui/tests/viewport/chrome` cover crop bounds, clear/resize,
+source coordinates and the prompt beneath composed read-only chrome. Host font acceptance remains
+real-window evidence.
+
 ## Automatic Agent tail presentation
 
 The common trim preference may borrow this same core for a live-input tail window.
 Eligibility requires an exact current Agent observation, a primary screen without application mouse
-tracking, available retained rows, and a proved empty suffix. Prompt markers, cursor rows,
+tracking, an unclipped local live grid, available retained rows, and a proved empty suffix. Prompt markers, cursor rows,
 styled backgrounds/underlines and graphics prevent trimming. A returned window must match the live
 attachment, epoch, generation, revision, geometry and expected row start before painting.
 Stale, pending or failed reads keep the exact live grid; unchanged failed targets do not retry.
@@ -56,7 +82,7 @@ text/colors before and after a replacement crop, both locales/themes, and stale-
 ## State machine
 
 Each pane owns an independent viewport core (`TerminalViewport`, one per `PaneRef`; hidden or
-background panes are unaffected by the focus pane's mode). Absent viewport state means the exact live grid; automatic tail can also hold a core while retaining live input;
+background panes are unaffected by the focus pane's mode). Absent viewport state means the live grid with local cropping when needed; automatic tail can also hold a core while retaining live input;
 while a core exists its `mode` is one of:
 
 | Mode         | Meaning                                                                                              |
@@ -72,7 +98,7 @@ parked by the worker's demand path (`settle_pane_viewer_lost`), not by the core.
 
 `Ctrl+B PageUp` asks the focus pane to enter history. The request is refused — with an honest
 localized `HistoryUnavailable` notice and zero `Enter` commands on the wire — unless the pane's
-last live frame satisfies all of: a known frame exists, `scrollback_rows > 0`, the pane is not on
+last live frame satisfies all of: a known frame exists, retained rows or a clipped local live grid exist, the pane is not on
 the alternate screen, and the frame carries at least one readable row. The screen's own rows are
 never conflated with retained history: a history window's `total_rows` comes only from its served
 route. A Live scrollbar observes the verified frame's `scrollback_rows + geometry.rows`, with
@@ -80,7 +106,7 @@ checked addition; it never substitutes that sum for an unknown history window.
 
 A non-Shift wheel over focused untracked primary-screen content enters three rows
 before the tail instead of the keyboard entry's one page. NativeUi rechecks exact focus, current
-frame and retained rows before admitting Enter. Downward wheel at Live, missing/empty history,
+frame and retained rows or a clipped current grid before admitting Enter. Downward wheel at Live, absent retained rows without a clipped grid,
 missing frame or alternate screen does nothing and emits no unavailable notice. Further wheel
 notches reuse the core's signed three-row navigation, including coalescing while entry is pending
 and recovery on reaching the live tail. Entry refusal leaves the pane Live without replay.
@@ -231,7 +257,15 @@ locally, and anywhere else over the pane it is consumed without dismissing the o
 
 A validated render window uses the same styled-cell painter as live output, bounded by the pane
 content geometry. Colors use the window's captured defaults, never the TUI theme or a newer live
-frame. Style attributes and wide/spacer cells retain live-painter behavior; controls are sanitized
+frame. The captured grid owns each cell's one- or two-column footprint, including regional
+indicators that a Unicode width table measures differently. The painter preserves the complete
+safe cell string and supplies that footprint to Ratatui's diff. The output backend explicitly
+positions the next write after supplementary scalars and multi-scalar symbols instead of
+assuming the host advanced by the table's width. Blank replacement of a wide cell clears its
+captured footprint; ordinary ASCII runs remain contiguous. `tui_render/terminal_cells/tests` and
+`tui_backend/tests` protect these boundaries; physical glyph readability and resize/takeover/clear
+acceptance still require matched real-host evidence, without generalizing to every emoji.
+Style attributes and wide/spacer cells retain live-painter behavior; controls are sanitized
 and a clipped wide cell paints blank. History never shows a cursor. Graphics resources are fully
 validated at decode but not displayed; this does not complete graphics history. Old-generation or old-column data never paints: the surface accessor re-validates the
 installed window's generation and columns against current facts on every draw. `Entering` keeps

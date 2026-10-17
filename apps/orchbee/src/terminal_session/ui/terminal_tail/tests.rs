@@ -211,6 +211,20 @@ fn in_place_text_and_color_updates_replace_a_cropped_frame_without_manual_refres
 }
 
 #[test]
+fn a_smaller_live_view_uses_cursor_follow_instead_of_automatic_history_trimming() {
+    let (mut ui, _, mailbox) = fixture();
+    ui.preferences.trim_trailing_blank_rows_for_agents = true;
+    let mut frame = ui.projections[0].value.frame().unwrap().clone();
+    frame.geometry.columns = 104;
+    frame.geometry.rows = 36;
+    ui.projections[0].value.install_frame_for_test(frame);
+    assert!(!ui.drive_terminal_tails(&mailbox));
+    assert!(ui.projections[0].viewport.is_none());
+    assert!(ui.projections[0].tail.is_none());
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn shared_tail_requires_a_live_agent_and_preserves_presented_rows() {
     let (mut ui, _, mailbox) = fixture();
     let frame = ui.projections[0].value.frame().unwrap();

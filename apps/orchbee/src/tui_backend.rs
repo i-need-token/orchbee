@@ -164,8 +164,16 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
             let symbol = sanitize_terminal_symbol(cell.symbol());
             write_ansi_command(&mut self.writer, &Print(symbol.as_ref()))?;
             self.cursor_position = Position { x, y };
-            advanced_to = Some(Position {
-                x: x.saturating_add(symbol.as_ref().cell_width()),
+            // ConPTY and Unicode width tables disagree on some supplementary
+            // scalars and clusters. Only continue a run after a single BMP
+            // scalar with an agreed width; otherwise position the next write
+            // explicitly, so a complex glyph cannot shift the rest of a row.
+            let mut scalars = symbol.chars();
+            let predictable = scalars.next().is_some_and(|value| value <= '\u{ffff}')
+                && scalars.next().is_none()
+                && symbol.as_ref().cell_width() == cell.cell_width();
+            advanced_to = predictable.then_some(Position {
+                x: x.saturating_add(cell.cell_width()),
                 y,
             });
         }

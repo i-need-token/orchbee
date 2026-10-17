@@ -80,6 +80,8 @@ mod terminal_link_activation;
 #[cfg(windows)]
 mod terminal_links;
 #[cfg(any(unix, windows))]
+mod terminal_live_view;
+#[cfg(any(unix, windows))]
 mod terminal_pointer_admission;
 #[cfg(any(unix, windows))]
 mod terminal_projection;

@@ -15,12 +15,16 @@ impl NativeUi {
         completion: crate::terminal_session::client_control::CommandCompletion,
     ) {
         use super::NativeSessionNotice as N;
+        use crate::terminal_session::client_control::CommandFailure as C;
         use orchbee_workbench_protocol::{
             ConfiguredCommandFailure as F, ConfiguredCommandOutcome as O,
             WorkbenchCommandOutcome as W, WorkbenchTerminalOutcome as T,
         };
+        self.notice_context = Some(super::NativeNoticeContext::ConfiguredCommand(
+            completion.command_id,
+        ));
         let notice = match completion.reply {
-            Err(true)
+            Err(C::OutcomeUnknown)
             | Ok(orchbee_workbench_protocol::ConfiguredCommandResult {
                 outcome:
                     O::Failed {
@@ -28,11 +32,12 @@ impl NativeUi {
                     },
                 ..
             }) => N::CommandUnknown,
-            Err(false)
-            | Ok(orchbee_workbench_protocol::ConfiguredCommandResult {
-                outcome: O::Failed { .. },
+            Err(C::NotSubmitted) => N::CommandRefused(F::Unavailable),
+            Err(C::Refused(reason)) => N::CommandRefused(reason),
+            Ok(orchbee_workbench_protocol::ConfiguredCommandResult {
+                outcome: O::Failed { reason },
                 ..
-            }) => N::CommandFailed,
+            }) => N::CommandRefused(reason),
             Ok(reply) => match reply.outcome {
                 O::Pane { result, .. } => match result.outcome {
                     W::PanelSplitCreated {

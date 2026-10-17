@@ -13,8 +13,8 @@ pub(super) use local_resize::LocalResizeFeedback;
 use local_resize::LocalResizePending;
 mod lane;
 use adjustment::SharedAdjustment;
-pub(super) use lane::CommandCompletion;
 use lane::{ClientControlLane, Sample};
+pub(super) use lane::{CommandCompletion, CommandFailure};
 
 #[derive(Default)]
 enum FocusModes {
@@ -223,16 +223,23 @@ pub(super) struct ClientControl {
     viewport: Option<(ratatui::layout::Rect, crate::client_view::SidebarSurface)>,
 }
 impl ClientControl {
-    pub(super) fn invoke_configured(&mut self, native: &NativeUi, id: String) -> bool {
+    pub(super) fn invoke_configured(
+        &mut self,
+        native: &NativeUi,
+        id: String,
+    ) -> Result<(), orchbee_workbench_protocol::ConfiguredCommandFailure> {
+        use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
         if self.pending.is_some() || self.local_resize.is_some() || self.stopped {
-            return false;
+            return Err(F::Busy);
         }
         let Some((source, view)) = native.configured_command_source() else {
-            return false;
+            return Err(F::StaleSource);
         };
+        let sample = self.sample(view, native).ok_or(F::Unavailable)?;
         self.lane
             .as_ref()
-            .is_some_and(|lane| lane.invoke_configured(id, source, &view))
+            .ok_or(F::Unavailable)?
+            .invoke_configured(id, source, sample)
     }
     pub(super) const fn new(origin: LocalClientOrigin, clock: LocalOperationClock) -> Self {
         Self {

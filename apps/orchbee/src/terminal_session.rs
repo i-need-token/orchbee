@@ -80,6 +80,8 @@ mod terminal_selection;
 mod terminal_tail;
 pub(crate) mod terminal_viewport;
 mod ui;
+#[cfg(windows)]
+pub(crate) use ui::NativeNoticeContext;
 pub(crate) use ui::settings::Notice as SettingsNotice;
 #[cfg(windows)]
 pub(crate) use ui::{WorkspaceCreationPhase, WorkspaceCreationPreview};
@@ -1650,15 +1652,16 @@ impl TerminalInputPort for TerminalSession {
         #[cfg(windows)]
         if let ClientAction::ConfiguredCommand(id) = &action {
             let native = self.backend.native_mut()?;
-            if !self
+            if let Err(reason) = self
                 .client_control
                 .as_mut()
-                .is_some_and(|control| control.invoke_configured(native, id.clone()))
+                .ok_or(orchbee_workbench_protocol::ConfiguredCommandFailure::Unavailable)
+                .and_then(|control| control.invoke_configured(native, id.clone()))
             {
-                native.configured_command_completed(client_control::CommandCompletion {
-                    reply: Err(false),
-                    focus: None,
-                });
+                native.configured_command_completed(client_control::CommandCompletion::refused(
+                    id.clone(),
+                    reason,
+                ));
             }
             return Some(SessionActionDisposition::KeepNavigator);
         }

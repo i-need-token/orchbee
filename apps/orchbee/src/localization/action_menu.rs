@@ -2,6 +2,21 @@ use super::Locale;
 use crate::action_menu::{MenuAction, MenuUnavailable};
 
 impl Locale {
+    /// Uses the same saved name or localized built-in label for every launch row.
+    pub(crate) fn launch_profile_name(
+        self,
+        profile: &orchbee_workbench_protocol::UserLaunchProfile,
+    ) -> String {
+        self.launch_profile_label(profile.name.as_deref())
+    }
+    /// Saved names are user data; the missing built-in name is localized here.
+    pub(crate) fn launch_profile_label(self, name: Option<&str>) -> String {
+        crate::terminal_text::sanitize_terminal_text(name.unwrap_or(match self {
+            Self::EnUs => "System default",
+            Self::ZhCn => "系统默认",
+        }))
+        .into_owned()
+    }
     pub(crate) const fn menu_back_button(self) -> &'static str {
         match self {
             Self::EnUs => "Back",
@@ -221,6 +236,8 @@ impl Locale {
             (Self::ZhCn, GroupColor(orchbee_workbench_protocol::TabGroupColor::Yellow)) => "黄色",
             (Self::EnUs, NewTab) => "New Tab",
             (Self::ZhCn, NewTab) => "新建标签页",
+            (Self::EnUs, NewTabWithProfile(_)) => "New Tab",
+            (Self::ZhCn, NewTabWithProfile(_)) => "新建标签页",
             (Self::EnUs, RenameTab) => "Rename this Tab…",
             (Self::ZhCn, RenameTab) => "重命名此标签页…",
             (Self::EnUs, QuickWorkspace) => "New Workspace",

@@ -16,6 +16,15 @@ Worker在carrier二十秒答复预算内，最多等待五秒确认shell物理�
 
 TUI命令交换使用独立可取消连接和负责join的线程，等待命令时不暂停Client心跳或popup交付。至多一个命令处于排队或等待回执状态。空Workspace可以调用全局shell／plugin动作；Pane／popup仍要求准确已绑定来源。快捷键发现净化展示文本，配置中保留字面命令。嵌套回执必须对应声明动作，并匹配请求、Session及popup选择器；即使其他协议结果本身有效，也拒绝与当前动作无关的结果。
 
+快捷键排入不透明的已安装命令 ID 与准确 Ready 来源观察，先通过常规 Client 心跳 lane 发布
+该观察，再把调用绑定到已确认的 Client／视图版本。前缀处于激活状态时较早发出的 Busy 观察
+不能拒绝或授权这次调用。更新或不同的来源会拒绝，不重新选择目标。启动和重载后的绑定都走
+相同路径，无需先经 CLI 列出目录或调用命令。Server 的命令、来源与权限检查保持不变。
+拒绝反馈包含命令 ID，并区分繁忙、来源过时、命令／配置变化、权限、不可用及副作用结果未知，
+分别提供等待、返回实时终端、重载、重连或检查后再重试的指引。受控 lane 见证位于
+`src/terminal_session/client_control/lane/tests/configured_invocation.rs`；popup 的输入、关闭与
+返回行为继续由既有独立 popup 所有者负责。
+
 ## 参考与证据
 
 参考为Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `app/custom_commands.rs` 与 `api/schema/commands.rs`：四类配置动作、endpoint发布ID、可选目标聚焦及带内容版本的plugin选区。原生配置profile提供命令身份边界，既有运行时所有者提供进程与物理终端权限。解析／profile检查仅证明共享配置基础；完成还需要每种动作的实际目录／调用／按键消费者、相关联的拒绝／unknown及生命周期证据，以及最终Windows流程验收。本模型不增加Desktop或其他平台命令实现。

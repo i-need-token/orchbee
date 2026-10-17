@@ -547,6 +547,7 @@ fn painted_link_source(
             generation: std::num::NonZeroU64::MIN,
             revision: 1,
             columns,
+            start_column: 0,
             total_rows: 100,
             start_row: 50,
             row_count: rows,

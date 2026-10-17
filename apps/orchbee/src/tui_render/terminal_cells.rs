@@ -1,12 +1,18 @@
+//! Paint captured cells with their owned grid widths; program text never emits terminal commands.
+use std::num::NonZeroU16;
+
 use orchbee_terminal_protocol::{TerminalTextFrame, TerminalTextRow, TerminalTextStyle};
 use ratatui::{
     Frame,
+    buffer::{CellDiffOption, CellWidth},
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::Span,
 };
+use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{terminal_text::is_forbidden_terminal_scalar, tui_theme::Theme};
+use crate::{
+    terminal_live_view::LiveView, terminal_text::is_forbidden_terminal_scalar, tui_theme::Theme,
+};
 
 pub(super) fn render(
     frame: &mut Frame<'_>,
@@ -34,27 +40,86 @@ pub(super) fn render_rows(
     rows: &[TerminalTextRow],
     theme: &Theme,
 ) {
+    render_rows_at(frame, area, rows, 0, 0, theme);
+}
+
+/// Paint one client-local live crop with cursor and source coordinates kept together.
+pub(super) fn render_live(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    terminal: &TerminalTextFrame,
+    view: LiveView,
+    show_cursor: bool,
+    theme: &Theme,
+) {
+    let theme = theme.with_host_terminal_colors(terminal.foreground, terminal.background);
+    let content = view.content(area);
+    render_rows_at(
+        frame,
+        content,
+        &terminal.rows,
+        view.column,
+        view.row,
+        &theme,
+    );
+    if show_cursor
+        && terminal.cursor.visible
+        && let (Some(column), Some(row)) = (
+            terminal.cursor.column.checked_sub(view.column),
+            terminal.cursor.row.checked_sub(view.row),
+        )
+        && column < content.width
+        && row < content.height
+    {
+        frame.set_cursor_position((content.x + column, content.y + row));
+    }
+}
+
+fn render_rows_at(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    rows: &[TerminalTextRow],
+    first_column: u16,
+    first_row: u16,
+    theme: &Theme,
+) {
     let (foreground, background) = theme.terminal_defaults();
     frame
         .buffer_mut()
         .set_style(area, Style::new().fg(foreground).bg(background));
     for row in rows {
-        if row.index >= area.height {
+        let Some(local_row) = row
+            .index
+            .checked_sub(first_row)
+            .filter(|row| *row < area.height)
+        else {
             continue;
-        }
-        for (column, cell) in row.cells.iter().enumerate().take(usize::from(area.width)) {
+        };
+        for (column, cell) in row
+            .cells
+            .iter()
+            .skip(usize::from(first_column))
+            .take(usize::from(area.width))
+            .enumerate()
+        {
             let Ok(column) = u16::try_from(column) else {
                 continue;
             };
             let Some(output) = frame
                 .buffer_mut()
-                .cell_mut((area.x + column, area.y + row.index))
+                .cell_mut((area.x + column, area.y + local_row))
             else {
                 continue;
             };
             output.set_style(style(cell.style, foreground, background));
             if cell.width == 2 {
-                output.set_diff_option(ratatui::buffer::CellDiffOption::Skip);
+                // A crop beginning on a wide tail must paint a blank, rather than
+                // leaving a skipped cell whose previous glyph could survive.
+                if column == 0 {
+                    output.set_symbol(" ");
+                } else {
+                    output.set_diff_option(CellDiffOption::Skip);
+                }
                 continue;
             }
             if cell.width == 3 || cell.text.is_empty() {
@@ -62,12 +127,20 @@ pub(super) fn render_rows(
                 continue;
             }
             let width = if cell.width == 1 { 2 } else { 1 };
+            let measured_width = cell.text.cell_width();
             let printable = !cell.text.chars().any(is_forbidden_terminal_scalar)
-                && Span::raw(cell.text.as_ref()).width() == width;
+                && (measured_width == width || cell.text.graphemes(true).count() == 1);
             if width == 2 && column.saturating_add(1) >= area.width {
                 output.set_symbol(" ");
             } else if printable {
                 output.set_symbol(&cell.text);
+                // The captured grid owns cell width. Re-measuring a regional
+                // indicator with unicode-width loses its two-cell Host footprint.
+                if measured_width != width {
+                    output.set_diff_option(CellDiffOption::ForcedWidth(
+                        NonZeroU16::new(width).expect("terminal widths are one or two"),
+                    ));
+                }
             } else {
                 output.set_symbol(if width == 2 { "� " } else { "�" });
             }

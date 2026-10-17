@@ -16,6 +16,7 @@ fn point_maps_live_rows_and_excludes_history_chrome() {
         generation: NonZeroU64::MIN,
         revision: 3,
         columns: 80,
+        start_column: 0,
         total_rows: 120,
         start_row: 96,
         row_count: 24,
@@ -23,6 +24,10 @@ fn point_maps_live_rows_and_excludes_history_chrome() {
     };
     assert_eq!(rows.point(7, 2), Some((7, 98)));
     assert_eq!(rows.point(80, 2), None);
+    rows.start_column = 12;
+    assert_eq!(rows.point(7, 2), Some((19, 98)));
+    assert_eq!(rows.point(68, 2), None);
+    rows.start_column = 0;
     rows.history = true;
     assert_eq!(rows.point(7, 0), None);
     assert_eq!(rows.point(7, 23), None);
@@ -92,6 +97,7 @@ fn complete_cross_attach_fence_includes_host_terminal_and_screen() {
             generation: frame.route.generation,
             revision: frame.route.revision,
             columns: frame.geometry.columns,
+            start_column: 0,
             total_rows: 120,
             start_row: 96,
             row_count: 24,

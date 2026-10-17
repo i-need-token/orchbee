@@ -77,6 +77,7 @@ pub(crate) struct PaintedRows {
     pub(crate) generation: NonZeroU64,
     pub(crate) revision: u64,
     pub(crate) columns: u16,
+    pub(crate) start_column: u16,
     pub(crate) total_rows: u64,
     pub(crate) start_row: u64,
     pub(crate) row_count: u16,
@@ -96,6 +97,7 @@ impl PaintedRows {
             generation: frame.route.generation,
             revision: frame.route.revision,
             columns: frame.geometry.columns,
+            start_column: 0,
             total_rows,
             start_row: frame.scrollback_rows,
             row_count: frame.geometry.rows,
@@ -105,6 +107,7 @@ impl PaintedRows {
 
     /// Map one painted local cell to its exact terminal column and absolute row.
     pub(crate) fn point(&self, column: u16, row: u16) -> Option<(u16, u64)> {
+        let column = column.checked_add(self.start_column)?;
         if column >= self.columns || row >= self.row_count {
             return None;
         }

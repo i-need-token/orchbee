@@ -174,6 +174,40 @@ fn cursor_run_tracks_emitted_wide_symbols_and_real_gaps() -> io::Result<()> {
     Ok(())
 }
 
+#[test]
+fn captured_width_and_complex_symbols_never_guess_the_next_host_cursor_position() -> io::Result<()>
+{
+    use ratatui::buffer::CellDiffOption;
+    use std::num::NonZeroU16;
+    let dimensions = WindowDimensions {
+        columns: 12,
+        rows: 2,
+        pixel_width: 0,
+        pixel_height: 0,
+    };
+    for symbol in [
+        "\u{1f1e8}",
+        "\u{1f1e8}\u{1f1f3}",
+        "\u{1f469}\u{200d}\u{1f4bb}",
+        "e\u{301}",
+    ] {
+        let mut glyph = Cell::default();
+        glyph
+            .set_symbol(symbol)
+            .set_diff_option(CellDiffOption::ForcedWidth(NonZeroU16::new(2).unwrap()));
+        let mut suffix = Cell::default();
+        suffix.set_symbol("|");
+        let mut backend = new_test_backend(Vec::new(), dimensions);
+        backend.draw([(0, 0, &glyph), (2, 0, &suffix)].into_iter())?;
+        let output = std::str::from_utf8(&backend.writer).unwrap();
+        assert!(
+            output.contains(&format!("{symbol}\x1b[1;3H|")),
+            "{output:?}"
+        );
+    }
+    Ok(())
+}
+
 fn attribute_bytes(attribute: Attribute) -> Vec<u8> {
     let mut bytes = Vec::new();
     write_ansi_command(&mut bytes, &SetAttribute(attribute)).unwrap();

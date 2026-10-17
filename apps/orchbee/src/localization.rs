@@ -1255,6 +1255,31 @@ impl Locale {
         }
     }
 
+    /// Adds only the matching operation's sanitized display context to a localized notice.
+    pub(crate) fn native_notice_with_context(
+        self,
+        notice: crate::terminal_session::NativeSessionNotice,
+        native: &crate::terminal_session::NativeSessionView<'_>,
+    ) -> String {
+        let message = self.native_notice(notice);
+        #[cfg(windows)]
+        if let Some(context) = native.notice_context() {
+            use crate::terminal_session::NativeNoticeContext;
+            return match context {
+                NativeNoticeContext::LaunchProfile(name) => {
+                    format!("{message} · {}", self.launch_profile_label(name.as_deref()))
+                }
+                NativeNoticeContext::ConfiguredCommand(id) => format!(
+                    "{} · {message}",
+                    crate::terminal_text::sanitize_terminal_text(id)
+                ),
+            };
+        }
+        #[cfg(not(windows))]
+        let _ = native;
+        message
+    }
+
     pub(crate) fn native_notice(
         self,
         notice: crate::terminal_session::NativeSessionNotice,
@@ -1342,13 +1367,48 @@ impl Locale {
             },
             #[cfg(windows)]
             NativeSessionNotice::CommandFailed => match self {
-                Self::EnUs => "Command or focus failed · check the command catalog".into(),
-                Self::ZhCn => "命令或聚焦失败 · 请检查命令目录".into(),
+                Self::EnUs => "Command or focus failed; inspect result".into(),
+                Self::ZhCn => "命令或聚焦失败；请检查结果".into(),
             },
             #[cfg(windows)]
             NativeSessionNotice::CommandUnknown => match self {
-                Self::EnUs => "Command outcome unknown · inspect before running again".into(),
-                Self::ZhCn => "命令结果不确定 · 请检查后再决定是否执行".into(),
+                Self::EnUs => "Outcome unknown; inspect before retry".into(),
+                Self::ZhCn => "结果不确定；请检查后再决定是否重试".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::CommandRefused(reason) => {
+                use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
+                match (self, reason) {
+                    (Self::EnUs, F::Denied) => "Denied by Session permissions",
+                    (Self::ZhCn, F::Denied) => "Session 权限拒绝；请检查权限",
+                    (Self::EnUs, F::InvalidIntent) => "Invalid request; reload configuration",
+                    (Self::ZhCn, F::InvalidIntent) => "请求无效；请重载配置",
+                    (Self::EnUs, F::SiteMismatch) => "Session changed; reconnect",
+                    (Self::ZhCn, F::SiteMismatch) => "Session 已变化；请重新连接",
+                    (Self::EnUs, F::Unavailable) => "Unavailable; check Session and retry",
+                    (Self::ZhCn, F::Unavailable) => "服务不可用；请检查 Session 后重试",
+                    (Self::EnUs, F::Busy) => "Busy; wait and retry",
+                    (Self::ZhCn, F::Busy) => "正在忙；请稍后重试",
+                    (Self::EnUs, F::Conflict) => "Configuration changed; reload",
+                    (Self::ZhCn, F::Conflict) => "配置已变化；请重载配置",
+                    (Self::EnUs, F::NotFound) => "Command changed; reload configuration",
+                    (Self::ZhCn, F::NotFound) => "命令已变化；请重载配置",
+                    (Self::EnUs, F::StaleSource) => "Source changed; return live and retry",
+                    (Self::ZhCn, F::StaleSource) => "来源已变化；请返回实时终端后重试",
+                    (Self::EnUs, F::PhysicalUnknown) => "Outcome unknown; inspect before retry",
+                    (Self::ZhCn, F::PhysicalUnknown) => "结果不确定；请检查后再决定是否重试",
+                }
+                .into()
+            }
+            #[cfg(windows)]
+            NativeSessionNotice::LaunchProfileSelected => match self {
+                Self::EnUs => "Launch profile".into(),
+                Self::ZhCn => "启动配置".into(),
+            },
+            #[cfg(windows)]
+            NativeSessionNotice::LaunchProfileUnavailable => match self {
+                Self::EnUs => "Terminal not created · check profile in Settings".into(),
+                Self::ZhCn => "终端未创建 · 请在设置中检查启动配置".into(),
             },
             #[cfg(windows)]
             NativeSessionNotice::LinkOpened => match self {
@@ -1517,6 +1577,30 @@ impl Locale {
         match self {
             Self::EnUs => "Esc back to live",
             Self::ZhCn => "Esc 返回实时",
+        }
+    }
+
+    /// Live viewing is clipped locally; the physical terminal keeps its controller's size.
+    pub(crate) const fn terminal_live_crop(self) -> &'static str {
+        match self {
+            Self::EnUs => "Live crop",
+            Self::ZhCn => "实时裁切",
+        }
+    }
+
+    /// Complete compact clipping and history-entry instruction for a narrow live viewer.
+    pub(crate) const fn terminal_live_crop_compact(self) -> &'static str {
+        match self {
+            Self::EnUs => "Crop: scroll up",
+            Self::ZhCn => "裁切：向上滚动",
+        }
+    }
+
+    /// Short action label paired with the effective history-entry binding.
+    pub(crate) const fn terminal_view_history(self) -> &'static str {
+        match self {
+            Self::EnUs => "History",
+            Self::ZhCn => "历史",
         }
     }
 

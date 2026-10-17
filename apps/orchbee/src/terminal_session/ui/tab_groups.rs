@@ -310,6 +310,9 @@ impl NativeUi {
         target: Option<&orchbee_workbench_protocol::WorkbenchTabId>,
     ) -> SessionActionDisposition {
         use orchbee_workbench_protocol::TabCreationPlacement;
+        if let MenuAction::NewTabWithProfile(profile) = &action {
+            return self.create_tab_with_profile(profile);
+        }
         if action == MenuAction::NewTabInRecentGroup {
             if let Some(group_id) = self
                 .state

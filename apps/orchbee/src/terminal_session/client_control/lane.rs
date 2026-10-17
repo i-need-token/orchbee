@@ -31,14 +31,86 @@ pub(super) struct Delivery {
     pub(super) command: ClientViewControl,
     pub(super) workbench_snapshot: Option<Snapshot>,
 }
+/// Delivery certainty and definite local refusal are separate command failure outcomes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::terminal_session) enum CommandFailure {
+    Refused(orchbee_workbench_protocol::ConfiguredCommandFailure),
+    NotSubmitted,
+    OutcomeUnknown,
+}
+
 pub(in crate::terminal_session) struct CommandCompletion {
-    pub reply: Result<orchbee_workbench_protocol::ConfiguredCommandResult, bool>,
+    /// Exact installed identity, retained even when the command was refused before transport.
+    pub command_id: String,
+    pub reply: Result<orchbee_workbench_protocol::ConfiguredCommandResult, CommandFailure>,
     pub focus: Option<Result<orchbee_workbench_protocol::WorkbenchClientViewResult, bool>>,
+}
+impl CommandCompletion {
+    /// Reports a definite local refusal without inventing a Server result.
+    pub(in crate::terminal_session) fn refused(
+        command_id: String,
+        reason: orchbee_workbench_protocol::ConfiguredCommandFailure,
+    ) -> Self {
+        Self {
+            command_id,
+            reply: Err(CommandFailure::Refused(reason)),
+            focus: None,
+        }
+    }
+}
+
+struct QueuedInvocation {
+    command_id: String,
+    source: Option<orchbee_workbench_protocol::ClientPopupSource>,
+    revision: ClientViewSequence,
+    view: ClientViewObservation,
+}
+
+impl QueuedInvocation {
+    fn bind(
+        self,
+        record: &orchbee_workbench_protocol::ClientViewRecord,
+    ) -> Result<
+        orchbee_workbench_protocol::ConfiguredCommandInvocation,
+        orchbee_workbench_protocol::ConfiguredCommandFailure,
+    > {
+        if record.view != self.view
+            || record.view_revision != self.revision
+            || record.availability != orchbee_workbench_protocol::ClientViewAvailability::Current
+        {
+            return Err(orchbee_workbench_protocol::ConfiguredCommandFailure::StaleSource);
+        }
+        Ok(orchbee_workbench_protocol::ConfiguredCommandInvocation {
+            command_id: self.command_id,
+            selection: None,
+            expected_revision: self.view.workbench_revision,
+            context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
+                tab_id: self
+                    .source
+                    .as_ref()
+                    .map(|source| source.tab_id.as_str().into()),
+                focused_pane_id: self
+                    .source
+                    .as_ref()
+                    .map(|source| source.panel_id.as_str().into()),
+                invocation_source: Some("tui".into()),
+                ..Default::default()
+            }),
+            source: self.source.map(|presentation| {
+                orchbee_workbench_protocol::ConfiguredCommandSource {
+                    client_id: record.client_id.clone(),
+                    view_revision: record.view_revision,
+                    presentation,
+                }
+            }),
+        })
+    }
 }
 #[derive(Default)]
 struct Handoff {
+    #[cfg(test)]
     registered: Option<orchbee_workbench_protocol::ClientViewRecord>,
-    invocation: Option<orchbee_workbench_protocol::ConfiguredCommandInvocation>,
+    invocation: Option<QueuedInvocation>,
     invocation_pending: bool,
     invocation_result: Option<CommandCompletion>,
     layout: Option<orchbee_workbench_protocol::WorkbenchCommand>,
@@ -53,6 +125,17 @@ struct Handoff {
 type Shared = Arc<(Mutex<Handoff>, Condvar)>;
 
 impl Handoff {
+    fn take_ready_invocation(
+        &mut self,
+        record: &orchbee_workbench_protocol::ClientViewRecord,
+    ) -> Option<QueuedInvocation> {
+        // A synchronization already in flight may still describe the armed prefix. Wait for
+        // the requested Ready observation; never bind to that earlier Busy registration.
+        if self.invocation.as_ref()?.revision > record.view_revision {
+            return None;
+        }
+        self.invocation.take()
+    }
     fn layout_admission(&self) -> Result<(), Reason> {
         if self.stopped || self.failed {
             Err(Reason::ProjectionUnavailable)
@@ -96,50 +179,30 @@ impl ClientControlLane {
         &self,
         id: String,
         source: Option<orchbee_workbench_protocol::ClientPopupSource>,
-        view: &ClientViewObservation,
-    ) -> bool {
+        sample: Sample,
+    ) -> Result<(), orchbee_workbench_protocol::ConfiguredCommandFailure> {
+        use orchbee_workbench_protocol::ConfiguredCommandFailure as F;
         let (lock, signal) = &*self.shared;
         let Ok(mut handoff) = lock.lock() else {
-            return false;
+            return Err(F::Unavailable);
         };
-        if handoff.stopped
-            || handoff.failed
-            || handoff.invocation_pending
-            || handoff.invocation_result.is_some()
-        {
-            return false;
+        if handoff.stopped || handoff.failed {
+            return Err(F::Unavailable);
         }
-        let Some(record) = handoff.registered.as_ref().filter(|record| {
-            record.view == *view
-                && record.availability
-                    == orchbee_workbench_protocol::ClientViewAvailability::Current
-        }) else {
-            return false;
-        };
-        let invocation = orchbee_workbench_protocol::ConfiguredCommandInvocation {
+        if handoff.invocation_pending || handoff.invocation_result.is_some() {
+            return Err(F::Busy);
+        }
+        let invocation = QueuedInvocation {
             command_id: id,
-            selection: None,
-            expected_revision: view.workbench_revision,
-            context: Box::new(orchbee_workbench_protocol::PluginInvocationContext {
-                tab_id: source.as_ref().map(|source| source.tab_id.as_str().into()),
-                focused_pane_id: source
-                    .as_ref()
-                    .map(|source| source.panel_id.as_str().into()),
-                invocation_source: Some("tui".into()),
-                ..Default::default()
-            }),
-            source: source.map(
-                |source| orchbee_workbench_protocol::ConfiguredCommandSource {
-                    client_id: record.client_id.clone(),
-                    view_revision: record.view_revision,
-                    presentation: source,
-                },
-            ),
+            source,
+            revision: sample.revision,
+            view: sample.view.clone(),
         };
+        handoff.sample = Some(sample);
         handoff.invocation_pending = true;
         handoff.invocation = Some(invocation);
         signal.notify_one();
-        true
+        Ok(())
     }
     pub(super) fn take_invocation_result(&self) -> Option<CommandCompletion> {
         self.shared.0.lock().ok()?.invocation_result.take()
@@ -333,8 +396,11 @@ fn run(
             let Ok(mut handoff) = lock.lock() else {
                 return;
             };
-            handoff.registered = Some((*registered).clone());
-            handoff.invocation.take()
+            #[cfg(test)]
+            {
+                handoff.registered = Some((*registered).clone());
+            }
+            handoff.take_ready_invocation(&registered)
         };
         if layout_task
             .as_ref()
@@ -385,7 +451,23 @@ fn run(
         {
             invocation_task.take();
         }
+        let invocation = match invocation.map(|queued| {
+            let command_id = queued.command_id.clone();
+            (command_id, queued.bind(&registered))
+        }) {
+            Some((_, Ok(invocation))) => Some(invocation),
+            Some((command_id, Err(reason))) => {
+                let Ok(mut handoff) = lock.lock() else {
+                    return;
+                };
+                handoff.invocation_pending = false;
+                handoff.invocation_result = Some(CommandCompletion::refused(command_id, reason));
+                None
+            }
+            None => None,
+        };
         if let Some(invocation) = invocation {
+            let command_id = invocation.command_id.clone();
             let started = if invocation_task.is_none() {
                 configured_command::Invocation::start(
                     Arc::clone(shared),
@@ -405,10 +487,10 @@ fn run(
                         return;
                     };
                     handoff.invocation_pending = false;
-                    handoff.invocation_result = Some(CommandCompletion {
-                        reply: Err(false),
-                        focus: None,
-                    });
+                    handoff.invocation_result = Some(CommandCompletion::refused(
+                        command_id,
+                        orchbee_workbench_protocol::ConfiguredCommandFailure::Unavailable,
+                    ));
                 }
             }
         }

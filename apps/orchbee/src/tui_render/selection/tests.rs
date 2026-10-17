@@ -51,3 +51,38 @@ fn reverse_drag_uses_absolute_rows_and_highlights_a_wide_glyph_as_one_unit() {
         .unwrap();
     assert_eq!(terminal.backend().buffer()[(1, 1)].bg, Color::Blue);
 }
+
+#[test]
+fn clipped_selection_uses_physical_columns_without_coloring_the_indicator() {
+    let mut terminal = Terminal::new(TestBackend::new(8, 4)).unwrap();
+    let selected = SelectionChangedState::Active {
+        start: SelectionPoint {
+            row: 55,
+            column: 12,
+        },
+        end: SelectionPoint {
+            row: 55,
+            column: 14,
+        },
+        rectangle: false,
+        preview: None,
+    };
+    terminal
+        .draw(|frame| {
+            paint_cropped(
+                frame,
+                Rect::new(1, 2, 5, 1),
+                55,
+                11,
+                Some(&selected),
+                Style::new().bg(Color::Blue),
+            );
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    assert_ne!(buffer[(1, 2)].bg, Color::Blue);
+    assert_eq!(buffer[(2, 2)].bg, Color::Blue);
+    assert_eq!(buffer[(4, 2)].bg, Color::Blue);
+    assert_ne!(buffer[(5, 2)].bg, Color::Blue);
+    assert_ne!(buffer[(2, 1)].bg, Color::Blue);
+}

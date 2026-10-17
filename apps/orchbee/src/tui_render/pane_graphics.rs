@@ -1,9 +1,9 @@
 //! Cell raster images are retained content, clipped to one real Panel body.
-use crate::{terminal_session::PaneGraphicsCanvas, terminal_text::display_width};
+use crate::terminal_session::PaneGraphicsCanvas;
 use orchbee_workbench_protocol::{PaneGraphicsCellPixels, PaneGraphicsLayer};
 use ratatui::{
     Frame,
-    buffer::{Buffer, CellDiffOption},
+    buffer::{Buffer, CellDiffOption, CellWidth},
     layout::Rect,
     style::{Color, Modifier},
 };
@@ -27,6 +27,42 @@ pub(super) fn render(
     }
 }
 
+/// Raster fallback shares the text crop and keeps the captured placement's original scale.
+pub(super) fn render_cropped(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    canvas: &PaneGraphicsCanvas,
+    cell_pixels: Option<&PaneGraphicsCellPixels>,
+    crop: crate::terminal_live_view::LiveView,
+    source_size: (u16, u16),
+) {
+    let area = crop.content(area);
+    let mut painted = vec![false; usize::from(area.width) * usize::from(area.height)];
+    let view = RasterView {
+        area,
+        source_size,
+        origin: (crop.column, crop.row),
+    };
+    for layer in canvas.layers() {
+        paint_layers_at(
+            frame.buffer_mut(),
+            view,
+            layer.metadata(),
+            layer.pixels(),
+            cell_pixels,
+            &mut painted,
+        );
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RasterView {
+    area: Rect,
+    source_size: (u16, u16),
+    origin: (u16, u16),
+}
+
+#[cfg(test)]
 fn grid(
     area: Rect,
     layer: &PaneGraphicsLayer,
@@ -55,12 +91,38 @@ fn paint_layers(
     cell_pixels: Option<&PaneGraphicsCellPixels>,
     painted: &mut [bool],
 ) {
+    paint_layers_at(
+        buffer,
+        RasterView {
+            area,
+            source_size: (area.width, area.height),
+            origin: (0, 0),
+        },
+        layer,
+        rgba,
+        cell_pixels,
+        painted,
+    );
+}
+
+fn paint_layers_at(
+    buffer: &mut Buffer,
+    view: RasterView,
+    layer: &PaneGraphicsLayer,
+    rgba: &[u8],
+    cell_pixels: Option<&PaneGraphicsCellPixels>,
+    painted: &mut [bool],
+) {
+    let area = view.area;
     if area.is_empty() {
         return;
     }
-    let (columns, rows) = grid(area, layer, cell_pixels);
-    let left = i64::from(area.x) + i64::from(layer.placement.viewport_column);
-    let top = i64::from(area.y) + i64::from(layer.placement.viewport_row);
+    let (columns, rows) =
+        crate::terminal_graphics::placement::grid(view.source_size, layer, cell_pixels);
+    let left =
+        i64::from(area.x) + i64::from(layer.placement.viewport_column) - i64::from(view.origin.0);
+    let top =
+        i64::from(area.y) + i64::from(layer.placement.viewport_row) - i64::from(view.origin.1);
     let x0 = left.max(i64::from(area.x));
     let y0 = top.max(i64::from(area.y));
     let x1 = (left + columns).min(i64::from(area.right()));
@@ -85,7 +147,7 @@ fn paint_layers(
             };
             // A wide glyph and its spacer are one terminal-owned unit. Preserve
             // both rather than producing a dangling head or skipped image cell.
-            if cell.diff_option == CellDiffOption::Skip || display_width(cell.symbol()) > 1 {
+            if cell.diff_option == CellDiffOption::Skip || cell.cell_width() > 1 {
                 continue;
             }
             let index = (y - i64::from(area.y)) as usize * usize::from(area.width)
