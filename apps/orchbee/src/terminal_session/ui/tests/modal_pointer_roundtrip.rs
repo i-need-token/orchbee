@@ -504,12 +504,24 @@ fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hier
                     assert_eq!(draft.stage(), NativeSetupStage::WorkspaceProjectName);
                     assert_eq!(draft.text(), "p1界");
                     assert!(mailbox.try_recv().unwrap().is_none());
-                    if width < 60 {
+                    if width < 60 || !draft.interactive() {
+                        assert!(
+                            width < 80 || height < 24,
+                            "the required full/compact host sizes must present the complete popup: {capture}"
+                        );
                         assert!(drawn.cursor.is_none());
                         assert!((0..height).all(|y| (0..width).all(|x| !matches!(
                             drawn.map.hit_target_at(x, y),
                             Some(HitTarget::Setup { .. })
                         ))));
+                        let retained_text = draft.text().to_owned();
+                        let recovered =
+                            harness.render_locale(&mut ui, (120, 40), locale, &theme, None);
+                        assert!(ui.view().setup_draft().unwrap().interactive());
+                        assert_eq!(ui.view().setup_draft().unwrap().text(), retained_text);
+                        assert_eq!(ui.view().setup_draft().unwrap().faulted(), fault);
+                        assert!(recovered.cursor.is_some());
+                        assert!(mailbox.try_recv().unwrap().is_none());
                         continue;
                     }
 

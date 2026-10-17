@@ -1099,7 +1099,9 @@ fn assert_projected_text_cursor(raw: &str, glyph: &str, right_column: u16, end_c
             .iter()
             .position(|cell| cell.symbol() == glyph)
             .expect("the complete projected grapheme is painted");
-        let origin = ratatui::layout::Position::new((index % 40) as u16, (index / 40) as u16);
+        let stride = usize::from(buffer.area.width);
+        let origin =
+            ratatui::layout::Position::new((index % stride) as u16, (index / stride) as u16);
         assert_eq!(
             terminal.get_cursor_position().unwrap(),
             ratatui::layout::Position::new(origin.x + column, origin.y),

@@ -59,6 +59,7 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                     pane.height,
                 );
                 frame.geometry.columns = pane.width;
+                frame.geometry.rows = pane.height;
                 frame.foreground = 0x102030;
                 frame.background = 0xe0d0c0;
                 frame.cursor.visible = false;
@@ -116,22 +117,29 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                         "the Settings overlay can cover (0, 0) at compact sizes; sample the status chrome"
                     );
                     let defaults = expected.terminal_defaults();
-                    assert_eq!(
-                        buffer[(pane.right() - 2, pane.y)].symbol(),
-                        "d",
-                        "preview program at {size:?}, {fallback:?}, {level:?}, {appearance:?}; pane={pane:?}"
-                    );
-                    assert_eq!(buffer[(pane.right() - 2, pane.y)].fg, defaults.0);
-                    assert_eq!(buffer[(pane.right() - 2, pane.y)].bg, defaults.1);
-                    assert_eq!(buffer[(pane.right() - 1, pane.y)].symbol(), "e");
-                    assert_eq!(
-                        buffer[(pane.right() - 1, pane.y)].fg,
-                        ratatui::style::Color::Rgb(171, 205, 239)
-                    );
-                    assert_eq!(
-                        buffer[(pane.right() - 1, pane.y)].bg,
-                        ratatui::style::Color::Rgb(18, 52, 86)
-                    );
+                    if size.0 == 120 {
+                        assert_eq!(
+                            buffer[(pane.right() - 2, pane.y)].symbol(),
+                            "d",
+                            "preview program at {size:?}, {fallback:?}, {level:?}, {appearance:?}; pane={pane:?}"
+                        );
+                        assert_eq!(buffer[(pane.right() - 2, pane.y)].fg, defaults.0);
+                        assert_eq!(buffer[(pane.right() - 2, pane.y)].bg, defaults.1);
+                        assert_eq!(buffer[(pane.right() - 1, pane.y)].symbol(), "e");
+                        assert_eq!(
+                            buffer[(pane.right() - 1, pane.y)].fg,
+                            ratatui::style::Color::Rgb(171, 205, 239)
+                        );
+                        assert_eq!(
+                            buffer[(pane.right() - 1, pane.y)].bg,
+                            ratatui::style::Color::Rgb(18, 52, 86)
+                        );
+                    } else {
+                        // At 80x24 Settings covers this program row. Chrome and
+                        // draft checks still apply; program colors require exposure.
+                        assert_ne!(buffer[(pane.right() - 2, pane.y)].symbol(), "d");
+                        assert_ne!(buffer[(pane.right() - 1, pane.y)].symbol(), "e");
+                    }
                     let preview_locale = if fallback == Locale::EnUs {
                         Locale::ZhCn
                     } else {
