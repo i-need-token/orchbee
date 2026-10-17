@@ -41,7 +41,10 @@ fn every_creation_entry_projects_immediately_without_changing_canonical_selectio
         assert_eq!(preview.phase, WorkspaceCreationPhase::Preparing);
         assert!(preview.current && preview.replaces_content());
         assert!(preview.label.is_none() && preview.committed.is_none());
-        assert_eq!(preview.project, (entry == "project").then_some("Project"));
+        assert_eq!(
+            preview.project_id,
+            (entry == "project").then_some(&snapshot.navigation.projects[0].project_id)
+        );
         assert!(!ui.view().setup_capture_claim());
         assert_eq!(ui.state.as_ref().unwrap().desired(), source.as_ref());
         assert_eq!(

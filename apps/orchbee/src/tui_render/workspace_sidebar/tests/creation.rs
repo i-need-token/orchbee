@@ -86,7 +86,6 @@ fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_hando
                     let preview = WorkspaceCreationPreview {
                         site: &site,
                         label: Some("new 工作区"),
-                        project: grouped.then_some("Repo"),
                         project_id: grouped.then_some(&project),
                         committed: committed.then_some((&workspace, WorkbenchRevision::new(2))),
                         phase,
@@ -150,7 +149,6 @@ fn provisional_rows_survive_observer_lag_and_reconcile_without_label_deduplicati
                 let preview = WorkspaceCreationPreview {
                     site: &site,
                     label: Some("same 工作区"),
-                    project: Some("Repo"),
                     project_id: Some(&project),
                     committed: (case != "provisional")
                         .then_some((&workspace, WorkbenchRevision::new(1))),
@@ -228,7 +226,6 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_collapsed_p
             let preview = WorkspaceCreationPreview {
                 site: &site,
                 label: Some("created workspace"),
-                project: Some("Repo"),
                 project_id: Some(&project),
                 committed: Some((&workspace, WorkbenchRevision::new(2))),
                 phase: WorkspaceCreationPhase::Committed,

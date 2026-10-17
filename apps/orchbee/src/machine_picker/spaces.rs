@@ -309,6 +309,7 @@ impl Picker {
                 .as_ref()
                 .is_some_and(|c| self.current_context.as_ref() == Some(&c.target))
     }
+    #[cfg(test)]
     pub(crate) fn space_window_for_row_gaps(
         &self,
         rows: &[SidebarRow<'_>],

@@ -21,7 +21,6 @@ pub(crate) enum WorkspaceCreationPhase {
 pub(crate) struct WorkspaceCreationPreview<'a> {
     pub(crate) site: &'a SiteId,
     pub(crate) label: Option<&'a str>,
-    pub(crate) project: Option<&'a str>,
     pub(crate) project_id: Option<&'a WorkbenchProjectId>,
     pub(crate) committed: Option<(&'a WorkbenchWorkspaceId, WorkbenchRevision)>,
     pub(crate) phase: WorkspaceCreationPhase,
@@ -58,13 +57,6 @@ impl NativeSessionState {
             return Some(WorkspaceCreationPreview {
                 site: self.cache.site_id(),
                 label,
-                project: draft.project.as_ref().and_then(|id| {
-                    self.cache
-                        .canonical_snapshot()
-                        .navigation
-                        .project(id)
-                        .map(|project| project.label.as_str())
-                }),
                 project_id: draft.project.as_ref(),
                 committed: None,
                 phase: WorkspaceCreationPhase::Preparing,
@@ -108,14 +100,6 @@ impl NativeSessionState {
             label: Some(
                 workspace.map_or(plan.label.as_str(), |workspace| workspace.label.as_str()),
             ),
-            project: plan.project.existing_id().and_then(|id| {
-                operation
-                    .baseline
-                    .canonical_snapshot()
-                    .navigation
-                    .project(id)
-                    .map(|project| project.label.as_str())
-            }),
             project_id: plan.project.existing_id(),
             committed,
             phase: if settled {
