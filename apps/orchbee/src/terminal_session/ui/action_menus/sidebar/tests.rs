@@ -180,12 +180,12 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
 
 #[test]
 fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_closing_it() {
-    let (mut ui, mailbox, _, _) = context_selection::ready(false);
     let (_, origin, discovery) =
         crate::terminal_session::state::worktree_launch::tests::removal::fixture();
-    ui.state = Some(crate::terminal_session::state::tests::ready_with_cache(
-        origin.cache.clone(),
-    ));
+    let (mut ui, mailbox, _, _) =
+        crate::terminal_session::ui::tests::move_membership::ready_ui_with_snapshot(
+            origin.cache.canonical_snapshot().clone(),
+        );
     let location = discovery.addressed.cache.location().clone();
     assert!(ui.open_action_menu(MenuTarget::Workspace(location), None, false));
     let episode = ui.menus.sidebar.as_mut().unwrap();

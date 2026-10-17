@@ -18,7 +18,7 @@ fn automatic_tail_keeps_live_frames_active_and_manual_history_pauses_them() -> T
             let mut harness = Harness::start(steps, geometry)?;
             super::commands::drive_controlling_ready_from_snapshot(
                 &mut harness,
-                snapshot(1, 1),
+                super::setup::snapshot(1, 1),
                 geometry,
             )?;
             let key = harness.ui.state().focus_pane_ref().unwrap();

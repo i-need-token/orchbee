@@ -34,7 +34,7 @@ fn source_rows(query: &str, tail_column: u16) -> Vec<TerminalTextRow> {
             };
             let (column, text) = if index == 2 {
                 for (column, glyph) in "PS> ".chars().enumerate() {
-                    row.cells[column].text = glyph.to_string();
+                    row.cells[column].text = glyph.to_string().into();
                 }
                 (4, query.to_owned())
             } else if index == SOURCE_ROWS - 1 {
@@ -46,10 +46,10 @@ fn source_rows(query: &str, tail_column: u16) -> Vec<TerminalTextRow> {
             for glyph in text.chars() {
                 let text = glyph.to_string();
                 let width = display_width(&text);
-                row.cells[column].text = text;
+                row.cells[column].text = text.into();
                 row.cells[column].width = if width == 2 { 1 } else { 0 };
                 if width == 2 {
-                    row.cells[column + 1].text.clear();
+                    row.cells[column + 1].text = Default::default();
                     row.cells[column + 1].width = 2;
                 }
                 column += width;

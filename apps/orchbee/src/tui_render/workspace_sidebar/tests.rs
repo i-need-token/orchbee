@@ -1397,7 +1397,18 @@ fn duplicate_project_and_workspace_labels_keep_complete_distinguishing_ids_when_
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let theme = Theme::terminal_native();
         let navigation = view.machines.sidebar_navigation_rows();
-        let annotations = annotations(&view, &navigation, locale);
+        let source = view.machines.sidebar_source();
+        let annotations = annotations(
+            EntryMeasureContext {
+                view: &view,
+                source: &source,
+                locale,
+                sidebar_width: 24,
+                theme: &theme,
+            },
+            &navigation,
+            24,
+        );
         assert_eq!(annotations[0], " [00000046]");
         assert_eq!(annotations[3], " [00000047]");
         for (index, row) in view.machines.space_rows().iter().enumerate() {

@@ -267,6 +267,7 @@ fn grouped_absent_cwd_and_empty_workspace_fallbacks_keep_required_null_project_a
                     launcher.create_with_defaults(request(90), &origin, Locale::EnUs)
                 }
                 WorktreeMode::Open => launcher.confirm(token, request(90), &origin),
+                WorktreeMode::Remove => unreachable!("this witness only iterates launch modes"),
             }
             .unwrap();
             assert!(matches!(plan.source, WorktreeSource::Workspace { .. }));

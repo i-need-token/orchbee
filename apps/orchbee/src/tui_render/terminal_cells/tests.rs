@@ -54,7 +54,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
         cells: "Get-Date"
             .chars()
             .map(|character| orchbee_terminal_protocol::TerminalTextCell {
-                text: character.to_string(),
+                text: character.to_string().into(),
                 width: 0,
                 style: default_style,
             })
