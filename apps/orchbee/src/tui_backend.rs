@@ -8,10 +8,7 @@ use std::{
 
 use crossterm::{
     cursor::{Hide, MoveTo},
-    style::{
-        Attribute, Color as CrosstermColor, Print, ResetColor, SetAttribute, SetBackgroundColor,
-        SetForegroundColor,
-    },
+    style::{Attribute, Print, ResetColor, SetAttribute},
     terminal::{Clear, ClearType as CrosstermClearType},
 };
 use ratatui::{
@@ -30,6 +27,8 @@ use crate::{
     terminal_text::sanitize_terminal_symbol,
     tui_theme::cursor_style,
 };
+
+mod colors;
 
 pub(crate) trait ResizableBackend: Backend {
     #[cfg(windows)]
@@ -222,17 +221,11 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
                 write_ansi_command(&mut self.writer, &MoveTo(x, y))?;
             }
             if cell.fg != style.fg {
-                write_ansi_command(
-                    &mut self.writer,
-                    &SetForegroundColor(to_crossterm_color(cell.fg)),
-                )?;
+                colors::write_foreground(&mut self.writer, cell.fg)?;
                 style.fg = cell.fg;
             }
             if cell.bg != style.bg {
-                write_ansi_command(
-                    &mut self.writer,
-                    &SetBackgroundColor(to_crossterm_color(cell.bg)),
-                )?;
+                colors::write_background(&mut self.writer, cell.bg)?;
                 style.bg = cell.bg;
             }
             if cell.modifier != style.modifier {
@@ -397,8 +390,8 @@ impl<W: Write> Backend for FixedViewportBackend<W> {
 fn write_cell(writer: &mut impl Write, position: Position, cell: &Cell) -> io::Result<()> {
     write_ansi_command(writer, &MoveTo(position.x, position.y))?;
     write_ansi_command(writer, &SetAttribute(Attribute::Reset))?;
-    write_ansi_command(writer, &SetForegroundColor(to_crossterm_color(cell.fg)))?;
-    write_ansi_command(writer, &SetBackgroundColor(to_crossterm_color(cell.bg)))?;
+    colors::write_foreground(writer, cell.fg)?;
+    colors::write_background(writer, cell.bg)?;
     write_modifier_transition(writer, Modifier::empty(), cell.modifier)?;
     let symbol = sanitize_terminal_symbol(cell.symbol());
     if symbol.as_ref().cell_width() < cell.cell_width() {
@@ -496,34 +489,6 @@ fn write_modifier_transition(
         write_ansi_command(writer, &SetAttribute(Attribute::RapidBlink))?;
     }
     Ok(())
-}
-
-const fn to_crossterm_color(color: Color) -> CrosstermColor {
-    match color {
-        Color::Reset => CrosstermColor::Reset,
-        Color::Black => CrosstermColor::Black,
-        Color::Red => CrosstermColor::DarkRed,
-        Color::Green => CrosstermColor::DarkGreen,
-        Color::Yellow => CrosstermColor::DarkYellow,
-        Color::Blue => CrosstermColor::DarkBlue,
-        Color::Magenta => CrosstermColor::DarkMagenta,
-        Color::Cyan => CrosstermColor::DarkCyan,
-        Color::Gray => CrosstermColor::Grey,
-        Color::DarkGray => CrosstermColor::DarkGrey,
-        Color::LightRed => CrosstermColor::Red,
-        Color::LightGreen => CrosstermColor::Green,
-        Color::LightYellow => CrosstermColor::Yellow,
-        Color::LightBlue => CrosstermColor::Blue,
-        Color::LightMagenta => CrosstermColor::Magenta,
-        Color::LightCyan => CrosstermColor::Cyan,
-        Color::White => CrosstermColor::White,
-        Color::Rgb(red, green, blue) => CrosstermColor::Rgb {
-            r: red,
-            g: green,
-            b: blue,
-        },
-        Color::Indexed(value) => CrosstermColor::AnsiValue(value),
-    }
 }
 
 const fn to_window_size(dimensions: WindowDimensions) -> WindowSize {

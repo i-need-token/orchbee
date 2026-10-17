@@ -25,6 +25,90 @@ use super::{
 
 mod cursor;
 
+#[test]
+fn resolved_cell_colors_keep_ansi_indices_rgb_and_resets() -> io::Result<()> {
+    let mut cells = Vec::new();
+    let mut expected = Vec::new();
+    for (color, foreground, background) in [
+        (Color::Black, "38;5;0", "48;5;0"),
+        (Color::Red, "38;5;1", "48;5;1"),
+        (Color::Green, "38;5;2", "48;5;2"),
+        (Color::Yellow, "38;5;3", "48;5;3"),
+        (Color::Blue, "38;5;4", "48;5;4"),
+        (Color::Magenta, "38;5;5", "48;5;5"),
+        (Color::Cyan, "38;5;6", "48;5;6"),
+        (Color::Gray, "38;5;7", "48;5;7"),
+        (Color::DarkGray, "38;5;8", "48;5;8"),
+        (Color::LightRed, "38;5;9", "48;5;9"),
+        (Color::LightGreen, "38;5;10", "48;5;10"),
+        (Color::LightYellow, "38;5;11", "48;5;11"),
+        (Color::LightBlue, "38;5;12", "48;5;12"),
+        (Color::LightMagenta, "38;5;13", "48;5;13"),
+        (Color::LightCyan, "38;5;14", "48;5;14"),
+        (Color::White, "38;5;15", "48;5;15"),
+        (Color::Indexed(173), "38;5;173", "48;5;173"),
+        (Color::Rgb(18, 52, 86), "38;2;18;52;86", "48;2;18;52;86"),
+        (Color::Reset, "39", "49"),
+    ] {
+        let mut cell = Cell::new("x");
+        cell.fg = color;
+        cell.bg = color;
+        cells.push(cell);
+        expected.push(format!("\x1b[{foreground}m\x1b[{background}mx"));
+    }
+    let dimensions = WindowDimensions {
+        columns: u16::try_from(cells.len()).unwrap(),
+        ..TEST_DIMENSIONS
+    };
+    let mut backend = new_test_backend(Vec::new(), dimensions);
+    backend.draw(
+        cells
+            .iter()
+            .enumerate()
+            .map(|(x, cell)| (u16::try_from(x).unwrap(), 0, cell)),
+    )?;
+    backend.flush()?;
+    let output = std::str::from_utf8(&backend.writer).unwrap();
+    let mut remaining = output;
+    for sequence in expected {
+        let (_, after) = remaining
+            .split_once(&sequence)
+            .unwrap_or_else(|| panic!("missing resolved color {sequence:?} in {output:?}"));
+        remaining = after;
+    }
+    assert!(!output.contains("\x1b[m"), "{output:?}");
+    Ok(())
+}
+
+#[test]
+fn resolved_cell_colors_do_not_consult_the_process_no_color_policy() {
+    for no_color in [Some("1"), None] {
+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        command.args([
+            "--exact",
+            "tui_backend::tests::resolved_cell_colors_keep_ansi_indices_rgb_and_resets",
+            "--nocapture",
+        ]);
+        if let Some(value) = no_color {
+            command.env("NO_COLOR", value);
+        } else {
+            command.env_remove("NO_COLOR");
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "NO_COLOR={no_color:?}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+            "the exact child color witness must run: {:?}",
+            output,
+        );
+    }
+}
+
 fn new_test_backend<W: Write>(writer: W, dimensions: WindowDimensions) -> FixedViewportBackend<W> {
     FixedViewportBackend::new(writer, dimensions, Arc::new(SynchronizedUpdateLease::new()))
 }
