@@ -678,7 +678,6 @@ impl CreatedTabExpectation {
         &self.panel_id
     }
 
-    #[cfg(test)]
     pub(super) fn presentation_id(&self) -> &TerminalPresentationId {
         &self.presentation_id
     }
