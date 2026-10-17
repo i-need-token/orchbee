@@ -3,7 +3,7 @@ use crate::terminal_session::ui::tests::viewport::{controlling_ui, install_proje
 use crate::{
     client_view::ClientView,
     localization::Locale,
-    terminal_session::{NativeDrawReceipt, TerminalSessionView, pane_graphics::Layer},
+    terminal_session::{Geometry, NativeDrawReceipt, TerminalSessionView, pane_graphics::Layer},
     tui_pointer::HitMapBuilder,
     tui_theme::Theme,
 };
@@ -45,11 +45,24 @@ fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncov
         ] {
             for (width, height) in [(80, 24), (120, 40), (60, 18), (32, 10)] {
                 let (mut ui, _, _, _) = controlling_ui();
+                let client = ClientView::new(width);
+                let areas = crate::tui_layout::project_shell_areas(
+                    ratatui::layout::Rect::new(0, 0, width, height),
+                    client.sidebar_surface(),
+                );
+                let body = crate::tui_shell::active_pane_area(
+                    &areas,
+                    Some(TerminalSessionView::Native(ui.view())),
+                )
+                .unwrap();
+                // The live crop reads this same per-pane geometry in the production shell.
+                ui.observe_geometry(Geometry::new(body.width, body.height, 8, 16).unwrap());
                 install_projection(&mut ui, Some((9, false, 24)), 0);
                 ui.after_close_draw(draw(&ui, width, height, locale, &theme).0);
                 let view = ui.view();
                 let tab = view.tab(0).unwrap();
                 let panel = tab.panel(0).unwrap();
+                let panel_id = panel.panel_id().clone();
                 let source = Source::capture(panel, view.selected_presentation(panel));
                 let layer = Layer::new(
                     PaneGraphicsLayer {
@@ -83,9 +96,28 @@ fn actual_shell_paints_installed_canvas_but_acknowledges_only_a_successful_uncov
                     "resource acquisition is not a draw receipt"
                 );
                 let (receipt, buffer) = draw(&ui, width, height, locale, &theme);
-                assert!(buffer.content.iter().any(|cell| cell.symbol() == "▀"
-                    && cell.fg == Color::Rgb(255, 0, 0)
-                    && cell.bg == Color::Rgb(0, 0, 255)));
+                let crop = ui.view().pane_live_view(&panel_id).unwrap();
+                let image = crop.content(body);
+                assert_eq!(buffer[(image.x, image.y)].symbol(), "▀");
+                assert_eq!(buffer[(image.x, image.y)].fg, Color::Rgb(255, 0, 0));
+                assert_eq!(buffer[(image.x, image.y)].bg, Color::Rgb(0, 0, 255));
+                if crop.clipped {
+                    assert_ne!(buffer[(body.x, body.y)].symbol(), "▀");
+                }
+                assert!(
+                    buffer.content.iter().any(|cell| cell.symbol() == "▀"
+                        && cell.fg == Color::Rgb(255, 0, 0)
+                        && cell.bg == Color::Rgb(0, 0, 255)),
+                    "{} {locale:?} {width}x{height}: draws={:?}, raster cells={:?}",
+                    theme.name,
+                    receipt.graphics_draws(),
+                    buffer
+                        .content
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, cell)| cell.symbol() == "▀")
+                        .collect::<Vec<_>>(),
+                );
                 ui.after_close_draw(receipt);
                 let observation = ui
                     .graphics_observation(&ui.control_observation(false).unwrap().1)
