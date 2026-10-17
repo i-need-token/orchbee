@@ -17,6 +17,124 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
 }
 
 #[test]
+fn a_background_project_creation_above_manual_reading_keeps_the_same_painted_rows_through_handoff()
+{
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut view = view(120, 40);
+        configure(&mut view, serde_json::json!([[token("workspace")]]), 0);
+        let template = view
+            .machines
+            .space_checkpoint_row(&view.machines.space_rows()[0])
+            .unwrap()
+            .clone();
+        let site = template.target.site_id.clone();
+        let project = WorkbenchProjectId::parse(&id(70)).unwrap();
+        let old_rows: Vec<_> = (0..20)
+            .map(|index| {
+                let mut row = template.clone();
+                row.target.location = NativeContextLocation::Workspace {
+                    workspace_id: WorkbenchWorkspaceId::parse(&id(100 + index)).unwrap(),
+                    terminal_context_id: WorkbenchTerminalContextId::parse(&id(200 + index))
+                        .unwrap(),
+                };
+                row.project_id = (index < 2).then_some(project.clone());
+                row.label = Some(format!("old-{index:02}"));
+                row
+            })
+            .collect();
+        let workspace = WorkbenchWorkspaceId::parse(&id(130)).unwrap();
+        let mut positions = Vec::new();
+        for phase in 0..3 {
+            let mut rows = old_rows.clone();
+            if phase == 2 {
+                let mut created = template.clone();
+                created.target.location = NativeContextLocation::Workspace {
+                    workspace_id: workspace.clone(),
+                    terminal_context_id: WorkbenchTerminalContextId::parse(&id(230)).unwrap(),
+                };
+                created.label = Some("created workspace".into());
+                rows.insert(2, created);
+            }
+            view.machines.observe_spaces(vec![(
+                Choice::Local,
+                crate::machine_spaces::Observation::Ready(std::sync::Arc::new(
+                    crate::machine_spaces::Checkpoint {
+                        site_id: site.clone(),
+                        revision: WorkbenchRevision::new(if phase == 2 { 2 } else { 1 }),
+                        metadata_revision: WorkbenchRevision::new(1),
+                        git_requested: true,
+                        projects: vec![crate::machine_spaces::ProjectSummary {
+                            project_id: project.clone(),
+                            label: "Repo".into(),
+                        }]
+                        .into(),
+                        rows: rows.into(),
+                    },
+                )),
+            )]);
+            if phase == 0 {
+                let rows = view.machines.sidebar_navigation_rows();
+                let window = view.machines.space_window_for_row_gaps(
+                    &rows,
+                    &vec![1; rows.len()],
+                    &vec![0; rows.len()],
+                    7,
+                );
+                view.machines.queue_space_scroll(window, false);
+                view.machines.settle_sidebar_scroll();
+            }
+            let preview = (phase > 0).then_some(WorkspaceCreationPreview {
+                site: &site,
+                label: Some("created workspace"),
+                project_id: Some(&project),
+                committed: (phase == 2).then_some((&workspace, WorkbenchRevision::new(2))),
+                phase: if phase == 2 {
+                    WorkspaceCreationPhase::Committed
+                } else {
+                    WorkspaceCreationPhase::Preparing
+                },
+                current: false,
+            });
+            let source = view.machines.sidebar_source();
+            let rows = view.machines.sidebar_navigation_rows();
+            let mut terminal = Terminal::new(TestBackend::new(50, 10)).unwrap();
+            terminal
+                .draw(|frame| {
+                    render(
+                        frame,
+                        frame.area(),
+                        RenderContext {
+                            view: &view,
+                            locale,
+                            theme: &Theme::terminal_native(),
+                            layer: HitLayer::Chrome,
+                            sidebar_width: 50,
+                            owns_keyboard: false,
+                            source: &source,
+                            creation: preview,
+                        },
+                        &rows,
+                        None,
+                    )
+                })
+                .unwrap();
+            let text = rendered_text(terminal.backend().buffer());
+            positions.push(
+                text.lines()
+                    .enumerate()
+                    .filter(|(_, line)| line.contains("old-"))
+                    .map(|(y, line)| (y, line.to_owned()))
+                    .collect::<Vec<_>>(),
+            );
+        }
+        assert!(!positions[0].is_empty());
+        assert_eq!(positions[0], positions[1]);
+        assert_eq!(positions[1], positions[2]);
+        assert!(view.machines.request.is_none());
+    }
+}
+
+#[test]
 fn creation_keeps_its_final_group_order_and_scroll_window_through_observer_handoff() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for grouped in [false, true] {

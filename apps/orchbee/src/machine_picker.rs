@@ -366,6 +366,8 @@ pub(crate) struct Picker {
     space_observations: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_updates: Vec<(Choice, crate::machine_spaces::Observation)>,
     space_stale: Vec<Choice>,
+    native_navigation: Option<(Choice, crate::terminal_session::SidebarNavigationProjection)>,
+    space_projection: Option<(Choice, Arc<crate::machine_spaces::Checkpoint>)>,
     editing_query: bool,
     current_member: Option<NativeMemberTarget>,
     pending_navigation: Option<Navigation>,
@@ -416,6 +418,8 @@ impl Default for Picker {
             space_observations: Vec::new(),
             space_updates: Vec::new(),
             space_stale: Vec::new(),
+            native_navigation: None,
+            space_projection: None,
             editing_query: false,
             current_member: None,
             pending_navigation: None,
@@ -509,6 +513,7 @@ impl Picker {
             capacity,
             total,
             maximum,
+            insertion: None,
         }
     }
 
@@ -590,6 +595,7 @@ impl Picker {
         source.drawn_list(SidebarWindow { top, ..window })
     }
     fn rebuild_workspaces(&mut self, selected: Option<Selection>) {
+        self.rebuild_space_projection();
         let mut rows = Vec::new();
         for row in &self.rows {
             let checkpoint_contexts = self.checkpoint_contexts(&row.choice);
@@ -611,14 +617,6 @@ impl Picker {
                 agent: None,
                 agent_status: None,
             }));
-        }
-        if self
-            .workspace_rows
-            .iter()
-            .map(Row::selection)
-            .ne(rows.iter().map(Row::selection))
-        {
-            self.spaces.reset();
         }
         self.cancel_sidebar_scroll();
         self.workspace_rows = rows.into();
@@ -654,32 +652,6 @@ impl Picker {
             .retain(|id| self.rows.iter().any(|r| r.enabled && &r.choice == id));
         if self.agent_sources == observations {
             return false;
-        }
-        let before =
-            self.agent_sources
-                .iter()
-                .find_map(|(choice, observation)| match observation {
-                    crate::machine_agents::Observation::Ready(round) if choice == &self.current => {
-                        Some(round)
-                    }
-                    _ => None,
-                });
-        let after = observations
-            .iter()
-            .find_map(|(choice, observation)| match observation {
-                crate::machine_agents::Observation::Ready(round) if choice == &self.current => {
-                    Some(round)
-                }
-                _ => None,
-            });
-        if match (before, after) {
-            (Some(before), Some(after)) => {
-                before.site_id != after.site_id || before.view != after.view
-            }
-            (None, None) => false,
-            _ => true,
-        } {
-            self.spaces.reset();
         }
         self.agent_sources = observations.clone();
         self.agent_attention_refresh = true;

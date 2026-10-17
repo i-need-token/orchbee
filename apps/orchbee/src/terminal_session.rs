@@ -68,6 +68,8 @@ pub(crate) mod state;
 pub(crate) use state::control_takeover::TakeoverStatus;
 pub(crate) use state::workspace_close::WorkspaceDeleteRequest;
 pub(crate) use state::workspace_setup::ProjectRenameRequest;
+#[cfg(windows)]
+pub(crate) use state::workspace_setup::SidebarNavigationProjection;
 pub(crate) use state::workspace_setup::WorkspaceOrganizationRequest;
 pub(crate) use state::workspace_setup::quick::ProjectQuickWorkspaceRequest;
 #[cfg(windows)]

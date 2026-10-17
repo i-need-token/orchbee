@@ -202,13 +202,14 @@ fn unified_wheel_coalesces_caps_reverses_and_cancels_on_hide_or_picker_open() {
 }
 
 #[test]
-fn source_view_and_query_edits_reset_the_real_unified_window() {
+fn source_view_updates_preserve_the_anchor_and_explicit_query_edits_reset_the_window() {
     let mut picker = sidebar_picker(20);
     let owner = owner(&picker);
     assert!(picker.sidebar_context_agents_expanded(&owner));
     picker.queue_space_scroll(unified_window(&picker, 4), false);
     assert!(picker.settle_sidebar_scroll());
     assert!(unified_window(&picker, 4).top > 0);
+    let before_window = unified_window(&picker, 4);
 
     let Agents::Ready(before) = &picker.agent_sources[0].1 else {
         panic!()
@@ -224,7 +225,7 @@ fn source_view_and_query_edits_reset_the_real_unified_window() {
         Choice::Local,
         Agents::Ready(std::sync::Arc::new(after)),
     )]);
-    assert_eq!(unified_window(&picker, 4).top, 0);
+    assert_eq!(unified_window(&picker, 4), before_window);
     assert!(!picker.settle_sidebar_scroll());
     assert!(picker.request.is_none());
 

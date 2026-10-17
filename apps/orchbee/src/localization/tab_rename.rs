@@ -7,21 +7,9 @@ impl Locale {
             Self::ZhCn => "取消",
         }
     }
-    pub(crate) const fn rename_cancel_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "cancel",
-            Self::ZhCn => "取消",
-        }
-    }
     pub(crate) const fn rename_submit_label(self) -> &'static str {
         match self {
             Self::EnUs => "Rename",
-            Self::ZhCn => "重命名",
-        }
-    }
-    pub(crate) const fn rename_submit_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "rename",
             Self::ZhCn => "重命名",
         }
     }

@@ -7,6 +7,8 @@ pub(crate) struct SidebarWindow {
     pub(crate) capacity: usize,
     pub(crate) total: usize,
     pub(crate) maximum: usize,
+    /// An inert provisional row participates in geometry, but owns no canonical identity.
+    pub(crate) insertion: Option<usize>,
 }
 impl SidebarWindow {
     pub(crate) fn end(self) -> usize {
@@ -18,6 +20,7 @@ impl SidebarWindow {
 pub(super) struct Sidebar<S> {
     pub(super) visible: bool,
     top: usize,
+    order: Vec<SidebarTarget>,
     follow_focus: bool,
     pub(super) scroll: Option<Scroll>,
     pub(super) settings: std::sync::Arc<S>,
@@ -74,6 +77,7 @@ impl<S: Default> Default for Sidebar<S> {
         Self {
             visible: false,
             top: 0,
+            order: Vec::new(),
             follow_focus: true,
             scroll: None,
             settings: Default::default(),
@@ -81,6 +85,25 @@ impl<S: Default> Default for Sidebar<S> {
     }
 }
 impl<S> Sidebar<S> {
+    /// Manual reading retains the top identity across topology changes. If removed,
+    /// prefer the next surviving row in the old order, then the previous one.
+    pub(super) fn reconcile(&mut self, order: &[SidebarTarget]) {
+        if self.order == order {
+            return;
+        }
+        if !self.follow_focus {
+            self.top = self
+                .order
+                .iter()
+                .skip(self.top)
+                .chain(self.order.iter().take(self.top).rev())
+                .find_map(|target| order.iter().position(|candidate| candidate == target))
+                .unwrap_or(0);
+        }
+        self.order = order.to_vec();
+        self.scroll = None;
+    }
+
     pub(super) fn reset(&mut self) {
         self.top = 0;
         self.follow_focus = true;
@@ -269,6 +292,7 @@ impl<S> Sidebar<S> {
         gaps: &[u16],
         cells: u16,
         current: Option<usize>,
+        insertion: Option<usize>,
     ) -> SidebarWindow {
         let total = heights.len().min(gaps.len());
         let heights = &heights[..total];
@@ -278,7 +302,10 @@ impl<S> Sidebar<S> {
         } else {
             fit_backwards_with_gaps(heights, gaps, total, cells)
         };
-        let mut top = self.top.min(maximum);
+        let mut top = self
+            .top
+            .saturating_add(usize::from(insertion.is_some_and(|slot| slot <= self.top)))
+            .min(maximum);
         if self.follow_focus
             && cells > 0
             && let Some(current) = current.filter(|&index| index < total)
@@ -294,9 +321,26 @@ impl<S> Sidebar<S> {
             capacity: fit_end_with_gaps(heights, gaps, top, cells).saturating_sub(top),
             total,
             maximum,
+            insertion,
         }
     }
     pub(super) fn queue(&mut self, window: SidebarWindow, up: bool) {
+        let window = if let Some(slot) = window.insertion {
+            // Store the real row being read, not an index shifted by a temporary creation.
+            // An inert slot at the top yields to the following real row on explicit scroll.
+            let logical = |index: usize| index.saturating_sub(usize::from(slot < index));
+            SidebarWindow {
+                top: logical(window.top),
+                maximum: logical(window.maximum),
+                total: window.total.saturating_sub(1),
+                capacity: window
+                    .capacity
+                    .saturating_sub(usize::from(slot >= window.top && slot < window.end())),
+                insertion: None,
+            }
+        } else {
+            window
+        };
         if window.capacity == 0 {
             return;
         }

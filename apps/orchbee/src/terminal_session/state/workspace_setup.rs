@@ -4,6 +4,8 @@ mod organization;
 pub(in crate::terminal_session) use organization::OrganizationChoice;
 pub(crate) use organization::WorkspaceOrganizationRequest;
 mod navigation_configuration;
+#[cfg(windows)]
+pub(crate) use navigation_configuration::SidebarNavigationProjection;
 mod tab_configuration;
 pub(crate) use labels::ProjectRenameRequest;
 #[cfg(windows)]

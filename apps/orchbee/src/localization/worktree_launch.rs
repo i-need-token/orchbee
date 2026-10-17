@@ -14,29 +14,11 @@ impl Locale {
             (Self::ZhCn, _) => "取消",
         }
     }
-    pub(crate) fn worktree_cancel_hint(self, stage: WorktreeStage) -> &'static str {
-        match (self, stage) {
-            (Self::EnUs, WorktreeStage::Waiting) => "hide",
-            (Self::ZhCn, WorktreeStage::Waiting) => "隐藏",
-            (Self::EnUs, WorktreeStage::Result) => "close",
-            (Self::ZhCn, WorktreeStage::Result) => "关闭",
-            (Self::EnUs, _) => "cancel",
-            (Self::ZhCn, _) => "取消",
-        }
-    }
     pub(crate) fn worktree_submit_label(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
             (Self::EnUs, WorktreeStage::Waiting | WorktreeStage::Result) => "Read status",
             (Self::ZhCn, WorktreeStage::Waiting | WorktreeStage::Result) => "查询状态",
             (Self::EnUs, _) => "Create",
-            (Self::ZhCn, _) => "创建",
-        }
-    }
-    pub(crate) fn worktree_submit_hint(self, stage: WorktreeStage) -> &'static str {
-        match (self, stage) {
-            (Self::EnUs, WorktreeStage::Waiting | WorktreeStage::Result) => "read status",
-            (Self::ZhCn, WorktreeStage::Waiting | WorktreeStage::Result) => "查询状态",
-            (Self::EnUs, _) => "create",
             (Self::ZhCn, _) => "创建",
         }
     }

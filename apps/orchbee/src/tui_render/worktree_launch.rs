@@ -1,7 +1,8 @@
 //! Draw the complete Worktree decision before arming its input token.
 use super::modal::{
-    ModalAction, ModalLayout, SingleModalLayout, modal_key_label, modal_layout, paint_modal_action,
-    paint_modal_close, pointer_presentation, set_modal_cursor, single_modal_layout,
+    ModalAction, ModalLayout, SingleModalLayout, description_line, modal_key_label, modal_layout,
+    paint_modal_action, paint_modal_close, pointer_presentation, set_modal_cursor,
+    single_modal_layout, status_line, title_line,
 };
 use super::{
     Clear, Frame, Line, Locale, ModalPresentation, Padding, Paragraph, Rect, Theme, Wrap,
@@ -187,19 +188,26 @@ fn render_form(
     let confirming = matches!(stage, WorktreeStage::Remove | WorktreeStage::ResumeRemove);
     let budget = usize::from(content.width.saturating_sub(10)).min(72);
     let mut lines = vec![
-        Line::from(locale.worktree_title(view.mode())),
+        title_line(locale.worktree_title(view.mode()), theme),
         Line::from(""),
     ];
     if let Some((label, path, branch, terminals)) = removal {
-        lines[0] = Line::from(locale.worktree_remove_title(&sanitize_terminal_text(label)));
+        lines[0] = title_line(
+            locale.worktree_remove_title(&sanitize_terminal_text(label)),
+            theme,
+        );
         // The complete exact path must fit before a destructive decision can be armed.
         lines.push(Line::from(sanitize_terminal_text(path).into_owned()));
         lines.push(Line::from(locale.worktree_remove_scope(terminals)));
-        lines.push(Line::from(locale.worktree_remove_branch(
-            branch.map(sanitize_terminal_text).as_deref(),
-        )));
+        lines.push(description_line(
+            locale.worktree_remove_branch(branch.map(sanitize_terminal_text).as_deref()),
+            theme,
+        ));
     } else if let Some(source) = view.source_path() {
-        lines.push(Line::from(path_text(source, budget, theme.glyphs.ellipsis)));
+        lines.push(description_line(
+            path_text(source, budget, theme.glyphs.ellipsis),
+            theme,
+        ));
     }
     let mut field_labels = None;
     if matches!(stage, WorktreeStage::Branch | WorktreeStage::Base) {
@@ -208,6 +216,7 @@ fn render_form(
             Line::from(locale.worktree_field(WorktreeStage::Branch)),
             Line::from(""),
         ]);
+        lines.push(Line::from(""));
         let base = lines.len();
         lines.extend([
             Line::from(locale.worktree_field(WorktreeStage::Base)),
@@ -216,22 +225,28 @@ fn render_form(
         field_labels = Some([branch, base]);
     }
     if let Some(id) = view.operation_id() {
-        lines.push(Line::from(truncate_display(
-            &format!("orchbee worktree status {}", sanitize_terminal_text(id)),
-            budget,
-            theme.glyphs.ellipsis,
-        )));
+        lines.push(description_line(
+            truncate_display(
+                &format!("orchbee worktree status {}", sanitize_terminal_text(id)),
+                budget,
+                theme.glyphs.ellipsis,
+            ),
+            theme,
+        ));
     }
     if let Some(workspace) = view.workspace().filter(|_| removal.is_none()) {
-        lines.push(Line::from(truncate_display(
-            &format!(
-                "{}: {}",
-                locale.worktree_workspace(),
-                sanitize_terminal_text(workspace),
+        lines.push(description_line(
+            truncate_display(
+                &format!(
+                    "{}: {}",
+                    locale.worktree_workspace(),
+                    sanitize_terminal_text(workspace),
+                ),
+                budget,
+                theme.glyphs.ellipsis,
             ),
-            budget,
-            theme.glyphs.ellipsis,
-        )));
+            theme,
+        ));
     }
     if view.notice() != WorktreeNotice::Preparing || stage == WorktreeStage::Preparing {
         let notice = if removal.is_some() && view.notice() == WorktreeNotice::Failed {
@@ -242,7 +257,7 @@ fn render_form(
         } else {
             locale.worktree_stage_notice(view.notice(), stage)
         };
-        lines.push(Line::from(notice).style(theme.style(notice_role(view.notice()))));
+        lines.push(status_line(notice, notice_role(view.notice()), theme));
     }
     if let Some(progress) = view.removal_progress() {
         lines.push(Line::from(
@@ -258,33 +273,28 @@ fn render_form(
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let refresh = modal_key_label(theme, &Binding::new(KeyCode::Char('r'), Modifiers::NONE));
     let tab = modal_key_label(theme, &Binding::new(KeyCode::Tab, Modifiers::NONE));
-    let backspace = modal_key_label(theme, &Binding::new(KeyCode::Backspace, Modifiers::NONE));
     let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
-    let mut hints = vec![super::controls::KeyHint::new(
-        &escape,
-        locale.worktree_cancel_hint(stage),
-    )];
+    let mut hints = Vec::new();
     match stage {
         WorktreeStage::Branch | WorktreeStage::Base => {
             hints.extend([
-                super::controls::KeyHint::new(&enter, locale.worktree_submit_hint(stage)),
                 super::controls::KeyHint::new(&tab, locale.setup_next_field_hint()),
-                super::controls::KeyHint::new(&backspace, locale.setup_delete_hint()),
                 super::controls::KeyHint::new(&clear, locale.setup_clear_hint()),
             ]);
         }
-        WorktreeStage::Waiting | WorktreeStage::Result => hints.push(
-            super::controls::KeyHint::new(&refresh, locale.worktree_submit_hint(stage)),
-        ),
-        WorktreeStage::Preparing => {}
-        WorktreeStage::Remove | WorktreeStage::ResumeRemove => hints.clear(),
+        WorktreeStage::Waiting
+        | WorktreeStage::Result
+        | WorktreeStage::Preparing
+        | WorktreeStage::Remove
+        | WorktreeStage::ResumeRemove => {}
         WorktreeStage::Checkout => unreachable!("checkout has its own picker surface"),
     }
-    let mut cancel = ModalAction::new(
+    let cancel = ModalAction::new(
         locale.worktree_cancel_label(stage),
         super::controls::ActionKind::Secondary,
         true,
-    );
+    )
+    .with_shortcut(&escape);
     let submit = (stage != WorktreeStage::Preparing).then(|| {
         if removal.is_some() {
             let resume = view.can_resume_remove();
@@ -295,7 +305,7 @@ fn render_form(
                     .with_shortcut(&enter)
                     .with_tone(crate::action_projection::ActionTone::Destructive)
             } else {
-                action
+                action.with_shortcut(&refresh)
             };
         }
         ModalAction::new(
@@ -303,16 +313,14 @@ fn render_form(
             super::controls::ActionKind::Primary,
             true,
         )
+        .with_shortcut(
+            if matches!(stage, WorktreeStage::Branch | WorktreeStage::Base) {
+                &enter
+            } else {
+                &refresh
+            },
+        )
     });
-    if confirming {
-        cancel = cancel.with_shortcut(&escape);
-    }
-    if view.can_resume_remove() {
-        hints.push(super::controls::KeyHint::new(
-            &enter,
-            locale.worktree_remove_submit(stage, true),
-        ));
-    }
     let placeholder = Text::from(lines);
     let Some(candidate) = resolve_worktree_layout(
         frame.area(),
@@ -678,10 +686,6 @@ fn render_checkouts<'a>(
     let down = modal_key_label(theme, &Binding::new(KeyCode::Down, Modifiers::NONE));
     let vertical = format!("{up}/{down}");
     let hints = [
-        super::controls::KeyHint::new(
-            &escape,
-            locale.worktree_cancel_hint(WorktreeStage::Checkout),
-        ),
         super::controls::KeyHint::new(&enter, locale.setup_choose_hint()),
         super::controls::KeyHint::new(&vertical, locale.setup_select_hint()),
     ];
@@ -689,7 +693,8 @@ fn render_checkouts<'a>(
         locale.worktree_cancel_label(WorktreeStage::Checkout),
         super::controls::ActionKind::Secondary,
         true,
-    );
+    )
+    .with_shortcut(&escape);
     let close = match super::controls::close_rect(frame.area(), area) {
         Some(close) => close,
         None => return (Rect::default(), ModalPresentation::NotPresented),
@@ -769,12 +774,18 @@ fn render_checkouts<'a>(
         })
         .collect::<Vec<_>>();
     let mut lines = vec![
-        Line::from(truncate_display(
-            locale.worktree_title(picker.mode),
-            budget,
-            theme.glyphs.ellipsis,
-        )),
-        Line::from(path_text(picker.source, budget, theme.glyphs.ellipsis)),
+        title_line(
+            truncate_display(
+                locale.worktree_title(picker.mode),
+                budget,
+                theme.glyphs.ellipsis,
+            ),
+            theme,
+        ),
+        description_line(
+            path_text(picker.source, budget, theme.glyphs.ellipsis),
+            theme,
+        ),
     ];
     for (offset, choice) in choices.iter().enumerate() {
         let geometry = row_geometries[offset];
@@ -796,7 +807,10 @@ fn render_checkouts<'a>(
     while lines.len() < usize::from(inner.height - 3) {
         lines.push(Line::from(""));
     }
-    lines.push(Line::from(format!("{}/{}", picker.selected + 1, count)));
+    lines.push(description_line(
+        format!("{}/{}", picker.selected + 1, count),
+        theme,
+    ));
     lines.extend([Line::from(""), Line::from("")]);
 
     hits.start_modal();

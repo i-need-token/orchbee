@@ -1,7 +1,20 @@
 //! Nonmodal navigation organization uses the existing canonical setup mailbox.
-use super::{NativeUi, OperationDeadlines};
+use super::{NativeSessionView, NativeUi, OperationDeadlines};
 use crate::tui_pointer::SidebarReorderSource;
 use orchbee_workbench_protocol::{NavigationConfiguration, configure_navigation};
+
+impl NativeSessionView<'_> {
+    /// A retired carrier cannot keep speculative navigation alive in another view.
+    pub(crate) fn sidebar_navigation(
+        &self,
+    ) -> Option<crate::terminal_session::SidebarNavigationProjection> {
+        if self.retirement_requested || self.retirement.is_some() {
+            return None;
+        }
+        Some(self.state.as_ref()?.sidebar_navigation())
+    }
+}
+
 impl NativeUi {
     pub(in crate::terminal_session) fn sidebar_reorder_source(
         &mut self,

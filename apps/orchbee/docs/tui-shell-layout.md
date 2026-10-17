@@ -35,10 +35,28 @@ action and close painting, and exact pointer projection and publication. Each fe
 its localized content, typed token and `HitTarget`, availability reason, presentation phase, effect,
 and draw receipt. The shared module never imports a feature-specific state or token.
 
-Confirmation `ModalAction` values supply the effective Esc/Enter labels to `ActionSpec`'s
-optional shortcut slot. It measures and paints the subdued key inside the button brackets; these
-confirmations omit the duplicate hint row. Other forms retain their stage-specific footer hints.
+Form and confirmation `ModalAction` values supply their effective bindings to `ActionSpec`'s
+optional shortcut slot. It measures and paints the subdued key inside the button brackets. The
+footer omits duplicate action hints and keeps at most two secondary editing or navigation hints
+above its button row. Settings adopts the same rule for Close, Back and child Cancel/Confirm.
 The complete X paint also registers its exact typed dismissal target for backdrop gestures.
+
+The modal's `title_line`, `description_line` and `status_line` project the
+[overlay hierarchy](../../../docs/tui/overlays-and-status.md#content-hierarchy): one bold primary
+task title, secondary context and field help, primary labels and values, and status color confined
+to its glyph. Rename and setup fields keep a label above the boundary; multi-field forms separate
+their field pairs with one blank row. Confirmations retain primary target and consequence text.
+Settings keeps its title on the frame, with a bold category and secondary position inside. Existing
+shared row and action controls continue to own selection, availability, hover, press and focus cues.
+
+Text modals prefer 48–72 inner columns (54–78 including the frame and horizontal padding), clamped
+to the available overlay area. Complete required controls may increase that preference; optional
+hints never do. Prose wraps within the final width, fields window their drafts, and hints lose only
+whole trailing records. The Project and checkout pickers retain their 78/84-column preferences,
+fixed header and footer, and independently windowed rows; Settings retains its 92-column preference.
+The [modal witnesses](../src/tui_render/modal/tests.rs) cover width and control admission, while the
+[composed popup witness](../src/terminal_session/ui/tests/modal_pointer_roundtrip.rs) covers the
+Project-name flow, localized hierarchy, field cursor, fault/disabled treatment and suspended targets.
 
 All modal geometry, including complete hints, actions, fields, and the fixed three-cell close action,
 must be admitted before `start_modal`, frame mutation, cursor placement, or hit publication. A refused
@@ -179,6 +197,10 @@ frame being painted, so a scroll cannot display a stale insertion target. One `n
 membership/order through the existing serialized setup and known-receipt recovery lane; current
 terminal and keyboard focus remain unchanged. No operation is automatically rebased or resubmitted.
 
+An admitted drop immediately displays its reversible order through the active Client navigation
+projection. The setup lane still owns canonical confirmation, refusal, unknown outcomes and recovery;
+the independent metadata/Git polling interval never delays this local feedback or confirmed handoff.
+
 In sidebar keyboard navigation, Ctrl+Up and Ctrl+Down move the focused Project, or move a Workspace
 within its current Project/ungrouped list. The existing row-menu binding retains grouping commands
 and shares the same stable target proof as secondary click. These local bindings appear in sidebar
@@ -316,12 +338,15 @@ Tabs and content follow the installed Session selection. Pending, superseded and
 cancelled requests follow [machine navigation](machines.md#cross-machine-workspace-navigation).
 
 The native sidebar renders Workspaces and optional Project groups from complete Machine
-checkpoints. Nonempty legacy content and ungrouped Workspaces precede Projects for each Machine.
+checkpoints and the active Client's canonical snapshot. Nonempty legacy content precedes Projects
+and their children, followed by ungrouped Workspaces for each Machine.
 Grouped ordinary and Git-worktree-backed Workspaces share the same level; every Workspace
 owns its Agent children. `machine_spaces::Checkpoint` retains Project IDs and labels from
 the same fenced Snapshot as Workspaces, including empty Projects with their own menu and
-creation controls. Until it arrives, the existing Context projection supplies its known
-Projects and Workspaces.
+creation controls. The active Client supplies validated topology on each UI tick, plus at most one
+admitted move as a reversible display. The independent observer supplies exact-identity metadata
+and Git evidence; a newer canonical revision supersedes older local topology. New topology never
+waits for a metadata read. Other Machines retain their observation lifecycle.
 
 `machine_picker::Picker` owns Project expansion, independent Agent-list collapse
 preferences per Context, keyboard row focus and one shared window. `SidebarTarget::Project`
@@ -333,6 +358,14 @@ dissolving its Project never changes its terminal identity, Tab or Panel target.
 joining never uses labels or row positions. Equal sibling labels retain ID annotations.
 Canonical Project order, Workspace order within each group or root list, and global
 eligible Agent ordinals remain intact.
+
+The shared window stores its manually positioned top row by identity and old neighbor order.
+Insertion, reorder, disclosure, background source updates and resize retain that row within viewport bounds; removal uses
+the next surviving old neighbor, then the previous one, then the empty origin. Queued wheel work
+is discarded when its geometry changes. A provisional creation slot participates in measured
+geometry without becoming an identity or shifting the saved real-row anchor. Explicit navigation
+or foreground creation resumes the smallest required focus reveal. Domain selection never follows
+ordinary viewport movement.
 
 Each successful frame builds one immutable `SidebarSource` from those existing identities,
 parentage and action eligibility, then shares it across the frame's `DrawnSidebarTarget` and

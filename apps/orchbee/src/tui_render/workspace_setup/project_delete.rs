@@ -1,4 +1,5 @@
 //! Complete organization-only Project deletion decision; existing setup owns every effect.
+use super::super::modal::title_line;
 use super::{
     Binding, Clear, Frame, HitLayer, HitMapBuilder, HitTarget, KeyCode, Line, Locale, ModalAction,
     ModalControl, ModalPresentation, Modifiers, NativeSetupToken, Paragraph, Rect, Text, Theme,
@@ -37,7 +38,7 @@ pub(super) fn render(
         .with_shortcut(&enter),
     ];
     let text = Text::from(vec![
-        Line::from(locale.project_delete_title()),
+        title_line(locale.project_delete_title(), theme),
         Line::from(""),
         Line::from(sanitize_terminal_text(decision.project).into_owned()),
         Line::from(""),

@@ -91,7 +91,7 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                         assert!(text.contains("/checkout"));
                         assert!(!text.contains('\x1b'));
                         assert!(text.replace(' ', "").contains(&format!(
-                            "[{}]",
+                            "[{}Esc]",
                             locale.worktree_cancel_label(WorktreeStage::Checkout)
                         )));
                     }

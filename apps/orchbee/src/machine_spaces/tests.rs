@@ -1,4 +1,5 @@
 use super::*;
+mod navigation_projection;
 use crate::{local_client::tests::server::FakeServer, machine_agents::tests::accept};
 use orchbee_workbench_protocol::{
     Directory, MetadataTokenKey, MetadataTokenValue, Project, TerminalContext,

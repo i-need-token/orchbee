@@ -1,6 +1,7 @@
 use super::*;
 use crate::{machine_discovery::Context, terminal_session::NativeContextLocation};
 use orchbee_workbench_protocol::*;
+mod anchoring;
 fn contexts(count: u64) -> Vec<Context> {
     let site = SiteId::parse(&format!("{:032x}", 1)).unwrap();
     (0..count)

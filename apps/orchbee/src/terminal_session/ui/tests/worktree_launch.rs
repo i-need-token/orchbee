@@ -151,12 +151,12 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                     assert!(
                         drawn
                             .text
-                            .contains(&format!("[{}]", cancel_label.replace(' ', "")))
+                            .contains(&format!("[{}Esc]", cancel_label.replace(' ', "")))
                     );
                     assert!(
                         drawn
                             .text
-                            .contains(&format!("[{}]", submit_label.replace(' ', "")))
+                            .contains(&format!("[{}Enter]", submit_label.replace(' ', "")))
                     );
 
                     let hint_y = (0..height)
@@ -167,7 +167,7 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                                     && drawn.buffer[(x + 2, y)].symbol() == "c"
                             })
                         })
-                        .expect("exit-first Worktree footer");
+                        .expect("Worktree cancel button binding");
                     let hint_x = (0..width.saturating_sub(2))
                         .find(|&x| {
                             drawn.buffer[(x, hint_y)].symbol() == "E"
@@ -176,23 +176,19 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                         })
                         .unwrap();
                     let footer = visible_row(&drawn.buffer, width, hint_y);
-                    let cancel_hint = locale.worktree_cancel_hint(WorktreeStage::Branch);
-                    let submit_hint = locale.worktree_submit_hint(WorktreeStage::Branch);
-                    let required_hints = format!(
-                        "Esc {cancel_hint} {} Enter {submit_hint}",
-                        theme.glyphs.middle_dot
+                    assert!(
+                        footer.contains(&format!("[ {cancel_label}  Esc ]")),
+                        "{locale:?}: {footer:?}"
                     );
-                    assert!(footer.contains(&required_hints), "{locale:?}: {footer:?}");
+                    assert!(
+                        footer.contains(&format!("[ {submit_label}  Enter ]")),
+                        "{locale:?}: {footer:?}"
+                    );
+                    let secondary_hints = visible_row(&drawn.buffer, width, hint_y - 1);
+                    assert!(!secondary_hints.contains("Esc") && !secondary_hints.contains("Enter"));
                     let key_style = drawn.buffer[(hint_x, hint_y)].style();
-                    let spacing_style = drawn.buffer[(hint_x + 3, hint_y)].style();
-                    let label_style = drawn.buffer[(hint_x + 4, hint_y)].style();
-                    assert_eq!(drawn.buffer[(hint_x + 3, hint_y)].symbol(), " ");
-                    assert_eq!(key_style.fg, theme.style(Role::HintKey).fg);
-                    assert_eq!(spacing_style.fg, theme.style(Role::HintLabel).fg);
-                    assert_eq!(label_style.fg, theme.style(Role::HintLabel).fg);
-                    assert!(key_style.add_modifier.contains(Modifier::BOLD));
-                    assert!(!spacing_style.add_modifier.contains(Modifier::BOLD));
-                    assert!(!label_style.add_modifier.contains(Modifier::BOLD));
+                    assert_eq!(key_style.fg, theme.style(Role::TextSecondary).fg);
+                    assert!(!key_style.add_modifier.contains(Modifier::BOLD));
 
                     let target_count = |control| {
                         (0..height)
@@ -212,11 +208,11 @@ fn worktree_complete_draw_arms_one_exact_plan_and_small_first_draw_refuses() {
                         crate::terminal_text::display_width(theme.glyphs.active_marker).max(1);
                     assert_eq!(
                         target_count(ModalControl::Cancel),
-                        focus_width + 4 + crate::terminal_text::display_width(cancel_label) + 3 // The independent header [x] shares the cancel intent.
+                        focus_width + 4 + crate::terminal_text::display_width(cancel_label) + 5 + 3 // The independent header [x] shares the cancel intent; the button also owns two spaces and Esc.
                     );
                     assert_eq!(
                         target_count(ModalControl::Submit),
-                        focus_width + 4 + crate::terminal_text::display_width(submit_label)
+                        focus_width + 4 + crate::terminal_text::display_width(submit_label) + 7
                     );
                     assert!(target_count(ModalControl::NextField) > 0);
                     assert!(

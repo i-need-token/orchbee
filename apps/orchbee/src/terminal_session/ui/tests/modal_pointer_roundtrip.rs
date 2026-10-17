@@ -10,7 +10,7 @@ use crate::{
     tui_pointer::{FrameHitMap, HitMapBuilder, HitTarget, ModalControl, MotionObservability},
     tui_theme::{Role, Theme},
 };
-use ratatui::{Terminal, backend::TestBackend, style::Color};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, layout::Position, style::Color};
 use std::{
     io,
     time::{Duration, Instant},
@@ -51,13 +51,14 @@ impl TerminalInputPort for NativePort<'_> {
 
 struct RenderedFrame {
     map: FrameHitMap,
-    backgrounds: Vec<Color>,
+    buffer: Buffer,
+    cursor: Option<Position>,
     width: u16,
 }
 
 impl RenderedFrame {
     fn background(&self, x: u16, y: u16) -> Color {
-        self.backgrounds[usize::from(y) * usize::from(self.width) + usize::from(x)]
+        self.buffer[(x, y)].bg
     }
 }
 
@@ -137,6 +138,18 @@ impl Harness {
         theme: &Theme,
         capture_name: Option<&str>,
     ) -> RenderedFrame {
+        self.render_locale(ui, (width, height), Locale::EnUs, theme, capture_name)
+    }
+
+    fn render_locale(
+        &mut self,
+        ui: &mut NativeUi,
+        size: (u16, u16),
+        locale: Locale,
+        theme: &Theme,
+        capture_name: Option<&str>,
+    ) -> RenderedFrame {
+        let (width, height) = size;
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         let mut hits = HitMapBuilder::with_pointer(self.dispatcher.pointer_projection());
         let mut receipt = None;
@@ -145,7 +158,7 @@ impl Harness {
                 receipt = Some(crate::tui_render::render_terminal_shell(
                     frame,
                     &self.view,
-                    Locale::EnUs,
+                    locale,
                     Some(TerminalSessionView::Native(ui.view())),
                     theme,
                     &mut hits,
@@ -153,26 +166,20 @@ impl Harness {
             })
             .unwrap();
         if let Some(name) = capture_name {
-            crate::tui_render::test_capture::capture_screen(
-                &mut terminal,
-                name,
-                Locale::EnUs,
-                theme,
-            );
+            crate::tui_render::test_capture::capture_screen(&mut terminal, name, locale, theme);
         }
-        let backgrounds = terminal
+        let buffer = terminal.backend().buffer().clone();
+        let cursor = terminal
             .backend()
-            .buffer()
-            .content()
-            .iter()
-            .map(|cell| cell.bg)
-            .collect();
+            .cursor_visible()
+            .then(|| terminal.get_cursor_position().unwrap());
         let map = hits.finish();
         self.dispatcher.publish_hit_map(map.clone());
         ui.after_close_draw(receipt.unwrap());
         RenderedFrame {
             map,
-            backgrounds,
+            buffer,
+            cursor,
             width,
         }
     }
@@ -364,4 +371,146 @@ fn setup_project_row_roundtrips_hover_press_and_release_through_native_ui() {
     assert_eq!(advanced.stage(), NativeSetupStage::WorkspaceProjectName);
     assert!(mailbox.try_recv().unwrap().is_none());
     assert!(harness.forwarded.is_empty());
+}
+
+fn visible_row(buffer: &Buffer, y: u16) -> String {
+    let mut line = String::new();
+    let mut x = buffer.area.x;
+    while x < buffer.area.right() {
+        let symbol = buffer[(x, y)].symbol();
+        line.push_str(symbol);
+        x += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
+    }
+    line
+}
+
+fn text_position(buffer: &Buffer, text: &str) -> (u16, u16) {
+    (buffer.area.y..buffer.area.bottom())
+        .find_map(|y| {
+            let row = visible_row(buffer, y);
+            let offset = row.find(text)?;
+            Some((
+                u16::try_from(crate::terminal_text::display_width(&row[..offset])).unwrap(),
+                y,
+            ))
+        })
+        .unwrap_or_else(|| panic!("missing popup text {text:?}"))
+}
+
+#[test]
+fn project_name_popup_keeps_task_field_feedback_and_complete_actions_in_one_hierarchy() {
+    use crate::{terminal_session::NativeSetupEdit, tui_theme::ColorLevel};
+    use ratatui::style::Modifier;
+
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::one_light(),
+            Theme::one_dark().quantize(ColorLevel::Ansi16),
+            Theme::terminal_native().quantize(ColorLevel::Monochrome),
+        ] {
+            for (width, height) in [(120, 40), (80, 24), (60, 18), (48, 11), (15, 4)] {
+                for fault in [false, true] {
+                    let (mut ui, mailbox, _, _) = super::workspace_close::ready();
+                    ui.apply_client_action(ClientAction::RequestWorkspaceMove);
+                    let draft = ui.view().setup_draft().unwrap();
+                    let (picker_token, choice) = (draft.token(), draft.project_count() - 1);
+                    let mut harness = Harness::new(120);
+                    harness.render(&mut ui, 120, 40, &theme, None);
+                    ui.choose_setup_project(picker_token, choice);
+                    let token = ui.view().setup_draft().unwrap().token();
+                    harness.render(&mut ui, 120, 40, &theme, None);
+                    ui.edit_setup_draft(token, NativeSetupEdit::Paste("p1界"));
+                    if fault {
+                        ui.edit_setup_draft(token, NativeSetupEdit::Fault);
+                    }
+                    let capture = format!(
+                        "popup-project-name-{locale:?}-{}-{width}x{height}-fault-{fault}",
+                        theme.name
+                    );
+                    let drawn = harness.render_locale(
+                        &mut ui,
+                        (width, height),
+                        locale,
+                        &theme,
+                        Some(&capture),
+                    );
+                    let draft = ui.view().setup_draft().unwrap();
+                    assert_eq!(draft.stage(), NativeSetupStage::WorkspaceProjectName);
+                    assert_eq!(draft.text(), "p1界");
+                    assert!(mailbox.try_recv().unwrap().is_none());
+                    if width < 60 {
+                        assert!(drawn.cursor.is_none());
+                        assert!((0..height).all(|y| (0..width).all(|x| !matches!(
+                            drawn.map.hit_target_at(x, y),
+                            Some(HitTarget::Setup { .. })
+                        ))));
+                        continue;
+                    }
+
+                    let title = text_position(&drawn.buffer, locale.setup_title(draft.stage()));
+                    let context = text_position(
+                        &drawn.buffer,
+                        &format!("{}: 项目 space 界", locale.shell().workspaces),
+                    );
+                    let helper = text_position(&drawn.buffer, locale.setup_input_hint(false));
+                    let cursor = drawn
+                        .cursor
+                        .expect("active field keeps its real terminal cursor");
+                    let bold = |position| drawn.buffer[position].modifier.contains(Modifier::BOLD);
+                    assert!(bold(title));
+                    assert!(!bold(context) && !bold(helper));
+                    assert_eq!(
+                        drawn.buffer[context].fg,
+                        theme.style(Role::TextSecondary).fg.unwrap()
+                    );
+                    assert_eq!(
+                        drawn.buffer[helper].fg,
+                        theme.style(Role::TextSecondary).fg.unwrap()
+                    );
+                    assert!(title.1 < context.1 && context.1 < cursor.y && cursor.y < helper.1);
+                    assert!(
+                        visible_row(&drawn.buffer, cursor.y - 1)
+                            .contains(locale.quick_workspace_name())
+                    );
+                    assert!(visible_row(&drawn.buffer, cursor.y).contains("[ p1界"));
+
+                    let action = text_position(
+                        &drawn.buffer,
+                        &format!("[ {}  Enter ]", locale.setup_submit_label()),
+                    );
+                    let actions = visible_row(&drawn.buffer, action.1);
+                    assert!(actions.contains(&format!("[ {}  Esc ]", locale.setup_cancel_label())));
+                    assert!(!visible_row(&drawn.buffer, action.1 - 1).contains("Esc"));
+                    assert!(helper.1 < action.1);
+                    assert_eq!(
+                        drawn.buffer[(action.0 + 2, action.1)].fg,
+                        theme
+                            .style(if fault {
+                                Role::TextDisabled
+                            } else {
+                                Role::AccentAction
+                            })
+                            .fg
+                            .unwrap()
+                    );
+                    if fault {
+                        let feedback = text_position(
+                            &drawn.buffer,
+                            locale.setup_fault().split(['.', '。']).next().unwrap(),
+                        );
+                        assert_eq!(
+                            drawn.buffer[(feedback.0 - 2, feedback.1)].fg,
+                            theme.style(Role::StatusError).fg.unwrap()
+                        );
+                        assert_eq!(
+                            drawn.buffer[feedback].fg,
+                            theme.style(Role::TextPrimary).fg.unwrap()
+                        );
+                        assert!(!bold(feedback));
+                    }
+                }
+            }
+        }
+    }
 }

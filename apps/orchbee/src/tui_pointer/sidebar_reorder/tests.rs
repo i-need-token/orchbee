@@ -101,6 +101,7 @@ fn fixture() -> (PointerState, ClientView, Port, FrameHitMap) {
         capacity: rows.len(),
         total: rows.len(),
         maximum: 0,
+        insertion: None,
     };
     let mut hits = HitMapBuilder::new();
     hits.record_action_menu_source(Some(crate::action_menu::DrawnMenuSource {

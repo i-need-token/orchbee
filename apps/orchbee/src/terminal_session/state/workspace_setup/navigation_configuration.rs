@@ -6,6 +6,48 @@ use super::{
 use orchbee_workbench_protocol::{
     Navigation, NavigationConfiguration, ProtocolVersion, configure_navigation,
 };
+
+/// The active Client's canonical topology and its one admitted, reversible sidebar move.
+/// Metadata observations and terminal selection remain with their existing owners.
+#[cfg(windows)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SidebarNavigationProjection {
+    pub(crate) snapshot: std::sync::Arc<orchbee_workbench_protocol::Snapshot>,
+    pub(crate) pending: Option<NavigationConfiguration>,
+}
+
+#[cfg(windows)]
+impl super::super::NativeSessionView<'_> {
+    pub(in crate::terminal_session) fn sidebar_navigation(&self) -> SidebarNavigationProjection {
+        let state = self.state;
+        let operation = state
+            .setup
+            .uncertain
+            .is_none()
+            .then(|| {
+                state
+                    .setup
+                    .pending
+                    .as_ref()
+                    .or_else(|| state.setup.known.as_ref().map(|known| &known.operation))
+            })
+            .flatten();
+        let pending = operation.and_then(|operation| {
+            if operation.command.expected_revision != state.cache.revision() {
+                return None;
+            }
+            match &operation.command.action {
+                WorkbenchAction::NavigationConfigure { operation } => Some(operation.clone()),
+                _ => None,
+            }
+        });
+        SidebarNavigationProjection {
+            snapshot: state.cache.shared_canonical_snapshot(),
+            pending,
+        }
+    }
+}
+
 impl NativeSessionState {
     pub(in crate::terminal_session) fn plan_navigation_configuration(
         &self,

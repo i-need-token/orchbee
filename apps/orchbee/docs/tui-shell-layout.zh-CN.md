@@ -29,9 +29,25 @@
 各特性渲染器拥有自己的本地化内容、类型化 token 与 `HitTarget`、不可用原因、呈现阶段、效果及
 绘制回执。共享模块绝不导入特性专属状态或 token。
 
-确认的 `ModalAction` 将有效 Esc/Enter 标签交给 `ActionSpec` 的可选快捷键槽。它在按钮
-方括号内测量并绘制弱化的按键；这些确认省去重复提示行。其他表单保留各阶段专用页脚提示。
+表单与确认的 `ModalAction` 将有效绑定交给 `ActionSpec` 的可选快捷键槽。它在按钮方括号内
+测量并绘制弱化的按键。页脚省去重复动作提示，在按钮行上方保留至多两个次要编辑或导航提示。
+Settings 的关闭、返回和子任务取消／确认采用相同规则。
 完整的 X 绘制同时登记其精确类型化关闭目标，供蒙层手势复用。
+
+模态的 `title_line`、`description_line` 与 `status_line` 投影
+[覆盖层层级](../../../docs/zh-CN/tui/overlays-and-status.md#内容层级)：一个加粗的主要任务标题、
+次要上下文与字段帮助、主要标签与值，以及仅作用于字形的状态色。重命名和设置字段在边界上方
+保留标签；多字段表单用一空行分隔字段对。确认保留主要目标与后果文字。Settings 将标题放在
+边框上，内部分类加粗、位置计数弱化。现有共享行与动作控件继续拥有选择、可用性、悬停、
+按下和焦点提示。
+
+文字模态首选 48–72 内部列（含边框与水平内边距为 54–78 列），并限制在可用覆盖层区域内。
+完整的必需控件可以增大首选宽度；可选提示不得增大它。正文按最终宽度折行，字段窗口化草稿，
+提示仅舍弃末尾的完整记录。项目与检出选择器保留 78/84 列首选宽度、固定头部和页脚，以及
+独立窗口化的行；Settings 保留 92 列首选宽度。
+[模态见证](../src/tui_render/modal/tests.rs) 覆盖宽度与控件准入，
+[完整弹窗见证](../src/terminal_session/ui/tests/modal_pointer_roundtrip.rs) 覆盖项目命名流程、
+本地化层级、字段光标、错误／不可用处理和暂停时的目标。
 
 所有模态几何，包括完整提示、动作、字段和固定三列关闭动作，都必须在 `start_modal`、帧修改、
 光标定位或命中发布前完成准入。被拒绝的 surface 返回空回执或 `NotPresented`，且对帧与命中图
@@ -143,6 +159,9 @@ Project 标题上作为整组排序。仅拖拽期间显示底部放置区：不
 源身份时继续手势。预览几何从正在绘制的候选帧解析，滚动不会显示过期落点。一次 `navigation.configure` 经既有串行 setup 与已知回执恢复通道改变成员／顺序，
 当前终端及键盘焦点保持不变。操作绝不自动 rebase 或重新提交。
 
+放置获准后，活动 Client 的导航投影立即显示可撤销顺序。setup 通道仍拥有规范确认、拒绝、未知结果与恢复，
+独立的元数据／Git 轮询间隔不会延迟此本地反馈或已确认结果的交接。
+
 侧栏键盘导航中，Ctrl+Up 和 Ctrl+Down 移动当前 Project，或在当前 Project／未分组列表中移动
 Workspace。既有行菜单快捷键保留分组命令，与右键共享稳定目标证明。这些局部绑定从绑定注册表投影到
 侧栏帮助；该手势不新增独立快捷键系统。
@@ -247,12 +266,13 @@ Full/Compact/Minimal/TooSmall 矩阵。宿主交互需要单独的原生证据�
 当前 Workspace、Tab 及内容遵循已安装的 Session 选择。等待、被替代及取消的请求遵循
 [机器导航](machines.zh-CN.md#跨机器工作区导航)。
 
-原生侧栏从完整 Machine checkpoint 绘制 Workspace 及可选 Project 分组。每台 Machine
-的 非空历史内容和未分组 Workspace 位于 Project 前面。分组后的普通 Workspace 与基于
+原生侧栏从完整 Machine checkpoint 和活动 Client 的规范快照绘制 Workspace 及可选 Project 分组。
+每台 Machine 依次显示非空历史内容、Project 及其子项，最后是未分组 Workspace。分组后的普通 Workspace 与基于
 Git worktree 的 Workspace 同级，每个 Workspace 都拥有自己的 Agent 子行。
 `machine_spaces::Checkpoint` 从与 Workspace 相同的受保护 Snapshot 保留 Project ID
-和标签，包括具有独立菜单与创建控件的空 Project。其到达之前，现有 Context 投影提供
-已知 Project 和 Workspace。
+和标签，包括具有独立菜单与创建控件的空 Project。活动 Client 在每次 UI tick 提供已验证拓扑，
+以及至多一次已准入移动的可撤销显示。独立观察器按准确身份补充元数据和 Git 证据，更新的规范修订号
+取代旧的本地拓扑。新拓扑无需等待元数据读取，其他 Machine 保留自身观察生命周期。
 
 `machine_picker::Picker` 拥有 Project 展开、各 Context 独立的 Agent 列表折叠偏好、键盘行焦点
 及共用窗口。`SidebarTarget::Project` 携带 Machine／Session／Project 身份；
@@ -261,6 +281,11 @@ Git worktree 的 Workspace 同级，每个 Workspace 都拥有自己的 Agent �
 由 `Picker::sidebar_parent` 从当前投影解析。移动 Workspace 或解散其 Project 不改变
 终端身份、Tab 或 Panel 目标。Agent 关联不使用标签或行位置。同名同级行保留 ID 注记。
 规范 Project 顺序、各组或根列表中的 Workspace 顺序，以及全局可用 Agent 序号保持原样。
+
+共用窗口按身份及旧邻居顺序保存手动定位的顶行。插入、排序、展开／折叠、后台来源更新及尺寸变化
+在视口边界内保留该行；移除时依次使用旧顺序中下一个仍存在的邻居、前一个邻居、空状态原点。几何变化时丢弃已排队
+的滚轮工作。临时创建行参与几何测量，但不成为身份，也不移动保存的真实行锚点。显式导航或前台创建
+恢复最小必要的焦点显露。普通视口移动不改变领域选择。
 
 每个成功帧从这些已有身份、父子关系及动作准入构建一个不可变 `SidebarSource`，并由该帧的
 所有 `DrawnSidebarTarget` 与 `DrawnSidebarFixedTarget` 共用。标签、状态文案、主题、键盘焦点、鼠标呈现和滚动位置不进入

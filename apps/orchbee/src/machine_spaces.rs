@@ -17,6 +17,7 @@ use std::{
 };
 const MAXIMUM_ROWS: usize = 4096;
 const MAXIMUM_BYTES: usize = 8 * 1024 * 1024;
+mod navigation_projection;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Git {
     pub(crate) branch: Option<String>,

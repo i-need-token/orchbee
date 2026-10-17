@@ -172,7 +172,7 @@ impl Picker {
         self.current = machine;
         self.current_context = context;
         self.current_member = member;
-        self.spaces.reset();
+        self.spaces.reveal();
         self.rebuild_workspaces(selected);
         true
     }

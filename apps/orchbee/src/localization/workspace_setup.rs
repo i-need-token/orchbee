@@ -70,21 +70,9 @@ impl Locale {
             Self::ZhCn => "提交",
         }
     }
-    pub(crate) const fn setup_submit_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "submit",
-            Self::ZhCn => "提交",
-        }
-    }
     pub(crate) const fn setup_cancel_label(self) -> &'static str {
         match self {
             Self::EnUs => "Cancel",
-            Self::ZhCn => "取消",
-        }
-    }
-    pub(crate) const fn setup_cancel_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "cancel",
             Self::ZhCn => "取消",
         }
     }

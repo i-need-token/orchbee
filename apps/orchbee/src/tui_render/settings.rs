@@ -66,7 +66,11 @@ pub(super) fn render(
     } else {
         if matches!(view, View::Saving { .. }) {
             frame.render_widget(
-                Paragraph::new(locale.settings_saving_fact()).style(theme.style(Role::StatusInfo)),
+                Paragraph::new(super::modal::status_line(
+                    locale.settings_saving_fact(),
+                    Role::StatusInfo,
+                    theme,
+                )),
                 Rect::new(layout.inner.x, layout.inner.y, layout.inner.width, 1),
             );
         }
@@ -78,8 +82,11 @@ pub(super) fn render(
                     0
                 };
             frame.render_widget(
-                Paragraph::new(locale.settings_pending(matches!(view, View::Saving { .. })))
-                    .style(theme.style(Role::StatusPending)),
+                Paragraph::new(super::modal::status_line(
+                    locale.settings_pending(matches!(view, View::Saving { .. })),
+                    Role::StatusPending,
+                    theme,
+                )),
                 Rect::new(layout.inner.x, y, layout.inner.width, 1),
             );
         }
@@ -195,21 +202,48 @@ fn is_confirmation(view: View<'_>) -> bool {
     matches!(view, View::Draft(draft) if draft.confirmation.is_some())
 }
 
-fn confirmation_shortcuts(view: View<'_>, theme: &Theme) -> Option<[String; 2]> {
-    is_confirmation(view).then(|| {
-        [SettingsHintLabel::Cancel, SettingsHintLabel::Confirm].map(|label| {
-            let hint = footer_bindings(view)
-                .iter()
-                .find(|hint| hint.label() == label)
-                .expect("confirmation owner exposes cancel and confirm bindings");
-            format_settings_bindings(hint.bindings(), theme)
-        })
-    })
+fn child_shortcuts(view: View<'_>, theme: &Theme) -> Option<[String; 2]> {
+    matches!(view, View::Draft(draft) if draft.confirmation.is_some() || draft.text.is_some()).then(
+        || {
+            [
+                SettingsHintLabel::Cancel,
+                if is_confirmation(view) {
+                    SettingsHintLabel::Confirm
+                } else {
+                    SettingsHintLabel::Accept
+                },
+            ]
+            .map(|label| {
+                let hint = footer_bindings(view)
+                    .iter()
+                    .find(|hint| hint.label() == label)
+                    .expect("child owner exposes cancel and accept bindings");
+                format_settings_bindings(hint.bindings(), theme)
+            })
+        },
+    )
+}
+
+fn exit_shortcut(view: View<'_>, theme: &Theme) -> String {
+    let hint = footer_bindings(view)
+        .first()
+        .expect("settings owner exposes exit first");
+    format_settings_bindings(hint.bindings(), theme)
 }
 
 fn resolved_footer_hints(view: View<'_>, locale: Locale, theme: &Theme) -> Vec<ResolvedFooterHint> {
     footer_bindings(view)
         .iter()
+        .filter(|hint| {
+            !matches!(
+                hint.label(),
+                SettingsHintLabel::Close
+                    | SettingsHintLabel::Back
+                    | SettingsHintLabel::Cancel
+                    | SettingsHintLabel::Confirm
+                    | SettingsHintLabel::Accept
+            )
+        })
         .map(|hint| ResolvedFooterHint {
             key: format_settings_bindings(hint.bindings(), theme),
             label: locale.settings_hint_label(hint.label()),
@@ -236,6 +270,9 @@ fn footer_hints_admitted(
     }
     let resolved = resolved_footer_hints(view, locale, theme);
     let hints = key_hints(&resolved);
+    if hints.is_empty() {
+        return Some(());
+    }
     let _ = measure_key_hints(&hints, theme)?;
     let first = measure_key_hints(hints.get(..1)?, theme)?;
     (first <= usize::from(area.width)).then_some(())
@@ -250,6 +287,9 @@ fn render_footer_hints(
 ) -> Option<Rect> {
     let resolved = resolved_footer_hints(view, locale, theme);
     let hints = key_hints(&resolved);
+    if hints.is_empty() {
+        return Some(Rect::new(area.x, area.y, 0, 1));
+    }
     super::controls::render_key_hints(frame, area, &hints, theme)
 }
 
@@ -386,7 +426,7 @@ impl FooterActionGeometry {
                 accept_enabled,
                 PointerPresentation::Rest,
             );
-            let shortcuts = confirmation_shortcuts(view, theme);
+            let shortcuts = child_shortcuts(view, theme);
             if let Some(shortcuts) = shortcuts.as_ref() {
                 first_spec = first_spec.with_shortcut(&shortcuts[0]);
                 second_spec = second_spec.with_shortcut(&shortcuts[1]);
@@ -411,12 +451,14 @@ impl FooterActionGeometry {
             } else {
                 locale.settings_close_button()
             };
+            let shortcut = exit_shortcut(view, theme);
             let spec = action_spec(
                 label,
                 ActionKind::Secondary,
                 true,
                 PointerPresentation::Rest,
-            );
+            )
+            .with_shortcut(&shortcut);
             let rect = super::controls::action_rect(bounds, row, spec, theme)?;
             Some(Self::Single { rect })
         }
@@ -470,7 +512,7 @@ fn render_footer_actions(
             unreachable!("preflighted child actions use pair geometry");
         };
         let labels = [locale.settings_cancel(), locale.settings_accept_button()];
-        let shortcuts = confirmation_shortcuts(view, theme);
+        let shortcuts = child_shortcuts(view, theme);
         let accept_enabled =
             !matches!(view, View::Draft(draft) if draft.text.is_some() && draft.invalid);
         let token = view.token();
@@ -525,13 +567,14 @@ fn render_footer_actions(
     } else {
         (locale.settings_close_button(), Control::Close)
     };
+    let shortcut = exit_shortcut(view, theme);
     let painted = render_interactive_action(
         frame,
         ActionPaint {
             area: row,
             rect,
             label,
-            shortcut: None,
+            shortcut: Some(&shortcut),
             kind: ActionKind::Secondary,
             enabled: true,
             target: InteractionTarget::SettingsControl {
@@ -575,14 +618,13 @@ fn render_draft(
             HitTarget::ListScroll(crate::tui_pointer::ListScrollTarget::Settings(draft.token)),
         );
     }
-    let heading = format!(
-        "{}  {}/{}",
-        locale.settings_category(draft.selected),
-        selected + 1,
-        rows.len()
-    );
+    let mut heading = super::modal::title_line(locale.settings_category(draft.selected), theme);
+    heading.spans.push(Span::styled(
+        format!("  {}/{}", selected + 1, rows.len()),
+        theme.style(Role::TextSecondary),
+    ));
     frame.render_widget(
-        Paragraph::new(heading).style(theme.style(Role::TextSecondary)),
+        Paragraph::new(heading),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
     for (index, row) in rows.iter().copied().enumerate().skip(start).take(visible) {
@@ -613,11 +655,11 @@ fn render_draft(
         );
     } else {
         frame.render_widget(
-            Paragraph::new(locale.settings_detail(draft)).style(theme.style(if draft.invalid {
-                Role::StatusError
+            Paragraph::new(if draft.invalid {
+                super::modal::status_line(locale.settings_detail(draft), Role::StatusError, theme)
             } else {
-                Role::TextSecondary
-            })),
+                super::modal::description_line(locale.settings_detail(draft), theme)
+            }),
             detail_area,
         );
     }

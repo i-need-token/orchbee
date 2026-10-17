@@ -148,6 +148,41 @@ fn without_cell_padding(text: &str) -> String {
         .collect()
 }
 
+#[test]
+fn category_heading_emphasis_does_not_promote_position_or_field_help() {
+    use ratatui::style::Modifier;
+
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::one_light(),
+            Theme::terminal_native().quantize(ColorLevel::Monochrome),
+        ] {
+            for selected in [Row::Language, Row::Theme, Row::Save] {
+                let mut editor = editor_with(UserPreferencesValues::default());
+                editor.edit(Edit::Select(selected));
+                let view = editor.view().unwrap();
+                let bounds = Rect::new(0, 0, 80, 24);
+                let layout = SettingsLayout::resolve(bounds, bounds, view, locale, &theme).unwrap();
+                let (terminal, _, receipt) = render_once(&editor, 80, 24, locale, &theme);
+                assert!(matches!(receipt, ModalPresentation::Presented(_)));
+                let buffer = terminal.backend().buffer();
+                let heading = &buffer[(layout.inner.x, layout.inner.y)];
+                let position_x = layout.inner.x
+                    + u16::try_from(display_width(locale.settings_category(selected)) + 2).unwrap();
+                let position = &buffer[(position_x, layout.inner.y)];
+                let detail = &buffer[(layout.inner.x, layout.inner.bottom() - 4)];
+                assert!(heading.modifier.contains(Modifier::BOLD));
+                assert_eq!(heading.fg, theme.style(Role::TextPrimary).fg.unwrap());
+                assert!(!position.modifier.contains(Modifier::BOLD));
+                assert_eq!(position.fg, theme.style(Role::TextSecondary).fg.unwrap());
+                assert!(!detail.modifier.contains(Modifier::BOLD));
+                assert_eq!(detail.fg, theme.style(Role::TextSecondary).fg.unwrap());
+            }
+        }
+    }
+}
+
 fn footer_position(view: View<'_>, label: SettingsHintLabel) -> usize {
     footer_bindings(view)
         .iter()
@@ -231,17 +266,14 @@ fn stepper_and_footer_actions_paint_their_complete_fixed_targets() {
                 assert_eq!(
                     without_cell_padding(&close_text),
                     match locale {
-                        Locale::EnUs => "[Close]",
-                        Locale::ZhCn => "[关闭]",
+                        Locale::EnUs => "[CloseEsc]",
+                        Locale::ZhCn => "[关闭Esc]",
                     },
-                    "the button keeps a localized verb while the hint owns its key"
+                    "the button owns both the localized verb and its binding"
                 );
                 let footer_row = *close_rows.iter().max().expect("footer close row");
                 let hint = without_cell_padding(&line_text(&terminal, footer_row - 1));
-                assert!(hint.contains(match locale {
-                    Locale::EnUs => "Escclose",
-                    Locale::ZhCn => "Esc关闭",
-                }));
+                assert!(!hint.contains("Esc"));
 
                 let backward = HitTarget::SettingsControl {
                     token,
@@ -353,29 +385,30 @@ fn general_action_rows_use_button_grammar_inside_the_whole_row_target() {
 fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
     let theme = Theme::one_dark();
     for (width, locale, expected) in [
-        (36, Locale::EnUs, "Esc close · Enter activate/edit"),
-        (40, Locale::EnUs, "Esc close · Enter activate/edit"),
-        (36, Locale::ZhCn, "Esc 关闭 · Enter 操作／编辑"),
+        (36, Locale::EnUs, "Enter activate/edit · Tab select"),
+        (40, Locale::EnUs, "Enter activate/edit · Tab select"),
+        (36, Locale::ZhCn, "Enter 操作／编辑 · Tab 选择"),
     ] {
         let editor = editor_with(UserPreferencesValues::default());
         let (terminal, _, receipt) = render_once(&editor, width, 10, locale, &theme);
         assert!(matches!(receipt, ModalPresentation::Presented(_)));
         let (y, line) = (0..10)
             .map(|y| (y, line_text(&terminal, y)))
-            .find(|(_, line)| line.contains("Esc"))
-            .expect("footer exit hint");
+            .find(|(_, line)| line.contains("Enter"))
+            .expect("footer primary hint");
         let expected = without_cell_padding(expected);
         assert!(
             without_cell_padding(&line).contains(expected.as_str()),
             "{width} {locale:?}: {line:?}"
         );
-        assert!(!line.contains("Tab"), "whole third item must be dropped");
+        assert!(line.contains("Tab"));
+        assert!(!line.contains("Esc"), "exit belongs to its button");
         assert!(!line.contains('←'), "whole fourth item must be dropped");
 
         let key_x = (0..width)
             .find(|&x| terminal.backend().buffer()[(x, y)].symbol() == "E")
-            .expect("Esc key span");
-        let label_x = key_x + 4;
+            .expect("Enter key span");
+        let label_x = key_x + 6;
         let key_style = terminal.backend().buffer()[(key_x, y)].style();
         let label_style = terminal.backend().buffer()[(label_x, y)].style();
         assert_eq!(key_style.fg, theme.style(Role::HintKey).fg);
@@ -397,7 +430,7 @@ fn footer_hints_split_key_and_label_roles_and_drop_only_whole_suffix_items() {
     let (terminal, _, _) = render_once(&editor, 120, 10, Locale::EnUs, &ascii_theme);
     let footer = (0..10)
         .map(|y| line_text(&terminal, y))
-        .find(|line| line.contains("Esc close"))
+        .find(|line| line.contains("Enter activate/edit"))
         .expect("simplified footer");
     assert!(footer.contains("Left/Right change"));
     assert!(!footer.contains('←') && !footer.contains('→'));
@@ -763,8 +796,8 @@ fn choice_and_editor_boundaries_remain_visible_at_rest_and_during_editing() {
         Some(HitTarget::SettingsRow { .. })
     ))));
     for (control, label) in [
-        (Control::Back, "[ Cancel ]"),
-        (Control::Accept, "[ Confirm ]"),
+        (Control::Back, "[ Cancel  Esc ]"),
+        (Control::Accept, "[ Confirm  Enter ]"),
     ] {
         let target = HitTarget::SettingsControl {
             token: draw.token(),
@@ -786,7 +819,7 @@ fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
     let token = editor.view().expect("invalid editor stays open").token();
     let (terminal, map, receipt) = render_once(&editor, 120, 40, Locale::EnUs, &theme);
     assert!(matches!(receipt, ModalPresentation::Presented(_)));
-    assert!(screen_text(&terminal).contains("[ Confirm ]"));
+    assert!(screen_text(&terminal).contains("[ Confirm  Enter ]"));
 
     let cancel = HitTarget::SettingsControl {
         token,
@@ -799,7 +832,10 @@ fn invalid_editor_accept_remains_visible_as_a_disabled_typed_target() {
     assert!(!cells_for(&map, &cancel, 120, 40).is_empty());
     let accept_cells = cells_for(&map, &accept, 120, 40);
     assert!(!accept_cells.is_empty());
-    assert_eq!(target_text(&terminal, &map, &accept, false), " [ Confirm ]");
+    assert_eq!(
+        target_text(&terminal, &map, &accept, false),
+        " [ Confirm  Enter ]"
+    );
     let expected = theme.content_on_surface(
         Role::SurfaceOverlay,
         None,

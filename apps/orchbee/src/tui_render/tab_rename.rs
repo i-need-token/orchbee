@@ -1,6 +1,6 @@
 use super::modal::{
-    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
-    set_modal_cursor,
+    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
+    paint_modal_close, set_modal_cursor, status_line, title_line,
 };
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
@@ -8,7 +8,7 @@ use crate::{
     terminal_session::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
     terminal_text::sanitize_terminal_text,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
-    tui_theme::Theme,
+    tui_theme::{Role, Theme},
 };
 use ratatui::{
     Frame,
@@ -29,23 +29,29 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
     let mut lines = vec![
-        Line::from(locale.rename_title()),
+        title_line(locale.rename_title(), theme),
         Line::from(""),
-        Line::from(sanitize_terminal_text(&draft.target_label()).into_owned()),
+        description_line(
+            sanitize_terminal_text(&draft.target_label()).into_owned(),
+            theme,
+        ),
         Line::from(""),
         Line::from(locale.rename_label()),
         // The field's one visible row is sized like the rest: the windowed
         // projection never takes more than the inner width it is given.
         Line::from(""),
-        Line::from(""),
-        Line::from(locale.rename_warning()),
+        description_line(locale.rename_warning(), theme),
         Line::from(""),
     ];
     if draft.input_fault() {
-        lines.push(Line::from(locale.rename_fault()));
+        lines.push(status_line(locale.rename_fault(), Role::StatusError, theme));
         lines.push(Line::from(""));
     } else if !draft.label_valid() {
-        lines.push(Line::from(locale.rename_invalid()));
+        lines.push(status_line(
+            locale.rename_invalid(),
+            Role::StatusError,
+            theme,
+        ));
         lines.push(Line::from(""));
     }
     lines.extend([Line::from(""), Line::from("")]);
@@ -54,8 +60,6 @@ pub(super) fn render(
     let backspace = modal_key_label(theme, &Binding::new(KeyCode::Backspace, Modifiers::NONE));
     let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
     let hints = [
-        super::controls::KeyHint::new(&escape, locale.rename_cancel_hint()),
-        super::controls::KeyHint::new(&enter, locale.rename_submit_hint()),
         super::controls::KeyHint::new(&backspace, locale.rename_delete_hint()),
         super::controls::KeyHint::new(&clear, locale.rename_clear_hint()),
     ];
@@ -65,12 +69,14 @@ pub(super) fn render(
             locale.rename_cancel_label(),
             super::controls::ActionKind::Secondary,
             true,
-        ),
+        )
+        .with_shortcut(&escape),
         ModalAction::new(
             locale.rename_submit_label(),
             super::controls::ActionKind::Primary,
             submit_enabled,
-        ),
+        )
+        .with_shortcut(&enter),
     ];
     let text = Text::from(lines);
     let Some(candidate) = modal_layout(frame.area(), content_area, &text, &hints, actions, theme)

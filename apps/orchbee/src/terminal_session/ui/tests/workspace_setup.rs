@@ -11,6 +11,8 @@ use orchbee_workbench_protocol::{
 use std::sync::atomic::AtomicU64;
 #[cfg(windows)]
 mod responsive;
+#[cfg(windows)]
+mod sidebar;
 fn project() -> Project {
     Project {
         project_id: WorkbenchProjectId::parse(&format!("{:032x}", 270)).unwrap(),

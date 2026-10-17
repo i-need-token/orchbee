@@ -50,8 +50,9 @@ Worker 验证字面目录并启动配置的默认 shell。准入失败不发布�
 恢复事实，不重放，也不创建替代品。
 传输通道退役时立即隐藏创建反馈，同时保留这些恢复事实。
 
-已知的 Workspace ID 会替换临时行。仅供创建衔接的规范投影填补侧栏观察器的延迟；同一 Session 的完整
-检查点达到或超过提交修订号后即取代它，包括该检查点已经移除 Workspace 的情况。折叠的 Project 仅在检查点
+已知的 Workspace ID 会替换临时行。活动 Client 已验证的命令通道快照直接提供规范侧栏拓扑，
+无需等待独立的元数据观察器。同一 Session 的更新检查点取代旧拓扑，包括已经移除 Workspace 的情况。
+折叠的 Project 仅在检查点
 仍将该确切 Workspace 归属于它时显示当前标记。名称从不用于合并创建项，
 先前回执也不能为后一次启动提供身份。
 
@@ -77,6 +78,11 @@ revision 和完整 Navigation；释放或键盘准入复核该源，并要求已
 提供精确的预期成员关系与顺序；相同 revision 下的部分变化或无关修改均判为分歧。读取刷新前保留
 已知回执，后续恢复绝不重复移动。排序不改变终端选择或物理资源。
 [侧栏布局契约](tui-shell-layout.zh-CN.md) 管理落点反馈、取消及局部绑定。
+
+准入后立即在不可变基线上投影准确的纯导航转换。此可撤销显示不写入规范缓存，也不声称获得提交修订号。
+明确拒绝或结果未知时移除推测顺序，已知回执及恢复事实仍由 setup 通道持有。已确认拓扑接替显示时无需
+等待元数据轮询，更新的规范观察修订号优先于旧的待处理移动。第二次排序仍须通过规范准入，推测行不能
+授权另一移动。
 
 解散 Project 会移除组织关系，并让其 Workspace 保持未分组。关闭全部工作区是单独的显式 Project 操作，
 拥有破坏性确认与保留的成员集合。普通 Workspace 关闭不会扩展为 Git 家族或整个 Project。
@@ -148,6 +154,10 @@ Empty 工作台引导把目录保留为本地化事实，并且仅在没有输�
 `connection/native/tests/quick_workspace` 和 `terminal_input/dispatcher/tests/workspace_setup`。
 `ui/tests/workspace_setup/responsive` 控制准备、启动、焦点、拒绝及恢复的完成顺序；
 `tui_render/workspace_sidebar/tests/creation` 检查基于确切身份的观察器交接。这些本地实现轨迹不提供穷尽 TLC 保证。
+`ui/tests/workspace_setup/sidebar` 覆盖即时排序、UI 唤醒与拒绝／提交收敛；
+`machine_spaces/tests/navigation_projection` 覆盖过期观察、更新删除及准确元数据身份。
+`machine_picker/tests/spaces/anchoring` 覆盖变更、尺寸变化及临时行插入时的滚动锚点。
+这些确定性用例不能证明物理绘制延迟。
 这些侧栏轨迹包含多个 Workspace 的末尾插入位置和滚动窗口稳定性；
 `ui/tests/quick_workspace` 覆盖目录检查、取消和精确的编辑路径提交。
 

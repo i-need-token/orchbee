@@ -59,7 +59,16 @@ fn draw(width: u16, height: u16, locale: Locale, lines: Vec<Line<'_>>) -> (bool,
 }
 
 fn confirmation_lines(locale: Locale, dissolves_tab: bool) -> Vec<Line<'static>> {
-    confirmation_text(locale, 2, 1, "fixture", "fixture", dissolves_tab).lines
+    confirmation_text(
+        locale,
+        2,
+        1,
+        "fixture",
+        "fixture",
+        dissolves_tab,
+        &Theme::rgb_test_dark(),
+    )
+    .lines
 }
 
 #[test]
@@ -98,7 +107,15 @@ fn panel_close_long_duplicate_labels_fit_at_supported_normal_and_compact_sizes()
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let panel_label = "duplicate terminal label with a stable suffix";
         let tab_label = "duplicate Tab label with a stable suffix";
-        let text = confirmation_text(locale, 12, 34, panel_label, tab_label, false);
+        let text = confirmation_text(
+            locale,
+            12,
+            34,
+            panel_label,
+            tab_label,
+            false,
+            &Theme::rgb_test_dark(),
+        );
         let targets = locale.panel_close_targets(12, 34, panel_label, tab_label);
         for (width, height) in [(120, 40), (80, 24)] {
             let (complete, rendered) = draw(width, height, locale, text.lines.clone());

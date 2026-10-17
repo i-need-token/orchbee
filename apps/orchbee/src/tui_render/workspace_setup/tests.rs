@@ -105,7 +105,7 @@ fn project_picker_windows_large_lists_and_records_only_painted_choices() {
                         assert!(text.contains(&format!("{}/202", selected + 1)));
                         assert!(
                             text.replace(' ', "")
-                                .contains(&format!("[{}]", locale.setup_cancel_label()))
+                                .contains(&format!("[{}Esc]", locale.setup_cancel_label()))
                         );
                     }
                     assert!(

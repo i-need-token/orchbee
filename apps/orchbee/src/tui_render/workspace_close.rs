@@ -1,5 +1,5 @@
 use super::modal::{
-    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close, title_line,
 };
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
@@ -59,7 +59,7 @@ pub(super) fn render(
         }),
     ];
     let text = Text::from(vec![
-        Line::from(title),
+        title_line(title, theme),
         Line::from(""),
         Line::from(sanitize_terminal_text(confirmation.label()).into_owned()),
         Line::from(""),

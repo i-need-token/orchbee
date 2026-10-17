@@ -1,5 +1,6 @@
 use super::modal::{
-    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
+    paint_modal_close, title_line,
 };
 use crate::{
     action_projection::ActionTone,
@@ -40,13 +41,16 @@ pub(super) fn render(
         // modal margin, border and padding; the full warning/count must still fit to arm it.
         let preview_width = usize::from(content_area.width.saturating_sub(10)).min(64);
         let mut lines = vec![
-            Line::from(locale.close_set_title(count)),
+            title_line(locale.close_set_title(count), theme),
             Line::from(""),
-            Line::from(truncate_display(
-                &locale.close_set_context(confirmation.set_context_label().unwrap_or_default()),
-                preview_width,
-                theme.glyphs.ellipsis,
-            )),
+            description_line(
+                truncate_display(
+                    &locale.close_set_context(confirmation.set_context_label().unwrap_or_default()),
+                    preview_width,
+                    theme.glyphs.ellipsis,
+                ),
+                theme,
+            ),
         ];
         for (position, label) in confirmation.set_labels().unwrap_or_default().iter().take(3) {
             let prefix = format!("#{position} · ");
@@ -60,7 +64,7 @@ pub(super) fn render(
             )));
         }
         if count > 3 {
-            lines.push(Line::from(locale.close_set_more(count - 3)));
+            lines.push(description_line(locale.close_set_more(count - 3), theme));
         }
         lines.extend([
             Line::from(""),
@@ -70,7 +74,7 @@ pub(super) fn render(
         lines
     } else {
         vec![
-            Line::from(locale.close_title(confirmation.kind())),
+            title_line(locale.close_title(confirmation.kind()), theme),
             Line::from(""),
             Line::from(sanitize_terminal_text(confirmation.target_label()).into_owned()),
             Line::from(""),
@@ -79,10 +83,10 @@ pub(super) fn render(
         ]
     };
     if let Some(status) = status.as_ref() {
-        lines.push(Line::from(locale.native_close_status(status)));
+        lines.push(description_line(locale.native_close_status(status), theme));
         lines.push(Line::from(""));
         if let Some(progress) = confirmation.resume_set_status() {
-            lines.push(Line::from(locale.close_set_status(progress)));
+            lines.push(description_line(locale.close_set_status(progress), theme));
             lines.push(Line::from(""));
         }
     }

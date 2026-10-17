@@ -67,6 +67,29 @@ pickers, confirmations and global action discovery.
   fixed slots leave less than the content minimum in [`layout.md`](layout.md#overlays), refuse a
   newly requested overlay; suspend an existing one instead of hiding its return or primary control.
 
+### Content hierarchy
+
+- Paint the task title once using heading text, either inside the header or on its frame. Supporting
+  target context and description use secondary text; the value, exact decision target, and consequence
+  needed to act use primary text. Do not make all prose bold or accent-colored.
+- Align body text and field groups to declared content tracks. Put form field labels directly above
+  their boundaries; a compact editor may keep its label inline. Put field help directly below.
+  Separate the header, field groups, and footer with a
+  blank row when space permits; reduce those gaps before removing useful content. A field's active
+  boundary and caret remain visible, independently of row navigation or selection.
+- Keep validation and recovery beside the affected task or field. A status role colors its glyph or
+  status word, while explanatory prose keeps its reading hierarchy. Disabled controls retain their
+  text-disabled role and reason; neither an error nor selection turns supporting metadata into a
+  heading.
+- Size the surface for readable task content and complete required controls. Optional help never
+  widens a form. Wrap prose and shorten supporting context through the owning layout policy before
+  sacrificing the target, field, exit, or primary action. Refuse or suspend an unusable task rather
+  than paint a partial required control.
+- Show each binding once in the footer. When an action has a button, put its formatted key inside
+  that button's shared shortcut slot and omit the duplicate key-and-verb hint. The fixed button row
+  follows any secondary editing or navigation hints; hints drop only as whole records. Button labels
+  retain their primary, secondary, destructive, or disabled role while shortcut text stays subdued.
+
 ## Lifecycle and return
 
 - Opening an overlay records the invoking region and focus identity. Entering a child task also

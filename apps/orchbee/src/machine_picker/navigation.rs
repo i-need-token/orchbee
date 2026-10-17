@@ -580,14 +580,7 @@ fn append_context<'a>(
 
 impl Picker {
     pub(super) fn checkpoint_contexts(&self, machine: &Choice) -> Option<Vec<Context>> {
-        let crate::machine_spaces::Observation::Ready(checkpoint) = &self
-            .space_observations
-            .iter()
-            .find(|(choice, _)| choice == machine)?
-            .1
-        else {
-            return None;
-        };
+        let checkpoint = self.space_checkpoint(machine)?;
         Some(
             checkpoint
                 .rows
@@ -629,11 +622,7 @@ impl Picker {
             let mut ungrouped = Vec::new();
             let mut known = std::collections::BTreeSet::new();
             let mut children = std::collections::BTreeMap::new();
-            if let Some((_, crate::machine_spaces::Observation::Ready(checkpoint))) = self
-                .space_observations
-                .iter()
-                .find(|(choice, _)| choice == &machine.choice)
-            {
+            if let Some(checkpoint) = self.space_checkpoint(&machine.choice) {
                 for project in checkpoint.projects.iter() {
                     known.insert((checkpoint.site_id.as_str(), project.project_id.as_str()));
                     projects.push((
@@ -834,27 +823,46 @@ impl Picker {
         }
         match target {
             SidebarTarget::Context { machine, target } => self.workspace_rows.iter().any(|row| {
-                &row.choice == machine && row.context.as_ref().is_some_and(|context| &context.target == target)
+                &row.choice == machine
+                    && row
+                        .context
+                        .as_ref()
+                        .is_some_and(|context| &context.target == target)
             }),
-            SidebarTarget::Project { machine, site_id, project_id } => {
-                self.space_observations.iter().any(|(choice, observation)| {
-                    choice == machine && matches!(observation,
-                        crate::machine_spaces::Observation::Ready(checkpoint)
-                            if &checkpoint.site_id == site_id && checkpoint.projects.iter().any(|project| &project.project_id == project_id))
+            SidebarTarget::Project {
+                machine,
+                site_id,
+                project_id,
+            } => {
+                self.space_checkpoint(machine).is_some_and(|checkpoint| {
+                    &checkpoint.site_id == site_id
+                        && checkpoint
+                            .projects
+                            .iter()
+                            .any(|project| &project.project_id == project_id)
                 }) || self.workspace_rows.iter().any(|row| {
-                    &row.choice == machine && row.context.as_ref().is_some_and(|context| {
-                        &context.target.site_id == site_id && context.project_id.as_ref() == Some(project_id)
-                    })
+                    &row.choice == machine
+                        && row.context.as_ref().is_some_and(|context| {
+                            &context.target.site_id == site_id
+                                && context.project_id.as_ref() == Some(project_id)
+                        })
                 })
             }
             SidebarTarget::Agent { machine, target } => {
                 self.workspace_rows.iter().any(|row| {
-                    row.enabled && &row.choice == machine
-                        && row.context.as_ref().is_some_and(|context| context.target == target.context)
+                    row.enabled
+                        && &row.choice == machine
+                        && row
+                            .context
+                            .as_ref()
+                            .is_some_and(|context| context.target == target.context)
                 }) && self.agent_rows.iter().any(|row| {
                     row.enabled
                         && &row.choice == machine
-                        && row.agent.as_ref().is_some_and(|agent| &agent.target == target.as_ref())
+                        && row
+                            .agent
+                            .as_ref()
+                            .is_some_and(|agent| &agent.target == target.as_ref())
                 })
             }
         }
@@ -1023,14 +1031,15 @@ impl Picker {
             .into_iter()
             .filter(|target| self.sidebar_target_exists(target))
             .collect();
-        if !self.navigation.active && self.navigation.focus.is_none() {
-            return;
-        }
         let targets: Vec<_> = self
             .sidebar_navigation_rows()
             .iter()
             .map(SidebarRow::target)
             .collect();
+        self.spaces.reconcile(&targets);
+        if !self.navigation.active && self.navigation.focus.is_none() {
+            return;
+        }
         let previous = self.navigation.focus.clone();
         let selected = previous
             .as_ref()

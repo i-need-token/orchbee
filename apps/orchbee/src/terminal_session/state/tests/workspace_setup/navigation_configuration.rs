@@ -104,3 +104,40 @@ fn navigation_receipt_requires_membership_and_order_together_and_preserves_conte
         assert_eq!(state.cache().canonical_snapshot(), &baseline);
     }
 }
+
+#[cfg(windows)]
+#[test]
+fn sidebar_overlay_is_owned_by_the_admitted_operation_and_never_changes_the_canonical_cache() {
+    for uncertain in [false, true] {
+        let baseline = baseline();
+        let mut state = ready_with_cache(project_native_standalone_tabs(&baseline).unwrap());
+        let operation = state
+            .plan_navigation_configuration(
+                NavigationConfiguration::MoveWorkspace {
+                    workspace_id: workspace(910),
+                    project_id: None,
+                    before_workspace_id: None,
+                },
+                WorkbenchRequestId::parse(&id(999)).unwrap(),
+                1,
+                OperationDeadlines::from_sample(Instant::now()).unwrap(),
+            )
+            .unwrap();
+        assert!(state.view().sidebar_navigation().pending.is_none());
+        state.begin_setup(operation.clone());
+        assert!(state.view().sidebar_navigation().pending.is_some());
+        assert_eq!(state.cache().canonical_snapshot(), &baseline);
+        let mut stale = operation.clone();
+        stale.generation += 1;
+        assert!(!state.settle_setup_not_applied(&stale));
+        assert!(state.view().sidebar_navigation().pending.is_some());
+        assert!(state.retain_setup_worker(if uncertain {
+            SetupWorkerEvidence::Unknown(operation)
+        } else {
+            SetupWorkerEvidence::NotApplied(operation)
+        }));
+        assert!(state.view().sidebar_navigation().pending.is_none());
+        assert_eq!(state.cache().canonical_snapshot(), &baseline);
+        assert!(state.invariant_holds());
+    }
+}

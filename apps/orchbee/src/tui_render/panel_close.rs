@@ -1,5 +1,6 @@
 use super::modal::{
-    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
+    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
+    paint_modal_close, title_line,
 };
 use crate::{
     client_view::{Binding, KeyCode, Modifiers},
@@ -43,6 +44,7 @@ pub(super) fn render(
         confirmation.panel_label(),
         confirmation.tab_label(),
         confirmation.dissolves_tab(),
+        theme,
     );
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let confirm = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
@@ -149,14 +151,15 @@ fn confirmation_text(
     panel_label: &str,
     tab_label: &str,
     dissolves_tab: bool,
+    theme: &Theme,
 ) -> Text<'static> {
     let [panel, tab] =
         locale.panel_close_targets(panel_position, tab_position, panel_label, tab_label);
     Text::from(vec![
-        Line::from(locale.panel_close_title()),
+        title_line(locale.panel_close_title(), theme),
         Line::from(""),
         Line::from(panel),
-        Line::from(tab),
+        description_line(tab, theme),
         Line::from(""),
         Line::from(locale.panel_close_warning(dissolves_tab)),
         Line::from(""),

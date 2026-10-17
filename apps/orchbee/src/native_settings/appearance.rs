@@ -20,7 +20,12 @@ impl<'a> AppearancePreview<'a> {
         effective: &'a UserPreferencesValues,
         reset: bool,
     ) -> Self {
-        fn leaf<'a, T: PartialEq>(basis: &T, draft: &'a T, effective: &'a T, reset: bool) -> &'a T {
+        fn leaf<'a, T: PartialEq + ?Sized>(
+            basis: &T,
+            draft: &'a T,
+            effective: &'a T,
+            reset: bool,
+        ) -> &'a T {
             if reset || basis != draft {
                 draft
             } else {

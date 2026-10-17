@@ -12,24 +12,83 @@ pub(crate) struct SidebarAgentCounts {
 }
 
 impl Picker {
+    /// The active command lane publishes topology independently of metadata polling.
+    pub(crate) fn observe_native_navigation(
+        &mut self,
+        machine: Choice,
+        navigation: Option<crate::terminal_session::SidebarNavigationProjection>,
+    ) -> bool {
+        let navigation = navigation.or_else(|| {
+            // Carrier loss revokes speculation, not already validated topology. Keep
+            // its revision floor until endpoint replacement explicitly forgets it.
+            let (owner, known) = self.native_navigation.as_ref()?;
+            (owner == &machine).then(|| crate::terminal_session::SidebarNavigationProjection {
+                snapshot: std::sync::Arc::clone(&known.snapshot),
+                pending: None,
+            })
+        });
+        let next = navigation.map(|navigation| (machine, navigation));
+        if self.native_navigation == next {
+            return false;
+        }
+        let selected = self.selection();
+        self.native_navigation = next;
+        self.rebuild_workspaces(selected);
+        true
+    }
+
+    fn observed_space_checkpoint(
+        &self,
+        machine: &Choice,
+    ) -> Option<&crate::machine_spaces::Checkpoint> {
+        self.space_observations
+            .iter()
+            .find_map(|(choice, observation)| match observation {
+                crate::machine_spaces::Observation::Ready(checkpoint) if choice == machine => {
+                    Some(checkpoint.as_ref())
+                }
+                _ => None,
+            })
+    }
+
+    pub(super) fn space_checkpoint(
+        &self,
+        machine: &Choice,
+    ) -> Option<&crate::machine_spaces::Checkpoint> {
+        self.space_projection
+            .as_ref()
+            .filter(|(choice, _)| choice == machine)
+            .map(|(_, checkpoint)| checkpoint.as_ref())
+            .or_else(|| self.observed_space_checkpoint(machine))
+    }
+
+    pub(super) fn rebuild_space_projection(&mut self) {
+        self.space_projection = self
+            .native_navigation
+            .as_ref()
+            .and_then(|(machine, source)| {
+                crate::machine_spaces::Checkpoint::project_navigation(
+                    source,
+                    self.observed_space_checkpoint(machine),
+                )
+                .map(|checkpoint| (machine.clone(), std::sync::Arc::new(checkpoint)))
+            });
+    }
+
     /// A new foreground Workspace intent returns the viewport to following its current target.
     pub(crate) fn reveal_sidebar_current(&mut self) {
         self.spaces.reveal();
     }
 
-    /// A complete same-Session checkpoint at this revision supersedes a creation-only projection.
+    /// A same-Session canonical topology at this revision supersedes a creation-only projection.
     pub(crate) fn workspace_checkpoint_covers(
         &self,
         site: &orchbee_workbench_protocol::SiteId,
         revision: orchbee_workbench_protocol::WorkbenchRevision,
     ) -> bool {
-        self.space_observations
-            .iter()
-            .any(|(machine, observation)| {
-                machine == &self.current
-                    && matches!(observation,
-                crate::machine_spaces::Observation::Ready(checkpoint)
-                    if &checkpoint.site_id == site && checkpoint.revision >= revision)
+        self.space_checkpoint(&self.current)
+            .is_some_and(|checkpoint| {
+                &checkpoint.site_id == site && checkpoint.revision >= revision
             })
     }
     /// Current canonical membership keeps a collapsed Project marker from outliving its Workspace.
@@ -38,22 +97,20 @@ impl Picker {
         site: &orchbee_workbench_protocol::SiteId,
         workspace: &orchbee_workbench_protocol::WorkbenchWorkspaceId,
     ) -> Option<&orchbee_workbench_protocol::WorkbenchProjectId> {
-        self.space_observations
-            .iter()
-            .find_map(|(machine, observation)| match observation {
-                crate::machine_spaces::Observation::Ready(checkpoint)
-                    if machine == &self.current && &checkpoint.site_id == site =>
-                {
-                    checkpoint.rows.iter().find_map(|row| {
-                        matches!(&row.target.location,
-                            crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. }
-                                if workspace_id == workspace)
-                        .then_some(row.project_id.as_ref())
-                        .flatten()
-                    })
-                }
-                _ => None,
-            })
+        let checkpoint = self.space_checkpoint(&self.current)?;
+        if &checkpoint.site_id != site {
+            return None;
+        }
+        checkpoint.rows.iter().find_map(|row| {
+            let crate::terminal_session::NativeContextLocation::Workspace { workspace_id, .. } =
+                &row.target.location
+            else {
+                return None;
+            };
+            (workspace_id == workspace)
+                .then_some(row.project_id.as_ref())
+                .flatten()
+        })
     }
     /// Count canonical Workspaces, including collapsed children, and nonempty legacy content.
     pub(crate) fn sidebar_workspace_count(&self) -> usize {
@@ -215,6 +272,13 @@ impl Picker {
     /// Endpoint replacement revokes retained presentation before its replacement can answer.
     pub(crate) fn forget_space_observations(&mut self, machine: &Choice) {
         let selected = self.selection();
+        if self
+            .native_navigation
+            .as_ref()
+            .is_some_and(|(choice, _)| choice == machine)
+        {
+            self.native_navigation = None;
+        }
         self.space_observations
             .retain(|(choice, _)| choice != machine);
         self.space_updates.retain(|(choice, _)| choice != machine);
@@ -244,17 +308,9 @@ impl Picker {
     }
     pub(crate) fn space_checkpoint_row(&self, row: &Row) -> Option<&crate::machine_spaces::Row> {
         let context = row.context.as_ref()?;
-        self.space_observations
-            .iter()
-            .find(|(choice, _)| choice == &row.choice)
-            .and_then(|(_, o)| match o {
-                crate::machine_spaces::Observation::Ready(cp)
-                    if cp.site_id == context.target.site_id =>
-                {
-                    cp.rows.iter().find(|r| r.target == context.target)
-                }
-                _ => None,
-            })
+        self.space_checkpoint(&row.choice)
+            .filter(|checkpoint| checkpoint.site_id == context.target.site_id)
+            .and_then(|checkpoint| checkpoint.rows.iter().find(|r| r.target == context.target))
     }
     pub(crate) fn workspace_state(&self, row: &Row) -> Option<MetadataState> {
         let context = row.context.as_ref()?;
@@ -372,8 +428,13 @@ impl Picker {
             }
             None
         });
-        self.spaces
-            .window_with_gaps(heights, gaps, cells, creation_current.or(current))
+        self.spaces.window_with_gaps(
+            heights,
+            gaps,
+            cells,
+            creation_current.or(current),
+            insertion,
+        )
     }
     pub(crate) fn queue_space_scroll(&mut self, window: SidebarWindow, up: bool) {
         if self.available && self.spaces.visible() && !self.open {

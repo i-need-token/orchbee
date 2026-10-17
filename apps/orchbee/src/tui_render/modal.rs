@@ -1,18 +1,47 @@
-//! Shared geometry and painting for recurring native modal chrome.
+//! Shared geometry, content hierarchy and painting for native modals; feature owners keep effects.
 
 use crate::{
     client_view::{Binding, KeyLabelGlyphs, LabelStyle, format_binding_with_glyphs},
     tui_layout::centered_overlay,
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget, InteractionAvailability, ProjectedPointer},
-    tui_theme::{GlyphMode, Theme},
+    tui_theme::{GlyphMode, Role, Theme},
 };
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
-    text::{Line, Text},
+    style::{Modifier, Style},
+    text::{Line, Span, Text},
     widgets::{Padding, Paragraph, Wrap},
 };
+use std::borrow::Cow;
+
+/// Task headings share the same hierarchy inside a modal or on its frame.
+pub(super) fn title_line<'a>(text: impl Into<Cow<'a, str>>, theme: &Theme) -> Line<'a> {
+    Line::from(Span::styled(
+        text,
+        theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD),
+    ))
+}
+
+/// Supporting context and field help remain subordinate to task content.
+pub(super) fn description_line<'a>(text: impl Into<Cow<'a, str>>, theme: &Theme) -> Line<'a> {
+    Line::styled(text, theme.style(Role::TextSecondary))
+}
+
+/// Status meaning belongs to its glyph; the complete recovery text stays readable.
+pub(super) fn status_line<'a>(
+    text: impl Into<Cow<'a, str>>,
+    role: Role,
+    theme: &Theme,
+) -> Line<'a> {
+    Line::from(vec![
+        Span::styled(
+            format!("{} ", theme.glyphs.status_bullet),
+            theme.style(role),
+        ),
+        Span::styled(text, theme.style(Role::TextPrimary)),
+    ])
+}
 
 /// Complete geometry admitted before a modal mutates the frame or hit map.
 ///
@@ -199,13 +228,11 @@ pub(super) fn modal_layout(
     actions: [ModalAction<'_>; 2],
     theme: &Theme,
 ) -> Option<ModalLayout> {
-    let (hint_width, first_hint_width) = if hints.is_empty() {
-        (0, 0)
+    let first_hint_width = if hints.is_empty() {
+        0
     } else {
-        (
-            super::controls::measure_key_hints(hints, theme)?,
-            super::controls::measure_key_hints(&hints[..1], theme)?,
-        )
+        super::controls::measure_key_hints(hints, theme)?;
+        super::controls::measure_key_hints(&hints[..1], theme)?
     };
     let action_widths = actions.map(|action| {
         super::controls::action_rect(
@@ -224,7 +251,7 @@ pub(super) fn modal_layout(
             .checked_add(2)?
             .checked_add(second_action_width)?,
     )
-    .max(hint_width);
+    .max(first_hint_width);
     let area = modal_area_with_minimum_width(content_area, text, controls_width);
     if area.is_empty() || bounds.intersection(area) != area {
         return None;
@@ -281,8 +308,12 @@ pub(super) fn single_modal_layout(
     action: ModalAction<'_>,
     theme: &Theme,
 ) -> Option<SingleModalLayout> {
-    let hint_width = super::controls::measure_key_hints(hints, theme)?;
-    let first_hint_width = super::controls::measure_key_hints(hints.get(..1)?, theme)?;
+    let first_hint_width = if hints.is_empty() {
+        0
+    } else {
+        super::controls::measure_key_hints(hints, theme)?;
+        super::controls::measure_key_hints(&hints[..1], theme)?
+    };
     let action_width = super::controls::action_rect(
         Rect::new(0, 0, u16::MAX, 1),
         Rect::new(0, 0, u16::MAX, 1),
@@ -290,7 +321,7 @@ pub(super) fn single_modal_layout(
         theme,
     )?
     .width;
-    let controls_width = hint_width.max(usize::from(action_width));
+    let controls_width = first_hint_width.max(usize::from(action_width));
     let area = modal_area_with_minimum_width(content_area, text, controls_width);
     if area.is_empty() || bounds.intersection(area) != area {
         return None;
@@ -328,7 +359,10 @@ fn modal_area_with_minimum_width(
     text: &Text<'_>,
     minimum_inner_width: usize,
 ) -> Rect {
-    let natural_width = text.width().max(minimum_inner_width);
+    // Prose and optional help must not stretch a simple decision across the host.
+    // Complete required controls may exceed the preferred reading width; admission
+    // below still refuses them if the available width cannot contain them.
+    let natural_width = text.width().clamp(48, 72).max(minimum_inner_width);
     let outer_width = u16::try_from(natural_width.saturating_add(6)).unwrap_or(u16::MAX);
     let width = outer_width.min(content_area.width.saturating_sub(4));
     let inner_width = width.saturating_sub(6).max(1);

@@ -172,6 +172,15 @@ impl Manager {
             active_context,
             focused_member(surface.active()),
         );
+        // Command admission and validated snapshots already wake this loop. Do not wait for
+        // the independent, two-second metadata/Git collector to paint navigation changes.
+        let navigation = match surface.active().view() {
+            Some(TerminalSessionView::Native(native)) => native.sidebar_navigation(),
+            _ => None,
+        };
+        change.redraw |= view
+            .machines
+            .observe_native_navigation(choice(self.current.as_ref()), navigation);
         self.discovery.tick(now);
         change.redraw |= view.machines.observe(&self.discovery.observations(now));
         let mut agent_sources = Vec::new();

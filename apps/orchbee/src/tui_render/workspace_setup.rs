@@ -1,7 +1,8 @@
 //! Bounded Project choices and text fields publish controls only after a complete draw.
 use super::modal::{
-    ModalAction, modal_key_label, modal_layout, paint_modal_action, paint_modal_close,
-    pointer_presentation, set_modal_cursor, single_modal_layout,
+    ModalAction, description_line, modal_key_label, modal_layout, paint_modal_action,
+    paint_modal_close, pointer_presentation, set_modal_cursor, single_modal_layout, status_line,
+    title_line,
 };
 mod project_delete;
 use crate::{
@@ -183,20 +184,17 @@ pub(super) fn render(
         NativeSetupStage::PreparingWorkspace | NativeSetupStage::DissolveProject
     ) {
         let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
-        let hints = [super::controls::KeyHint::new(
-            &escape,
-            locale.setup_cancel_hint(),
-        )];
+        let hints = [];
         let action = ModalAction::new(
             locale.setup_cancel_label(),
             super::controls::ActionKind::Secondary,
             true,
-        );
+        )
+        .with_shortcut(&escape);
         let text = Text::from(vec![
-            Line::from(locale.setup_title(draft.stage())),
+            title_line(locale.setup_title(draft.stage()), theme),
             Line::from(""),
-            Line::from(locale.quick_workspace_preparing_fact())
-                .style(theme.style(Role::StatusPending)),
+            description_line(locale.quick_workspace_preparing_fact(), theme),
             Line::from(""),
             Line::from(""),
         ]);
@@ -222,9 +220,6 @@ pub(super) fn render(
             theme,
             hits,
         );
-        let rendered_hints = super::controls::render_key_hints(frame, layout.hints, &hints, theme)
-            .expect("admitted setup hints must paint");
-        debug_assert!(layout.hints.intersection(rendered_hints) == rendered_hints);
         paint_modal_action(
             frame,
             Rect::new(
@@ -255,7 +250,7 @@ pub(super) fn render(
         _ => None,
     };
     let mut lines = vec![
-        Line::from(locale.setup_title(draft.stage())),
+        title_line(locale.setup_title(draft.stage()), theme),
         Line::from(""),
     ];
     let context_budget = usize::from(content_area.width.saturating_sub(10)).min(72);
@@ -264,15 +259,18 @@ pub(super) fn render(
     let field_index;
     {
         if let Some(project) = draft.project_label() {
-            lines.push(Line::from(truncate_display(
-                &format!(
-                    "{}: {}",
-                    locale.setup_project(),
-                    sanitize_terminal_text(project)
+            lines.push(description_line(
+                truncate_display(
+                    &format!(
+                        "{}: {}",
+                        locale.setup_project(),
+                        sanitize_terminal_text(project)
+                    ),
+                    context_budget,
+                    theme.glyphs.ellipsis,
                 ),
-                context_budget,
-                theme.glyphs.ellipsis,
-            )));
+                theme,
+            ));
             lines.push(Line::from(""));
         }
         if matches!(
@@ -282,42 +280,54 @@ pub(super) fn render(
                 | NativeSetupStage::WorkspaceProjectName
         ) && let Some(workspace) = draft.workspace_label()
         {
-            lines.push(Line::from(truncate_display(
-                &format!(
-                    "{}: {}",
-                    locale.shell().workspaces,
-                    sanitize_terminal_text(locale.workspace_display_label(workspace))
+            lines.push(description_line(
+                truncate_display(
+                    &format!(
+                        "{}: {}",
+                        locale.shell().workspaces,
+                        sanitize_terminal_text(locale.workspace_display_label(workspace))
+                    ),
+                    context_budget,
+                    theme.glyphs.ellipsis,
                 ),
-                context_budget,
-                theme.glyphs.ellipsis,
-            )));
+                theme,
+            ));
             lines.push(Line::from(""));
         }
         // The field's one visible row is sized like the rest: the windowed
         // projection never takes more than the inner width it is given.
+        lines.push(Line::from(
+            if draft.stage() == NativeSetupStage::DirectoryPath {
+                locale.quick_workspace_directory()
+            } else {
+                locale.quick_workspace_name()
+            },
+        ));
         field_index = Some(lines.len());
         lines.push(Line::from(""));
-        lines.push(Line::from(""));
-        lines.push(Line::from(rename.map_or_else(
-            || {
-                if draft.stage() == NativeSetupStage::TabGroupName {
-                    locale.setup_group_name_hint()
-                } else {
-                    locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath)
-                }
-            },
-            |project| {
-                if !project && draft.text().trim().is_empty() {
-                    locale.workspace_name_required()
-                } else {
-                    locale.location_rename_hint(project)
-                }
-            },
-        )));
+        lines.push(description_line(
+            rename.map_or_else(
+                || {
+                    if draft.stage() == NativeSetupStage::TabGroupName {
+                        locale.setup_group_name_hint()
+                    } else {
+                        locale.setup_input_hint(draft.stage() == NativeSetupStage::DirectoryPath)
+                    }
+                },
+                |project| {
+                    if !project && draft.text().trim().is_empty() {
+                        locale.workspace_name_required()
+                    } else {
+                        locale.location_rename_hint(project)
+                    }
+                },
+            ),
+            theme,
+        ));
     }
     lines.push(Line::from(""));
     if draft.faulted() {
-        lines.push(Line::from(locale.setup_fault()));
+        lines.push(status_line(locale.setup_fault(), Role::StatusError, theme));
         lines.push(Line::from(""));
     }
     if let Some(
@@ -333,7 +343,19 @@ pub(super) fn render(
         }),
     ) = status
     {
-        lines.push(Line::from(locale.setup_status(status)));
+        let role = if matches!(
+            status,
+            NativeSetupStatus::NotApplied
+                | NativeSetupStatus::LocationLabel {
+                    status: NativeLocationLabelStatus::NotApplied,
+                    ..
+                }
+        ) {
+            Role::StatusError
+        } else {
+            Role::StatusWarning
+        };
+        lines.push(status_line(locale.setup_status(status), role, theme));
         lines.push(Line::from(""));
     }
     lines.extend([Line::from(""), Line::from("")]);
@@ -342,8 +364,6 @@ pub(super) fn render(
     let backspace = modal_key_label(theme, &Binding::new(KeyCode::Backspace, Modifiers::NONE));
     let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
     let hints = [
-        super::controls::KeyHint::new(&escape, locale.setup_cancel_hint()),
-        super::controls::KeyHint::new(&enter, locale.setup_submit_hint()),
         super::controls::KeyHint::new(&backspace, locale.setup_delete_hint()),
         super::controls::KeyHint::new(&clear, locale.setup_clear_hint()),
     ];
@@ -352,12 +372,14 @@ pub(super) fn render(
             locale.setup_cancel_label(),
             super::controls::ActionKind::Secondary,
             true,
-        ),
+        )
+        .with_shortcut(&escape),
         ModalAction::new(
             locale.setup_submit_label(),
             super::controls::ActionKind::Primary,
             !draft.faulted(),
-        ),
+        )
+        .with_shortcut(&enter),
     ];
     let placeholder = Text::from(lines);
     let Some(candidate) = modal_layout(
@@ -582,7 +604,6 @@ fn render_projects<'a>(
     let down = modal_key_label(theme, &Binding::new(KeyCode::Down, Modifiers::NONE));
     let vertical = format!("{up}/{down}");
     let hints = [
-        super::controls::KeyHint::new(&escape, locale.setup_cancel_hint()),
         super::controls::KeyHint::new(&enter, locale.setup_choose_hint()),
         super::controls::KeyHint::new(&vertical, locale.setup_select_hint()),
     ];
@@ -590,7 +611,8 @@ fn render_projects<'a>(
         locale.setup_cancel_label(),
         super::controls::ActionKind::Secondary,
         true,
-    );
+    )
+    .with_shortcut(&escape);
     let close = match super::controls::close_rect(frame.area(), area) {
         Some(close) => close,
         None => return (Rect::default(), ModalPresentation::NotPresented),
@@ -650,16 +672,22 @@ fn render_projects<'a>(
         })
         .collect::<Vec<_>>();
     let mut lines = vec![
-        Line::from(truncate_display(
-            locale.setup_title(picker.stage),
-            budget,
-            theme.glyphs.ellipsis,
-        )),
-        Line::from(truncate_display(
-            &sanitize_terminal_text(picker.workspace),
-            budget,
-            theme.glyphs.ellipsis,
-        )),
+        title_line(
+            truncate_display(
+                locale.setup_title(picker.stage),
+                budget,
+                theme.glyphs.ellipsis,
+            ),
+            theme,
+        ),
+        description_line(
+            truncate_display(
+                &sanitize_terminal_text(picker.workspace),
+                budget,
+                theme.glyphs.ellipsis,
+            ),
+            theme,
+        ),
     ];
     for (offset, projected) in choices.iter().enumerate() {
         let geometry = row_geometries[offset];
@@ -672,7 +700,10 @@ fn render_projects<'a>(
     while lines.len() < usize::from(inner.height - 3) {
         lines.push(Line::from(""));
     }
-    lines.push(Line::from(format!("{}/{}", picker.selected + 1, count)));
+    lines.push(description_line(
+        format!("{}/{}", picker.selected + 1, count),
+        theme,
+    ));
     lines.extend([Line::from(""), Line::from("")]);
 
     hits.start_modal();
@@ -771,36 +802,35 @@ fn render_quick(
     let project = draft.project_label().unwrap_or(locale.setup_ungrouped());
     let directory_active = draft.stage() == NativeSetupStage::QuickDirectory;
     let mut lines = vec![
-        Line::from(locale.setup_title(draft.stage())),
+        title_line(locale.setup_title(draft.stage()), theme),
         Line::from(""),
-        Line::from(format!(
-            "{}: {}",
-            locale.setup_project(),
-            sanitize_terminal_text(project)
-        )),
+        description_line(
+            format!(
+                "{}: {}",
+                locale.setup_project(),
+                sanitize_terminal_text(project)
+            ),
+            theme,
+        ),
         Line::from(""),
         Line::from(locale.quick_workspace_name()),
         Line::from(""),
+        Line::from(""),
         Line::from(locale.quick_workspace_directory()),
         Line::from(""),
-        Line::from(""),
-        Line::from(locale.quick_workspace_directory_hint()),
+        description_line(locale.quick_workspace_directory_hint(), theme),
     ];
     if draft.faulted() {
-        lines.push(Line::from(locale.setup_fault()));
+        lines.push(status_line(locale.setup_fault(), Role::StatusError, theme));
         lines.push(Line::from(""));
     }
     lines.extend([Line::from(""), Line::from("")]);
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let tab = modal_key_label(theme, &Binding::new(KeyCode::Tab, Modifiers::NONE));
-    let backspace = modal_key_label(theme, &Binding::new(KeyCode::Backspace, Modifiers::NONE));
     let clear = modal_key_label(theme, &Binding::new(KeyCode::Char('u'), Modifiers::CTRL));
     let hints = [
-        super::controls::KeyHint::new(&escape, locale.setup_cancel_hint()),
-        super::controls::KeyHint::new(&enter, locale.setup_submit_hint()),
         super::controls::KeyHint::new(&tab, locale.setup_next_field_hint()),
-        super::controls::KeyHint::new(&backspace, locale.setup_delete_hint()),
         super::controls::KeyHint::new(&clear, locale.setup_clear_hint()),
     ];
     let actions = [
@@ -808,12 +838,14 @@ fn render_quick(
             locale.setup_cancel_label(),
             super::controls::ActionKind::Secondary,
             true,
-        ),
+        )
+        .with_shortcut(&escape),
         ModalAction::new(
             locale.setup_submit_label(),
             super::controls::ActionKind::Primary,
             !draft.faulted(),
-        ),
+        )
+        .with_shortcut(&enter),
     ];
     let placeholder = Text::from(lines);
     let Some(candidate) = modal_layout(
@@ -831,7 +863,7 @@ fn render_quick(
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     let Some(directory_geometry) =
-        FieldRowGeometry::resolve(&placeholder, candidate.inner, 6, theme)
+        FieldRowGeometry::resolve(&placeholder, candidate.inner, 7, theme)
     else {
         return (Rect::default(), ModalPresentation::NotPresented);
     };
@@ -855,7 +887,7 @@ fn render_quick(
             name_geometry,
         ),
         (
-            6,
+            7,
             locale.quick_workspace_directory(),
             &directory,
             directory_active,
@@ -1000,7 +1032,7 @@ fn render_quick(
         HitTarget::OverlaySurface,
     );
     let (field_index, window, geometry) = if directory_active {
-        (7, &directory, directory_geometry)
+        (8, &directory, directory_geometry)
     } else {
         (5, &name, name_geometry)
     };

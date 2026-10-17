@@ -63,9 +63,10 @@ Definite refusal removes the provisional display. Unknown or committed-but-unrec
 retain their existing request/resource recovery facts without replay or replacement.
 Carrier retirement immediately hides creation feedback while preserving those recovery facts.
 
-The known Workspace ID replaces the provisional row. A creation-only canonical projection bridges
-sidebar observer lag; a complete same-Session checkpoint at or beyond the commit revision supersedes
-it, including when that checkpoint removed the Workspace. A collapsed Project shows the current
+The known Workspace ID replaces the provisional row. The active Client's validated command-lane
+snapshot supplies canonical sidebar topology without waiting for the independent metadata observer.
+A newer same-Session checkpoint supersedes older topology, including when it removed the Workspace.
+A collapsed Project shows the current
 marker only while the checkpoint still places that exact Workspace in it. Labels never deduplicate creations, and
 a prior receipt never supplies a newer launch's identity.
 
@@ -96,6 +97,13 @@ the exact expected membership and order for receipt verification; a same-revisio
 unrelated edit is divergent. A known receipt is retained before refresh, and subsequent recovery
 never repeats the move. Sorting changes no terminal selection or physical resource. The
 [sidebar layout contract](tui-shell-layout.md) owns drop feedback, cancellation and local bindings.
+
+Admission immediately projects the exact pure navigation transition over its immutable baseline.
+This reversible display never writes the canonical cache or claims a commit revision. Definite
+refusal or an unknown outcome removes the speculative order; known receipts and recovery facts
+remain with the setup lane. Confirmed topology replaces it without waiting for metadata polling,
+and a newer observed canonical revision wins over an older pending move. A second sort still
+requires canonical admission; speculative rows never authorize another move.
 
 Dissolve Project removes organization and leaves its Workspaces ungrouped. Close all Workspaces is
 a separate explicit Project action with its own destructive confirmation and retained member set.
@@ -181,6 +189,10 @@ The owning suites include `state/workspace_setup`, `state/tests/workspace_setup`
 `ui/tests/workspace_setup/responsive` controls preparation, launch, focus, refusal and recovery order;
 `tui_render/workspace_sidebar/tests/creation` checks exact-identity observer handoff. These local
 implementation traces do not provide exhaustive TLC assurance.
+`ui/tests/workspace_setup/sidebar` covers immediate reorder, UI wakeup and refusal/commit settlement;
+`machine_spaces/tests/navigation_projection` covers stale observations, newer deletion and exact
+metadata identity. `machine_picker/tests/spaces/anchoring` covers mutation, resize and provisional-slot
+scroll anchors. These deterministic cases do not establish physical paint latency.
 Those sidebar traces include append-position and scroll-window stability with multiple Workspaces;
 `ui/tests/quick_workspace` covers directory review, cancellation and exact edited-path submission.
 
