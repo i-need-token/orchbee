@@ -32,6 +32,10 @@ fn install_matching_projection(ui: &mut NativeUi, target: &crate::machine_agents
         HostEpoch::parse(target.physical.host_epoch.as_str()).unwrap(),
     )
     .with_host_terminal(HostTerminalId::parse(target.physical.host_terminal_id.as_str()).unwrap());
+    projection.effect_stream = crate::terminal_session::terminal_effects::Stream::new(
+        *projection.value.attachment(),
+        *projection.value.epoch(),
+    );
 }
 
 fn settle_switch(
@@ -68,6 +72,11 @@ fn settle_switch(
     let RefreshDecision::Cleanup(cleanup) = settlement.decision() else {
         panic!("old viewer cleanup precedes installation");
     };
+    let permit = mailbox
+        .authorize_switch_cleanup(&lease, cleanup, cleanup.old(), clock)
+        .unwrap()
+        .expect("the exact switch still owns cleanup");
+    assert!(mailbox.answer_switch_cleanup(permit, true).unwrap());
     let wait = mailbox
         .publish_event_before(
             WorkerEvent::MembershipDetached {
@@ -91,6 +100,8 @@ fn settle_switch(
     );
     assert_eq!(installed.binding(), target.binding());
     mailbox.finish_lease(lease).unwrap();
+    assert!(mailbox.is_closed().is_none());
+    assert!(!ui.retirement_requested());
 }
 
 #[test]

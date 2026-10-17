@@ -274,6 +274,14 @@ impl TerminalSurface for AgentSurface {
         }
     }
 }
+fn agent_checkpoint() -> Arc<crate::machine_agents::Checkpoint> {
+    crate::machine_agents::tests::checkpoint(
+        [23, 24, 25]
+            .into_iter()
+            .map(crate::machine_agents::tests::row)
+            .collect(),
+    )
+}
 fn prepare_agents() -> (
     Manager,
     ClientView,
@@ -282,11 +290,12 @@ fn prepare_agents() -> (
     Vec<crate::machine_agents::Target>,
 ) {
     let (manager, mut view, _) = setup();
-    let rows: Vec<_> = [23, 24, 25]
-        .into_iter()
-        .map(crate::machine_agents::tests::row)
+    let checkpoint = agent_checkpoint();
+    let targets: Vec<_> = checkpoint
+        .rows
+        .iter()
+        .map(|row| row.target.clone())
         .collect();
-    let targets: Vec<_> = rows.iter().map(|row| row.target.clone()).collect();
     view.machines.observe_agent_sidebar(true);
     view.machines.observe_local(vec![Context {
         target: targets[0].context.clone(),
@@ -296,7 +305,7 @@ fn prepare_agents() -> (
     }]);
     view.machines.observe_agents(vec![(
         Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(rows)),
+        crate::machine_agents::Observation::Ready(checkpoint),
     )]);
     let state = Rc::new(RefCell::new(AgentNavigation {
         current: targets[0].clone(),
@@ -319,11 +328,23 @@ fn verified_agent(
     target: &crate::machine_agents::Target,
     now: Instant,
 ) {
+    // AgentSurface models admission without a machine observation source, so each Manager tick
+    // withdraws its rows. Publish the next click's checkpoint through the normal Picker guard.
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(agent_checkpoint()),
+    )]);
     assert!(view.machines.activate_sidebar_agent(&Selection {
         machine: Choice::Local,
         context: Some(NativeStartupTarget::Agent(Box::new(target.clone())))
     }));
-    view.machines.request.take().unwrap();
+    assert_eq!(
+        view.machines.request.take().unwrap(),
+        Selection {
+            machine: Choice::Local,
+            context: Some(NativeStartupTarget::Agent(Box::new(target.clone()))),
+        }
+    );
     manager.cancel();
     manager.selection_scope = view.machines.selection_scope();
     manager.queued = Some(Queued {
@@ -340,6 +361,13 @@ fn direct_agent_reuses_session_serializes_admitted_switch_and_keeps_latest_waiti
     verified_agent(&mut manager, &mut view, &targets[0], now);
     tick(&mut manager, &mut view, &mut surface, now);
     assert!(state.borrow().admitted.is_empty());
+    assert!(
+        !view.machines.activate_sidebar_agent(&Selection {
+            machine: Choice::Local,
+            context: Some(NativeStartupTarget::Agent(Box::new(targets[1].clone()))),
+        }),
+        "the source-less fixture cannot click a withdrawn Agent row"
+    );
     verified_agent(&mut manager, &mut view, &targets[1], now);
     tick(&mut manager, &mut view, &mut surface, now);
     assert_eq!(state.borrow().admitted, [targets[1].clone()]);
