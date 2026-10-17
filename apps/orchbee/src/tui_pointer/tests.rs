@@ -2056,9 +2056,7 @@ fn wheel_reversal_replaces_old_backlog_without_losing_its_first_notch() {
 }
 
 #[test]
-fn wheel_on_unfocused_pane_is_a_dead_notch() {
-    // Wheel never focuses: a notch over a sibling pane drops even while
-    // that pane reports the pointer.
+fn wheel_on_unfocused_pane_delegates_only_local_history_without_focus_or_program_bytes() {
     let mut pointer = PointerState::default();
     pointer.set_capture(true);
     let mut view = ClientView::new(120);
@@ -2071,7 +2069,7 @@ fn wheel_on_unfocused_pane_is_a_dead_notch() {
     };
     publish_two_panel_map(&mut pointer);
     assert!(
-        !pointer
+        pointer
             .event(
                 &mut view,
                 &mut port,
@@ -2082,6 +2080,34 @@ fn wheel_on_unfocused_pane_is_a_dead_notch() {
     );
     assert!(port.actions.is_empty());
     assert!(port.forwarded.is_empty());
+    assert_eq!(port.wheels, [(pane_ref(1, 1, 2, 0), false)]);
+    assert_eq!(port.probe.focus, Some(pane_ref(1, 1, 1, 0)));
+}
+
+#[test]
+fn unfocused_history_wheel_rejects_shift_missing_frame_and_dead_incarnation() {
+    for denied in ["shift", "frame", "detached", "incarnation"] {
+        let mut pointer = PointerState::default();
+        pointer.set_capture(true);
+        let mut view = ClientView::new(120);
+        let mut port = RecordingPort {
+            probe: active_probe(0, 0, 1, 2),
+            ..RecordingPort::default()
+        };
+        publish_two_panel_map(&mut pointer);
+        let mut wheel = event(MouseAction::Press, MouseButton::WheelUp, 2, 2);
+        match denied {
+            "shift" => wheel.mods.shift = true,
+            "frame" => port.probe.panes[1].frame_available = false,
+            "detached" => port.probe.panes[1].attached = false,
+            "incarnation" => port.probe.panes[1].record = pane_ref(1, 1, 2, 1),
+            _ => unreachable!(),
+        }
+        assert!(!pointer.event(&mut view, &mut port, now(), wheel).handled());
+        assert!(port.wheels.is_empty(), "{denied}");
+        assert!(port.actions.is_empty());
+        assert!(port.forwarded.is_empty());
+    }
 }
 
 #[test]

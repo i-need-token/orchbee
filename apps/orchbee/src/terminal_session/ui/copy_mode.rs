@@ -80,6 +80,10 @@ impl Coordinator {
         self.surface_pending = false;
     }
 
+    pub(super) fn cancel(&mut self) {
+        self.cancel_episode();
+    }
+
     fn next_episode(&mut self) -> Option<EpisodeId> {
         self.next_episode = self.next_episode.checked_add(1)?;
         NonZeroU64::new(self.next_episode).map(EpisodeId::new)

@@ -941,8 +941,11 @@ fn motion_and_valid_search_read_limits_report_query_failure_not_draft_limit() {
 #[test]
 fn raw_forward_search_and_carriage_return_submit_without_pane_input() {
     let (mut ui, mailbox, _, _) = ready_ui();
-    install_projection(&mut ui, Some((0, true, 24)), 0);
     ui.set_agent_board_origin(crate::local_client::tests::server::disconnected_origin());
+    // Tab/context/create membership replacement disposes the old projections,
+    // but a later copy episode must retain the session's reconnect capability.
+    ui.clear_projections();
+    install_projection(&mut ui, Some((0, true, 24)), 0);
     assert_eq!(
         ui.enter_copy_mode(),
         crate::client_view::SessionActionDisposition::DismissNavigator

@@ -3496,14 +3496,22 @@ impl PointerState {
         event: MouseEvent,
         target: &PaneTarget,
     ) -> PointerOutcome {
-        if probe.focus.as_ref() != Some(&target.expected) {
-            // Wheel never focuses: only the focused pane's contract
-            // applies, and only while the *recorded* incarnation still
-            // owns the focus. A wheel over an unfocused pane — or over a
-            // re-minted record — is a dead notch.
+        if event.mods.shift {
             return PointerOutcome::Ignored;
         }
-        if event.mods.shift {
+        if probe.focus.as_ref() != Some(&target.expected) {
+            // Read-side history belongs to the pane under the pointer. The
+            // native owner rechecks its current screen and mouse contract;
+            // this path never invokes focus, control, or program input.
+            if matches!(event.button, MouseButton::WheelUp | MouseButton::WheelDown)
+                && contains(target.content, event.column, event.row)
+                && probe.panes.iter().any(|pane| {
+                    pane.record == target.expected && pane.attached && pane.frame_available
+                })
+                && port.history_wheel(&target.expected, event.button == MouseButton::WheelUp)
+            {
+                return PointerOutcome::Handled;
+            }
             return PointerOutcome::Ignored;
         }
         if !contains(target.content, event.column, event.row) {

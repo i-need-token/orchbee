@@ -74,9 +74,28 @@ mod panel;
 mod panel_close;
 mod presentations;
 pub(crate) use presentations::DrawnPresentationTarget;
+#[cfg(windows)]
+mod history_positions;
 mod retained_frames;
+/// Volatile Client view data carried across a targeted context surface replacement.
 #[cfg(any(windows, test))]
-pub(crate) use retained_frames::RetainedFrames as RetainedFrameBank;
+#[derive(Clone, Default)]
+pub(crate) struct RetainedFrameBank {
+    frames: retained_frames::RetainedFrames,
+    #[cfg(windows)]
+    history: history_positions::Bank,
+}
+
+#[cfg(test)]
+impl From<retained_frames::RetainedFrames> for RetainedFrameBank {
+    fn from(frames: retained_frames::RetainedFrames) -> Self {
+        Self {
+            frames,
+            #[cfg(windows)]
+            history: history_positions::Bank::default(),
+        }
+    }
+}
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod retired_membership;
 mod tab_close;
@@ -191,6 +210,7 @@ pub(crate) enum NativeSessionNotice {
     ModalOwnsInput,
     HistoryRecovering,
     HistoryUnavailable,
+    HistoryPositionLost,
     CopyModeUnavailable,
     CopyModeBusy,
     CopyModeInvalidated,
@@ -606,6 +626,7 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
             SessionNotice::HistoryRecovering => NativeSessionNotice::HistoryRecovering,
             SessionNotice::HistoryUnavailable => NativeSessionNotice::HistoryUnavailable,
+            SessionNotice::HistoryPositionLost => NativeSessionNotice::HistoryPositionLost,
             SessionNotice::CopyModeUnavailable => NativeSessionNotice::CopyModeUnavailable,
             SessionNotice::CopyModeBusy => NativeSessionNotice::CopyModeBusy,
             SessionNotice::CopyModeInvalidated => NativeSessionNotice::CopyModeInvalidated,
@@ -1149,6 +1170,8 @@ pub(super) struct NativeUi {
     agent_index: super::agent_board::PresentationIndex,
     projections: Vec<KeyedProjection>,
     retained_frames: retained_frames::RetainedFrames,
+    #[cfg(windows)]
+    history_positions: history_positions::Coordinator,
     effects: super::terminal_effects::Queue,
     terminal_effect: Option<super::terminal_effects::Job>,
     clipboard: super::terminal_clipboard::Writer,
@@ -1273,6 +1296,8 @@ impl NativeUi {
             outer_focused: None,
             projections: Vec::new(),
             retained_frames: retained_frames::RetainedFrames::default(),
+            #[cfg(windows)]
+            history_positions: history_positions::Coordinator::default(),
             effects: super::terminal_effects::Queue::default(),
             terminal_effect: None,
             #[cfg(windows)]
@@ -1376,13 +1401,24 @@ impl NativeUi {
 
     #[cfg(any(windows, test))]
     pub(super) fn retained_frame_bank(&self) -> RetainedFrameBank {
-        self.retained_frames.clone()
+        RetainedFrameBank {
+            frames: self.retained_frames.clone(),
+            #[cfg(windows)]
+            history: self.history_positions.bank.clone(),
+        }
     }
 
     #[cfg(any(windows, test))]
     pub(super) fn inherit_retained_frame_bank(&mut self, older: RetainedFrameBank) {
         if let Some(state) = &self.state {
-            self.retained_frames.inherit_older(older, state);
+            self.retained_frames.inherit_older(older.frames, state);
+            #[cfg(windows)]
+            {
+                self.history_positions
+                    .bank
+                    .inherit_older(older.history, state);
+                self.history_positions.projections_cleared();
+            }
         }
     }
 
@@ -1522,6 +1558,10 @@ impl NativeUi {
             .unwrap_or(failure);
         self.retirement_failure = Some(failure);
         self.retained_frames.clear();
+        #[cfg(windows)]
+        {
+            self.history_positions = history_positions::Coordinator::default();
+        }
         self.clear_projections();
         self.retirement_finalized = true;
         self.retirement = Some(if failure == CarrierFailure::OutcomeUnknown {
@@ -1660,6 +1700,10 @@ impl NativeUi {
             changed |= self.drive_settings();
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
+            #[cfg(windows)]
+            {
+                changed |= self.drive_history_positions();
+            }
             changed |= self.drive_terminal_tails(&mailbox);
             changed |= self.tick_viewports(&mailbox);
             self.admit_selections(&mailbox);
@@ -1678,6 +1722,8 @@ impl NativeUi {
 
     pub(super) fn after_draw(&mut self) {
         // The shell calls this only after Backend::flush closed the frame.
+        #[cfg(windows)]
+        self.remember_history_positions();
         if let Some(state) = &self.state {
             self.retained_frames.after_draw(state, &self.projections);
         }
@@ -2044,6 +2090,18 @@ impl NativeUi {
     /// Keyboard entry uses a page; pointer entry supplies its line count.
     /// Both share the same admission, incarnation and demand ownership.
     fn enter_history_rows(&mut self, rows_before: Option<u32>) -> SessionActionDisposition {
+        let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref()) else {
+            return SessionActionDisposition::KeepNavigator;
+        };
+        self.enter_pane_history_rows(&key, rows_before)
+    }
+
+    /// Enter the exact readable pane without changing keyboard focus or control.
+    fn enter_pane_history_rows(
+        &mut self,
+        key: &PaneRef,
+        rows_before: Option<u32>,
+    ) -> SessionActionDisposition {
         if self.workspace_creation_replaces_content() {
             return SessionActionDisposition::KeepNavigator;
         }
@@ -2056,16 +2114,16 @@ impl NativeUi {
         if state.ready().is_none() {
             return SessionActionDisposition::KeepNavigator;
         }
-        let Some(key) = state.focus_pane_ref() else {
+        if !state.pane_projected(key) {
             return SessionActionDisposition::KeepNavigator;
-        };
+        }
         if state.close_suppresses_attachment(key.pane().anchor()) {
             return SessionActionDisposition::KeepNavigator;
         }
-        let Some(index) = self.projections.iter().position(|p| p.key == key) else {
+        let Some(index) = self.projections.iter().position(|p| &p.key == key) else {
             return SessionActionDisposition::KeepNavigator;
         };
-        if self.viewport_admission_blocked(&key) {
+        if self.viewport_admission_blocked(key) {
             return SessionActionDisposition::KeepNavigator;
         }
         if self.projections[index].viewport.is_some() {
@@ -2085,7 +2143,7 @@ impl NativeUi {
                     .as_mut()
                     .expect("existing viewport")
                     .nav(ViewportNav::Lines(i64::from(rows)));
-                self.settle_viewport_effect(&mailbox, &key, effect);
+                self.settle_viewport_effect(&mailbox, key, effect);
             }
             return SessionActionDisposition::KeepNavigator;
         }
@@ -2200,19 +2258,24 @@ impl NativeUi {
     }
 
     /// A wheel notch enters eligible Live history or scrolls its existing
-    /// core by three rows. Recheck focus identity at this mutation boundary;
+    /// core by three rows. Recheck the readable incarnation at this mutation boundary;
     /// the pointer layer owns content hit testing and Shift exclusion.
     pub(super) fn history_wheel(&mut self, key: &PaneRef, up: bool) -> bool {
         if self.workspace_creation_replaces_content() {
             return false;
         }
-        if self
-            .state
-            .as_ref()
-            .and_then(|state| state.focus_pane_ref())
-            .as_ref()
-            != Some(key)
+        if self.retirement_failure.is_some()
+            || self.state.as_ref().is_none_or(|state| {
+                state.ready().is_none()
+                    || !state.pane_projected(key)
+                    || state.close_suppresses_attachment(key.pane().anchor())
+            })
+            || self.viewport_admission_blocked(key)
         {
+            return false;
+        }
+        #[cfg(windows)]
+        if self.copy_mode.active() {
             return false;
         }
         let Some(mailbox) = self.mailbox.as_ref().map(Arc::clone) else {
@@ -2237,7 +2300,7 @@ impl NativeUi {
             if !eligible {
                 return false;
             }
-            self.enter_history_rows(Some(3));
+            self.enter_pane_history_rows(key, Some(3));
             return self
                 .projections
                 .iter()
@@ -2546,6 +2609,8 @@ impl NativeUi {
     }
 
     pub(super) fn apply_client_action(&mut self, action: ClientAction) -> SessionActionDisposition {
+        #[cfg(windows)]
+        self.remember_history_positions();
         #[cfg(windows)]
         let resume_handoff = self.take_action_menu_resume_handoff(&action);
         #[cfg(windows)]
@@ -2859,6 +2924,8 @@ impl NativeUi {
 
     fn select_tab(&mut self, action: ClientAction) -> SessionActionDisposition {
         #[cfg(windows)]
+        self.remember_history_positions();
+        #[cfg(windows)]
         if let Some(state) = &mut self.state {
             state.clear_tab_selection();
         }
@@ -2916,6 +2983,7 @@ impl NativeUi {
         &mut self,
         target: &super::NativeContextTarget,
     ) -> super::ContextNavigationAdmission {
+        self.remember_history_positions();
         use super::ContextNavigationAdmission;
         let Some(state) = self.state.as_ref() else {
             return ContextNavigationAdmission::Unavailable;
@@ -4186,7 +4254,9 @@ impl NativeUi {
     /// all panes retire together, and on retirement.
     fn clear_projections(&mut self) {
         #[cfg(windows)]
-        self.copy_mode.close();
+        self.history_positions.projections_cleared();
+        #[cfg(windows)]
+        self.copy_mode.cancel();
         self.effects.close();
         self.terminal_effect.take();
         self.projections.clear();
@@ -4225,6 +4295,10 @@ impl NativeUi {
         self.retained_frames.clear();
         #[cfg(windows)]
         {
+            self.history_positions = history_positions::Coordinator::default();
+        }
+        #[cfg(windows)]
+        {
             self.cancel_copy_mode();
             self.fail_action_menu();
         }
@@ -4245,6 +4319,8 @@ impl NativeUi {
         self.overlays.close();
         #[cfg(windows)]
         self.links.close();
+        #[cfg(windows)]
+        self.copy_mode.close();
         #[cfg(windows)]
         self.popup.shutdown();
         if let Some(state) = &mut self.state {

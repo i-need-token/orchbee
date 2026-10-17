@@ -89,8 +89,10 @@ GUI 终端绘制仍由已有终端呈现器负责。
 Live 滚动条观察已验证帧的 `scrollback_rows + geometry.rows`，并检查加法溢出；
 绝不以该和替代未知历史窗口的总量。
 
-焦点窗格未启用 tracking 的 primary 屏幕内容区内，非 Shift 滚轮从尾部向前回看三行，
-键盘入口仍回看一页。NativeUi 在受理 Enter 前复核精确焦点、当前帧及保留行或被裁切的当前网格。Live 状态
+可读且未启用 tracking 的 primary 屏幕内容区内，非 Shift 滚轮从尾部向前回看三行，
+键盘入口仍回看一页。鼠标下的精确窗格拥有该只读操作，包括未聚焦的 ReadOnly 窗格；
+键盘焦点和控制权保持不变。NativeUi 在受理 Enter 前复核窗格 incarnation、当前帧及保留行或被裁切的当前网格。
+未聚焦应用的鼠标上报与备用屏幕滚轮输入保持无效果。Live 状态
 向下滚动、没有保留行且网格未裁切、帧缺失或备用屏幕均无效果，不显示不可用提示。后续 notch
 沿用核心的带符号三行导航，包括进入尚未完成时的意图合并及到达实时尾部时的恢复。
 入口拒绝保留 Live，不重放输入。
@@ -212,6 +214,30 @@ help 打开时 `PageUp` 仍归 help。
 [原生终端选择与效果](native-terminal-selection-effects.zh-CN.md)；其他事件在 release 时于本地
 终结。它们都不编码应用鼠标字节。滚轮保持自身契约：在保留窗口内本地滚动，落在窗格其他
 位置则被消费且不关闭覆盖层。
+
+## 导航间的阅读连续性
+
+Windows 上，`ui/history_positions.rs` 在同一 Client 的标签／viewer 替换和上下文交接之间，
+保留各 canonical presentation 明确的 Live 或手动历史选择。身份包含 Site、上下文、标签、
+窗格、presentation、Worker 和终端。成员移除或重新绑定时清理；退休时丢弃整个库。
+不持久化，也不与其他 Client 共享。自动尾部和复制 episode 不形成手动历史书签。
+
+书签保存已提交的起点、Host 终端／epoch、generation 和几何，以及该窗口顶部最多八条已进入
+scrollback 的行。仍可变的实时屏幕行不能作为证据。证据行存储上限为 16 MiB；回收后保留
+unavailable 选择，以便明确反馈降级。Esc／End 或普通输入一旦决定恢复便记录 Live，
+即使命令尚未准入。
+
+返回先检查成员和物理终端围栏，再执行新的 Enter/HistoryChanged/read/RowsApplied 握手。
+新事实的总量决定到保存起点的 tail 距离，因此追加输出不会让起点向尾部漂移。安装或确认前，
+返回的起点及证据行必须完全匹配，包括 glyph、属性和宽单元格。这是经过内容验证的书签，
+不是可跨 attachment 移交的 Host pin。generation／几何变化、历史缩短、证据行变化或被回收、
+证据缺失及无法表示的目标都给出本地化反馈，并按普通路径恢复 Live。恢复待定期间消费本地
+导航；Esc 和普通输入保留先恢复再输入的行为。旧 attachment、序号、待定命令、grant 或选区
+绝不重放。
+
+核心轨迹检查新总量、绘制／ACK 前拒绝内容不符及提交边界。`ui/history_positions/tests.rs`
+检查投影替换、上下文库交接、显式 Live、canonical 清理和终端／几何拒绝。这些是实现证据；
+有界协调模型继续负责已有 demand/read/ACK 协议。
 
 ## 呈现
 

@@ -447,7 +447,7 @@ fn fresh_targeted_surface_keeps_canonical_context_bank_and_newer_pixels_win() {
     bank.retain(beta_one.clone(), marked_frame(&template, "beta-one"));
 
     let mut fresh_beta = ready_for_retained_handoff(beta);
-    fresh_beta.inherit_retained_frame_bank(bank);
+    fresh_beta.inherit_retained_frame_bank(bank.into());
     assert_eq!(fresh_beta.retained_frames.entries.len(), 3);
     assert_eq!(
         fresh_beta
@@ -543,7 +543,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
     stale_identity.binding = beta_one.binding;
     wrong_binding.retain(stale_identity, marked_frame(&template, "wrong-binding"));
     let mut wrong_binding_ui = ready_for_retained_handoff(alpha.clone());
-    wrong_binding_ui.inherit_retained_frame_bank(wrong_binding);
+    wrong_binding_ui.inherit_retained_frame_bank(wrong_binding.into());
     assert!(wrong_binding_ui.retained_frames.entries.is_empty());
     assert_eq!(
         wrong_binding_ui.select_tab(ClientAction::SelectTab(2)),
@@ -561,7 +561,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
     foreign_identity.site = SiteId::parse("88888888888888888888888888888888").unwrap();
     wrong_site.retain(foreign_identity, marked_frame(&template, "wrong-site"));
     let mut wrong_site_ui = ready_for_retained_handoff(alpha.clone());
-    wrong_site_ui.inherit_retained_frame_bank(wrong_site);
+    wrong_site_ui.inherit_retained_frame_bank(wrong_site.into());
     assert!(wrong_site_ui.retained_frames.entries.is_empty());
 
     let mut stale_epoch_frame = (*template).clone();
@@ -570,7 +570,7 @@ fn inherited_pixels_reject_wrong_binding_and_known_host_epoch() {
     let mut stale_epoch = RetainedFrames::default();
     stale_epoch.retain(alpha_one.clone(), Arc::new(stale_epoch_frame));
     let mut stale_epoch_ui = ready_for_retained_handoff(alpha);
-    stale_epoch_ui.inherit_retained_frame_bank(stale_epoch);
+    stale_epoch_ui.inherit_retained_frame_bank(stale_epoch.into());
     assert!(
         stale_epoch_ui
             .view()
@@ -616,7 +616,7 @@ fn invalid_inherited_lru_entries_cannot_evict_valid_pixels() {
         alpha_two.clone(),
         marked_frame(&template, "candidate-alpha-two"),
     );
-    candidate.inherit_retained_frame_bank(older);
+    candidate.inherit_retained_frame_bank(older.into());
     assert_eq!(candidate.retained_frames.entries.len(), 2);
     assert_eq!(
         candidate

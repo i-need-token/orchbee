@@ -183,6 +183,38 @@ pub(crate) struct ViewportEffect {
     pub protocol_error: bool,
 }
 
+/// A volatile reading position whose retained rows must be reproduced before adoption.
+#[derive(Clone, Debug)]
+pub(super) struct ReadingPosition {
+    pub(super) generation: NonZeroU64,
+    pub(super) columns: u16,
+    pub(super) viewport_rows: u16,
+    pub(super) start_row: u64,
+    pub(super) minimum_total: u64,
+    pub(super) witness: Vec<orchbee_terminal_protocol::TerminalTextRow>,
+}
+
+impl ReadingPosition {
+    fn offset(&self, facts: HistoryChanged, rows: u16) -> Option<u32> {
+        if facts.generation != self.generation
+            || facts.total_rows < self.minimum_total
+            || rows != self.viewport_rows
+        {
+            return None;
+        }
+        let end = self.start_row.checked_add(u64::from(rows))?;
+        u32::try_from(facts.total_rows.checked_sub(end)?).ok()
+    }
+
+    fn matches(&self, window: &ViewportWindow) -> bool {
+        window.route.generation == self.generation
+            && window.route.columns == self.columns
+            && window.route.start_row == self.start_row
+            && window.route.total_rows >= self.minimum_total
+            && window.rows.starts_with(&self.witness)
+    }
+}
+
 pub(crate) struct TerminalViewport {
     mode: ViewportMode,
     attachment: AttachmentId,
@@ -213,6 +245,7 @@ pub(crate) struct TerminalViewport {
     /// `read_rows` can halve under `LimitExceeded` while the geometry stays.
     row_count: u16,
     read_rows: u16,
+    resume: Option<ReadingPosition>,
 }
 
 impl TerminalViewport {
@@ -255,7 +288,52 @@ impl TerminalViewport {
             entry_rows_before,
             row_count,
             read_rows: row_count.clamp(1, MAXIMUM_READ_ROWS),
+            resume: None,
         }
+    }
+
+    /// Fence the first read of a newly admitted entry with a saved content witness.
+    #[cfg(any(windows, test))]
+    pub(super) fn resume_position(&mut self, position: ReadingPosition) {
+        self.resume = Some(position);
+    }
+
+    /// Retain only already committed scrollback rows; live screen rows can still mutate.
+    #[cfg(any(windows, test))]
+    pub(super) fn reading_position(&self) -> Option<ReadingPosition> {
+        if self.recovery_pending() || self.resume.is_some() {
+            return None;
+        }
+        let window = self.committed_window()?;
+        let retained = window
+            .route
+            .total_rows
+            .checked_sub(u64::from(self.row_count))?;
+        let stable_rows = retained.checked_sub(window.route.start_row)?;
+        let count = usize::try_from(stable_rows.min(8))
+            .ok()?
+            .min(window.rows.len());
+        if count == 0 {
+            return None;
+        }
+        Some(ReadingPosition {
+            generation: window.route.generation,
+            columns: self.columns,
+            viewport_rows: self.row_count,
+            start_row: window.route.start_row,
+            minimum_total: window.route.total_rows,
+            witness: window.rows[..count].to_vec(),
+        })
+    }
+
+    #[cfg(any(windows, test))]
+    pub(super) fn resuming(&self) -> bool {
+        self.resume.is_some()
+    }
+
+    #[cfg(any(windows, test))]
+    pub(super) fn returning_to_live(&self) -> bool {
+        self.recovery_pending()
     }
 
     /// The geometry the core was last resized to — `(columns, row_count)`.
@@ -327,6 +405,15 @@ impl TerminalViewport {
             // Recover.
             return effect;
         }
+        if self
+            .resume
+            .as_ref()
+            .is_some_and(|position| position.offset(changed, self.read_rows).is_none())
+        {
+            self.queue_recover();
+            effect.notice = Some(SessionNotice::HistoryPositionLost);
+            return effect;
+        }
         if self.committed && changed.anchor_status != HistoryAnchorStatus::Valid {
             // The committed anchor is gone or unverifiable: recover; never
             // fake the position from stale absolute offsets.
@@ -351,6 +438,11 @@ impl TerminalViewport {
         if self.recovery_pending() {
             // Recovery decided: further navigation — Exit included — is
             // absorbed without minting a second Recover.
+            return ViewportEffect::default();
+        }
+        if self.resume.is_some()
+            && !matches!(nav, ViewportNav::Exit | ViewportNav::OffsetFromBottom(0))
+        {
             return ViewportEffect::default();
         }
         if !matches!(nav, ViewportNav::Exit)
@@ -414,7 +506,11 @@ impl TerminalViewport {
             ViewportEffect::default()
         } else {
             ViewportEffect {
-                notice: Some(SessionNotice::HistoryUnavailable),
+                notice: Some(if self.resume.is_some() {
+                    SessionNotice::HistoryPositionLost
+                } else {
+                    SessionNotice::HistoryUnavailable
+                }),
                 live: true,
                 protocol_error: false,
             }
@@ -473,6 +569,17 @@ impl TerminalViewport {
                 self.arm_deadline(now);
             }
             return ViewportEffect::default();
+        }
+        if self
+            .resume
+            .as_ref()
+            .is_some_and(|position| !position.matches(&window))
+        {
+            self.queue_recover();
+            return ViewportEffect {
+                notice: Some(SessionNotice::HistoryPositionLost),
+                ..ViewportEffect::default()
+            };
         }
         // All gates passed: install. Installing does not commit the anchor —
         // only an accepted RowsApplied does. The installed window was served
@@ -567,6 +674,7 @@ impl TerminalViewport {
         if accepted {
             self.ack = AckState::Accepted;
             self.committed = true;
+            self.resume = None;
             self.facts_deadline = None;
             if self.mode == ViewportMode::Entering {
                 self.mode = ViewportMode::Viewing;
@@ -610,6 +718,13 @@ impl TerminalViewport {
     pub(crate) fn resize(&mut self, columns: u16, row_count: u16, now: Instant) -> ViewportEffect {
         if self.columns == columns && self.row_count == row_count {
             return ViewportEffect::default();
+        }
+        if self.resume.is_some() {
+            self.queue_recover();
+            return ViewportEffect {
+                notice: Some(SessionNotice::HistoryPositionLost),
+                ..ViewportEffect::default()
+            };
         }
         self.columns = columns;
         self.row_count = row_count;
@@ -805,38 +920,43 @@ impl TerminalViewport {
         let request_sequence = NonZeroU64::new(self.next_read_sequence)?;
         let (origin, row_count) = match self.mode {
             ViewportMode::Entering => {
-                let entry = match self.pending_nav {
-                    PendingNav::Tail(offset) => {
-                        self.inflight_nav = InflightNav::Tail(offset);
-                        // Keep the intent until install, including rejection/retry.
-                        offset
-                    }
-                    PendingNav::Oldest => {
-                        self.inflight_nav = InflightNav::Oldest;
-                        self.pending_nav = PendingNav::None;
-                        u32::MAX
-                    }
-                    PendingNav::Newest => {
-                        self.inflight_nav = InflightNav::Newest;
-                        self.pending_nav = PendingNav::None;
-                        0
-                    }
-                    PendingNav::Delta(delta) => {
-                        self.pending_nav = PendingNav::None;
-                        self.entry_rows_before = (self.entry_rows_before as i64)
-                            .saturating_add(delta)
-                            .clamp(0, u32::MAX as i64)
-                            as u32;
-                        if self.entry_rows_before == 0 {
-                            self.queue_recover();
-                            return None;
+                let entry = if let Some(position) = &self.resume {
+                    self.inflight_nav = InflightNav::EntryTail;
+                    position.offset(facts, self.read_rows)?
+                } else {
+                    match self.pending_nav {
+                        PendingNav::Tail(offset) => {
+                            self.inflight_nav = InflightNav::Tail(offset);
+                            // Keep the intent until install, including rejection/retry.
+                            offset
                         }
-                        self.inflight_nav = InflightNav::EntryTail;
-                        self.entry_rows_before
-                    }
-                    PendingNav::None => {
-                        self.inflight_nav = InflightNav::EntryTail;
-                        self.entry_rows_before
+                        PendingNav::Oldest => {
+                            self.inflight_nav = InflightNav::Oldest;
+                            self.pending_nav = PendingNav::None;
+                            u32::MAX
+                        }
+                        PendingNav::Newest => {
+                            self.inflight_nav = InflightNav::Newest;
+                            self.pending_nav = PendingNav::None;
+                            0
+                        }
+                        PendingNav::Delta(delta) => {
+                            self.pending_nav = PendingNav::None;
+                            self.entry_rows_before = (self.entry_rows_before as i64)
+                                .saturating_add(delta)
+                                .clamp(0, u32::MAX as i64)
+                                as u32;
+                            if self.entry_rows_before == 0 {
+                                self.queue_recover();
+                                return None;
+                            }
+                            self.inflight_nav = InflightNav::EntryTail;
+                            self.entry_rows_before
+                        }
+                        PendingNav::None => {
+                            self.inflight_nav = InflightNav::EntryTail;
+                            self.entry_rows_before
+                        }
                     }
                 };
                 (

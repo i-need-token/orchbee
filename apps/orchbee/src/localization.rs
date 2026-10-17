@@ -1454,6 +1454,12 @@ impl Locale {
                 Self::EnUs => "History is not available on this pane".to_owned(),
                 Self::ZhCn => "此窗格历史不可用".to_owned(),
             },
+            NativeSessionNotice::HistoryPositionLost => match self {
+                Self::EnUs => {
+                    "Previous history position unavailable · returning to live".to_owned()
+                }
+                Self::ZhCn => "无法恢复先前历史位置 · 正在返回实时".to_owned(),
+            },
             NativeSessionNotice::SelectionEvicted => match self {
                 Self::EnUs => "Selected rows are no longer available".to_owned(),
                 Self::ZhCn => "所选行已不可用".to_owned(),

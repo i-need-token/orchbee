@@ -193,6 +193,11 @@ publishing success. Unknown disposal drops the independent connection and cannot
 The existing clipboard writer retains its own shutdown contract; there is no claim that an
 arbitrary Win32 call finishes within a deadline.
 
+Replacing tab, context or creation projections cancels the obsolete episode and joins its query
+lane while preserving the Client-session reconnect origin. A subsequent keyboard or toolbar
+search can open a fresh exact read. Only Client-session retirement closes that origin;
+cursor movement or query retry never needs to repair connection configuration.
+
 ## Correctness evidence
 
 The owning implementation tests cover input packet ownership, admitted geometry, stale query/effect rejection, final movement before release, effect ordering, at-most-once submission and matching success exit.

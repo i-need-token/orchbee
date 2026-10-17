@@ -16,6 +16,104 @@ use super::{
 use crate::terminal_session::state::SessionNotice;
 
 #[test]
+fn reading_resume_uses_fresh_total_and_requires_matching_rows_then_acknowledgement() {
+    let previous = viewing(80, 24).reading_position().unwrap();
+    assert_eq!(previous.start_row, 90);
+    let mut viewport = entering(80, 24);
+    viewport.resume_position(previous);
+    assert!(drain(&mut viewport).is_empty());
+    let mut facts = facts_event(1, 1, HistoryAnchorStatus::None);
+    facts.total_rows = 240;
+    viewport.facts(facts);
+    let steps = drain(&mut viewport);
+    let [
+        ViewportStep::Read {
+            origin,
+            request_sequence,
+            ..
+        },
+    ] = steps.as_slice()
+    else {
+        panic!("one read")
+    };
+    assert_eq!(*origin, ViewportRowOrigin::Tail { rows_before: 126 });
+    viewport.window(
+        window(request_sequence.get(), 1, 90, 240, 80, 24),
+        Instant::now(),
+    );
+    assert!(viewport.committed_window().is_none());
+    assert!(matches!(
+        drain(&mut viewport).as_slice(),
+        [ViewportStep::Ack { .. }]
+    ));
+    viewport.ack_outcome(*request_sequence, true);
+    assert_eq!(viewport.committed_window().unwrap().route.start_row, 90);
+    assert!(!viewport.resuming());
+}
+
+#[test]
+fn reading_resume_never_paints_or_acknowledges_recycled_or_changed_rows() {
+    let previous = viewing(80, 24).reading_position().unwrap();
+    let mut viewport = entering(80, 24);
+    viewport.resume_position(previous);
+    viewport.facts(facts_event(1, 1, HistoryAnchorStatus::None));
+    let [
+        ViewportStep::Read {
+            request_sequence, ..
+        },
+    ] = drain(&mut viewport)[..]
+    else {
+        panic!("one read")
+    };
+    let mut replaced = window(request_sequence.get(), 1, 90, 200, 80, 24);
+    replaced.rows[0].cells[0].text = "替换后的日志".into();
+    let effect = viewport.window(replaced, Instant::now());
+    assert_eq!(effect.notice, Some(SessionNotice::HistoryPositionLost));
+    assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
+    assert!(matches!(viewport.surface(), ViewportSurface::Recovering));
+    assert!(viewport.committed_window().is_none());
+}
+
+#[test]
+fn reading_resume_rejects_changed_generation_shrinking_history_and_resize() {
+    for changed in ["generation", "total", "resize"] {
+        let previous = viewing(80, 24).reading_position().unwrap();
+        let mut viewport = entering(80, 24);
+        viewport.resume_position(previous);
+        let effect = if changed == "resize" {
+            viewport.resize(79, 24, Instant::now())
+        } else {
+            let mut facts = facts_event(1, 1, HistoryAnchorStatus::None);
+            if changed == "generation" {
+                facts.generation = NonZeroU64::new(2).unwrap();
+            } else {
+                facts.total_rows = 199;
+            }
+            viewport.facts(facts)
+        };
+        assert_eq!(
+            effect.notice,
+            Some(SessionNotice::HistoryPositionLost),
+            "{changed}"
+        );
+        assert_eq!(drain(&mut viewport), [ViewportStep::Recover]);
+    }
+}
+
+#[test]
+fn reading_bookmark_contains_only_the_stable_scrollback_part_of_a_wheel_window() {
+    let mut viewport = viewing(80, 24);
+    viewport.window.as_mut().unwrap().route.start_row = 173;
+    let saved = viewport.reading_position().unwrap();
+    assert_eq!(saved.witness.len(), 3);
+    viewport.window.as_mut().unwrap().route.start_row = 176;
+    assert!(viewport.reading_position().is_none());
+    viewport.typed();
+    assert!(viewport.returning_to_live());
+    assert!(viewport.reading_position().is_none());
+}
+
+#[test]
 fn scrollbar_latest_absolute_intent_survives_old_window_and_ack() {
     let mut viewport = viewing(80, 24);
     viewport.nav(ViewportNav::OffsetFromBottom(120));

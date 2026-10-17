@@ -104,9 +104,12 @@ never conflated with retained history: a history window's `total_rows` comes onl
 route. A Live scrollbar observes the verified frame's `scrollback_rows + geometry.rows`, with
 checked addition; it never substitutes that sum for an unknown history window.
 
-A non-Shift wheel over focused untracked primary-screen content enters three rows
-before the tail instead of the keyboard entry's one page. NativeUi rechecks exact focus, current
-frame and retained rows or a clipped current grid before admitting Enter. Downward wheel at Live, absent retained rows without a clipped grid,
+A non-Shift wheel over readable untracked primary-screen content enters three rows
+before the tail instead of the keyboard entry's one page. The exact pane under the pointer owns
+this read-side operation, including an unfocused ReadOnly pane; keyboard focus and controller
+ownership stay unchanged. NativeUi rechecks the pane incarnation, current frame and retained rows
+or a clipped current grid before admitting Enter. Unfocused application mouse reporting and
+alternate-screen wheel input remain inert. Downward wheel at Live, absent retained rows without a clipped grid,
 missing frame or alternate screen does nothing and emits no unavailable notice. Further wheel
 notches reuse the core's signed three-row navigation, including coalescing while entry is pending
 and recovery on reaching the live tail. Entry refusal leaves the pane Live without replay.
@@ -252,6 +255,34 @@ primary-button gesture over the content follows [native terminal selection and e
 against the committed history window; other events terminate locally on release. None encodes
 application mouse bytes. The wheel keeps its own contract: inside the retained window it scrolls
 locally, and anywhere else over the pane it is consumed without dismissing the overlay.
+
+## Reading continuity across navigation
+
+On Windows, `ui/history_positions.rs` retains each canonical presentation's explicit Live or
+manual-history choice across tab/viewer replacement and context handoff in the same Client.
+Identity includes Site, context, tab, panel, presentation, Worker and terminal. Removed or rebound
+members are pruned; retirement discards the bank. Nothing is persisted or shared with another
+Client. Automatic tail and copy episodes do not become manual-history bookmarks.
+
+A bookmark captures the committed start, Host terminal/epoch, generation and geometry, plus up to
+eight already-retained rows at that window's top. Mutable live-screen rows never serve as evidence.
+Witness storage is capped at 16 MiB; eviction retains an unavailable choice for visible fallback.
+Esc/End or typing records Live as soon as recovery is decided, even before command admission.
+
+Return uses a fresh Enter/HistoryChanged/read/RowsApplied handshake after checking membership and
+the physical terminal fence. The new facts' total determines the tail distance to the saved start,
+so appended output does not move it toward the tail. Before installation or acknowledgement,
+the returned start and witness rows must match exactly, including glyphs, attributes and wide cells.
+This is a content-validated bookmark, not a portable Host pin. Changed generation/geometry,
+shrinking history, changed or recycled witness rows, missing evidence or an unrepresentable target
+produce localized feedback and ordinary recovery to Live. Pending restoration consumes local
+navigation; Esc and typing keep their recover-before-input behavior. No old attachment, sequence,
+pending command, grant or selection is replayed.
+
+The core's traces check fresh totals, content refusal before paint/ACK and the commit boundary.
+`ui/history_positions/tests.rs` checks projection replacement, context-bank handoff, explicit Live,
+canonical pruning and terminal/geometry refusal. These are implementation witnesses; the bounded
+coordination model continues to own the existing demand/read/ACK protocol.
 
 ## Rendering
 

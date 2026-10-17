@@ -214,8 +214,8 @@
 			"zhCnSha256": "7487676967bca8600a76e10a91732e91b37ccf91519768501a151e36b475bf60"
 		},
 		"apps/orchbee/docs/native-keyboard-copy.md": {
-			"englishSha256": "5d037e9d039af5fa2852a2c30b469a309425e713143a374965cd00e3196da001",
-			"zhCnSha256": "a7d045c0d8d86acaea7bc6b7ac6a01a9aeb6bee1f43ef4280134e11c0e6f078a"
+			"englishSha256": "432295313edb1180f104c7a2e142969ada07093b081413f436436cb8da70b40c",
+			"zhCnSha256": "dc1ad87b5f7e8682790daf2309aeead3ef2be20c3c87640c549980de7c3dfef2"
 		},
 		"apps/orchbee/docs/native-keyboard-resize.md": {
 			"englishSha256": "e2e717281d0d557476ee485e3e05b5787b8a5f0b3f84386eda8d4e3e3b63d136",
@@ -306,8 +306,8 @@
 			"zhCnSha256": "e19090ec94a1b2be5495358b5c38eef227b7c599afb37da64394c142955d89f2"
 		},
 		"apps/orchbee/docs/native-terminal-viewport.md": {
-			"englishSha256": "ff8cf1e37e7eec79b72086e8bede0bcadf95b5defe0193920b3e72ae8dd611da",
-			"zhCnSha256": "d5d8c9d4d4800c7607d704bb806126faafa74e7b4d185b776307711418fbd232"
+			"englishSha256": "cbd5baae3e8a12b8944c2ca14015d3344d07af89573a666070a4f18635753c58",
+			"zhCnSha256": "4c94067f662cf681acfe673c24c7ef7c6422f6bbfeef1dc165dfef0cb85b828d"
 		},
 		"apps/orchbee/docs/native-themes.md": {
 			"englishSha256": "72fac58604d42f4bc4fa843403dc1a08747425fd8cf7dfbd1913065ea70882d9",

@@ -941,6 +941,84 @@ fn wheel_entry_starts_three_rows_back_and_coalesces_before_facts() {
     }
 }
 
+#[test]
+fn unfocused_read_only_log_wheel_enters_and_navigates_its_own_history_without_focus_change() {
+    let (mut ui, mailbox, clock, _) = ready_split_ui();
+    super::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
+    drain(&mailbox);
+    let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+    let peer = ui
+        .projections
+        .iter()
+        .find(|p| p.key != focus)
+        .unwrap()
+        .key
+        .clone();
+    for key in [&focus, &peer] {
+        let projection = projection_at(&mut ui, key);
+        let live = frame(&projection.value, 1000, false, 24);
+        projection.value.install_frame_for_test(live);
+        projection.status = NativeProjectionStatus::FrameAvailable;
+    }
+    assert!(ui.history_wheel(&peer, true));
+    let lease = mailbox.try_recv().unwrap().unwrap();
+    assert!(
+        matches!(lease.record(), QueuedCommand::Viewport(tagged) if tagged.key() == &peer && tagged.value() == &ViewportStep::Enter)
+    );
+    mailbox.finish_lease(lease).unwrap();
+    assert!(mailbox.try_recv().unwrap().is_none());
+    assert!(projection_at(&mut ui, &focus).viewport.is_none());
+    settle_viewing(&mut ui, &mailbox, &peer, 1);
+    assert!(ui.history_wheel(&peer, false));
+    assert!(matches!(
+        recv_viewports(&mailbox).as_slice(),
+        [ViewportStep::Read {
+            origin: ViewportRowOrigin::Committed { delta: 3 },
+            ..
+        }]
+    ));
+    assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(focus));
+    assert!(matches!(
+        ui.state.as_ref().unwrap().controller_mode(),
+        Some(ControllerMode::ReadOnly)
+    ));
+}
+
+#[test]
+fn unfocused_program_mouse_tracking_and_alternate_screen_do_not_enter_history() {
+    for alternate in [false, true] {
+        let (mut ui, mailbox, clock, _) = ready_split_ui();
+        super::publication_hint::attach_split_peer(&mut ui, &mailbox, &clock);
+        drain(&mailbox);
+        let focus = ui.state.as_ref().unwrap().focus_pane_ref().unwrap();
+        let peer = ui
+            .projections
+            .iter()
+            .find(|p| p.key != focus)
+            .unwrap()
+            .key
+            .clone();
+        let projection = projection_at(&mut ui, &peer);
+        let mut live = frame(&projection.value, 1000, alternate, 24);
+        if !alternate {
+            let mut wire = include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../packages/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin"
+            ))
+            .to_vec();
+            wire[100..104].copy_from_slice(&(1_u32 << 5).to_le_bytes());
+            live.interaction = orchbee_terminal_protocol::decode_terminal_text_frame(&wire)
+                .unwrap()
+                .interaction;
+        }
+        projection.value.install_frame_for_test(live);
+        projection.status = NativeProjectionStatus::FrameAvailable;
+        assert!(!ui.history_wheel(&peer, true));
+        assert!(mailbox.try_recv().unwrap().is_none());
+        assert_eq!(ui.state.as_ref().unwrap().focus_pane_ref(), Some(focus));
+    }
+}
+
 #[cfg(windows)]
 #[test]
 #[cfg(windows)]
