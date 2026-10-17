@@ -236,20 +236,59 @@ fn real_powershell_completes_scoped_grammar_without_runtime() {
         &std::env::var_os("PATH").unwrap_or_default(),
     ));
     let search_path = std::env::join_paths(paths).expect("PATH");
+    // Exercise the unchanged callback for every shared case as well as the real engine. Windows
+    // PowerShell 5.1 never calls native completers for a bare dash; retain that host limitation
+    // as an explicit negative witness instead of silently dropping the short-alias obligations.
+    let callback = render().replacen(
+        "Register-ArgumentCompleter -Native -CommandName orchbee, orchbee.exe -ScriptBlock {",
+        "$script:OrchbeeTestCompleter = {",
+        1,
+    );
+    assert!(callback.contains("$script:OrchbeeTestCompleter = {"));
+    let runner = r#"
+$cases=ConvertFrom-Json @'
+__ORCHBEE_TEST_CASES__
+'@
+Register-ArgumentCompleter -Native -CommandName '__ORCHBEE_TEST_EXECUTABLE__' -ScriptBlock {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $script:OrchbeeNativeInvocations++
+    & $script:OrchbeeTestCompleter $wordToComplete $commandAst $cursorPosition
+}
+$hostBoundaries=0
+foreach ($case in $cases) {
+    $line='__ORCHBEE_TEST_EXECUTABLE__ '+$case[0].Substring(8)
+    $tokens=$null
+    $errors=$null
+    $ast=[System.Management.Automation.Language.Parser]::ParseInput($line,[ref]$tokens,[ref]$errors)
+    $command=$ast.Find({param($node) $node -is [System.Management.Automation.Language.CommandAst]},$true)
+    if ($null -eq $command) { throw ('Missing command AST: '+$line) }
+    $word=if ($line.EndsWith(' ')) { '' } else { $command.CommandElements[-1].Extent.Text }
+    $callbackMatches=@(& $script:OrchbeeTestCompleter $word $command $line.Length | ForEach-Object {$_.CompletionText})
+    if (($callbackMatches -ccontains $case[1]) -ne $case[2]) {
+        throw ('Callback case failed: '+$line+' expected '+$case[1]+'='+$case[2]+' got '+($callbackMatches -join ','))
+    }
+    $script:OrchbeeNativeInvocations=0
+    $matches=@([System.Management.Automation.CommandCompletion]::CompleteInput($line,$line.Length,$null).CompletionMatches | ForEach-Object {$_.CompletionText})
+    if ($PSVersionTable.PSVersion.Major -eq 5 -and $word -ceq '-' -and $case[2] -and $case[1] -cin @('-v','-V')) {
+        if ($script:OrchbeeNativeInvocations -ne 0 -or $matches.Count -ne 0) {
+            throw ('PowerShell 5.1 bare-dash host boundary changed: '+$line)
+        }
+        $hostBoundaries++
+    } elseif (($matches -ccontains $case[1]) -ne $case[2]) {
+        throw ('Engine case failed: '+$line+' expected '+$case[1]+'='+$case[2]+' got '+($matches -join ','))
+    }
+}
+if ($hostBoundaries -ne $(if ($PSVersionTable.PSVersion.Major -eq 5) {2} else {0})) {
+    throw ('Unexpected host-boundary count: '+$hostBoundaries)
+}
+Write-Output ('completion-ok; callback cases='+$cases.Count+'; host boundaries='+$hostBoundaries)
+"#
+    .replace("__ORCHBEE_TEST_CASES__", &json)
+    .replace("__ORCHBEE_TEST_EXECUTABLE__", name);
     for shell in ["powershell.exe", "pwsh.exe"] {
         let script = format!(
-            "$ErrorActionPreference='Stop'\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)\n{}\n$cases=ConvertFrom-Json @'\n{json}\n'@\nforeach ($case in $cases) {{\n$line=$case[0]\n$matches=@([System.Management.Automation.CommandCompletion]::CompleteInput($line,$line.Length,$null).CompletionMatches | ForEach-Object {{ $_.CompletionText }})\nif (($matches -ccontains $case[1]) -ne $case[2]) {{ throw ('Case failed: '+$line+' expected '+$case[1]+'='+$case[2]+' got '+($matches -join ',')) }}\n}}\nWrite-Output 'completion-ok'\n",
-            render()
+            "$ErrorActionPreference='Stop'\n[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)\n{callback}\n{runner}"
         );
-        let script = script
-            .replace(
-                "-CommandName orchbee, orchbee.exe",
-                &format!("-CommandName orchbee, orchbee.exe, {name}"),
-            )
-            .replace(
-                "$line=$case[0]",
-                &format!("$line='{name} '+$case[0].Substring(8)"),
-            );
         let mut child = match Command::new(shell)
             .args([
                 "-NoLogo",

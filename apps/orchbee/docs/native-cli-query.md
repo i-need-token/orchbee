@@ -1092,6 +1092,11 @@ On Windows, `--default-config` must be the sole root argument and emits canonica
 `--skill` must be the sole root argument and emits the localized, embedded CLI usage guide.
 PowerShell completion is a static grammar projection: it never executes user expressions or
 queries a Session; loading it is explicit and does not modify a shell profile.
+PowerShell 7 invokes it for a bare `-` and offers the root `-v`/`-V` aliases. Windows PowerShell
+5.1 does not call native completers for that unfinished token. The Windows witness checks every
+shared grammar case against the unchanged callback in both engines, checks the real completion
+pipeline, and explicitly records the two bare-dash short-alias cases as engine non-invocation
+boundaries in 5.1. Version argument parsing remains available in both shells.
 
 Elvish completion uses the same Rust-owned JSON grammar as PowerShell. Its callback receives
 literal words (command first, unfinished word last) from the interactive editor. Per invocation,

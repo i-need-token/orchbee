@@ -896,6 +896,10 @@ orchbee <recognized path> -h|--help
 在 Windows 上，`--default-config` 必须是根命令的唯一参数，直接从构建输出规范 UTF-8 TOML，不读取用户配置或运行时选择环境。
 `--skill` 必须是根命令的唯一参数，输出内嵌且本地化的 CLI 使用指南。PowerShell
 补全是静态语法投影：绝不执行用户表达式或查询 Session；需显式加载，不修改 shell profile。
+PowerShell 7 会对独立的 `-` 调用补全并提供根级 `-v`/`-V` 别名；Windows PowerShell 5.1
+不会为这个未完成的词调用原生补全器。Windows 见证在两个引擎中用未改动的回调检查全部共享
+语法用例，并检查真实补全管道；其中 5.1 的两个独立短横线短别名用例明确记录为引擎未调用
+边界。两个 Shell 都支持版本参数解析。
 
 Elvish 补全与 PowerShell 使用同一份由 Rust 维护的 JSON 语法。回调接收交互编辑器提供的
 字面词语（命令在首位，未完成词在末位）。每次调用的纯解析器记录已完成的位置参数、已见

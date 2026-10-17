@@ -83,7 +83,9 @@ fn directories_list_direct_children_without_dumping_their_syntax() {
                 .sections
                 .iter()
                 .filter_map(|section| {
-                    if let Section::Rows { rows, .. } = section {
+                    if let Section::Rows { heading, rows } = section
+                        && heading == locale.cli_help_text(crate::localization::HelpText::Commands)
+                    {
                         Some(rows)
                     } else {
                         None
@@ -107,6 +109,17 @@ fn directories_list_direct_children_without_dumping_their_syntax() {
                 );
             }
             assert!(labels.iter().all(|label| !label.contains(' ')));
+            assert_eq!(
+                labels.len(),
+                help_paths()
+                    .iter()
+                    .filter(|child| {
+                        child.words().len() == path.words().len() + 1
+                            && child.words().starts_with(path.words())
+                    })
+                    .count(),
+                "directory labels contain exactly their direct children"
+            );
         }
     }
 }

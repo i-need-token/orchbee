@@ -215,7 +215,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
         .map(|cell| cell.symbol())
         .collect();
     assert!(
-        text.contains("[2/2]") && !text.contains("child shell"),
+        text.contains("Connecting") && !text.contains("[2/2]") && !text.contains("child shell"),
         "{text}"
     );
 }
@@ -512,7 +512,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
             &destination
         );
         if layout == 0 {
-            let (selected_buffer, _, _) = painted_selector(
+            let (selected_buffer, selected_hits, _) = painted_selector(
                 &ui,
                 120,
                 40,
@@ -523,7 +523,18 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
                 .iter()
                 .map(|cell| cell.symbol())
                 .collect();
-            assert!(selected_text.contains("[2/3]"), "{selected_text}");
+            assert!(
+                selected_text.contains("Connecting") && !selected_text.contains("[2/3]"),
+                "the in-flight switch paints its pending status without an unavailable selector: {selected_text}"
+            );
+            assert!((0..40).all(|y| {
+                (0..120).all(|x| {
+                    !matches!(
+                        selected_hits.hit_target_at(x, y),
+                        Some(HitTarget::Presentation(_))
+                    )
+                })
+            }));
         }
     }
 }

@@ -569,19 +569,31 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
                     );
                 })
                 .unwrap();
-            let text = rendered_rows(terminal.backend().buffer());
+            let buffer = terminal.backend().buffer();
+            let text = rendered_rows(buffer);
+            let areas = crate::tui_layout::project_shell_areas(buffer.area, view.sidebar_surface());
+            let main_text: String = (areas.panel.y..areas.panel.bottom())
+                .flat_map(|y| {
+                    (areas.panel.x..areas.panel.right()).map(move |x| buffer[(x, y)].symbol())
+                })
+                .collect();
             let label = if canonical {
                 (locale.shell().prefix_desc)(PrefixDesc::CreateTab)
             } else {
                 locale.status().create_workspace
             };
             assert_eq!(
-                text.contains(&format!("Ctrl+a n {label}")),
+                main_text.contains(&format!("Ctrl+a n {label}")),
                 canonical,
                 "{text}"
             );
             if !canonical {
                 assert!(!text.contains(locale.status().create_tab), "{text}");
+                assert!(main_text.trim().is_empty(), "{main_text}");
+                assert!(
+                    text.contains(&format!("Ctrl+a n {label}")),
+                    "the fixed status hint still advertises the effective creation binding"
+                );
             }
             assert!(!text.contains("Ctrl+b c"), "{text}");
             let prefix = view.decide(PrefixInput::Key(KeyEvent::press(
