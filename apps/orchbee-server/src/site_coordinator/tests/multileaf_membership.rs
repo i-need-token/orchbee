@@ -155,6 +155,10 @@ pub(super) fn drive_close_to_publication(
                     }
                     TerminalLifecycleAction::Force => TerminalLifecycleOutcome::ForceAccepted,
                     TerminalLifecycleAction::Dispose => TerminalLifecycleOutcome::Disposed,
+                    TerminalLifecycleAction::TerminateIfIdle
+                    | TerminalLifecycleAction::InspectInventoryPage { .. } => {
+                        panic!("guarded Close requires the dedicated idle-evidence fixture")
+                    }
                 };
                 let result = TerminalLifecycleResult::new(token.request(), outcome).unwrap();
                 coordinator

@@ -2,12 +2,18 @@
 use super::*;
 use crate::{
     localization::Locale,
-    tui_shell::tests::settings_frame,
+    tui_shell::tests::{SettingsFrameSource, settings_frame},
     tui_theme::{ColorLevel, Role},
 };
 use orchbee_workbench_protocol::{
     ApplicationAppearance, PreferencesLocale, TerminalDisplayAppearance, UserPreferencesValues,
 };
+
+impl SettingsFrameSource for NativeUi {
+    fn settings_view(&self) -> TerminalSessionView<'_> {
+        TerminalSessionView::Native(self.view())
+    }
+}
 
 fn paint(
     ui: &mut NativeUi,
@@ -15,9 +21,7 @@ fn paint(
     size: (u16, u16),
     locale: Locale,
 ) -> ratatui::buffer::Buffer {
-    let (buffer, receipt) = settings_frame(size, shell, locale, || {
-        TerminalSessionView::Native(ui.view())
-    });
+    let (buffer, receipt) = settings_frame(size, shell, locale, ui);
     ui.after_close_draw(receipt);
     buffer
 }

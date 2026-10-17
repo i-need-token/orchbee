@@ -39,7 +39,7 @@ mod notification_too_small;
 mod rename;
 mod settings;
 pub(crate) use rename::run_native_rename_resize;
-pub(crate) use settings::settings_frame;
+pub(crate) use settings::{SettingsFrameSource, settings_frame};
 
 struct QueueInputSource {
     inputs: VecDeque<io::Result<Option<Vec<u8>>>>,

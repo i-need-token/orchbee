@@ -102,7 +102,7 @@ fn ready_with_background_target(
     }
     (ui, mailbox, clock, snapshot)
 }
-fn open_confirmation(
+pub(in crate::terminal_session) fn open_confirmation(
     ui: &mut NativeUi,
     target: Option<&WorkbenchWorkspaceId>,
 ) -> SessionActionDisposition {

@@ -125,10 +125,13 @@ fn ack(request: TerminalLifecycleRequest) -> TestResult<Vec<u8>> {
         )?,
     };
     let control = encode_lifecycle_control(&match request.action {
-        TerminalLifecycleAction::Terminate => LifecycleControl::TerminateTerminalAccepted(target),
+        TerminalLifecycleAction::Terminate | TerminalLifecycleAction::TerminateIfIdle => {
+            LifecycleControl::TerminateTerminalAccepted(target)
+        }
         TerminalLifecycleAction::Force => LifecycleControl::ForceTerminateTerminalAccepted(target),
         TerminalLifecycleAction::Dispose => LifecycleControl::DisposeTerminalAccepted(target),
-        TerminalLifecycleAction::InventoryPage { .. } => panic!("mutation fixture"),
+        TerminalLifecycleAction::InventoryPage { .. }
+        | TerminalLifecycleAction::InspectInventoryPage { .. } => panic!("mutation fixture"),
     })?;
     wire(
         control.kind,

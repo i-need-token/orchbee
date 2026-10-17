@@ -179,15 +179,12 @@ fn open(ui: &mut NativeUi, scope: Scope) {
         let target = snapshot().navigation.workspaces[scope.index()]
             .workspace_id
             .clone();
-        let (Some(mailbox), Some(state)) = (ui.mailbox.as_ref(), ui.state.as_mut()) else {
-            panic!("ready UI");
-        };
-        assert!(
-            mailbox
-                .apply_local_for(state, |state| state
-                    .open_workspace_close_at(&target)
-                    .ok_or(()))
-                .is_ok()
+        assert_eq!(
+            crate::terminal_session::ui::tests::workspace_close::open_confirmation(
+                ui,
+                Some(&target)
+            ),
+            SessionActionDisposition::DismissNavigator
         );
     }
 }

@@ -2,24 +2,28 @@
 use super::*;
 use crate::terminal_session::{NativeDrawReceipt, TerminalSessionView};
 
-pub(crate) fn settings_frame<'a>(
+pub(crate) trait SettingsFrameSource {
+    fn settings_view(&self) -> TerminalSessionView<'_>;
+}
+
+pub(crate) fn settings_frame(
     size: (u16, u16),
     view: &mut ClientView,
     locale: Locale,
-    session: impl Fn() -> TerminalSessionView<'a>,
+    session: &impl SettingsFrameSource,
 ) -> (ratatui::buffer::Buffer, NativeDrawReceipt) {
-    struct Surface<F> {
-        session: F,
+    struct Surface<'a, S> {
+        session: &'a S,
         receipt: NativeDrawReceipt,
     }
-    impl<F> TerminalInputPort for Surface<F> {
+    impl<S> TerminalInputPort for Surface<'_, S> {
         fn forward(&mut self, _bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
             panic!("drawing Settings cannot forward input");
         }
     }
-    impl<'a, F: Fn() -> TerminalSessionView<'a>> super::super::TerminalSurface for Surface<F> {
+    impl<S: SettingsFrameSource> super::super::TerminalSurface for Surface<'_, S> {
         fn view(&self) -> Option<TerminalSessionView<'_>> {
-            Some((self.session)())
+            Some(self.session.settings_view())
         }
         fn after_close_draw(&mut self, receipt: NativeDrawReceipt) {
             self.receipt = receipt;
