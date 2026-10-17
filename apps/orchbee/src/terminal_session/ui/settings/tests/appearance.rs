@@ -75,7 +75,16 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                 row.cells[usize::from(pane.width) - 1] = explicit;
                 projection.value.install_frame_for_test(frame);
 
+                ui.settings.editor.edit(Edit::Cancel);
                 let original = paint(&mut ui, &mut shell, size, fallback);
+                assert_eq!(
+                    original[(pane.right() - 2, pane.y)].symbol(),
+                    "d",
+                    "confirmed program baseline at {size:?}, {fallback:?}, {level:?}; pane={pane:?}"
+                );
+                let token = ui.settings.editor.open().unwrap();
+                assert!(ui.settings.editor.loaded(token, draft_basis()));
+                paint(&mut ui, &mut shell, size, fallback);
                 let confirmed_shell = shell.clone();
                 ui.settings.editor.edit(Edit::Select(Row::Theme));
                 ui.settings.editor.edit(Edit::Adjust(true));
@@ -107,7 +116,11 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                         "the Settings overlay can cover (0, 0) at compact sizes; sample the status chrome"
                     );
                     let defaults = expected.terminal_defaults();
-                    assert_eq!(buffer[(pane.right() - 2, pane.y)].symbol(), "d");
+                    assert_eq!(
+                        buffer[(pane.right() - 2, pane.y)].symbol(),
+                        "d",
+                        "preview program at {size:?}, {fallback:?}, {level:?}, {appearance:?}; pane={pane:?}"
+                    );
                     assert_eq!(buffer[(pane.right() - 2, pane.y)].fg, defaults.0);
                     assert_eq!(buffer[(pane.right() - 2, pane.y)].bg, defaults.1);
                     assert_eq!(buffer[(pane.right() - 1, pane.y)].symbol(), "e");
