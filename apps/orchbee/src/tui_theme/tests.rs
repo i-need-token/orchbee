@@ -11,6 +11,53 @@ use super::{ColorLevel, GlyphMode, GlyphSet, Polarity, Role, Theme, quantize_col
 
 mod cursor;
 mod destructive;
+mod terminal_defaults;
+
+#[test]
+fn sidebar_pointer_fallbacks_keep_one_background_and_readable_navigation() {
+    for base in [
+        Theme::terminal_native(),
+        Theme::one_light(),
+        Theme::one_dark(),
+    ] {
+        for level in [
+            ColorLevel::Truecolor,
+            ColorLevel::Ansi256,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = base.quantize(level).sidebar();
+            assert_eq!(theme.sidebar(), theme);
+            for surface in [Role::SurfaceHover, Role::SurfacePressed] {
+                let band = theme.style(surface);
+                for role in [
+                    Role::TextPrimary,
+                    Role::TextSecondary,
+                    Role::HintLabel,
+                    Role::AccentSelection,
+                    Role::StatusWorking,
+                ] {
+                    let content = theme.content_on_surface(
+                        Role::SurfaceChrome,
+                        Some(surface),
+                        Some(role),
+                        theme.style(role),
+                    );
+                    assert_eq!(content.bg, band.bg);
+                    assert_eq!(
+                        content.add_modifier.contains(Modifier::REVERSED),
+                        band.add_modifier.contains(Modifier::REVERSED)
+                    );
+                    if role == Role::StatusWorking {
+                        assert_eq!(content.fg, theme.style(role).fg);
+                    } else if let Some(foreground) = band.fg {
+                        assert_eq!(content.fg, Some(foreground));
+                    }
+                }
+            }
+        }
+    }
+}
 
 const DESIGN_TOKENS_CSS: &str = include_str!("../../../../packages/design-tokens/src/tokens.css");
 

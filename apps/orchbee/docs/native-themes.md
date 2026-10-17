@@ -7,11 +7,23 @@ separate application appearance (Light, Dark, System) from terminal defaults (Ho
 Custom). Application Light is the common default. System maps TUI chrome to the outer terminal's
 semantic defaults; the TUI does not change the outer host's font or appearance.
 
-Terminal Host uses the captured frame/window foreground and background. Light/Dark use the shared
-shipped defaults; Custom uses the validated RGB pair. Only default-marked cells are substituted.
+Terminal Host follows explicit application Light/Dark through the shared shipped terminal defaults.
+With application System, Host uses the captured frame/window foreground and background. Explicit
+terminal Light/Dark and Custom retain precedence; Custom uses the validated RGB pair. Only
+default-marked cells are substituted.
 Explicit program RGB, palette colors, OSC overrides, reversal, attributes and wide-cell geometry
 retain their captured authority in live and retained rows. Empty canvas uses the selected terminal
-defaults. This presentation does not change retained Host color-query replies.
+defaults.
+
+The shared `UserTerminalColors` resolver also supplies the Worker's new-terminal profile from the
+same confirmed snapshot as scrollback and launch selection. OSC 10/11 queries then report those
+captured defaults from terminal creation, before a program chooses its appearance. Host with System
+keeps the existing launch baseline when no captured Host profile exists; no outer-host polarity is
+inferred. Existing terminals retain their query defaults until their runtime owner explicitly applies
+a terminal theme. Client appearance changes and reversible Settings previews recolor default-marked
+presentation without mutating that shared query state, rewriting ANSI palette entries, or restarting
+programs. Consequently a retained program's query-selected appearance can differ from a later local
+preview; display recoloring alone does not establish runtime theme application.
 
 The native backend paints a steady software block at the current input owner's reported position,
 after composing text and graphics in the synchronized frame. Its theme-owned contrast policy uses
@@ -92,12 +104,29 @@ fallbacks still apply. These are nominal palette claims, not a universal hierarc
 of perceptual distinction; real-window light/dark, en-US/zh-CN and 80x24/120x40 review supplies that
 separate evidence.
 
+## Sidebar row state
+
+The [Workspace row compositor](../src/tui_render/workspace_sidebar.rs) owns one background per row,
+including padding, blank cells and continuation lines. The [text compositor](../src/tui_render/sidebar_text.rs)
+clears inherited whole-row bold before applying identity emphasis, so supporting lines keep their
+hierarchy. Pressed, provisional, hover, current and base surfaces retain that order; focus,
+operational state and unread markers remain independent. Hover and press do not select an entity.
+
+The theme's sidebar projection resolves reverse-video pointer fallbacks to an ANSI black/white pair.
+This prevents token foregrounds and inherited span backgrounds from becoming separate displayed
+backgrounds. Monochrome retains one host-relative reverse band. Navigation markers adopt the same
+contrast pair; status and explicit token colors retain their roles. Named RGB surfaces keep their
+palette. Shared controls consume this projection without inspecting the active palette.
+
 Persistent sidebar context uses `surface-current`, separate from the selection color used by
 pickers. The native theme pairs ANSI gray with black body text, without DIM on host-relative text;
 both named themes use a neutral fill against chrome and retain their primary/secondary
 text colors. One Light uses `[224, 228, 235]` against `[240, 242, 245]` chrome so the persistent
 row remains visible while input belongs to a terminal. This fill remains quieter than keyboard
-selection and preserves readable text contrast. Current names
+selection and preserves readable text contrast. The most specific expanded current row owns the
+fill: when an active Agent is shown, its Workspace retains bold identity and a current marker on
+chrome instead of merging with that Agent's fill. Collapsing the Agents returns the fill to the
+Workspace. Current names
 are bold; status glyphs and explicit token colors remain semantic. Rows reserve separate tracks for
 provisional navigation, current identity, operational state and unread state. A current row shows `*`
 in its current track when quantization collapses its fill onto chrome or when an identity token
@@ -181,16 +210,18 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 
 ## Correctness and evidence
 
-| Claim                                                       | Evidence                                                                                                          | Bounds                                                                                                             |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Legacy names and migration admission                        | Settings decision cases and CLI warning/schema checks                                                             | Windows TOML owner and existing fatal source boundary                                                              |
-| Complete role mapping and capability precedence             | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                      |
-| Shared Light/Dark interaction palette remains aligned       | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map only shared Light/Dark roles; System remains host-relative                                |
-| Dark text priority exceeds a readable near-equal control    | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                |
-| Default markers follow the theme; explicit cells stay exact | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate  |
-| Cursor contrast follows the displayed cell and input owner  | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Host/Light/Dark/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate |
-| Confirmed shared publication preserves complete appearance  | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                  |
-| Startup and shared reload reach the real Client             | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                     |
+| Claim                                                        | Evidence                                                                                                          | Bounds                                                                                                             |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Legacy names and migration admission                         | Settings decision cases and CLI warning/schema checks                                                             | Windows TOML owner and existing fatal source boundary                                                              |
+| Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                      |
+| Shared Light/Dark interaction palette remains aligned        | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map only shared Light/Dark roles; System remains host-relative                                |
+| Dark text priority exceeds a readable near-equal control     | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                |
+| Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                  |
+| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate               |
+| Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate  |
+| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Host/Light/Dark/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate |
+| Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                  |
+| Startup and shared reload reach the real Client              | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                     |
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`
 and the affected `pnpm verify` root gate. Shared custom colors and System appearance are current behavior;

@@ -5,7 +5,7 @@ pub use notification_policy::{
 };
 mod user_preferences;
 pub use user_preferences::{
-    UserPreferencesScope, UserPreferencesStore, UserTerminalLaunchDefaults,
+    UserPreferencesScope, UserPreferencesStore, UserTerminalColors, UserTerminalLaunchDefaults,
 };
 #[cfg(windows)]
 mod windows_plugins;

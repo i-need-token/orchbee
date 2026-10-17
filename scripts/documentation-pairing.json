@@ -138,8 +138,8 @@
 			"zhCnSha256": "6e886d367f430bd3df556e3cd6638c1aa333f96d7ce90beda1c4fbc843ca3acc"
 		},
 		"apps/orchbee-worker/README.md": {
-			"englishSha256": "109ace896ea9f0dbf7da3d22c1ba531a1ba6d66e21e6e5bc869142f714e11b2b",
-			"zhCnSha256": "6452726722ab5136a66c46c582957e5838df0f13ab912f15cf6132c25e24d76e"
+			"englishSha256": "0be923690b1146149ca222bc3691f8fce906a244455f80ba2a028ed85b268cee",
+			"zhCnSha256": "93bbe0d9a2d4c89125e9a052f79f6730f3b8652955207439486a3a5ce8c39454"
 		},
 		"apps/orchbee-worker/docs/viewer-capacity-and-record-budget.md": {
 			"englishSha256": "db3051314047ab2e7309721772b8fd08ae787b9f6450da3d1a3cecfce552b30b",
@@ -310,8 +310,8 @@
 			"zhCnSha256": "e9b82e1707e9935c45e17f544c7a322ab0be8cfd2b9a6ebd92ffcb487c28b30d"
 		},
 		"apps/orchbee/docs/native-themes.md": {
-			"englishSha256": "848655138774d9a0592daa4e0914625641c52cbde7e071102a2f27b97b560449",
-			"zhCnSha256": "faa0002b310997516a203600c295b88019ce6f7c08d1406bb82517044593d6d5"
+			"englishSha256": "c527501d300514d0c2501aad8bbc9a0d0def22d88cb53d4595c0904cb0a09e4b",
+			"zhCnSha256": "40739415cf4cda3d587ddf333ec1b6aff6d5f915c3f938c30cc6105220ff4419"
 		},
 		"apps/orchbee/docs/native-workspace-close.md": {
 			"englishSha256": "ccc750ead2d559c69ab9291a745b2518dbe8bb9ee5de3b28d3337598ddf12ffd",
@@ -466,8 +466,8 @@
 			"zhCnSha256": "058ffb3ef1db973d353038482aaa51db4ee9354081fb17d8970701b1e5202b73"
 		},
 		"crates/local-site-runtime/README.md": {
-			"englishSha256": "00bd03c25ce21505058d28d21ddf1e0c0313ca0bd3ecf393b1ff71914a2d22d1",
-			"zhCnSha256": "bc57e21f94aca620647a69eec34f2e4097e9397ef8890bed298055ce734c36fc"
+			"englishSha256": "4a950ceaa84c0e7f37fa0625aa060a337d20aee557ef1f0d5b6a7aed15acf18d",
+			"zhCnSha256": "88f79adf4ca317ca3b61b54cb8bf2f0e5c541213202cb756010dcee9d7608a14"
 		},
 		"crates/local-site-runtime/docs/windows-checkpoint-storage.md": {
 			"englishSha256": "f8999366ad90b1069456a2d87e4a027ea7c9230b8157addd173d529c34dddb45",

@@ -514,6 +514,32 @@ impl Theme {
         self.styles.style(role)
     }
 
+    /// Sidebar rows keep one displayed background even when tokens have different foregrounds.
+    /// A reverse-video fallback would turn every token foreground into its own background patch.
+    /// Resolve that fallback to a neutral pair; monochrome keeps one host-relative reverse band.
+    #[cfg(any(windows, test))]
+    pub(crate) fn sidebar(mut self) -> Self {
+        for surface in [
+            &mut self.styles.surface_hover,
+            &mut self.styles.surface_pressed,
+        ] {
+            if surface.add_modifier.contains(Modifier::REVERSED) {
+                *surface = if self.color_level == ColorLevel::Monochrome {
+                    Style::new()
+                        .fg(Color::Reset)
+                        .bg(Color::Reset)
+                        .add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::new()
+                        .fg(Color::Black)
+                        .bg(Color::White)
+                        .remove_modifier(Modifier::REVERSED)
+                };
+            }
+        }
+        self
+    }
+
     /// Composes semantic content onto one base and its winning interaction surface.
     ///
     /// Surface fills and every surface modifier replace or augment the incoming background while
@@ -575,8 +601,12 @@ impl Theme {
             content = destructive_content_pair(content);
         }
 
+        let paired_pointer = matches!(interaction, Some(Role::SurfaceHover | Role::SurfacePressed))
+            && interaction_style.is_some_and(|style| style.fg.is_some());
         let paired = match interaction {
-            Some(Role::SurfaceCurrent) => interaction_style.and_then(|style| style.fg),
+            Some(Role::SurfaceCurrent | Role::SurfaceHover | Role::SurfacePressed) => {
+                interaction_style.and_then(|style| style.fg)
+            }
             Some(Role::SurfaceSelection) => self.style(Role::AccentSelection).fg,
             _ => None,
         };
@@ -589,17 +619,19 @@ impl Theme {
                     | Role::HintKey
                     | Role::HintLabel
             )
-        );
-        if self.color_level != ColorLevel::Monochrome
-            && self.polarity.is_none()
+        ) || paired_pointer && content_role == Some(Role::AccentSelection);
+        if (self.color_level != ColorLevel::Monochrome || paired_pointer)
+            && (self.polarity.is_none() || paired_pointer)
             && ordinary
             && let Some(role) = content_role
             && content_foreground == self.style(role).fg
             && let Some(foreground) = paired
-            && foreground != Color::Reset
+            && (foreground != Color::Reset || paired_pointer)
         {
             content = content.fg(foreground);
-            if matches!(role, Role::TextSecondary | Role::HintLabel) {
+            if matches!(role, Role::TextSecondary | Role::HintLabel)
+                && (!paired_pointer || self.color_level == ColorLevel::Monochrome)
+            {
                 content = content.remove_modifier(Modifier::DIM);
             }
         }
@@ -733,7 +765,7 @@ impl Theme {
         ))
     }
 
-    /// Client terminal colors are independent of application chrome and explicit program SGR.
+    /// Explicit terminal colors override chrome; Host follows resolved application appearance.
     pub(crate) fn with_terminal_preferences(
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
@@ -752,21 +784,25 @@ impl Theme {
         custom_foreground: &str,
         custom_background: &str,
     ) -> Self {
-        use orchbee_workbench_protocol::TerminalDisplayAppearance;
-        self.terminal_uses_host_colors = appearance == TerminalDisplayAppearance::Host;
-        let colors = match appearance {
-            TerminalDisplayAppearance::Host | TerminalDisplayAppearance::Light => {
-                (0x141414, 0xfcfcfc)
-            }
-            TerminalDisplayAppearance::Dark => (0xd4d4d4, 0x1e1e1e),
-            TerminalDisplayAppearance::Custom => (
-                u32::from_str_radix(&custom_foreground[1..], 16)
-                    .expect("validated preference color"),
-                u32::from_str_radix(&custom_background[1..], 16)
-                    .expect("validated preference color"),
-            ),
+        use orchbee_workbench_protocol::ApplicationAppearance;
+        let application = match self.polarity {
+            Some(Polarity::Light) => ApplicationAppearance::Light,
+            Some(Polarity::Dark) => ApplicationAppearance::Dark,
+            None => ApplicationAppearance::System,
         };
-        self.set_terminal_colors(colors.0, colors.1);
+        let colors = orchbee_local_site_runtime::UserTerminalColors::resolve(
+            application,
+            appearance,
+            custom_foreground,
+            custom_background,
+        )
+        .expect("validated appearance preferences");
+        self.terminal_uses_host_colors = colors.is_none();
+        self.terminal_colors = None;
+        if let Some(colors) = colors {
+            let (foreground, background) = colors.rgb();
+            self.set_terminal_colors(foreground, background);
+        }
         self
     }
 

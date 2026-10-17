@@ -22,6 +22,7 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
                 environment: default_launch_environment(),
             }),
             scrollback_bytes: 4321,
+            colors: Some(orchbee_local_site_runtime::UserTerminalColors::DARK),
         });
         let selection = explicit.then(|| {
             LaunchSelection::new(
@@ -84,6 +85,22 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
             panic!("dispatch")
         };
         let host = map_launch_dispatch(&dispatch, facts, None)?;
+        assert_eq!(
+            host.launch.terminal_profile.default_foreground_rgb,
+            if shared { 0xd4d4d4 } else { 0x141414 }
+        );
+        assert_eq!(
+            host.launch.terminal_profile.default_background_rgb,
+            if shared { 0x1e1e1e } else { 0xfcfcfc }
+        );
+        assert_eq!(
+            host.launch.terminal_profile.color_scheme,
+            if shared {
+                ColorScheme::Dark
+            } else {
+                ColorScheme::Light
+            }
+        );
         assert_eq!(
             host.launch
                 .configuration
@@ -150,6 +167,38 @@ fn configured_and_explicit_shells_reach_real_host_launch_preparation() -> Result
         }
     }
     Ok(())
+}
+
+#[test]
+fn resolved_launch_colors_reach_the_profile_without_changing_the_ansi_palette() {
+    use orchbee_local_site_runtime::UserTerminalColors;
+    let baseline = terminal_profile(None);
+    for (colors, pair, scheme) in [
+        (
+            Some(UserTerminalColors::DARK),
+            (0xd4d4d4, 0x1e1e1e),
+            ColorScheme::Dark,
+        ),
+        (
+            Some(UserTerminalColors::LIGHT),
+            (0x141414, 0xfcfcfc),
+            ColorScheme::Light,
+        ),
+        (None, (0x141414, 0xfcfcfc), ColorScheme::Light),
+    ] {
+        let profile = terminal_profile(colors);
+        assert_eq!(
+            (
+                profile.default_foreground_rgb,
+                profile.default_background_rgb
+            ),
+            pair
+        );
+        assert_eq!(profile.color_scheme, scheme);
+        assert_eq!(profile.palette, baseline.palette);
+        assert_eq!(profile.default_cursor_rgb, baseline.default_cursor_rgb);
+        assert_eq!(profile.device_attributes, baseline.device_attributes);
+    }
 }
 
 #[test]

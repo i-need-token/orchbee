@@ -2,6 +2,76 @@
 use super::*;
 use crate::terminal_session::{WorkspaceCreationPhase, WorkspaceCreationPreview};
 
+#[test]
+fn creation_preview_keeps_current_fill_and_identity_emphasis_separate_from_pending_copy() {
+    let site = SiteId::parse(&id(1)).unwrap();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
+            for current in [false, true] {
+                for phase in [
+                    WorkspaceCreationPhase::Preparing,
+                    WorkspaceCreationPhase::Committed,
+                ] {
+                    let mut terminal = Terminal::new(TestBackend::new(64, 3)).unwrap();
+                    terminal
+                        .draw(|frame| {
+                            render_creation(
+                                frame,
+                                Rect::new(0, 1, 64, 1),
+                                64,
+                                WorkspaceCreationPreview {
+                                    site: &site,
+                                    label: Some("Preview"),
+                                    project_id: None,
+                                    committed: None,
+                                    phase,
+                                    current,
+                                },
+                                locale,
+                                &theme,
+                            );
+                        })
+                        .unwrap();
+                    let buffer = terminal.backend().buffer();
+                    let surface = if current {
+                        Role::SurfaceCurrent
+                    } else {
+                        Role::SurfaceChrome
+                    };
+                    let label_x = (0..64).find(|x| buffer[(*x, 1)].symbol() == "P").unwrap();
+                    assert_eq!(buffer[(label_x, 1)].bg, theme.color(surface));
+                    assert_eq!(
+                        buffer[(label_x, 1)].modifier.contains(Modifier::BOLD),
+                        current
+                    );
+                    assert_eq!(buffer[(0, 1)].bg, theme.color(surface));
+                    assert_eq!(buffer[(63, 1)].bg, theme.color(surface));
+                    let detail_x = label_x + u16::try_from(display_width("Preview · ")).unwrap();
+                    if phase == WorkspaceCreationPhase::Preparing {
+                        assert_eq!(
+                            buffer[(detail_x, 1)].symbol(),
+                            locale
+                                .workspace_creation_progress(phase)
+                                .chars()
+                                .next()
+                                .unwrap()
+                                .to_string()
+                        );
+                        assert_eq!(buffer[(detail_x, 1)].bg, theme.color(surface));
+                        assert!(!buffer[(detail_x, 1)].modifier.contains(Modifier::BOLD));
+                    } else {
+                        assert_eq!(buffer[(detail_x, 1)].symbol(), " ");
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
     let mut text = String::new();
     for y in buffer.area.y..buffer.area.bottom() {
@@ -14,6 +84,311 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
         text.push('\n');
     }
     text
+}
+
+fn creation_member_view() -> (ClientView, SidebarTarget, [SidebarTarget; 2]) {
+    let mut view = view(120, 40);
+    configure(
+        &mut view,
+        serde_json::json!([[token("workspace")], [token("branch")]]),
+        0,
+    );
+    let workspace = view.machines.space_rows()[0].sidebar_target().unwrap();
+    let SidebarTarget::Context { target, .. } = &workspace else {
+        unreachable!()
+    };
+    let agents: Vec<_> = [(23, "Alpha"), (24, "Beta")]
+        .into_iter()
+        .map(|(number, name)| {
+            let mut agent = agent_for(target.clone(), number);
+            agent.target.panel = WorkbenchPanelId::parse(&id(number + 10)).unwrap();
+            agent.metadata.title = Some(MetadataTokenValue::parse(name).unwrap());
+            agent
+        })
+        .collect();
+    let members: [SidebarTarget; 2] = agents
+        .iter()
+        .map(|agent| SidebarTarget::Agent {
+            machine: Choice::Local,
+            target: Box::new(agent.target.clone()),
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    view.machines.observe_agents(vec![(
+        Choice::Local,
+        crate::machine_agents::Observation::Ready(crate::machine_agents::tests::checkpoint(agents)),
+    )]);
+    expand_context_agents(&mut view, target.clone());
+    (view, workspace, members)
+}
+
+fn admit_creation_current(view: &mut ClientView, target: &SidebarTarget) -> bool {
+    let (context, member) = match target {
+        SidebarTarget::Context { target, .. } => (target.clone(), None),
+        SidebarTarget::Agent { target, .. } => (
+            target.context.clone(),
+            Some(crate::terminal_session::NativeMemberTarget {
+                tab: target.tab.clone(),
+                panel: target.panel.clone(),
+                presentation: target.member.clone(),
+            }),
+        ),
+        SidebarTarget::Project { .. } => unreachable!(),
+    };
+    view.machines
+        .observe_focus(Choice::Local, Some(context), member)
+}
+
+fn paint_creation_members(
+    view: &ClientView,
+    locale: Locale,
+    theme: &Theme,
+    creation: WorkspaceCreationPreview<'_>,
+    height: u16,
+) -> (ratatui::buffer::Buffer, crate::tui_pointer::FrameHitMap) {
+    let mut terminal = Terminal::new(TestBackend::new(64, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    let mut candidate = None;
+    let rows = view.machines.sidebar_navigation_rows();
+    let source = view.machines.sidebar_source();
+    terminal
+        .draw(|frame| {
+            render(
+                frame,
+                frame.area(),
+                RenderContext {
+                    view,
+                    locale,
+                    theme,
+                    layer: HitLayer::Chrome,
+                    sidebar_width: 64,
+                    owns_keyboard: view.machines.sidebar_navigation_active(),
+                    source: &source,
+                    creation: Some(creation),
+                },
+                &rows,
+                Some(&mut hits),
+            );
+            candidate = Some(frame.buffer_mut().clone());
+        })
+        .unwrap();
+    (candidate.unwrap(), hits.finish())
+}
+
+fn assert_creation_member_surface(
+    buffer: &ratatui::buffer::Buffer,
+    hits: &crate::tui_pointer::FrameHitMap,
+    target: &SidebarTarget,
+    theme: &Theme,
+    surface: Role,
+) -> Vec<u16> {
+    let ys = sidebar_target_rows(hits, buffer.area.width, buffer.area.height, target);
+    assert!(!ys.is_empty(), "missing creation member {target:?}");
+    for y in &ys {
+        for x in 0..buffer.area.width {
+            assert_eq!(
+                buffer[(x, *y)].bg,
+                theme.color(surface),
+                "{target:?}: {surface:?} at {x},{y}"
+            );
+        }
+    }
+    ys
+}
+
+#[test]
+fn foreground_creation_yields_to_the_admitted_member_after_commit() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
+            let (mut view, workspace, [alpha, beta]) = creation_member_view();
+            admit_creation_current(&mut view, &beta);
+            let SidebarTarget::Context { target, .. } = &workspace else {
+                unreachable!()
+            };
+            let NativeContextLocation::Workspace { workspace_id, .. } = &target.location else {
+                unreachable!()
+            };
+            let project = WorkbenchProjectId::parse(&id(70)).unwrap();
+            for (phase, current) in [
+                (WorkspaceCreationPhase::Preparing, true),
+                (WorkspaceCreationPhase::Starting, true),
+                (WorkspaceCreationPhase::Committed, true),
+                (WorkspaceCreationPhase::Starting, false),
+            ] {
+                let pending_current = phase != WorkspaceCreationPhase::Committed && current;
+                let provisional = phase == WorkspaceCreationPhase::Preparing;
+                let (buffer, hits) = paint_creation_members(
+                    &view,
+                    locale,
+                    &theme,
+                    WorkspaceCreationPreview {
+                        site: &target.site_id,
+                        label: Some("Creation preview"),
+                        project_id: Some(&project),
+                        committed: (!provisional)
+                            .then_some((workspace_id, WorkbenchRevision::new(1))),
+                        phase,
+                        current,
+                    },
+                    20,
+                );
+                let owner_rows = assert_creation_member_surface(
+                    &buffer,
+                    &hits,
+                    &workspace,
+                    &theme,
+                    if pending_current && !provisional {
+                        Role::SurfaceCurrent
+                    } else {
+                        Role::SurfaceChrome
+                    },
+                );
+                assert_creation_member_surface(&buffer, &hits, &alpha, &theme, Role::SurfaceChrome);
+                assert_creation_member_surface(
+                    &buffer,
+                    &hits,
+                    &beta,
+                    &theme,
+                    if pending_current {
+                        Role::SurfaceChrome
+                    } else {
+                        Role::SurfaceCurrent
+                    },
+                );
+                let y = owner_rows[0];
+                let tracks = layout::Tracks::resolve(
+                    Rect::new(0, y, 64, 1),
+                    0,
+                    depth(&view, &workspace),
+                    auxiliary_actions(&view.machines.sidebar_source(), &workspace),
+                    layout::RowKind::for_target(&workspace),
+                )
+                .unwrap();
+                let identity_x = (tracks.primary.x..tracks.primary.right())
+                    .find(|x| buffer[(*x, y)].symbol() != " ")
+                    .unwrap();
+                assert_eq!(
+                    buffer[(identity_x, y)].modifier.contains(Modifier::BOLD),
+                    !provisional
+                );
+                if provisional {
+                    let y = rendered_text(&buffer)
+                        .lines()
+                        .position(|line| line.contains("Creation preview"))
+                        .unwrap() as u16;
+                    for x in 0..buffer.area.width {
+                        assert_eq!(buffer[(x, y)].bg, theme.color(Role::SurfaceCurrent));
+                    }
+                }
+                if !pending_current {
+                    assert_eq!(
+                        buffer[(tracks.current.x, y)].symbol(),
+                        theme.glyphs.active_marker
+                    );
+                }
+                assert!(!admit_creation_current(&mut view, &beta));
+                assert!(view.machines.request.is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for theme in [
+            Theme::terminal_native(),
+            Theme::one_light(),
+            Theme::one_dark(),
+        ] {
+            let (mut view, workspace, [alpha, beta]) = creation_member_view();
+            let other = view.machines.space_rows()[1].sidebar_target().unwrap();
+            let SidebarTarget::Context { target, .. } = &workspace else {
+                unreachable!()
+            };
+            let NativeContextLocation::Workspace { workspace_id, .. } = &target.location else {
+                unreachable!()
+            };
+            let project = WorkbenchProjectId::parse(&id(70)).unwrap();
+            // Keep even the old workspace-current bit while changing admitted focus. A retained
+            // receipt cannot pin either the current fill or its viewport to the created Workspace.
+            let preview = WorkspaceCreationPreview {
+                site: &target.site_id,
+                label: Some("same 工作区"),
+                project_id: Some(&project),
+                committed: Some((workspace_id, WorkbenchRevision::new(1))),
+                phase: WorkspaceCreationPhase::Committed,
+                current: true,
+            };
+            for current in [&beta, &alpha, &other, &beta] {
+                admit_creation_current(&mut view, current);
+                let (buffer, hits) = paint_creation_members(&view, locale, &theme, preview, 20);
+                for row in [&workspace, &alpha, &beta, &other] {
+                    assert_creation_member_surface(
+                        &buffer,
+                        &hits,
+                        row,
+                        &theme,
+                        if row == current {
+                            Role::SurfaceCurrent
+                        } else {
+                            Role::SurfaceChrome
+                        },
+                    );
+                }
+                let (narrow_viewport, hits) =
+                    paint_creation_members(&view, locale, &theme, preview, 6);
+                assert_creation_member_surface(
+                    &narrow_viewport,
+                    &hits,
+                    current,
+                    &theme,
+                    Role::SurfaceCurrent,
+                );
+            }
+            // Provisional sidebar navigation is separate from an admitted member switch.
+            assert!(view.machines.focus_sidebar_target(&alpha));
+            let (buffer, hits) = paint_creation_members(&view, locale, &theme, preview, 20);
+            assert_creation_member_surface(&buffer, &hits, &alpha, &theme, Role::SurfaceSelection);
+            assert_creation_member_surface(&buffer, &hits, &beta, &theme, Role::SurfaceCurrent);
+            assert!(!admit_creation_current(&mut view, &beta));
+            view.machines.leave_sidebar_navigation();
+            for collapsed in [true, false] {
+                assert!(view.machines.toggle_sidebar_context_agents(&workspace));
+                let (buffer, hits) = paint_creation_members(&view, locale, &theme, preview, 20);
+                assert_creation_member_surface(
+                    &buffer,
+                    &hits,
+                    &workspace,
+                    &theme,
+                    if collapsed {
+                        Role::SurfaceCurrent
+                    } else {
+                        Role::SurfaceChrome
+                    },
+                );
+                if collapsed {
+                    assert!(sidebar_target_rows(&hits, 64, 20, &alpha).is_empty());
+                    assert!(sidebar_target_rows(&hits, 64, 20, &beta).is_empty());
+                } else {
+                    assert_creation_member_surface(
+                        &buffer,
+                        &hits,
+                        &beta,
+                        &theme,
+                        Role::SurfaceCurrent,
+                    );
+                }
+            }
+            assert!(!view.machines.sidebar_navigation_active());
+            assert!(view.machines.request.is_none());
+        }
+    }
 }
 
 #[test]

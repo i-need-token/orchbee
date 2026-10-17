@@ -1,5 +1,7 @@
 //! One durable device/configuration preference authority for native and Desktop clients.
 mod launch_admission;
+mod terminal_colors;
+pub use terminal_colors::UserTerminalColors;
 mod terminal_defaults;
 pub use terminal_defaults::UserTerminalLaunchDefaults;
 mod scope;

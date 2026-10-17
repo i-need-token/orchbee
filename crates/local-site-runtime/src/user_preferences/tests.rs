@@ -41,6 +41,28 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
     let explicit = fixture.store.terminal_launch_defaults(false).unwrap();
     assert!(explicit.launch.is_none());
     assert_eq!(explicit.scrollback_bytes, 0);
+    let saved = accepted(fixture.store.execute(&UserPreferencesRequest::Read {}));
+    let dark = accepted(fixture.store.execute(&UserPreferencesRequest::Update {
+        source: saved.source,
+        changes: UserPreferencesPatch::set(PreferenceKey::ApplicationTheme, json!("dark")).unwrap(),
+    }));
+    let next = fixture.store.terminal_launch_defaults(false).unwrap();
+    assert_eq!(next.colors.unwrap().rgb(), (0xd4d4d4, 0x1e1e1e));
+    assert_eq!(before.colors.unwrap().rgb(), (0x141414, 0xfcfcfc));
+    assert_eq!(after.colors, before.colors);
+    accepted(fixture.store.execute(&UserPreferencesRequest::Update {
+        source: dark.source,
+        changes:
+            UserPreferencesPatch::set(PreferenceKey::ApplicationTheme, json!("system")).unwrap(),
+    }));
+    assert!(
+        fixture
+            .store
+            .terminal_launch_defaults(false)
+            .unwrap()
+            .colors
+            .is_none()
+    );
     fs::write(
         fixture.store.scope().directory().join(RECORD_NAME),
         b"invalid",

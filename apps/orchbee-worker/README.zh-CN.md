@@ -214,9 +214,15 @@ bracketed-paste mode；commit 在 Core 二次授权后于独立的 input-admissi
 
 ## 默认交互式 launch 解析
 
-生产启动冻结共享偏好作用域。每次授权的新启动在 Host 副作用前一起捕获确认的滚动历史与默认配置。
+生产启动冻结共享偏好作用域。每次授权的新启动在 Host 副作用前一起捕获确认的滚动历史、终端默认色与默认配置。
 显式程序绕过默认 Shell 发现。自定义配置使用字面 argv；系统 Shell 使用下述解析器及可选 POSIX 登录模式。
 共享存储拒绝只让该次操作失败。已有缓存启动事实及延迟 Start 不重新读取偏好。
+
+共享 `UserTerminalColors` 解析器按显式应用外观提供 Host 默认浅色／深色，系统保留已有 Host
+基线。显式终端浅色／深色／自定义保持更高优先级。启动适配器只安装这些前景／背景默认色及
+显式的浅色／深色 scheme，保留 ANSI 调色板条目与光标设置。Host 的 OSC 10/11 回复因此使用
+捕获的启动颜色。现存终端与各 Client 的设置预览不会触发 Worker 主题修改；参见
+[原生主题](../orchbee/docs/native-themes.zh-CN.md)。
 
 当被准入的 OBCN Launch 携带显式 launch selection 时，request loop 采用其 executable
 与 argument vector，仅应用下文 Windows 交互式 PowerShell 的特定调整：不查 `PATH`、不做 shell 解析、不静默回退到默认 shell——spawn 失败即
@@ -474,12 +480,12 @@ Host-reported failure。不可用或不可表示的 wall clock 使 lease 过期�
 
 对于已准入 Launch，explicit absolute cwd 按字面保留，不要求查询 account home。省略时读取
 effective user 的 account home，忽略 inherited `HOME` 与 Worker startup cwd。已有 shell resolver
-提供 executable、空 arguments 与三个固定 launch environment entry。Configuration 缺省，transient
-overlay 为空。Baseline Terminal Protocol profile 与已有 Orchbee default 一致：light scheme、
+提供 executable、空 arguments 与三个固定 launch environment entry。生产偏好快照提供 configuration。
+在应用上述确认默认色前，基线 Terminal Protocol profile 使用 light scheme、
 `0xfcfcfc` background、`0x141414` foreground、非闪烁 block cursor 与 `0x57bef8` cursor color，
 16 个 ANSI color 后接 216-color cube 和 24 个 gray，conformance level 62 与 feature 22，以及
-`Orchbee` version response。此私有 native default 不导入 Desktop source，不增加 product Launch
-Profile 或 appearance preference。
+`Orchbee` version response。该 profile 消费共享运行时解析器，不导入 Desktop source，也不新增
+appearance preference。
 
 Host 还会发送 unsolicited `TerminalStarted`、`TerminalExited`、`TerminalFailed` 与
 `TerminalMetadataChanged` event。私有 `host_connection::events` adapter 校验其 Event role、

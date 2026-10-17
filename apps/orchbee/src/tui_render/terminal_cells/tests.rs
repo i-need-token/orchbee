@@ -107,7 +107,7 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
                 .unwrap();
             let output = bytes.borrow();
             let output = std::str::from_utf8(&output[offset..]).unwrap();
-            let channel = if appearance == Appearance::Dark {
+            let channel = if matches!(appearance, Appearance::Dark | Appearance::Host) {
                 255
             } else {
                 0
@@ -435,8 +435,8 @@ fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_pr
     for (appearance, foreground, background) in [
         (
             Appearance::Host,
-            Color::Rgb(0xab, 0xcd, 0xef),
-            Color::Rgb(0x10, 0x20, 0x30),
+            Color::Rgb(212, 212, 212),
+            Color::Rgb(30, 30, 30),
         ),
         (
             Appearance::Light,

@@ -30,6 +30,12 @@ captures scrollback and the selected launch profile together; an explicit execut
 default shell resolution while retaining the shared scrollback default. POSIX login is explicit;
 Windows login is refused. Invalid shared storage fails the operation before Host handoff.
 
+`UserTerminalColors` resolves terminal default colors for both native presentation and new Worker
+profiles. Host follows explicit application Light/Dark; System leaves captured Host defaults with
+their runtime owner. Explicit terminal Light/Dark/Custom take precedence. The launch snapshot freezes
+this result with scrollback and launch selection; the resolver performs no terminal mutation.
+Retained query state and reversible Client appearance follow the [native theme boundary](../../apps/orchbee/docs/native-themes.md).
+
 `NativeNotificationSettings` owns portable bounded delivery/sound policy. Windows configuration
 decoding retains aliases for legacy profile input; TUI observation and card scheduling consume
 the portable type. Common settings override legacy delivery and global sound after confirmation.

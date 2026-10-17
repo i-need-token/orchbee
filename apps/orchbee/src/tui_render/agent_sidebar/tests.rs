@@ -9,6 +9,7 @@ use crate::{
     machine_picker::Choice,
 };
 use ratatui::{Terminal, backend::TestBackend, style::Modifier};
+mod empty;
 
 #[test]
 fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_targets() {

@@ -752,10 +752,9 @@ fn render_creation(
         state,
         theme,
     );
-    compose_lines(
+    sidebar_text::compose_lines(
         &mut lines,
-        PointerPresentation::Rest,
-        false,
+        winning_surface(PointerPresentation::Rest, false, preview.current),
         preview.current,
         theme,
     );
@@ -796,58 +795,16 @@ fn winning_surface(pointer: PointerPresentation, focused: bool, current: bool) -
     }
 }
 
-fn semantic_role(style: Style, theme: &Theme) -> Option<Role> {
-    [
-        Role::TextPrimary,
-        Role::TextSecondary,
-        Role::TextDisabled,
-        Role::HintKey,
-        Role::HintLabel,
-        Role::StatusSuccess,
-        Role::StatusWarning,
-        Role::StatusError,
-        Role::StatusInfo,
-        Role::StatusPending,
-        Role::StatusWorking,
-        Role::StatusUnread,
-    ]
-    .into_iter()
-    .find(|role| style.fg == theme.style(*role).fg)
-}
-
-fn compose_lines(
-    lines: &mut [Line<'static>],
-    pointer: PointerPresentation,
-    focused: bool,
-    current: bool,
-    theme: &Theme,
-) {
-    let interaction = winning_surface(pointer, focused, current);
-    for (index, line) in lines.iter_mut().enumerate() {
-        let line_role = semantic_role(line.style, theme);
-        line.style =
-            theme.content_on_surface(Role::SurfaceChrome, interaction, line_role, line.style);
-        for span in &mut line.spans {
-            let explicitly_plain = span.style.sub_modifier.contains(Modifier::BOLD);
-            let role = semantic_role(span.style, theme);
-            span.style =
-                theme.content_on_surface(Role::SurfaceChrome, interaction, role, span.style);
-            if explicitly_plain {
-                span.style = span.style.remove_modifier(Modifier::BOLD);
-            } else if current && index == 0 {
-                span.style = span.style.add_modifier(Modifier::BOLD);
-            }
-        }
-    }
-}
-
 fn restore_interaction_background(
     frame: &mut Frame<'_>,
     rect: Rect,
     interaction: Option<Role>,
     theme: &Theme,
 ) {
-    let Some(background) = interaction.and_then(|role| theme.style(role).bg) else {
+    let Some(background) = interaction
+        .and_then(|role| theme.style(role).bg)
+        .or_else(|| theme.style(Role::SurfaceChrome).bg)
+    else {
         return;
     };
     // Ratatui clears a wide glyph's hidden continuation cells while painting its Paragraph.
@@ -1043,6 +1000,30 @@ fn current_row(view: &ClientView, row: &SidebarRow<'_>, target: &SidebarTarget) 
     }
 }
 
+// The most specific visible current row owns the fill. Its expanded ancestors retain their
+// identity emphasis and marker, so a Workspace and its active Agent never form one filled block.
+fn current_descendant(
+    view: &ClientView,
+    rows: &[SidebarRow<'_>],
+    projected_current: &[bool],
+    target: &SidebarTarget,
+) -> bool {
+    rows.iter().zip(projected_current).any(|(row, current)| {
+        let descendant = row.target();
+        if !*current || &descendant == target {
+            return false;
+        }
+        let mut parent = view.machines.sidebar_parent(&descendant);
+        while let Some(ancestor) = parent {
+            if &ancestor == target {
+                return true;
+            }
+            parent = view.machines.sidebar_parent(&ancestor);
+        }
+        false
+    })
+}
+
 fn starts_group(view: &ClientView, rows: &[SidebarRow<'_>], index: usize) -> bool {
     match &rows[index] {
         SidebarRow::Project { .. } => true,
@@ -1091,6 +1072,10 @@ pub(super) fn render(
     if area.is_empty() {
         return;
     }
+    if rows.is_empty() && creation.is_none() {
+        return;
+    }
+    let theme = &theme.sidebar();
     let extra_creation = creation.filter(|preview| {
         !rows
             .iter()
@@ -1101,6 +1086,23 @@ pub(super) fn render(
                     .workspace_checkpoint_covers(preview.site, revision)
             })
     });
+    // A committed receipt may outlive observer handoff and member switches inside its Workspace.
+    // It supplies current context only until a canonical current row is available. Unfinished
+    // foreground creation still owns current feedback even while the prior member remains admitted.
+    let current_creation = creation.filter(|preview| {
+        preview.current
+            && (preview.replaces_content()
+                || !rows.iter().any(|row| current_row(view, row, &row.target())))
+    });
+    let projected_current: Vec<_> = rows
+        .iter()
+        .map(|row| match current_creation {
+            Some(preview) => {
+                extra_creation.is_none() && creation_target_matches(view, row, preview)
+            }
+            None => current_row(view, row, &row.target()),
+        })
+        .collect();
     let unobserved = creation.is_some_and(|preview| {
         preview.committed.is_none_or(|(_, revision)| {
             !view
@@ -1192,14 +1194,12 @@ pub(super) fn render(
         &gaps,
         body.height,
         insertion,
-        creation
-            .filter(|preview| preview.current)
-            .and_then(|preview| {
-                insertion.or_else(|| {
-                    rows.iter()
-                        .position(|row| creation_target_matches(view, row, preview))
-                })
-            }),
+        current_creation.and_then(|preview| {
+            insertion.or_else(|| {
+                rows.iter()
+                    .position(|row| creation_target_matches(view, row, preview))
+            })
+        }),
     );
     if insertion.is_none()
         && let Some(hits) = hits.as_deref_mut()
@@ -1232,7 +1232,10 @@ pub(super) fn render(
                     frame,
                     Rect::new(body.x, y + leading_gap, body.width, content_height),
                     sidebar_width,
-                    preview,
+                    crate::terminal_session::WorkspaceCreationPreview {
+                        current: current_creation.is_some(),
+                        ..preview
+                    },
                     locale,
                     theme,
                 );
@@ -1278,11 +1281,10 @@ pub(super) fn render(
             break;
         };
         let focused = owns_keyboard && view.machines.sidebar_focused_target() == Some(&target);
-        let current = if let Some(preview) = creation.filter(|preview| preview.current) {
-            extra_creation.is_none() && creation_target_matches(view, row, preview)
-        } else {
-            current_row(view, row, &target)
-        };
+        let current = projected_current[row_index];
+        let current_ancestor =
+            current && current_descendant(view, rows, &projected_current, &target);
+        let filled_current = current && !current_ancestor;
         frame.render_widget(Block::new().style(theme.style(Role::SurfaceChrome)), band);
 
         let suffix = &annotations[row_index];
@@ -1457,11 +1459,16 @@ pub(super) fn render(
                 .with_provisional(tracks.navigation),
             &bands,
             ControlSurface::Chrome,
-            row_state(owns_keyboard, focused, current, row_paint_pointer),
+            row_state(owns_keyboard, focused, filled_current, row_paint_pointer),
             theme,
         );
-        let interaction = winning_surface(row_paint_pointer, focused, current);
-        compose_lines(&mut row_lines, row_paint_pointer, focused, current, theme);
+        let interaction = winning_surface(row_paint_pointer, focused, filled_current);
+        sidebar_text::compose_lines(
+            &mut row_lines,
+            interaction,
+            current || row_paint_pointer == PointerPresentation::Pressed,
+            theme,
+        );
         frame.render_widget(
             Paragraph::new(row_lines),
             Rect::new(
@@ -1556,7 +1563,8 @@ pub(super) fn render(
         };
         let collapsed_fill_marker = theme.current_context_marker();
         if current
-            && (current_identity == CurrentIdentityEmphasis::ExplicitPlain
+            && (current_ancestor
+                || current_identity == CurrentIdentityEmphasis::ExplicitPlain
                 || !collapsed_fill_marker.trim().is_empty())
         {
             frame.render_widget(

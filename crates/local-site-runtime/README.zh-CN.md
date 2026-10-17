@@ -25,6 +25,11 @@ Desktop Main 与 renderer 分别持有一次性导入回执，按任意顺序只
 仍采用共享滚动历史默认值。POSIX 登录模式必须显式选择，Windows 拒绝开启。
 共享存储无效时，在 Host 交接之前让该操作失败。
 
+`UserTerminalColors` 为原生展示和新 Worker profile 解析终端默认色。Host 跟随显式的应用浅色／
+深色；系统将捕获的 Host 默认色留给运行时所有者。显式终端浅色／深色／自定义保持更高优先级。
+启动快照将该结果与滚动历史及启动选择一起冻结；解析器不修改终端。保留查询状态与可撤销的
+Client 外观遵循[原生主题边界](../../apps/orchbee/docs/native-themes.zh-CN.md)。
+
 `NativeNotificationSettings` 负责可移植的有界投递与声音策略。
 Windows 配置解码为旧 profile 输入保留别名；TUI 观察与卡片调度消费可移植类型。
 通用设置确认后覆盖旧投递与全局声音策略。

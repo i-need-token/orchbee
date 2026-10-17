@@ -256,10 +256,17 @@ codec/schema/process-test evidence, not model claims.
 ## Default interactive launch resolution
 
 Production freezes the shared preference scope at startup. Each authorized new launch captures the
-confirmed scrollback and selected default profile together before Host effects. Explicit programs
+confirmed scrollback, terminal default colors and selected default profile together before Host effects. Explicit programs
 bypass default-shell discovery. A custom profile uses literal argv; System shell uses the resolver
 below with optional POSIX login. Shared storage refusal fails only that operation. Existing cached
 launch facts and deferred Start never reread preferences.
+
+The shared `UserTerminalColors` resolver supplies Host-default Light/Dark from explicit application
+appearance, while System keeps the existing Host baseline. Explicit terminal Light/Dark/Custom win.
+The launch adapter installs only those foreground/background defaults and an explicit Light/Dark
+scheme, preserving ANSI palette entries and cursor settings. Host OSC 10/11 replies therefore use
+the captured launch colors. Existing terminals and per-Client Settings previews never trigger a
+Worker theme mutation; see [native themes](../orchbee/docs/native-themes.md).
 
 When an admitted OBCN Launch carries an explicit launch selection, the request loop adopts its
 executable and argument vector, with only the Windows interactive PowerShell refinement below:
@@ -529,12 +536,12 @@ the kernel still prevents time rollback from reviving previously expired authori
 For an admitted Launch, explicit absolute cwd is preserved literally and requires no account-home
 lookup. Omission reads the effective user's account home, ignoring inherited `HOME` and Worker
 startup cwd. The existing shell resolver supplies executable, empty arguments, and the three
-fixed launch environment entries. Configuration is absent and transient overlay is empty.
-The baseline Terminal Protocol profile matches the existing Orchbee default: light scheme,
+fixed launch environment entries. The production preference snapshot supplies configuration.
+The baseline Terminal Protocol profile, before the confirmed color defaults above, uses a light scheme,
 `0xfcfcfc` background, `0x141414` foreground, nonblinking block cursor with `0x57bef8` cursor color,
 the 16 ANSI colors followed by the 216-color cube and 24 grays, conformance level 62 with feature 22,
-and `Orchbee` version response. This private native default does not import Desktop source or add
-a product Launch Profile or appearance preference.
+and `Orchbee` version response. This profile consumes the shared runtime resolver without importing
+Desktop source or adding an appearance preference.
 
 Host also sends unsolicited `TerminalStarted`, `TerminalExited`, `TerminalFailed`, and
 `TerminalMetadataChanged` events. The private `host_connection::events` adapter validates their

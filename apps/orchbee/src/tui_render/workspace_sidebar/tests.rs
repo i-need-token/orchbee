@@ -10,6 +10,7 @@ use orchbee_workbench_protocol::*;
 use ratatui::{Terminal, backend::TestBackend};
 mod creation;
 mod overflow;
+mod states;
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }
@@ -1580,7 +1581,14 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
                 .unwrap();
             assert!(!candidate[(identity_x, y)].modifier.contains(Modifier::BOLD));
             for x in 0..120 {
-                assert_eq!(candidate[(x, y)].bg, theme.color(Role::SurfaceCurrent));
+                assert_eq!(
+                    candidate[(x, y)].bg,
+                    theme.color(if target == &context {
+                        Role::SurfaceChrome
+                    } else {
+                        Role::SurfaceCurrent
+                    })
+                );
                 assert!(hit_belongs_to_sidebar_target(
                     hits.hit_target_at(x, y),
                     target

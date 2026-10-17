@@ -6,9 +6,8 @@ use super::controls::{
 };
 use super::sidebar_text::machine_label;
 use super::{
-    Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, Line, List, ListItem,
-    Locale, Padding, Paragraph, Rect, Role, SidebarArea, SidebarLayer, SiteStatus, Span, Theme,
-    display_width, truncate_display,
+    Block, Borders, Clear, ClientView, Frame, HitLayer, HitMapBuilder, Line, Locale, Padding,
+    Paragraph, Rect, Role, SidebarArea, SidebarLayer, SiteStatus, Span, Theme, display_width,
 };
 use crate::client_view::{ClientAction, KeyLabelGlyphs, Overlay, PrefixAction};
 use crate::machine_discovery::display_label;
@@ -252,7 +251,7 @@ pub(super) fn render(
         view,
         sidebar_surface,
         locale,
-        backend_status,
+        backend_status: _backend_status,
         theme,
         input,
         creation,
@@ -261,7 +260,6 @@ pub(super) fn render(
     if sidebar.layer == SidebarLayer::Overlay {
         frame.render_widget(Clear, sidebar.area);
     }
-    let text = locale.shell();
     let block = Block::new()
         .borders(Borders::RIGHT)
         .border_style(theme.style(if owns_keyboard {
@@ -315,45 +313,7 @@ pub(super) fn render(
     // Build the exact Workspace -> Agent projection once for this frame. The same
     // borrowed rows drive text, hit geometry, focus, and the unified scroll window.
     let rows = view.machines.sidebar_navigation_rows();
-    let labels = [
-        text.site_section.to_owned(),
-        backend_status.text.to_owned(),
-        String::new(),
-        text.business_section.to_owned(),
-        format!("  {}", text.projects),
-        format!("  {}", text.workspaces),
-    ];
-    let prefix = if rows.is_empty() && creation.is_none() {
-        if inner.height >= 16 { 6 } else { 2 }
-    } else {
-        0
-    }
-    .min(inner.height);
-    let fit =
-        |label: &str| truncate_display(label, usize::from(inner.width), theme.glyphs.ellipsis);
-    frame.render_widget(
-        List::new(
-            labels
-                .iter()
-                .take(usize::from(prefix))
-                .enumerate()
-                .map(|(index, label)| {
-                    if index == 1 {
-                        ListItem::new(backend_status.line(usize::from(inner.width), theme))
-                    } else {
-                        ListItem::new(Line::styled(fit(label), theme.style(Role::TextSecondary)))
-                    }
-                })
-                .collect::<Vec<_>>(),
-        ),
-        Rect::new(inner.x, inner.y, inner.width, prefix),
-    );
-    let mut area = Rect::new(
-        inner.x,
-        inner.y + prefix,
-        inner.width,
-        inner.height.saturating_sub(prefix),
-    );
+    let mut area = inner;
     if area.is_empty() {
         return;
     }

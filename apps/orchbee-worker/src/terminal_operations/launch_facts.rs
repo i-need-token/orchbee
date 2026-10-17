@@ -78,7 +78,7 @@ pub(super) fn resolve(
         arguments,
         launch_environment(environment, plugin_environment),
         cwd,
-        default_terminal_profile(),
+        terminal_profile(defaults.and_then(|defaults| defaults.colors)),
         defaults.map(
             |defaults| orchbee_terminal_protocol::TerminalConfiguration {
                 scrollback_bytes: defaults.scrollback_bytes,
@@ -132,9 +132,12 @@ fn launch_environment(
     entries
 }
 
-// The native baseline uses the existing Orchbee default profile. This is a
-// protocol profile, not a product Launch Profile or a Client appearance setting.
-fn default_terminal_profile() -> TerminalProfile {
+// Only defaults and the explicitly selected color scheme follow confirmed device preferences.
+// The ANSI palette remains the protocol profile's authority, independent of Client rendering.
+fn terminal_profile(
+    colors: Option<orchbee_local_site_runtime::UserTerminalColors>,
+) -> TerminalProfile {
+    let (foreground, background) = orchbee_local_site_runtime::UserTerminalColors::LIGHT.rgb();
     let mut palette = vec![
         0x00_00_00, 0xcd_31_31, 0x10_7c_10, 0x94_98_00, 0x04_51_a5, 0xbc_05_bc, 0x05_98_bc,
         0x55_55_55, 0x66_66_66, 0xcd_31_31, 0x14_ce_14, 0xb5_ba_00, 0x04_51_a5, 0xbc_05_bc,
@@ -151,13 +154,13 @@ fn default_terminal_profile() -> TerminalProfile {
         let value = 8 + index * 10;
         palette.push((value << 16) | (value << 8) | value);
     }
-    TerminalProfile {
+    let mut profile = TerminalProfile {
         color_scheme: ColorScheme::Light,
-        default_background_rgb: 0xfc_fc_fc,
+        default_background_rgb: background,
         default_cursor_blinking: false,
         default_cursor_rgb: Some(0x57_be_f8),
         default_cursor_shape: CursorShape::Block,
-        default_foreground_rgb: 0x14_14_14,
+        default_foreground_rgb: foreground,
         device_attributes: DeviceAttributes {
             primary_conformance_level: 62,
             primary_features: vec![22],
@@ -169,7 +172,21 @@ fn default_terminal_profile() -> TerminalProfile {
         enquiry_response: String::new(),
         palette,
         version_response: "Orchbee".to_owned(),
+    };
+    if let Some(colors) = colors {
+        (
+            profile.default_foreground_rgb,
+            profile.default_background_rgb,
+        ) = colors.rgb();
+        if let Some(dark) = colors.dark() {
+            profile.color_scheme = if dark {
+                ColorScheme::Dark
+            } else {
+                ColorScheme::Light
+            };
+        }
     }
+    profile
 }
 
 #[cfg(unix)]

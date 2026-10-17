@@ -8,6 +8,61 @@ use crate::{
     machine_picker::{Choice, Row},
 };
 use orchbee_workbench_protocol::MetadataState;
+use ratatui::style::Style;
+
+fn semantic_role(style: Style, theme: &Theme) -> Option<Role> {
+    [
+        Role::TextPrimary,
+        Role::TextSecondary,
+        Role::TextDisabled,
+        Role::HintKey,
+        Role::HintLabel,
+        Role::StatusSuccess,
+        Role::StatusWarning,
+        Role::StatusError,
+        Role::StatusInfo,
+        Role::StatusPending,
+        Role::StatusWorking,
+        Role::StatusUnread,
+    ]
+    .into_iter()
+    .find(|role| {
+        let semantic = theme.style(*role);
+        style.fg == semantic.fg
+            && style.add_modifier.contains(Modifier::DIM)
+                == semantic.add_modifier.contains(Modifier::DIM)
+    })
+}
+
+/// Compose one row surface without inheriting the row painter's bold across supporting lines.
+/// Explicit token emphasis remains authoritative; current/pressed emphasis belongs to identity.
+pub(super) fn compose_lines(
+    lines: &mut [Line<'static>],
+    interaction: Option<Role>,
+    emphasize_identity: bool,
+    theme: &Theme,
+) {
+    for (index, line) in lines.iter_mut().enumerate() {
+        let line_role = semantic_role(line.style, theme);
+        line.style = theme
+            .content_on_surface(Role::SurfaceChrome, interaction, line_role, line.style)
+            .remove_modifier(Modifier::BOLD);
+        for span in &mut line.spans {
+            let explicitly_plain = span.style.sub_modifier.contains(Modifier::BOLD);
+            let role = semantic_role(span.style, theme);
+            span.style =
+                theme.content_on_surface(Role::SurfaceChrome, interaction, role, span.style);
+            if explicitly_plain {
+                span.style = span.style.remove_modifier(Modifier::BOLD);
+            } else if emphasize_identity
+                && index == 0
+                && matches!(role, None | Some(Role::TextPrimary))
+            {
+                span.style = span.style.add_modifier(Modifier::BOLD);
+            }
+        }
+    }
+}
 
 /// Keep section actions and counts out of the item hierarchy. The full heading
 /// retains the section's existing picker target, including the blank cells.
