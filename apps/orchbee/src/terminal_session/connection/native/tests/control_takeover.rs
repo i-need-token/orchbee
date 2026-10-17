@@ -23,6 +23,8 @@ enum Cut {
     Refused,
     Unknown,
     ResizeLost,
+    PauseLost,
+    ResumeLost,
     UiLost,
     LostAgain,
     Complete,
@@ -85,7 +87,7 @@ fn exercise(cut: Cut) -> TestResult {
             assert_eq!(
                 resize.action(),
                 &TerminalControlAction::Resize {
-                    attachment_id: expected_viewer,
+                    attachment_id: expected_viewer.clone(),
                     controller_id: new_controller,
                     sequence: std::num::NonZeroU64::new(48).unwrap(),
                     geometry: expected.geometry
@@ -111,6 +113,37 @@ fn exercise(cut: Cut) -> TestResult {
                 )),
             )
             .map_err(io::Error::other)?;
+            if cut != Cut::LostAgain {
+                for demand in [ProjectionDemand::Paused, ProjectionDemand::Active] {
+                    let ClientMessage::TerminalViewer(refresh) =
+                        read_client_message(&mut stream).map_err(io::Error::other)?
+                    else {
+                        panic!("projection re-arm required even without new terminal output");
+                    };
+                    assert_eq!(
+                        refresh.action(),
+                        &TerminalViewerAction::SetProjectionDemand {
+                            attachment_id: expected_viewer.clone(),
+                            demand,
+                        }
+                    );
+                    if matches!(
+                        (cut, demand),
+                        (Cut::PauseLost, ProjectionDemand::Paused)
+                            | (Cut::ResumeLost, ProjectionDemand::Active)
+                    ) {
+                        return Ok(());
+                    }
+                    write_server_message(
+                        &mut stream,
+                        &ServerMessage::TerminalViewerResult(TerminalViewerResult::new(
+                            refresh.request_id().clone(),
+                            TerminalViewerOutcome::FeedbackAccepted {},
+                        )),
+                    )
+                    .map_err(io::Error::other)?;
+                }
+            }
         }
         let mut trailing = [0];
         assert_eq!(
@@ -186,7 +219,9 @@ fn exercise(cut: Cut) -> TestResult {
             evidence.result,
             match cut {
                 Cut::Unknown => TakeoverResult::Unknown,
-                Cut::ResizeLost => TakeoverResult::Granted(controller.clone()),
+                Cut::ResizeLost | Cut::PauseLost | Cut::ResumeLost => {
+                    TakeoverResult::Granted(controller.clone())
+                }
                 Cut::UiLost => TakeoverResult::Ready(controller),
                 _ => unreachable!(),
             }
@@ -214,6 +249,14 @@ fn control_takeover_carrier_unknown_does_not_resubmit() -> TestResult {
 #[test]
 fn control_takeover_carrier_grant_survives_resize_transport_loss() -> TestResult {
     exercise(Cut::ResizeLost)
+}
+#[test]
+fn control_takeover_carrier_grant_survives_projection_pause_loss() -> TestResult {
+    exercise(Cut::PauseLost)
+}
+#[test]
+fn control_takeover_carrier_grant_survives_projection_resume_loss() -> TestResult {
+    exercise(Cut::ResumeLost)
 }
 #[test]
 fn control_takeover_carrier_ready_survives_ui_delivery_loss() -> TestResult {

@@ -54,6 +54,7 @@ pub(crate) enum TakeoverStatus {
     Refused,
     Unknown,
     Granted,
+    WaitingForFrame,
     Ready,
     Lost,
 }
@@ -256,9 +257,10 @@ impl NativeSessionState {
             evidence.result,
             TakeoverResult::Unknown | TakeoverResult::Granted(_)
         );
+        let awaiting_frame = self.takeover.awaiting_frame.as_ref() == Some(&evidence.operation.key);
         if !retained
-            && (self.takeover.status_until.is_none()
-                || self.focus_pane_ref().as_ref() != Some(&evidence.operation.key))
+            && (self.focus_pane_ref().as_ref() != Some(&evidence.operation.key)
+                || (!awaiting_frame && self.takeover.status_until.is_none()))
         {
             return None;
         }
@@ -273,7 +275,11 @@ impl NativeSessionState {
                 {
                     return None;
                 }
-                TakeoverStatus::Ready
+                if awaiting_frame {
+                    TakeoverStatus::WaitingForFrame
+                } else {
+                    TakeoverStatus::Ready
+                }
             }
             TakeoverResult::Lost(_) => TakeoverStatus::Lost,
         };

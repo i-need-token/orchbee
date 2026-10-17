@@ -10,7 +10,8 @@ use crate::{
     },
 };
 use orchbee_client_server_protocol::{
-    ControlRejectedReason, TerminalControlAction, TerminalControlOutcome, TerminalControlRequest,
+    ControlRejectedReason, ProjectionDemand, TerminalControlAction, TerminalControlOutcome,
+    TerminalControlRequest, TerminalViewerAction, TerminalViewerOutcome,
 };
 
 impl NativeExecutor {
@@ -68,7 +69,7 @@ impl NativeExecutor {
                 let sequence = self.next_control_sequence(&operation.key)?;
                 let resized = self.control_once(
                     TerminalControlAction::Resize {
-                        attachment_id: viewer,
+                        attachment_id: viewer.clone(),
                         controller_id: controller_id.clone(),
                         sequence,
                         geometry: operation.geometry,
@@ -80,6 +81,22 @@ impl NativeExecutor {
                         if geometry == operation.geometry =>
                     {
                         self.set_accepted_geometry(&operation.key, geometry)?;
+                        // A self-grant or same-size handoff need not change terminal content.
+                        // Re-arm this Viewer so the UI's handoff gate always has a fresh full
+                        // frame to draw and acknowledge, without replacing the attachment.
+                        for demand in [ProjectionDemand::Paused, ProjectionDemand::Active] {
+                            self.ensure_before(cutoff)?;
+                            match self.viewer_once(
+                                TerminalViewerAction::SetProjectionDemand {
+                                    attachment_id: viewer.clone(),
+                                    demand,
+                                },
+                                cutoff,
+                            )? {
+                                TerminalViewerOutcome::FeedbackAccepted {} => {}
+                                _ => return Err(CarrierFailure::Transport),
+                            }
+                        }
                         self.retain_takeover_result(
                             &operation,
                             TakeoverResult::Ready(controller_id),

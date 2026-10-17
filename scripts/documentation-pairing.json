@@ -154,8 +154,8 @@
 			"zhCnSha256": "86b18e725c73556efc878f8ae86d618943f88067f0e1b0f27f22d8e50cff698a"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "3fdd1cc081d925394f951deb0ef321b1af7170fa92cdbc8fb95874b8481559c2",
-			"zhCnSha256": "727159aa0035c8a0ff82f03d85d296c753c3afee876bb4a2f638db42267c7cbd"
+			"englishSha256": "d2ce832a9378ee87042c820989db1464c4a04b4db03efaa6e7869b69ea311a3f",
+			"zhCnSha256": "72f76567cd99c636b7f0160a2c02f84cb1b8dfaab1e59c3eb3980f618cd777a2"
 		},
 		"apps/orchbee/docs/agent-board.md": {
 			"englishSha256": "b66ff2fb8f663b529c26062182e3e5abb31f0acea083fe6554501d5deaa62d02",
@@ -198,8 +198,8 @@
 			"zhCnSha256": "48688a8d7ea63f820fcc6a58af756f09a4d3b344ef15ada009cf8206dca56d03"
 		},
 		"apps/orchbee/docs/native-control-takeover.md": {
-			"englishSha256": "1d79394d2b4599981fa755849e689a85d75022150e23a03d60191be36e66eb13",
-			"zhCnSha256": "1820c02cf479ba9b34d5c92d1feba341be5782466e77277194112d97d513e9e5"
+			"englishSha256": "a5c103344b54f5521d40fa7ebf08b664e10479fd0b728d9a34329bfee6aa92df",
+			"zhCnSha256": "a9857d835591499d8fc81ed623b67c38fc17d032ed1ae2e115f306612d62068e"
 		},
 		"apps/orchbee/docs/native-current-panel.md": {
 			"englishSha256": "dfbb141dc83ac0ad0d898fff473b4b18b4e872fabd6a92e4e0057e9144891e59",

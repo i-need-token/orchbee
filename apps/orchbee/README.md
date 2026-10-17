@@ -235,6 +235,12 @@ retain layout changes, sampled terminal directories, and provider resume referen
 contents; see the [Windows Workbench checkpoint contract](../orchbee-server/docs/workbench-checkpoint.md).
 `config check --format json` checks local cohort/runtime inputs without starting one.
 
+After attachment, the TooSmall recovery surface withholds pane geometry observations instead of
+reporting that every pane departed. Terminal viewers, controller grants, selection and the last
+valid child geometry survive widths below 20 or heights below 5. Restoring a drawable viewport
+resumes normal observation and navigation without detaching; the 20×5 Minimal boundary still
+reports real pane geometry. This applies with split panes and notification cards as well.
+
 Validated Windows behavior includes native startup, Unicode rendering, burst and ordinary typing,
 CLI terminal send/read, split/focus/resize, detach/reattach with exact retained terminal identities,
 and Git worktree discovery. Console records feed the existing key and SGR mouse decoder; the console

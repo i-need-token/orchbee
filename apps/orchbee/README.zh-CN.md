@@ -214,6 +214,11 @@ Windows Session 中没有 Workspace 或终端内容时，`cd <project>; orchbee`
 [Windows Workbench checkpoint 契约](../orchbee-server/docs/workbench-checkpoint.zh-CN.md)。
 `config check --format json` 检查本地 cohort/runtime 输入，不启动 Session。
 
+连接后，TooSmall 恢复界面会暂停上报 pane 几何，不将其误报为全部 pane 已离开。
+宽度低于 20 或高度低于 5 时，终端 Viewer、controller grant、当前选择与最后有效的
+子终端几何保持不变。恢复可绘制 viewport 后，无需分离即可继续正常观察与导航；
+20×5 Minimal 边界仍上报真实 pane 几何。分屏和存在通知卡片时也遵循此规则。
+
 Windows 已验证原生启动、Unicode 渲染、连续及逐字输入、CLI 终端发送/读取、分屏/焦点/调整大小、
 脱离后保留精确终端身份并重新连接，以及 Git worktree 发现。Console 事件进入既有按键及 SGR 鼠标解码器；
 退出 TUI 时由模式守卫恢复继承的输入/输出模式。大字节记录采用有界分段写入；取消 exchange 会关闭共享

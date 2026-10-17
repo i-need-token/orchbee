@@ -13,6 +13,18 @@ Client 的身份。交接保留终端、程序与 Viewer 连接。
 被阻拦的输入丢弃且从不重放。之后的显式动作可使用同一 Viewer 接管回来。
 实际仍持有控制权时重复该动作，保留已经核实的当前 grant。
 
+尺寸回执匹配后，申请者在原始操作截止时间内暂停并重新激活同一 Viewer 的 projection
+demand。重新激活会要求完整帧，即使终端空闲、交接前后尺寸相同或 grant 仍属于自身。
+UI 在该帧绘制且反馈被接受前显示等待画面；仅有尺寸回执不会报告输入就绪。
+任一 demand 步骤失败时保留已知 controller grant，提示画面同步未完成，
+不重放操作或输入。
+
+Ready 后，有效完整快照决定显示几何，即使它不同于本 Client 最后的尺寸回执。
+在本 Client 收到控制拒绝前，peer 可能已经接管。快照不授予输入或尺寸控制权；
+初始设置与交接首帧仍保留已确认几何的门禁。普通 delta 仍必须匹配已接受的
+base、generation 与 geometry。因此，原控制者无需本地调整窗口或重新选择就能继续
+观察新输出。
+
 ## 操作模型
 
 原生会话拥有一个待处理操作：确切 pane incarnation、refresh 代次、请求身份、
@@ -26,7 +38,7 @@ marker 只有一种类型化用途；接管不伪装为 Workbench 快照修改�
 | Queued    | 尚未提交；排队和执行共用原始 deadline。                 |
 | Submitted | 缺失回执即未知；不自动再次接管或重新申请。              |
 | Granted   | 在分配、调整尺寸或 UI 结算前保留确切返回的 controller。 |
-| Ready     | 匹配的尺寸回执确定新控制者几何。                        |
+| Ready     | 尺寸与 projection 重新激活已确认；UI 等待绘制帧反馈。   |
 | Refused   | 保留连接和焦点；提示未获得控制权。                      |
 | Unknown   | 保留操作身份与任何已知 grant；必要时退役 carrier。      |
 
@@ -47,7 +59,8 @@ Windows 进程证据使用两个尺寸不同的原生 ConPTY Client，验证程�
 验收，也不建立主动更新控制标签的通知契约。
 
 `formal/tla/NativeControlTakeover.tla` 限定两个 Client 和三次动作，区分预留、已确认
-detach、attach、grant 回执、resize、UI 投递和绘制反馈。它检查唯一 Host 权限、仅显式
+detach、attach、grant 回执、resize、projection 暂停／重新激活、UI 投递和绘制反馈。
+它检查唯一 Host 权限、仅显式
 提交、旧输入与帧屏障、控制者几何和退出时回执保留，不宣称公平性／恢复性质。
 Server 核实自身 grant 的捷径与真实编码由实现测试桥接，不建模身份变换。
 同作者审读不等同独立确认。

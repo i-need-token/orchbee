@@ -7,6 +7,10 @@ impl Locale {
         let text = match (self, status) {
             (Self::EnUs, TakeoverStatus::Pending) => "Taking control",
             (Self::ZhCn, TakeoverStatus::Pending) => "正在接管",
+            (Self::EnUs, TakeoverStatus::WaitingForFrame) => {
+                "Control granted · waiting for terminal display"
+            }
+            (Self::ZhCn, TakeoverStatus::WaitingForFrame) => "已获控制权 · 正在等待终端画面",
             (Self::EnUs, TakeoverStatus::Ready) => "Control acquired · using this pane's size",
             (Self::ZhCn, TakeoverStatus::Ready) => "已接管 · 使用本 pane 尺寸",
             (Self::EnUs, TakeoverStatus::Refused) => "Control request refused or not submitted",
@@ -16,10 +20,10 @@ impl Locale {
             }
             (Self::ZhCn, TakeoverStatus::Unknown) => "接管结果未知 · 不会重放 · 退出后重新连接",
             (Self::EnUs, TakeoverStatus::Granted) => {
-                "Control grant received; size synchronization incomplete · exit and reconnect"
+                "Control grant received; display synchronization incomplete · exit and reconnect"
             }
             (Self::ZhCn, TakeoverStatus::Granted) => {
-                "已收到控制权回执；尺寸同步未完成 · 退出后重新连接"
+                "已收到控制权回执；画面同步未完成 · 退出后重新连接"
             }
             (Self::EnUs, TakeoverStatus::Lost) => "Control changed again · view only",
             (Self::ZhCn, TakeoverStatus::Lost) => "控制权再次变化 · 仅查看",

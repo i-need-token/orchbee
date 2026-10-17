@@ -1250,13 +1250,22 @@ fn observe_surface_geometry(
     match session_view {
         Some(crate::terminal_session::TerminalSessionView::Native(native)) => {
             let panes = pane_geometries(*dimensions, view, &native)?;
+            let presentable = crate::tui_layout::project_shell_areas(
+                to_area(*dimensions),
+                native.sidebar_surface(view.sidebar_surface()),
+            )
+            .tier
+                != crate::tui_layout::ViewportTier::TooSmall;
             #[cfg(windows)]
             let split = native
                 .active_position()
                 .and_then(|p| p.checked_sub(1))
                 .and_then(|i| native.tab(i))
                 .is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
-            terminal_input.observe_panes(&panes);
+            // TooSmall withholds geometry; it is not evidence that the canonical panes left.
+            if presentable {
+                terminal_input.observe_panes(&panes);
+            }
             #[cfg(windows)]
             {
                 let area = popup_surface_area(*dimensions, view, split);

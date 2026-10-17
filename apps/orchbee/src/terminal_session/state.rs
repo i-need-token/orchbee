@@ -282,6 +282,8 @@ pub(super) struct PaneRecord {
     mode: Option<ControllerMode>,
     staged_frame: Option<FrameIdentity>,
     accepted_frame: Option<FrameIdentity>,
+    // First accepted display for this attachment; a later blocked frame does not undo setup.
+    display_initialized: bool,
     last_admitted_geometry: Option<Geometry>,
     last_accepted_geometry: Option<Geometry>,
     fault: Option<PaneFault>,
@@ -319,6 +321,7 @@ impl PaneRecord {
             mode: None,
             staged_frame: None,
             accepted_frame: None,
+            display_initialized: false,
             last_admitted_geometry: None,
             last_accepted_geometry: None,
             fault: None,
@@ -1595,6 +1598,16 @@ impl NativeSessionState {
         if !record.attached || !record.projected {
             return None;
         }
+        // A peer can take control and resize without notifying this Client's control plane.
+        // Once Ready, authenticated snapshots own display geometry; local resize receipts
+        // must not freeze observation at the former controller's size. Initial setup and
+        // the explicit handoff's first frame still require their acknowledged geometry.
+        if matches!(self.phase, SessionPhase::Ready(_))
+            && record.display_initialized
+            && self.takeover_input_ready()
+        {
+            return None;
+        }
         match record.mode.as_ref() {
             Some(ControllerMode::Controlling(_)) => record.last_accepted_geometry,
             Some(ControllerMode::ReadOnly) | None => None,
@@ -1971,6 +1984,7 @@ impl NativeSessionState {
                 PaneFault::ViewerLost => {
                     record.attached = false;
                     record.projected = false;
+                    record.display_initialized = false;
                     record.mode = None;
                     record.staged_frame = None;
                     record.accepted_frame = None;
@@ -2368,6 +2382,7 @@ impl NativeSessionState {
         };
         record.attached = true;
         record.projected = true;
+        record.display_initialized = false;
         record.staged_frame = None;
         record.accepted_frame = None;
         record.fault = None;
@@ -2414,6 +2429,7 @@ impl NativeSessionState {
             return false;
         }
         record.accepted_frame = Some(frame);
+        record.display_initialized = true;
         self.accept_takeover_frame(key);
         true
     }
@@ -2738,6 +2754,7 @@ impl NativeSessionState {
         if let Some(record) = self.pane_record_mut(pane) {
             record.attached = false;
             record.projected = false;
+            record.display_initialized = false;
             record.mode = None;
             record.staged_frame = None;
             record.accepted_frame = None;

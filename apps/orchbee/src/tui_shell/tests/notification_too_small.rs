@@ -15,6 +15,7 @@ struct Surface {
     forwarded: Vec<u8>,
     receipts: Vec<NativeDrawReceipt>,
     successful_frames: usize,
+    pane_observations: usize,
 }
 
 impl TerminalInputPort for Surface {
@@ -37,6 +38,45 @@ impl super::super::TerminalSurface for Surface {
 
     fn after_draw(&mut self) {
         self.successful_frames += 1;
+    }
+
+    fn observe_panes(
+        &mut self,
+        _: &[(
+            orchbee_workbench_protocol::WorkbenchPanelId,
+            usize,
+            orchbee_client_server_protocol::Geometry,
+        )],
+    ) {
+        self.pane_observations += 1;
+    }
+}
+
+#[test]
+fn native_too_small_withholds_membership_observations_and_resumes_at_the_minimal_boundary() {
+    let projection = crate::tui_layout::ResizeProjection::Canonical;
+    let mut surface = Surface::default();
+    for (size, expected_reports) in [
+        (dimensions(80, 24), 1),
+        (dimensions(15, 4), 1),
+        (dimensions(15, 10), 1),
+        (dimensions(80, 4), 1),
+        (dimensions(80, 24), 2),
+        (dimensions(20, 5), 3),
+        (dimensions(80, 4), 3),
+        (dimensions(80, 24), 4),
+    ] {
+        super::super::observe_surface_geometry(
+            &size,
+            &ClientView::new(size.columns),
+            &mut surface,
+            (&projection, false),
+        )
+        .unwrap();
+        assert_eq!(
+            surface.pane_observations, expected_reports,
+            "{size:?}: withheld geometry must not masquerade as all panes departing"
+        );
     }
 }
 

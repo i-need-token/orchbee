@@ -16,6 +16,20 @@ Blocked input is discarded and never replayed. A later explicit gesture can tran
 using the same Viewer. Repeating the gesture while still the actual controller preserves
 the verified current grant.
 
+After a matching resize reply, the requester pauses and reactivates projection demand on
+that same Viewer, under the original operation deadline. Reactivation requests a full frame
+even for an idle terminal, a same-size handoff or a self-grant. The UI reports a display wait
+until that frame has been drawn and its feedback accepted; a resize receipt alone never
+reports input readiness. Failure in either demand leg retains the known controller grant
+and reports incomplete display synchronization without replaying the operation or input.
+
+Once Ready, a valid full snapshot determines display geometry even when it differs from
+this Client's last resize receipt. A peer may have taken control without this Client yet
+receiving a control rejection. The snapshot never grants input or resize authority; initial
+setup and the handoff's first frame keep their acknowledged-geometry gates. Ordinary deltas
+still require the exact accepted base, generation and geometry. Thus the former controller
+continues viewing new output without a local resize or reselection.
+
 ## Operation model
 
 The native session owns one pending operation: exact pane incarnation, refresh generation,
@@ -24,15 +38,15 @@ uses the existing serialized refresh barrier, excluding concurrent structural op
 While pending, input and selection of another native context are fenced. The marker has
 one typed purpose; takeover does not pretend to be a Workbench snapshot mutation.
 
-| State     | Evidence and permitted transition                                                   |
-| --------- | ----------------------------------------------------------------------------------- |
-| Idle      | Only an explicit action on a current attached Ready pane can admit an operation.    |
-| Queued    | No submission yet; one original deadline covers queueing and execution.             |
-| Submitted | Missing reply is unknown; no automatic second takeover or reacquisition.            |
-| Granted   | Retain the exact returned controller before allocation, resize or UI settlement.    |
-| Ready     | A matching resize reply establishes the new controller's geometry.                  |
-| Refused   | Preserve attachment and focus; report that control was not obtained.                |
-| Unknown   | Preserve operation identity and any known grant; retire the carrier when necessary. |
+| State     | Evidence and permitted transition                                                    |
+| --------- | ------------------------------------------------------------------------------------ |
+| Idle      | Only an explicit action on a current attached Ready pane can admit an operation.     |
+| Queued    | No submission yet; one original deadline covers queueing and execution.              |
+| Submitted | Missing reply is unknown; no automatic second takeover or reacquisition.             |
+| Granted   | Retain the exact returned controller before allocation, resize or UI settlement.     |
+| Ready     | Resize and projection reactivation are acknowledged; UI awaits drawn frame feedback. |
+| Refused   | Preserve attachment and focus; report that control was not obtained.                 |
+| Unknown   | Preserve operation identity and any known grant; retire the carrier when necessary.  |
 
 A known grant cannot regress to unknown or be replaced by another grant in the same
 operation. Loss during delivery retains evidence in both the executor and mailbox until
@@ -54,7 +68,8 @@ transfer. These checks do not establish a physical Windows Terminal or real Agen
 acceptance, nor a proactive control-label notification contract.
 
 `formal/tla/NativeControlTakeover.tla` bounds two Clients and three gestures, separating
-reservation, acknowledged detach, attach, grant receipt, resize, UI delivery and draw feedback.
+reservation, acknowledged detach, attach, grant receipt, resize, projection pause/reactivation,
+UI delivery and draw feedback.
 It checks exclusive Host authority, explicit-only sends, old-input and frame fences, controller
 geometry and receipt preservation through exit, without a fairness/recovery claim. The Server's
 verified self-grant shortcut and real encodings are bridged by implementation tests rather than
