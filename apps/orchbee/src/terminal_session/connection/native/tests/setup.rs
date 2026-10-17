@@ -909,7 +909,7 @@ impl UiDriver {
                         None => state.target_for_switch(index, key, deadlines),
                     }
                     .ok_or("invalid Switch target")?;
-                    target.expected_host = expected_host;
+                    target.expected_host = expected_host.map(Box::new);
                     if !state.begin_switch(target.clone()) {
                         return Err("Switch reducer rejected target");
                     }

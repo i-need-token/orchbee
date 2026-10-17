@@ -197,7 +197,7 @@ struct SetupTarget {
     /// notices; operation targets use the focus-scoped `SetupWithoutAttachment`
     /// settlement, which only the Switching phase can consume.
     fault_on_failure: bool,
-    expected_host: Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
+    expected_host: Option<Box<orchbee_agent_observation_protocol::AgentLaunchBinding>>,
 }
 
 impl SetupTarget {

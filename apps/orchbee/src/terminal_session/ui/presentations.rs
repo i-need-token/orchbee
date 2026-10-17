@@ -241,7 +241,7 @@ impl NativeUi {
                 let mut target = state
                     .target_for_presentation(index, panel, presentation, generation, deadlines)
                     .ok_or(ActionBuildError::Busy)?;
-                target.expected_host = expected_host;
+                target.expected_host = expected_host.map(Box::new);
                 if !state.begin_switch(target.clone()) {
                     return Err(ActionBuildError::Busy);
                 }

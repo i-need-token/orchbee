@@ -344,7 +344,7 @@ fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
     manager.selection_scope = view.machines.selection_scope();
     manager.queued = Some(Queued {
         profile: Some(profile()),
-        context: None,
+        destination: Destination::Startup(None),
         deadline: now,
     });
     assert!(
@@ -358,7 +358,7 @@ fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
     manager.selection_scope = view.machines.selection_scope();
     manager.queued = Some(Queued {
         profile: Some(profile()),
-        context: None,
+        destination: Destination::Startup(None),
         deadline: now + Duration::from_secs(60),
     });
     manager.profiles[0].draft.target = "replacement.invalid".into();
@@ -374,7 +374,7 @@ fn machine_wait_expiry_endpoint_edit_and_escape_preserve_current_surface() {
     manager.selection_scope = view.machines.selection_scope();
     manager.queued = Some(Queued {
         profile: Some(profile()),
-        context: None,
+        destination: Destination::Startup(None),
         deadline: now + Duration::from_secs(60),
     });
     view.machines.open = false;

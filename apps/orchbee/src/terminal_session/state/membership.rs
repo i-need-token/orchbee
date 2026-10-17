@@ -887,7 +887,7 @@ impl NativeSessionState {
                     provenance,
                     deadlines: deadlines.ok_or(CarrierFailure::Deadline)?,
                     incarnation,
-                    expected_host: prepared.expected_host.clone(),
+                    expected_host: prepared.expected_host.clone().map(Box::new),
                 };
                 (
                     SessionPhase::Switching(SwitchSetup {

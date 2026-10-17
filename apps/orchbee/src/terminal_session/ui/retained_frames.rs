@@ -120,7 +120,7 @@ impl RetainedFrames {
                 || id.tab != selection.member.tab
                 || id.panel != selection.member.panel
                 || id.presentation != selection.member.presentation
-                || (pixels.frame.route.host_epoch.as_str() == expected.host_epoch.as_str()
+                || (pixels.frame.route.host_epoch.to_text() == expected.host_epoch.as_str()
                     && pixels.host_terminal.as_deref() == Some(expected.host_terminal_id.as_str()))
         });
     }

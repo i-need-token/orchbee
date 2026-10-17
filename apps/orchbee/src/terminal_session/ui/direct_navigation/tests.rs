@@ -23,7 +23,8 @@ fn first() -> crate::machine_agents::Target {
 }
 
 fn install_matching_projection(ui: &mut NativeUi, target: &crate::machine_agents::Target) {
-    use orchbee_client_server_protocol::{HostEpoch, HostTerminalId};
+    use orchbee_client_server_protocol::HostTerminalId;
+    use orchbee_terminal_protocol::HostEpoch;
     crate::terminal_session::ui::tests::viewport::install_projection(ui, None, 0);
     let projection = ui.projections.last_mut().unwrap();
     projection.value = crate::terminal_projection::TerminalProjection::new(
@@ -205,7 +206,7 @@ fn direct_cross_context_agent_installs_exact_child_without_intermediate_default_
     let RefreshDecision::AttachRecovered(attach) = settlement.decision() else {
         panic!("attach chosen child");
     };
-    assert_eq!(attach.expected_host.as_ref(), Some(&target.physical));
+    assert_eq!(attach.expected_host.as_deref(), Some(&target.physical));
     assert_eq!(
         attach.binding().unwrap().terminal_id(),
         &target.terminal.terminal_id
@@ -256,7 +257,7 @@ fn current_agent_with_same_canonical_binding_but_different_host_requires_fenced_
             panic!("physical mismatch must reattach");
         };
         assert_eq!(
-            marker.target().expected_host.as_ref(),
+            marker.target().expected_host.as_deref(),
             Some(&target.physical)
         );
         assert!(!ui.forward(b"old Host is not input authority"));
@@ -291,7 +292,7 @@ fn same_tab_agent_focus_requires_the_live_peer_host_before_local_focus() {
         let pane = state.pane_by_panel(&target.panel).unwrap().pane_ref();
         let projection = ui.projections.iter_mut().find(|p| p.key == pane).unwrap();
         target.physical.host_epoch =
-            AgentHostEpoch::parse(projection.value.epoch().as_str()).unwrap();
+            AgentHostEpoch::parse(&projection.value.epoch().to_text()).unwrap();
         let terminal = format!("{:032x}", 9000);
         target.physical.host_terminal_id = AgentHostTerminalId::parse(&terminal).unwrap();
         projection.value = crate::terminal_projection::TerminalProjection::new(
@@ -318,7 +319,7 @@ fn same_tab_agent_focus_requires_the_live_peer_host_before_local_focus() {
                 panic!("mismatched peer Host must reattach");
             };
             assert_eq!(
-                marker.target().expected_host.as_ref(),
+                marker.target().expected_host.as_deref(),
                 Some(&target.physical)
             );
             assert_ne!(

@@ -875,7 +875,7 @@ pub(super) struct AttachTarget {
     incarnation: u32,
     /// Exact physical terminal required by a verified Agent selection, before any frame intake.
     pub(in crate::terminal_session) expected_host:
-        Option<orchbee_agent_observation_protocol::AgentLaunchBinding>,
+        Option<Box<orchbee_agent_observation_protocol::AgentLaunchBinding>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

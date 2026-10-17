@@ -1366,12 +1366,9 @@ impl Editor {
                 let BrowseMode::Picker(mut picker) = draft.browse else {
                     return None;
                 };
-                let Some(cursor) = Choice::options(picker.row)
+                let cursor = Choice::options(picker.row)
                     .iter()
-                    .position(|candidate| *candidate == choice)
-                else {
-                    return None;
-                };
+                    .position(|candidate| *candidate == choice)?;
                 picker.cursor = cursor;
                 draft.browse = BrowseMode::Picker(picker);
                 self.edit(Edit::Activate)

@@ -383,7 +383,7 @@ impl NativeSessionState {
                     worker_id: binding.worker_id().clone(),
                     terminal_id: binding.terminal_id().clone(),
                 },
-                expected_host: Some(expected_host.clone()),
+                expected_host: Some(expected_host.as_ref().clone()),
             };
             if !prepared.retarget_selected_bound_member(self.cache.location(), &selection) {
                 return Err(CarrierFailure::AuthorityDivergence);

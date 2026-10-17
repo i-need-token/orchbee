@@ -1,5 +1,5 @@
 //! Client-local window and input decisions for the shared Agent projection.
-use super::{Mode, NativeStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget};
+use super::{NativeStartupTarget, Picker, Row, Selection, SelectionOrigin, SidebarTarget};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct SidebarWindow {
@@ -184,10 +184,11 @@ impl Picker {
         }
         self.spaces.settle(self.sidebar_navigation_rows().len())
     }
+    #[cfg(test)]
     pub(crate) fn show_agents(&mut self) {
         self.cancel_sidebar_scroll();
         self.show();
-        self.set_mode(Mode::Agents);
+        self.set_mode(super::Mode::Agents);
     }
     #[cfg(test)]
     pub(crate) fn show_agent_search(&mut self) {

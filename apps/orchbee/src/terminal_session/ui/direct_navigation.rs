@@ -111,7 +111,7 @@ impl NativeUi {
             && state.pane_by_panel(&target.panel).is_some_and(|record| {
                 self.projections.iter().any(|projection| {
                     projection.key == record.pane_ref()
-                        && projection.value.epoch().as_str() == target.physical.host_epoch.as_str()
+                        && projection.value.epoch().to_text() == target.physical.host_epoch.as_str()
                         && projection.value.host_terminal_id()
                             == Some(target.physical.host_terminal_id.as_str())
                 })
