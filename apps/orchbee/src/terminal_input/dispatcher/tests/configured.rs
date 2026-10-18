@@ -22,6 +22,14 @@ fn binding(action: &'static str, key: &str, prefix: bool) -> WindowsKeyOverride 
         }],
     }
 }
+
+fn shortcut_entries(
+    locale: crate::localization::Locale,
+    view: &ClientView,
+) -> Vec<crate::localization::ShortcutHelpEntry> {
+    locale.shortcut_help_entries(view, true, crate::client_view::KeyLabelGlyphs::Unicode)
+}
+
 fn run(
     view: &mut ClientView,
     dispatcher: &mut InputDispatcher,
@@ -125,15 +133,9 @@ fn configured_command_dispatch_and_discovery_share_the_installed_catalog() {
         projected_id,
         crate::action_projection::ActionIdentity::ConfiguredCommand(id.as_str())
     );
-    let rows = crate::localization::Locale::EnUs
-        .shell()
-        .configured_shortcut_rows(&view);
-    assert!(
-        rows.iter()
-            .any(|(_, description)| description == "Run hello")
-    );
-    assert!(rows.iter().any(|(label, description)|
-        description == "Refresh tools" && label.trim() == "Unbound"));
+    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
+    assert!(entries.iter().any(|entry| entry.title == "Run hello"));
+    assert!(!entries.iter().any(|entry| entry.title == "Refresh tools"));
 }
 
 #[test]
@@ -304,11 +306,17 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
     ] {
-        let rows = locale.shell().configured_shortcut_rows(&view);
-        assert!(
-            rows.iter()
-                .any(|(key, desc)| key.contains("Alt+1..9") && desc.contains("Agent"))
-        );
+        let entries = shortcut_entries(locale, &view);
+        let title = match locale {
+            crate::localization::Locale::EnUs => "Select Agent by number",
+            crate::localization::Locale::ZhCn => "按编号选择 Agent",
+        };
+        let numbered_agents = entries
+            .iter()
+            .find(|entry| entry.title == title)
+            .expect("numbered Agent binding remains discoverable");
+        assert!(numbered_agents.key.contains("Alt+1"));
+        assert!(numbered_agents.key.contains("Alt+9"));
     }
     view.machines
         .key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
@@ -347,11 +355,9 @@ fn configured_agent_ordinal_uses_binding_digit_captures_tail_and_lists_actual_he
     let disabled = WindowsKeySettings::from_profile("[keys]\nfocus_agent=[]").unwrap();
     view.configure_keys(&disabled);
     assert!(
-        crate::localization::Locale::EnUs
-            .shell()
-            .configured_shortcut_rows(&view)
+        !shortcut_entries(crate::localization::Locale::EnUs, &view)
             .iter()
-            .any(|(key, desc)| key.contains("Unbound") && desc.contains("numbered Agent"))
+            .any(|entry| entry.title == "Select Agent by number")
     );
 }
 
@@ -515,16 +521,13 @@ fn configured_discovery_and_snapshot_follow_the_dispatch_registry() {
         assert!(text.hint_short.contains("F1"));
         assert!(!text.hint_short.contains("Ctrl+b"));
         assert!(text.prefix_active.ends_with("Ctrl+a"));
-        let rows = text.configured_shortcut_rows(&view);
-        assert!(rows.iter().any(|(key, _)| key.trim() == "F1"));
+        let entries = shortcut_entries(locale, &view);
+        assert!(entries.iter().any(|entry| entry.key == "F1"));
+        assert!(!entries.iter().any(|entry| entry.title == "New Tab"));
         assert!(
-            rows.iter()
-                .any(|(key, _)| key.trim() == text.binding_unbound)
-        );
-        assert!(
-            !rows
+            !entries
                 .iter()
-                .any(|(key, _)| key.contains("Ctrl+b") || key.contains("F9"))
+                .any(|entry| entry.key.contains("Ctrl+b") || entry.key.contains("F9"))
         );
     }
 }
@@ -557,7 +560,7 @@ fn indexed_default_conflict_displaces_only_the_occupied_digit() {
 }
 
 #[test]
-fn configured_indexed_direct_keys_keep_modifiers_and_compact_discovery() {
+fn configured_indexed_direct_keys_keep_modifiers_and_all_discovery_chords() {
     let keys = WindowsKeySettings {
         commands: Vec::new(),
         overrides: vec![WindowsKeyOverride {
@@ -591,24 +594,27 @@ fn configured_indexed_direct_keys_keep_modifiers_and_compact_discovery() {
             Call::Forward(b"\x1b[53;4u".to_vec())
         ]
     );
-    assert!(
-        crate::localization::Locale::EnUs
-            .shell()
-            .configured_shortcut_rows(&view)
-            .iter()
-            .any(|(key, _)| key.trim() == "Alt+1..9")
-    );
+    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
+    let indexed_tabs = entries
+        .iter()
+        .find(|entry| entry.title == "Select Tab by number")
+        .expect("direct Tab selection remains discoverable");
+    for digit in 1..=9 {
+        assert!(indexed_tabs.key.contains(format!("Alt+{digit}").as_str()));
+    }
     let keys = WindowsKeySettings {
         commands: Vec::new(),
         overrides: vec![binding("new_tab", "n", true)],
         ..WindowsKeySettings::default()
     };
     view.configure_keys(&keys);
-    let row = view
-        .bindings()
-        .group_label(crate::client_view::PrefixDesc::SelectTabWrap, "Unbound")
-        .unwrap();
-    assert_eq!(row, "Ctrl+b Unbound / p");
+    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
+    assert!(!entries.iter().any(|entry| entry.title == "Select next Tab"));
+    assert!(
+        entries.iter().any(|entry| {
+            entry.title == "Select previous Tab" && entry.key.contains("Ctrl+b p")
+        })
+    );
 }
 
 #[test]
@@ -694,12 +700,12 @@ fn configured_direct_resize_uses_registry_and_never_enters_mode_or_forwards_the_
             Call::Forward(b"after".to_vec())
         ]
     );
-    let rows = crate::localization::Locale::EnUs
-        .shell()
-        .configured_shortcut_rows(&view);
-    assert!(rows.iter().any(|(key, desc)| key.contains("Ctrl+")
-        && (key.contains("Left") || key.contains("←"))
-        && desc.contains("divider left")));
+    let entries = shortcut_entries(crate::localization::Locale::EnUs, &view);
+    assert!(entries.iter().any(|entry| {
+        entry.title == "Resize panel"
+            && entry.key.contains("Ctrl+")
+            && (entry.key.contains("Left") || entry.key.contains("←"))
+    }));
     run(&mut view, &mut dispatcher, &mut port, b"\x02R");
     assert!(view.resize_mode());
 }

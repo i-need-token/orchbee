@@ -86,7 +86,7 @@ impl Locale {
                     group,
                     search_text,
                     disabled_reason,
-                    identity: identity_key(binding.metadata.identity),
+                    identity: help_identity(&binding.action, binding.metadata.identity),
                 },
             );
         }
@@ -367,6 +367,16 @@ impl Locale {
                 return self.panel_direction_title("Move panel", "移动面板", *direction);
             }
             _ => {}
+        }
+
+        #[cfg(windows)]
+        if matches!(
+            action,
+            PrefixAction::Client(A::RequestWorkspaceCreate | A::RequestQuickWorkspace)
+        ) {
+            return self
+                .menu_action(&crate::action_menu::MenuAction::NewWorkspace)
+                .to_owned();
         }
 
         let title = match action {
@@ -727,10 +737,23 @@ fn identity_key(identity: ActionIdentity<'_>) -> String {
     }
 }
 
+fn help_identity(action: &PrefixAction, identity: ActionIdentity<'_>) -> String {
+    if matches!(
+        action,
+        PrefixAction::Client(
+            ClientAction::RequestWorkspaceCreate | ClientAction::RequestQuickWorkspace
+        )
+    ) {
+        "workbench.workspace.create".to_owned()
+    } else {
+        identity_key(identity)
+    }
+}
+
 #[cfg(windows)]
 fn semantic_identity(action: PrefixAction) -> String {
     crate::action_projection::binding_metadata(&action)
-        .map(|metadata| identity_key(metadata.identity))
+        .map(|metadata| help_identity(&action, metadata.identity))
         .unwrap_or_else(|| format!("contextual:{action:?}"))
 }
 
@@ -768,6 +791,9 @@ fn shared_menu_action(binding: &DiscoveryEntry<'_>) -> Option<crate::action_menu
 
     let preferred = match binding.action {
         PrefixAction::Client(ClientAction::CreateTab) => Some(MenuAction::NewTab),
+        PrefixAction::Client(
+            ClientAction::RequestWorkspaceCreate | ClientAction::RequestQuickWorkspace,
+        ) => Some(MenuAction::NewWorkspace),
         PrefixAction::Client(ClientAction::MovePreviousTab) => Some(MenuAction::MoveTabPrevious),
         PrefixAction::Client(ClientAction::MoveNextTab) => Some(MenuAction::MoveTabNext),
         _ => None,
@@ -819,7 +845,7 @@ mod tests {
     }
 
     #[test]
-    fn help_entries_keep_same_named_actions_separate_and_localize_groups() {
+    fn help_entries_merge_workspace_creation_aliases_and_localize_groups() {
         let view = view_with_help();
         let entries = Locale::EnUs.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
         let workspace = entries
@@ -832,22 +858,53 @@ mod tests {
         {
             assert_eq!(
                 workspace.len(),
-                2,
-                "same display names with different semantic identities stay separate"
+                1,
+                "two input bindings for one workspace operation share a row"
             );
-            assert!(workspace.iter().any(|entry| entry.key.contains("Shift+N")));
-            assert!(workspace[0].identity != workspace[1].identity);
+            assert!(workspace[0].key.contains("Ctrl+b Shift+N"));
+            assert_eq!(workspace[0].identity, "workbench.workspace.create");
+            assert_eq!(
+                workspace[0].title,
+                Locale::EnUs.menu_action(&crate::action_menu::MenuAction::NewWorkspace)
+            );
         }
         #[cfg(not(windows))]
         assert_eq!(workspace.len(), 1);
+
+        let rename_workspace = entries
+            .iter()
+            .find(|entry| entry.title == "Rename Workspace")
+            .expect("Workspace rename keeps its semantic action");
+        let rename_project = entries
+            .iter()
+            .find(|entry| entry.title == "Rename Project")
+            .expect("Project rename keeps its semantic action");
+        assert_ne!(rename_workspace.identity, rename_project.identity);
+        assert!(rename_workspace.key.contains("Ctrl+b r"));
+        assert!(rename_project.key.contains("Ctrl+b Shift+R"));
+
         assert!(!entries.iter().any(|entry| entry.key.contains("Unbound")));
         assert!(entries.iter().all(|entry| entry.title != "Shortcut"));
+        let entries_zh = Locale::ZhCn.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
+        let workspace_zh = entries_zh
+            .iter()
+            .filter(|entry| entry.title == "新建工作区")
+            .collect::<Vec<_>>();
+        assert_eq!(workspace_zh.len(), 1);
+        assert!(workspace_zh[0].key.contains("Ctrl+b a"));
+        #[cfg(windows)]
+        {
+            assert!(workspace_zh[0].key.contains("Ctrl+b Shift+N"));
+            assert_eq!(
+                workspace_zh[0].title,
+                Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::NewWorkspace)
+            );
+        }
         let create_tab = entries
             .iter()
             .find(|entry| entry.key.contains("Ctrl+b c"))
             .expect("Tab creation keeps its semantic name");
         assert_eq!(create_tab.title, "New Tab");
-        let entries_zh = Locale::ZhCn.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
         let create_tab_zh = entries_zh
             .iter()
             .find(|entry| entry.key.contains("Ctrl+b c"))
@@ -883,6 +940,34 @@ mod tests {
             Locale::ZhCn.shortcut_group_name(ShortcutHelpGroup::Workspace),
             "工作区"
         );
+    }
+
+    #[test]
+    fn help_entry_merge_keeps_same_titles_for_distinct_action_identities() {
+        let actions = [
+            PrefixAction::Client(ClientAction::RequestWorkspaceRename),
+            PrefixAction::Client(ClientAction::RequestProjectRename),
+        ];
+        let mut entries = Vec::new();
+        for (key, action) in ["Ctrl+b r", "Ctrl+b Shift+R"].into_iter().zip(actions) {
+            let metadata = crate::action_projection::binding_metadata(&action)
+                .expect("rename actions have semantic identities");
+            merge_help_entry(
+                &mut entries,
+                ShortcutHelpEntry {
+                    key: key.to_owned(),
+                    title: "Rename".to_owned(),
+                    group: ShortcutHelpGroup::Workspace,
+                    search_text: "Rename workspace project".to_owned(),
+                    disabled_reason: None,
+                    identity: identity_key(metadata.identity),
+                },
+            );
+        }
+        assert_eq!(entries.len(), 2);
+        assert_ne!(entries[0].identity, entries[1].identity);
+        assert!(entries.iter().any(|entry| entry.key == "Ctrl+b r"));
+        assert!(entries.iter().any(|entry| entry.key == "Ctrl+b Shift+R"));
     }
 
     #[cfg(windows)]
@@ -943,19 +1028,12 @@ mod tests {
             .iter()
             .filter(|entry| entry.title == "New Workspace")
             .collect::<Vec<_>>();
-        assert_eq!(workspace.len(), 2);
-        let configured = workspace
-            .iter()
-            .find(|entry| entry.key.contains("Ctrl+b x"))
-            .expect("configured Workspace action is listed");
-        assert!(configured.key.contains("Ctrl+b z"));
-        assert!(!configured.key.contains("Shift+N"));
-        let quick_create = workspace
-            .iter()
-            .find(|entry| entry.key.contains("Shift+N"))
-            .expect("quick Workspace action remains a separate action");
-        assert!(!quick_create.key.contains("Ctrl+b x"));
-        assert_ne!(configured.identity, quick_create.identity);
+        assert_eq!(workspace.len(), 1);
+        assert!(workspace[0].key.contains("Ctrl+b x"));
+        assert!(workspace[0].key.contains("Ctrl+b z"));
+        assert!(workspace[0].key.contains("Ctrl+b Shift+N"));
+        assert!(!workspace[0].key.contains("Ctrl+b a"));
+        assert_eq!(workspace[0].identity, "workbench.workspace.create");
     }
 
     #[cfg(windows)]

@@ -542,7 +542,9 @@ fn help_scroll_requests_clamp_only_after_an_exact_draw_settles() {
     enter_prefix(&mut view);
     commit(&mut view, plain('?'));
 
-    let bound = view.bindings().descriptions().len();
+    let bound = crate::localization::Locale::EnUs
+        .shortcut_help_entries(&view, true, crate::client_view::KeyLabelGlyphs::Unicode)
+        .len();
     // Input may request beyond the current viewport; the exact presented
     // source settles it after the renderer knows the scroll boundary.
     for _ in 0..(bound + 8) {

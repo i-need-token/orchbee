@@ -363,15 +363,19 @@ fn configured_entry_and_disabled_default_share_dispatch_and_discovery() {
         let mut dispatcher = InputDispatcher::default();
         dispatch_all(&mut dispatcher, &mut view, &mut port, input);
         assert_eq!(port.active, enters);
-        let rows = crate::localization::Locale::EnUs
-            .shell()
-            .configured_shortcut_rows(&view);
-        if !enters {
+        let entries = crate::localization::Locale::EnUs.shortcut_help_entries(
+            &view,
+            true,
+            crate::client_view::KeyLabelGlyphs::Unicode,
+        );
+        if enters {
             assert!(
-                rows.iter().any(
-                    |(key, desc)| key.trim() == "Unbound" && desc == "Enter keyboard copy mode"
-                )
+                entries
+                    .iter()
+                    .any(|entry| entry.key == "F2" && entry.title == "Copy text")
             );
+        } else {
+            assert!(!entries.iter().any(|entry| entry.title == "Copy text"));
         }
     }
 }

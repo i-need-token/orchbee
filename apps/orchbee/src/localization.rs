@@ -22,8 +22,6 @@ mod terminal_feedback;
 #[cfg(windows)]
 mod update;
 mod window_title;
-#[cfg(test)]
-use crate::client_view::{PREFIX_CHORD, PREFIX_GROUPS, PrefixGroup};
 use std::ffi::OsString;
 
 use crate::client_view::{BackendAction, LabelStyle, Notice, PrefixDesc, format_binding};
@@ -155,7 +153,6 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::Exit => Locale::EnUs.client_detach_label(),
         PrefixDesc::LiteralPrefix => "Send the literal prefix to the terminal input port",
         PrefixDesc::DismissPrefix => "Dismiss the prefix without an action",
-        PrefixDesc::OtherKeys => "Send to the terminal input port",
     }
 }
 
@@ -248,36 +245,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::Exit => Locale::ZhCn.client_detach_label(),
         PrefixDesc::LiteralPrefix => "向终端输入端口发送字面前缀",
         PrefixDesc::DismissPrefix => "取消前缀而不执行动作",
-        PrefixDesc::OtherKeys => "发送到终端输入端口",
     }
-}
-
-/// The chord column for one binding group: the prefix label plus the member
-/// key labels, joined by the group separator. Derived from the registry, so
-/// help can never drift from dispatch.
-#[cfg(test)]
-fn group_chord(group: &PrefixGroup) -> String {
-    let style = LabelStyle::for_host();
-    let prefix = format_binding(&PREFIX_CHORD, style);
-    let labels: Vec<String> = group
-        .members
-        .iter()
-        .map(|member| member.keys.label(style))
-        .collect();
-    let separator = if labels.len() == 2 {
-        " / "
-    } else if labels
-        .iter()
-        .any(|label| matches!(label.as_str(), "\\" | "|" | "/"))
-    {
-        " "
-    } else {
-        "/"
-    };
-    format!(
-        "{prefix} {}",
-        crate::client_view::join_key_labels(&labels, style, separator)
-    )
 }
 
 /// The Agent board's localized copy. Read-state lines, jump-refusal notices,
@@ -324,12 +292,7 @@ pub(crate) struct ShellText<'a> {
     pub(crate) business_section: &'static str,
     pub(crate) exit_hint: &'a str,
     pub(crate) hint_short: &'a str,
-    pub(crate) other_keys_label: &'static str,
     pub(crate) binding_unbound: &'static str,
-    #[cfg(all(windows, test))]
-    history_previous: &'static str,
-    #[cfg(all(windows, test))]
-    help_next: &'static str,
     #[cfg(not(windows))]
     pub(crate) overlay_input_hint: &'static str,
     #[cfg(test)]
@@ -351,8 +314,6 @@ pub(crate) struct ShellText<'a> {
     pub(crate) pointer_released: &'a str,
     pub(crate) prefix_active: &'a str,
     pub(crate) prefix_desc: fn(PrefixDesc) -> &'static str,
-    #[cfg(windows)]
-    sidebar_action: fn(crate::machine_picker::SidebarCommand) -> &'static str,
     pub(crate) prefix_idle: &'a str,
     pub(crate) projects: &'static str,
     pub(crate) shell_only_detail: &'static str,
@@ -368,39 +329,6 @@ pub(crate) struct ShellText<'a> {
     pub(crate) unnamed_tab_group: &'static str,
     pub(crate) workspaces: &'static str,
     pub(crate) zoom_badge: &'a str,
-}
-
-impl ShellText<'_> {
-    /// Builds the help rows from the same prefix binding registry that
-    /// dispatch matches: `(padded chord, localized description)` pairs, with
-    /// the localized "other keys" passthrough row appended last. The chord is
-    /// padded to a uniform column so callers can align descriptions without
-    /// re-deriving the split — chords may themselves contain spaces.
-    #[cfg(test)]
-    pub(crate) fn shortcut_rows(&self) -> Vec<(String, String)> {
-        let chords: Vec<String> = PREFIX_GROUPS.iter().map(group_chord).collect();
-        let width = chords
-            .iter()
-            .map(|chord| chord.chars().count())
-            .max()
-            .unwrap_or(0)
-            + 1;
-        let mut rows: Vec<(String, String)> = PREFIX_GROUPS
-            .iter()
-            .zip(&chords)
-            .map(|(group, chord)| {
-                (
-                    format!("{chord:<width$}"),
-                    (self.prefix_desc)(group.desc).to_owned(),
-                )
-            })
-            .collect();
-        rows.push((
-            format!("{:<width$}", self.other_keys_label),
-            (self.prefix_desc)(PrefixDesc::OtherKeys).to_owned(),
-        ));
-        rows
-    }
 }
 
 const EN_US_BOARD: AgentBoardText = AgentBoardText {
@@ -444,12 +372,7 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     navigator_detail: "A session connection is required before Workbench locations can be shown.",
     navigator_title: "Workbench navigator",
     no_client_session: "No Orchbee session is connected.",
-    other_keys_label: "Other keys",
     binding_unbound: "Unbound",
-    #[cfg(all(windows, test))]
-    history_previous: "Enter retained history when Help is closed; page back while Help is open",
-    #[cfg(all(windows, test))]
-    help_next: "Page forward while this shortcut help is open",
     #[cfg(not(windows))]
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
     #[cfg(test)]
@@ -466,8 +389,6 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     pointer_released: "mouse released · Ctrl+B m restores",
     prefix_active: "PREFIX Ctrl+B",
     prefix_desc: en_us_prefix_desc,
-    #[cfg(windows)]
-    sidebar_action: |command| Locale::EnUs.sidebar_navigation_action(command),
     prefix_idle: "Ctrl+B · shortcuts",
     projects: "Projects",
     shell_only_detail: "Connect to a session to use terminals and agents.",
@@ -526,12 +447,7 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     navigator_detail: "连接会话后才能显示 Workbench 位置。",
     navigator_title: "Workbench 导航器",
     no_client_session: "当前未连接 Orchbee 会话。",
-    other_keys_label: "其他按键",
     binding_unbound: "未绑定",
-    #[cfg(all(windows, test))]
-    history_previous: "帮助关闭时进入保留历史；帮助打开时向前翻页",
-    #[cfg(all(windows, test))]
-    help_next: "在此快捷键帮助打开时向后翻页",
     #[cfg(not(windows))]
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
     #[cfg(test)]
@@ -548,8 +464,6 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
     prefix_active: "前缀 Ctrl+B",
     prefix_desc: zh_cn_prefix_desc,
-    #[cfg(windows)]
-    sidebar_action: |command| Locale::ZhCn.sidebar_navigation_action(command),
     prefix_idle: "Ctrl+B · 快捷键",
     projects: "项目",
     shell_only_detail: "连接会话后即可使用终端和智能体。",
@@ -2014,119 +1928,5 @@ impl<'a> ShellText<'a> {
             result = result.replace(&format!("\u{e000}{index}\u{e001}"), &actual);
         }
         result
-    }
-}
-
-impl ShellText<'_> {
-    #[cfg(test)]
-    pub(crate) fn configured_shortcut_rows(
-        &self,
-        view: &crate::client_view::ClientView,
-    ) -> Vec<(String, String)> {
-        #[cfg(windows)]
-        if view.machines.sidebar_navigation_active() {
-            use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
-            let mut rows: Vec<_> = SIDEBAR_BINDINGS
-                .iter()
-                .filter(|(_, command)| *command != SidebarCommand::Exit)
-                .map(|(binding, command)| {
-                    (
-                        format!("{} ", format_binding(binding, LabelStyle::for_host())),
-                        (self.sidebar_action)(*command).to_owned(),
-                    )
-                })
-                .collect();
-            rows.push((
-                format!(
-                    "{} ",
-                    crate::client_view::ClientView::sidebar_help_page_label()
-                ),
-                (self.prefix_desc)(PrefixDesc::HelpPage).to_owned(),
-            ));
-            rows.extend(
-                SIDEBAR_BINDINGS
-                    .iter()
-                    .filter(|(_, command)| *command == SidebarCommand::Exit)
-                    .map(|(binding, command)| {
-                        (
-                            format!("{} ", format_binding(binding, LabelStyle::for_host())),
-                            (self.sidebar_action)(*command).to_owned(),
-                        )
-                    }),
-            );
-            return rows;
-        }
-        #[cfg(windows)]
-        if view.copy_mode_active() {
-            return view
-                .copy_help_rows()
-                .into_iter()
-                .map(|(key, desc)| (format!("{key} "), (self.prefix_desc)(desc).to_owned()))
-                .collect();
-        }
-        #[cfg(windows)]
-        if view.resize_mode() {
-            return view
-                .resize_help_rows()
-                .into_iter()
-                .map(|(key, desc)| (format!("{key} "), (self.prefix_desc)(desc).to_owned()))
-                .collect();
-        }
-        let mut rows: Vec<_> = view
-            .bindings()
-            .descriptions()
-            .into_iter()
-            .flat_map(|desc| {
-                #[cfg(windows)]
-                if desc == PrefixDesc::HelpPage {
-                    use crate::client_view::PrefixAction;
-                    return [
-                        (PrefixAction::HelpPagePrevious, self.history_previous),
-                        (PrefixAction::HelpPageNext, self.help_next),
-                    ]
-                    .into_iter()
-                    .map(|(action, description)| {
-                        let labels = view.bindings().action_labels(action);
-                        (
-                            if labels.is_empty() {
-                                self.binding_unbound.into()
-                            } else {
-                                labels.join(" / ")
-                            },
-                            description.to_owned(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                }
-                let label = view
-                    .bindings()
-                    .group_label(desc, self.binding_unbound)
-                    .unwrap_or_else(|| self.binding_unbound.into());
-                let description = (self.prefix_desc)(desc);
-                #[cfg(windows)]
-                let description = view
-                    .bindings()
-                    .configured_description(desc)
-                    .unwrap_or(description);
-                vec![(
-                    label,
-                    crate::terminal_text::sanitize_terminal_text(description).into_owned(),
-                )]
-            })
-            .collect();
-        let width = rows
-            .iter()
-            .map(|(key, _)| key.chars().count())
-            .max()
-            .unwrap_or(0)
-            + 1;
-        for (key, _) in &mut rows {
-            *key = format!("{key:<width$}");
-        }
-        rows.push((
-            format!("{:<width$}", self.other_keys_label),
-            (self.prefix_desc)(PrefixDesc::OtherKeys).to_owned(),
-        ));
-        rows
     }
 }

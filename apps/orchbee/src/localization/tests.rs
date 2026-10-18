@@ -2,7 +2,7 @@ use std::{collections::HashMap, ffi::OsString};
 
 use crate::client_view::{BackendAction, Notice};
 
-use super::{Locale, ShellText, select_locale};
+use super::{Locale, select_locale};
 
 #[cfg(windows)]
 #[test]
@@ -189,50 +189,36 @@ fn tab_menu_copy_localizes_scope_and_preserves_close_and_rename_consequences() {
     );
 }
 
-/// Flattens `(padded chord, description)` help pairs back into the single
-/// rendered row string so the registry-derived text can be compared whole.
-fn joined_shortcut_rows(text: &ShellText) -> Vec<String> {
-    text.shortcut_rows()
-        .iter()
-        .map(|(chord, desc)| format!("{chord}{desc}"))
-        .collect()
-}
-
 #[cfg(windows)]
 #[test]
-fn history_discovery_splits_the_actual_help_page_bindings_for_each_locale() {
-    use crate::client_view::ClientView;
+fn help_page_bindings_follow_the_configured_prefix() {
+    use crate::client_view::{ClientView, KeyLabelGlyphs, PrefixAction};
     use orchbee_local_site_runtime::{WindowsKeyChord, WindowsKeySettings};
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for remapped in [false, true] {
-            let mut view = ClientView::new(80);
-            if remapped {
-                view.configure_keys(&WindowsKeySettings {
-                    commands: Vec::new(),
-                    overrides: Vec::new(),
-                    prefix: WindowsKeyChord {
-                        key: "a".into(),
-                        ctrl: true,
-                        alt: false,
-                        shift: false,
-                        super_key: false,
-                    },
-                });
-            }
-            let text = locale.shell();
-            let rows = text.configured_shortcut_rows(&view);
-            let prefix = if remapped { "Ctrl+a" } else { "Ctrl+b" };
-            assert!(
-                rows.iter()
-                    .any(|(label, desc)| label.trim() == format!("{prefix} PageUp")
-                        && desc == text.history_previous)
-            );
-            assert!(
-                rows.iter()
-                    .any(|(label, desc)| label.trim() == format!("{prefix} PageDown")
-                        && desc == text.help_next)
-            );
+    for (remapped, prefix) in [(false, "Ctrl+b"), (true, "Ctrl+a")] {
+        let mut view = ClientView::new(80);
+        if remapped {
+            view.configure_keys(&WindowsKeySettings {
+                commands: Vec::new(),
+                overrides: Vec::new(),
+                prefix: WindowsKeyChord {
+                    key: "a".into(),
+                    ctrl: true,
+                    alt: false,
+                    shift: false,
+                    super_key: false,
+                },
+            });
         }
+        assert_eq!(
+            view.bindings()
+                .action_labels_with_glyphs(PrefixAction::HelpPagePrevious, KeyLabelGlyphs::Unicode),
+            vec![format!("{prefix} PageUp")]
+        );
+        assert_eq!(
+            view.bindings()
+                .action_labels_with_glyphs(PrefixAction::HelpPageNext, KeyLabelGlyphs::Unicode),
+            vec![format!("{prefix} PageDown")]
+        );
     }
 }
 
@@ -289,65 +275,43 @@ fn falls_back_to_english_for_absent_other_and_non_unicode_values() {
 }
 
 #[test]
-fn ships_complete_distinct_shell_copy_for_both_locales() {
+fn ships_distinct_shell_status_and_shortcut_copy_for_both_locales() {
     let english = Locale::EnUs.shell();
     let chinese = Locale::ZhCn.shell();
 
-    assert_eq!(chinese.shortcut_rows().len(), english.shortcut_rows().len());
     assert_ne!(english.backend_status, chinese.backend_status);
     assert_ne!(english.terminal_unavailable, chinese.terminal_unavailable);
-    #[cfg(windows)]
-    for copy in [&english, &chinese] {
-        assert!(
-            copy.shortcut_rows()
-                .iter()
-                .any(|(chord, desc)| chord.trim() == "Ctrl+b { / }" && !desc.is_empty())
-        );
-    }
-
-    for shortcut in [
-        "Ctrl+b a",
-        "Ctrl+b e",
-        "Ctrl+b r",
-        "Ctrl+b Shift+R",
-        "Ctrl+b c",
-        "Ctrl+b ,",
-        "Ctrl+b x",
-        "Ctrl+b < / >",
-        "Ctrl+b n / p",
-        "Ctrl+b [ / ]",
-        "Ctrl+b 1..9",
-        "Ctrl+b z",
-        "Ctrl+b g",
-        "Ctrl+b w",
-        "Ctrl+b m",
-        "Ctrl+b PageUp / PageDown",
-    ] {
-        assert!(
-            joined_shortcut_rows(&english)
-                .iter()
-                .any(|line| line.starts_with(shortcut))
-        );
-        assert!(
-            joined_shortcut_rows(&chinese)
-                .iter()
-                .any(|line| line.starts_with(shortcut))
-        );
-    }
-    assert!(
-        joined_shortcut_rows(&english)
-            .iter()
-            .any(|row| row == "Ctrl+b w                 Toggle Workbench navigator")
+    let view = crate::client_view::ClientView::new(120);
+    let english_entries = Locale::EnUs.shortcut_help_entries(
+        &view,
+        true,
+        crate::client_view::KeyLabelGlyphs::Unicode,
+    );
+    let chinese_entries = Locale::ZhCn.shortcut_help_entries(
+        &view,
+        true,
+        crate::client_view::KeyLabelGlyphs::Unicode,
     );
     assert!(
-        joined_shortcut_rows(&chinese)
+        english_entries
             .iter()
-            .any(|row| row == "Ctrl+b w                 切换 Workbench 导航器")
+            .any(|entry| { entry.key.contains("Ctrl+b c") && entry.title == "New Tab" })
     );
-    assert!(joined_shortcut_rows(&english).iter().any(|row| row
-        == "Ctrl+b [ / ]             Select previous / next Workbench location (wraps; requires session)"));
-    assert!(joined_shortcut_rows(&chinese).iter().any(|row| row
-        == "Ctrl+b [ / ]             选择上一个 / 下一个 Workbench 位置（首尾循环；需要会话）"));
+    assert!(
+        chinese_entries
+            .iter()
+            .any(|entry| { entry.key.contains("Ctrl+b c") && entry.title == "新建标签页" })
+    );
+    assert!(
+        english_entries.iter().any(|entry| {
+            entry.key.contains("Ctrl+b w") && entry.title == "Workspace navigator"
+        })
+    );
+    assert!(
+        chinese_entries
+            .iter()
+            .any(|entry| { entry.key.contains("Ctrl+b w") && entry.title == "工作区导航器" })
+    );
 }
 
 #[test]
@@ -377,11 +341,8 @@ fn help_control_copy_is_localized_without_embedding_key_labels() {
     }
 }
 
-/// The help-paging row is registry-derived like every other row: the same
-/// table the dispatcher matches generates the displayed chord and the
-/// localized description, in both locales.
 #[test]
-fn help_page_row_matches_the_registry_bindings_in_both_locales() {
+fn help_page_binding_dispatches_scroll_actions() {
     use crate::client_view::{
         ClientAction, ClientTransition, ClientView, KeyCode, KeyEvent, Modifiers, Overlay,
         PrefixInput, SessionActionDisposition,
@@ -392,21 +353,6 @@ fn help_page_row_matches_the_registry_bindings_in_both_locales() {
         transition
     }
 
-    let english = Locale::EnUs.shell();
-    let chinese = Locale::ZhCn.shell();
-    assert!(
-        joined_shortcut_rows(&english)
-            .iter()
-            .any(|row| row == "Ctrl+b PageUp / PageDown Page this shortcut help while it is open")
-    );
-    assert!(
-        joined_shortcut_rows(&chinese)
-            .iter()
-            .any(|row| row == "Ctrl+b PageUp / PageDown 在帮助打开时翻看此快捷键帮助的页面")
-    );
-
-    // The displayed chords resolve through the registry to the help-page
-    // action — never a second hard-coded table.
     let mut view = ClientView::new(120);
     for (code, expected_page) in [(KeyCode::PageUp, 0), (KeyCode::PageDown, 8)] {
         press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
@@ -428,10 +374,10 @@ fn help_page_row_matches_the_registry_bindings_in_both_locales() {
 }
 
 #[test]
-fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
+fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
     use crate::client_view::{
-        ClientAction, ClientView, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,
-        PrefixInput, SessionActionDisposition,
+        ClientAction, ClientView, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, Modifiers,
+        PanelDirection, PrefixAction, PrefixInput, SessionActionDisposition,
     };
     fn key(code: KeyCode, mods: Modifiers) -> PrefixInput {
         PrefixInput::Key(KeyEvent {
@@ -441,104 +387,115 @@ fn panel_shortcut_rows_match_their_client_actions_in_both_locales() {
         })
     }
 
-    let english = Locale::EnUs.shell();
-    let chinese = Locale::ZhCn.shell();
-    for (en, zh, bindings) in [
+    let cases = [
         (
-            "Ctrl+b h/j/k/l           Move between Panels (requires session)",
-            "Ctrl+b h/j/k/l           在 Panel 之间移动（需要会话）",
-            &[
-                (
-                    KeyCode::Char('h'),
-                    ClientAction::MovePanelFocus(PanelDirection::Left),
-                ),
-                (
-                    KeyCode::Char('j'),
-                    ClientAction::MovePanelFocus(PanelDirection::Down),
-                ),
-                (
-                    KeyCode::Char('k'),
-                    ClientAction::MovePanelFocus(PanelDirection::Up),
-                ),
-                (
-                    KeyCode::Char('l'),
-                    ClientAction::MovePanelFocus(PanelDirection::Right),
-                ),
-            ][..],
+            KeyCode::Char('h'),
+            ClientAction::MovePanelFocus(PanelDirection::Left),
+            "Focus panel left",
+            "向左聚焦面板",
         ),
         (
-            "Ctrl+b - _ \\ |           Split focused Panel below/above/left/right (requires session)",
-            "Ctrl+b - _ \\ |           将焦点 Panel 向下/上/左/右分屏（需要会话）",
-            &[
-                (
-                    KeyCode::Char('-'),
-                    ClientAction::SplitPanel(PanelDirection::Down),
-                ),
-                (
-                    KeyCode::Char('_'),
-                    ClientAction::SplitPanel(PanelDirection::Up),
-                ),
-                (
-                    KeyCode::Char('\\'),
-                    ClientAction::SplitPanel(PanelDirection::Left),
-                ),
-                (
-                    KeyCode::Char('|'),
-                    ClientAction::SplitPanel(PanelDirection::Right),
-                ),
-            ][..],
+            KeyCode::Char('j'),
+            ClientAction::MovePanelFocus(PanelDirection::Down),
+            "Focus panel down",
+            "向下聚焦面板",
         ),
         (
-            "Ctrl+b Shift+X           Close focused Panel (requires session)",
-            "Ctrl+b Shift+X           关闭焦点 Panel（需要会话）",
-            &[(KeyCode::Char('X'), ClientAction::ClosePanel)][..],
+            KeyCode::Char('k'),
+            ClientAction::MovePanelFocus(PanelDirection::Up),
+            "Focus panel up",
+            "向上聚焦面板",
         ),
         (
-            "Ctrl+b Shift+H/J/K/L     Move focused Panel to that side (requires session)",
-            "Ctrl+b Shift+H/J/K/L     将焦点 Panel 移向该侧（需要会话）",
-            &[
-                (
-                    KeyCode::Char('H'),
-                    ClientAction::MovePanel(PanelDirection::Left),
-                ),
-                (
-                    KeyCode::Char('J'),
-                    ClientAction::MovePanel(PanelDirection::Down),
-                ),
-                (
-                    KeyCode::Char('K'),
-                    ClientAction::MovePanel(PanelDirection::Up),
-                ),
-                (
-                    KeyCode::Char('L'),
-                    ClientAction::MovePanel(PanelDirection::Right),
-                ),
-            ][..],
+            KeyCode::Char('l'),
+            ClientAction::MovePanelFocus(PanelDirection::Right),
+            "Focus panel right",
+            "向右聚焦面板",
         ),
-    ] {
+        (
+            KeyCode::Char('-'),
+            ClientAction::SplitPanel(PanelDirection::Down),
+            "Split panel down",
+            "向下分割面板",
+        ),
+        (
+            KeyCode::Char('_'),
+            ClientAction::SplitPanel(PanelDirection::Up),
+            "Split panel up",
+            "向上分割面板",
+        ),
+        (
+            KeyCode::Char('\\'),
+            ClientAction::SplitPanel(PanelDirection::Left),
+            "Split panel left",
+            "向左分割面板",
+        ),
+        (
+            KeyCode::Char('|'),
+            ClientAction::SplitPanel(PanelDirection::Right),
+            "Split panel right",
+            "向右分割面板",
+        ),
+        (
+            KeyCode::Char('X'),
+            ClientAction::ClosePanel,
+            "Close panel",
+            "关闭面板",
+        ),
+        (
+            KeyCode::Char('H'),
+            ClientAction::MovePanel(PanelDirection::Left),
+            "Move panel left",
+            "向左移动面板",
+        ),
+        (
+            KeyCode::Char('J'),
+            ClientAction::MovePanel(PanelDirection::Down),
+            "Move panel down",
+            "向下移动面板",
+        ),
+        (
+            KeyCode::Char('K'),
+            ClientAction::MovePanel(PanelDirection::Up),
+            "Move panel up",
+            "向上移动面板",
+        ),
+        (
+            KeyCode::Char('L'),
+            ClientAction::MovePanel(PanelDirection::Right),
+            "Move panel right",
+            "向右移动面板",
+        ),
+    ];
+    let inventory = ClientView::new(120);
+    let owner_entries = inventory
+        .bindings()
+        .discovery_entries(KeyLabelGlyphs::Unicode);
+    let english = Locale::EnUs.shortcut_help_entries(&inventory, true, KeyLabelGlyphs::Unicode);
+    let chinese = Locale::ZhCn.shortcut_help_entries(&inventory, true, KeyLabelGlyphs::Unicode);
+    for (code, expected, en_title, zh_title) in cases {
+        let owned_key = owner_entries
+            .iter()
+            .find(|entry| entry.action == PrefixAction::Client(expected.clone()))
+            .expect("panel action remains in the input owner")
+            .key
+            .as_str();
         assert!(
-            joined_shortcut_rows(&english)
+            english
                 .iter()
-                .any(|row| row.as_str() == en),
-            "en-US row: {en}"
+                .any(|entry| { entry.key == owned_key && entry.title == en_title })
         );
         assert!(
-            joined_shortcut_rows(&chinese)
+            chinese
                 .iter()
-                .any(|row| row.as_str() == zh),
-            "zh-CN row: {zh}"
+                .any(|entry| { entry.key == owned_key && entry.title == zh_title })
         );
-        for (code, expected) in bindings {
-            let mut view = ClientView::new(120);
-            let prefix = view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
-            view.commit(prefix, SessionActionDisposition::KeepNavigator);
-            let transition = view.decide(key(*code, Modifiers::NONE));
-            assert_eq!(
-                transition.action(),
-                Some(expected.clone()),
-                "Ctrl+B {code:?}"
-            );
-        }
+
+        let mut view = ClientView::new(120);
+        let prefix = view.decide(key(KeyCode::Char('b'), Modifiers::CTRL));
+        view.commit(prefix, SessionActionDisposition::KeepNavigator);
+        let transition = view.decide(key(code, Modifiers::NONE));
+        assert_eq!(transition.action(), Some(expected), "Ctrl+B {code:?}");
     }
 
     for (action, en, zh) in [

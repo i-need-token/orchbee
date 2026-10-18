@@ -132,42 +132,38 @@ fn modifier_supersets_match_nothing() {
 }
 
 #[test]
-fn group_labels_form_chords_from_the_same_registry() {
-    let move_group = PREFIX_GROUPS
+fn shortcut_discovery_uses_the_resolved_owner_keys() {
+    let bindings = Bindings::default();
+    let entries = bindings.discovery_entries(crate::client_view::KeyLabelGlyphs::Unicode);
+    for (action, suffix) in [
+        (ClientAction::MovePreviousTab, " <"),
+        (ClientAction::MoveNextTab, " >"),
+    ] {
+        let entry = entries
+            .iter()
+            .find(|entry| entry.action == PrefixAction::Client(action.clone()))
+            .expect("tab movement remains discoverable");
+        assert!(entry.key.ends_with(suffix), "{}", entry.key);
+    }
+    let digits = entries
         .iter()
-        .find(|group| group.desc == PrefixDesc::MoveTab)
-        .expect("move group");
-    let labels = move_group
-        .members
-        .iter()
-        .map(|member| member.keys.label(crate::client_view::LabelStyle::Other))
-        .collect::<Vec<_>>();
-    assert_eq!(labels, ["<", ">"]);
-    let digits = PREFIX_GROUPS
-        .iter()
-        .find(|group| group.desc == PrefixDesc::SelectTabDigit)
-        .expect("digits");
-    assert_eq!(
-        digits.members[0]
-            .keys
-            .label(crate::client_view::LabelStyle::Other),
-        "1..9"
-    );
+        .find(|entry| entry.action == PrefixAction::SelectTabDigit)
+        .expect("ordered Tab selection remains discoverable");
+    assert!(digits.key.ends_with(" 1..9"), "{}", digits.key);
 }
 
 #[test]
 fn resolved_help_inventory_contains_only_projected_actions() {
     let bindings = Bindings::default();
-    let descriptions = bindings.descriptions();
-    assert!(!descriptions.is_empty());
-    for desc in descriptions {
+    let entries = bindings.discovery_entries(crate::client_view::KeyLabelGlyphs::Unicode);
+    assert!(!entries.is_empty());
+    for entry in entries {
         assert!(
-            bindings.entries.iter().any(|entry| {
-                entry.desc == desc
-                    && crate::action_projection::binding_metadata(&entry.member.action).is_some()
-            }),
-            "missing resolved projection for {desc:?}"
+            crate::action_projection::binding_metadata(&entry.action)
+                .is_some_and(|metadata| metadata.same_discovery_entry(&entry.metadata)),
+            "missing resolved projection for {:?}",
+            entry.action
         );
-        assert!(bindings.group_label(desc, "Unbound").is_some());
+        assert!(!entry.key.is_empty());
     }
 }

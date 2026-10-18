@@ -2130,13 +2130,14 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
     prefix(&mut view, plain('P'));
     commit(&mut view, plain('?'));
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let rows = locale.shell().configured_shortcut_rows(&view);
-        assert_eq!(rows.len(), 5);
-        assert_eq!(rows.last().unwrap().0.trim(), "Esc");
-        assert!(rows[0].1.contains('5'));
-        assert!(rows[1].1.contains('1'));
+        let entries =
+            locale.shortcut_help_entries(&view, true, crate::client_view::KeyLabelGlyphs::Unicode);
+        assert!(entries.iter().any(|entry| {
+            entry.title == locale.shortcut_scroll_label() && entry.key.contains("Page")
+        }));
+        assert!(!entries.iter().any(|entry| entry.key == "Esc"));
         let rendered = rendered_text(120, 40, &view, locale);
         assert!(rendered.contains("Esc"));
-        assert!(!rendered.contains("Send to the terminal input port"));
+        assert!(rendered.contains(locale.shortcut_scroll_label()));
     }
 }

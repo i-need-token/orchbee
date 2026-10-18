@@ -49,14 +49,6 @@ impl KeySet {
             }
         }
     }
-
-    /// The displayed label for this member (`1..9` for ranges).
-    pub(crate) fn label(&self, style: super::LabelStyle) -> String {
-        match self {
-            Self::One(binding) => super::format_binding(binding, style),
-            Self::CharRange(first, last) => format!("{first}..{last}"),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -66,8 +58,8 @@ pub(crate) struct PrefixMember {
     pub(crate) shell: ShellCommand,
 }
 
-/// The localization key for a group's description row. Descriptions live in
-/// `localization.rs` behind this enum; grouped members share one row.
+/// Localization keys retained by input owners for mode-specific descriptions
+/// and status hints. Global shortcut discovery uses action metadata instead.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PrefixDesc {
     #[cfg(windows)]
@@ -157,7 +149,6 @@ pub(crate) enum PrefixDesc {
     Exit,
     LiteralPrefix,
     DismissPrefix,
-    OtherKeys,
 }
 
 #[derive(Clone, Copy, Debug)]
