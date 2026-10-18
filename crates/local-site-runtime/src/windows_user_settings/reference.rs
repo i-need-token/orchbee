@@ -296,7 +296,7 @@ fn render_action_comments(actions: &[WindowsDefaultActionBindings]) -> String {
             let values = action
                 .bindings
                 .iter()
-                .map(|binding| toml::Value::String(binding.clone()).to_string())
+                .map(|binding| toml_edit::Value::from(binding.as_str()).to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("[{values}]")

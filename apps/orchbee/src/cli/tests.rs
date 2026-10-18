@@ -39,7 +39,7 @@ fn default_config_uses_the_setting_and_client_action_registries() {
             let values = action
                 .bindings
                 .iter()
-                .map(|binding| toml::Value::String(binding.clone()).to_string())
+                .map(|binding| toml_edit::Value::from(binding.as_str()).to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("[{values}]")

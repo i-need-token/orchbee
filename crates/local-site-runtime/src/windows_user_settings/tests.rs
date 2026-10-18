@@ -782,3 +782,39 @@ fn default_configuration_reference_covers_the_setting_and_action_registries() {
     assert!(admitted.diagnostics.is_empty());
     assert_eq!(admitted.keys, WindowsUserSettings::default().keys);
 }
+
+#[test]
+fn default_configuration_quotes_and_roundtrips_binding_strings() {
+    let text = default_windows_user_settings_toml_with_actions(&[WindowsDefaultActionBindings {
+        action: "help",
+        bindings: vec!["prefix+\"".to_owned(), "prefix+\\".to_owned()],
+    }]);
+    let action_line = text
+        .lines()
+        .find(|line| line.starts_with("# help = "))
+        .unwrap();
+    assert!(action_line.contains("\\\""));
+    assert!(action_line.contains("\\\\"));
+
+    let config = text.replace(action_line, action_line.strip_prefix("# ").unwrap());
+    let admitted = parse(&config, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    assert!(admitted.diagnostics.is_empty());
+    let settings = admitted.keys;
+    let help = settings
+        .overrides
+        .iter()
+        .find(|override_| override_.action == "help")
+        .unwrap();
+    assert_eq!(
+        help.triggers
+            .iter()
+            .map(|trigger| trigger.chord.key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["\"", "\\"]
+    );
+    assert!(help.triggers.iter().all(|trigger| trigger.prefix));
+    assert_eq!(
+        WindowsKeySettings::from_profile(&settings.profile()).unwrap(),
+        settings
+    );
+}

@@ -75,7 +75,7 @@ fn default_config_action_rows_match_resolved_bindings_after_round_trip() {
             let values = entry
                 .bindings
                 .iter()
-                .map(|binding| toml::Value::String(binding.clone()).to_string())
+                .map(|binding| toml_edit::Value::from(binding.as_str()).to_string())
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("[{values}]")
