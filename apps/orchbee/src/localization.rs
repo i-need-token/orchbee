@@ -267,6 +267,12 @@ pub(crate) struct AgentBoardText {
     pub(crate) lane_unavailable: &'static str,
     /// A completed read found zero sessions.
     pub(crate) empty: &'static str,
+    /// The next step shown when the last completed Agent read has no rows.
+    pub(crate) empty_start: &'static str,
+    /// CLI syntax used to start an Agent from the current idle terminal.
+    pub(crate) empty_start_command: &'static str,
+    /// A partial empty read is not proof that there are no sessions.
+    pub(crate) empty_partial: &'static str,
     pub(crate) jumping: &'static str,
     pub(crate) close_hint: &'static str,
     pub(crate) select_hint: &'static str,
@@ -343,6 +349,9 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     read_transport: "Agent read failed: transport",
     lane_unavailable: "Agent board unavailable: no read lane",
     empty: "No Agent sessions",
+    empty_start: "Start one from an idle Orchbee terminal:",
+    empty_start_command: "orchbee agent start <name> --kind <provider> --current",
+    empty_partial: "No sessions in this partial read.",
     jumping: "Jumping…",
     close_hint: "close",
     select_hint: "select",
@@ -418,6 +427,9 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     read_transport: "智能体读取失败：传输错误",
     lane_unavailable: "看板不可用：无读取通道",
     empty: "没有智能体会话",
+    empty_start: "请在空闲的 Orchbee 终端启动智能体：",
+    empty_start_command: "orchbee agent start <name> --kind <provider> --current",
+    empty_partial: "本次不完整读取暂未返回会话。",
     jumping: "正在跳转…",
     close_hint: "关闭",
     select_hint: "选择",

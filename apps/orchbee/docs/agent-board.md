@@ -39,6 +39,12 @@ edges — open and close — invalidate the published pointer hit map, so a clic
 vanished board row or pass through the overlay onto a stale foreground region. Names,
 notifications, task sending, scheduling, persistence and new panel creation are excluded.
 
+On Windows, after a complete empty list, the board explains how to start an Agent from an idle
+Orchbee terminal and shows `orchbee agent start <name> --kind <provider> --current`. The board does
+not infer PATH availability, select a provider, or start it. An empty incomplete read
+is labeled as partial rather than as proof that no sessions exist. See [Windows Agent startup](windows-agent-start.md)
+for the command's readiness and target requirements.
+
 The successful surface frame grants a same-episode visibility lease for owner-local navigation and
 refresh. Therefore consecutive arrow or `j`/`k` keys can advance the cursor in one input packet even
 after the first step invalidates its old row proof. Starting a jump and applying a row, wheel or

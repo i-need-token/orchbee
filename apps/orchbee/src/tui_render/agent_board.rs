@@ -5,7 +5,8 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
-    widgets::{Clear, Paragraph},
+    text::Line,
+    widgets::{Clear, Paragraph, Wrap},
 };
 
 use crate::{
@@ -31,6 +32,7 @@ use orchbee_agent_observation_protocol::{
 const BOARD_CHROME_ROWS: u16 = 3;
 const BOARD_WIDTH: u16 = 92;
 const BOARD_MAX_HEIGHT: u16 = 24;
+const EMPTY_GUIDANCE_HEIGHT: u16 = 10;
 
 /// Paints the open board inside `area` and records its hit regions in the
 /// same pass. Geometry refusal carries the exact open episode; success
@@ -45,9 +47,16 @@ pub(super) fn render(
     hits: &mut HitMapBuilder,
 ) -> AgentBoardDraw {
     let rows = board.rows();
-    let wanted = u16::try_from(rows.len() + usize::from(BOARD_CHROME_ROWS) + 2)
-        .unwrap_or(BOARD_MAX_HEIGHT)
-        .min(BOARD_MAX_HEIGHT);
+    let read = board.read();
+    let has_empty_guidance =
+        cfg!(windows) && rows.is_empty() && matches!(read, AgentBoardRead::Ready { .. });
+    let wanted = if has_empty_guidance {
+        EMPTY_GUIDANCE_HEIGHT
+    } else {
+        u16::try_from(rows.len() + usize::from(BOARD_CHROME_ROWS) + 2)
+            .unwrap_or(BOARD_MAX_HEIGHT)
+            .min(BOARD_MAX_HEIGHT)
+    };
     let Some(area) = place_overlay(area, BOARD_WIDTH, wanted.max(8)) else {
         return AgentBoardDraw::NotPresented(board.episode());
     };
@@ -144,19 +153,28 @@ pub(super) fn render(
         )),
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    let read = board.read();
     if rows.is_empty() {
         // No completed-read rows exist — surface the honest read state
         // (unread, in-flight, denied, …) or the "zero sessions" verdict.
-        let line = if matches!(read, AgentBoardRead::Ready { .. }) {
-            text.board.empty
+        let empty_lines = if let AgentBoardRead::Ready { complete, .. } = read {
+            let mut lines = vec![Line::from(if complete {
+                text.board.empty
+            } else {
+                text.board.empty_partial
+            })];
+            if cfg!(windows) {
+                lines.push(Line::from(text.board.empty_start));
+                lines.push(Line::from(text.board.empty_start_command));
+            }
+            lines
         } else {
-            locale.agent_board_read_line(read)
+            vec![Line::from(locale.agent_board_read_line(read))]
         };
         frame.render_widget(
-            Paragraph::new(line)
+            Paragraph::new(empty_lines)
                 .alignment(Alignment::Center)
-                .style(theme.style(Role::TextSecondary)),
+                .style(theme.style(Role::TextSecondary))
+                .wrap(Wrap { trim: true }),
             body,
         );
     } else {

@@ -17,6 +17,10 @@ caller context. `--panel` and `--current` conflict. Repeated `--arg=<value>` is 
 to trailing arguments; mixing both forms is refused. Empty arguments are retained, control
 characters are refused, and the encoded command must fit 8000 ASCII characters.
 
+After a complete empty read, the [Agent board](agent-board.md) points to this current-terminal
+command. It does not probe or choose a provider; supply a canonical provider ID, then enter the
+command from an idle Orchbee terminal.
+
 The terminal must contain an observed idle cmd, PowerShell or pwsh process. Running commands,
 missing process details and additional processes other than known console infrastructure
 refuse startup. The runtime's exact PowerShell initialization is admitted only with `-NoExit`

@@ -14,6 +14,9 @@ orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format jso
 要求有效调用者上下文。`--panel` 与 `--current` 冲突。重复的 `--arg=<value>` 可替代尾随参数，
 两种形式混用会被拒绝。保留空参数，拒绝控制字符，编码后命令不能超过 8000 个 ASCII 字符。
 
+完整读取为空后，[Agent 看板](agent-board.zh-CN.md)会指向此当前终端命令。它不会探测或替用户选择
+提供方；需要自行填写规范提供方 ID，再从空闲的 Orchbee 终端输入命令。
+
 终端必须有已观察到的空闲 cmd、PowerShell 或 pwsh 进程。运行中的命令、缺失的进程详情，
 或已知控制台基础设施以外的额外进程均拒绝启动。运行时的完整 PowerShell 初始化脚本
 仅在带有 `-NoExit` 和常规交互开关时被接受。任意命令脚本、附加参数和非交互启动仍被拒绝。

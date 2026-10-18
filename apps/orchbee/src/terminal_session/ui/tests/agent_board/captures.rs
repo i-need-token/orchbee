@@ -107,8 +107,20 @@ fn admit_fake_client<Stream: Read + Write>(
 }
 
 fn install_capture_rows(ui: &mut NativeUi) {
+    install_capture_read(ui, capture_rows(), 4);
+}
+
+fn install_capture_empty_read(ui: &mut NativeUi) {
+    install_capture_read(ui, Vec::new(), 0);
+}
+
+fn install_capture_read(
+    ui: &mut NativeUi,
+    initial_rows: Vec<AgentSessionSummary>,
+    expected_rows: usize,
+) {
     const COHORT: &str = "agent-board-capture";
-    let mut rows = Some(capture_rows());
+    let mut rows = Some(initial_rows);
     let server = crate::local_client::tests::server::FakeServer::start_connections(
         2,
         move |index, mut stream| {
@@ -150,10 +162,13 @@ fn install_capture_rows(ui: &mut NativeUi) {
     assert!(ui.drive_agent_board(true));
     server.finish().unwrap();
     let deadline = Instant::now() + Duration::from_secs(1);
-    while ui
-        .agent_board_view()
-        .is_none_or(|board| board.rows().len() != 4)
-    {
+    while ui.agent_board_view().is_none_or(|board| {
+        board.rows().len() != expected_rows
+            || !matches!(
+                board.read(),
+                crate::terminal_session::AgentBoardRead::Ready { .. }
+            )
+    }) {
         assert!(
             Instant::now() < deadline,
             "Agent list outcome did not settle"
@@ -231,13 +246,12 @@ impl CapturedBoardFrame {
     }
 }
 
-fn capture_board_frame(
+fn render_board_frame(
     ui: &NativeUi,
     width: u16,
     height: u16,
     locale: crate::localization::Locale,
     theme: &crate::tui_theme::Theme,
-    name: &str,
 ) -> CapturedBoardFrame {
     let shell = crate::client_view::ClientView::new(width);
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
@@ -257,13 +271,88 @@ fn capture_board_frame(
             );
         })
         .unwrap();
-    crate::tui_render::test_capture::capture_screen(&mut terminal, name, locale, theme);
     CapturedBoardFrame {
         terminal,
         hits: hits.finish(),
         receipt,
         width,
         height,
+    }
+}
+
+fn capture_board_frame(
+    ui: &NativeUi,
+    width: u16,
+    height: u16,
+    locale: crate::localization::Locale,
+    theme: &crate::tui_theme::Theme,
+    name: &str,
+) -> CapturedBoardFrame {
+    let mut frame = render_board_frame(ui, width, height, locale, theme);
+    crate::tui_render::test_capture::capture_screen(&mut frame.terminal, name, locale, theme);
+    frame
+}
+
+#[cfg(windows)]
+#[test]
+fn empty_board_explains_the_cli_start_path_in_both_locales_without_choosing_a_provider() {
+    let (mut ui, mailbox, clock) = fixture();
+    bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
+    install_capture_empty_read(&mut ui);
+    let theme = crate::tui_theme::Theme::terminal_native();
+
+    for (locale, width, height, empty_line) in [
+        (
+            crate::localization::Locale::EnUs,
+            120,
+            40,
+            "No Agent sessions",
+        ),
+        (crate::localization::Locale::ZhCn, 58, 12, "没有智能体会话"),
+    ] {
+        ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
+        let mut frame = render_board_frame(&ui, width, height, locale, &theme);
+        let text = frame.text();
+        let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let board_text = locale.shell().board;
+        assert!(normalized.contains(empty_line), "{locale:?}: {text:?}");
+        assert!(
+            normalized.contains(board_text.empty_start),
+            "{locale:?}: {text:?}"
+        );
+        assert!(
+            normalized.contains(board_text.empty_start_command),
+            "{locale:?}: {text:?}"
+        );
+        assert!(
+            !normalized.contains("codex"),
+            "empty guidance must not imply that an unprobed provider is installed"
+        );
+        frame.settle(&mut ui);
+
+        let context = ui
+            .agent_board_input_context()
+            .expect("the Board remains the active input owner");
+        assert!(ui.capture_agent_board_key(
+            context.episode(),
+            &crate::client_view::KeyEvent::press(
+                crate::client_view::KeyCode::Enter,
+                crate::client_view::Modifiers::NONE,
+            ),
+        ));
+        assert!(!ui.board.jumping(), "Enter has no empty-row target");
+
+        let mut pointer_frame = render_board_frame(&ui, width, height, locale, &theme);
+        pointer_frame.settle(&mut ui);
+        let open = pointer_frame
+            .control_hit(AgentBoardControl::Open)
+            .expect("Open remains visible as a disabled empty-board control");
+        assert!(
+            !ui.click_agent_board_control(&open),
+            "mouse activation without a selected row has no effect"
+        );
+        assert!(!ui.board.jumping());
     }
 }
 
