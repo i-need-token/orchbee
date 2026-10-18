@@ -1,5 +1,5 @@
 #[cfg(test)]
-pub(crate) use bindings::{PREFIX_CHORD, PREFIX_GROUPS, PrefixGroup};
+pub(crate) use bindings::PREFIX_GROUPS;
 pub(crate) const WIDE_VIEWPORT_MINIMUM_COLUMNS: u16 = 96;
 
 mod bindings;
@@ -24,12 +24,6 @@ pub(crate) use keys::{
     Binding, KeyCode, KeyEvent, KeyKind, KeyLabelGlyphs, LabelStyle, Modifiers, format_binding,
     format_binding_with_glyphs, join_key_labels,
 };
-
-#[cfg(all(windows, test))]
-const SIDEBAR_HELP_PAGES: [Binding; 2] = [
-    Binding::new(KeyCode::PageUp, Modifiers::NONE),
-    Binding::new(KeyCode::PageDown, Modifiers::NONE),
-];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ViewportClass {
@@ -941,15 +935,6 @@ impl ClientView {
         self.prefix_active = false;
         #[cfg(windows)]
         self.exit_resize_mode();
-    }
-
-    #[cfg(all(windows, test))]
-    pub(crate) fn sidebar_help_page_label() -> String {
-        SIDEBAR_HELP_PAGES
-            .iter()
-            .map(|binding| format_binding(binding, LabelStyle::for_host()))
-            .collect::<Vec<_>>()
-            .join(" / ")
     }
 
     /// Help covers the tree without creating another navigation mode.
