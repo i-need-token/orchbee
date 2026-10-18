@@ -153,23 +153,30 @@ Host 仍保持分离运行，终端 Job 包含关系不变。不附着调用者�
 
 每次创建 Windows 子进程前，Host 都会立即从
 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` 读取 Machine 环境，并从
-`HKCU\Environment` 读取 User 环境。它以 Host 继承的环境为起点，让 Windows 的进程专有值继续
-可用，再按 Machine、User 的顺序，以大小写不敏感的名称应用值。Machine 的 `USERNAME` 值会被
-排除，因为 HKLM 通常记录的是 `SYSTEM`，而非交互用户；除非 User 范围或启动输入将其替换，否则
-保留继承值。缺失的注册表项不贡献任何值。若注册表项无法读取、在有界快照期间发生超出容量的变化，
-或包含无效的已接纳字符串，该次进程启动会在创建伪 Console 之前失败。
+`HKCU\Environment` 读取 User 环境。它构建一份新 map，只先纳入继承的 Windows volatile runtime
+与 identity 值、每驱动器 current-directory 项，再以大小写不敏感名称依次应用 Machine、User
+注册表值。任意继承名称不会继续传入：从注册表删除的值会从下一个 terminal 消失；应用需要的
+process-only 值必须由 launch profile 提供。Machine 的 `USERNAME` 会被排除，因为 HKLM 通常记录
+`SYSTEM` 而非交互用户。注册表的 unnamed default value 会被忽略。缺失 key 不贡献值；不可读或
+malformed 输入以 unavailable 拒绝启动，越界输入则以 too-large 拒绝，且都发生在创建伪 Console 前。
 
 `REG_SZ` 值保持字面内容。`REG_EXPAND_SZ` 值先针对 User 优先后的同一份大小写不敏感 raw 注册表
-快照解析 `%NAME%` 依赖，再使用继承的进程专有值。展开结果不依赖注册表枚举顺序。未知依赖或
-即将闭合依赖环的 token 保持原文；有界深度与输出大小把恶意输入变成类型化启动故障。其他注册表
+快照解析 `%NAME%` 依赖，再使用已准入的继承 runtime 与 Orchbee private context。展开结果不依赖
+注册表枚举顺序。Machine `PATH` 会先完成投影；可展开 User `PATH` 中的 `%PATH%` 指向该 Machine
+投影值，绝不指向 Host 的过时 `PATH`。未知依赖或会闭合其他依赖环的 token 保持原文。其他注册表
 值类型不作为环境输入。
 
-只要任一注册表范围提供 `PATH`，继承的 `PATH` 就会由展开后的 Machine 片段加 User 片段取代。
-精确片段按大小写不敏感规则去重，同时保留首次出现的位置与顺序；不会 trim 或 normalize。
-若两个范围都未提供 `PATH`，则保留继承值。随后最后应用有序启动环境，因此已授权的启动项、
-删除项及每个 creation 私有的 Orchbee overlay 拥有最终优先级。Deferred terminal 在实际启动时
-取得快照，每次 spawn 失败后的重试都会重新读取。已经启动的 terminal 不受影响；非 Windows
-启动行为继续使用继承的进程环境及相同的有序启动输入。
+有效 `PATH` 是展开后的 Machine 值再接 User 值。精确片段按大小写不敏感规则去重，同时保留首次
+出现的位置与顺序；不会 trim 或 normalize。若两个范围都未提供 `PATH`，不会合成过时的继承
+`PATH`。继承的 `ORCHBEE_*` 会在注册表后重新应用，使注册表数据无法替换 live Session context。
+有序启动环境随后应用，其中已授权项与删除项先于每个 creation 私有的 Orchbee overlay，因此拥有
+最终优先级。Deferred terminal 在实际启动时取得快照，每次 spawn 失败后的重试都会重新读取。
+已启动 terminal 不受影响；非 Windows 启动行为继续使用继承进程环境及相同的有序启动输入。
+
+两个注册表范围合计最多准入 256 个枚举值，以及 512 KiB 存储后的 WTF-8 name、value 与 entry
+separator。单个已准入注册表值、单次展开输出及合并后的 `PATH` 各自最多准入 256 KiB。最终投影
+map 最多准入 1,536 项，以及 1 MiB 存储后的 WTF-8 name、value 与 entry separator。真实注册表
+读取器与确定性快照投影执行相同 limit，以 typed size failure 拒绝越界输入，而不截断输入。
 
 ### Windows observation 传输运行时
 

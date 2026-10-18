@@ -6,7 +6,7 @@ const subject = platform.process.testing.windows_environment;
 const EnvironmentDelta = platform.process.EnvironmentDelta;
 const EnvironmentMap = std.process.Environ.Map;
 
-test "Windows terminal environment refreshes registry PATH and preserves process-only values" {
+test "Windows terminal environment refreshes PATH and preserves admitted runtime values" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var inherited = EnvironmentMap.init(std.testing.allocator);
     defer inherited.deinit();
@@ -14,6 +14,7 @@ test "Windows terminal environment refreshes registry PATH and preserves process
     try inherited.put("USERPROFILE", "C:\\Users\\alice");
     try inherited.put("USERNAME", "alice");
     try inherited.put("ComSpec", "C:\\Windows\\System32\\cmd.exe");
+    try inherited.put("STALE_REMOVED", "service-start-value");
 
     const machine = [_]subject.Value{
         .{ .name = "SystemRoot", .value = "C:\\Windows", .kind = .literal },
@@ -46,6 +47,7 @@ test "Windows terminal environment refreshes registry PATH and preserves process
         environment.get("COMSPEC").?,
     );
     try std.testing.expectEqualStrings("user", environment.get("SCOPEVALUE").?);
+    try std.testing.expect(environment.get("STALE_REMOVED") == null);
 }
 
 test "Windows terminal environment resolves dependencies and bounds cycles and unknown names" {
@@ -95,15 +97,19 @@ test "Windows terminal environment gives launch entries and session overlays fin
     try inherited.put("MARKER", "inherited");
     try inherited.put("PATH", "inherited-path");
     try inherited.put("ORCHBEE_TERMINAL_ID", "inherited-terminal");
+    try inherited.put("ORCHBEE_SESSION", "current-session");
+    try inherited.put("ORCHBEE_RUNTIME_BASE", "C:\\current-runtime");
     try inherited.put("REMOVED", "inherited");
     const machine = [_]subject.Value{
         .{ .name = "MARKER", .value = "machine", .kind = .literal },
         .{ .name = "Path", .value = "machine-path", .kind = .literal },
+        .{ .name = "ORCHBEE_RUNTIME_BASE", .value = "C:\\spoofed-machine", .kind = .literal },
         .{ .name = "REMOVED", .value = "machine", .kind = .literal },
     };
     const user = [_]subject.Value{
         .{ .name = "marker", .value = "user", .kind = .literal },
         .{ .name = "PATH", .value = "user-path", .kind = .literal },
+        .{ .name = "orchbee_session", .value = "spoofed-user", .kind = .literal },
     };
     const delta = [_]EnvironmentDelta{
         .{ .name = "Marker", .value = "explicit" },
@@ -127,6 +133,11 @@ test "Windows terminal environment gives launch entries and session overlays fin
     try std.testing.expectEqualStrings(
         "current-terminal",
         environment.get("orchbee_terminal_id").?,
+    );
+    try std.testing.expectEqualStrings("current-session", environment.get("ORCHBEE_SESSION").?);
+    try std.testing.expectEqualStrings(
+        "C:\\current-runtime",
+        environment.get("orchbee_runtime_base").?,
     );
     try std.testing.expect(environment.get("REMOVED") == null);
 }
@@ -159,11 +170,41 @@ test "Windows terminal environment expands each PATH value according to its own 
     );
 }
 
+test "Windows terminal environment expands User PATH against projected Machine PATH" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var inherited = EnvironmentMap.init(std.testing.allocator);
+    defer inherited.deinit();
+    try inherited.put("PATH", "C:\\stale-service");
+    const machine = [_]subject.Value{
+        .{ .name = "Path", .value = "C:\\Windows;C:\\Tools", .kind = .literal },
+    };
+    const user = [_]subject.Value{
+        .{ .name = "PATH", .value = "%PATH%;C:\\new;c:\\tools", .kind = .expandable },
+    };
+    var environment = try subject.buildEnvironment(
+        std.testing.allocator,
+        &inherited,
+        .{
+            .machine = .{ .values = &machine },
+            .user = .{ .values = &user },
+        },
+        &.{},
+    );
+    defer environment.deinit();
+
+    try std.testing.expectEqualStrings(
+        "C:\\Windows;C:\\Tools;C:\\new",
+        environment.get("PATH").?,
+    );
+}
+
 test "Windows terminal environment handles missing scopes and fails on registry errors" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var inherited = EnvironmentMap.init(std.testing.allocator);
     defer inherited.deinit();
     try inherited.put("PATH", "inherited-path");
+    try inherited.put("ComSpec", "C:\\Windows\\System32\\cmd.exe");
+    try inherited.put("REMOVED_FROM_REGISTRY", "stale");
     var environment = try subject.buildEnvironment(
         std.testing.allocator,
         &inherited,
@@ -171,7 +212,12 @@ test "Windows terminal environment handles missing scopes and fails on registry 
         &.{.{ .name = "EXPLICIT", .value = "value" }},
     );
     defer environment.deinit();
-    try std.testing.expectEqualStrings("inherited-path", environment.get("path").?);
+    try std.testing.expect(environment.get("path") == null);
+    try std.testing.expect(environment.get("REMOVED_FROM_REGISTRY") == null);
+    try std.testing.expectEqualStrings(
+        "C:\\Windows\\System32\\cmd.exe",
+        environment.get("comspec").?,
+    );
     try std.testing.expectEqualStrings("value", environment.get("explicit").?);
 
     for ([_]subject.Snapshot{
@@ -183,6 +229,35 @@ test "Windows terminal environment handles missing scopes and fails on registry 
             subject.buildEnvironment(std.testing.allocator, &inherited, snapshot, &.{}),
         );
     }
+    try std.testing.expectError(
+        error.RegistrySnapshotTooLarge,
+        subject.buildEnvironment(
+            std.testing.allocator,
+            &inherited,
+            .{ .machine = .too_large, .user = .missing },
+            &.{},
+        ),
+    );
+}
+
+test "Windows terminal environment ignores unnamed registry default values" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var inherited = EnvironmentMap.init(std.testing.allocator);
+    defer inherited.deinit();
+    const values = [_]subject.Value{
+        .{ .name = "", .value = "not-an-environment-variable", .kind = .literal },
+        .{ .name = "NAMED", .value = "kept", .kind = .literal },
+    };
+    var environment = try subject.buildEnvironment(
+        std.testing.allocator,
+        &inherited,
+        .{ .machine = .{ .values = &values }, .user = .missing },
+        &.{},
+    );
+    defer environment.deinit();
+
+    try std.testing.expectEqual(@as(usize, 1), environment.keys().len);
+    try std.testing.expectEqualStrings("kept", environment.get("NAMED").?);
 }
 
 test "Windows terminal environment consumes the current snapshot for each launch" {

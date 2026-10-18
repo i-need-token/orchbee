@@ -52,23 +52,33 @@ ConPTY 丢弃粘贴边界；用键盘布局查询解释零键码 ESC 也会丢�
 ## Windows 子进程环境
 
 每个新的 Windows terminal 都会在 Terminal Host 的进程创建边界读取当前 Machine 与 User 环境
-值。确定性投影保留 Windows 的继承进程专有值，再以大小写不敏感的名称应用 Machine 与 User
-注册表字符串。Machine `USERNAME` 会被排除，因为 HKLM 通常记录 `SYSTEM` 而非交互用户。缺失的
-注册表范围视为空；无法读取、格式错误或超出边界的范围会在取得 PTY 所有权前使新启动失败。
+值。确定性投影从一份新环境开始，只先纳入闭集内继承的 volatile Windows runtime 与 identity 值
+以及每驱动器 current-directory 项，再以大小写不敏感名称应用 Machine 与 User 注册表字符串。
+Machine `USERNAME` 会被排除，因为 HKLM 通常记录 `SYSTEM` 而非交互用户。任意 process-only 名称
+不会被继承：从注册表删除后，它会从下一个 terminal 消失；必需的 process-only 值应放入 launch
+profile。注册表 unnamed default value 会被忽略。缺失范围视为空；不可读或 malformed 范围以
+unavailable 失败，越界范围以 too-large 失败，且都发生在取得 PTY 所有权前。
 
 只有 `REG_EXPAND_SZ` 值会展开 `%NAME%`。依赖先从 User 优先于 Machine 的 raw 快照解析，再从
-继承值解析，且不受注册表枚举顺序影响。未知名称与环中的递归 token 保持字面内容；深度与大小
-限制则按关闭失败处理。存在注册表 `PATH` 时，其有效值依次为展开后的 Machine `PATH` 与 User
-`PATH`，大小写不敏感的精确重复片段按首次出现顺序移除。若两个范围都不拥有 `PATH`，则保留
-继承值。
+已准入的继承 runtime 与 Orchbee private 值解析，且不受注册表枚举顺序影响。Machine `PATH` 会先
+完成投影，因此可展开 User `PATH` 中的 `%PATH%` 引用新的 Machine phase，而非 Host 的过时
+`PATH`。未知名称与其他环中的递归 token 保持字面内容；深度与大小限制按关闭失败处理。有效
+`PATH` 依次为展开后的 Machine `PATH` 与 User `PATH`，大小写不敏感的精确重复片段按首次出现
+顺序移除。若两个范围都不拥有 `PATH`，则不会合成继承的 `PATH`。
 
-已授权的启动环境项和删除项在注册表投影之后应用；每个 creation 私有的 Orchbee overlay 随后
-应用。因此，这些有序输入拥有最终优先级。Deferred creation 仅在尝试创建进程时读取注册表，
-重试会读取新快照。运行中的 terminal 保留其原始子进程环境。非 Windows terminal 维持既有的
-继承环境投影。确定性快照测试覆盖名称匹配、展开依赖、未解析名称、环、缺失和无法读取的范围、
-`PATH` 顺序与去重、进程专有值、启动优先级及不同启动之间的刷新。受控的原生 Windows 见证还须
-保持 Site 运行，修改一条可还原的 User `PATH` 项，并证明只有随后创建的 terminal 能解析新命令，
-然后还原该项。
+继承的 `ORCHBEE_*` 会在注册表投影后重新应用。已授权启动环境项与删除项随后应用，每个 creation
+私有的 Orchbee overlay 再随后应用。因此 live Session 与显式启动输入的优先级高于注册表数据。
+Deferred creation 仅在尝试创建进程时读取注册表，重试会读取新快照。运行中的 terminal 保留其
+原始子进程环境。非 Windows terminal 维持既有的继承环境投影。
+
+两个注册表范围合计最多准入 256 个枚举值，以及 512 KiB 存储后的 WTF-8 name、value 与 entry
+separator。单个已准入注册表值、单次展开输出及合并后的 `PATH` 各自最多准入 256 KiB。最终投影
+map 最多准入 1,536 项，以及 1 MiB 存储后的 WTF-8 name、value 与 entry separator。真实读取器与
+纯投影以 typed size failure 拒绝越界输入，而不截断。确定性测试覆盖这些边界、名称匹配、展开依赖、
+User `%PATH%` phase 语义、未解析名称、环、
+unnamed value、缺失和不可读范围、`PATH` 顺序与去重、继承准入、启动优先级及不同启动之间的刷新。
+受控的原生 Windows 见证还须保持 Site 运行，修改一条可还原的 User `PATH` 项，并证明只有随后创建的
+terminal 能解析新命令，然后还原该项。
 
 ## VT 命令输出
 

@@ -216,28 +216,37 @@ and [new-process-group behavior](https://learn.microsoft.com/en-us/windows/win32
 
 Immediately before every Windows child-process spawn, the Host reads the Machine environment from
 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` and the User environment from
-`HKCU\Environment`. It starts with the Host's inherited environment so process-only Windows values
-remain available, then applies Machine values followed by User values with case-insensitive names.
-The Machine `USERNAME` value is excluded because HKLM commonly records `SYSTEM` rather than the
-interactive user; the inherited value remains unless the User scope or launch inputs replace it.
-Missing registry keys contribute no values. A key that cannot be read, changes beyond the bounded
-snapshot, or contains an invalid admitted string fails that process start before the pseudoconsole
-is created.
+`HKCU\Environment`. It builds a fresh map containing only the inherited volatile Windows runtime and
+identity values, per-drive current-directory entries, and then Machine followed by User registry
+values under case-insensitive names. Arbitrary inherited names are not carried forward: a value
+removed from the registry disappears from the next terminal, and a process-only value that an
+application needs must be supplied by the launch profile. The Machine `USERNAME` value is excluded
+because HKLM commonly records `SYSTEM` rather than the interactive user. The registry's unnamed
+default value is ignored. Missing keys contribute no values; unreadable or malformed input fails
+the launch as unavailable, while a bound violation fails as too large, before pseudoconsole creation.
 
 `REG_SZ` values remain literal. `REG_EXPAND_SZ` values resolve `%NAME%` dependencies against one raw,
-case-insensitive registry snapshot after User precedence, then against inherited process-only values.
-Expansion does not depend on registry enumeration order. An unknown dependency or the token that
-would close a dependency cycle remains verbatim; bounded depth and output size turn hostile input
-into a typed launch failure. Other registry value types are not environment inputs.
+case-insensitive registry snapshot after User precedence, then against the admitted inherited runtime
+and private Orchbee context. Expansion does not depend on registry enumeration order. Machine `PATH`
+is projected first; `%PATH%` in an expandable User `PATH` refers to that projected Machine value,
+never to the Host's stale `PATH`. An unknown dependency or the token that would close any other
+dependency cycle remains verbatim. Other registry value types are not environment inputs.
 
-If either registry scope supplies `PATH`, the inherited `PATH` is replaced by the expanded Machine
-segments followed by the expanded User segments. Exact segments are deduplicated case-insensitively
-while preserving first occurrence and order; they are not trimmed or normalized. If neither scope
-supplies `PATH`, the inherited value remains. The ordered launch environment then applies last, so
-authorized launch entries, removals, and the per-creation private Orchbee overlay have final
-priority. A deferred terminal takes this snapshot when it actually starts, and every failed-spawn
-retry reads it again. Already-started terminals are unchanged, and non-Windows launch behavior keeps
-using the inherited process environment plus the same ordered launch inputs.
+Effective `PATH` is the expanded Machine value followed by the expanded User value. Exact segments
+are deduplicated case-insensitively while preserving first occurrence and order; they are not trimmed
+or normalized. If neither scope supplies `PATH`, no stale inherited `PATH` is synthesized. Inherited
+`ORCHBEE_*` values are reapplied after the registry so registry data cannot replace live Session
+context. The ordered launch environment follows, with authorized entries and removals before the
+per-creation private Orchbee overlay, and therefore has final priority. A deferred terminal takes
+this snapshot when it actually starts, and every failed-spawn retry reads it again. Already-started
+terminals are unchanged, and non-Windows launch behavior keeps using the inherited process
+environment plus the same ordered launch inputs.
+
+The two registry scopes admit at most 256 enumerated values and 512 KiB of stored WTF-8 names,
+values, and entry separators in aggregate. One admitted registry value, one expanded output, and the
+combined `PATH` each admit at most 256 KiB. The final projected map admits at most 1,536 entries and
+1 MiB of stored WTF-8 names, values, and entry separators. The real registry reader and deterministic
+snapshot projection enforce the same limits and return typed size failures rather than truncating input.
 
 ### Windows observation transport runtime
 

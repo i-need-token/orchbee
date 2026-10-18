@@ -5,9 +5,22 @@ const std = @import("std");
 const EnvironmentMap = std.process.Environ.Map;
 const windows = std.os.windows;
 
-const maximum_registry_values: windows.DWORD = 4096;
-const maximum_registry_name_code_units: windows.DWORD = 32 * 1024;
-const maximum_registry_value_bytes: windows.DWORD = 1024 * 1024;
+pub const Limits = struct {
+    /// Both scopes combined. A normal interactive environment is far below
+    /// this, while the bound keeps enumeration and projection work finite.
+    pub const registry_values: usize = 256;
+    /// Stored WTF-8 names and values, including their entry separators.
+    pub const registry_snapshot_bytes: usize = 512 * 1024;
+    pub const registry_name_code_units: usize = 32 * 1024;
+    pub const registry_name_wtf8_bytes: usize = 3 * registry_name_code_units;
+    pub const registry_value_bytes: usize = 256 * 1024;
+    pub const expanded_value_bytes: usize = 256 * 1024;
+    pub const projected_environment_entries: usize = 1536;
+    pub const projected_environment_bytes: usize = 1024 * 1024;
+};
+
+const maximum_registry_name_code_units: windows.DWORD = Limits.registry_name_code_units;
+const maximum_registry_value_bytes: windows.DWORD = Limits.registry_value_bytes;
 
 const error_success: windows.LSTATUS = 0;
 const error_file_not_found: windows.LSTATUS = 2;
@@ -36,6 +49,7 @@ pub const Value = struct {
 pub const Scope = union(enum) {
     missing,
     unavailable,
+    too_large,
     values: []const Value,
 };
 
@@ -47,6 +61,7 @@ pub const Snapshot = struct {
 const OwnedScope = union(enum) {
     missing,
     unavailable,
+    too_large,
     values: []Value,
 
     fn deinit(self: *OwnedScope, allocator: std.mem.Allocator) void {
@@ -58,7 +73,7 @@ const OwnedScope = union(enum) {
                 }
                 allocator.free(values);
             },
-            .missing, .unavailable => {},
+            .missing, .unavailable, .too_large => {},
         }
         self.* = .missing;
     }
@@ -67,8 +82,28 @@ const OwnedScope = union(enum) {
         return switch (self.*) {
             .missing => .missing,
             .unavailable => .unavailable,
+            .too_large => .too_large,
             .values => |values| .{ .values = values },
         };
+    }
+};
+
+const SnapshotBudget = struct {
+    values: usize = 0,
+    bytes: usize = 0,
+
+    fn reserveValues(self: *SnapshotBudget, count: windows.DWORD) bool {
+        const additional: usize = @intCast(count);
+        if (additional > Limits.registry_values -| self.values) return false;
+        self.values += additional;
+        return true;
+    }
+
+    fn reserveBytes(self: *SnapshotBudget, name: []const u8, value: []const u8) bool {
+        const additional = name.len +| value.len +| 2;
+        if (additional > Limits.registry_snapshot_bytes -| self.bytes) return false;
+        self.bytes += additional;
+        return true;
     }
 };
 
@@ -91,10 +126,12 @@ pub const OwnedSnapshot = struct {
 };
 
 pub fn readSnapshot(allocator: std.mem.Allocator) std.mem.Allocator.Error!OwnedSnapshot {
+    var budget: SnapshotBudget = .{};
     var machine = try readScope(
         allocator,
         windows.HKEY_LOCAL_MACHINE,
         machine_environment_key,
+        &budget,
     );
     errdefer machine.deinit(allocator);
     return .{
@@ -103,6 +140,7 @@ pub fn readSnapshot(allocator: std.mem.Allocator) std.mem.Allocator.Error!OwnedS
             allocator,
             windows.HKEY_CURRENT_USER,
             user_environment_key,
+            &budget,
         ),
     };
 }
@@ -111,6 +149,7 @@ fn readScope(
     allocator: std.mem.Allocator,
     root: windows.HKEY,
     path: [*:0]const u16,
+    budget: *SnapshotBudget,
 ) std.mem.Allocator.Error!OwnedScope {
     var key: windows.HKEY = undefined;
     const opened = RegOpenKeyExW(root, path, 0, key_query_value, &key);
@@ -120,7 +159,6 @@ fn readScope(
 
     var value_count: windows.DWORD = 0;
     var maximum_name_length: windows.DWORD = 0;
-    var maximum_data_length: windows.DWORD = 0;
     if (RegQueryInfoKeyW(
         key,
         null,
@@ -131,23 +169,16 @@ fn readScope(
         null,
         &value_count,
         &maximum_name_length,
-        &maximum_data_length,
         null,
         null,
-    ) != error_success or
-        value_count > maximum_registry_values or
-        maximum_name_length > maximum_registry_name_code_units or
-        maximum_data_length > maximum_registry_value_bytes)
-    {
-        return .unavailable;
-    }
+        null,
+    ) != error_success) return .unavailable;
+    if (!budget.reserveValues(value_count) or
+        maximum_name_length > maximum_registry_name_code_units) return .too_large;
 
     const name_capacity: usize = @as(usize, maximum_name_length) + 1;
-    const data_capacity: usize = @max(@as(usize, maximum_data_length), 2);
     const name_buffer = try allocator.alloc(u16, name_capacity);
     defer allocator.free(name_buffer);
-    const data_buffer = try allocator.alloc(u8, data_capacity);
-    defer allocator.free(data_buffer);
     var values: std.ArrayList(Value) = .empty;
     defer {
         for (values.items) |value| {
@@ -160,7 +191,7 @@ fn readScope(
     var index: windows.DWORD = 0;
     while (true) : (index += 1) {
         var name_length: windows.DWORD = @intCast(name_buffer.len);
-        var data_length: windows.DWORD = @intCast(data_buffer.len);
+        var data_length: windows.DWORD = 0;
         var value_type: windows.DWORD = 0;
         const status = RegEnumValueW(
             key,
@@ -169,28 +200,64 @@ fn readScope(
             &name_length,
             null,
             &value_type,
-            data_buffer.ptr,
+            null,
             &data_length,
         );
-        if (status == error_no_more_items) break;
-        if (status != error_success or index >= maximum_registry_values) return .unavailable;
+        if (status == error_no_more_items) {
+            if (index == value_count) break;
+            return .unavailable;
+        }
+        // A successful entry beyond the queried count means the key changed
+        // under enumeration. Refuse the inconsistent snapshot rather than
+        // silently exceeding the preflighted aggregate count.
+        if (status != error_success or index >= value_count) return .unavailable;
         if (value_type != reg_sz and value_type != reg_expand_sz) continue;
-        if (name_length == 0 or
-            name_length > name_buffer.len or
-            data_length > data_buffer.len)
+        if (name_length > name_buffer.len) return .unavailable;
+        // The registry key's unnamed/default value is metadata, not an
+        // environment variable name.
+        if (name_length == 0) continue;
+        if (data_length > maximum_registry_value_bytes) return .too_large;
+        const probed_name = try std.unicode.wtf16LeToWtf8Alloc(
+            allocator,
+            name_buffer[0..name_length],
+        );
+        defer allocator.free(probed_name);
+        if (!EnvironmentMap.validateKeyForPut(probed_name)) {
+            return .unavailable;
+        }
+        if (probed_name.len > Limits.registry_name_wtf8_bytes) return .too_large;
+
+        const data_buffer = try allocator.alloc(u8, @max(@as(usize, data_length), 2));
+        defer allocator.free(data_buffer);
+        var read_name_length: windows.DWORD = @intCast(name_buffer.len);
+        var read_data_length: windows.DWORD = @intCast(data_buffer.len);
+        var read_value_type: windows.DWORD = 0;
+        if (RegEnumValueW(
+            key,
+            index,
+            name_buffer.ptr,
+            &read_name_length,
+            null,
+            &read_value_type,
+            data_buffer.ptr,
+            &read_data_length,
+        ) != error_success or
+            read_name_length != name_length or
+            read_value_type != value_type or
+            read_data_length > data_buffer.len)
         {
             return .unavailable;
         }
         const name = try std.unicode.wtf16LeToWtf8Alloc(
             allocator,
-            name_buffer[0..name_length],
+            name_buffer[0..read_name_length],
         );
         errdefer allocator.free(name);
-        if (!EnvironmentMap.validateKeyForPut(name)) {
+        if (!std.mem.eql(u8, probed_name, name)) {
             allocator.free(name);
             return .unavailable;
         }
-        const value = decodeString(allocator, data_buffer[0..data_length]) catch |err| switch (err) {
+        const value = decodeString(allocator, data_buffer[0..read_data_length]) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.InvalidRegistryString => {
                 allocator.free(name);
@@ -198,6 +265,16 @@ fn readScope(
             },
         };
         errdefer allocator.free(value);
+        if (value.len > Limits.registry_value_bytes) {
+            allocator.free(value);
+            allocator.free(name);
+            return .too_large;
+        }
+        if (!budget.reserveBytes(name, value)) {
+            allocator.free(value);
+            allocator.free(name);
+            return .too_large;
+        }
         try values.append(allocator, .{
             .name = name,
             .value = value,
@@ -256,6 +333,6 @@ extern "advapi32" fn RegEnumValueW(
     value_name_length: *windows.DWORD,
     reserved: ?*windows.DWORD,
     value_type: *windows.DWORD,
-    data: [*]u8,
+    data: ?[*]u8,
     data_length: *windows.DWORD,
 ) callconv(.winapi) windows.LSTATUS;

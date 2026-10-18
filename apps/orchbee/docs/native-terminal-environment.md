@@ -62,28 +62,42 @@ the mouse. Restoration reinstates the original saved console input/output modes.
 ## Windows child-process environment
 
 Each new Windows terminal reads current Machine and User environment values at the Terminal Host's
-process-spawn boundary. The deterministic projection retains inherited process-only Windows values,
-then applies Machine and User registry strings using case-insensitive names. Machine `USERNAME` is
-excluded because HKLM commonly records `SYSTEM` instead of the interactive user. Missing registry
-scopes are empty; an unreadable, malformed or out-of-bounds scope fails the new launch before PTY
-ownership begins.
+process-spawn boundary. The deterministic projection starts fresh with a closed set of inherited
+volatile Windows runtime and identity values plus per-drive current-directory entries, then applies
+Machine and User registry strings using case-insensitive names. Machine `USERNAME` is excluded
+because HKLM commonly records `SYSTEM` instead of the interactive user. An arbitrary process-only
+name is not inherited: removing it from the registry removes it from the next terminal, while a
+required process-only value belongs in the launch profile. The registry's unnamed default value is
+ignored. Missing registry scopes are empty; an unreadable or malformed scope fails as unavailable,
+and an out-of-bounds scope fails as too large, before PTY ownership begins.
 
 Only `REG_EXPAND_SZ` values expand `%NAME%`. Dependencies resolve from the raw User-over-Machine
-snapshot and then from inherited values, independent of registry enumeration order. Unknown names
-and the recursive token in a cycle remain literal, while depth and size limits fail closed. When a
-registry `PATH` exists, its effective value is expanded Machine `PATH` followed by User `PATH`, with
-exact case-insensitive duplicate segments removed in first-occurrence order. If neither scope owns
-`PATH`, the inherited value remains.
+snapshot and then from admitted inherited runtime and private Orchbee values, independent of registry
+enumeration order. Machine `PATH` is projected first, so `%PATH%` in an expandable User `PATH`
+references the fresh Machine phase rather than the Host's stale `PATH`. Unknown names and the
+recursive token in other cycles remain literal, while depth and size limits fail closed. Effective
+`PATH` is expanded Machine `PATH` followed by User `PATH`, with exact case-insensitive duplicate
+segments removed in first-occurrence order. If neither scope owns `PATH`, no inherited `PATH` is
+synthesized.
 
-Authorized launch environment entries and removals apply after the registry projection; the
-creation-private Orchbee overlay follows them. These ordered inputs therefore have final priority.
-Deferred creation reads the registry only when process spawn is attempted, and a retry reads a new
-snapshot. A running terminal keeps its original child environment. Non-Windows terminals retain
-their existing inherited-environment projection. Deterministic snapshot tests cover name matching,
-expansion dependencies, unresolved names, cycles, missing and unreadable scopes, `PATH` order and
-deduplication, process-only values, launch priority and separate-launch refresh. A controlled native
-Windows witness must additionally keep the Site alive, change a reversible User `PATH` entry, and
-prove only a subsequently created terminal resolves the new command before restoring that entry.
+Inherited `ORCHBEE_*` values are reapplied after registry projection. Authorized launch environment
+entries and removals follow, and the creation-private Orchbee overlay follows them. Live Session and
+explicit launch inputs therefore outrank registry data. Deferred creation reads the registry only
+when process spawn is attempted, and a retry reads a new snapshot. A running terminal keeps its
+original child environment. Non-Windows terminals retain their existing inherited-environment
+projection.
+
+The two registry scopes admit at most 256 enumerated values and 512 KiB of stored WTF-8 names,
+values, and entry separators in aggregate. One admitted registry value, one expanded output, and the
+combined `PATH` each admit at most 256 KiB. The final projected map admits at most 1,536 entries and
+1 MiB of stored WTF-8 names, values, and entry separators. The real reader and pure projection return
+typed size failures rather than truncating. Deterministic tests cover these boundaries, name matching,
+expansion dependencies,
+User `%PATH%` phase semantics, unresolved names, cycles, unnamed values, missing and unreadable
+scopes, `PATH` order and deduplication, inherited admission, launch priority and separate-launch
+refresh. A controlled native Windows witness must additionally keep the Site alive, change a
+reversible User `PATH` entry, and prove only a subsequently created terminal resolves the new command
+before restoring that entry.
 
 ## VT command output
 
