@@ -281,8 +281,15 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 并限制列表中的显示宽度。
 
 这些投影消费单个已验证 Workbench 快照，保留其来源修订号、仅连接已有 Session 的准入、
-有界输出和无 TUI 时的可用性。不执行导航或变更；运行时观察见下文。Windows 在这六个 list/get
-查询中接受可选 `--client <id>`，补充全局焦点和 Client 在各 Workspace 记住的活动 Tab。
+有界输出和无 TUI 时的可用性。不执行导航或变更；运行时观察见下文。
+
+人类文本中的 `workspace list` 和 `tab list` 只呈现快照 Text 表格，不执行可选的
+`Agent`、`worktree`、`metadata` 或 `viewport` 关联。指定 `--client <id>` 时，Text 仍会核验
+该精确就绪 Client 的当前选择及成员关系，但不增加文本列。下文所述关联和最终一致性检查仍适用于
+这两个列表的 JSON，以及其他既有使用这些关联的查询。
+
+在 JSON 中，Windows 在这六个 list/get 查询中接受可选 `--client <id>`，用于补充全局焦点
+和 Client 在各 Workspace 记住的活动 Tab。
 [Client 查询契约](windows-client-control.zh-CN.md#client-相对-workbench-查询)定义这一有界只读关联、
 来源记录与一致性检查。Schema 版本为 `orchbee.workspace.list/get` 6、`orchbee.tab.list` 4、
 `orchbee.tab.get` 5 和 `orchbee.panel.list/get` 9；使用 `api schema` 发现完整内嵌目录。
@@ -291,7 +298,8 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 进程和 worktree 观察使用下文所述的各自所有者；上报元数据仍由独立所有者负责，拓扑字段不代表已实现它。
 
 验证覆盖全局重排与筛选后不重新编号、空树与嵌套树、子 presentation 和未绑定叶节点、
-列表/详情一致、自动标签、文本转义，以及真实 Windows 查询文档的 schema 校验。
+列表/详情一致、自动标签、文本转义，以及真实 Windows 查询文档的 schema 校验。`WorkbenchQuery`
+组合见证检查两种语言下只含表格的 Text 输出，并确认 JSON 路径不会进入该快捷分支。
 
 ## Workbench Agent 汇总
 

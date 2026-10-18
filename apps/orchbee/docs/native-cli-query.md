@@ -349,9 +349,17 @@ JSON preserves labels exactly; text escapes them and bounds list display width.
 
 These projections consume one validated Workbench snapshot and retain its source
 revision, existing-only admission, bounded output, and headless availability. They
-perform no navigation or mutation. Runtime observations are described below. Windows accepts optional
-`--client <id>` on these six list/get queries to add global focus and the Client's
-remembered active Tab in each Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
+perform no navigation or mutation. Runtime observations are described below.
+
+Human `workspace list` and `tab list` output uses snapshot-only Text tables, with no
+optional `Agent`, `worktree`, `metadata` or `viewport` joins. With `--client <id>`,
+Text still validates that exact ready Client's current selection and membership but
+adds no columns. The joins and final consistency checks described below still apply
+to JSON for these two lists and to other existing queries that use them.
+
+Under JSON, Windows accepts optional `--client <id>` on these six list/get
+queries to add global focus and the Client's remembered active Tab in each
+Workspace. The [Client query contract](windows-client-control.md#client-relative-workbench-queries)
 owns this bounded, read-only join and its provenance and consistency checks.
 Schema versions are `orchbee.workspace.list/get` 6, `orchbee.tab.list` 4,
 `orchbee.tab.get` 5 and `orchbee.panel.list/get` 9; discover the complete embedded catalog
@@ -363,7 +371,9 @@ reported metadata remains a separate owner and is not implied by topology fields
 
 Verification covers global reorder and filtering without renumbering, empty and
 nested trees, child presentations and unbound leaves, list/get agreement, automatic
-labels, escaped text and schema validation of real Windows query documents.
+labels, escaped text and schema validation of real Windows query documents. A composed
+`WorkbenchQuery` witness checks table-only Text output in both locales and confirms the
+JSON path does not enter that shortcut.
 
 ## Workbench Agent summaries
 
