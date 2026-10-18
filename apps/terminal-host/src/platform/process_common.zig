@@ -11,7 +11,12 @@ pub fn environmentForLaunch(
     allocator: std.mem.Allocator,
     delta: []const process_types.EnvironmentDelta,
 ) !std.process.Environ.Map {
-    var environment = try currentEnvironment().createMap(allocator);
+    var inherited = try currentEnvironment().createMap(allocator);
+    if (builtin.os.tag == .windows) {
+        defer inherited.deinit();
+        return @import("windows_environment.zig").current(allocator, &inherited, delta);
+    }
+    var environment = inherited;
     errdefer environment.deinit();
     for (delta) |entry| {
         if (entry.value) |value| {

@@ -212,6 +212,33 @@ handling before successful child exit. An input acknowledgement alone cannot sat
 See Microsoft's [inherited handler attribute](https://learn.microsoft.com/windows/console/setconsolectrlhandler)
 and [new-process-group behavior](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags).
 
+### Windows terminal child environment
+
+Immediately before every Windows child-process spawn, the Host reads the Machine environment from
+`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` and the User environment from
+`HKCU\Environment`. It starts with the Host's inherited environment so process-only Windows values
+remain available, then applies Machine values followed by User values with case-insensitive names.
+The Machine `USERNAME` value is excluded because HKLM commonly records `SYSTEM` rather than the
+interactive user; the inherited value remains unless the User scope or launch inputs replace it.
+Missing registry keys contribute no values. A key that cannot be read, changes beyond the bounded
+snapshot, or contains an invalid admitted string fails that process start before the pseudoconsole
+is created.
+
+`REG_SZ` values remain literal. `REG_EXPAND_SZ` values resolve `%NAME%` dependencies against one raw,
+case-insensitive registry snapshot after User precedence, then against inherited process-only values.
+Expansion does not depend on registry enumeration order. An unknown dependency or the token that
+would close a dependency cycle remains verbatim; bounded depth and output size turn hostile input
+into a typed launch failure. Other registry value types are not environment inputs.
+
+If either registry scope supplies `PATH`, the inherited `PATH` is replaced by the expanded Machine
+segments followed by the expanded User segments. Exact segments are deduplicated case-insensitively
+while preserving first occurrence and order; they are not trimmed or normalized. If neither scope
+supplies `PATH`, the inherited value remains. The ordered launch environment then applies last, so
+authorized launch entries, removals, and the per-creation private Orchbee overlay have final
+priority. A deferred terminal takes this snapshot when it actually starts, and every failed-spawn
+retry reads it again. Already-started terminals are unchanged, and non-Windows launch behavior keeps
+using the inherited process environment plus the same ordered launch inputs.
+
 ### Windows observation transport runtime
 
 Windows x64 development cohorts stage Microsoft ConPTY `1.25.260930003` (Terminal

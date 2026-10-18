@@ -36,6 +36,7 @@ pub const testing = if (builtin.is_test) struct {
     pub const SessionIdentityStateType = posix_process.SessionIdentityState;
     pub const windowsCommandLineFn = windows_process.windowsCommandLine;
     pub const windowsBatchCommandLineFn = @import("windows_command_line.zig").batch;
+    pub const windows_environment = @import("windows_environment.zig").testing;
     pub const windowsSearchCandidatesFn = windows_process.windowsSearchCandidates;
     pub const windowsTerminatedExitResultFn = windows_process.windowsTerminatedExitResult;
 } else struct {};

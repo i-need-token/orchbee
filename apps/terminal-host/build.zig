@@ -483,6 +483,7 @@ pub fn build(builder: *std.Build) void {
             platform_module.addImport("pty-c", pty_module);
         },
         .windows => {
+            platform_module.linkSystemLibrary("advapi32", .{});
             transport_module.addIncludePath(builder.path("src/transport"));
             transport_test_module.addIncludePath(builder.path("src/transport"));
             transport_module.addCSourceFile(.{

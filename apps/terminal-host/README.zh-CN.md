@@ -149,6 +149,28 @@ Host 仍保持分离运行，终端 Job 包含关系不变。不附着调用者�
 [可继承处理器属性](https://learn.microsoft.com/windows/console/setconsolectrlhandler)和
 [新进程组行为](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)。
 
+### Windows 终端子进程环境
+
+每次创建 Windows 子进程前，Host 都会立即从
+`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` 读取 Machine 环境，并从
+`HKCU\Environment` 读取 User 环境。它以 Host 继承的环境为起点，让 Windows 的进程专有值继续
+可用，再按 Machine、User 的顺序，以大小写不敏感的名称应用值。Machine 的 `USERNAME` 值会被
+排除，因为 HKLM 通常记录的是 `SYSTEM`，而非交互用户；除非 User 范围或启动输入将其替换，否则
+保留继承值。缺失的注册表项不贡献任何值。若注册表项无法读取、在有界快照期间发生超出容量的变化，
+或包含无效的已接纳字符串，该次进程启动会在创建伪 Console 之前失败。
+
+`REG_SZ` 值保持字面内容。`REG_EXPAND_SZ` 值先针对 User 优先后的同一份大小写不敏感 raw 注册表
+快照解析 `%NAME%` 依赖，再使用继承的进程专有值。展开结果不依赖注册表枚举顺序。未知依赖或
+即将闭合依赖环的 token 保持原文；有界深度与输出大小把恶意输入变成类型化启动故障。其他注册表
+值类型不作为环境输入。
+
+只要任一注册表范围提供 `PATH`，继承的 `PATH` 就会由展开后的 Machine 片段加 User 片段取代。
+精确片段按大小写不敏感规则去重，同时保留首次出现的位置与顺序；不会 trim 或 normalize。
+若两个范围都未提供 `PATH`，则保留继承值。随后最后应用有序启动环境，因此已授权的启动项、
+删除项及每个 creation 私有的 Orchbee overlay 拥有最终优先级。Deferred terminal 在实际启动时
+取得快照，每次 spawn 失败后的重试都会重新读取。已经启动的 terminal 不受影响；非 Windows
+启动行为继续使用继承的进程环境及相同的有序启动输入。
+
 ### Windows observation 传输运行时
 
 Windows x64 开发 cohort 随 Host 暂存 Microsoft ConPTY `1.25.260930003`

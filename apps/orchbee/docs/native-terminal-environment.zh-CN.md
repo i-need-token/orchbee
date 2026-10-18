@@ -2,9 +2,10 @@
 
 ## 范围与归属
 
-本参考治理原生 Client 在运行时拥有的宿主终端契约：保留的 Windows 端点、raw 记录输入与
-Unicode VT 输出、面对瞬时零几何的视口观测、每个绘制帧的同步更新包裹，以及指针捕获模式对。
-它与 `terminal_device.rs`、`terminal_device/windows.rs`、`windows_console_input/records.rs`、
+本参考治理 Orchbee 在运行时拥有的原生宿主终端环境：每个新的 Windows 子进程环境、保留的
+Windows 端点、raw 记录输入与 Unicode VT 输出、面对瞬时零几何的视口观测、每个绘制帧的同步
+更新包裹，以及指针捕获模式对。它与 Terminal Host 的 `windows_environment.zig` 适配器、
+`terminal_device.rs`、`terminal_device/windows.rs`、`windows_console_input/records.rs`、
 `startup_wait.rs`、`terminal_lifecycle.rs`、`tui_backend.rs`、`tui_shell.rs` 及所属的
 `crates/windows-console-host` 边界共同维护。准入验证 TTY
 身份与描述符安全（两个流上的交互 TTY、同一终端身份、几何查询本身可用）；获得可绘制的
@@ -47,6 +48,27 @@ ConPTY 丢弃粘贴边界；用键盘布局查询解释零键码 ESC 也会丢�
 恢复时还原保存的原始控制台输入／输出模式。参见微软的
 [控制台模式契约](https://learn.microsoft.com/en-us/windows/console/setconsolemode)与
 [粘贴边界过滤说明](https://github.com/microsoft/terminal/issues/18094)。
+
+## Windows 子进程环境
+
+每个新的 Windows terminal 都会在 Terminal Host 的进程创建边界读取当前 Machine 与 User 环境
+值。确定性投影保留 Windows 的继承进程专有值，再以大小写不敏感的名称应用 Machine 与 User
+注册表字符串。Machine `USERNAME` 会被排除，因为 HKLM 通常记录 `SYSTEM` 而非交互用户。缺失的
+注册表范围视为空；无法读取、格式错误或超出边界的范围会在取得 PTY 所有权前使新启动失败。
+
+只有 `REG_EXPAND_SZ` 值会展开 `%NAME%`。依赖先从 User 优先于 Machine 的 raw 快照解析，再从
+继承值解析，且不受注册表枚举顺序影响。未知名称与环中的递归 token 保持字面内容；深度与大小
+限制则按关闭失败处理。存在注册表 `PATH` 时，其有效值依次为展开后的 Machine `PATH` 与 User
+`PATH`，大小写不敏感的精确重复片段按首次出现顺序移除。若两个范围都不拥有 `PATH`，则保留
+继承值。
+
+已授权的启动环境项和删除项在注册表投影之后应用；每个 creation 私有的 Orchbee overlay 随后
+应用。因此，这些有序输入拥有最终优先级。Deferred creation 仅在尝试创建进程时读取注册表，
+重试会读取新快照。运行中的 terminal 保留其原始子进程环境。非 Windows terminal 维持既有的
+继承环境投影。确定性快照测试覆盖名称匹配、展开依赖、未解析名称、环、缺失和无法读取的范围、
+`PATH` 顺序与去重、进程专有值、启动优先级及不同启动之间的刷新。受控的原生 Windows 见证还须
+保持 Site 运行，修改一条可还原的 User `PATH` 项，并证明只有随后创建的 terminal 能解析新命令，
+然后还原该项。
 
 ## VT 命令输出
 
