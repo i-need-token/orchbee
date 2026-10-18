@@ -4,8 +4,8 @@
 use crate::client_view::PrefixDesc;
 use crate::{
     client_view::{
-        Binding, ClientAction, ClientView, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers, Notice,
-        PrefixAction, format_binding_with_glyphs, join_key_labels,
+        ClientAction, ClientView, KeyLabelGlyphs, LabelStyle, Notice, PanelDirection, PrefixAction,
+        format_binding_with_glyphs, join_key_labels,
     },
     localization::Locale,
     terminal_session::{
@@ -547,14 +547,7 @@ fn status_hints(
     let copy = locale.status();
     match indicator {
         Some(InputIndicator::Prefix) => {
-            return vec![OwnedHint {
-                key: format_binding_with_glyphs(
-                    &Binding::new(KeyCode::Esc, Modifiers::NONE),
-                    LabelStyle::for_host(),
-                    glyphs,
-                ),
-                label: copy.cancel,
-            }];
+            return prefix_mode_hints(view, locale, glyphs);
         }
         #[cfg(windows)]
         Some(InputIndicator::Navigator) => {
@@ -659,6 +652,102 @@ fn status_hints(
         .into_iter()
         .collect(),
     }
+}
+
+fn prefix_mode_hints(view: &ClientView, locale: Locale, glyphs: KeyLabelGlyphs) -> Vec<OwnedHint> {
+    let copy = locale.status();
+    let mut hints = Vec::with_capacity(7);
+    hints.extend(prefix_action_hint(
+        view,
+        PrefixAction::Client(ClientAction::DismissPrefix),
+        copy.cancel,
+        glyphs,
+    ));
+    hints.extend(prefix_action_hint(
+        view,
+        PrefixAction::ShowHelp,
+        copy.help,
+        glyphs,
+    ));
+    #[cfg(windows)]
+    hints.extend(prefix_action_hint(
+        view,
+        PrefixAction::Client(ClientAction::OpenActionMenu),
+        copy.actions,
+        glyphs,
+    ));
+    hints.extend(prefix_action_hint(
+        view,
+        PrefixAction::Client(ClientAction::CreateTab),
+        copy.create_tab,
+        glyphs,
+    ));
+    hints.extend(prefix_action_group_hint(
+        view,
+        [
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Left)),
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Down)),
+        ],
+        copy.split,
+        glyphs,
+    ));
+    hints.extend(prefix_action_hint(
+        view,
+        PrefixAction::BoardToggle,
+        copy.agent_board,
+        glyphs,
+    ));
+    hints.extend(prefix_action_hint(
+        view,
+        PrefixAction::Client(ClientAction::Exit),
+        copy.detach,
+        glyphs,
+    ));
+    hints
+}
+
+fn prefix_action_hint(
+    view: &ClientView,
+    action: PrefixAction,
+    label: &'static str,
+    glyphs: KeyLabelGlyphs,
+) -> Option<OwnedHint> {
+    prefix_action_keys(view, action, glyphs)
+        .into_iter()
+        .next()
+        .map(|key| OwnedHint { key, label })
+}
+
+fn prefix_action_group_hint(
+    view: &ClientView,
+    actions: impl IntoIterator<Item = PrefixAction>,
+    label: &'static str,
+    glyphs: KeyLabelGlyphs,
+) -> Option<OwnedHint> {
+    let keys = actions
+        .into_iter()
+        .flat_map(|action| prefix_action_keys(view, action, glyphs))
+        .collect::<Vec<_>>();
+    (!keys.is_empty()).then(|| OwnedHint {
+        key: join_key_labels(&keys, LabelStyle::for_host(), " / "),
+        label,
+    })
+}
+
+fn prefix_action_keys(
+    view: &ClientView,
+    action: PrefixAction,
+    glyphs: KeyLabelGlyphs,
+) -> Vec<String> {
+    let prefix = format!(
+        "{} ",
+        format_binding_with_glyphs(&view.bindings().prefix, LabelStyle::for_host(), glyphs,)
+    );
+    view.bindings()
+        .action_labels_with_glyphs(action, glyphs)
+        .into_iter()
+        .filter_map(|label| label.strip_prefix(prefix.as_str()).map(str::to_owned))
+        .collect()
 }
 
 #[cfg(windows)]

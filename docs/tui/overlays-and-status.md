@@ -172,6 +172,9 @@ covered cells. While visible it stays above other overlays. Its segments, from l
 
 - The input indicator is mandatory whenever any owner other than passthrough holds the keyboard.
   It is the last segment to be dropped.
+- In prefix mode, the current effective cancel binding comes first, followed by effective hints for
+  help, the action menu when available, tab creation, splits, the Agent board, and detach. Width
+  drops lower-priority hints as whole records.
 - Segments collapse in the order documented in [`layout.md`](layout.md#size-tiers). A partial
   segment is never drawn; it is dropped or replaced by its shorter documented form.
 - Status text is sanitized like every external string before painting.

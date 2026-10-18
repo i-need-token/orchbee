@@ -1,7 +1,10 @@
 use ratatui::{Terminal, backend::TestBackend, layout::Rect};
 
 use crate::{
-    client_view::{ClientAction, ClientView, KeyLabelGlyphs, Notice, PrefixAction},
+    client_view::{
+        ClientAction, ClientView, KeyEvent, KeyLabelGlyphs, LabelStyle, Notice, PrefixAction,
+        PrefixInput, SessionActionDisposition,
+    },
     localization::Locale,
     tui_layout::ViewportTier,
     tui_theme::{GlyphSet, Role, Theme},
@@ -65,6 +68,28 @@ fn paint_at_tier(
     tier: ViewportTier,
     theme: &Theme,
 ) -> (Terminal<TestBackend>, Option<Rect>) {
+    paint_at_tier_with_locale(
+        view,
+        width,
+        status,
+        secondary_notice,
+        recovery_status,
+        tier,
+        Locale::EnUs,
+        theme,
+    )
+}
+
+fn paint_at_tier_with_locale(
+    view: &ClientView,
+    width: u16,
+    status: &str,
+    secondary_notice: Option<&str>,
+    recovery_status: bool,
+    tier: ViewportTier,
+    locale: Locale,
+    theme: &Theme,
+) -> (Terminal<TestBackend>, Option<Rect>) {
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
     let mut receipt = None;
     terminal
@@ -78,7 +103,7 @@ fn paint_at_tier(
                 frame.area(),
                 view,
                 None,
-                Locale::EnUs,
+                locale,
                 status,
                 secondary_notice,
                 false,
@@ -93,6 +118,13 @@ fn paint_at_tier(
     (terminal, receipt)
 }
 
+fn arm_prefix(view: &mut ClientView) {
+    let prefix = view.bindings().prefix;
+    let transition = view.decide(PrefixInput::Key(KeyEvent::press(prefix.code, prefix.mods)));
+    view.commit(transition, SessionActionDisposition::KeepNavigator);
+    assert!(view.prefix_active());
+}
+
 fn semantic_on_canvas(theme: &Theme, role: Role) -> ratatui::style::Style {
     theme.content_on_surface(Role::SurfaceCanvas, None, Some(role), theme.style(role))
 }
@@ -101,6 +133,96 @@ fn row(terminal: &Terminal<TestBackend>, width: u16) -> String {
     (0..width)
         .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
         .collect()
+}
+
+#[test]
+fn prefix_mode_status_hints_drop_only_the_lowest_priority_whole_items_by_width() {
+    let theme = Theme::rgb_test_dark();
+    let mut expected = vec!["Esc cancel", "? help"];
+    #[cfg(windows)]
+    expected.push("F2 actions");
+    expected.extend(["c create Tab", r"\ / - split", "g Agent board", "q detach"]);
+
+    let width_cases: &[(u16, usize)] = if cfg!(windows) {
+        &[(160, 7), (100, 6), (80, 5), (60, 3)]
+    } else {
+        &[(160, 6), (100, 6), (80, 5), (60, 3)]
+    };
+
+    for &(width, visible_count) in width_cases {
+        let mut view = ClientView::new(width);
+        arm_prefix(&mut view);
+        let (terminal, _) = paint(&view, width, "Ready", None, false, &theme);
+        let prefix = crate::client_view::format_binding_with_glyphs(
+            &view.bindings().prefix,
+            LabelStyle::for_host(),
+            KeyLabelGlyphs::Unicode,
+        );
+        let marker = format!("PREFIX {prefix} · ");
+        let text = row(&terminal, width);
+        let hints = text
+            .split_once(&marker)
+            .map(|(_, hints)| hints.trim_end())
+            .unwrap_or_else(|| {
+                panic!("prefix indicator and hints missing at width {width}: {text}")
+            });
+        let expected_hints = expected[..visible_count].join(" · ");
+        assert_eq!(hints, expected_hints, "at width {width}");
+    }
+}
+
+#[test]
+fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
+    let theme = Theme::rgb_test_dark();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut view = ClientView::new(160);
+        arm_prefix(&mut view);
+        let (terminal, _) = paint_at_tier_with_locale(
+            &view,
+            160,
+            "Ready",
+            None,
+            false,
+            ViewportTier::Full,
+            locale,
+            &theme,
+        );
+        let text = row(&terminal, 160);
+        let copy = locale.status();
+        for label in [
+            copy.cancel,
+            copy.help,
+            copy.create_tab,
+            copy.split,
+            copy.agent_board,
+            copy.detach,
+        ] {
+            assert!(text.contains(label), "{label:?} missing in {text:?}");
+        }
+        #[cfg(windows)]
+        assert!(
+            text.contains(copy.actions),
+            "{} missing in {text:?}",
+            copy.actions
+        );
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_prefix() {
+    let theme = Theme::rgb_test_dark();
+    let mut view = ClientView::new(120);
+    view.configure_keys(&configured_arrow_help());
+    arm_prefix(&mut view);
+
+    let (terminal, _) = paint(&view, 120, "Ready", None, false, &theme);
+    let text = row(&terminal, 120);
+    assert!(
+        text.contains("PREFIX Ctrl+a · Esc cancel · Left help"),
+        "{text}"
+    );
+    assert!(!text.contains("Ctrl+a Left"), "{text}");
 }
 
 #[cfg(windows)]
