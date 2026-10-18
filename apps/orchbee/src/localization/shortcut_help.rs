@@ -767,6 +767,7 @@ fn shared_menu_action(binding: &DiscoveryEntry<'_>) -> Option<crate::action_menu
     };
 
     let preferred = match binding.action {
+        PrefixAction::Client(ClientAction::CreateTab) => Some(MenuAction::NewTab),
         PrefixAction::Client(ClientAction::MovePreviousTab) => Some(MenuAction::MoveTabPrevious),
         PrefixAction::Client(ClientAction::MoveNextTab) => Some(MenuAction::MoveTabNext),
         _ => None,
@@ -854,6 +855,14 @@ mod tests {
         assert_eq!(create_tab_zh.title, "新建标签页");
         #[cfg(windows)]
         {
+            assert_eq!(
+                create_tab.title,
+                Locale::EnUs.menu_action(&crate::action_menu::MenuAction::NewTab)
+            );
+            assert_eq!(
+                create_tab_zh.title,
+                Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::NewTab)
+            );
             let focus_sidebar = entries
                 .iter()
                 .find(|entry| entry.key.contains("Shift+B"))
