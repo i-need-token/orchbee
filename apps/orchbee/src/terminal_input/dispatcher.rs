@@ -2073,6 +2073,12 @@ impl InputDispatcher {
         #[cfg(not(windows))]
         let requests_navigator = false;
         #[cfg(windows)]
+        let board_action_handoff = matches!(
+            action.as_ref(),
+            Some(ClientAction::OpenActionMenu | ClientAction::FocusBusinessSidebar)
+        ) && Self::projected_capture(view, port)
+            == Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard));
+        #[cfg(windows)]
         if action == Some(ClientAction::EnterCopyMode) {
             self.cancel_pointer(port);
             self.copy_packet = true;
@@ -2122,10 +2128,19 @@ impl InputDispatcher {
         let applied = action.clone().and_then(|action| {
             #[cfg(windows)]
             if action == ClientAction::FocusBusinessSidebar {
-                return Some(SessionActionDisposition::KeepNavigator);
+                return if board_action_handoff {
+                    port.apply_client_action(action)
+                } else {
+                    Some(SessionActionDisposition::KeepNavigator)
+                };
             }
             #[cfg(windows)]
             if action == ClientAction::OpenActionMenu {
+                let disposition = if board_action_handoff {
+                    port.apply_client_action(action.clone())?
+                } else {
+                    SessionActionDisposition::KeepNavigator
+                };
                 if self.pointer.can_open_action_menu()
                     && !view.resize_mode()
                     && !port.copy_mode_active()
@@ -2140,7 +2155,7 @@ impl InputDispatcher {
                     self.keys.capture_pending();
                     self.pointer.invalidate_map_with_port(port);
                 }
-                return Some(SessionActionDisposition::KeepNavigator);
+                return Some(disposition);
             }
             port.apply_client_action(action)
         });

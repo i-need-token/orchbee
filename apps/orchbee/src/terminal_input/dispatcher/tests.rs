@@ -1526,17 +1526,41 @@ fn a_layout_changed_disposition_reobserves_layout_and_stales_the_pointer_map() {
 struct BoardPort {
     calls: Rc<RefCell<Vec<Call>>>,
     owned: Rc<std::cell::Cell<bool>>,
+    #[cfg(windows)]
+    action_menu: crate::action_menu::ActionMenu,
+}
+
+impl BoardPort {
+    fn new(calls: Rc<RefCell<Vec<Call>>>, owned: Rc<std::cell::Cell<bool>>) -> Self {
+        Self {
+            calls,
+            owned,
+            #[cfg(windows)]
+            action_menu: crate::action_menu::ActionMenu::default(),
+        }
+    }
 }
 
 impl TerminalInputPort for BoardPort {
     fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
-        crate::tui_composition::NativeCaptureClaims::default().with_agent_board(self.owned.get())
+        let claims = crate::tui_composition::NativeCaptureClaims::default()
+            .with_agent_board(self.owned.get());
+        #[cfg(windows)]
+        let claims = claims.with_action_menu(self.action_menu.input_context().is_some());
+        claims
     }
 
     fn native_capture_context(
         &self,
         owner: crate::tui_composition::NativeCaptureOwner,
     ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        #[cfg(windows)]
+        if owner == crate::tui_composition::NativeCaptureOwner::ActionMenu {
+            return self
+                .action_menu
+                .input_context()
+                .map(crate::terminal_session::NativeCaptureContext::ActionMenu);
+        }
         (self.owned.get() && owner == crate::tui_composition::NativeCaptureOwner::AgentBoard).then(
             || {
                 crate::terminal_session::NativeCaptureContext::AgentBoard(
@@ -1560,9 +1584,31 @@ impl TerminalInputPort for BoardPort {
             self.owned.set(!self.owned.get());
         } else {
             self.owned.set(false);
+            #[cfg(windows)]
+            self.action_menu.cancel();
         }
         self.calls.borrow_mut().push(Call::Action(action));
         Some(SessionActionDisposition::KeepNavigator)
+    }
+
+    #[cfg(windows)]
+    fn open_action_menu(
+        &mut self,
+        target: crate::action_menu::MenuTarget,
+        anchor: Option<(u16, u16)>,
+        _pointer_released: bool,
+    ) -> bool {
+        self.action_menu.open_for(
+            target,
+            "Actions".to_owned(),
+            vec![crate::action_menu::MenuAction::Help],
+            anchor,
+        )
+    }
+
+    #[cfg(windows)]
+    fn cancel_action_menu(&mut self) {
+        self.action_menu.cancel();
     }
 
     fn capture_agent_board_key_for(
@@ -1676,10 +1722,7 @@ impl TerminalInputPort for ConfirmationBoardPort {
 fn a_board_close_edge_invalidates_the_published_hit_map() {
     let calls = Rc::new(RefCell::new(Vec::new()));
     let owned = Rc::new(std::cell::Cell::new(true));
-    let mut port = BoardPort {
-        calls: Rc::clone(&calls),
-        owned: Rc::clone(&owned),
-    };
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     let session = orchbee_agent_observation_protocol::AgentSessionId::parse("s-1").unwrap();
@@ -1751,10 +1794,7 @@ fn a_board_close_edge_invalidates_the_published_hit_map() {
 fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
     let calls = Rc::new(RefCell::new(Vec::new()));
     let owned = Rc::new(std::cell::Cell::new(false));
-    let mut port = BoardPort {
-        calls: Rc::clone(&calls),
-        owned: Rc::clone(&owned),
-    };
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
@@ -1823,10 +1863,7 @@ fn an_open_board_admits_prefix_toggles_and_keeps_paste_captured() {
     ] {
         let calls = Rc::new(RefCell::new(Vec::new()));
         let owned = Rc::new(std::cell::Cell::new(true));
-        let mut port = BoardPort {
-            calls: Rc::clone(&calls),
-            owned: Rc::clone(&owned),
-        };
+        let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(100);
         dispatcher
@@ -1883,10 +1920,7 @@ fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
     ] {
         let calls = Rc::new(RefCell::new(Vec::new()));
         let owned = Rc::new(std::cell::Cell::new(true));
-        let mut port = BoardPort {
-            calls: Rc::clone(&calls),
-            owned: Rc::clone(&owned),
-        };
+        let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(100);
 
@@ -1942,10 +1976,7 @@ fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
 
     let calls = Rc::new(RefCell::new(Vec::new()));
     let owned = Rc::new(std::cell::Cell::new(true));
-    let mut port = BoardPort {
-        calls: Rc::clone(&calls),
-        owned: Rc::clone(&owned),
-    };
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     view.machines.available = true;
@@ -1985,10 +2016,7 @@ fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
 fn agent_board_consumes_literal_prefix_and_global_actions_use_the_action_owner() {
     let calls = Rc::new(RefCell::new(Vec::new()));
     let owned = Rc::new(std::cell::Cell::new(true));
-    let mut port = BoardPort {
-        calls: Rc::clone(&calls),
-        owned: Rc::clone(&owned),
-    };
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
 
@@ -2026,14 +2054,90 @@ fn agent_board_consumes_literal_prefix_and_global_actions_use_the_action_owner()
     assert!(forwarded_bytes(&calls).is_empty());
 }
 
+#[cfg(windows)]
+#[test]
+fn board_prefix_focus_sidebar_releases_native_capture_before_focusing_sidebar() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(true));
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    view.machines.available = true;
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02");
+    assert!(view.prefix_active());
+    assert!(
+        owned.get(),
+        "the Board retains capture while its prefix is armed"
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"B");
+
+    assert!(!owned.get(), "the native Board owner releases capture");
+    assert!(view.machines.sidebar_navigation_active());
+    assert!(matches!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Docked(_)
+    ));
+    let actions = calls
+        .borrow()
+        .iter()
+        .filter_map(|call| match call {
+            Call::Action(action) => Some(action.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actions, [ClientAction::FocusBusinessSidebar]);
+    assert!(forwarded_bytes(&calls).is_empty());
+}
+
+#[cfg(windows)]
+#[test]
+fn board_prefix_opens_action_menu_after_native_capture_release() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(true));
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02");
+    assert!(view.prefix_active());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1bOQ");
+
+    assert!(!owned.get(), "the native Board owner releases capture");
+    assert!(
+        port.action_menu.active(),
+        "the requested menu is actually open"
+    );
+    assert_eq!(
+        port.action_menu.view().unwrap().source,
+        &crate::action_menu::MenuTarget::Global
+    );
+    assert!(
+        port.native_capture_claims()
+            .contains(crate::tui_composition::NativeCaptureOwner::ActionMenu)
+    );
+    assert!(
+        !port
+            .native_capture_claims()
+            .contains(crate::tui_composition::NativeCaptureOwner::AgentBoard)
+    );
+    let actions = calls
+        .borrow()
+        .iter()
+        .filter_map(|call| match call {
+            Call::Action(action) => Some(action.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actions, [ClientAction::OpenActionMenu]);
+    assert!(forwarded_bytes(&calls).is_empty());
+}
+
 #[test]
 fn agent_board_prefix_toggle_opens_and_closes_through_native_owner() {
     let calls = Rc::new(RefCell::new(Vec::new()));
     let owned = Rc::new(std::cell::Cell::new(false));
-    let mut port = BoardPort {
-        calls: Rc::clone(&calls),
-        owned: Rc::clone(&owned),
-    };
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
 
@@ -2078,10 +2182,7 @@ fn confirmation_capture_keeps_first_refusal_over_the_agent_board_prefix_route() 
 fn opening_board_acquires_paste_before_installing_capture_and_fences_the_packet_tail() {
     let calls = Rc::new(RefCell::new(Vec::new()));
     let owned = Rc::new(std::cell::Cell::new(false));
-    let mut port = BoardPort {
-        calls: Rc::clone(&calls),
-        owned: Rc::clone(&owned),
-    };
+    let mut port = BoardPort::new(Rc::clone(&calls), Rc::clone(&owned));
     let mut dispatcher = InputDispatcher::default();
     dispatcher
         .dispatch(
