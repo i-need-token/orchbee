@@ -1,5 +1,6 @@
 use super::*;
 use crate::machine_agents::{Observation as Agents, tests::checkpoint};
+use crate::machine_picker::{AgentSourceCoverage, CompactAgentSummary};
 
 fn sidebar_picker(count: u64) -> Picker {
     let mut picker = Picker {
@@ -331,4 +332,134 @@ fn unavailable_or_disabled_endpoint_never_activates_a_foreign_agent() {
     picker.observe_agents(vec![(Choice::Local, Agents::Unavailable)]);
     assert!(!picker.activate_sidebar_agent(&selected));
     assert!(picker.request.is_none());
+}
+
+#[test]
+fn compact_summary_demand_keeps_observation_without_sidebar_or_attention_admission() {
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.observe_agent_sidebar(false);
+    assert!(!picker.spaces.visible());
+    assert!(!picker.wants_agents());
+
+    assert!(picker.observe_compact_agent_summary(true));
+    assert!(picker.wants_agents());
+    assert!(!picker.wants_agent_attention());
+    assert!(!picker.spaces.visible());
+
+    picker.observe_agent_sidebar(false);
+    assert!(
+        picker.wants_agents(),
+        "hidden sidebar cannot stop compact observation"
+    );
+    assert!(picker.observe_compact_agent_summary(false));
+    assert!(!picker.wants_agents());
+}
+
+#[test]
+fn compact_summary_uses_server_projection_and_ignores_picker_query_scope_and_selection() {
+    use crate::machine_agents::{
+        Observation as Agents,
+        tests::{checkpoint, row},
+    };
+    use orchbee_workbench_protocol::{MetadataState, PanelAgentState, WorkbenchRevision};
+
+    let mut blocked = row(41);
+    blocked.state = PanelAgentState::Blocked;
+    blocked.label = "blocked build".into();
+    let mut working = row(42);
+    working.state = PanelAgentState::Working;
+    working.label = "active build".into();
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(checkpoint(vec![working, blocked])),
+    )]);
+    picker.agent_view.query = "does not match".into();
+    picker.agent_view.state = Some(MetadataState::Idle);
+    picker.agent_view.scope = crate::machine_agents::view::Scope::Context;
+    picker.open = true;
+    picker.mode = Mode::Agents;
+    picker.editing_query = true;
+    picker.selected = usize::MAX;
+
+    let CompactAgentSummary::Observed { row: observed, .. } = picker.compact_agent_summary() else {
+        panic!("a local picker query must not hide the source-filtered observation")
+    };
+    assert_eq!(observed.state, PanelAgentState::Blocked);
+
+    let mut filtered = crate::machine_agents::tests::checkpoint(vec![row(43)])
+        .as_ref()
+        .clone();
+    filtered.view.spec = Some(
+        orchbee_workbench_protocol::parse_agent_view_spec(
+            br#"{"source":"test.summary","filter":{"op":"eq","field":"status","value":"done"}}"#,
+        )
+        .unwrap(),
+    );
+    filtered.report_revision = WorkbenchRevision::new(3);
+    picker.observe_agents(vec![(
+        Choice::Local,
+        Agents::Ready(std::sync::Arc::new(filtered)),
+    )]);
+    assert_eq!(
+        picker.compact_agent_summary(),
+        CompactAgentSummary::NoMatches
+    );
+}
+
+#[test]
+fn compact_summary_separates_empty_loading_unavailable_and_partial_sources() {
+    use crate::machine_agents::{
+        Observation as Agents,
+        tests::{checkpoint, row},
+    };
+    use orchbee_workbench_protocol::PanelAgentState;
+
+    let mut picker = Picker {
+        available: true,
+        ..Picker::default()
+    };
+    picker.observe_agents(vec![(Choice::Local, Agents::Ready(checkpoint(Vec::new())))]);
+    assert_eq!(picker.compact_agent_summary(), CompactAgentSummary::Empty);
+
+    let remote = profile(13, "remote", true);
+    let remote_choice = Choice::Remote(remote.id.clone());
+    picker.replace(std::slice::from_ref(&remote));
+    let mut blocked = row(44);
+    blocked.state = PanelAgentState::Blocked;
+    picker.observe_agents(vec![
+        (Choice::Local, Agents::Ready(checkpoint(vec![blocked]))),
+        (remote_choice.clone(), Agents::Unavailable),
+    ]);
+    assert!(matches!(
+        picker.compact_agent_summary(),
+        CompactAgentSummary::Observed {
+            coverage: AgentSourceCoverage::Unavailable,
+            ..
+        }
+    ));
+
+    picker.observe_agents(vec![
+        (Choice::Local, Agents::Ready(checkpoint(vec![row(45)]))),
+        (remote_choice.clone(), Agents::Loading),
+    ]);
+    assert!(matches!(
+        picker.compact_agent_summary(),
+        CompactAgentSummary::Observed {
+            coverage: AgentSourceCoverage::Loading,
+            ..
+        }
+    ));
+
+    picker.observe_agents(vec![
+        (Choice::Local, Agents::Loading),
+        (remote_choice, Agents::Ready(checkpoint(vec![row(46)]))),
+    ]);
+    assert_eq!(picker.compact_agent_summary(), CompactAgentSummary::Loading);
 }

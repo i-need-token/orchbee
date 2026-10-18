@@ -44,7 +44,122 @@ pub(super) enum NavigationTarget {
     Cycle { reverse: bool },
     Index(u8),
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CompactAgentSummary<'a> {
+    Observed {
+        row: &'a crate::machine_agents::Row,
+        coverage: AgentSourceCoverage,
+    },
+    Empty,
+    NoMatches,
+    Loading,
+    Unavailable,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AgentSourceCoverage {
+    Complete,
+    Loading,
+    Unavailable,
+}
+
 impl Picker {
+    pub(crate) fn compact_agent_summary(&self) -> CompactAgentSummary<'_> {
+        let Some(current) = self
+            .agent_observations
+            .iter()
+            .find(|(id, _)| id == &self.current)
+            .and_then(|(_, observation)| match observation {
+                Agents::Ready(checkpoint) => Some(checkpoint.as_ref()),
+                Agents::Loading | Agents::Unavailable => None,
+            })
+        else {
+            return match self
+                .agent_observations
+                .iter()
+                .find(|(id, _)| id == &self.current)
+                .map(|(_, observation)| observation)
+            {
+                Some(Agents::Loading) => CompactAgentSummary::Loading,
+                _ => CompactAgentSummary::Unavailable,
+            };
+        };
+
+        let mut has_rows = false;
+        let mut loading = false;
+        let mut unavailable = false;
+        for machine in self.rows.iter().filter(|machine| machine.enabled) {
+            match self
+                .agent_observations
+                .iter()
+                .find(|(id, _)| id == &machine.choice)
+                .map(|(_, observation)| observation)
+            {
+                Some(Agents::Ready(checkpoint)) => has_rows |= !checkpoint.rows.is_empty(),
+                Some(Agents::Loading) => loading = true,
+                Some(Agents::Unavailable) | None => unavailable = true,
+            }
+        }
+
+        let candidates = self
+            .rows
+            .iter()
+            .filter(|machine| machine.enabled)
+            .flat_map(|machine| {
+                let rows = self
+                    .agent_observations
+                    .iter()
+                    .find(|(id, _)| id == &machine.choice)
+                    .and_then(|(_, observation)| match observation {
+                        Agents::Ready(checkpoint) => Some(checkpoint.rows.as_ref()),
+                        Agents::Loading | Agents::Unavailable => None,
+                    })
+                    .unwrap_or(&[]);
+                rows.iter().map(move |row| Entry {
+                    machine: &machine.choice,
+                    label: &machine.label,
+                    row,
+                })
+            });
+        let mut urgent = None;
+        for candidate in crate::machine_agents::view::View::default().project_source(
+            candidates,
+            &self.current,
+            self.current_context.as_ref(),
+            self.current_member.as_ref(),
+            current.view.spec.as_ref(),
+        ) {
+            if urgent.as_ref().is_none_or(|best| {
+                crate::machine_agents::view::urgency(candidate.row)
+                    > crate::machine_agents::view::urgency(best.row)
+            }) {
+                urgent = Some(candidate);
+            }
+        }
+        if let Some(entry) = urgent {
+            return CompactAgentSummary::Observed {
+                row: entry.row,
+                coverage: if unavailable {
+                    AgentSourceCoverage::Unavailable
+                } else if loading {
+                    AgentSourceCoverage::Loading
+                } else {
+                    AgentSourceCoverage::Complete
+                },
+            };
+        }
+        if unavailable {
+            CompactAgentSummary::Unavailable
+        } else if loading {
+            CompactAgentSummary::Loading
+        } else if has_rows {
+            CompactAgentSummary::NoMatches
+        } else {
+            CompactAgentSummary::Empty
+        }
+    }
+
     pub(super) fn source_spec(&self) -> Option<&orchbee_workbench_protocol::AgentViewSpec> {
         self.agent_observations
             .iter()
@@ -199,7 +314,7 @@ impl Picker {
         self.agent_attention_refresh = true;
     }
     pub(crate) fn needs_agent_attention(&mut self, version: Option<(u64, usize)>) -> bool {
-        if !self.wants_agents() {
+        if !self.wants_agent_attention() {
             return false;
         }
         let key = (self.current.clone(), version);

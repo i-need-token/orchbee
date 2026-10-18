@@ -213,10 +213,21 @@ and shares the same stable target proof as secondary click. These local bindings
 help from the binding registry; the gesture does not add a separate shortcut system.
 
 At Full and Compact tiers, the Windows top strip contains Tabs, their creation control, any active
-Presentation selector, and the global Actions entry. Workspace names and Agent metadata remain with
-their sidebar owners; the strip adds no context breadcrumb or report/status subheader. Non-Windows Clients retain their
-context breadcrumb because their sidebar does not project canonical navigation rows; a location
-equal to the active Tab label is still omitted there. Active
+Presentation selector, and the global Actions entry. Full keeps Agent metadata with its sidebar
+owner. Compact also uses otherwise available top-strip space for a localized summary of the most
+urgent row from the existing machine-sidebar Agent observations, evaluated with the current
+machine's accepted Agent view filter. This summary ignores the picker's transient query, scope,
+state, and selection.
+It describes observed rows only and does not claim a canonical inventory or count. Known empty,
+no matches, loading, unavailable, and incomplete source coverage remain distinct; a row observed
+while another enabled source is loading or unavailable carries an incomplete marker. The summary
+continues updating while the sidebar is hidden or another picker query is active, without making
+the sidebar visible or admitting sidebar input. It shortens the observed Agent detail first and
+leaves the active Tab, creation control, Presentation selector, global Actions entry, and sidebar
+restore control usable. It has no pointer hit target; `Ctrl+B g` opens the existing Agent Board and
+does not promise to select the summarized row. Non-Windows Clients retain their context breadcrumb
+because their sidebar does not project canonical navigation rows; a location equal to the active
+Tab label is still omitted there. Active
 Tabs use padding, `surface-current` and bold identity; the current marker appears only when reduced
 color makes the current and chrome fills identical. Checked group-member markers remain independent.
 Compact Tabs show their labels without ordinal prefixes; navigation lists retain keyboard positions.

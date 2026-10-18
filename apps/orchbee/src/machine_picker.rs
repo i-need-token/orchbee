@@ -37,6 +37,7 @@ mod spaces;
 mod workspace_query;
 pub(crate) use agents::Control;
 use agents::Navigation;
+pub(crate) use agents::{AgentSourceCoverage, CompactAgentSummary};
 pub(crate) use navigation::{
     DrawnSidebarFixedTarget, DrawnSidebarTarget, SIDEBAR_BINDINGS, SidebarActivation,
     SidebarCommand, SidebarFixedAction, SidebarFixedActivation, SidebarIntent, SidebarPart,
@@ -354,6 +355,7 @@ pub(crate) struct Picker {
     agent_rows: std::sync::Arc<[Row]>,
     agent_observations: Vec<(Choice, crate::machine_agents::Observation)>,
     agent_sources: Vec<(Choice, crate::machine_agents::Observation)>,
+    compact_agent_summary: bool,
     agent_attention_key: Option<(Choice, Option<(u64, usize)>)>,
     agent_attention_refresh: bool,
     mode: Mode,
@@ -406,6 +408,7 @@ impl Default for Picker {
             agent_rows: std::sync::Arc::from([]),
             agent_observations: Vec::new(),
             agent_sources: Vec::new(),
+            compact_agent_summary: false,
             agent_attention_key: None,
             agent_attention_refresh: false,
             mode: Mode::Machines,
@@ -642,6 +645,11 @@ impl Picker {
         true
     }
     pub(crate) fn wants_agents(&self) -> bool {
+        self.spaces.visible()
+            || self.compact_agent_summary
+            || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
+    }
+    pub(crate) fn wants_agent_attention(&self) -> bool {
         self.spaces.visible() || (self.open && matches!(self.mode, Mode::Agents | Mode::Workspaces))
     }
     pub(crate) fn observe_agents(

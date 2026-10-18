@@ -60,6 +60,12 @@ then decoration. A lower-priority item never displaces, clips, or visually domin
   track is absent for a row, the row keeps the same label boundary as its peers.
 - Related rows use spacing and indentation from one declared hierarchy. Indentation is computed
   from depth, not from whether a row currently exposes a disclosure glyph or status marker.
+- When Compact hides or overlays a state-bearing side panel, a summary may use spare existing
+  chrome only from that panel owner's projection. Preserve unknown, loading, unavailable, and
+  incomplete source coverage separately from known empty or no matches; incomplete coverage never
+  implies absence. Localize the summary and keep it subordinate to active navigation and required
+  controls. Elide its detail before an active navigation target, and do not expand hit regions or
+  input admission to keep a summary current. The owning surface records its source and wording.
 
 ## Row geometry
 

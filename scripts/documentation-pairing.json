@@ -326,8 +326,8 @@
 			"zhCnSha256": "dd13179b0d28bf9ead5f59a8c816fe78e0e6915f938e817dca3312ce276b503a"
 		},
 		"apps/orchbee/docs/tui-shell-layout.md": {
-			"englishSha256": "45ed9221b9fdf8ece1af5d649307bc040c4ccdb9dfdbb1489a7a3965fb052457",
-			"zhCnSha256": "c7143be2f79b57b66dde22e76c6766d05ce973f31b6bb95cde6a901498968a22"
+			"englishSha256": "98bba3fe139a25a744379952af3c56478200c7428c4e8c4b05de067c16de9c5a",
+			"zhCnSha256": "8730c3f694dc1317f509049246eaf2a3162ab73f4174b2d2c94b58b805ea1cd3"
 		},
 		"apps/orchbee/docs/windows-agent-integrations.md": {
 			"englishSha256": "7eda870ed69796c0e789f8ec54cf1dbb3d1939211b06bc7e79d760180cca9683",
@@ -650,8 +650,8 @@
 			"zhCnSha256": "ca4a7b6a322ef852feb41f805954b01631e20eeb718d57049c77aded9a84b3c1"
 		},
 		"docs/tui/layout.md": {
-			"englishSha256": "a9eff556cde84c33025647e2e81dacc770b68b6286a7dd26238dc2865395db46",
-			"zhCnSha256": "9a3de7773555fd5877f72958e3d57fddf92d84bec0b072396e6dfa33c160e6e8"
+			"englishSha256": "e395d0245a288b66f847de0cbc2d46cc399ae50847d52415f4343680604d456e",
+			"zhCnSha256": "d16be90fe448fa143ce9379e3cd56c2b7bbcf8d00c2486b85e6fc35eaeb3feea"
 		},
 		"docs/tui/mouse-input.md": {
 			"englishSha256": "89fbab054ba4882a2be13e16c2e898d9ea117b6651b5d3b477aa2738e0bd812b",

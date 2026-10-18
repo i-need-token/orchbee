@@ -88,6 +88,8 @@ pub(crate) fn render_agent_board_for_test(
 }
 #[cfg(windows)]
 mod agent_sidebar;
+#[cfg(windows)]
+mod compact_agent_summary;
 mod contexts;
 pub(crate) mod controls;
 #[cfg(windows)]
@@ -1473,9 +1475,38 @@ fn render_native_workbench(
         .and_then(|panel| {
             presentation_selector::PresentationSelector::new(areas.tabs, panel, native)
         });
+    #[cfg(windows)]
+    let mut tabs_area = selector
+        .as_ref()
+        .map_or(areas.tabs, |selector| selector.title_area(areas.tabs));
+    #[cfg(not(windows))]
     let tabs_area = selector
         .as_ref()
         .map_or(areas.tabs, |selector| selector.title_area(areas.tabs));
+    #[cfg(windows)]
+    if areas.tier == ViewportTier::Compact
+        && let Some(sidebar) = areas
+            .sidebar
+            .filter(|sidebar| sidebar.layer == SidebarLayer::Overlay)
+    {
+        let start = tabs_area.x.max(sidebar.area.right());
+        tabs_area = Rect::new(
+            start,
+            tabs_area.y,
+            tabs_area.right().saturating_sub(start),
+            tabs_area.height,
+        );
+    }
+    #[cfg(windows)]
+    if areas.tier == ViewportTier::Compact && client_view.machines.available {
+        tabs_area = compact_agent_summary::render(
+            frame,
+            tabs_area,
+            client_view.machines.compact_agent_summary(),
+            locale,
+            theme,
+        );
+    }
     render_tab_strip(
         frame,
         tabs_area,

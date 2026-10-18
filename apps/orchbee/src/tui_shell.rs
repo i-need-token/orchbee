@@ -1192,12 +1192,15 @@ fn render_machine_surface(
 #[cfg(windows)]
 fn synchronize_sidebar_visibility(view: &mut ClientView, dimensions: WindowDimensions) -> bool {
     let owned = view.machines.sidebar_navigation_active();
-    let visible =
-        crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface())
-            .sidebar
-            .is_some();
+    let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
+    let visible = areas.sidebar.is_some();
     view.machines.observe_agent_sidebar(visible);
-    owned && !view.machines.sidebar_navigation_active()
+    let summary_demanded =
+        view.machines.available && areas.tier == crate::tui_layout::ViewportTier::Compact;
+    let summary_changed = view
+        .machines
+        .observe_compact_agent_summary(summary_demanded);
+    (owned && !view.machines.sidebar_navigation_active()) || summary_changed
 }
 
 #[cfg(windows)]

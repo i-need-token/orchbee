@@ -128,6 +128,10 @@ impl View {
     }
 }
 fn priority(row: &Row) -> u8 {
+    urgency(row)
+}
+
+pub(crate) fn urgency(row: &Row) -> u8 {
     match row.status() {
         "blocked" => 5,
         "error" => 4,
