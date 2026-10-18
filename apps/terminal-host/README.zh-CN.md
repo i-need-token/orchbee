@@ -184,6 +184,8 @@ Host reader／resize 顺序测试。
 
 仓库级 `pnpm desktop` 开发运行时为此包运行 `zig build --watch -fincremental -Doptimize=ReleaseSafe`，并通过内容摘要观察已完成的 Host 二进制文件和源码输入。构建失败或同源二进制重建不会影响最后一个可运行的 Host 进程和二进制代次。Zig 代码不会修补进正在运行的 Host 进程：源码变更成功构建后，Desktop 会持久停止并重新暂存当前终端 presentation，退役旧 Host，再把捕获的二进制文件作为新进程启动。因此，PTY 进程状态、VT 历史记录和 Host 标识不会跨越 Zig 源更新。打包 Host 的生命周期和协议行为保持不变。
 
+在原生 Windows 上运行 `node scripts/stage-native-site.mjs --output <absolute-directory>` 暂存时，当前进程必须有创建文件符号链接的权限。暂存脚本会在启动 Cargo 或 Zig 前检查此权限；请启用 Windows 开发者模式，或在以管理员身份运行的终端中启动暂存命令，这样 Zig 才能解包固定的 Ghostty 源码依赖。
+
 构建需要仓库中的两个 `crates/local-site-runtime/src/windows_powershell_*.ps1` 启动资产。
 已登记输入的复制步骤嵌入其精确连接，因此只修改资产也会唤醒 Zig watch 并改变 Host 模块。
 Desktop 的 Host 输入摘要包含同样的两个文件；编码命令帮助函数只消费公共初始化资产。

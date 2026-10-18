@@ -3,6 +3,7 @@ import {
 	cpSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	realpathSync,
 	rmSync,
@@ -15,10 +16,66 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { options, verifiedCapsuleDigest } from './stage-native-site.mjs';
+import { assertWindowsFileSymlinkSupport } from './stage-native-windows.mjs';
 import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const canonical = path.join(root, 'apps', 'desktop', 'resources', 'agent-observation-adapters');
+
+function ownedTemporaryDirectory(t, prefix) {
+	const parent = realpathSync(tmpdir());
+	const directory = mkdtempSync(path.join(parent, prefix));
+	t.after(() => {
+		const actual = realpathSync(directory);
+		assert.equal(path.dirname(actual), parent);
+		assert.ok(path.basename(actual).startsWith(prefix));
+		rmSync(actual, { recursive: true });
+	});
+	return directory;
+}
+
+test('Windows file-symlink preflight accepts a supported symlink operation and removes its probe', (t) => {
+	const directory = ownedTemporaryDirectory(t, 'orchbee-symlink-supported-');
+	assertWindowsFileSymlinkSupport(directory, (target, link, type) => {
+		assert.equal(target, 'file-symlink-target');
+		assert.equal(path.dirname(link), directory);
+		assert.equal(type, 'file');
+		if (process.platform !== 'win32') symlinkSync(target, link, type);
+	});
+	assert.deepEqual(readdirSync(directory), []);
+});
+
+test('Windows file-symlink preflight follows host permissions and removes its probe', (t) => {
+	const directory = ownedTemporaryDirectory(t, 'orchbee-symlink-host-');
+	try {
+		assertWindowsFileSymlinkSupport(directory);
+	} catch (error) {
+		if (process.platform !== 'win32') throw error;
+		assert.match(error.message, /Windows Developer Mode/u);
+	}
+	assert.deepEqual(readdirSync(directory), []);
+});
+
+test('Windows file-symlink preflight gives actionable guidance for permission failures and removes its probe', (t) => {
+	const directory = ownedTemporaryDirectory(t, 'orchbee-symlink-denied-');
+	for (const code of ['EPERM', 'EACCES']) {
+		const cause = Object.assign(new Error('Access denied'), { code });
+		assert.throws(
+			() =>
+				assertWindowsFileSymlinkSupport(directory, () => {
+					throw cause;
+				}),
+			(error) => {
+				assert.match(error.message, /Windows Developer Mode/u);
+				assert.match(error.message, /elevated terminal/u);
+				assert.match(error.message, /apps\/terminal-host\/README\.md#development/u);
+				assert.equal(error.cause, cause);
+				return true;
+			},
+		);
+		assert.deepEqual(readdirSync(directory), []);
+	}
+});
 
 test('macOS staging accepts a normalized absolute output and rejects WSL routing', () => {
 	assert.deepEqual(options(['--output', '/private/tmp/orchbee-native-dev'], 'darwin'), {
@@ -106,7 +163,11 @@ test('a missing required payload file is rejected', (t) => {
 
 test('a symbolic link inside the capsule is rejected', (t) => {
 	const { directory, copy } = stagedCopy((target) => {
-		symlinkSync('bundle', path.join(target, 'link'));
+		symlinkSync(
+			path.join(target, 'bundle'),
+			path.join(target, 'link'),
+			process.platform === 'win32' ? 'junction' : 'dir',
+		);
 	});
 	t.after(() => rmSync(directory, { recursive: true, force: true }));
 	assert.equal(verifiedCapsuleDigest(copy), null);

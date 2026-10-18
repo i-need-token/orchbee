@@ -11,6 +11,7 @@ import {
 	realpathSync,
 	renameSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -50,6 +51,30 @@ function removeOwnedTemporary(directory, parent) {
 	rmSync(resolved, { recursive: true });
 }
 
+export function assertWindowsFileSymlinkSupport(directory, createSymlink = symlinkSync) {
+	const target = path.join(directory, 'file-symlink-target');
+	const link = path.join(directory, 'file-symlink-probe');
+	try {
+		writeFileSync(target, 'Windows file symlink preflight\n', { flag: 'wx' });
+		try {
+			createSymlink(path.basename(target), link, 'file');
+		} catch (error) {
+			if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+				throw new Error(
+					'Windows native staging requires permission to create file symbolic links. ' +
+						'Enable Windows Developer Mode or run this command from an elevated terminal, then retry. ' +
+						'See apps/terminal-host/README.md#development.',
+					{ cause: error },
+				);
+			}
+			throw error;
+		}
+	} finally {
+		rmSync(link, { force: true });
+		rmSync(target, { force: true });
+	}
+}
+
 export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 	if (
 		!/^[A-Za-z]:\\/u.test(output) ||
@@ -60,26 +85,27 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule) {
 	if (existsSync(output)) throw new Error('Refusing to overwrite an existing cohort');
 	const target = cargoTarget ?? path.join(root, 'target');
 	if (!path.isAbsolute(target)) throw new Error('Cargo target directory must be absolute');
-	execFileSync(
-		'cargo',
-		[
-			'build',
-			'--release',
-			'--locked',
-			'--target-dir',
-			target,
-			'-p',
-			'orchbee',
-			'-p',
-			'orchbee-server',
-			'-p',
-			'orchbee-worker',
-		],
-		{ cwd: root, stdio: 'inherit', windowsHide: true },
-	);
 	const temporaryParent = realpathSync(path.dirname(output));
 	const temporary = mkdtempSync(path.join(temporaryParent, 'orchbee-native-host-'));
 	try {
+		assertWindowsFileSymlinkSupport(temporary);
+		execFileSync(
+			'cargo',
+			[
+				'build',
+				'--release',
+				'--locked',
+				'--target-dir',
+				target,
+				'-p',
+				'orchbee',
+				'-p',
+				'orchbee-server',
+				'-p',
+				'orchbee-worker',
+			],
+			{ cwd: root, stdio: 'inherit', windowsHide: true },
+		);
 		const hostPrefix = path.join(temporary, 'host');
 		execFileSync('zig', ['build', '-Doptimize=ReleaseSafe', '--prefix', hostPrefix], {
 			cwd: path.join(root, 'apps', 'terminal-host'),
