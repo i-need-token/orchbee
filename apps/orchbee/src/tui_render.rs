@@ -137,6 +137,27 @@ mod workspace_sidebar;
 #[cfg(windows)]
 mod worktree_launch;
 
+#[cfg(test)]
+pub(crate) fn render_tab_rename_for_test(
+    frame: &mut Frame<'_>,
+    locale: Locale,
+    draft: &crate::terminal_session::NativeRenameDraftView<'_>,
+    content_area: Rect,
+    theme: &Theme,
+) -> (
+    Rect,
+    ModalPresentation<crate::terminal_session::NativeRenameDraftToken>,
+) {
+    tab_rename::render(
+        frame,
+        locale,
+        draft,
+        content_area,
+        theme,
+        &mut HitMapBuilder::new(),
+    )
+}
+
 #[derive(Clone, Copy)]
 struct SiteStatus<'a> {
     text: &'a str,
@@ -2107,8 +2128,10 @@ fn render_leaf(
     let title = panel.map_or_else(
         || format!(" {} {} ", text.panel_title, panel_index + 1),
         |p| {
+            let presentation = native.selected_presentation(p);
             panel_reports::title(
-                native.selected_presentation(p),
+                presentation.custom_label(),
+                presentation.display_label(),
                 panel_index + 1,
                 text.panel_title,
                 native.panel_report(p),

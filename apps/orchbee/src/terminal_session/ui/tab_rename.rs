@@ -19,8 +19,21 @@ impl<'a> NativeRenameDraftView<'a> {
     pub(crate) fn token(&self) -> NativeRenameDraftToken {
         NativeRenameDraftToken(self.0.token())
     }
-    pub(crate) fn target_label(&self) -> std::borrow::Cow<'a, str> {
-        self.0.target_label()
+    pub(crate) fn text(&self) -> &'a str {
+        self.0.text()
+    }
+    pub(crate) fn target_label(
+        &self,
+        locale: crate::localization::Locale,
+    ) -> std::borrow::Cow<'a, str> {
+        if self.0.automatic_label() {
+            locale.automatic_tab_label(self.0.position()).into()
+        } else {
+            self.0.target_label()
+        }
+    }
+    pub(crate) fn automatic_label(&self) -> bool {
+        self.0.automatic_label()
     }
     /// Pure display-space projection of the draft inside a
     /// `field_width`-cell field; `None` when the field has no drawable

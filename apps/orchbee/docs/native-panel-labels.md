@@ -90,4 +90,4 @@ CLI Panel reads keep the creation `label` and add nullable `customLabel` plus ef
 `displayLabel`; raw snapshots retain the canonical omitted-when-absent override. Current
 schema versions and the catalog are owned by [Native CLI queries](native-cli-query.md).
 
-In a leaf header, an explicit custom title precedes the ordinal so narrow panes keep user text visible. Uncustomized headers retain their existing localized resource prefix. Both forms use the same sanitization and display-cell truncation.
+In a leaf header, a provided custom Presentation title or metadata title is displayed without an added Panel ordinal, including explicitly provided numeric titles. When neither is available, the generated header retains its localized resource prefix and Panel ordinal. A bare ASCII number inherited as the creation label is omitted from that header; a nonnumeric creation label follows the ordinal. This display choice never rewrites the immutable label. All forms use the same sanitization and display-cell truncation.

@@ -3,7 +3,7 @@ use super::super::tab_rename::{RenameOperation, RenamePreparation, RenameResult}
 use super::*;
 
 #[test]
-fn automatic_rename_prefill_uses_current_position_and_equal_text_is_a_commit() {
+fn automatic_rename_starts_empty_and_equal_text_is_a_commit() {
     let mut document = snapshot(2, 1, None);
     document.terminal_contexts[0].tabs[0].automatic_label = true;
     document.terminal_contexts[0].tabs[0].label = "old ordinal".into();
@@ -11,7 +11,7 @@ fn automatic_rename_prefill_uses_current_position_and_equal_text_is_a_commit() {
     assert_eq!(state.view().tab(0).unwrap().tab_label(), "1");
     state.open_rename_draft().unwrap();
     let draft = state.rename_draft().unwrap();
-    assert_eq!(draft.text(), "1");
+    assert_eq!(draft.text(), "");
     assert_eq!(draft.target_label(), "1");
     state.cancel_rename_draft();
     let same_visible = rename_operation(&mut state, "1");
@@ -29,6 +29,41 @@ fn automatic_rename_prefill_uses_current_position_and_equal_text_is_a_commit() {
     state.cancel_rename_draft();
     let same_raw = rename_operation(&mut state, "old ordinal");
     assert!(same_raw.known_commit(WorkbenchRevision::new(2)).is_some());
+}
+
+#[test]
+fn automatic_rename_placeholder_tracks_the_tab_position_after_reordering() {
+    let mut document = snapshot(2, 1, None);
+    document.terminal_contexts[0].tabs[0].automatic_label = true;
+    document.terminal_contexts[0].tabs[0].label = "stored ordinal".into();
+    document.terminal_contexts[0].tabs.reverse();
+    let cache = project_native_standalone_tabs(&document).unwrap();
+    let second = &cache.tabs()[1];
+    let selection = crate::terminal_session::workbench_projection::NativeMemberTarget {
+        tab: second.tab_id().clone(),
+        panel: second.panel_id().clone(),
+        presentation: second.presentation_id().clone(),
+    };
+    let (mut state, _) =
+        NativeSessionState::starting_at(cache, 1, geometry(80), Some(&selection)).unwrap();
+    let key = state.desired().unwrap().clone();
+    assert!(state.install_projection_t(&key));
+    assert!(state.record_setup_configuration_t(&key, controlling(), Some(geometry(80))));
+    assert!(state.stage_drawn_frame_t(&key, FrameIdentity::new(1)));
+    assert!(state.mark_feedback_accepted_t(&key, FrameIdentity::new(1)));
+    assert!(state.publish_ready_t(
+        &key,
+        FrameIdentity::new(1),
+        controlling(),
+        Some(geometry(80))
+    ));
+
+    state.open_rename_draft().unwrap();
+    let draft = state.rename_draft().unwrap();
+    assert!(draft.automatic_label());
+    assert_eq!(draft.position(), 2);
+    assert_eq!(draft.text(), "");
+    assert_eq!(draft.target_label(), "2");
 }
 
 fn rename_operation(state: &mut NativeSessionState, text: &str) -> RenameOperation {

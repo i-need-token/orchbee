@@ -1,8 +1,68 @@
 use super::super::*;
 use crate::terminal_session::mailbox::EventDeadline;
 use crate::terminal_session::state::tab_rename::RenameResult;
+use crate::{localization::Locale, tui_render::render_tab_rename_for_test, tui_theme::Theme};
 use orchbee_workbench_protocol::{WorkbenchRevision, WorkbenchSnapshotOutcome};
+use ratatui::{Terminal, backend::TestBackend};
 use std::{sync::atomic::Ordering, time::Duration};
+
+#[test]
+fn rename_modal_localizes_automatic_names_as_empty_field_placeholders_and_keeps_fixed_prefill() {
+    for (locale, expected) in [(Locale::EnUs, "Tab 1"), (Locale::ZhCn, "标签页 1")] {
+        let mut source = super::super::tests::membership::snapshot(1, 1);
+        let tab = &mut source.terminal_contexts[0].tabs[0];
+        tab.automatic_label = true;
+        tab.label = "stored ordinal".into();
+        let (mut ui, _, _, _) =
+            super::super::tests::move_membership::ready_ui_with_snapshot(source);
+        ui.request_rename_draft().unwrap();
+        let draft = ui.view().rename_draft().unwrap();
+        assert_eq!(draft.text(), "");
+        assert!(!draft.label_valid());
+
+        let rendered = render_rename_draft(&draft, locale);
+        let compact = rendered.replace(' ', "");
+        let expected = expected.replace(' ', "");
+        assert_eq!(compact.matches(&expected).count(), 2, "{rendered}");
+        assert!(
+            !rendered.contains(locale.rename_invalid()),
+            "an empty automatic-name placeholder is not an input error\n{rendered}"
+        );
+    }
+
+    let mut source = super::super::tests::membership::snapshot(1, 1);
+    source.terminal_contexts[0].tabs[0].label = "Build Shell".into();
+    let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+    ui.request_rename_draft().unwrap();
+    let draft = ui.view().rename_draft().unwrap();
+    assert_eq!(draft.text(), "Build Shell");
+    let rendered = render_rename_draft(&draft, Locale::EnUs);
+    assert_eq!(rendered.matches("Build Shell").count(), 2, "{rendered}");
+}
+
+fn render_rename_draft(
+    draft: &crate::terminal_session::NativeRenameDraftView<'_>,
+    locale: Locale,
+) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    terminal
+        .draw(|frame| {
+            let area = frame.area();
+            render_tab_rename_for_test(frame, locale, draft, area, &Theme::terminal_native());
+        })
+        .unwrap();
+    terminal
+        .backend()
+        .buffer()
+        .content
+        .chunks(80)
+        .map(|row| {
+            let mut line: String = row.iter().map(|cell| cell.symbol()).collect();
+            line.push('\n');
+            line
+        })
+        .collect()
+}
 
 #[test]
 fn rename_removed_candidate_samples_one_posttransport_pair_and_never_renews_at_cleanup() {

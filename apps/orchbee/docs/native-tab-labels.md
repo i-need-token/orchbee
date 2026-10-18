@@ -23,9 +23,12 @@ identities, Presentation labels and bindings remain unchanged by reordering. Dup
 names are permitted.
 
 Native Tab-strip and navigator chrome localize automatic positions as `Tab 1`, `Tab 2`, … in
-`en-US` and `标签页 1`, `标签页 2`, … in `zh-CN`. The provisional first Tab uses the same title during
-Workspace creation. Fixed names, including numeric names, remain exact. Canonical ordinal labels,
-CLI selectors, rename drafts, and launch-profile selection keep their existing semantics.
+`en-US` and `标签页 1`, `标签页 2`, … in `zh-CN`. The rename dialog uses that same display name for
+its current-name line. Automatic-name drafts start empty and show the current display name as an
+informational placeholder; it is not submitted as the new label. Fixed names, including numeric
+names, remain exact and prefill the editor. The provisional first Tab uses the same title during
+Workspace creation. Canonical ordinal labels, CLI selectors, and launch-profile selection keep their
+existing semantics.
 
 `tab rename` always chooses a fixed name. Renaming an automatic Tab to the same visible or raw
 text is a real change: it clears automatic naming and advances one revision. Repeating that

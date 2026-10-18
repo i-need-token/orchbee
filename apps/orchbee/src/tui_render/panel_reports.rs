@@ -12,28 +12,29 @@ use ratatui::{
 };
 
 pub(super) fn title(
-    panel: &crate::terminal_session::NativePresentation,
+    custom_label: Option<&str>,
+    display_label: &str,
     ordinal: usize,
     prefix: &str,
     view: PanelReportView<'_>,
     theme: &Theme,
 ) -> String {
-    let title = panel.custom_label().or_else(|| match view {
+    let title = custom_label.or_else(|| match view {
         PanelReportView::Ready(row) => row.metadata.title.as_ref().map(|v| v.as_str()),
         _ => None,
     });
     if let Some(title) = title {
-        format!(
-            " {} {} {} ",
-            sanitize_terminal_text(title),
-            theme.glyphs.middle_dot,
-            ordinal
-        )
+        format!(" {} ", sanitize_terminal_text(title))
+    } else if !display_label.is_empty() && display_label.chars().all(|c| c.is_ascii_digit()) {
+        // Creation labels inherited from automatic Tabs are bare numbers.
+        // The leaf ordinal already identifies the pane; a second unexplained
+        // number adds no useful title. Explicit numeric overrides stay above.
+        format!(" {prefix} {ordinal} ")
     } else {
         format!(
             " {prefix} {ordinal} {} {} ",
             theme.glyphs.middle_dot,
-            sanitize_terminal_text(panel.display_label())
+            sanitize_terminal_text(display_label)
         )
     }
 }

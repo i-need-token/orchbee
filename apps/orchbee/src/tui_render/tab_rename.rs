@@ -6,7 +6,7 @@ use crate::{
     client_view::{Binding, KeyCode, Modifiers},
     localization::Locale,
     terminal_session::{ModalPresentation, NativeRenameDraftToken, NativeRenameDraftView},
-    terminal_text::sanitize_terminal_text,
+    terminal_text::{sanitize_terminal_text, truncate_display},
     tui_pointer::{HitLayer, HitMapBuilder, HitTarget},
     tui_theme::{Role, Theme},
 };
@@ -28,11 +28,12 @@ pub(super) fn render(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
+    let placeholder_visible = draft.automatic_label() && draft.text().is_empty();
     let mut lines = vec![
         title_line(locale.rename_title(), theme),
         Line::from(""),
         description_line(
-            sanitize_terminal_text(&draft.target_label()).into_owned(),
+            sanitize_terminal_text(&draft.target_label(locale)).into_owned(),
             theme,
         ),
         Line::from(""),
@@ -46,7 +47,7 @@ pub(super) fn render(
     if draft.input_fault() {
         lines.push(status_line(locale.rename_fault(), Role::StatusError, theme));
         lines.push(Line::from(""));
-    } else if !draft.label_valid() {
+    } else if !draft.label_valid() && !placeholder_visible {
         lines.push(status_line(
             locale.rename_invalid(),
             Role::StatusError,
@@ -93,13 +94,23 @@ pub(super) fn render(
         return (Rect::default(), ModalPresentation::NotPresented);
     };
     let mut lines = text.lines;
-    let mut displayed = window.display().to_owned();
+    let (display, role) = if placeholder_visible {
+        let target_label = draft.target_label(locale);
+        let label = sanitize_terminal_text(&target_label);
+        (
+            truncate_display(&label, usize::from(field_width), theme.glyphs.ellipsis),
+            Role::TextSecondary,
+        )
+    } else {
+        (window.display().to_owned(), Role::TextPrimary)
+    };
+    let mut displayed = display;
     displayed.push_str(&" ".repeat(
         usize::from(field_width).saturating_sub(crate::terminal_text::display_width(&displayed)),
     ));
     lines[FIELD] = Line::from(vec![
         Span::styled("[ ", theme.style(crate::tui_theme::Role::AccentFocus)),
-        Span::styled(displayed, theme.style(crate::tui_theme::Role::TextPrimary)),
+        Span::styled(displayed, theme.style(role)),
         Span::styled(" ]", theme.style(crate::tui_theme::Role::AccentFocus)),
     ]);
     let text = Text::from(lines);

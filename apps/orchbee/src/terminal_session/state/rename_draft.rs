@@ -65,6 +65,12 @@ impl<'a> RenameDraftView<'a> {
     pub(in crate::terminal_session) fn target_label(&self) -> std::borrow::Cow<'a, str> {
         self.draft.baseline.tabs()[self.draft.target_index].display_label(self.draft.target_index)
     }
+    pub(in crate::terminal_session) fn automatic_label(&self) -> bool {
+        self.draft.baseline.tabs()[self.draft.target_index].automatic_label()
+    }
+    pub(in crate::terminal_session) fn position(&self) -> usize {
+        self.draft.target_index + 1
+    }
     pub(in crate::terminal_session) fn label_valid(&self) -> bool {
         WorkbenchLabel::parse(self.draft.editor.text()).is_ok()
     }
@@ -157,10 +163,15 @@ impl NativeSessionState {
             baseline: self.cache.clone(),
             target,
             target_index,
-            // Prefill keeps the protocol-legal label byte-exact — including
-            // control scalars chrome cannot show — with the cursor at its end.
+            // Automatic positions are presentation-only, so keep the editor
+            // empty and let the modal show the localized display name as a
+            // placeholder. Fixed labels remain exact and start at the end.
             editor: LineEditor::new(
-                tab.display_label(target_index).into_owned(),
+                if tab.automatic_label() {
+                    String::new()
+                } else {
+                    tab.display_label(target_index).into_owned()
+                },
                 LengthLimit::Scalars(MAXIMUM_LABEL_LENGTH),
             ),
             presentation: PresentationPhase::Pending,

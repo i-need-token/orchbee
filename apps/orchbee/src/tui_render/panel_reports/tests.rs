@@ -9,6 +9,64 @@ fn row() -> PanelReport {
         tokens: serde_json::from_value(json!({"branch":"feature"})).unwrap(),
     }
 }
+
+#[test]
+fn provided_titles_stay_exact_and_generated_title_keeps_its_ordinal() {
+    let theme = Theme::terminal_native();
+    let report = row();
+    assert_eq!(
+        title(
+            Some("1"),
+            "Shell",
+            1,
+            "Terminal",
+            PanelReportView::Ready(&report),
+            &theme,
+        ),
+        " 1 "
+    );
+
+    let mut metadata = row();
+    metadata.metadata.title = Some(serde_json::from_value(json!("Build Shell")).unwrap());
+    assert_eq!(
+        title(
+            None,
+            "Shell",
+            1,
+            "Terminal",
+            PanelReportView::Ready(&metadata),
+            &theme,
+        ),
+        " Build Shell "
+    );
+
+    assert_eq!(
+        title(
+            None,
+            "Shell",
+            2,
+            "Terminal",
+            PanelReportView::Pending,
+            &theme,
+        ),
+        format!(" Terminal 2 {} Shell ", theme.glyphs.middle_dot)
+    );
+
+    for inherited_number in ["1", "5"] {
+        assert_eq!(
+            title(
+                None,
+                inherited_number,
+                1,
+                "Terminal",
+                PanelReportView::Pending,
+                &theme,
+            ),
+            " Terminal 1 ",
+        );
+    }
+}
+
 #[test]
 fn wide_metadata_status_and_tokens_fit_without_injecting_terminal_controls() {
     let theme = Theme::rgb_test_dark();
