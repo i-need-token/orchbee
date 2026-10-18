@@ -196,6 +196,12 @@ pub(crate) trait TerminalModes: Send + Sync + 'static {
     ) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
     }
+    fn query_host_appearance(
+        &self,
+        _query: crate::terminal_host_appearance::Query,
+    ) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     #[cfg(windows)]
     fn notify_terminal(
         &self,
@@ -546,6 +552,19 @@ impl<C: TerminalModes> TerminalModeGuard<C> {
             return Err(io::ErrorKind::BrokenPipe.into());
         }
         self.control.query_pointer_admission(query)
+    }
+
+    /// Sends the appearance query only while this terminal's lifecycle lease is active.
+    pub(crate) fn query_host_appearance(
+        &self,
+        query: crate::terminal_host_appearance::Query,
+    ) -> io::Result<()> {
+        if !self.state.raw_mode.restoration_required()
+            || self.state.synchronized_update.frame_output_blocked()
+        {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        self.control.query_host_appearance(query)
     }
 
     #[cfg(windows)]
@@ -1077,6 +1096,12 @@ impl TerminalModes for InheritedTerminalModes {
     fn query_pointer_admission(
         &self,
         query: crate::terminal_pointer_admission::Query,
+    ) -> io::Result<()> {
+        self.write_command(query)
+    }
+    fn query_host_appearance(
+        &self,
+        query: crate::terminal_host_appearance::Query,
     ) -> io::Result<()> {
         self.write_command(query)
     }

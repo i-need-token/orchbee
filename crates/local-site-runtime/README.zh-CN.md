@@ -35,6 +35,16 @@ Windows 配置解码为旧 profile 输入保留别名；TUI 观察与卡片调�
 通用设置确认后覆盖旧投递与全局声音策略。
 原三字段 TOML 设置写入器已退役；旧 TOML 保持只读迁移输入。
 
+## Windows 宿主外观回退
+
+`read_windows_apps_use_light_theme` 只读查询当前用户的
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`。
+只有读取到文档规定的 `REG_DWORD` 值 `1` 或 `0` 时才返回 `Some(true)` 或 `Some(false)`；缺失、
+不可读和其他值返回 `None`。Client 仅在原生终端 OSC `10`／`11` 探测在期限内没有有效 OSC `11`
+背景后调用一次。
+优先级及其到 TUI 外观的映射由 Client 负责；此运行时辅助程序不会修改任何 Windows 设置，也不会
+读取其他主题状态。
+
 ## Windows 私有帧目录
 
 `WindowsPrivateFrameDirectory` 在已准入的私有运行时下拥有一个临时

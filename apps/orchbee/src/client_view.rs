@@ -396,6 +396,7 @@ pub(crate) struct ClientView {
     #[cfg(windows)]
     theme_name: Option<orchbee_local_site_runtime::WindowsThemeName>,
     theme: Option<crate::tui_theme::Theme>,
+    host_appearance: crate::terminal_host_appearance::HostAppearance,
     color_level: crate::tui_theme::ColorLevel,
     pub(crate) notifications: crate::notifications::State,
     #[cfg(windows)]
@@ -443,6 +444,7 @@ impl ClientView {
             #[cfg(windows)]
             theme_name: None,
             theme: None,
+            host_appearance: crate::terminal_host_appearance::HostAppearance::Unknown,
             color_level: crate::tui_theme::ColorLevel::Ansi16,
             notifications: crate::notifications::State::default(),
             #[cfg(windows)]
@@ -487,8 +489,12 @@ impl ClientView {
         self.color_level = level;
         if let Some(values) = &self.user_preferences {
             self.theme = Some(
-                crate::tui_theme::Theme::application(values.application_theme, level)
-                    .with_terminal_preferences(values),
+                crate::tui_theme::Theme::application_with_host(
+                    values.application_theme,
+                    self.host_appearance,
+                    level,
+                )
+                .with_terminal_preferences(values),
             );
             #[cfg(windows)]
             return;
@@ -512,17 +518,50 @@ impl ClientView {
         self.theme
     }
 
+    /// Updates the sampled host polarity and resolves a confirmed System preference if present.
+    pub(crate) fn configure_host_appearance(
+        &mut self,
+        appearance: crate::terminal_host_appearance::HostAppearance,
+    ) -> bool {
+        if self.host_appearance == appearance {
+            return false;
+        }
+        self.host_appearance = appearance;
+        if let Some(values) = &self.user_preferences {
+            self.theme = Some(
+                crate::tui_theme::Theme::application_with_host(
+                    values.application_theme,
+                    appearance,
+                    self.color_level,
+                )
+                .with_terminal_preferences(values),
+            );
+            return values.application_theme
+                == orchbee_workbench_protocol::ApplicationAppearance::System;
+        }
+        #[cfg(windows)]
+        if let Some(name) = self.theme_name {
+            self.configure_theme(name);
+        }
+        false
+    }
+
     /// Resolves only chrome and terminal default colors from a reversible local draft.
     pub(crate) fn preview_theme(
         &self,
         preview: crate::native_settings::AppearancePreview<'_>,
     ) -> crate::tui_theme::Theme {
-        crate::tui_theme::Theme::application(preview.application_theme, self.color_level)
-            .with_terminal_appearance(
-                preview.terminal_display_theme,
-                preview.custom_foreground,
-                preview.custom_background,
-            )
+        crate::tui_theme::Theme::application_with_host(
+            preview.application_theme,
+            self.host_appearance,
+            self.color_level,
+        )
+        .with_terminal_appearance_for_application(
+            preview.application_theme,
+            preview.terminal_display_theme,
+            preview.custom_foreground,
+            preview.custom_background,
+        )
     }
 
     pub(crate) fn apply_user_preferences(
@@ -530,8 +569,12 @@ impl ClientView {
         values: orchbee_workbench_protocol::UserPreferencesValues,
     ) {
         self.theme = Some(
-            crate::tui_theme::Theme::application(values.application_theme, self.color_level)
-                .with_terminal_preferences(&values),
+            crate::tui_theme::Theme::application_with_host(
+                values.application_theme,
+                self.host_appearance,
+                self.color_level,
+            )
+            .with_terminal_preferences(&values),
         );
         self.user_preferences = Some(values);
     }

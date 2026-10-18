@@ -845,6 +845,104 @@ fn pointer_admission_replies_decode_strictly_in_escape_and_c1_forms() {
 }
 
 #[test]
+fn appearance_replies_are_typed_across_reads_and_never_reach_key_input() {
+    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
+    use crate::terminal_input::HostReply;
+
+    let items = decode_split(
+        b"a\x1b]10;rgb:ffff/ffff/ffff\x1b\\\x1b]11;rgb:1010/2020/3030",
+        &[b"\x1b", b"\\q"],
+    );
+    assert_eq!(items.len(), 4);
+    assert_eq!(items[0].kind, press(KeyCode::Char('a')));
+    assert_eq!(
+        items[1].kind,
+        DecodedKind::HostReply(HostReply::Appearance(ColorReply {
+            target: ColorTarget::Foreground,
+            rgb: Some([255, 255, 255]),
+        }))
+    );
+    assert_eq!(
+        items[2].kind,
+        DecodedKind::HostReply(HostReply::Appearance(ColorReply {
+            target: ColorTarget::Background,
+            rgb: Some([16, 32, 48]),
+        }))
+    );
+    assert_eq!(items[3].kind, press(KeyCode::Char('q')));
+}
+
+#[test]
+fn malformed_and_oversized_appearance_replies_are_consumed_atomically() {
+    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
+    use crate::terminal_input::HostReply;
+
+    let malformed = decode(b"\x1b]11;not-rgb\x07x");
+    assert_eq!(malformed.len(), 2);
+    assert_eq!(
+        malformed[0].kind,
+        DecodedKind::HostReply(HostReply::Appearance(ColorReply {
+            target: ColorTarget::Background,
+            rgb: None,
+        }))
+    );
+    assert_eq!(malformed[1].kind, press(KeyCode::Char('x')));
+
+    let mut oversized = b"\x1b]11;".to_vec();
+    oversized.extend(std::iter::repeat_n(b'a', 256));
+    oversized.extend_from_slice(b"\x07y");
+    let oversized = decode(&oversized);
+    assert_eq!(oversized.len(), 2);
+    assert_eq!(
+        oversized[0].kind,
+        DecodedKind::HostReply(HostReply::Appearance(ColorReply {
+            target: ColorTarget::Background,
+            rgb: None,
+        }))
+    );
+    assert_eq!(oversized[1].kind, press(KeyCode::Char('y')));
+}
+
+#[test]
+fn timed_out_appearance_reply_drains_late_tail_before_resuming_keys() {
+    let now = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    for byte in b"\x1b]11" {
+        assert!(decoder.push(*byte, now, false).is_empty());
+    }
+    assert!(decoder.push(b';', now, false).is_empty());
+    for byte in b"rgb:" {
+        assert!(decoder.push(*byte, now, false).is_empty());
+    }
+    assert!(decoder.tick(now + Duration::from_secs(2)).is_empty());
+    for byte in b"ffff/ffff/ffff\x1b\\" {
+        assert!(
+            decoder
+                .push(*byte, now + Duration::from_secs(2), false)
+                .is_empty()
+        );
+    }
+    assert_eq!(
+        decoder.push(b'z', now + Duration::from_secs(2), false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+}
+
+#[test]
+fn unrelated_alt_right_bracket_retains_its_existing_key_meaning() {
+    let items = decode(b"\x1b]x");
+    assert_eq!(items.len(), 2);
+    assert_eq!(
+        items[0].kind,
+        DecodedKind::Key(KeyEvent::press(
+            KeyCode::Char(']'),
+            Modifiers::NONE.with_alt(),
+        ))
+    );
+    assert_eq!(items[1].kind, press(KeyCode::Char('x')));
+}
+
+#[test]
 fn malformed_pointer_admission_metadata_is_consumed_without_neighbor_leaks() {
     for sequence in [
         b"\x1b[?1002;2$y".as_slice(),

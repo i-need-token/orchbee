@@ -31,6 +31,7 @@ pub(crate) struct InputDispatcher {
     navigator: navigator::Capture,
     graphics: crate::terminal_graphics::Probe,
     pointer_admission: crate::terminal_pointer_admission::Probe,
+    host_appearance: crate::terminal_host_appearance::Probe,
     pointer_capture: PointerCaptureRequest,
     /// A failed level switch may have emitted a prefix. Runtime must exit and
     /// lifecycle cleanup must settle it; input never retries that transition.
@@ -238,7 +239,11 @@ impl InputDispatcher {
         self.apply_transition(view, port, now, transition, None, after_layout, mode)
             .map(Some)
     }
-    fn host_reply(&mut self, reply: HostReply, now: Instant) {
+    fn host_reply(
+        &mut self,
+        reply: HostReply,
+        now: Instant,
+    ) -> Option<crate::terminal_host_appearance::HostAppearance> {
         match reply {
             HostReply::Graphics(reply) => {
                 self.graphics.reply(reply, now);
@@ -250,11 +255,26 @@ impl InputDispatcher {
                         self.graphics_reply_overflow = true;
                     }
                 }
+                None
             }
             HostReply::Pointer(reply) => {
                 self.pointer_admission.observe(reply, now);
+                None
             }
+            HostReply::Appearance(reply) => self.host_appearance.observe(reply, now),
         }
+    }
+
+    /// Starts the endpoint's only host-color query before its first frame is drawn.
+    pub(crate) fn begin_host_appearance<Error>(
+        &mut self,
+        now: Instant,
+        mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        if let Some(query) = self.host_appearance.begin(now) {
+            mode(ModeRequest::AppearanceQuery(query))?;
+        }
+        Ok(())
     }
     #[cfg(windows)]
     pub(crate) fn take_graphics_replies(&mut self) -> (Vec<crate::terminal_graphics::Reply>, bool) {
@@ -628,6 +648,21 @@ impl InputDispatcher {
         self.graphics.tick(now);
         self.pointer_admission.tick(now);
         self.synchronize_pointer_admission(view, port, mode)?;
+        let appearance_changed = if self.host_appearance.timeout(now).is_some() {
+            #[cfg(windows)]
+            let fallback = crate::terminal_host_appearance::from_windows_apps_use_light_theme(
+                orchbee_local_site_runtime::read_windows_apps_use_light_theme(),
+            );
+            #[cfg(not(windows))]
+            let fallback = crate::terminal_host_appearance::HostAppearance::Unknown;
+            let appearance = self
+                .host_appearance
+                .settle_fallback(fallback)
+                .expect("appearance timeout owns one platform fallback settlement");
+            view.configure_host_appearance(appearance)
+        } else {
+            false
+        };
         // Compare the settled owner from the preceding boundary with the
         // post-reconcile projection below. An asynchronously installed owner
         // is already visible to the pure projector here, but it has not yet
@@ -641,7 +676,7 @@ impl InputDispatcher {
         // even when no further bytes ever arrive. A release produced by
         // this call's own reconcile still guards the current packet tail.
         self.decoder.end_released(now);
-        let mut changed = self.reconcile(view, port, now);
+        let mut changed = appearance_changed | self.reconcile(view, port, now);
         if idle {
             let events = self.decoder.tick(now);
             changed |= !events.is_empty();
@@ -1262,7 +1297,9 @@ impl InputDispatcher {
     ) -> Result<DispatchOutcome, Error> {
         if let DecodedKind::HostReply(reply) = item.kind {
             self.flush_pending(view, port);
-            self.host_reply(reply, now);
+            if let Some(appearance) = self.host_reply(reply, now) {
+                view.configure_host_appearance(appearance);
+            }
             self.synchronize_pointer_admission(view, port, mode)?;
             return Ok(DispatchOutcome::Continue);
         }
@@ -2468,7 +2505,9 @@ impl InputDispatcher {
     ) {
         for event in events {
             if let ModalInputEvent::HostReply(reply) = event {
-                self.host_reply(reply, now);
+                if let Some(appearance) = self.host_reply(reply, now) {
+                    view.configure_host_appearance(appearance);
+                }
                 continue;
             }
             if let ModalInputEvent::Focus(focused) = event {

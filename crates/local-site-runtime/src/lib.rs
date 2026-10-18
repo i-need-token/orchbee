@@ -19,6 +19,10 @@ pub use windows_plugins::{
     plugin_git_reference, plugin_identifier,
 };
 #[cfg(windows)]
+mod windows_host_appearance;
+#[cfg(windows)]
+pub use windows_host_appearance::read_windows_apps_use_light_theme;
+#[cfg(windows)]
 mod private_cache_windows;
 #[cfg(windows)]
 pub use private_cache_windows::WindowsPrivateCache;

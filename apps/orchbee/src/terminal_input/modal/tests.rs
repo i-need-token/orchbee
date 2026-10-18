@@ -955,3 +955,52 @@ fn only_reply_framed_private_csi_is_metadata_inside_a_modal() {
     assert_eq!(appended(&events), "z");
     assert!(!events.contains(&Event::Fault));
 }
+
+#[test]
+fn appearance_reply_is_host_metadata_instead_of_modal_text() {
+    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
+    use crate::terminal_input::HostReply;
+
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    let events = feed(&mut decoder, b"\x1b]11;rgb:1010/2020/3030\x1b\\x", now, 64);
+    assert!(
+        events.contains(&Event::HostReply(HostReply::Appearance(ColorReply {
+            target: ColorTarget::Background,
+            rgb: Some([16, 32, 48]),
+        })))
+    );
+    assert_eq!(appended(&events), "x");
+}
+
+#[test]
+fn malformed_and_timed_out_appearance_replies_do_not_leak_tail_text() {
+    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
+    use crate::terminal_input::HostReply;
+
+    let now = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    let malformed = feed(&mut decoder, b"\x1b]11;bad\x07x", now, 64);
+    assert!(
+        malformed.contains(&Event::HostReply(HostReply::Appearance(ColorReply {
+            target: ColorTarget::Background,
+            rgb: None,
+        })))
+    );
+    assert_eq!(appended(&malformed), "x");
+
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    let started = feed(&mut decoder, b"\x1b]11;rgb:", now, 64);
+    assert!(started.is_empty());
+    assert!(decoder.tick(now + Duration::from_secs(2)).is_empty());
+    let tail = feed(
+        &mut decoder,
+        b"ffff/ffff/ffff\x1b\\y",
+        now + Duration::from_secs(2),
+        64,
+    );
+    assert_eq!(appended(&tail), "y");
+}

@@ -41,6 +41,16 @@ decoding retains aliases for legacy profile input; TUI observation and card sche
 the portable type. Common settings override legacy delivery and global sound after confirmation.
 The former three-leaf TOML settings writer is retired; legacy TOML remains read-only migration input.
 
+## Windows host appearance fallback
+
+`read_windows_apps_use_light_theme` performs a read-only current-user lookup of
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
+It returns `Some(true)` or `Some(false)` only for the documented `REG_DWORD` values `1` and `0`;
+missing, unreadable, and other values return `None`. The Client invokes this once only when its
+native terminal OSC `10`/`11` probe has no valid OSC `11` background by the deadline. The Client owns that precedence and maps the
+result to TUI appearance; this runtime helper changes no Windows setting and reads no other theme
+state.
+
 ## Windows private frame directories
 
 `WindowsPrivateFrameDirectory` owns one ephemeral `graphics-<32-hex-nonce>` leaf beneath an

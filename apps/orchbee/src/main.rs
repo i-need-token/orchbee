@@ -72,6 +72,8 @@ mod terminal_copy_query;
 mod terminal_device;
 mod terminal_graphics;
 #[cfg(any(unix, windows))]
+mod terminal_host_appearance;
+#[cfg(any(unix, windows))]
 mod terminal_input;
 #[cfg(any(unix, windows))]
 mod terminal_lifecycle;

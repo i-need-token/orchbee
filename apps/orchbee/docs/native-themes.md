@@ -4,8 +4,9 @@
 
 The [shared device preferences](../../../crates/workbench-protocol/docs/user-preferences.md)
 separate application appearance (Light, Dark, System) from terminal defaults (Host, Light, Dark,
-Custom). Application Light is the common default. System maps TUI chrome to the outer terminal's
-semantic defaults; the TUI does not change the outer host's font or appearance.
+Custom). Application Light remains the common default. System resolves TUI chrome to One Light or
+One Dark from the outer terminal's detected background polarity; Unknown keeps `terminal-native`.
+The TUI does not change the outer host's font or appearance.
 
 Terminal Host follows explicit application Light/Dark through the shared shipped terminal defaults.
 With application System, Host uses the captured frame/window foreground and background. Explicit
@@ -18,8 +19,8 @@ defaults.
 The shared `UserTerminalColors` resolver also supplies the Worker's new-terminal profile from the
 same confirmed snapshot as scrollback and launch selection. OSC 10/11 queries then report those
 captured defaults from terminal creation, before a program chooses its appearance. Host with System
-keeps the existing launch baseline when no captured Host profile exists; no outer-host polarity is
-inferred. Existing terminals retain their query defaults until their runtime owner explicitly applies
+keeps the existing launch baseline when no captured Host profile exists; the Client's appearance
+probe does not infer or publish a pane profile. Existing terminals retain their query defaults until their runtime owner explicitly applies
 a terminal theme. Client appearance changes and reversible Settings previews recolor default-marked
 presentation without mutating that shared query state, rewriting ANSI palette entries, or restarting
 programs. Consequently a retained program's query-selected appearance can differ from a later local
@@ -47,8 +48,9 @@ explicit legacy values seed unclaimed shared preferences once. Later TOML reload
 confirmed common appearance. Shipped theme roles still map chrome, sidebars, menus, notices and
 selection overlays; renderers consume those roles without changing focus, geometry or control.
 
-The light/dark roles distinguish canvas, chrome and raised overlays. System uses outer-host
-defaults; quantization may collapse surface differences while borders, labels and focus remain.
+The light/dark roles distinguish canvas, chrome and raised overlays. A known System appearance uses
+the matching Light/Dark palette; Unknown uses `terminal-native`. Quantization may collapse surface
+differences while borders, labels and focus remain.
 Overlay frames share theme corner and focus roles; titles use independent primary bold text.
 Independent terminal popups use this complete overlay surface for the title, borders and pending
 body, even on a dark-default outer host. A received program frame replaces only the inner body
@@ -67,8 +69,8 @@ shared Light and Dark application appearances, these roles adapt the public prod
 pressed surface respectively. The Light cell-grid adapter makes the translucent hover and press
 tokens opaque over its existing chrome surface; the Dark adapter resolves the declared neutral
 references. A source-conformance test includes the CSS authority and pins both the semantic token
-chain and its RGB projection. System and terminal-native stay host-relative and do not claim RGB
-equality with either named appearance. These roles are available to renderers, but each surface
+chain and its RGB projection. System reuses the matching named palette when host polarity is known
+and uses `terminal-native` when it is Unknown. These roles are available to renderers, but each surface
 still requires consumer render evidence before it can claim adoption.
 
 The sidebar's explicit red Delete intent uses independent `accent-destructive` metadata and palette
@@ -215,7 +217,7 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Legacy names and migration admission                         | Settings decision cases and CLI warning/schema checks                                                             | Windows TOML owner and existing fatal source boundary                                                              |
 | Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                      |
-| Shared Light/Dark interaction palette remains aligned        | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map only shared Light/Dark roles; System remains host-relative                                |
+| Shared Light/Dark interaction palette remains aligned        | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map shared Light/Dark roles; System reuses the detected palette or falls back to terminal-native |
 | Dark text priority exceeds a readable near-equal control     | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                |
 | Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                  |
 | Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate               |

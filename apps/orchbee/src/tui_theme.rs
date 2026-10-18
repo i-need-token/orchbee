@@ -764,12 +764,13 @@ impl Theme {
         ))
     }
 
-    /// Explicit terminal colors override chrome; Host follows resolved application appearance.
+    /// Explicit terminal colors override chrome; System + Host retains captured terminal colors.
     pub(crate) fn with_terminal_preferences(
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
     ) -> Self {
-        self.with_terminal_appearance(
+        self.with_terminal_appearance_for_application(
+            values.application_theme,
             values.terminal_display_theme,
             &values.custom_foreground,
             &values.custom_background,
@@ -778,7 +779,7 @@ impl Theme {
 
     /// Accepts only validated display preferences, with no runtime behavior policy.
     pub(crate) fn with_terminal_appearance(
-        mut self,
+        self,
         appearance: orchbee_workbench_protocol::TerminalDisplayAppearance,
         custom_foreground: &str,
         custom_background: &str,
@@ -789,6 +790,23 @@ impl Theme {
             Some(Polarity::Dark) => ApplicationAppearance::Dark,
             None => ApplicationAppearance::System,
         };
+        self.with_terminal_appearance_for_application(
+            application,
+            appearance,
+            custom_foreground,
+            custom_background,
+        )
+    }
+
+    /// Resolves terminal defaults from the user's app choice, independent of a System palette's
+    /// detected polarity; System + Host must continue to use captured terminal colors.
+    pub(crate) fn with_terminal_appearance_for_application(
+        mut self,
+        application: orchbee_workbench_protocol::ApplicationAppearance,
+        appearance: orchbee_workbench_protocol::TerminalDisplayAppearance,
+        custom_foreground: &str,
+        custom_background: &str,
+    ) -> Self {
         let colors = orchbee_local_site_runtime::UserTerminalColors::resolve(
             application,
             appearance,

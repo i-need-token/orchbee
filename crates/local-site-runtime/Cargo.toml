@@ -30,6 +30,6 @@ windows.workspace = true
 toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }
 # Syntax-preserving release-channel edits in the shared settings owner.
 toml_edit = { version = "=0.25.15", default-features = false, features = ["parse", "display"] }
-winsafe = { workspace = true, features = ["kernel"] }
+winsafe = { workspace = true, features = ["advapi"] }
 winapi-util.workspace = true
 windows-permissions = { version = "=0.2.4", default-features = false }

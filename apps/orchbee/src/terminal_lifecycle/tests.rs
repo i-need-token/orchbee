@@ -18,6 +18,7 @@ enum Operation {
     CleanupGraphics,
     QueryGraphics,
     QueryPointerAdmission,
+    QueryHostAppearance,
     DisablePaste,
     EnablePaste,
     DisablePointer,
@@ -109,6 +110,9 @@ impl TerminalModes for FakeTerminalModes {
         _: crate::terminal_pointer_admission::Query,
     ) -> io::Result<()> {
         self.perform(Operation::QueryPointerAdmission)
+    }
+    fn query_host_appearance(&self, _: crate::terminal_host_appearance::Query) -> io::Result<()> {
+        self.perform(Operation::QueryHostAppearance)
     }
     #[cfg(windows)]
     fn notify_terminal(&self, _: &orchbee_workbench_protocol::Notification) -> io::Result<()> {
@@ -1613,6 +1617,42 @@ fn pointer_admission_query_uses_the_lifecycle_writer_and_obeys_output_fences() {
         1,
         "a fenced query never reaches the terminal control writer"
     );
+}
+
+#[test]
+fn host_appearance_query_uses_the_lifecycle_writer_without_acquiring_a_mode() {
+    use crossterm::Command;
+
+    let query = crate::terminal_host_appearance::Query;
+    let mut bytes = String::new();
+    query.write_ansi(&mut bytes).unwrap();
+    assert_eq!(bytes, "\x1b]10;?\x1b\\\x1b]11;?\x1b\\");
+
+    let control = FakeTerminalModes::default();
+    let mut guard = TerminalModeGuard::enter_without_panic_hook(control.clone()).unwrap();
+    guard.query_host_appearance(query).unwrap();
+    assert_eq!(
+        control.operations(),
+        vec![
+            Operation::EnableRaw,
+            Operation::EnterAlternate,
+            Operation::HideCursor,
+            Operation::QueryHostAppearance,
+        ]
+    );
+
+    guard.discard_frame_output();
+    assert_eq!(
+        guard.query_host_appearance(query).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    guard.restore().unwrap();
+    let before = control.operations();
+    assert_eq!(
+        guard.query_host_appearance(query).unwrap_err().kind(),
+        io::ErrorKind::BrokenPipe
+    );
+    assert_eq!(control.operations(), before);
 }
 
 #[test]

@@ -82,6 +82,83 @@ fn classifies_the_wide_boundary_and_projects_the_sidebar_per_client() {
 }
 
 #[test]
+fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_selection() {
+    use crate::terminal_host_appearance::HostAppearance;
+    use orchbee_workbench_protocol::{
+        ApplicationAppearance as Application, TerminalDisplayAppearance as Terminal,
+    };
+
+    let mut values = orchbee_workbench_protocol::UserPreferencesValues::default();
+    values.application_theme = Application::System;
+    values.terminal_display_theme = Terminal::Custom;
+    values.custom_foreground = "#123456".into();
+    values.custom_background = "#654321".into();
+    let mut system = ClientView::new(120);
+    system.apply_user_preferences(values);
+    assert!(system.configure_host_appearance(HostAppearance::Dark));
+    let dark = system.configured_theme().unwrap();
+    assert_eq!(dark.name, "one-dark");
+    assert_eq!(
+        dark.terminal_defaults(),
+        (
+            ratatui::style::Color::Rgb(0x12, 0x34, 0x56),
+            ratatui::style::Color::Rgb(0x65, 0x43, 0x21)
+        )
+    );
+    assert!(system.configure_host_appearance(HostAppearance::Light));
+    assert_eq!(system.configured_theme().unwrap().name, "one-light");
+
+    let mut host_values = orchbee_workbench_protocol::UserPreferencesValues::default();
+    host_values.application_theme = Application::System;
+    host_values.terminal_display_theme = Terminal::Host;
+    let mut host = ClientView::new(120);
+    host.apply_user_preferences(host_values);
+    assert!(host.configure_host_appearance(HostAppearance::Dark));
+    let host_theme = host
+        .configured_theme()
+        .unwrap()
+        .with_host_terminal_colors(0x123456, 0x203040);
+    assert_eq!(host_theme.name, "one-dark");
+    assert_eq!(
+        host_theme.terminal_defaults(),
+        (
+            ratatui::style::Color::Rgb(0x12, 0x34, 0x56),
+            ratatui::style::Color::Rgb(0x20, 0x30, 0x40)
+        )
+    );
+
+    for (application, expected) in [
+        (Application::Light, "one-light"),
+        (Application::Dark, "one-dark"),
+    ] {
+        let mut values = orchbee_workbench_protocol::UserPreferencesValues::default();
+        values.application_theme = application;
+        let mut explicit = ClientView::new(120);
+        explicit.apply_user_preferences(values);
+        assert!(!explicit.configure_host_appearance(HostAppearance::Dark));
+        let theme = explicit
+            .configured_theme()
+            .unwrap()
+            .with_host_terminal_colors(0x123456, 0x203040);
+        assert_eq!(theme.name, expected);
+        assert_eq!(
+            theme.terminal_defaults(),
+            if application == Application::Light {
+                (
+                    ratatui::style::Color::Rgb(0x14, 0x14, 0x14),
+                    ratatui::style::Color::Rgb(0xfc, 0xfc, 0xfc),
+                )
+            } else {
+                (
+                    ratatui::style::Color::Rgb(0xd4, 0xd4, 0xd4),
+                    ratatui::style::Color::Rgb(0x1e, 0x1e, 0x1e),
+                )
+            }
+        );
+    }
+}
+
+#[test]
 fn resizes_without_turning_a_docked_sidebar_into_an_automatic_overlay() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     view.resize(WIDE_VIEWPORT_MINIMUM_COLUMNS - 1);

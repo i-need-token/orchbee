@@ -133,6 +133,32 @@ word failed. Mode capture, VT admission, output, cleanup and restoration all add
 retained input/output ports; the lifecycle owner, rather than the boundary crate, records and
 settles the original-mode restoration debt.
 
+## Host appearance query
+
+After raw terminal admission and before the first TUI frame, the lifecycle writer sends one ordered
+OSC `10` foreground query followed by OSC `11` background query. This write does not enable a
+terminal mode or create restoration debt. The first frame draws immediately; the appearance probe
+settles after a 350 ms deadline without waiting in the render path.
+
+The ordinary and modal input decoders recognize both ESC `]` and C1 OSC reply forms. Only the exact
+`10;` and `11;` selectors become query metadata. RGB (`rgb:rrrr/gggg/bbbb`, with one to four hex
+digits per component) and `#RRGGBB` values are parsed within a 96-byte payload bound and one-second
+frame deadline. The background is scaled to RGB8 and classified Dark below the weighted luminance
+threshold `299R + 587G + 114B < 128000`; otherwise it is Light. Foreground-only, malformed,
+oversized, or incomplete responses do not classify appearance; the probe waits until its deadline
+for a valid background. Recognized replies and their drains never enter prefix, modal, pane, or
+editor input. Late replies remain consumed after the probe settles and cannot change the theme.
+
+If no valid OSC `11` background arrives by the deadline, Windows uses its fallback: the Client asks
+`local-site-runtime` to read the current user's
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`.
+DWORD `1` means Light and `0` means Dark. Missing, unreadable, or non-boolean values stay Unknown;
+foreground-only, malformed, partial, or absent background replies all trigger this fallback. Other
+platforms stay Unknown when no valid background arrives. Late replies cannot revise the fallback.
+The registry read is one-shot and read-only. This appearance probe
+does not alter terminal colors, Windows personalization, launched-pane query defaults, or the
+terminal mode set, and needs no cleanup beyond the normal lifecycle restoration.
+
 ## Viewport observation
 
 The runtime observation of the inherited terminal distinguishes three outcomes. The distinction

@@ -91,6 +91,15 @@ enum Phase {
     },
     GraphicsStart(Instant),
     Graphics(Box<crate::terminal_graphics::ReplyString>),
+    /// A possible OSC 10/11 response; unrelated escape text returns to ordinary modal decoding.
+    Osc {
+        introducer: Vec<u8>,
+        frame: crate::terminal_host_appearance::OscReplyFrame,
+    },
+    /// A response-shaped OSC exceeded its bound or deadline and owns its tail through BEL/ST.
+    OscDrain {
+        escape_pending: bool,
+    },
     Paste(Paste),
     /// The modal released its lease: every remaining byte of the packet
     /// that held the decision stays owned, and a frame that starts inside
@@ -239,7 +248,10 @@ impl ModalDecoder {
             Phase::Paste(paste) => paste.discard(),
             Phase::Sequence(_) => {}
             Phase::Mouse { discard, .. } => *discard = true,
-            Phase::GraphicsStart(_) | Phase::Graphics(_) => {}
+            Phase::GraphicsStart(_)
+            | Phase::Graphics(_)
+            | Phase::Osc(_)
+            | Phase::OscDrain { .. } => {}
             Phase::Utf8 { discard, .. } => *discard = true,
             Phase::Escape(_) => {}
             _ => self.release_at(now),
@@ -291,6 +303,22 @@ impl ModalDecoder {
                 self.finish_frame(now, &mut events);
             }
             Phase::Graphics(reply) => reply.tick(now),
+            Phase::Osc { frame, .. } if frame.expired(now) => {
+                if frame.target().is_some() {
+                    self.phase = Phase::OscDrain {
+                        escape_pending: false,
+                    };
+                } else {
+                    let (introducer, selector) =
+                        match std::mem::replace(&mut self.phase, Phase::Suppressed) {
+                            Phase::Osc { introducer, frame } => {
+                                (introducer, frame.selector_bytes().to_vec())
+                            }
+                            _ => unreachable!("the OSC phase was matched immediately above"),
+                        };
+                    self.replay_osc_candidate(&introducer, &selector, now, &mut events);
+                }
+            }
             Phase::Mouse {
                 discard, deadline, ..
             } if now >= *deadline => {
@@ -356,6 +384,12 @@ impl ModalDecoder {
                     self.phase = Phase::Released;
                     match byte {
                         0x1b => self.escape(now, &mut events),
+                        0x9d => {
+                            self.phase = Phase::Osc {
+                                introducer: vec![byte],
+                                frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                            }
+                        }
                         0x9b | 0x8f => self.phase = Phase::Sequence(Sequence::c1(byte, now)),
                         0x80..=0xff => {
                             self.scalar_byte(Scalar::default(), true, byte, now, &mut events)
@@ -365,6 +399,12 @@ impl ModalDecoder {
                 }
                 Phase::Escape(_) => match byte {
                     b'_' => self.phase = Phase::GraphicsStart(now + WAIT),
+                    b']' => {
+                        self.phase = Phase::Osc {
+                            introducer: vec![0x1b, byte],
+                            frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                        }
+                    }
                     b'[' | b'O' => self.phase = Phase::Sequence(Sequence::new(byte, now)),
                     0x9b | 0x8f => self.phase = Phase::Sequence(Sequence::c1(byte, now)),
                     0x80..=0xff => {
@@ -392,6 +432,35 @@ impl ModalDecoder {
                         }
                     } else {
                         self.phase = Phase::Graphics(reply);
+                    }
+                }
+                Phase::Osc {
+                    introducer,
+                    mut frame,
+                } => match frame.push(byte) {
+                    crate::terminal_host_appearance::OscStep::Pending => {
+                        self.phase = Phase::Osc { introducer, frame };
+                    }
+                    crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
+                        self.replay_osc_candidate(&introducer, &selector, now, &mut events);
+                    }
+                    crate::terminal_host_appearance::OscStep::Complete(reply) => {
+                        self.finish_frame(now, &mut events);
+                        events.push(ModalInputEvent::HostReply(super::HostReply::Appearance(
+                            reply,
+                        )));
+                    }
+                },
+                Phase::OscDrain { mut escape_pending } => {
+                    if escape_pending && byte == b'\\' {
+                        // ST closes the response-shaped tail.
+                        self.finish_frame(now, &mut events);
+                    } else if byte == 0x07 || byte == 0x9c {
+                        // BEL or C1 ST closes the response-shaped tail.
+                        self.finish_frame(now, &mut events);
+                    } else {
+                        escape_pending = byte == 0x1b;
+                        self.phase = Phase::OscDrain { escape_pending };
                     }
                 }
                 Phase::Utf8 {
@@ -481,6 +550,13 @@ impl ModalDecoder {
             0x9b | 0x8f => {
                 events.push(ModalInputEvent::Completeness(false));
                 self.phase = Phase::Sequence(Sequence::c1(byte, now));
+            }
+            0x9d => {
+                events.push(ModalInputEvent::Completeness(false));
+                self.phase = Phase::Osc {
+                    introducer: vec![byte],
+                    frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                };
             }
             // Ctrl+A/Ctrl+E collapse onto Home/End at the input boundary, the
             // same fold U5's bridge performs.
@@ -626,6 +702,21 @@ impl ModalDecoder {
             events.push(ModalInputEvent::Completeness(true));
         } else {
             self.release_tail();
+        }
+    }
+
+    fn replay_osc_candidate(
+        &mut self,
+        _introducer: &[u8],
+        selector: &[u8],
+        now: Instant,
+        events: &mut Vec<ModalInputEvent>,
+    ) {
+        self.finish_frame(now, events);
+        if self.editing {
+            for byte in selector.iter().copied() {
+                self.text_byte(byte, now, events);
+            }
         }
     }
 

@@ -3,6 +3,32 @@ use crate::terminal_input::TerminalInputUnavailable;
 use std::time::Duration;
 use std::{cell::RefCell, io, rc::Rc};
 
+#[test]
+fn appearance_query_is_issued_once_without_waiting_for_a_reply() {
+    let now = Instant::now();
+    let mut dispatcher = InputDispatcher::default();
+    let mut requests = Vec::new();
+    dispatcher
+        .begin_host_appearance(now, &mut |request| {
+            requests.push(request);
+            Ok::<(), ()>(())
+        })
+        .unwrap();
+    dispatcher
+        .begin_host_appearance(now + Duration::from_secs(1), &mut |request| {
+            requests.push(request);
+            Ok::<(), ()>(())
+        })
+        .unwrap();
+
+    assert_eq!(
+        requests,
+        vec![crate::terminal_input::ModeRequest::AppearanceQuery(
+            crate::terminal_host_appearance::Query
+        )]
+    );
+}
+
 #[cfg(windows)]
 mod action_menu;
 #[cfg(windows)]

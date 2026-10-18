@@ -39,6 +39,7 @@ pub(crate) struct TerminalInputUnavailable;
 pub(crate) enum HostReply {
     Graphics(crate::terminal_graphics::Reply),
     Pointer(crate::terminal_pointer_admission::HostReply),
+    Appearance(crate::terminal_host_appearance::ColorReply),
 }
 
 /// The complete outer-terminal pointer reporting state requested by input.
@@ -65,6 +66,8 @@ pub(crate) enum ModeRequest {
     GraphicsQuery(crate::terminal_graphics::Query),
     /// The endpoint's sole any-motion capability query, after ButtonOnly is active.
     PointerAdmissionQuery(crate::terminal_pointer_admission::Query),
+    /// One bounded OSC 10/11 host-default color query at terminal admission.
+    AppearanceQuery(crate::terminal_host_appearance::Query),
     #[cfg(windows)]
     WindowTitle(Option<orchbee_workbench_protocol::WindowTitle>),
     #[cfg(windows)]

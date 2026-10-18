@@ -181,6 +181,17 @@ enum State {
         reply: Box<crate::terminal_graphics::ReplyString>,
         owned: bool,
     },
+    /// A possible OSC 10/11 response; selector bytes stay bounded until ownership is known.
+    Osc {
+        introducer: Vec<u8>,
+        frame: crate::terminal_host_appearance::OscReplyFrame,
+        owned: bool,
+    },
+    /// A targeted appearance string expired mid-frame; consume its tail through BEL/ST.
+    OscDrain {
+        escape_pending: bool,
+        owned: bool,
+    },
     /// An in-progress UTF-8 scalar; `raw` includes an optional leading ESC
     /// (Alt-modified scalar) and `need` counts remaining continuation bytes.
     Utf8 {
@@ -261,6 +272,8 @@ impl LegacyDecoder {
             | State::Ss3 { owned, .. }
             | State::GraphicsStart { owned, .. }
             | State::Graphics { owned, .. }
+            | State::Osc { owned, .. }
+            | State::OscDrain { owned, .. }
             | State::Utf8 { owned, .. }
             | State::Utf8Tail { owned, .. }
             | State::Paste { owned, .. }
@@ -311,6 +324,27 @@ impl LegacyDecoder {
             State::Graphics { mut reply, owned } => {
                 reply.tick(now);
                 self.state = State::Graphics { reply, owned };
+            }
+            State::Osc {
+                introducer,
+                frame,
+                owned,
+            } if frame.expired(now) => {
+                if frame.target().is_some() {
+                    self.state = State::OscDrain {
+                        escape_pending: false,
+                        owned,
+                    };
+                } else {
+                    replay_osc_candidate(
+                        self,
+                        &introducer,
+                        frame.selector_bytes(),
+                        now,
+                        owned,
+                        &mut items,
+                    );
+                }
             }
             State::Csi {
                 raw,
@@ -474,6 +508,45 @@ impl LegacyDecoder {
                         });
                     } else {
                         self.state = State::Graphics { reply, owned };
+                    }
+                }
+                State::Osc {
+                    introducer,
+                    mut frame,
+                    owned,
+                } => match frame.push(byte) {
+                    crate::terminal_host_appearance::OscStep::Pending => {
+                        self.state = State::Osc {
+                            introducer,
+                            frame,
+                            owned,
+                        };
+                    }
+                    crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
+                        replay_osc_candidate(self, &introducer, &selector, now, owned, items);
+                    }
+                    crate::terminal_host_appearance::OscStep::Complete(reply) => {
+                        items.push(DecodedItem {
+                            kind: DecodedKind::HostReply(super::HostReply::Appearance(reply)),
+                            raw: Box::default(),
+                            owned,
+                        });
+                    }
+                },
+                State::OscDrain {
+                    mut escape_pending,
+                    owned,
+                } => {
+                    if escape_pending && byte == b'\\' {
+                        // ST closes the response-shaped tail.
+                    } else if byte == 0x07 || byte == 0x9c {
+                        // BEL or C1 ST closes the response-shaped tail.
+                    } else {
+                        escape_pending = byte == 0x1b;
+                        self.state = State::OscDrain {
+                            escape_pending,
+                            owned,
+                        };
                     }
                 }
                 State::Ss3 { mut raw, owned, .. } => {
@@ -704,6 +777,13 @@ impl LegacyDecoder {
                     owned,
                 };
             }
+            0x9d => {
+                self.state = State::Osc {
+                    introducer: vec![byte],
+                    frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    owned,
+                };
+            }
             0x9b => {
                 self.state = State::Csi {
                     raw: vec![byte],
@@ -761,6 +841,13 @@ impl LegacyDecoder {
         items: &mut Vec<DecodedItem>,
     ) {
         match byte {
+            b']' => {
+                self.state = State::Osc {
+                    introducer: vec![0x1b, byte],
+                    frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    owned: frame_owned,
+                };
+            }
             b'_' => {
                 self.state = State::GraphicsStart {
                     deadline: now + self.wait,
@@ -951,6 +1038,28 @@ impl LegacyDecoder {
             )),
             None => items.push(DecodedItem::nondecision(raw, owned)),
         }
+    }
+}
+
+fn replay_osc_candidate(
+    decoder: &mut LegacyDecoder,
+    introducer: &[u8],
+    selector: &[u8],
+    now: Instant,
+    owned: bool,
+    items: &mut Vec<DecodedItem>,
+) {
+    if introducer == b"\x1b]" {
+        items.push(DecodedItem::key(
+            KeyEvent::press(KeyCode::Char(']'), Modifiers::NONE.with_alt()),
+            introducer,
+            owned,
+        ));
+    } else {
+        items.push(DecodedItem::nondecision(introducer, owned));
+    }
+    for byte in selector.iter().copied() {
+        decoder.feed(byte, now, owned, items);
     }
 }
 

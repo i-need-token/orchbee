@@ -50,3 +50,71 @@ fn a_system_preview_uses_captured_host_defaults_without_mutating_the_confirmed_t
         (Color::Rgb(17, 34, 51), Color::Rgb(238, 221, 187))
     );
 }
+
+#[test]
+fn detected_system_polarity_changes_chrome_but_host_terminal_defaults_stay_captured() {
+    use crate::terminal_host_appearance::HostAppearance;
+
+    let host_foreground = Color::Rgb(0x12, 0x34, 0x56);
+    let host_background = Color::Rgb(0x20, 0x30, 0x40);
+    let theme =
+        Theme::application_with_host(App::System, HostAppearance::Dark, ColorLevel::Truecolor)
+            .with_terminal_appearance_for_application(
+                App::System,
+                Terminal::Host,
+                "#141414",
+                "#fcfcfc",
+            )
+            .with_host_terminal_colors(0x123456, 0x203040);
+
+    assert_eq!(theme.name, "one-dark");
+    assert_eq!(
+        theme.terminal_defaults(),
+        (host_foreground, host_background)
+    );
+}
+
+#[test]
+fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
+    use crate::terminal_host_appearance::HostAppearance;
+
+    let custom =
+        Theme::application_with_host(App::System, HostAppearance::Light, ColorLevel::Truecolor)
+            .with_terminal_appearance_for_application(
+                App::System,
+                Terminal::Custom,
+                "#123456",
+                "#654321",
+            )
+            .with_host_terminal_colors(0xabcdef, 0x102030);
+    assert_eq!(custom.name, "one-light");
+    assert_eq!(
+        custom.terminal_defaults(),
+        (Color::Rgb(0x12, 0x34, 0x56), Color::Rgb(0x65, 0x43, 0x21))
+    );
+
+    let explicit =
+        Theme::application_with_host(App::Light, HostAppearance::Dark, ColorLevel::Truecolor)
+            .with_terminal_appearance_for_application(
+                App::Light,
+                Terminal::Dark,
+                "#123456",
+                "#654321",
+            );
+    assert_eq!(explicit.name, "one-light");
+    assert_eq!(
+        explicit.terminal_defaults(),
+        (Color::Rgb(0xd4, 0xd4, 0xd4), Color::Rgb(0x1e, 0x1e, 0x1e))
+    );
+}
+
+#[test]
+fn unknown_system_appearance_keeps_the_terminal_native_theme() {
+    use crate::terminal_host_appearance::HostAppearance;
+
+    assert_eq!(
+        Theme::application_with_host(App::System, HostAppearance::Unknown, ColorLevel::Truecolor)
+            .name,
+        "terminal-native"
+    );
+}

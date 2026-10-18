@@ -84,9 +84,22 @@ impl Theme {
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
         level: ColorLevel,
     ) -> Self {
+        Self::application_with_host(appearance, super::HostAppearance::Unknown, level)
+    }
+
+    /// Resolve only an explicit System preference from known outer-host polarity.
+    pub(crate) fn application_with_host(
+        appearance: orchbee_workbench_protocol::ApplicationAppearance,
+        host: super::HostAppearance,
+        level: ColorLevel,
+    ) -> Self {
         use orchbee_workbench_protocol::ApplicationAppearance;
         match appearance {
-            ApplicationAppearance::System => Self::terminal_native(),
+            ApplicationAppearance::System => match host {
+                super::HostAppearance::Dark => Self::one_dark(),
+                super::HostAppearance::Light => Self::one_light(),
+                super::HostAppearance::Unknown => Self::terminal_native(),
+            },
             ApplicationAppearance::Light => Self::one_light(),
             ApplicationAppearance::Dark => Self::one_dark(),
         }

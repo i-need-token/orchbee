@@ -425,6 +425,7 @@ fn run_prepared_surface(
                 ModeRequest::Bell => modes.ring_bell(),
                 ModeRequest::GraphicsQuery(query) => modes.query_graphics(query),
                 ModeRequest::PointerAdmissionQuery(query) => modes.query_pointer_admission(query),
+                ModeRequest::AppearanceQuery(query) => modes.query_host_appearance(query),
                 #[cfg(windows)]
                 ModeRequest::Notification(effect) => {
                     use orchbee_local_site_runtime::WindowsNotificationDelivery as Delivery;
@@ -644,6 +645,9 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 PointerCaptureRequest::Release
             },
         );
+        dispatcher.begin_host_appearance(inputs.sample_time(), &mut |request| {
+            mode(request).map_err(LoopFailure::Input)
+        })?;
         dispatcher.begin_pointer_admission(inputs.sample_time(), &mut |request| {
             mode(request).map_err(LoopFailure::Input)
         })?;
