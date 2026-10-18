@@ -35,6 +35,10 @@ fn every_help_path_parses_and_renders_in_both_languages() {
             let text = help(path.topic(), locale);
             assert!(!text.contains('\x1b'));
             assert!(!text.contains('\t'));
+            assert!(
+                !text.contains("apps/"),
+                "installed help must resolve offline: {text}"
+            );
             assert!(text.ends_with('\n'));
             assert!(text.contains("-h, --help"), "{text}");
             assert!(
@@ -121,6 +125,20 @@ fn directories_list_direct_children_without_dumping_their_syntax() {
                 "directory labels contain exactly their direct children"
             );
         }
+    }
+}
+
+#[test]
+fn prompt_help_keeps_transport_details_in_the_offline_guide() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text = help(HelpTopic::Command(CommandPath::AgentPrompt), locale);
+        assert!(text.contains("orchbee --skill"));
+        assert!(!text.contains("600000"));
+        assert!(!text.contains("Right"));
+        assert!(!text.contains("prompt-specific"));
+        assert!(!text.contains("专属回合"));
+        assert!(text.contains("--wait"));
+        assert!(text.contains("--format json"));
     }
 }
 

@@ -128,7 +128,7 @@ pub(crate) fn test_temporary_directory() -> std::path::PathBuf {
     }
 }
 
-pub use cohort::{NativeArtifact, NativeCohort, ObservationAdaptersSidecar};
+pub use cohort::{NativeArtifact, NativeCohort, NativeCohortError, ObservationAdaptersSidecar};
 #[cfg(windows)]
 mod windows_release_store;
 pub use rendezvous::{

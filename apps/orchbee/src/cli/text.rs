@@ -68,12 +68,19 @@ fn command(path: CommandPath, locale: Locale) -> Document {
             })
             .collect(),
     });
+    let mut examples = vec![Row {
+        label: example(path),
+        description: String::new(),
+    }];
+    if super::completion::help_flags(path).contains(&"--format") {
+        examples.push(Row {
+            label: example_with_options(path, &["--format", "json"]),
+            description: String::new(),
+        });
+    }
     sections.push(Section::Examples {
         heading: locale.cli_help_text(HelpText::Examples).into(),
-        examples: vec![Row {
-            label: example(path),
-            description: String::new(),
-        }],
+        examples,
     });
     sections.push(Section::Paragraphs {
         heading: locale.cli_help_text(HelpText::Notes).into(),
@@ -88,8 +95,12 @@ fn command(path: CommandPath, locale: Locale) -> Document {
 }
 
 fn example(path: CommandPath) -> String {
+    example_with_options(path, &[])
+}
+
+fn example_with_options(path: CommandPath, options: &[&str]) -> String {
     let mut words = vec![format!("orchbee {}", path.as_str())];
-    for argument in examples::arguments(path) {
+    for argument in examples::arguments(path).iter().chain(options) {
         if argument
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || "-_=.:/".contains(ch))

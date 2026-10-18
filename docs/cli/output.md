@@ -89,6 +89,9 @@ every failure kind and terminal result to exactly one code, and the mapping is t
 - User-controlled strings render as quoted, escaped values: backslash and quote are escaped; C0
   and C1 controls including `ESC`, U+2028, U+2029, and bidirectional formatting controls render as
   `\uXXXX` escapes; other Unicode is preserved.
+- Terminal text excerpts and unquoted path cells preserve printable backslashes, quotes, and
+  Unicode for copying. They still escape the same control and formatting characters; row separators
+  come from the renderer. JSON encoding and explicit raw exports retain their own contracts.
 - Tables truncate only display columns of labels to a declared width with an ellipsis, keeping the
   escapes and closing quote intact. Identifiers are never truncated, and `get` output is complete.
 - Display width is measured in terminal cells per

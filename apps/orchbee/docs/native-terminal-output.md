@@ -50,7 +50,8 @@ fails before stdout. Read cleanup and platform admission retain the existing que
 
 ## Output and compatibility
 
-Structured text stays localized and escaped. JSON uses `orchbee.terminal.output` v1 with canonical
+Human text preserves printable backslashes, quotes, and Unicode, while escaping terminal controls
+and bidirectional formatting. Read markers remain localized. JSON uses `orchbee.terminal.output` v1 with canonical
 snapshot provenance, terminal identity, source selection, revision/generation, physical range,
 capacity truncation, fragment edges and text. The catalog is v51 with 72 documents; no protocol
 shape or command path is added. `--plain` emits exactly the JSON text member's UTF-8 bytes, under

@@ -940,7 +940,7 @@ fn session_preamble(
     cohort_deadline: Instant,
     gate: Option<&WaitGate<'_>>,
 ) -> Result<(NativeCohort, ModeCheckedLocalSiteRendezvous), Failure> {
-    let cohort = NativeCohort::current(cohort_deadline);
+    let cohort = NativeCohort::current_with_diagnostic(cohort_deadline);
     settle(gate)?;
     let cohort = cohort.map_err(|error| {
         Failure::new(FailureKind::CheckFailed)

@@ -30,7 +30,7 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 
 ## 独立 Agent 状态的 Schema 版本
 
-当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 146。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
+当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 147。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
 
 | 命令                                        | 版本        | 适用变体                                       |
 | ------------------------------------------- | ----------- | ---------------------------------------------- |
@@ -976,8 +976,10 @@ selector 候选是命令本已读取的那份快照中可见的成员——对�
 1. **Cohort** —— `NativeCohort::current` 在一个 checked 5 秒单调 deadline 下运行
    （`Instant::now().checked_add(5s)`；`checked_add` 失败为 `internal-failure`、退出 1）。
    任何 cohort 错误（缺失、非法、不安全、散列不符、协作式 deadline）都是 `check-failed`、
-   stage `cohort`。本地化 stderr 诊断额外报告观测到的 `io::ErrorKind`——存在原始 OS
-   错误码时一并报告——不含路径、OS 消息文本或因果断言；机器记录不变。
+   stage `cohort`。本地化 stderr 提供修复建议，不输出原始 I/O 详情。只有同级文件的
+   open 操作返回 `NotFound` 时才会点名该缺失可执行文件；否则不会猜测哪个文件缺失。
+   Windows `status client --format json` v3 携带有界 `ioKind`／`osError` 详情，并在证据
+   确凿时包含精确缺失的同级文件。失败封套和退出码不变。
 2. **Discovery** —— 解析 `ORCHBEE_RUNTIME_BASE`/默认值，然后
    `ModeCheckedLocalSiteRendezvous::validate_mode_checked`（`ExistingOnly`，不 mkdir、不取锁）。
    分类使用 `RendezvousError` 的 typed path 与已解析 `runtime_base`/`runtime_base.join(scope)`
@@ -2345,7 +2347,7 @@ Unicode，只生成 SGR；`recent-unwrapped` 拼接已验证的软换行。detec
 它不重现原始 PTY 字节、超链接或图形。渲染请求与预备输出各自保持既有 8 MiB 上限；
 渲染资源超限直接失败，不回退、不重试。参见[输出契约](native-terminal-output.zh-CN.md)。
 
-Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
+Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序，其 v3 JSON 会在 cohort 准入不可用时包含有界 I/O 诊断。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。显式选择的 Session 不存在时，会提示运行 `orchbee --session <name> server start`；未显式选择时提示 `orchbee server start`。[运行时状态契约](native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。更新渠道管理仍未提供。
 
 ## Agent 导航
 

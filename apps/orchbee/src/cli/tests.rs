@@ -125,6 +125,103 @@ use crate::localization::Locale;
 const ID: &str = "0123456789abcdef0123456789abcdef";
 
 #[test]
+fn terminal_output_text_is_copyable_and_json_preserves_original_data() {
+    use super::terminal_output::{ContentSpan, SampleRange, TerminalOutputDoc};
+    use crate::invocation::{OutputSelection, OutputSource, OutputTarget};
+
+    let content = "C:\\Users\\luna\\中文 \"🐝\"\u{1b}[31m\u{202e}\n";
+    let projection = Projection::TerminalOutput(TerminalOutputDoc {
+        terminal: TerminalRow {
+            terminal_id: ID.into(),
+            worker_id: ID.into(),
+            presentation_id: ID.into(),
+            panel_id: ID.into(),
+            tab_id: ID.into(),
+            terminal_context_id: ID.into(),
+        },
+        selection: OutputSelection {
+            source: OutputSource::Recent,
+            lines: None,
+        },
+        revision: 1,
+        generation: 1,
+        alternate: false,
+        columns: 80,
+        screen_rows: 24,
+        range: SampleRange {
+            start: 0,
+            count: 1,
+            total: 24,
+            capacity_omitted: 0,
+        },
+        span: ContentSpan {
+            physical_rows: 1,
+            first_row: Some(0),
+            last_row: Some(0),
+            ..ContentSpan::default()
+        },
+        text: content.into(),
+        ansi: false,
+    });
+    let command = QueryCommand::TerminalOutput {
+        target: OutputTarget::Terminal(Target::Id(ID.into())),
+        selection: OutputSelection {
+            source: OutputSource::Recent,
+            lines: None,
+        },
+        plain: false,
+        ansi: false,
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text =
+            output::render_text(|out| super::present::render(out, &projection, &command, locale))
+                .unwrap();
+        assert_eq!(
+            String::from_utf8(text).unwrap(),
+            "C:\\Users\\luna\\中文 \"🐝\"\\u{001b}[31m\\u{202e}\n"
+        );
+    }
+    assert_eq!(projection.result()["content"]["text"], content);
+}
+
+#[test]
+fn usage_advice_uses_command_scope_and_preserves_usage_exits() {
+    use crate::invocation::parse_request;
+    use std::ffi::OsString;
+
+    for (words, suggestion) in [
+        (vec!["agnet", "list"], "agent"),
+        (vec!["agent", "lsit"], "list"),
+        (vec!["tab", "create", "--labl", "work"], "--label"),
+    ] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let failure = parse_request(words.iter().map(OsString::from)).unwrap_err();
+            let output = super::parse_failure(failure, locale);
+            assert_eq!(output.status, 2);
+            assert!(output.stdout.is_empty());
+            assert!(
+                output.stderr.contains(&format!("\"{suggestion}\"")),
+                "{words:?}: {}",
+                output.stderr
+            );
+        }
+    }
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let failure = parse_request([OsString::from("agent")].into_iter()).unwrap_err();
+        let output = super::parse_failure(failure, locale);
+        assert_eq!(output.status, 2);
+        assert!(output.stdout.is_empty());
+        for command in ["list", "get", "prompt"] {
+            assert!(
+                output.stderr.contains(&format!("  {command}  ")),
+                "{}",
+                output.stderr
+            );
+        }
+    }
+}
+
+#[test]
 fn wide_terminal_lists_keep_full_ids_in_readable_record_blocks() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let projection = Projection::TerminalList(vec![TerminalRow {

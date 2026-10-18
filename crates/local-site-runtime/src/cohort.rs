@@ -53,6 +53,59 @@ impl NativeArtifact {
         }
     }
 }
+
+/// A native cohort admission failure with the exact required artifact when
+/// opening that sibling reported `NotFound`.
+#[derive(Debug)]
+pub struct NativeCohortError {
+    source: io::Error,
+    missing_artifact: Option<NativeArtifact>,
+}
+impl NativeCohortError {
+    fn new(source: io::Error, missing_artifact: Option<NativeArtifact>) -> Self {
+        Self {
+            source,
+            missing_artifact,
+        }
+    }
+
+    /// The observed operating-system error class.
+    pub fn kind(&self) -> io::ErrorKind {
+        self.source.kind()
+    }
+
+    /// The observed raw operating-system error code, when available.
+    pub fn raw_os_error(&self) -> Option<i32> {
+        self.source.raw_os_error()
+    }
+
+    /// The required sibling proven absent by the artifact-open operation.
+    pub fn missing_artifact(&self) -> Option<NativeArtifact> {
+        self.missing_artifact
+    }
+
+    /// Recover the original I/O error for callers that only use its standard
+    /// error interface.
+    pub fn into_io_error(self) -> io::Error {
+        self.source
+    }
+}
+impl std::fmt::Display for NativeCohortError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.source, formatter)
+    }
+}
+impl std::error::Error for NativeCohortError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
+}
+impl From<io::Error> for NativeCohortError {
+    fn from(source: io::Error) -> Self {
+        Self::new(source, None)
+    }
+}
+
 #[derive(Debug)]
 pub struct NativeCohort {
     directory: PathBuf,
@@ -124,10 +177,38 @@ impl Artifacts {
 
 impl NativeCohort {
     pub fn current(deadline: Instant) -> io::Result<Self> {
-        let executable = std::env::current_exe()?;
-        Self::load(executable.parent().ok_or_else(invalid)?, deadline)
+        Self::current_with_diagnostic(deadline).map_err(NativeCohortError::into_io_error)
     }
+
+    /// Validate this executable's sibling cohort while retaining an exact
+    /// missing artifact when a required executable was observed absent.
+    ///
+    /// # Errors
+    /// Returns the underlying I/O or validation failure. `missing_artifact`
+    /// is populated only when opening one of the declared native siblings
+    /// returned `NotFound`.
+    pub fn current_with_diagnostic(deadline: Instant) -> Result<Self, NativeCohortError> {
+        let executable = std::env::current_exe()?;
+        let directory = executable
+            .parent()
+            .ok_or_else(|| NativeCohortError::from(invalid()))?;
+        Self::load_with_diagnostic(directory, deadline)
+    }
+
     pub fn load(directory: &Path, deadline: Instant) -> io::Result<Self> {
+        Self::load_with_diagnostic(directory, deadline).map_err(NativeCohortError::into_io_error)
+    }
+
+    /// Validate a cohort in `directory`, retaining the exact required
+    /// artifact when opening a sibling executable reports `NotFound`.
+    ///
+    /// # Errors
+    /// Returns the underlying I/O or validation failure. `missing_artifact`
+    /// is populated only for a missing declared native sibling.
+    pub fn load_with_diagnostic(
+        directory: &Path,
+        deadline: Instant,
+    ) -> Result<Self, NativeCohortError> {
         remaining(deadline)?;
         #[cfg(unix)]
         let descriptor = open_runtime_base(directory).map_err(io::Error::other)?;
@@ -170,7 +251,12 @@ impl NativeCohort {
                 artifact.file_name(),
                 true,
                 &directory.join(artifact.file_name()),
-            )?;
+            )
+            .map_err(|source| {
+                let missing_artifact =
+                    (source.kind() == io::ErrorKind::NotFound).then_some(artifact);
+                NativeCohortError::new(source, missing_artifact)
+            })?;
             let mut hash = Sha256::new();
             let mut buffer = [0_u8; 64 * 1024];
             loop {

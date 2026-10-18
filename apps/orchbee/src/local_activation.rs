@@ -17,7 +17,11 @@ mod windows_selection;
 #[cfg(windows)]
 pub(crate) use windows_selection::inside_selected_session;
 #[cfg(windows)]
-pub(crate) use windows_selection::select_site;
+pub(crate) use windows_selection::{select_site, selected_session_name};
+#[cfg(not(windows))]
+pub(crate) fn selected_session_name() -> Option<&'static str> {
+    None
+}
 
 /// The single local-startup verdict vocabulary, owned here by the shared
 /// activation core so the core never depends on the TUI adapter. The core
@@ -59,9 +63,10 @@ pub(crate) struct ActivationFailure {
 pub(crate) enum ActivationCause {
     #[cfg(windows)]
     Configuration(orchbee_local_site_runtime::WindowsSettingsError),
-    /// `NativeCohort::current` failure: an io error whose kind selects the
-    /// CLI exit class.
-    Cohort(io::Error),
+    /// `NativeCohort::current_with_diagnostic` failure: its I/O kind selects
+    /// the CLI exit class and its artifact-open evidence can identify one
+    /// exact missing sibling.
+    Cohort(orchbee_local_site_runtime::NativeCohortError),
     /// Runtime-directory preparation failure: the rendezvous error plus the
     /// scope directory the typed path split classifies against.
     Rendezvous(orchbee_local_site_runtime::RendezvousError, PathBuf),
@@ -120,9 +125,9 @@ pub(crate) struct StartedSite {
 /// runtime-base/scope resolution, `prepare_mode_checked`, the derived
 /// socket-path budget check, then the activation loop.
 pub(crate) fn activate_local_site(deadline: Instant) -> Result<StartedSite, ActivationFailure> {
-    let cohort = NativeCohort::current(deadline).map_err(|error| {
+    let cohort = NativeCohort::current_with_diagnostic(deadline).map_err(|error| {
         ActivationFailure::caused(
-            failure(&error, StartupFailure::Cohort),
+            failure(error.kind(), StartupFailure::Cohort),
             ActivationCause::Cohort(error),
         )
     })?;
@@ -467,8 +472,8 @@ pub(crate) fn pause(deadline: Instant) -> Result<(), ActivationFailure> {
 /// The existing deadline-sensitive fallback: a TimedOut io kind means the
 /// operation expired against the shared budget rather than failing its own
 /// class.
-fn failure(error: &io::Error, fallback: StartupFailure) -> StartupFailure {
-    if error.kind() == io::ErrorKind::TimedOut {
+fn failure(kind: io::ErrorKind, fallback: StartupFailure) -> StartupFailure {
+    if kind == io::ErrorKind::TimedOut {
         StartupFailure::TimedOut
     } else {
         fallback

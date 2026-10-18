@@ -883,8 +883,8 @@ impl Locale {
                 "支持时可使用 --format text|json；输出形式见具体命令帮助。",
             ),
             HelpText::Reference => (
-                "Agent guide: orchbee --skill. Reference: apps/orchbee/docs/native-cli-query.md",
-                "Agent 指南：orchbee --skill。参考：apps/orchbee/docs/native-cli-query.zh-CN.md",
+                "Offline guide: orchbee --skill. Command help: orchbee help <command>.",
+                "离线指南：orchbee --skill。命令帮助：orchbee help <command>。",
             ),
             HelpText::Completion => (
                 "Print a shell completion script to stdout. Nothing is installed and no user files are changed.",

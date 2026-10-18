@@ -1,4 +1,19 @@
-use super::{diagnostic_token, escape, quoted, table_label};
+use super::{diagnostic_token, escape, quoted, table_label, unquoted};
+
+#[test]
+fn unquoted_text_preserves_copyable_paths_quotes_and_unicode() {
+    let text = "C:\\Users\\luna\\中文 \"🐝\"";
+    assert_eq!(unquoted(text), text);
+    assert_eq!(unquoted(r"\\server\share\folder"), r"\\server\share\folder");
+}
+
+#[test]
+fn unquoted_text_escapes_controls_and_directional_formatting() {
+    assert_eq!(
+        unquoted("a\nb\r\tc\0\u{1b}[31m\u{85}\u{202e}\u{2028}\u{2029}"),
+        "a\\nb\\r\\tc\\u{0000}\\u{001b}[31m\\u{0085}\\u{202e}\\u{2028}\\u{2029}"
+    );
+}
 
 #[test]
 fn escapes_quotes_backslash_and_controls() {

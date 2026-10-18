@@ -71,6 +71,11 @@ Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，�
 
 保留已观察的 revision；使用 `--after-revision` 等待后续状态前，先查看 `agent wait --help`。
 
+`--until`、`--timeout` 和 `--forever` 要求 `agent prompt --wait`；`--forever`
+与 `--timeout` 互斥。Windows Codex 的输入在 paste 与 Enter 之间包含 Right 键。
+Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受的输入回执，因此不要
+重放结果不确定的输入。
+
 ## 事件与终端流
 
 `events subscribe --event workspace.created --timeout 30000` 持续输出 NDJSON。`events wait` 等待一个筛选条件，默认 30000 毫秒；timeout `0` 检查一次已接纳基线。保留游标包含 epoch 和十进制字符串序号；出现缺口时必须重建基线。

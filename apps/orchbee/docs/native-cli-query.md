@@ -33,7 +33,7 @@ does not make the Electron Desktop runtime a consumer of the native Session serv
 
 ## Schema versions for independent Agent status
 
-Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 146. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
+Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 147. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
 
 | Command                                     | Version     | Variant                                                             |
 | ------------------------------------------- | ----------- | ------------------------------------------------------------------- |
@@ -1189,9 +1189,11 @@ sequence on Linux; the first failing stage wins and determines the failure:
 1. **Cohort** — `NativeCohort::current` under one checked 5-second monotonic deadline
    (`Instant::now().checked_add(5s)`; a failed `checked_add` is `internal-failure`, exit 1).
    Any cohort error (missing, invalid, unsafe, hash mismatch, cooperative deadline) is
-   `check-failed` stage `cohort`. The localized stderr diagnostic additionally reports
-   the observed `io::ErrorKind` — and the raw OS error number when one exists — without
-   paths, OS message text, or a causal claim; the machine record is unchanged.
+   `check-failed` stage `cohort`. Localized stderr gives repair guidance without raw I/O
+   details. It names an exact missing executable only when that sibling's open returned
+   `NotFound`; otherwise it never guesses which file is missing. Windows
+   `status client --format json` v3 carries bounded `ioKind`/`osError` detail and, when
+   proven, the exact missing sibling. The failure envelope and exit code are unchanged.
 2. **Discovery** — resolve `ORCHBEE_RUNTIME_BASE`/default, then
    `ModeCheckedLocalSiteRendezvous::validate_mode_checked` (`ExistingOnly`, no mkdir, no lock).
    Classification uses the typed `RendezvousError` path compared with the resolved
@@ -2782,7 +2784,7 @@ Detection remains plain text. It does not reproduce original PTY bytes, hyperlin
 The render request and prepared output each keep their existing 8 MiB bounds; oversized render
 resources fail without a fallback or retry. See the [output contract](native-terminal-output.md).
 
-Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. The [runtime status contract](native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
+Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline and its v3 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
 
 ## Agent navigation
 

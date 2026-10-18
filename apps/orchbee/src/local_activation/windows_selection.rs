@@ -10,6 +10,16 @@ pub(crate) fn select_site(name: Option<WindowsSiteName>) {
         .expect("invocation selection is initialized once after parsing");
 }
 
+/// Return only the explicit, parser-validated `--session` selection. An
+/// inherited environment route remains inherited by the startup command and
+/// does not need to be copied into a hint.
+pub(crate) fn selected_session_name() -> Option<&'static str> {
+    SELECTED
+        .get()
+        .and_then(Option::as_ref)
+        .map(WindowsSiteName::as_str)
+}
+
 pub(super) struct Location {
     pub(super) base: PathBuf,
     pub(super) scope: String,

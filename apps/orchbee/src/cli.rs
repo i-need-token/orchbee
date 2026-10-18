@@ -186,6 +186,8 @@ pub(crate) fn terminal_control(
 }
 
 mod text;
+mod usage;
+pub(crate) use usage::{children as usage_children, suggestions as usage_suggestions};
 #[cfg(any(target_os = "linux", windows))]
 mod wait_deadline;
 
@@ -371,20 +373,16 @@ pub(crate) struct Failure {
     pub(crate) failure_schema: Option<&'static str>,
     /// Envelope version selected by the owning command, never inferred by rendering.
     pub(crate) version: u32,
-    /// Observed I/O detail retained from the native cohort check: the
-    /// technical `io::ErrorKind` plus the OS error number when one exists.
-    /// Carried to the localized stderr diagnostic only and never serialized
-    /// — same rule as `usage`; Boxed so it never enlarges the hot Result.
+    /// Exact missing-sibling evidence from a native cohort check, carried to
+    /// localized text only. Raw I/O details belong to `status client` JSON.
+    /// Boxed so it never enlarges the hot Result.
     pub(crate) io_diagnostic: Option<Box<IoDiagnostic>>,
 }
 
-/// The bounded technical detail a cohort-check failure observed: the std
-/// `io::ErrorKind` and, when the OS reported one, its error number. This is
-/// observed data, not a classified reason vocabulary.
+/// Artifact identity proven absent by its own open operation.
 #[derive(Debug)]
 pub(crate) struct IoDiagnostic {
-    pub(crate) kind: std::io::ErrorKind,
-    pub(crate) raw_os_error: Option<i32>,
+    pub(crate) missing_artifact: Option<&'static str>,
 }
 
 impl Failure {
@@ -446,14 +444,17 @@ impl Failure {
         self
     }
 
-    /// Retain the observed I/O kind (and OS error number when one exists) for
-    /// the localized stderr diagnostic. Only the Linux native-cohort check
-    /// produces this today.
-    #[cfg(any(target_os = "linux", windows))]
-    pub(crate) fn io_diagnostic(mut self, error: &std::io::Error) -> Self {
+    /// Retain bounded evidence from a native cohort admission error. The
+    /// missing sibling is available only when its artifact-open operation
+    /// returned `NotFound`.
+    pub(crate) fn io_diagnostic(
+        mut self,
+        error: &orchbee_local_site_runtime::NativeCohortError,
+    ) -> Self {
         self.io_diagnostic = Some(Box::new(IoDiagnostic {
-            kind: error.kind(),
-            raw_os_error: error.raw_os_error(),
+            missing_artifact: error
+                .missing_artifact()
+                .map(orchbee_local_site_runtime::NativeArtifact::file_name),
         }));
         self
     }

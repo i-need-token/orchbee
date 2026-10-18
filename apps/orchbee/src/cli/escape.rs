@@ -39,6 +39,20 @@ pub(crate) fn escape(value: &str) -> String {
     escaped
 }
 
+/// Text without string-literal quoting: printable characters remain copyable,
+/// while terminal controls and bidirectional formatting are escaped.
+pub(crate) fn unquoted(value: &str) -> String {
+    let mut rendered = String::with_capacity(value.len());
+    for character in value.chars() {
+        if needs_escape(character) {
+            rendered.push_str(&escape_character(character));
+        } else {
+            rendered.push(character);
+        }
+    }
+    rendered
+}
+
 /// `value` as a quoted, escaped text value.
 pub(crate) fn quoted(value: &str) -> String {
     let mut quoted = String::with_capacity(value.len() + 2);

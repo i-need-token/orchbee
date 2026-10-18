@@ -208,6 +208,29 @@ fn missing_symlink_hardlink_and_writable_artifacts_fail_admission() {
         assert!(fixture.load().is_err(), "{violation}");
     }
 }
+
+#[test]
+fn diagnostic_names_only_a_missing_artifact_open() {
+    let fixture = Fixture::new();
+    fs::remove_file(fixture.path.join(NativeArtifact::Server.file_name())).unwrap();
+    let error =
+        NativeCohort::load_with_diagnostic(&fixture.path, Instant::now() + Duration::from_secs(2))
+            .unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert_eq!(
+        error.missing_artifact().map(NativeArtifact::file_name),
+        Some(NativeArtifact::Server.file_name())
+    );
+
+    let fixture = Fixture::new();
+    fs::remove_file(fixture.path.join("cohort.json")).unwrap();
+    let error =
+        NativeCohort::load_with_diagnostic(&fixture.path, Instant::now() + Duration::from_secs(2))
+            .unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert!(error.missing_artifact().is_none());
+}
+
 #[test]
 fn malformed_duplicate_unknown_and_oversized_manifests_fail_closed() {
     for encoded in [

@@ -6,13 +6,24 @@ use std::{
     time::{Duration, Instant},
 };
 fn client_document() -> Value {
-    json!({"schema":"orchbee.status.client","version":2,"result":{
+    json!({"schema":"orchbee.status.client","version":3,"result":{
         "version":env!("CARGO_PKG_VERSION"),"platform":"windows","architecture":std::env::consts::ARCH,
         "protocols":{"admission":orchbee_local_client_protocol::PROTOCOL_VERSION,
             "terminal":orchbee_client_server_protocol::PROTOCOL_VERSION},
         "cohort":{"state":"available","identity":"a".repeat(64)},
         "executable":{"path":"C:/remote/orchbee.exe"}}})
 }
+#[test]
+fn installed_client_admission_keeps_v2_compatibility_and_accepts_v3() {
+    for version in [2, 3] {
+        let mut document = client_document();
+        document["version"] = json!(version);
+        let admitted = client(&document).unwrap();
+        assert_eq!(admitted.executable, "C:/remote/orchbee.exe");
+        assert_eq!(admitted.cohort, "a".repeat(64));
+    }
+}
+
 fn server_document() -> Value {
     json!({"schema":"orchbee.status.server","version":1,"result":{
         "server":{"state":"running","stopping":false,"version":env!("CARGO_PKG_VERSION"),

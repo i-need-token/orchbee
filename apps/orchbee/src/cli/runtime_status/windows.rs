@@ -1,7 +1,9 @@
 //! One read-only Windows probe and an independent optional local cohort check.
 use super::{
     Failure, FailureKind, Locale, Output, OutputFormat, RuntimeStatusScope, failed,
-    projection::{Absence, Cohort, CohortIssue, Report, Server, ServerReport, emit},
+    projection::{
+        Absence, Cohort, CohortDiagnostic, CohortIssue, Report, Server, ServerReport, emit,
+    },
 };
 use crate::cli::{
     query,
@@ -118,22 +120,36 @@ fn collect(
 }
 
 fn local_cohort(deadline: Instant) -> Cohort {
-    project_cohort(admitted_cohort(deadline))
+    project_cohort(
+        NativeCohort::current(deadline).map_err(|error| (cohort_issue(error.kind()), None)),
+    )
 }
-fn project_cohort(admitted: Result<NativeCohort, CohortIssue>) -> Cohort {
+fn project_cohort(
+    admitted: Result<NativeCohort, (CohortIssue, Option<CohortDiagnostic>)>,
+) -> Cohort {
     match admitted {
         Ok(cohort) => Cohort::Available(cohort.identity().to_owned()),
-        Err(reason) => Cohort::Unavailable(reason),
+        Err((reason, diagnostic)) => Cohort::Unavailable(reason, diagnostic),
     }
 }
-fn admitted_cohort(deadline: Instant) -> Result<NativeCohort, CohortIssue> {
-    NativeCohort::current(deadline).map_err(|error| match error.kind() {
+fn admitted_cohort(
+    deadline: Instant,
+) -> Result<NativeCohort, (CohortIssue, Option<CohortDiagnostic>)> {
+    NativeCohort::current_with_diagnostic(deadline).map_err(|error| {
+        let issue = cohort_issue(error.kind());
+        let diagnostic = CohortDiagnostic::from_error(&error);
+        (issue, Some(diagnostic))
+    })
+}
+
+fn cohort_issue(kind: io::ErrorKind) -> CohortIssue {
+    match kind {
         io::ErrorKind::NotFound => CohortIssue::Missing,
         io::ErrorKind::InvalidData | io::ErrorKind::Unsupported => CohortIssue::Invalid,
         io::ErrorKind::PermissionDenied => CohortIssue::Denied,
         io::ErrorKind::TimedOut => CohortIssue::TimedOut,
         _ => CohortIssue::Io,
-    })
+    }
 }
 
 fn classify(error: ConnectClientError) -> Failure {

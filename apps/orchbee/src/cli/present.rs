@@ -20,7 +20,7 @@ use orchbee_workbench_protocol::{
 };
 
 use super::config::CheckReport;
-use super::escape::{display_width, escape, quoted, table_label};
+use super::escape::{display_width, escape, quoted, table_label, unquoted};
 use super::output::{Bounded, TooLarge};
 use super::results::{
     AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, PresentationRow, Projection,
@@ -485,8 +485,8 @@ pub(crate) fn render(
         Projection::TerminalList(rows) => terminal_table(out, text, rows),
         // `terminal read` emits the observed content itself: one output line
         // per emitted grid row — or, under `--unwrap`, per joined logical
-        // line — each escaped the same way as every other user-controlled
-        // value, then the localized markers for tail-omitted entries and
+        // line — preserving printable text and escaping controls, followed by
+        // the localized markers for tail-omitted entries and
         // budget-omitted rows.
         Projection::TerminalOutput(doc) => {
             if matches!(
@@ -497,7 +497,7 @@ pub(crate) fn render(
                 return out.push(&doc.text);
             }
             for line in doc.text.lines() {
-                out.push(&escape(line))?;
+                out.push(&unquoted(line))?;
                 out.push("\n")?;
             }
             if doc.range.capacity_omitted > 0 {
@@ -511,13 +511,13 @@ pub(crate) fn render(
             match &doc.lines {
                 Some(lines) => {
                     for line in lines {
-                        out.push(&escape(&line.text))?;
+                        out.push(&unquoted(&line.text))?;
                         out.push("\n")?;
                     }
                 }
                 None => {
                     for row in &doc.rows {
-                        out.push(&escape(&row.text))?;
+                        out.push(&unquoted(&row.text))?;
                         out.push("\n")?;
                     }
                 }
@@ -539,13 +539,13 @@ pub(crate) fn render(
             match &doc.lines {
                 Some(lines) => {
                     for line in lines {
-                        out.push(&escape(&line.text))?;
+                        out.push(&unquoted(&line.text))?;
                         out.push("\n")?;
                     }
                 }
                 None => {
                     for row in &doc.rows {
-                        out.push(&escape(&row.text))?;
+                        out.push(&unquoted(&row.text))?;
                         out.push("\n")?;
                     }
                 }
@@ -568,7 +568,7 @@ pub(crate) fn render(
         // the bounded slice that always contains the complete pattern,
         // escaped like every other user-controlled value.
         Projection::TerminalWaitOutput(doc) => {
-            out.push(&escape(&doc.matched.excerpt))?;
+            out.push(&unquoted(&doc.matched.excerpt))?;
             out.push("\n")?;
             Ok(())
         }
@@ -1201,12 +1201,17 @@ pub(super) fn receipt(
     Ok(())
 }
 
-/// A `terminal send` answer renders the same `name  value` block over the
-/// result object's own fields — typed identities, both status axes, and the
-/// nested admitted `target` through the shared detail writer. No input
-/// contents ever appear.
-pub(crate) fn send_result(out: &mut Bounded, result: &Value) -> Result<(), TooLarge> {
-    name_value_block(out, result)
+/// Confirm input submission using the admitted terminal identity, without
+/// exposing transport receipt fields or claiming command completion.
+pub(crate) fn send_result(
+    out: &mut Bounded,
+    result: &Value,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    let terminal_id = result["terminalId"]
+        .as_str()
+        .expect("typed send terminal identity");
+    out.push(&locale.cli_send_success(terminal_id))
 }
 
 /// One `name  value` block over a JSON object's own fields; nested values go
@@ -1442,7 +1447,7 @@ fn panel_process(
             process.creation_time.to_string(),
             escape(process.image.as_deref().unwrap_or("null")),
             escape(process.command_line.as_deref().unwrap_or("null")),
-            escape(process.current_directory.as_deref().unwrap_or("null")),
+            unquoted(process.current_directory.as_deref().unwrap_or("null")),
             escape(&serde_json::json!(row.argv).to_string()),
             row.provider.unwrap_or("null").to_owned(),
         ]

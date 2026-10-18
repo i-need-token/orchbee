@@ -71,6 +71,11 @@ Windows Codex inspection and installation use the same configuration root: nonem
 
 Retain observed revisions and inspect `agent wait --help` before using `--after-revision` for later state.
 
+`--until`, `--timeout` and `--forever` require `agent prompt --wait`; `--forever`
+conflicts with `--timeout`. Windows Codex input includes a Right key between paste and
+Enter. Linux retains a 600000 ms default wait deadline. A wait failure retains any
+accepted input receipt, so never replay uncertain input.
+
 ## Events and terminal streams
 
 `events subscribe --event workspace.created --timeout 30000` streams NDJSON. `events wait` waits for one filter and defaults to 30000 ms; timeout `0` checks the admitted baseline once. Retained cursors include an epoch and decimal-string sequence; a gap requires rebuilding the baseline.

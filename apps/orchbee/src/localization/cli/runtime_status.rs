@@ -5,11 +5,11 @@ pub(super) fn help(locale: Locale, server: bool) -> crate::localization::HelpDet
     match (locale, server) {
         (Locale::EnUs, false) => crate::localization::HelpDetails::new(
             "orchbee status client [--format text|json]",
-            "Windows: inspect this executable's version, platform, architecture, path and\nvalidated native cohort without contacting a Server. Missing or invalid cohort\nmetadata is reported explicitly. Installed release identity is bound to its cohort;\nconfigured channel preference is independent. One five-second collection budget; creates and changes nothing.\nJSON schema: orchbee.status.client (v2).",
+            "Windows: inspect this executable's version, platform, architecture, path and\nvalidated native cohort without contacting a Server. Missing or invalid cohort\nmetadata is reported explicitly; unavailable cohort I/O details appear in JSON.\nInstalled release identity is bound to its cohort; configured channel preference is\nindependent. One five-second collection budget; creates and changes nothing.\nJSON schema: orchbee.status.client (v3; v1/v2 remain closed).",
         ),
         (Locale::ZhCn, false) => crate::localization::HelpDetails::new(
             "orchbee status client [--format text|json]",
-            "Windows：检查当前程序的版本、平台、架构、路径及已验证的原生 cohort，不联系 Server。明确报告缺失或无效的 cohort 元数据。已安装版本身份绑定对应 cohort，与配置的频道偏好相互独立。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v2）。",
+            "Windows：检查当前程序的版本、平台、架构、路径及已验证的原生 cohort，不联系 Server。明确报告缺失或无效的 cohort 元数据；JSON 会包含不可用 cohort 的 I/O 详情。已安装版本身份绑定对应 cohort，与配置的频道偏好相互独立。采集共用五秒时限，不创建或修改任何内容。\nJSON schema：orchbee.status.client（v3；v1/v2 保持封闭）。",
         ),
         (Locale::EnUs, true) => crate::localization::HelpDetails::new(
             "orchbee status server [--format text|json]",

@@ -280,10 +280,71 @@ fn observed_server_facts_survive_mismatch_and_missing_local_cohort() {
         fixture.run(&["status", "client", "--format=json"]),
         "client",
     );
+    assert_eq!(client["result"]["cohort"]["state"], "unavailable");
+    assert_eq!(client["result"]["cohort"]["reason"], "invalid");
     assert_eq!(
-        client["result"]["cohort"],
-        json!({"state":"unavailable","reason":"invalid"})
+        client["result"]["cohort"]["diagnostic"]["ioKind"],
+        "invalid-data"
     );
+    assert!(client["result"]["cohort"]["diagnostic"]["osError"].is_null());
+    assert!(
+        client["result"]["cohort"]["diagnostic"]
+            .get("missingArtifact")
+            .is_none()
+    );
+}
+
+#[test]
+fn offline_client_json_identifies_a_sibling_proven_missing_by_open() {
+    let fixture = Fixture::private_cohort();
+    fs::remove_file(fixture.cohort_directory().join("orchbee-server.exe")).unwrap();
+    let json_output = fixture.run(&["status", "client", "--format=json"]);
+    let client = success(json_output, "client");
+    assert_eq!(client["version"], 3);
+    assert_eq!(client["result"]["cohort"]["state"], "unavailable");
+    assert_eq!(client["result"]["cohort"]["reason"], "missing");
+    assert_eq!(
+        client["result"]["cohort"]["diagnostic"]["ioKind"],
+        "not-found"
+    );
+    assert!(client["result"]["cohort"]["diagnostic"]["osError"].is_i64());
+    assert_eq!(
+        client["result"]["cohort"]["diagnostic"]["missingArtifact"],
+        "orchbee-server.exe"
+    );
+
+    let text = fixture.run(&["status", "client", "--format=text"]);
+    assert!(text.status.success());
+    let text = String::from_utf8(text.stdout).unwrap();
+    assert!(!text.contains("NotFound"));
+    assert!(!text.contains("missingArtifact"));
+    assert!(!text.contains("orchbee-server.exe"));
+
+    for (locale, expected) in [
+        (
+            "en_US.UTF-8",
+            "Required native sibling `orchbee-server.exe` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application. Run `orchbee status client --format json` for I/O details.\n",
+        ),
+        (
+            "zh_CN.UTF-8",
+            "原生开发 cohort 缺少必需的同级文件 `orchbee-server.exe`。请重新构建完整 cohort 或重新安装完整应用。运行 `orchbee status client --format json` 查看 I/O 详情。\n",
+        ),
+    ] {
+        let output = fixture.run_with_env(
+            &["server", "start"],
+            None,
+            None,
+            &[("LC_ALL", std::ffi::OsStr::new(locale))],
+        );
+        assert_eq!(output.status.code(), Some(4));
+        assert!(output.stdout.is_empty());
+        assert_eq!(String::from_utf8(output.stderr).unwrap(), expected);
+    }
+    let failure = fixture.run(&["server", "start", "--format=json"]);
+    let failure = document(failure, 4, "orchbee.cli.failure");
+    assert_eq!(failure["failure"]["details"]["stage"], "cohort");
+    assert!(failure["failure"].get("ioKind").is_none());
+    assert!(failure["failure"].get("osError").is_none());
 }
 
 #[test]

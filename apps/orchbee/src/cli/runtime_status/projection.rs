@@ -5,6 +5,7 @@ use orchbee_local_client_protocol::{
     SERVER_FEATURE_AGENT_OBSERVATION, SERVER_FEATURE_CLIENT_VIEW, SERVER_FEATURE_LIVE_HANDOFF,
     SERVER_FEATURE_RENDER_ROWS, SERVER_KNOWN_FEATURES, ServerMetadata, ServerMode,
 };
+use orchbee_local_site_runtime::{NativeArtifact, NativeCohortError};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -30,15 +31,93 @@ impl CohortIssue {
         }
     }
 }
+#[derive(Clone, Debug)]
+pub(super) struct CohortDiagnostic {
+    io_kind: CohortIoKind,
+    os_error: Option<i32>,
+    missing_artifact: Option<&'static str>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CohortIoKind {
+    NotFound,
+    PermissionDenied,
+    InvalidInput,
+    InvalidData,
+    TimedOut,
+    Unsupported,
+    Interrupted,
+    UnexpectedEof,
+    WouldBlock,
+    OutOfMemory,
+    Other,
+}
+impl CohortIoKind {
+    fn from_error_kind(kind: std::io::ErrorKind) -> Self {
+        match kind {
+            std::io::ErrorKind::NotFound => Self::NotFound,
+            std::io::ErrorKind::PermissionDenied => Self::PermissionDenied,
+            std::io::ErrorKind::InvalidInput => Self::InvalidInput,
+            std::io::ErrorKind::InvalidData => Self::InvalidData,
+            std::io::ErrorKind::TimedOut => Self::TimedOut,
+            std::io::ErrorKind::Unsupported => Self::Unsupported,
+            std::io::ErrorKind::Interrupted => Self::Interrupted,
+            std::io::ErrorKind::UnexpectedEof => Self::UnexpectedEof,
+            std::io::ErrorKind::WouldBlock => Self::WouldBlock,
+            std::io::ErrorKind::OutOfMemory => Self::OutOfMemory,
+            _ => Self::Other,
+        }
+    }
+
+    const fn token(self) -> &'static str {
+        match self {
+            Self::NotFound => "not-found",
+            Self::PermissionDenied => "permission-denied",
+            Self::InvalidInput => "invalid-input",
+            Self::InvalidData => "invalid-data",
+            Self::TimedOut => "timed-out",
+            Self::Unsupported => "unsupported",
+            Self::Interrupted => "interrupted",
+            Self::UnexpectedEof => "unexpected-eof",
+            Self::WouldBlock => "would-block",
+            Self::OutOfMemory => "out-of-memory",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl CohortDiagnostic {
+    pub(super) fn from_error(error: &NativeCohortError) -> Self {
+        Self {
+            io_kind: CohortIoKind::from_error_kind(error.kind()),
+            os_error: error.raw_os_error(),
+            missing_artifact: error.missing_artifact().map(NativeArtifact::file_name),
+        }
+    }
+
+    fn json(&self) -> Value {
+        let mut value = json!({"ioKind":self.io_kind.token(),"osError":self.os_error});
+        if let Some(artifact) = self.missing_artifact {
+            value["missingArtifact"] = json!(artifact);
+        }
+        value
+    }
+}
 pub(super) enum Cohort {
     Available(String),
-    Unavailable(CohortIssue),
+    Unavailable(CohortIssue, Option<CohortDiagnostic>),
 }
 impl Cohort {
-    fn json(&self) -> Value {
+    fn json(&self, include_diagnostic: bool) -> Value {
         match self {
             Self::Available(id) => json!({"state":"available","identity":id}),
-            Self::Unavailable(reason) => json!({"state":"unavailable","reason":reason.token()}),
+            Self::Unavailable(reason, diagnostic) => {
+                let mut value = json!({"state":"unavailable","reason":reason.token()});
+                if include_diagnostic && let Some(diagnostic) = diagnostic {
+                    value["diagnostic"] = diagnostic.json();
+                }
+                value
+            }
         }
     }
 }
@@ -92,7 +171,7 @@ impl Report {
                     "version":env!("CARGO_PKG_VERSION"),"platform":std::env::consts::OS,"architecture":std::env::consts::ARCH,
                     "buildProfile":if cfg!(debug_assertions) {"debug"} else {"release"},
                     "delivery":installation.delivery(),"updateChannel":installation.channel(),"installation":installation.json(),"executable":path(executable),
-                    "protocols":protocols(orchbee_client_server_protocol::PROTOCOL_VERSION),"cohort":cohort.json(),
+                    "protocols":protocols(orchbee_client_server_protocol::PROTOCOL_VERSION),"cohort":cohort.json(true),
                 }),
             ),
             Self::Server(report) => {
@@ -106,7 +185,7 @@ impl Report {
                         let mode = info.mode();
                         let cohort = match &report.cohort {
                             Cohort::Available(id) => Some(id == info.cohort()),
-                            Cohort::Unavailable(_) => None,
+                            Cohort::Unavailable(_, _) => None,
                         };
                         (
                             json!({"state":"running","version":info.version(),"processId":info.process_id().get(),"cohort":info.cohort(),
@@ -132,12 +211,12 @@ impl Report {
                     json!({"scope":report.scope,"runtimeDirectory":path(&report.runtime),
                     "endpoint":report.endpoint.as_deref().map(path),"server":server,
                     "clientVersion":env!("CARGO_PKG_VERSION"),"clientProtocols":protocols(orchbee_client_server_protocol::PROTOCOL_VERSION),
-                    "localCohort":report.cohort.json(),"compatibility":{"admissionProtocol":protocol.map(|_|true),"terminalProtocol":protocol,"cohort":cohort,
+                    "localCohort":report.cohort.json(false),"compatibility":{"admissionProtocol":protocol.map(|_|true),"terminalProtocol":protocol,"cohort":cohort,
                         "compatible":compatible,"restartRequired":compatible.map(|value|!value)}}),
                 )
             }
         };
-        json!({"schema":schema,"version":if matches!(self, Self::Client { .. }) {2} else {1},"source":config::local_runtime_source(),"result":result})
+        json!({"schema":schema,"version":if matches!(self, Self::Client { .. }) {3} else {1},"source":config::local_runtime_source(),"result":result})
     }
 }
 
@@ -147,6 +226,10 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => output::render_text(|out| {
             let value = &document["result"];
+            let client_cohort_text = match &report {
+                Report::Client { cohort, .. } => Some(cohort.json(false)),
+                Report::Server(_) => None,
+            };
             let entries = match &report {
                 Report::Client { .. } => vec![
                     ("client", &value["version"]),
@@ -158,7 +241,12 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                     ("installation", &value["installation"]),
                     ("executable", &value["executable"]),
                     ("protocols", &value["protocols"]),
-                    ("local-cohort", &value["cohort"]),
+                    (
+                        "local-cohort",
+                        client_cohort_text
+                            .as_ref()
+                            .expect("client text cohort projection"),
+                    ),
                 ],
                 Report::Server(_) => vec![
                     ("server", &value["server"]["state"]),

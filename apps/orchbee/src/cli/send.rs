@@ -793,8 +793,9 @@ mod linux {
         })
     }
 
-    /// Typed answers emit the send envelope on stdout in either format plus
-    /// the localized stderr verdict; a preparation overflow degrades to the
+    /// JSON retains the full receipt. Human output confirms successful input
+    /// submission once; nonzero outcomes use the localized stderr verdict.
+    /// A preparation overflow degrades to the
     /// shared `output-too-large` failure under the caller's format.
     fn answer_output(answer: &SendAnswer, format: OutputFormat, locale: Locale) -> Output {
         let stderr =
@@ -826,7 +827,15 @@ mod linux {
                 Err(output::TooLarge) => too_large(),
             },
             OutputFormat::Text => {
-                match output::render_text(|out| present::send_result(out, &answer.result)) {
+                if answer.status != 0 {
+                    return Output {
+                        status: answer.status,
+                        stdout: Vec::new(),
+                        stderr,
+                        finalization: None,
+                    };
+                }
+                match output::render_text(|out| present::send_result(out, &answer.result, locale)) {
                     Ok(stdout) => Output {
                         status: answer.status,
                         stdout,

@@ -425,6 +425,14 @@ impl Locale {
         }
     }
 
+    /// A successful input submission, without claiming command completion.
+    pub(crate) fn cli_send_success(self, terminal_id: &str) -> String {
+        match self {
+            Self::EnUs => format!("Sent to terminal {terminal_id}.\n"),
+            Self::ZhCn => format!("已发送至终端 {terminal_id}。\n"),
+        }
+    }
+
     /// The stderr line a typed `terminal send` answer carries on a nonzero
     /// exit: what the outcome axis settled, and — whenever resending could
     /// type the same input twice — an explicit do-not-resend warning. The
@@ -1402,10 +1410,35 @@ impl Locale {
                 hint(*ctx),
             ),
         };
-        match self {
-            Self::EnUs => format!("{problem} Run '{hint}'.\n"),
-            Self::ZhCn => format!("{problem}请运行 ‘{hint}’。\n"),
+        let suggestions = crate::cli::usage_suggestions(reason);
+        let advice = if suggestions.is_empty() {
+            String::new()
+        } else {
+            let candidates = suggestions
+                .iter()
+                .map(|candidate| format!("\"{candidate}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            match self {
+                Self::EnUs => format!(" Did you mean {candidates}?"),
+                Self::ZhCn => format!("是否要输入 {candidates}？"),
+            }
+        };
+        let mut diagnostic = match self {
+            Self::EnUs => format!("{problem}{advice} Run '{hint}'.\n"),
+            Self::ZhCn => format!("{problem}{advice}请运行 ‘{hint}’。\n"),
+        };
+        if let UsageReason::MissingCommand { context } = reason {
+            let children = crate::cli::usage_children(*context);
+            if !children.is_empty() {
+                diagnostic.push_str(self.cli_help_text(crate::localization::HelpText::Commands));
+                diagnostic.push('\n');
+                for (name, topic) in children {
+                    diagnostic.push_str(&format!("  {name}  {}\n", self.cli_help_summary(topic)));
+                }
+            }
         }
+        diagnostic
     }
 
     fn cli_invalid_identifier(self, resource: &str, target: &str) -> String {
@@ -1437,6 +1470,17 @@ impl Locale {
     }
 
     fn cli_service_unavailable(self, failure: &Failure) -> String {
+        self.cli_service_unavailable_for_selection(
+            failure,
+            crate::local_activation::selected_session_name(),
+        )
+    }
+
+    pub(crate) fn cli_service_unavailable_for_selection(
+        self,
+        failure: &Failure,
+        selected_session: Option<&str>,
+    ) -> String {
         let stage = failure
             .details
             .as_ref()
@@ -1448,10 +1492,9 @@ impl Locale {
                 "This command is unavailable on this platform.\n".to_owned()
             }
             (Self::ZhCn, "platform") => "当前平台尚不支持此命令。\n".to_owned(),
-            (Self::EnUs, "discovery") => {
-                "No running local session was found for this user.\n".to_owned()
+            (Self::EnUs, "discovery") | (Self::ZhCn, "discovery") => {
+                self.cli_missing_session(selected_session)
             }
-            (Self::ZhCn, "discovery") => "未找到当前用户正在运行的本地会话。\n".to_owned(),
             (Self::EnUs, "snapshot") => {
                 "The local session could not produce a snapshot right now.\n".to_owned()
             }
@@ -1494,6 +1537,19 @@ impl Locale {
         }
     }
 
+    pub(crate) fn cli_missing_session(self, selected: Option<&str>) -> String {
+        match (self, selected) {
+            (Self::EnUs, Some(name)) => format!(
+                "No running local session named `{name}` was found. Start it with: orchbee --session {name} server start.\n"
+            ),
+            (Self::ZhCn, Some(name)) => format!(
+                "未找到名为 `{name}` 的运行中本地会话。请运行：orchbee --session {name} server start。\n"
+            ),
+            (Self::EnUs, None) => "No running local session was found for this user. Start one with: orchbee server start.\n".to_owned(),
+            (Self::ZhCn, None) => "未找到当前用户正在运行的本地会话。请运行：orchbee server start。\n".to_owned(),
+        }
+    }
+
     fn cli_check_failed(self, failure: &Failure) -> String {
         let stage = failure
             .details
@@ -1502,32 +1558,18 @@ impl Locale {
             .and_then(|value| value.as_str())
             .unwrap_or("");
         match (self, stage) {
-            // The cohort check retains its observed io::ErrorKind (and the OS
-            // error number when one exists) as private diagnostic data: the
-            // message reports exactly what was observed — never a guess that
-            // the artifacts are missing or corrupted.
-            (Self::EnUs, "cohort") => match &failure.io_diagnostic {
-                Some(observed) => format!(
-                    "The native development cohort could not be validated (I/O kind: {:?}{}).\n",
-                    observed.kind,
-                    observed
-                        .raw_os_error
-                        .map(|code| format!(", OS error: {code}"))
-                        .unwrap_or_default(),
-                ),
-                None => "The native development cohort could not be validated.\n".to_owned(),
-            },
-            (Self::ZhCn, "cohort") => match &failure.io_diagnostic {
-                Some(observed) => format!(
-                    "无法验证原生开发 cohort（I/O 类型：{:?}{}）。\n",
-                    observed.kind,
-                    observed
-                        .raw_os_error
-                        .map(|code| format!("，OS 错误码：{code}"))
-                        .unwrap_or_default(),
-                ),
-                None => "无法验证原生开发 cohort。\n".to_owned(),
-            },
+            (Self::EnUs, "cohort") => self.cli_cohort_diagnostic(
+                failure
+                    .io_diagnostic
+                    .as_ref()
+                    .and_then(|observed| observed.missing_artifact),
+            ),
+            (Self::ZhCn, "cohort") => self.cli_cohort_diagnostic(
+                failure
+                    .io_diagnostic
+                    .as_ref()
+                    .and_then(|observed| observed.missing_artifact),
+            ),
             (Self::EnUs, "platform") => {
                 let command = failure
                     .details
@@ -1556,6 +1598,31 @@ impl Locale {
             (Self::ZhCn, "runtime-directory") => "本地会话运行时目录未通过安全检查。\n".to_owned(),
             (Self::EnUs, _) => "The runtime base is missing, invalid, or unsafe.\n".to_owned(),
             (Self::ZhCn, _) => "运行时基座缺失、无效或不安全。\n".to_owned(),
+        }
+    }
+
+    pub(crate) fn cli_cohort_diagnostic(self, missing_artifact: Option<&str>) -> String {
+        let io_details = if cfg!(windows) {
+            match self {
+                Self::EnUs => " Run `orchbee status client --format json` for I/O details.",
+                Self::ZhCn => "运行 `orchbee status client --format json` 查看 I/O 详情。",
+            }
+        } else {
+            ""
+        };
+        match (self, missing_artifact) {
+            (Self::EnUs, Some(name)) => format!(
+                "Required native sibling `{name}` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application.{io_details}\n"
+            ),
+            (Self::ZhCn, Some(name)) => format!(
+                "原生开发 cohort 缺少必需的同级文件 `{name}`。请重新构建完整 cohort 或重新安装完整应用。{io_details}\n"
+            ),
+            (Self::EnUs, None) => format!(
+                "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged.{io_details}\n"
+            ),
+            (Self::ZhCn, None) => format!(
+                "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。{io_details}\n"
+            ),
         }
     }
 
@@ -1596,10 +1663,18 @@ impl Locale {
             (Self::ZhCn, "discovery") => {
                 "没有运行中的本地会话应答，且其运行时目录无法创建。\n".to_owned()
             }
-            (Self::EnUs, "cohort") => {
-                "The native development cohort artifacts are missing.\n".to_owned()
-            }
-            (Self::ZhCn, "cohort") => "原生开发 cohort 工件缺失。\n".to_owned(),
+            (Self::EnUs, "cohort") => self.cli_cohort_diagnostic(
+                failure
+                    .io_diagnostic
+                    .as_ref()
+                    .and_then(|observed| observed.missing_artifact),
+            ),
+            (Self::ZhCn, "cohort") => self.cli_cohort_diagnostic(
+                failure
+                    .io_diagnostic
+                    .as_ref()
+                    .and_then(|observed| observed.missing_artifact),
+            ),
             (Self::EnUs, _) => {
                 "The local session could not admit the start probe connection.\n".to_owned()
             }
@@ -2881,11 +2956,11 @@ impl Locale {
             ),
             (Self::EnUs, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
-                "Resolve one live Agent, refuse pending attention, and submit literal paste plus Enter.\nTargets: Session ID/name/Panel ID, --agent-session <id>, --name <alias>, or --panel <id|@panel:suffix>. --until/--timeout/--forever require --wait.\nWait first observes activity, then a matching condition. Windows defaults to\nidle/done/blocked with no total timeout; Linux retains 600000 ms.\n--forever removes the total timeout and conflicts with --timeout.\nWindows Codex adds a Right key between paste and Enter.\nA wait failure retains the accepted input receipt. Never replay uncertain input.\nA matching state does not identify a prompt-specific turn.",
+                "Send a prompt to one running Agent. Use --wait to observe its next state.\nFind targets with orchbee agent list; use --panel to select an Agent by its Panel.\n--until, --timeout and --forever require --wait. Inspect the terminal before retrying uncertain input.",
             ),
             (Self::ZhCn, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
-                "定位存活 Agent，有待处理请求时拒绝，再提交字面 paste 加 Enter。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。--until/--timeout/--forever 要求 --wait。先观察活动再等待条件匹配；Windows 默认 idle/done/blocked 且无总超时，Linux 保持 600000 毫秒。--forever 取消总期限，与 --timeout 互斥。\nWindows Codex 在 paste 和 Enter 之间增加 Right 键。等待失败保留已接受输入回执。不重放不确定输入；状态匹配不标识本次提示自己的轮次。",
+                "向正在运行的 Agent 发送提示。使用 --wait 观察其后续状态。\n用 orchbee agent list 查找目标，或用 --panel 按面板选择 Agent。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
             ),
             (Self::EnUs, CommandPath::AgentRead) if cfg!(windows) => HELP_AGENT_OUTPUT_EN,
             (Self::ZhCn, CommandPath::AgentRead) if cfg!(windows) => HELP_AGENT_OUTPUT_ZH,

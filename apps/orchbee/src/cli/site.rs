@@ -214,7 +214,7 @@ fn classify(failure: ActivationFailure) -> Failure {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn classify_cohort(error: &std::io::Error) -> Failure {
+fn classify_cohort(error: &orchbee_local_site_runtime::NativeCohortError) -> Failure {
     let kind = match error.kind() {
         std::io::ErrorKind::InvalidData => FailureKind::Incompatible,
         std::io::ErrorKind::NotFound => FailureKind::ServiceUnavailable,
@@ -222,7 +222,9 @@ fn classify_cohort(error: &std::io::Error) -> Failure {
         std::io::ErrorKind::TimedOut => FailureKind::Timeout,
         _ => FailureKind::InternalFailure,
     };
-    Failure::new(kind).details(stage_details("cohort"))
+    Failure::new(kind)
+        .details(stage_details("cohort"))
+        .io_diagnostic(error)
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]

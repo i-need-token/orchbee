@@ -98,6 +98,10 @@ reference is a defect, and so is the reverse.
 - Concept explanations and onboarding belong in the owning application's guide. Command-specific
   examples and operational constraints use the shared examples and details sections, rather than
   custom headings or explanatory layouts for individual command families.
+- Commands that accept `--format` show both a default text example and an explicit JSON example.
+- A missing child on a family path lists its direct commands. A usage diagnostic may add at most
+  three close spelling candidates from that command or option's grammar scope; advice never
+  changes parsing, validity, or effects.
 - `--version` is legal only as the sole argument and prints one line naming the executable and its
   version.
 - `completion <shell>` prints a static projection of the grammar for a declared closed set of
@@ -123,9 +127,9 @@ reference is a defect, and so is the reverse.
   build is reachable through `--help` descent, `completion`, and the machine schema listing.
 - An executable that ships an embedded Agent Skill prints it through one offline root option and
   the Skill describes the same build it is embedded in.
-- Help for a family includes a bounded footer telling an Agent how to obtain the Skill and where
-  the reference lives; it never instructs an Agent to run a bare executable for discovery when the
-  bare executable launches an interface.
+- Help for a family includes a bounded footer pointing to the embedded Skill and command help;
+  it never depends on a checkout path or instructs an Agent to run a bare executable for discovery
+  when the bare executable launches an interface.
 - Nothing about discovery depends on a running service.
 
 ## Environment variables

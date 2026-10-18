@@ -1090,73 +1090,88 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
     );
 }
 
-/// A cohort-check failure retains the observed `io::ErrorKind` — and the OS
-/// error number when one exists — for the localized stderr diagnostic. The
-/// machine document, stage detail, and exit code are the unchanged
-/// `check-failed`/`cohort` contract; the diagnostic never serializes.
-#[cfg(target_os = "linux")]
+/// Cohort text names a sibling only when artifact-open evidence proves it is
+/// absent; bounded I/O details remain available through the status client
+/// JSON diagnostic. The failure envelope and exit code remain unchanged.
 #[test]
-fn cli_cohort_failure_reports_the_observed_io_kind() {
+fn cli_cohort_failure_uses_repair_text_without_leaking_raw_io() {
     use crate::cli::{Failure, FailureKind, failure_output, stage_details};
     use crate::invocation::OutputFormat;
     use serde_json::json;
 
     let cohort_failure = |error: &std::io::Error| {
+        let error = orchbee_local_site_runtime::NativeCohortError::from(std::io::Error::new(
+            error.kind(),
+            error.to_string(),
+        ));
         Failure::new(FailureKind::CheckFailed)
             .details(stage_details("cohort"))
-            .io_diagnostic(error)
+            .io_diagnostic(&error)
     };
 
-    // A real OS error keeps its kind and its number in both locales.
+    // The opaque failure itself carries no I/O detail to stdout or stderr.
     let failure = cohort_failure(&std::io::Error::from_raw_os_error(110));
+    let expected_en = if cfg!(windows) {
+        "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged. Run `orchbee status client --format json` for I/O details.\n"
+    } else {
+        "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged.\n"
+    };
+    let expected_zh = if cfg!(windows) {
+        "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。运行 `orchbee status client --format json` 查看 I/O 详情。\n"
+    } else {
+        "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。\n"
+    };
+    assert_eq!(Locale::EnUs.cli_failure(&failure), expected_en);
+    assert_eq!(Locale::ZhCn.cli_failure(&failure), expected_zh);
+    for (locale, expected) in [(Locale::EnUs, expected_en), (Locale::ZhCn, expected_zh)] {
+        let output = failure_output(
+            cohort_failure(&std::io::Error::from_raw_os_error(110)),
+            Some(OutputFormat::Text),
+            locale,
+        );
+        assert_eq!(output.status, 1);
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, expected);
+    }
+
+    // Exact artifact copy is emitted only by the typed missing-artifact path.
     assert_eq!(
-        Locale::EnUs.cli_failure(&failure),
-        "The native development cohort could not be validated \
-         (I/O kind: TimedOut, OS error: 110).\n"
+        Locale::EnUs.cli_cohort_diagnostic(Some("orchbee-server.exe")),
+        if cfg!(windows) {
+            "Required native sibling `orchbee-server.exe` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application. Run `orchbee status client --format json` for I/O details.\n"
+        } else {
+            "Required native sibling `orchbee-server.exe` is missing from the development cohort. Rebuild the development cohort or reinstall the complete application.\n"
+        }
     );
     assert_eq!(
-        Locale::ZhCn.cli_failure(&failure),
-        "无法验证原生开发 cohort（I/O 类型：TimedOut，OS 错误码：110）。\n"
+        Locale::ZhCn.cli_cohort_diagnostic(Some("orchbee-server.exe")),
+        if cfg!(windows) {
+            "原生开发 cohort 缺少必需的同级文件 `orchbee-server.exe`。请重新构建完整 cohort 或重新安装完整应用。运行 `orchbee status client --format json` 查看 I/O 详情。\n"
+        } else {
+            "原生开发 cohort 缺少必需的同级文件 `orchbee-server.exe`。请重新构建完整 cohort 或重新安装完整应用。\n"
+        }
     );
 
-    // A permission error reports its own kind — never a missing/corrupt
-    // guess. Exact equality also proves the bound: no path and none of the
-    // OS message's free-form text ("Permission denied (os error 13)") leaks.
-    let failure = cohort_failure(&std::io::Error::from_raw_os_error(13));
-    assert_eq!(
-        Locale::EnUs.cli_failure(&failure),
-        "The native development cohort could not be validated \
-         (I/O kind: PermissionDenied, OS error: 13).\n"
-    );
-
-    // A synthetic error without an OS number reports the observed kind only;
-    // the arbitrary payload string never reaches stderr.
-    let failure = cohort_failure(&std::io::Error::other(
-        "arbitrary free text that must not leak",
-    ));
-    assert_eq!(
-        Locale::EnUs.cli_failure(&failure),
-        "The native development cohort could not be validated (I/O kind: Other).\n"
-    );
-    assert_eq!(
-        Locale::ZhCn.cli_failure(&failure),
-        "无法验证原生开发 cohort（I/O 类型：Other）。\n"
-    );
-
-    // A cohort failure that never carried the diagnostic (an envelope built
-    // without the private data) still answers with the plain message.
+    // A failure without typed cohort evidence does not invent a missing file.
     let failure = Failure::new(FailureKind::CheckFailed).details(stage_details("cohort"));
     assert_eq!(
         Locale::EnUs.cli_failure(&failure),
-        "The native development cohort could not be validated.\n"
+        if cfg!(windows) {
+            "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged. Run `orchbee status client --format json` for I/O details.\n"
+        } else {
+            "The native development cohort could not be validated. Verify that all cohort files are present, readable, and unchanged.\n"
+        }
     );
     assert_eq!(
         Locale::ZhCn.cli_failure(&failure),
-        "无法验证原生开发 cohort。\n"
+        if cfg!(windows) {
+            "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。运行 `orchbee status client --format json` 查看 I/O 详情。\n"
+        } else {
+            "无法验证原生开发 cohort。请确认所有 cohort 文件均存在、可读取且未被修改。\n"
+        }
     );
 
-    // The emitted document and exit stay exactly the existing contract —
-    // no io detail ever reaches stdout even when the diagnostic is present.
+    // The failure document and exit stay exactly the existing contract.
     let output = failure_output(
         cohort_failure(&std::io::Error::from_raw_os_error(110)),
         Some(OutputFormat::Json),
@@ -1172,6 +1187,32 @@ fn cli_cohort_failure_reports_the_observed_io_kind() {
             "failure": {"kind": "check-failed", "details": {"stage": "cohort"}},
         })
     );
+}
+
+#[test]
+fn missing_selected_session_names_a_valid_startup_command_in_both_locales() {
+    use crate::cli::{Failure, FailureKind, failure_output, stage_details};
+    use crate::invocation::OutputFormat;
+
+    let failure = Failure::new(FailureKind::ServiceUnavailable).details(stage_details("discovery"));
+    assert_eq!(
+        Locale::EnUs.cli_service_unavailable_for_selection(&failure, Some("nosuch")),
+        "No running local session named `nosuch` was found. Start it with: orchbee --session nosuch server start.\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_service_unavailable_for_selection(&failure, Some("nosuch")),
+        "未找到名为 `nosuch` 的运行中本地会话。请运行：orchbee --session nosuch server start。\n"
+    );
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let output = failure_output(
+            Failure::new(FailureKind::ServiceUnavailable).details(stage_details("discovery")),
+            Some(OutputFormat::Text),
+            locale,
+        );
+        assert_eq!(output.status, 4);
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.contains("orchbee server start"));
+    }
 }
 #[test]
 fn popup_receipt_text_preserves_incomplete_reason_status_and_query_guidance_in_both_locales() {

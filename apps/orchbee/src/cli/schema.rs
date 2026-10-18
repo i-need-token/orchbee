@@ -586,8 +586,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Independent Agent status/read state and explicit terminal outcome vocabularies.
-        "version": 146,
+        // Status-client v3 includes bounded local-cohort I/O diagnostics.
+        "version": 147,
         "source": embedded_source(),
         "result": result,
     });

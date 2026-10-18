@@ -14,6 +14,12 @@ another process, choose a Shell, inspect a prompt, or claim that the Shell is re
 A submission receipt confirms input progress, not command completion or its exit
 code. Observe output or canonical Agent state separately when needed.
 
+Successful `terminal run` and `terminal send` text output is one localized confirmation
+with the admitted Terminal ID. Nonzero text outcomes keep stdout empty and explain
+partial or unknown delivery on stderr, including guidance against replay. JSON retains
+the complete receipt, request identity, delivery frontier and cleanup status; exit codes
+do not change.
+
 ## Input lifecycle model
 
 | Stage     | Rule                                                                                                                                                      |
