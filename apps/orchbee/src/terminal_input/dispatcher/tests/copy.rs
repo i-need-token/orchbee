@@ -368,14 +368,20 @@ fn configured_entry_and_disabled_default_share_dispatch_and_discovery() {
             true,
             crate::client_view::KeyLabelGlyphs::Unicode,
         );
+        let copy_title =
+            crate::localization::Locale::EnUs.menu_action(&crate::action_menu::MenuAction::Copy);
         if enters {
             assert!(
                 entries
                     .iter()
-                    .any(|entry| entry.key == "F2" && entry.title == "Copy text")
+                    .any(|entry| entry.key == "F2" && entry.title == copy_title),
+                "configured F2 copy binding should discover the shared action title {copy_title:?}"
             );
         } else {
-            assert!(!entries.iter().any(|entry| entry.title == "Copy text"));
+            assert!(
+                !entries.iter().any(|entry| entry.title == copy_title),
+                "disabling the default copy binding should remove {copy_title:?} from discovery"
+            );
         }
     }
 }

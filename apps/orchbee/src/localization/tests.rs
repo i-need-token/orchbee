@@ -474,6 +474,24 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
     let english = Locale::EnUs.shortcut_help_entries(&inventory, true, KeyLabelGlyphs::Unicode);
     let chinese = Locale::ZhCn.shortcut_help_entries(&inventory, true, KeyLabelGlyphs::Unicode);
     for (code, expected, en_title, zh_title) in cases {
+        #[cfg(windows)]
+        let (en_title, zh_title) = {
+            use crate::action_menu::MenuAction;
+
+            let menu_action = match expected.clone() {
+                ClientAction::SplitPanel(direction) => Some(MenuAction::SplitPanel(direction)),
+                ClientAction::ClosePanel => Some(MenuAction::ClosePane),
+                ClientAction::MovePanel(direction) => Some(MenuAction::MovePanel(direction)),
+                _ => None,
+            };
+            match menu_action {
+                Some(action) => (
+                    Locale::EnUs.menu_action(&action),
+                    Locale::ZhCn.menu_action(&action),
+                ),
+                None => (en_title, zh_title),
+            }
+        };
         let owned_key = owner_entries
             .iter()
             .find(|entry| entry.action == PrefixAction::Client(expected.clone()))
@@ -483,12 +501,14 @@ fn panel_shortcut_discovery_and_dispatch_match_in_both_locales() {
         assert!(
             english
                 .iter()
-                .any(|entry| { entry.key == owned_key && entry.title == en_title })
+                .any(|entry| { entry.key == owned_key && entry.title == en_title }),
+            "English Help should show {en_title:?} for owned key {owned_key:?} ({expected:?})"
         );
         assert!(
             chinese
                 .iter()
-                .any(|entry| { entry.key == owned_key && entry.title == zh_title })
+                .any(|entry| { entry.key == owned_key && entry.title == zh_title }),
+            "Chinese Help should show {zh_title:?} for owned key {owned_key:?} ({expected:?})"
         );
 
         let mut view = ClientView::new(120);

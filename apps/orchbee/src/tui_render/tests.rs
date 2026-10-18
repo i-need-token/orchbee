@@ -2138,6 +2138,9 @@ fn resize_mode_status_is_persistent_across_tiers_locales_themes_and_pending_feed
         assert!(!entries.iter().any(|entry| entry.key == "Esc"));
         let rendered = rendered_text(120, 40, &view, locale);
         assert!(rendered.contains("Esc"));
-        assert!(rendered.contains(locale.shortcut_scroll_label()));
+        assert!(
+            rendered.contains(locale.shortcut_scroll_hint()),
+            "the always-visible scroll footer should render for {locale:?}: {rendered}"
+        );
     }
 }

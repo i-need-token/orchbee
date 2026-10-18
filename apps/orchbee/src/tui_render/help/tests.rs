@@ -299,6 +299,12 @@ fn long_alias_lists_wrap_between_complete_chords_and_keep_other_rows_visible() {
         .find(|entry| entry.title.starts_with("Settings"))
         .expect("the Help list has a short action to use as a long-alias witness");
     entry.key = aliases.join(" / ");
+    let workspace_title = entries
+        .iter()
+        .find(|entry| entry.key.contains("Ctrl+b a"))
+        .expect("workspace creation remains discoverable beside the long aliases")
+        .title
+        .clone();
 
     let lines = super::shortcut_lines(&entries, "", Locale::EnUs, 30, &Theme::rgb_test_dark())
         .expect("a long alias list must not refuse the complete Help surface");
@@ -319,7 +325,19 @@ fn long_alias_lists_wrap_between_complete_chords_and_keep_other_rows_visible() {
         rendered.contains("Other"),
         "the Settings action keeps its group: {rendered}"
     );
-    assert!(rendered.contains("New Workspace"), "{rendered}");
+    assert!(
+        rendered.contains("New Tab"),
+        "an unaffected action row remains intact: {rendered}"
+    );
+    let without_whitespace = |text: &str| {
+        text.chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>()
+    };
+    assert!(
+        without_whitespace(&rendered).contains(&without_whitespace(&workspace_title)),
+        "the complete Workspace title survives line wrapping: {rendered}"
+    );
 }
 
 #[test]
