@@ -259,3 +259,74 @@ position = "bottom-right"
 [ui.sound]
 enabled = false
 "#;
+
+/// Return the deterministic offline Windows configuration template without Client action rows.
+pub fn default_windows_user_settings_toml() -> String {
+    default_windows_user_settings_toml_with_actions(&[])
+}
+
+/// Render setting help and current Client-registry actions into one offline TOML template.
+pub fn default_windows_user_settings_toml_with_actions(
+    actions: &[WindowsDefaultActionBindings],
+) -> String {
+    let mut output = String::from(
+        "# Orchbee Windows user configuration. Comments are fixed English so this offline reference is deterministic across locales.\n# Edit or remove settings as needed; action rows below stay comments until explicitly enabled.\n# Setting reference (default; accepted values; purpose):\n",
+    );
+    for option in WINDOWS_USER_CONFIG_OPTIONS {
+        use std::fmt::Write as _;
+        writeln!(output, "# {}", option.path).expect("writing to a String cannot fail");
+        push_wrapped_comment(&mut output, "  Default:", option.default);
+        push_wrapped_comment(&mut output, "  Values:", option.choices);
+        push_wrapped_comment(&mut output, "  Purpose:", option.description);
+    }
+    output.push('\n');
+    let action_comments = render_action_comments(actions);
+    output.push_str(&DEFAULT_CONFIG.replace("# <default-action-bindings>", &action_comments));
+    output
+}
+
+fn render_action_comments(actions: &[WindowsDefaultActionBindings]) -> String {
+    let mut output = String::from(
+        "# Registered Client actions and their current defaults; uncomment one line to override it.\n",
+    );
+    for action in actions {
+        let value = if action.bindings.is_empty() {
+            "[]".to_owned()
+        } else {
+            let values = action
+                .bindings
+                .iter()
+                .map(|binding| toml::Value::String(binding.clone()).to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("[{values}]")
+        };
+        use std::fmt::Write as _;
+        writeln!(output, "# {} = {}", action.action, value)
+            .expect("writing to a String cannot fail");
+    }
+    output.push_str(
+        "# Custom-command rules: each [[keys.command]] requires a non-empty command (max 4096 bytes).\n# Type is shell (default), pane, popup, or plugin_action; the last accepts up to 241 ASCII characters from letters, digits, . _ : -.\n# Key is optional and accepts one chord or up to 16; description is optional (max 512 bytes).\n# Width and height are popup-only (1..4096 cells or 1%..100%). The config reader never executes a command.\n# Example (uncomment to add a popup command):\n# [[keys.command]]\n# command = \"pwsh.exe -NoProfile\"\n# type = \"popup\"\n# key = \"prefix+f12\"\n# description = \"Open a PowerShell popup\"\n# width = \"60%\"\n# height = 20\n",
+    );
+    output
+}
+
+fn push_wrapped_comment(output: &mut String, label: &str, value: &str) {
+    let mut line = format!("# {label}");
+    let continuation = "#     ";
+    let mut line_has_value = false;
+    for word in value.split_whitespace() {
+        if line_has_value && line.len() + 1 + word.len() > 100 {
+            output.push_str(&line);
+            output.push('\n');
+            line = continuation.to_owned();
+            line.push_str(word);
+        } else {
+            line.push(' ');
+            line.push_str(word);
+        }
+        line_has_value = true;
+    }
+    output.push_str(&line);
+    output.push('\n');
+}
