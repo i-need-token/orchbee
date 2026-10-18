@@ -229,22 +229,22 @@ impl NativeCohort {
         .take(MANIFEST_LIMIT + 1)
         .read_to_end(&mut encoded)?;
         if encoded.len() as u64 > MANIFEST_LIMIT {
-            return Err(invalid());
+            return Err(invalid().into());
         }
         let version: ManifestVersion = serde_json::from_slice(&encoded).map_err(|_| invalid())?;
         if version.schema_version != SCHEMA_VERSION {
-            return Err(incompatible());
+            return Err(incompatible().into());
         }
         let manifest: Manifest = serde_json::from_slice(&encoded).map_err(|_| invalid())?;
         if !declared_hash(&manifest.artifacts.observation_adapters) {
-            return Err(invalid());
+            return Err(invalid().into());
         }
         let mut identity = Sha256::new();
         identity.update(b"orchbee-native-cohort-v1\n");
         for artifact in ARTIFACTS {
             let expected = manifest.artifacts.hash(artifact);
             if !declared_hash(expected) {
-                return Err(invalid());
+                return Err(invalid().into());
             }
             let mut file = open_file(
                 &descriptor,
@@ -268,7 +268,7 @@ impl NativeCohort {
                 hash.update(&buffer[..count]);
             }
             if format!("{:x}", hash.finalize()) != expected {
-                return Err(invalid());
+                return Err(invalid().into());
             }
             identity.update(artifact.file_name().as_bytes());
             identity.update([0]);

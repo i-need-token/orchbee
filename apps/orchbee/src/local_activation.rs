@@ -411,7 +411,7 @@ fn connect(
                 )) => StartupFailure::Incompatible,
                 LocalClientConnectError::Admission(
                     ConnectClientError::ConnectFailed(source) | ConnectClientError::Io(source),
-                ) => failure(source, StartupFailure::Admission),
+                ) => failure(source.kind(), StartupFailure::Admission),
                 _ => StartupFailure::Admission,
             };
             Err(ActivationFailure::caused(
