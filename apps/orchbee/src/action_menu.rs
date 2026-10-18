@@ -427,6 +427,7 @@ pub(crate) struct MenuView<'a> {
     pub(crate) tabs: Option<&'a TabMenuPresentation>,
     pub(crate) actions: &'a [MenuAction],
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
+    #[cfg(test)]
     pub(crate) result_actions: &'a [usize],
     pub(crate) query: Option<&'a str>,
     pub(crate) search_children: &'a [MenuSearchChild],
@@ -440,33 +441,6 @@ pub(crate) struct MenuView<'a> {
 }
 
 impl MenuView<'_> {
-    pub(crate) fn first_visible_row(&self, rows: usize) -> usize {
-        let rows = rows.max(1);
-        let mut maximum = self.actions.len().saturating_sub(1);
-        while maximum > 0 && self.row_height(maximum - 1, self.actions.len()) <= rows {
-            maximum -= 1;
-        }
-        let mut first = self.first.min(maximum);
-        if !self.follow_selection {
-            return first;
-        }
-        if self.selected < first {
-            first = self.selected;
-        }
-        while first < self.selected && self.row_height(first, self.selected + 1) > rows {
-            first += 1;
-        }
-        first.min(maximum)
-    }
-
-    pub(crate) fn separator_before(&self, index: usize) -> bool {
-        separator_before(self.source, self.actions, index)
-    }
-
-    pub(crate) fn row_height(&self, first: usize, end: usize) -> usize {
-        row_height(self.source, self.actions, first, end)
-    }
-
     pub(crate) fn result_separator_before(&self, results: &[usize], position: usize) -> bool {
         position > 0
             && self.query.is_none_or(str::is_empty)
@@ -565,13 +539,6 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
         _ => {}
     }
     crate::action_projection::menu_metadata(action.clone()).starts_section(action.clone())
-}
-
-fn row_height(source: &MenuTarget, actions: &[MenuAction], first: usize, end: usize) -> usize {
-    end - first
-        + ((first + 1)..end)
-            .filter(|index| separator_before(source, actions, *index))
-            .count()
 }
 
 struct Menu {
@@ -954,6 +921,7 @@ impl ActionMenu {
             tabs: menu.tabs.as_ref(),
             actions: &menu.actions,
             unavailable: &menu.unavailable,
+            #[cfg(test)]
             result_actions: &menu.result_actions,
             query: menu.query.as_ref().map(LineEditor::text),
             search_children: &menu.search_children,

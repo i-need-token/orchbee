@@ -264,7 +264,7 @@ fn global_menu_groups_existing_tab_panel_workspace_and_session_actions_and_dispa
         let menu = view.action_menu().unwrap();
         assert_eq!(menu.actions, crate::action_menu::GLOBAL_ACTIONS);
         let separators = (1..menu.actions.len())
-            .filter(|index| menu.separator_before(*index))
+            .filter(|index| menu.result_separator_before(menu.result_actions, *index))
             .collect::<Vec<_>>();
         assert_eq!(separators, [2, 14, 18, 19]);
     }

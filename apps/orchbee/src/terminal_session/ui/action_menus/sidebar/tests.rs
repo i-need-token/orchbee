@@ -118,9 +118,9 @@ fn async_git_availability_preserves_action_slots_and_requires_a_fresh_draw_witho
             MenuAction::OpenWorktreeAt(WorkbenchDirectoryPath::parse("C:/trees/猫").unwrap()),
         ]
     );
-    assert!(!menu.separator_before(0));
-    assert!(menu.separator_before(1));
-    assert!(!menu.separator_before(2));
+    assert!(!menu.result_separator_before(menu.result_actions, 0));
+    assert!(menu.result_separator_before(menu.result_actions, 1));
+    assert!(!menu.result_separator_before(menu.result_actions, 2));
     assert_eq!(Origin::capture(ui.state.as_ref()), original);
     assert!(mailbox.try_recv().unwrap().is_none());
 }
@@ -186,9 +186,10 @@ fn creation_menu_has_no_orphan_worktree_separator_when_the_checkout_list_is_empt
     );
     let mut model = ActionMenu::default();
     assert!(model.open_for(entry, String::new(), composed, None));
-    assert!(!model.view().unwrap().separator_before(0));
-    assert!(!model.view().unwrap().separator_before(1));
-    assert_eq!(model.view().unwrap().row_height(0, 1), 1);
+    let view = model.view().unwrap();
+    assert!(!view.result_separator_before(view.result_actions, 0));
+    assert!(!view.result_separator_before(view.result_actions, 1));
+    assert_eq!(view.result_row_height(view.result_actions, 0, 1), 1);
 }
 
 #[test]
@@ -228,7 +229,7 @@ fn exact_linked_workspace_menu_opens_removal_confirmation_without_selecting_or_c
             .iter()
             .position(|action| action == &MenuAction::RemoveWorktree)
             .unwrap();
-        assert!(menu.separator_before(index));
+        assert!(menu.result_separator_before(menu.result_actions, index));
         (menu.source.clone(), index)
     };
     ui.activate_action_menu_row(&source, token, index);

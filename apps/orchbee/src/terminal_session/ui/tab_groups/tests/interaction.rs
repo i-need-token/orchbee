@@ -27,10 +27,10 @@ fn tab_group_and_creation_menus_have_distinct_scopes_and_submenu_back_requires_n
     );
     assert!(!menu.actions.contains(&MenuAction::MoveToNewWindow));
     assert_eq!(menu.unavailable.len(), menu.actions.len());
-    assert!(menu.separator_before(4));
-    assert!(menu.separator_before(5));
-    assert!(menu.separator_before(7));
-    assert!(menu.separator_before(10));
+    assert!(menu.result_separator_before(menu.result_actions, 4));
+    assert!(menu.result_separator_before(menu.result_actions, 5));
+    assert!(menu.result_separator_before(menu.result_actions, 7));
+    assert!(menu.result_separator_before(menu.result_actions, 10));
     choose(&mut ui, MenuAction::ManageGroups);
     assert_eq!(
         ui.view().action_menu().unwrap().actions,

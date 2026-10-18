@@ -58,8 +58,12 @@ fn hover_preserves_a_scrolled_viewport_and_keyboard_resumes_from_its_candidate()
     present(&mut menu, 3, 3);
     assert!(menu.hover(token, 4));
     assert_eq!(menu.view().unwrap().first, 3);
-    assert_eq!(menu.view().unwrap().first_visible_row(3), 3);
-    assert_eq!(menu.view().unwrap().selected, 4);
+    let view = menu.view().unwrap();
+    assert_eq!(
+        view.first_visible_result_row(3, view.result_actions, view.selected),
+        3
+    );
+    assert_eq!(view.selected, 4);
     assert_eq!(menu.confirmed(), None);
     menu.select(MenuSelection::Next);
     let view = menu.view().unwrap();

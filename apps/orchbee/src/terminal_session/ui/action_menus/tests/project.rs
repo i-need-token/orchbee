@@ -244,9 +244,9 @@ fn workspace_project_submenu_uses_exact_ids_with_duplicate_labels_and_keeps_curr
                     chosen.clone(),
                 ]
             );
-            assert!(!menu.separator_before(0));
-            assert!(menu.separator_before(1));
-            assert!(!menu.separator_before(2));
+            assert!(!menu.result_separator_before(menu.result_actions, 0));
+            assert!(menu.result_separator_before(menu.result_actions, 1));
+            assert!(!menu.result_separator_before(menu.result_actions, 2));
             assert_eq!(menu.labels[1].as_deref(), Some(project.label.as_str()));
             assert_eq!(menu.labels[2].as_deref(), Some(project.label.as_str()));
             2
