@@ -33,10 +33,14 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ## Named chrome themes
 
-Windows `[theme] name` selects `terminal-native` (default), `one-light` or `one-dark`.
-The offline default TOML includes `name = "terminal-native"`. Invalid names or
-types warn and default this field; `theme.custom` and automatic appearance remain
-unsupported. See [native themes](native-themes.md) for polarity, color capabilities,
+The shared [application appearance preference](../../../crates/workbench-protocol/docs/user-preferences.md)
+supports Light (`light`), Dark (`dark`) and System (`system`); Light remains the
+current default. In the native TUI, System follows the appearance detected by the
+host-specific resolver. Windows TOML `[theme] name` remains a separate legacy
+named-theme migration input: it accepts `terminal-native`, `one-light` or `one-dark`,
+and the offline default TOML keeps `name = "terminal-native"`. Invalid names or
+types warn and default this field; `theme.custom` remains unsupported by this legacy
+setting. See [native themes](native-themes.md) for polarity, color capabilities,
 all chrome consumers, shared reload and rollback. Herdr import keeps its existing
 conversion exclusions; select a theme explicitly in the candidate file.
 

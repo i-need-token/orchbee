@@ -33,10 +33,13 @@ manifest_check = true
 
 ## 命名 chrome 主题
 
-Windows `[theme] name` 选择 `terminal-native`（默认）、`one-light` 或 `one-dark`。
-离线默认 TOML 包含 `name = "terminal-native"`。无效名字或类型给出警告并让该字段回默认；
-`theme.custom` 和自动明暗仍不支持。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、
-所有 chrome 消费界面、共享重载及回退。Herdr 导入保留现有转换排除项；在候选文件中显式选择主题。
+共享的[应用外观偏好](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)
+支持浅色（`light`）、深色（`dark`）和系统（`system`）；当前默认仍为浅色。在原生 TUI 中，
+系统模式会跟随宿主专用解析器检测到的外观。Windows TOML `[theme] name` 是单独的旧命名主题
+迁移输入，接受 `terminal-native`、`one-light` 或 `one-dark`；离线默认 TOML 保留
+`name = "terminal-native"`。无效名称或类型给出警告并让该字段回退；旧 TOML 设置仍不支持
+`theme.custom`。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、
+共享重载及回退。Herdr 导入保留现有转换排除项；在候选文件中显式选择主题。
 
 `config check` v14 为已准入的 Windows user-config details 增加必需 `themeName`；
 致命错误形状不变，1–13 版保持封闭。Session 配置 v9 为成功快照增加必需 `themeName`，
