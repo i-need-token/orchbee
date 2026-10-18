@@ -130,9 +130,15 @@ fn semantic_on_canvas(theme: &Theme, role: Role) -> ratatui::style::Style {
 }
 
 fn row(terminal: &Terminal<TestBackend>, width: u16) -> String {
-    (0..width)
-        .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
-        .collect()
+    let buffer = terminal.backend().buffer();
+    let mut column = 0;
+    let mut text = String::new();
+    while column < width {
+        let symbol = buffer[(column, 0)].symbol();
+        text.push_str(symbol);
+        column += u16::try_from(crate::terminal_text::display_width(symbol).max(1)).unwrap();
+    }
+    text
 }
 
 #[test]
@@ -219,10 +225,10 @@ fn prefix_mode_hint_uses_the_configured_effective_binding_without_repeating_the_
     let (terminal, _) = paint(&view, 120, "Ready", None, false, &theme);
     let text = row(&terminal, 120);
     assert!(
-        text.contains("PREFIX Ctrl+a · Esc cancel · Left help"),
+        text.contains("PREFIX Ctrl+a · Esc cancel · ← help"),
         "{text}"
     );
-    assert!(!text.contains("Ctrl+a Left"), "{text}");
+    assert!(!text.contains("Ctrl+a ←"), "{text}");
 }
 
 #[cfg(windows)]
