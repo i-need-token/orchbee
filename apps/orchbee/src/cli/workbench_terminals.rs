@@ -97,10 +97,13 @@ impl Document {
             out.write(format_args!(
                 "{}  {}  {}\n",
                 id,
-                super::escape::escape(fields["terminalTitleStripped"].as_str().unwrap_or("-")),
-                super::escape::escape(fields["cwd"].as_str().unwrap_or("-"))
+                super::escape::unquoted(fields["terminalTitleStripped"].as_str().unwrap_or("-")),
+                super::escape::unquoted(fields["cwd"].as_str().unwrap_or("-"))
             ))?;
         }
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

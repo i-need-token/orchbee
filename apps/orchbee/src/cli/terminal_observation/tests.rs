@@ -124,17 +124,60 @@ fn osc_directory_decodes_once_without_admitting_uri_syntax_as_a_windows_path() {
 #[test]
 fn runtime_text_escapes_untrusted_metadata_in_both_locales() {
     let mut read = observed();
-    read.frame.title = Some("\x1b]0;evil\x07\n中文".into());
-    read.frame.current_directory = Some("C:\\dir\r\nnext".into());
-    let fields = Observation::Observed(Box::new(read)).fields();
+    let title = "C:\\title \"quoted\" 🐝\x1b]0;evil\x07\r\n\u{202e}next";
+    let current_directory = "C:\\dir \"quoted\" 项目";
+    read.frame.title = Some(title.into());
+    read.frame.current_directory = Some(current_directory.into());
+    let mut fields = Observation::Observed(Box::new(read)).fields();
+    let agent_title = "C:\\agent \"title\" 🐝\x1b\u{202e}";
+    let display_agent = "C:\\Workers\\bee \"display\"";
+    let token_value = "C:\\token \"value\" 🐝\x1b";
+    let state_label = "Ready\u{202e}";
+    fields["metadata"] = json!({
+        "presentation": {
+            "title": agent_title,
+            "displayAgent": display_agent,
+            "stateLabels": {"ready": state_label}
+        },
+        "tokens": {"C:\\token \"key\" 🐝": token_value}
+    });
+    assert_eq!(fields["terminalTitleStripped"], title);
+    assert_eq!(fields["cwd"], current_directory);
+    assert_eq!(fields["metadata"]["presentation"]["title"], agent_title);
+    assert_eq!(
+        fields["metadata"]["presentation"]["displayAgent"],
+        display_agent
+    );
+    assert_eq!(
+        fields["metadata"]["tokens"]["C:\\token \"key\" 🐝"],
+        token_value
+    );
+    assert_eq!(
+        fields["metadata"]["presentation"]["stateLabels"]["ready"],
+        state_label
+    );
+
+    let rendered_title = r#"C:\title "quoted" 🐝\u{001b}]0;evil\u{0007}\r\n\u{202e}next"#;
+    let rendered_agent_title = r#"C:\agent "title" 🐝\u{001b}\u{202e}"#;
+    let rendered_display_agent = r#"C:\Workers\bee "display""#;
+    let rendered_token_key = r#"C:\token "key" 🐝"#;
+    let rendered_token_value = r#"C:\token "value" 🐝\u{001b}"#;
+    let rendered_state_label = r#"Ready\u{202e}"#;
     for locale in [
         crate::localization::Locale::EnUs,
         crate::localization::Locale::ZhCn,
     ] {
         let bytes = crate::cli::output::render_text(|out| render(out, &fields, locale)).unwrap();
         let text = String::from_utf8(bytes).unwrap();
+        let expected = format!(
+            "{}\n{rendered_title}  {current_directory}\n{}\n{rendered_agent_title}  {rendered_display_agent}\n{rendered_token_key}={rendered_token_value}\nready={rendered_state_label}\n",
+            locale.cli_agent_terminal_heading(),
+            locale.cli_panel_metadata_heading()
+        );
+        assert_eq!(text, expected);
         assert!(!text.contains('\x1b'));
         assert!(!text.contains('\x07'));
         assert!(!text.contains('\r'));
+        assert!(!text.contains('\u{202e}'));
     }
 }
