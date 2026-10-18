@@ -295,11 +295,14 @@ fn capture_board_frame(
 
 #[cfg(windows)]
 #[test]
-fn empty_board_explains_the_cli_start_path_in_both_locales_without_choosing_a_provider() {
+fn empty_board_renders_the_installed_start_route_in_both_locales() {
     let (mut ui, mailbox, clock) = fixture();
     bootstrap(&mut ui, &mailbox, &clock);
     ready(&mut ui);
     install_capture_empty_read(&mut ui);
+    ui.board
+        .install_start_draft_t(&["codex", "amp", "muse"], "alpha");
+    ui.board.accept_start_without_task_t();
     let theme = crate::tui_theme::Theme::terminal_native();
 
     for (locale, width, height, empty_line) in [
@@ -321,39 +324,127 @@ fn empty_board_explains_the_cli_start_path_in_both_locales_without_choosing_a_pr
             normalized.contains(board_text.empty_start),
             "{locale:?}: {text:?}"
         );
+        for provider in ["codex", "amp", "muse"] {
+            assert!(normalized.contains(provider), "{locale:?}: {text:?}");
+        }
+        assert!(!normalized.contains("claude-code"), "{locale:?}: {text:?}");
+        assert!(normalized.contains("alpha"), "{locale:?}: {text:?}");
         assert!(
-            normalized.contains(board_text.empty_start_command),
+            normalized.contains(board_text.start_button),
             "{locale:?}: {text:?}"
         );
-        assert!(
-            !normalized.contains("codex"),
-            "empty guidance must not imply that an unprobed provider is installed"
-        );
         frame.settle(&mut ui);
-
-        let context = ui
-            .agent_board_input_context()
-            .expect("the Board remains the active input owner");
-        assert!(ui.capture_agent_board_key(
-            context.episode(),
-            &crate::client_view::KeyEvent::press(
-                crate::client_view::KeyCode::Enter,
-                crate::client_view::Modifiers::NONE,
-            ),
-        ));
-        assert!(!ui.board.jumping(), "Enter has no empty-row target");
-
-        let mut pointer_frame = render_board_frame(&ui, width, height, locale, &theme);
-        pointer_frame.settle(&mut ui);
-        let open = pointer_frame
-            .control_hit(AgentBoardControl::Open)
-            .expect("Open remains visible as a disabled empty-board control");
-        assert!(
-            !ui.click_agent_board_control(&open),
-            "mouse activation without a selected row has no effect"
-        );
-        assert!(!ui.board.jumping());
     }
+
+    let expected_panel = ui
+        .state
+        .as_ref()
+        .and_then(|state| state.focus_panel_id().cloned())
+        .expect("fixture has one exact focused Panel");
+    let context = ui
+        .agent_board_input_context()
+        .expect("the Board remains the active input owner");
+    assert!(ui.capture_agent_board_key(
+        context.episode(),
+        &crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Enter,
+            crate::client_view::Modifiers::NONE,
+        ),
+    ));
+    assert!(ui.board.start_running());
+    assert_eq!(
+        ui.board.start_operation_panel_t(),
+        Some(&expected_panel),
+        "keyboard activation injects the exact focused Panel"
+    );
+    assert!(ui.capture_agent_board_key(
+        context.episode(),
+        &crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Esc,
+            crate::client_view::Modifiers::NONE,
+        ),
+    ));
+    assert!(
+        ui.board.start_running(),
+        "closing the Board does not cancel accepted startup"
+    );
+    assert!(ui.board.cancel_start(), "cancellation remains explicit");
+}
+
+#[cfg(windows)]
+#[test]
+fn empty_board_without_a_verified_provider_keeps_the_manual_route_in_both_locales() {
+    let (mut ui, mailbox, clock) = fixture();
+    bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
+    install_capture_empty_read(&mut ui);
+    ui.board.install_start_draft_t(&[], "");
+    let theme = crate::tui_theme::Theme::terminal_native();
+
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
+        let mut frame = render_board_frame(&ui, 120, 40, locale, &theme);
+        let normalized = frame
+            .text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        let board_text = locale.shell().board;
+        assert!(normalized.contains(board_text.start_none_found));
+        assert!(normalized.contains(board_text.empty_start_command));
+        assert!(!ui.agent_board_view().unwrap().can_start_agent());
+        frame.settle(&mut ui);
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn empty_board_mouse_start_requires_the_current_exact_draw() {
+    let (mut ui, mailbox, clock) = fixture();
+    bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
+    install_capture_empty_read(&mut ui);
+    ui.board.install_start_draft_t(&["codex", "amp"], "alpha");
+    ui.board.accept_start_without_task_t();
+    let theme = crate::tui_theme::Theme::terminal_native();
+    ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
+
+    let mut stale_frame =
+        render_board_frame(&ui, 120, 40, crate::localization::Locale::EnUs, &theme);
+    stale_frame.settle(&mut ui);
+    let stale_start = stale_frame
+        .control_hit(AgentBoardControl::Start)
+        .expect("enabled Start Agent control is painted");
+    let context = ui.agent_board_input_context().unwrap();
+    assert!(ui.capture_agent_board_key(
+        context.episode(),
+        &crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Char('z'),
+            crate::client_view::Modifiers::NONE,
+        ),
+    ));
+    assert!(
+        !ui.click_agent_board_control(&stale_start),
+        "a draft change invalidates the old pointer target"
+    );
+    assert!(!ui.board.start_running());
+
+    let mut current_frame =
+        render_board_frame(&ui, 120, 40, crate::localization::Locale::EnUs, &theme);
+    current_frame.settle(&mut ui);
+    let start = current_frame
+        .control_hit(AgentBoardControl::Start)
+        .expect("Start Agent is repainted for the new draft");
+    let expected_panel = ui
+        .state
+        .as_ref()
+        .and_then(|state| state.focus_panel_id().cloned())
+        .unwrap();
+    assert!(ui.click_agent_board_control(&start));
+    assert_eq!(ui.board.start_operation_panel_t(), Some(&expected_panel));
 }
 
 #[test]

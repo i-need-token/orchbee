@@ -17,9 +17,23 @@ caller context. `--panel` and `--current` conflict. Repeated `--arg=<value>` is 
 to trailing arguments; mixing both forms is refused. Empty arguments are retained, control
 characters are refused, and the encoded command must fit 8000 ASCII characters.
 
-After a complete empty read, the [Agent board](agent-board.md) points to this current-terminal
-command. It does not probe or choose a provider; supply a canonical provider ID, then enter the
-command from an idle Orchbee terminal.
+After a complete empty read, the [Agent board](agent-board.md) scans at most 256 inherited absolute
+local `PATH` directories off the input thread. For every canonical provider it uses the same
+`agent_provider::executable()` mapping as this workflow and lists the provider only when a regular
+`.exe`, `.com`, `.cmd`, `.bat` or `.ps1` command exists. This includes the canonical `amp`, `maki`
+and `muse` identities; aliases do not add kinds. This local PATH is not evidence for a tunneled
+Session, so a remote origin keeps the catalog unavailable and offers only the manual CLI path. The
+form accepts the same bounded Agent name and
+injects the exact focused Panel id when keyboard or pointer activation is accepted. It neither reads
+caller-context environment variables nor starts a subprocess adapter.
+
+The board's background task calls the app-private typed workflow directly under one 30000 ms
+deadline. Closing the board does not cancel it. `c` and the visible cancel action are explicit;
+Session teardown wakes and joins the bounded owner. Every completion carries its generation and
+Panel target, so an old result cannot settle a replacement draft or target. Unknown reservation or
+input effects remain visible as unknown and are never replayed. The board does not install Agents or
+change integration/default configuration. When discovery finds nothing, it shows the CLI syntax as
+the manual path without claiming any provider is available.
 
 The terminal must contain an observed idle cmd, PowerShell or pwsh process. Running commands,
 missing process details and additional processes other than known console infrastructure
@@ -98,7 +112,8 @@ session lifecycle: detaching a still-live session keeps its name until end/remov
 
 ## Evidence and ownership
 
-`src/cli/agent_start` owns composition; the Server's
+`src/agent_start` owns the typed workflow and `src/cli/agent_start.rs` adapts its report to the CLI;
+the Server's
 [canonical model](../../orchbee-server/docs/agent-canonical-model.md) owns reservation state.
 The shared OBAP protocol owns wire validation. Tests exercise real Windows exe/ps1/cmd argument
 boundaries, parser and completion scope, competing reservations, exact expiry, stale bindings,

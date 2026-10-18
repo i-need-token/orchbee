@@ -153,6 +153,8 @@ pub(crate) use super::agent_board::{
     AgentBoardRowTarget, AgentBoardSummary, AgentBoardToken, JumpFailure, NativeAgentBoardView,
     PresentationPlacement,
 };
+#[cfg(windows)]
+pub(crate) use super::agent_board::{AgentStartCatalogStatus, AgentStartPhase};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeDisplayPhase {

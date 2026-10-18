@@ -25,8 +25,12 @@ use super::agent_read_lane as lane;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use lane::{AgentReadLane, LaneCommand, LaneOutcome};
 
+#[cfg(windows)]
+mod start;
 #[cfg(test)]
 mod tests;
+#[cfg(windows)]
+pub(crate) use start::{CatalogStatus as AgentStartCatalogStatus, Phase as AgentStartPhase};
 
 /// One bounded read round's absolute deadline — connect admission, the
 /// whole page walk, and the single allowed restart all live inside it.
@@ -163,6 +167,8 @@ struct AgentBoardDrawSource {
     rows_revision: u64,
     selected: Option<AgentSessionId>,
     jumping: bool,
+    #[cfg(windows)]
+    start: start::DrawSource,
 }
 
 /// Exact successful-paint evidence for one Board frame.
@@ -475,6 +481,32 @@ const BOARD_CLOSE_KEY: crate::client_view::Binding = crate::client_view::Binding
     crate::client_view::KeyCode::Esc,
     crate::client_view::Modifiers::NONE,
 );
+#[cfg(windows)]
+const BOARD_START_ACCEPT_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Enter,
+    crate::client_view::Modifiers::NONE,
+);
+#[cfg(windows)]
+const BOARD_START_PREVIOUS_PROVIDER_KEY: crate::client_view::Binding =
+    crate::client_view::Binding::new(
+        crate::client_view::KeyCode::Up,
+        crate::client_view::Modifiers::NONE,
+    );
+#[cfg(windows)]
+const BOARD_START_NEXT_PROVIDER_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Down,
+    crate::client_view::Modifiers::NONE,
+);
+#[cfg(windows)]
+const BOARD_START_EDIT_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Backspace,
+    crate::client_view::Modifiers::NONE,
+);
+#[cfg(windows)]
+const BOARD_START_CANCEL_KEY: crate::client_view::Binding = crate::client_view::Binding::new(
+    crate::client_view::KeyCode::Char('c'),
+    crate::client_view::Modifiers::NONE,
+);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum AgentBoardKeyAction {
@@ -483,6 +515,15 @@ pub(super) enum AgentBoardKeyAction {
     Refresh,
     Jump,
     Close,
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum AgentStartKeyAction {
+    Start,
+    PreviousProvider,
+    NextProvider,
+    Cancel,
 }
 
 pub(super) fn board_key_action(event: crate::client_view::KeyEvent) -> Option<AgentBoardKeyAction> {
@@ -502,6 +543,24 @@ pub(super) fn board_key_action(event: crate::client_view::KeyEvent) -> Option<Ag
         Some(AgentBoardKeyAction::Jump)
     } else if BOARD_CLOSE_KEY.matches(event) {
         Some(AgentBoardKeyAction::Close)
+    } else {
+        None
+    }
+}
+
+#[cfg(windows)]
+pub(super) fn agent_start_key_action(
+    event: crate::client_view::KeyEvent,
+    running: bool,
+) -> Option<AgentStartKeyAction> {
+    if running && BOARD_START_CANCEL_KEY.matches(event) {
+        Some(AgentStartKeyAction::Cancel)
+    } else if BOARD_START_ACCEPT_KEY.matches(event) {
+        Some(AgentStartKeyAction::Start)
+    } else if BOARD_START_PREVIOUS_PROVIDER_KEY.matches(event) {
+        Some(AgentStartKeyAction::PreviousProvider)
+    } else if BOARD_START_NEXT_PROVIDER_KEY.matches(event) {
+        Some(AgentStartKeyAction::NextProvider)
     } else {
         None
     }
@@ -656,6 +715,8 @@ impl AgentBoardRowTarget {
                     rows_revision: 0,
                     selected: Some(session.clone()),
                     jumping: false,
+                    #[cfg(windows)]
+                    start: start::State::new().draw_source(),
                 },
                 scroll: 0,
             },
@@ -677,6 +738,12 @@ pub(crate) enum AgentBoardControl {
     Open,
     Refresh,
     Close,
+    #[cfg(windows)]
+    Start,
+    #[cfg(windows)]
+    CancelStart,
+    #[cfg(windows)]
+    StartProvider(usize),
 }
 
 /// Exact Board control painted into one admitted frame.
@@ -745,6 +812,8 @@ pub(super) struct AgentBoard {
     /// leaving a detached thread.
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     dying_lanes: Vec<AgentReadLane>,
+    #[cfg(windows)]
+    start: start::State,
 }
 
 impl AgentBoard {
@@ -758,6 +827,8 @@ impl AgentBoard {
             rows_revision: self.rows_revision,
             selected: self.selected_row().map(|row| row.session_id.clone()),
             jumping: self.jumping(),
+            #[cfg(windows)]
+            start: self.start.draw_source(),
         }
     }
 
@@ -832,6 +903,19 @@ impl AgentBoard {
             AgentBoardControl::Open => return false,
             AgentBoardControl::Refresh => self.request_refresh(),
             AgentBoardControl::Close => self.close(),
+            #[cfg(windows)]
+            AgentBoardControl::Start => return false,
+            #[cfg(windows)]
+            AgentBoardControl::CancelStart => return self.start.cancel(),
+            #[cfg(windows)]
+            AgentBoardControl::StartProvider(index) => {
+                if !self.rows.is_empty()
+                    || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
+                {
+                    return false;
+                }
+                return self.start.select_provider(index);
+            }
         }
         true
     }
@@ -879,11 +963,15 @@ impl AgentBoard {
             lane: None,
             #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             dying_lanes: Vec::new(),
+            #[cfg(windows)]
+            start: start::State::new(),
         }
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn set_origin(&mut self, origin: crate::local_client::LocalClientOrigin) {
+        #[cfg(windows)]
+        self.start.set_origin(origin.clone());
         self.lane_origin = Some(origin);
     }
 
@@ -901,6 +989,8 @@ impl AgentBoard {
     pub(super) fn open(&mut self) {
         self.open = true;
         self.epoch += 1;
+        #[cfg(windows)]
+        self.start.opened(self.epoch);
         self.presentation = PresentationPhase::Pending;
         self.visible = false;
         self.shown = None;
@@ -909,6 +999,12 @@ impl AgentBoard {
         self.jump = None;
         self.notice = None;
         self.clamp_viewport();
+    }
+
+    #[cfg(windows)]
+    pub(super) fn open_with_start_catalog(&mut self, path: Option<std::ffi::OsString>) {
+        self.open();
+        self.start.ensure_catalog(path);
     }
 
     pub(super) fn close(&mut self) {
@@ -1146,6 +1242,108 @@ impl AgentBoard {
         self.jump = None;
         self.shown = None;
         self.intent = Some(BoardIntent::Jump { target });
+    }
+
+    #[cfg(windows)]
+    pub(super) fn start_agent(
+        &mut self,
+        panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    ) -> bool {
+        if !self.interactive()
+            || !self.rows.is_empty()
+            || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
+            || self.current_draw().is_none()
+        {
+            return false;
+        }
+        self.start.start(self.epoch, panel, self.clock.clone())
+    }
+
+    #[cfg(windows)]
+    pub(super) fn start_agent_drawn(
+        &mut self,
+        target: &AgentBoardControlTarget,
+        panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    ) -> bool {
+        if target.control() != AgentBoardControl::Start
+            || !self.interactive()
+            || self
+                .current_draw()
+                .is_none_or(|draw| draw.token() != target.token())
+        {
+            return false;
+        }
+        self.start_agent(panel)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn edit_start_draft(&mut self, event: crate::client_view::KeyEvent) -> bool {
+        if !self.interactive()
+            || !self.rows.is_empty()
+            || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
+        {
+            return false;
+        }
+        self.start.edit(event)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn move_start_provider(&mut self, delta: isize) -> bool {
+        if !self.interactive()
+            || !self.rows.is_empty()
+            || !matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
+        {
+            return false;
+        }
+        self.start.move_provider(delta)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn cancel_start(&mut self) -> bool {
+        self.start.cancel()
+    }
+
+    #[cfg(windows)]
+    pub(super) fn start_form_active(&self) -> bool {
+        self.rows.is_empty() && matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
+    }
+
+    #[cfg(windows)]
+    pub(super) fn start_running(&self) -> bool {
+        self.start
+            .phase(self.epoch)
+            .is_some_and(start::Phase::running)
+    }
+
+    #[cfg(windows)]
+    pub(super) fn drain_start(&mut self) -> bool {
+        let changed = self.start.drain();
+        if changed && self.start.phase(self.epoch) == Some(start::Phase::Started) {
+            self.request_refresh();
+        }
+        changed
+    }
+
+    #[cfg(all(test, windows))]
+    pub(in crate::terminal_session) fn install_start_draft_t(
+        &mut self,
+        providers: &[&'static str],
+        name: &str,
+    ) {
+        self.start.install_catalog(providers);
+        self.start.set_name(name);
+    }
+
+    #[cfg(all(test, windows))]
+    pub(in crate::terminal_session) fn accept_start_without_task_t(&mut self) {
+        self.start.accept_without_task();
+    }
+
+    #[cfg(all(test, windows))]
+    pub(in crate::terminal_session) fn start_operation_panel_t(
+        &self,
+    ) -> Option<&orchbee_workbench_protocol::WorkbenchPanelId> {
+        self.start.operation_panel()
     }
 
     /// Issue the queued intent through the lane — one outstanding lane
@@ -1572,6 +1770,8 @@ impl AgentBoard {
     /// read deadline. Must run before the mailbox is released.
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(super) fn release_lane(&mut self) {
+        #[cfg(windows)]
+        self.start.close();
         if let Some(lane) = self.lane.take() {
             lane.close();
         }
@@ -1674,6 +1874,25 @@ impl<'a> NativeAgentBoardView<'a> {
             BOARD_SELECT_UP_KEYS[1],
         ]
     }
+    #[cfg(windows)]
+    pub(crate) const fn start_accept_binding(&self) -> crate::client_view::Binding {
+        BOARD_START_ACCEPT_KEY
+    }
+    #[cfg(windows)]
+    pub(crate) const fn start_provider_bindings(&self) -> [crate::client_view::Binding; 2] {
+        [
+            BOARD_START_PREVIOUS_PROVIDER_KEY,
+            BOARD_START_NEXT_PROVIDER_KEY,
+        ]
+    }
+    #[cfg(windows)]
+    pub(crate) const fn start_edit_binding(&self) -> crate::client_view::Binding {
+        BOARD_START_EDIT_KEY
+    }
+    #[cfg(windows)]
+    pub(crate) const fn start_cancel_binding(&self) -> crate::client_view::Binding {
+        BOARD_START_CANCEL_KEY
+    }
     pub(crate) const fn selection(&self) -> usize {
         self.board.selection()
     }
@@ -1685,6 +1904,47 @@ impl<'a> NativeAgentBoardView<'a> {
     }
     pub(crate) const fn jumping(&self) -> bool {
         self.board.jumping()
+    }
+    #[cfg(windows)]
+    pub(crate) fn start_catalog_status(&self) -> start::CatalogStatus {
+        self.board.start.catalog_status()
+    }
+    #[cfg(windows)]
+    pub(crate) fn start_providers(&self) -> &[&'static str] {
+        self.board.start.providers()
+    }
+    #[cfg(windows)]
+    pub(crate) fn selected_start_provider(&self) -> Option<&'static str> {
+        self.board.start.selected_provider()
+    }
+    #[cfg(windows)]
+    pub(crate) fn start_name(&self) -> &str {
+        self.board.start.name()
+    }
+    #[cfg(windows)]
+    pub(crate) const fn start_name_cursor(&self) -> usize {
+        self.board.start.cursor()
+    }
+    #[cfg(windows)]
+    pub(crate) fn start_phase(&self) -> Option<start::Phase> {
+        self.board.start.phase(self.board.epoch)
+    }
+    #[cfg(windows)]
+    pub(crate) fn start_operation_identity(
+        &self,
+    ) -> Option<(
+        &orchbee_agent_observation_protocol::AgentName,
+        &AgentProviderId,
+    )> {
+        self.board.start.operation_identity(self.board.epoch)
+    }
+    #[cfg(windows)]
+    pub(crate) fn can_start_agent(&self) -> bool {
+        self.board.start.can_start()
+    }
+    #[cfg(windows)]
+    pub(crate) fn start_draft_editable(&self) -> bool {
+        self.board.start.draft_editable()
     }
     /// Where one attachment currently resolves in the live Workbench —
     /// `None` when its presentation identity has no painted panel.

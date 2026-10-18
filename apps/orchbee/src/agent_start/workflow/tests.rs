@@ -1,4 +1,5 @@
 use super::*;
+use orchbee_local_ipc::{AsLocalIo, LocalStream};
 
 #[test]
 fn idle_shell_refuses_commands_unknown_processes_and_incomplete_samples() {
@@ -81,6 +82,24 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
     }
 }
 
+#[test]
+fn explicit_wake_reports_cancelled_without_overwriting_mutation_uncertainty() {
+    let (reader, wake) = LocalStream::pair().unwrap();
+    wake.shutdown(std::net::Shutdown::Both).unwrap();
+    let cancelled = settle_cancellation::<()>(
+        Err(error(FailureKind::TransportLoss, "launch-exchange-failed")),
+        Some(reader.as_local_io()),
+    )
+    .unwrap_err();
+    assert_eq!(cancelled.kind, FailureKind::Cancelled);
+    let unknown = settle_cancellation::<()>(
+        Err(error(FailureKind::OutcomeUnknown, "reply-not-confirmed")),
+        Some(reader.as_local_io()),
+    )
+    .unwrap_err();
+    assert_eq!(unknown.kind, FailureKind::OutcomeUnknown);
+}
+
 // Model the real CreateProcess argv boundary, including quotes in the reader asset.
 fn quoted_windows_argument(value: &str) -> String {
     let mut quoted = String::from("\"");
@@ -104,77 +123,4 @@ fn quoted_windows_argument(value: &str) -> String {
     quoted.extend(std::iter::repeat_n('\\', slashes * 2));
     quoted.push('"');
     quoted
-}
-
-#[test]
-fn startup_outputs_preserve_delivery_and_reservation_facts_under_both_locales() {
-    use orchbee_client_server_protocol::{SendCleanupStatus, SendProgress, TerminalSendOutcome};
-    let options = AgentStartCommand {
-        name: orchbee_agent_observation_protocol::AgentName::parse("alpha").unwrap(),
-        provider: "codex".into(),
-        panel: None,
-        args: vec![],
-        timeout_ms: 30000,
-    };
-    let now = Instant::now();
-    let receipt = send::test_receipt(TerminalSendOutcome::Accepted {
-        progress: SendProgress::complete(2, 10),
-        cleanup: SendCleanupStatus::Confirmed,
-    })
-    .document();
-    let mut workflow = Workflow {
-        command: &options,
-        started: now,
-        deadline: now + Duration::from_secs(30),
-        reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
-        last_observed: None,
-        state: "pending",
-        submission: Some(receipt.clone()),
-        submission_status: Some(0),
-        last_read_failure: None,
-    };
-    let success_schema = jsonschema::validator_for(
-        &serde_json::from_str(include_str!("../../schemas/orchbee.agent.start.json")).unwrap(),
-    )
-    .unwrap();
-    let failure_schema = jsonschema::validator_for(
-        &serde_json::from_str(include_str!(
-            "../../schemas/orchbee.cli.failure.agent-start.json"
-        ))
-        .unwrap(),
-    )
-    .unwrap();
-    for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (kind, reason, state) in [
-            (FailureKind::Timeout, "start-deadline", "pending"),
-            (FailureKind::Cancelled, "cancelled", "released"),
-            (
-                FailureKind::OutcomeUnknown,
-                "reply-not-confirmed",
-                "unknown",
-            ),
-        ] {
-            workflow.state = state;
-            let answer = workflow.failure(error(kind, reason), OutputFormat::Json, locale);
-            let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
-            assert!(failure_schema.is_valid(&document), "{document}");
-            assert_eq!(document["failure"]["details"]["submission"], receipt);
-            assert_eq!(document["failure"]["details"]["reservationState"], state);
-            assert_eq!(answer.status, kind.exit_code());
-            assert!(answer.stderr.contains(if locale == Locale::EnUs {
-                "No process was terminated"
-            } else {
-                "没有终止进程"
-            }));
-        }
-        workflow.state = "completed";
-        let answer = workflow.success(
-            &AgentSessionId::parse("s1").unwrap(),
-            OutputFormat::Json,
-            locale,
-        );
-        let document: Value = serde_json::from_slice(&answer.stdout).unwrap();
-        assert!(success_schema.is_valid(&document), "{document}");
-        assert_eq!(document["result"]["submission"], receipt);
-    }
 }

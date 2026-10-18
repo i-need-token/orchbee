@@ -1,14 +1,8 @@
 //! Windows runtime workflow. One absolute budget covers admission, reservation,
 //! the single send, observation and best-effort name release.
 
-use super::{
-    AgentStartCommand, Failure, FailureKind, Locale, Output, OutputFormat, failure_output,
-};
-use crate::cli::{
-    caller_context::PanelTarget,
-    output, processes, query, send,
-    source::{ArmedSignals, Finish, SignalWatch},
-};
+use super::{Report, Request, ReservationState, Verdict, elapsed_ms};
+use crate::cli::{Failure, FailureKind, agent_start_runtime};
 use crate::invocation::Target;
 use crate::local_client::{
     LocalClient,
@@ -17,7 +11,7 @@ use crate::local_client::{
 use orchbee_agent_observation_protocol::{
     AgentHostEpoch, AgentHostTerminalId, AgentLaunchOutcome, AgentLaunchRequest,
     AgentLaunchReservation, AgentLifecycle, AgentObservationFreshness, AgentPresentationId,
-    AgentProviderId, AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
+    AgentSafeInteger, AgentSemanticStatus, AgentSessionId, ObapRequestId,
 };
 use orchbee_local_ipc::LocalIo;
 use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
@@ -25,7 +19,6 @@ use orchbee_workbench_protocol::Snapshot;
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
-const FAILURE_SCHEMA: &str = "orchbee.cli.failure.agent-start";
 const READ_BUDGET: Duration = Duration::from_secs(5);
 const SETTLE: Duration = Duration::from_millis(3000);
 
@@ -33,79 +26,108 @@ const SETTLE: Duration = Duration::from_millis(3000);
 mod tests;
 
 struct Workflow<'a> {
-    command: &'a AgentStartCommand,
+    request: &'a Request,
     started: Instant,
     deadline: Instant,
     reservation: Option<ObapRequestId>,
     last_observed: Option<AgentLaunchReservation>,
-    state: &'static str,
+    state: ReservationState,
     submission: Option<Value>,
     submission_status: Option<u8>,
     last_read_failure: Option<Value>,
 }
 
-pub(super) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Locale) -> Output {
-    let start = Instant::now();
+pub(super) fn run_local(
+    request: Request,
+    started: Instant,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+    resolve_panel: impl FnOnce(&Snapshot) -> Result<Target, Failure>,
+) -> Report {
+    let admitted = step_deadline(deadline)
+        .and_then(|step| agent_start_runtime::stream_snapshot(step, wake))
+        .and_then(|(client, snapshot)| {
+            let panel = resolve_panel(&snapshot)?;
+            Ok((client, snapshot, panel))
+        });
+    match settle_cancellation(admitted, wake) {
+        Ok((client, snapshot, panel)) => {
+            run_admitted(&request, started, deadline, wake, client, snapshot, panel)
+        }
+        Err(failure) => Report::preflight(request, started, failure),
+    }
+}
+
+pub(super) fn run_on_origin(
+    request: Request,
+    started: Instant,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+    origin: &crate::local_client::LocalClientOrigin,
+    clock: crate::local_client::LocalOperationClock,
+    panel: orchbee_workbench_protocol::WorkbenchPanelId,
+) -> Report {
+    let admitted = step_deadline(deadline)
+        .and_then(|step| agent_start_runtime::snapshot_from_origin(origin, clock, step, wake));
+    match settle_cancellation(admitted, wake) {
+        Ok((client, snapshot)) => {
+            let panel = Target::Id(panel.as_str().to_owned());
+            run_admitted(&request, started, deadline, wake, client, snapshot, panel)
+        }
+        Err(failure) => Report::preflight(request, started, failure),
+    }
+}
+
+fn step_deadline(deadline: Instant) -> Result<Instant, Failure> {
+    let now = Instant::now();
+    if now >= deadline {
+        return Err(error(FailureKind::Timeout, "start-deadline"));
+    }
+    Ok(deadline.min(now + READ_BUDGET))
+}
+
+fn run_admitted(
+    request: &Request,
+    started: Instant,
+    deadline: Instant,
+    wake: Option<LocalIo<'_>>,
+    mut client: LocalClient,
+    snapshot: Snapshot,
+    panel: Target,
+) -> Report {
     let mut workflow = Workflow {
-        command,
-        started: start,
-        deadline: start + Duration::from_millis(u64::from(command.timeout_ms)),
+        request,
+        started,
+        deadline,
         reservation: None,
         last_observed: None,
-        state: "none",
+        state: ReservationState::None,
         submission: None,
         submission_status: None,
         last_read_failure: None,
     };
-    let Some(text) = super::command::launch(&command.provider, &command.args) else {
-        return workflow.failure(
-            error(FailureKind::InvalidUsage, "command-too-long"),
-            format,
-            locale,
-        );
+    let result = match super::command::launch(request.provider.as_str(), &request.args) {
+        Some(text) => workflow.span(&mut client, &snapshot, &panel, &text, wake),
+        None => Err(error(FailureKind::InvalidUsage, "command-too-long")),
     };
-    let armed = match ArmedSignals::arm_interrupts() {
-        Ok(armed) => armed,
-        Err(_) => {
-            return workflow.failure(
-                error(FailureKind::InternalFailure, "signal-registration-failed"),
-                format,
-                locale,
-            );
+    let result = settle_cancellation(result, wake);
+    drop(client);
+    workflow.finish(result)
+}
+
+fn settle_cancellation<T>(
+    result: Result<T, Failure>,
+    wake: Option<LocalIo<'_>>,
+) -> Result<T, Failure> {
+    match result {
+        Err(failure)
+            if failure.kind != FailureKind::OutcomeUnknown
+                && agent_start_runtime::wait_backoff(wake, Duration::from_millis(1)) =>
+        {
+            Err(error(FailureKind::Cancelled, "cancelled"))
         }
-    };
-    let mut result = workflow.span(&text, armed.poll_fd());
-    let finalization = match armed.finish() {
-        Ok(Finish::Clear) => None,
-        Ok(Finish::Cancelled { finalization, .. }) => {
-            if result
-                .as_ref()
-                .is_err_and(|failure| failure.kind != FailureKind::OutcomeUnknown)
-            {
-                result = Err(error(FailureKind::Cancelled, "cancelled"));
-            }
-            Some(finalization)
-        }
-        Err(_) => {
-            if workflow.state != "completed"
-                && !result
-                    .as_ref()
-                    .is_err_and(|failure| failure.kind == FailureKind::OutcomeUnknown)
-            {
-                result = Err(error(
-                    FailureKind::InternalFailure,
-                    "signal-finalization-failed",
-                ));
-            }
-            None
-        }
-    };
-    let mut answer = match result {
-        Ok(session) => workflow.success(&session, format, locale),
-        Err(failure) => workflow.failure(failure, format, locale),
-    };
-    answer.finalization = finalization;
-    answer
+        result => result,
+    }
 }
 
 impl Workflow<'_> {
@@ -117,17 +139,19 @@ impl Workflow<'_> {
         Ok(self.deadline.min(now + READ_BUDGET))
     }
 
-    fn span(&mut self, text: &str, wake: Option<LocalIo<'_>>) -> Result<AgentSessionId, Failure> {
-        let prepared =
-            PanelTarget::prepare(self.command.panel.as_ref(), |name| std::env::var_os(name))?;
-        let (mut client, _, snapshot) = query::snapshot_session_until(self.step()?)?;
-        let panel = prepared.resolve(&snapshot)?;
-        let terminal = query::primary_terminal(&snapshot, &panel)?;
-        let answer = self.launch_on_session(&mut client, &snapshot, &terminal, text, wake);
-        if answer.is_err() && self.state == "pending" {
-            self.release(&mut client);
+    fn span(
+        &mut self,
+        client: &mut LocalClient,
+        snapshot: &Snapshot,
+        panel: &Target,
+        text: &str,
+        wake: Option<LocalIo<'_>>,
+    ) -> Result<AgentSessionId, Failure> {
+        let terminal = agent_start_runtime::primary_terminal(snapshot, panel)?;
+        let answer = self.launch_on_session(client, snapshot, &terminal, text, wake);
+        if answer.is_err() && self.state == ReservationState::Pending {
+            self.release(client);
         }
-        drop(client);
         answer
     }
 
@@ -156,18 +180,17 @@ impl Workflow<'_> {
             return Err(error(FailureKind::Timeout, "start-deadline"));
         }
         interrupted(wake)?;
-        let reservation_id = query::obap_request_id()?;
+        let reservation_id = agent_start_runtime::obap_request_id()?;
         self.reservation = Some(reservation_id.clone());
         // Once a mutating exchange starts, only its correlated reply can settle
         // this knowledge. A lost reply is never followed by another reserve.
-        self.state = "unknown";
+        self.state = ReservationState::Unknown;
         let outcome = exchange(
             client,
             AgentLaunchRequest::Reserve {
                 request_id: reservation_id.clone(),
-                name: self.command.name.clone(),
-                provider_id: AgentProviderId::parse(&self.command.provider)
-                    .map_err(|_| invalid())?,
+                name: self.request.name.clone(),
+                provider_id: self.request.provider.clone(),
                 presentation_id: presentation.clone(),
                 host_epoch: epoch.clone(),
                 host_terminal_id: physical.clone(),
@@ -179,8 +202,8 @@ impl Workflow<'_> {
         let reservation = match outcome {
             AgentLaunchOutcome::Reserved { reservation }
                 if reservation.reservation_id == reservation_id
-                    && reservation.name == self.command.name
-                    && reservation.provider_id.as_str() == self.command.provider
+                    && reservation.name == self.request.name
+                    && reservation.provider_id == self.request.provider
                     && reservation.binding.presentation_id == presentation
                     && reservation.binding.host_epoch == epoch
                     && reservation.binding.host_terminal_id == physical =>
@@ -189,12 +212,12 @@ impl Workflow<'_> {
             }
             outcome @ (AgentLaunchOutcome::Rejected { .. }
             | AgentLaunchOutcome::Unavailable { .. }) => {
-                self.state = "none";
+                self.state = ReservationState::None;
                 return Err(refusal(outcome));
             }
             _ => return Err(error(FailureKind::OutcomeUnknown, "reply-not-confirmed")),
         };
-        self.state = "pending";
+        self.state = ReservationState::Pending;
         self.last_observed = Some(reservation.clone());
         let (latest_source, latest) = self.sample(client, snapshot, terminal, wake)?;
         let latest_shell = idle_shell(&latest.info)?;
@@ -215,7 +238,7 @@ impl Workflow<'_> {
                 "powershell" | "pwsh"
             )
         });
-        let receipt = match send::submit_prompt_on_session(
+        let receipt = match agent_start_runtime::submit_prompt_on_session(
             client,
             snapshot,
             terminal,
@@ -266,7 +289,7 @@ impl Workflow<'_> {
             let outcome = exchange(
                 client,
                 AgentLaunchRequest::Inspect {
-                    request_id: query::obap_request_id()?,
+                    request_id: agent_start_runtime::obap_request_id()?,
                     reservation_id: reservation.reservation_id.clone(),
                 },
                 self.step()?,
@@ -289,17 +312,17 @@ impl Workflow<'_> {
             {
                 return Err(error(FailureKind::Rejected, "binding-changed"));
             }
-            let runtime = processes::interpret(&process.info);
+            let runtime = agent_start_runtime::interpret(&process.info);
             match runtime.foreground.selection {
-                processes::Selection::Ambiguous => {
+                agent_start_runtime::Selection::Ambiguous => {
                     return Err(error(FailureKind::Rejected, "agent-runtime-ambiguous"));
                 }
-                processes::Selection::AgentChain
-                    if runtime.foreground.provider != Some(self.command.provider.as_str()) =>
+                agent_start_runtime::Selection::AgentChain
+                    if runtime.foreground.provider != Some(self.request.provider.as_str()) =>
                 {
                     return Err(error(FailureKind::Rejected, "agent-provider-mismatch"));
                 }
-                processes::Selection::Unavailable => {
+                agent_start_runtime::Selection::Unavailable => {
                     return Err(error(FailureKind::Rejected, "agent-exited"));
                 }
                 _ => {}
@@ -308,11 +331,15 @@ impl Workflow<'_> {
                 return Err(error(FailureKind::Rejected, "agent-exited"));
             }
             if let Some(session_id) = candidate {
-                let observed =
-                    query::read_agent_observation(client, &session_id, self.step()?, wake)
-                        .map_err(|failure| self.read_failure(failure))?;
+                let observed = agent_start_runtime::read_agent_observation(
+                    client,
+                    &session_id,
+                    self.step()?,
+                    wake,
+                )
+                .map_err(|failure| self.read_failure(failure))?;
                 let detail = &observed.session;
-                let pinned = detail.snapshot.provider_id.as_str() == self.command.provider
+                let pinned = detail.snapshot.provider_id == self.request.provider
                     && detail.snapshot.lifecycle == AgentLifecycle::Live
                     && detail
                         .snapshot
@@ -342,16 +369,16 @@ impl Workflow<'_> {
                             | AgentSemanticStatus::Interrupted { .. }
                     );
                 if ready
-                    && runtime.foreground.provider == Some(self.command.provider.as_str())
+                    && runtime.foreground.provider == Some(self.request.provider.as_str())
                     && submitted.elapsed() >= SETTLE
                     && pending.settle_remaining_ms.value() == 0
                 {
                     interrupted(wake)?;
-                    self.state = "unknown";
+                    self.state = ReservationState::Unknown;
                     let outcome = exchange(
                         client,
                         AgentLaunchRequest::Complete {
-                            request_id: query::obap_request_id()?,
+                            request_id: agent_start_runtime::obap_request_id()?,
                             reservation_id: reservation.reservation_id.clone(),
                             session_id: session_id.clone(),
                         },
@@ -364,19 +391,19 @@ impl Workflow<'_> {
                             name,
                             session_id: confirmed,
                         } if reservation_id == reservation.reservation_id
-                            && name == self.command.name
+                            && name == self.request.name
                             && confirmed == session_id =>
                         {
-                            self.state = "completed";
+                            self.state = ReservationState::Completed;
                             return Ok(session_id);
                         }
                         AgentLaunchOutcome::Rejected {
                             reason:
                                 orchbee_agent_observation_protocol::AgentLaunchRejectionReason::NotReady,
-                        } => self.state = "pending",
+                        } => self.state = ReservationState::Pending,
                         other @ (AgentLaunchOutcome::Rejected { .. }
                         | AgentLaunchOutcome::Unavailable { .. }) => {
-                            self.state = "pending";
+                            self.state = ReservationState::Pending;
                             return Err(refusal(other));
                         }
                         _ => return Err(error(FailureKind::OutcomeUnknown, "reply-not-confirmed")),
@@ -385,7 +412,7 @@ impl Workflow<'_> {
             }
             let delay = Duration::from_millis(100)
                 .min(self.deadline.saturating_duration_since(Instant::now()));
-            if query::wait_backoff(wake, delay) {
+            if agent_start_runtime::wait_backoff(wake, delay) {
                 return Err(error(FailureKind::Cancelled, "cancelled"));
             }
         }
@@ -398,10 +425,10 @@ impl Workflow<'_> {
         let Ok(deadline) = self.step() else {
             return;
         };
-        let Ok(request_id) = query::obap_request_id() else {
+        let Ok(request_id) = agent_start_runtime::obap_request_id() else {
             return;
         };
-        self.state = "unknown";
+        self.state = ReservationState::Unknown;
         // A signal has already stopped startup. Give the name-release exchange
         // at most one second of the ORIGINAL budget, without its latched wake.
         let outcome = exchange(
@@ -416,11 +443,11 @@ impl Workflow<'_> {
         match outcome {
             Ok(AgentLaunchOutcome::Released {
                 reservation_id: confirmed,
-            }) if confirmed == reservation_id => self.state = "released",
+            }) if confirmed == reservation_id => self.state = ReservationState::Released,
             Ok(AgentLaunchOutcome::Rejected {
                 reason:
                     orchbee_agent_observation_protocol::AgentLaunchRejectionReason::ReservationNotFound,
-            }) => self.state = "released",
+            }) => self.state = ReservationState::Released,
             _ => {}
         }
     }
@@ -434,13 +461,18 @@ impl Workflow<'_> {
     ) -> Result<(Value, crate::cli::results::PanelProcessInfoDoc), Failure> {
         loop {
             interrupted(wake)?;
-            let result = query::read_terminal_processes(client, self.step()?, snapshot, terminal);
+            let result = agent_start_runtime::read_terminal_processes(
+                client,
+                self.step()?,
+                snapshot,
+                terminal,
+            );
             match result {
                 Err(failure) if transient_sample(&failure) => {
                     self.last_read_failure = Some(cause(&failure));
                     let delay = Duration::from_millis(50)
                         .min(self.deadline.saturating_duration_since(Instant::now()));
-                    if query::wait_backoff(wake, delay) {
+                    if agent_start_runtime::wait_backoff(wake, delay) {
                         return Err(error(FailureKind::Cancelled, "cancelled"));
                     }
                 }
@@ -471,78 +503,48 @@ impl Workflow<'_> {
         }
     }
 
-    fn elapsed(&self) -> u64 {
-        u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
-    }
-
-    fn failure(&self, mut failure: Failure, format: OutputFormat, locale: Locale) -> Output {
-        let upstream = if failure
-            .details
-            .as_ref()
-            .and_then(|details| details.get("stage"))
-            .and_then(Value::as_str)
-            == Some("agent-start")
-        {
-            self.last_read_failure.clone()
-        } else {
-            Some(cause(&failure))
+    fn finish(self, result: Result<AgentSessionId, Failure>) -> Report {
+        let verdict = match result {
+            Ok(session) => Verdict::Started { session },
+            Err(failure) => {
+                let cause = if failure
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("stage"))
+                    .and_then(Value::as_str)
+                    == Some("agent-start")
+                {
+                    self.last_read_failure.clone()
+                } else {
+                    Some(cause(&failure))
+                };
+                let reason = failure
+                    .details
+                    .as_ref()
+                    .filter(|details| {
+                        details.get("stage").and_then(Value::as_str) == Some("agent-start")
+                    })
+                    .and_then(|details| details.get("reason"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("startup-failed")
+                    .to_owned();
+                Verdict::Failed {
+                    failure,
+                    reason,
+                    cause,
+                }
+            }
         };
-        let reason = failure
-            .details
-            .as_ref()
-            .filter(|details| details.get("stage").and_then(Value::as_str) == Some("agent-start"))
-            .and_then(|details| details.get("reason"))
-            .and_then(Value::as_str)
-            .unwrap_or("startup-failed")
-            .to_owned();
-        failure.details = Some(serde_json::Map::from_iter([
-            ("stage".into(), json!("agent-start")),
-            ("reason".into(), json!(reason)),
-            ("name".into(), json!(self.command.name)),
-            ("providerId".into(), json!(self.command.provider)),
-            ("reservationId".into(), json!(self.reservation)),
-            ("reservationState".into(), json!(self.state)),
-            ("lastObservedReservation".into(), json!(self.last_observed)),
-            ("submission".into(), json!(self.submission)),
-            ("elapsedMs".into(), json!(self.elapsed())),
-            ("cause".into(), json!(upstream)),
-        ]));
-        failure.source = None;
-        failure.version = 1;
-        failure.failure_schema = Some(FAILURE_SCHEMA);
-        let submission_status = (reason == "input-not-accepted")
-            .then_some(self.submission_status)
-            .flatten();
-        let mut answer = failure_output(failure, Some(format), locale);
-        if let Some(status) = submission_status {
-            answer.status = status;
-        }
-        answer
-    }
-
-    fn success(&self, session: &AgentSessionId, format: OutputFormat, locale: Locale) -> Output {
-        let document = json!({"schema":"orchbee.agent.start", "version":2, "result":{
-            "kind":"started", "interactiveReady":true, "name":self.command.name, "providerId":self.command.provider,
-            "sessionId":session, "reservationId":self.reservation, "elapsedMs":self.elapsed(), "submission":self.submission,
-        }});
-        let bytes = match format {
-            OutputFormat::Json => output::encode_document(&document),
-            OutputFormat::Text => output::encode_text(
-                &locale.cli_agent_started(self.command.name.as_str(), session.as_str()),
-            ),
-        };
-        match bytes {
-            Ok(stdout) => Output {
-                status: 0,
-                stdout,
-                stderr: String::new(),
-                finalization: None,
-            },
-            Err(_) => self.failure(
-                error(FailureKind::OutputTooLarge, "output-too-large"),
-                format,
-                locale,
-            ),
+        Report {
+            name: self.request.name.clone(),
+            provider: self.request.provider.clone(),
+            reservation: self.reservation,
+            last_observed: self.last_observed,
+            reservation_state: self.state,
+            submission: self.submission,
+            submission_status: self.submission_status,
+            elapsed_ms: elapsed_ms(self.started),
+            verdict,
         }
     }
 }
@@ -559,7 +561,7 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
     if sample.processes.len() >= orchbee_terminal_protocol::MAXIMUM_PROCESS_SAMPLE_ROWS {
         return Err(refuse());
     }
-    let interpreted = processes::interpret(sample);
+    let interpreted = agent_start_runtime::interpret(sample);
     let root = interpreted
         .processes
         .iter()
@@ -629,7 +631,7 @@ fn idle_shell(sample: &TerminalProcessInfo) -> Result<&TerminalProcess, Failure>
 }
 
 fn interrupted(wake: Option<LocalIo<'_>>) -> Result<(), Failure> {
-    if query::wait_backoff(wake, Duration::from_millis(1)) {
+    if agent_start_runtime::wait_backoff(wake, Duration::from_millis(1)) {
         Err(error(FailureKind::Cancelled, "cancelled"))
     } else {
         Ok(())
@@ -655,7 +657,7 @@ fn transient_sample(failure: &Failure) -> bool {
             })
 }
 
-fn cause(failure: &Failure) -> Value {
+pub(super) fn cause(failure: &Failure) -> Value {
     let field = |key| {
         failure
             .details
@@ -665,7 +667,7 @@ fn cause(failure: &Failure) -> Value {
     };
     json!({"kind":failure.kind.as_str(), "stage":field("stage"), "operation":field("operation"), "reason":field("reason"), "requestId":failure.source.as_ref().and_then(|source| source.get("requestId")).and_then(Value::as_str)})
 }
-fn error(kind: FailureKind, reason: &str) -> Failure {
+pub(super) fn error(kind: FailureKind, reason: &str) -> Failure {
     Failure::new(kind).details(crate::cli::stage_reason_details("agent-start", reason))
 }
 fn refusal(outcome: AgentLaunchOutcome) -> Failure {

@@ -2,6 +2,8 @@
 //! status, freshness, and resolved Workbench location — plus the hit
 //! regions that let pointer presses re-resolve by stable identity.
 
+#[cfg(windows)]
+use ratatui::text::Span;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -9,6 +11,8 @@ use ratatui::{
     widgets::{Clear, Paragraph, Wrap},
 };
 
+#[cfg(windows)]
+use crate::terminal_session::{AgentStartCatalogStatus, AgentStartPhase};
 use crate::{
     localization::{Locale, ShellText},
     terminal_session::{
@@ -33,6 +37,8 @@ const BOARD_CHROME_ROWS: u16 = 3;
 const BOARD_WIDTH: u16 = 92;
 const BOARD_MAX_HEIGHT: u16 = 24;
 const EMPTY_GUIDANCE_HEIGHT: u16 = 10;
+#[cfg(windows)]
+const START_NAME_VALUE_COLUMNS: usize = 32;
 
 /// Paints the open board inside `area` and records its hit regions in the
 /// same pass. Geometry refusal carries the exact open episode; success
@@ -50,7 +56,14 @@ pub(super) fn render(
     let read = board.read();
     let has_empty_guidance =
         cfg!(windows) && rows.is_empty() && matches!(read, AgentBoardRead::Ready { .. });
-    let wanted = if has_empty_guidance {
+    #[cfg(windows)]
+    let start_mode =
+        rows.is_empty() && matches!(read, AgentBoardRead::Ready { complete: true, .. });
+    #[cfg(not(windows))]
+    let start_mode = false;
+    let wanted = if start_mode {
+        BOARD_MAX_HEIGHT
+    } else if has_empty_guidance {
         EMPTY_GUIDANCE_HEIGHT
     } else {
         u16::try_from(rows.len() + usize::from(BOARD_CHROME_ROWS) + 2)
@@ -94,7 +107,50 @@ pub(super) fn render(
     let close_key = format_key(board.close_binding());
     let jump_key = format_key(board.jump_binding());
     let refresh_key = format_key(board.refresh_binding());
-    let hints = [
+    #[cfg(windows)]
+    let start_accept_key = format_key(board.start_accept_binding());
+    #[cfg(windows)]
+    let start_provider_key = {
+        let bindings = board.start_provider_bindings();
+        crate::client_view::join_key_labels(
+            &[format_key(bindings[0]), format_key(bindings[1])],
+            label_style,
+            "/",
+        )
+    };
+    #[cfg(windows)]
+    let start_edit_key = format_key(board.start_edit_binding());
+    #[cfg(windows)]
+    let start_cancel_key = format_key(board.start_cancel_binding());
+    #[cfg(windows)]
+    let hints = if start_mode {
+        let mut hints = vec![super::controls::KeyHint::new(
+            &close_key,
+            text.board.close_hint,
+        )];
+        if board.start_running() {
+            hints.push(super::controls::KeyHint::new(
+                &start_cancel_key,
+                text.board.start_cancel_hint,
+            ));
+        } else {
+            hints.extend([
+                super::controls::KeyHint::new(&start_accept_key, text.board.start_button),
+                super::controls::KeyHint::new(&start_provider_key, text.board.start_provider_hint),
+                super::controls::KeyHint::new(&start_edit_key, text.board.start_edit_hint),
+            ]);
+        }
+        hints
+    } else {
+        vec![
+            super::controls::KeyHint::new(&close_key, text.board.close_hint),
+            super::controls::KeyHint::new(&jump_key, text.board.jump_hint),
+            super::controls::KeyHint::new(&refresh_key, text.board.refresh_hint),
+            super::controls::KeyHint::new(&navigation_key, text.board.select_hint),
+        ]
+    };
+    #[cfg(not(windows))]
+    let hints = vec![
         super::controls::KeyHint::new(&close_key, text.board.close_hint),
         super::controls::KeyHint::new(&jump_key, text.board.jump_hint),
         super::controls::KeyHint::new(&refresh_key, text.board.refresh_hint),
@@ -113,7 +169,16 @@ pub(super) fn render(
     let Some(draw) = board.actual_draw(viewport_rows) else {
         return AgentBoardDraw::NotPresented(board.episode());
     };
-    let (primary_label, primary_enabled, primary_pending) = if draw.selected().is_some() {
+    #[cfg(windows)]
+    let start_layout = if start_mode {
+        let Some(layout) = StartFormLayout::resolve(frame.area(), body, text, board, theme) else {
+            return AgentBoardDraw::NotPresented(board.episode());
+        };
+        Some(layout)
+    } else {
+        None
+    };
+    let default_primary = if draw.selected().is_some() {
         (text.board.open_button, !board.jumping(), board.jumping())
     } else {
         (
@@ -122,6 +187,19 @@ pub(super) fn render(
             matches!(board.read(), AgentBoardRead::InFlight),
         )
     };
+    #[cfg(windows)]
+    let (primary_label, primary_enabled, primary_pending) = if start_mode {
+        let cancelling = board.start_phase() == Some(AgentStartPhase::Cancelling);
+        if board.start_running() {
+            (text.board.start_cancel_button, !cancelling, cancelling)
+        } else {
+            (text.board.start_button, board.can_start_agent(), false)
+        }
+    } else {
+        default_primary
+    };
+    #[cfg(not(windows))]
+    let (primary_label, primary_enabled, primary_pending) = default_primary;
     let primary = super::controls::ActionSpec::new(
         primary_label,
         super::controls::ActionKind::Primary,
@@ -153,62 +231,28 @@ pub(super) fn render(
         )),
     );
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
-    if rows.is_empty() {
-        // No completed-read rows exist — surface the honest read state
-        // (unread, in-flight, denied, …) or the "zero sessions" verdict.
-        let empty_lines = if let AgentBoardRead::Ready { complete, .. } = read {
-            let mut lines = vec![Line::from(if complete {
-                text.board.empty
-            } else {
-                text.board.empty_partial
-            })];
-            if cfg!(windows) {
-                lines.push(Line::from(text.board.empty_start));
-                lines.push(Line::from(text.board.empty_start_command));
-            }
-            lines
-        } else {
-            vec![Line::from(locale.agent_board_read_line(read))]
-        };
-        frame.render_widget(
-            Paragraph::new(empty_lines)
-                .alignment(Alignment::Center)
-                .style(theme.style(Role::TextSecondary))
-                .wrap(Wrap { trim: true }),
-            body,
-        );
+    #[cfg(windows)]
+    if let Some(layout) = start_layout.as_ref() {
+        render_start_form(frame, text, board, &draw, layout, theme, hits);
+    } else if rows.is_empty() {
+        render_empty_state(frame, body, text, locale, read, theme);
     } else {
-        let scroll = draw.token().scroll().min(rows.len().saturating_sub(1));
-        let selection = board.selection();
-        let end = (scroll + viewport_rows).min(rows.len());
-        for (index, row) in rows[scroll..end].iter().enumerate() {
-            let y = body
-                .y
-                .saturating_add(u16::try_from(index).unwrap_or(u16::MAX));
-            let row_area = Rect::new(body.x, y, body.width, 1);
-            if row_area.is_empty() {
-                break;
-            }
-            let target = draw.row_target(row.session_id().clone());
-            render_row(
-                frame,
-                row_area,
-                text,
-                locale,
-                board,
-                row,
-                index + scroll == selection,
-                target,
-                theme,
-                hits,
-            );
-        }
+        render_rows(frame, body, text, locale, board, &draw, theme, hits);
+    }
+    #[cfg(not(windows))]
+    if rows.is_empty() {
+        render_empty_state(frame, body, text, locale, read, theme);
+    } else {
+        render_rows(frame, body, text, locale, board, &draw, theme, hits);
     }
 
     let (status, status_role) = if let Some(failure) = board.notice() {
-        (locale.agent_board_notice(failure), Role::StatusWarning)
+        (
+            locale.agent_board_notice(failure).to_owned(),
+            Role::StatusWarning,
+        )
     } else if board.jumping() {
-        (text.board.jumping, Role::StatusPending)
+        (text.board.jumping.to_owned(), Role::StatusPending)
     } else {
         (
             match read {
@@ -218,13 +262,20 @@ pub(super) fn render(
                 AgentBoardRead::InFlight => text.board.in_flight,
                 AgentBoardRead::Failed(_) => locale.agent_board_read_line(read),
                 AgentBoardRead::Unread | AgentBoardRead::Ready { .. } => "",
-            },
+            }
+            .to_owned(),
             Role::TextSecondary,
         )
     };
+    #[cfg(windows)]
+    let (status, status_role) = if start_mode {
+        start_status(text, board, theme)
+    } else {
+        (status, status_role)
+    };
     frame.render_widget(
         Paragraph::new(truncate_display(
-            status,
+            &status,
             usize::from(read_row.width),
             theme.glyphs.ellipsis,
         ))
@@ -236,8 +287,83 @@ pub(super) fn render(
         hint_rect.is_some(),
         "preflighted exit hint remains paintable"
     );
+    #[cfg(windows)]
+    if start_mode {
+        render_start_footer_actions(frame, action_row, text, board, &draw, theme, hits);
+    } else {
+        render_footer_actions(frame, action_row, text, board, &draw, theme, hits);
+    }
+    #[cfg(not(windows))]
     render_footer_actions(frame, action_row, text, board, &draw, theme, hits);
     AgentBoardDraw::Presented(draw)
+}
+
+fn render_empty_state(
+    frame: &mut Frame<'_>,
+    body: Rect,
+    text: ShellText,
+    locale: Locale,
+    read: AgentBoardRead,
+    theme: &Theme,
+) {
+    // No completed-read rows exist — surface the honest read state
+    // (unread, in-flight, denied, …) or the "zero sessions" verdict.
+    let empty_lines = if let AgentBoardRead::Ready { complete, .. } = read {
+        vec![Line::from(if complete {
+            text.board.empty
+        } else {
+            text.board.empty_partial
+        })]
+    } else {
+        vec![Line::from(locale.agent_board_read_line(read))]
+    };
+    frame.render_widget(
+        Paragraph::new(empty_lines)
+            .alignment(Alignment::Center)
+            .style(theme.style(Role::TextSecondary))
+            .wrap(Wrap { trim: true }),
+        body,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_rows(
+    frame: &mut Frame<'_>,
+    body: Rect,
+    text: ShellText,
+    locale: Locale,
+    board: &NativeAgentBoardView<'_>,
+    draw: &crate::terminal_session::AgentBoardActualDraw,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let rows = board.rows();
+    let viewport_rows = usize::from(body.height);
+    let scroll = draw.token().scroll().min(rows.len().saturating_sub(1));
+    let selection = board.selection();
+    let end = (scroll + viewport_rows).min(rows.len());
+    for (index, row) in rows[scroll..end].iter().enumerate() {
+        let y = body
+            .y
+            .saturating_add(u16::try_from(index).unwrap_or(u16::MAX));
+        let row_area = Rect::new(body.x, y, body.width, 1);
+        if row_area.is_empty() {
+            break;
+        }
+        let target = draw.row_target(row.session_id().clone());
+        render_row(
+            frame,
+            row_area,
+            text,
+            locale,
+            board,
+            row,
+            index + scroll == selection,
+            target,
+            theme,
+            hits,
+        );
+    }
 }
 
 fn pointer_presentation(pointer: ProjectedPointer) -> super::controls::PointerPresentation {
@@ -245,6 +371,392 @@ fn pointer_presentation(pointer: ProjectedPointer) -> super::controls::PointerPr
         ProjectedPointer::Rest => super::controls::PointerPresentation::Rest,
         ProjectedPointer::Hovered => super::controls::PointerPresentation::Hovered,
         ProjectedPointer::Pressed => super::controls::PointerPresentation::Pressed,
+    }
+}
+
+#[cfg(windows)]
+struct StartFormLayout {
+    empty: Rect,
+    explanation: Rect,
+    catalog: Rect,
+    command: Option<Rect>,
+    name: Option<Rect>,
+    providers: Vec<Rect>,
+}
+
+#[cfg(windows)]
+impl StartFormLayout {
+    fn resolve(
+        bounds: Rect,
+        body: Rect,
+        text: ShellText,
+        board: &NativeAgentBoardView<'_>,
+        theme: &Theme,
+    ) -> Option<Self> {
+        if body.height < 4 {
+            return None;
+        }
+        let row = |y| (y < body.bottom()).then_some(Rect::new(body.x, y, body.width, 1));
+        let empty = row(body.y)?;
+        let explanation = row(body.y.checked_add(1)?)?;
+        let catalog = row(body.y.checked_add(2)?)?;
+        let name_width = display_width(text.board.start_name)
+            .checked_add(2)?
+            .checked_add(START_NAME_VALUE_COLUMNS.checked_add(4)?)?;
+        let name_fits = name_width <= usize::from(body.width);
+        match board.start_catalog_status() {
+            AgentStartCatalogStatus::Loading => Some(Self {
+                empty,
+                explanation,
+                catalog,
+                command: None,
+                name: name_fits.then(|| row(body.y.saturating_add(3))).flatten(),
+                providers: Vec::new(),
+            }),
+            AgentStartCatalogStatus::Unavailable => Some(Self {
+                empty,
+                explanation,
+                catalog,
+                command: row(body.y.checked_add(3)?),
+                name: None,
+                providers: Vec::new(),
+            }),
+            AgentStartCatalogStatus::Ready if board.start_providers().is_empty() => Some(Self {
+                empty,
+                explanation,
+                catalog,
+                command: row(body.y.checked_add(3)?),
+                name: None,
+                providers: Vec::new(),
+            }),
+            AgentStartCatalogStatus::Ready => {
+                if !name_fits {
+                    return None;
+                }
+                let label_width =
+                    u16::try_from(display_width(text.board.start_providers).checked_add(2)?)
+                        .ok()?;
+                if label_width >= body.width {
+                    return None;
+                }
+                let mut y = catalog.y;
+                let mut x = body.x.checked_add(label_width)?;
+                let mut providers = Vec::with_capacity(board.start_providers().len());
+                for provider in board.start_providers() {
+                    let kind = if board.selected_start_provider() == Some(*provider) {
+                        super::controls::ActionKind::Primary
+                    } else {
+                        super::controls::ActionKind::Auxiliary
+                    };
+                    let action = super::controls::ActionSpec::new(
+                        provider,
+                        kind,
+                        super::controls::ControlSurface::Overlay,
+                        interaction_state(
+                            board.start_draft_editable(),
+                            false,
+                            false,
+                            super::controls::PointerPresentation::Rest,
+                        ),
+                    );
+                    let remaining = Rect::new(x, y, body.right().saturating_sub(x), 1);
+                    let rect = super::controls::action_rect(bounds, remaining, action, theme)
+                        .or_else(|| {
+                            y = y.checked_add(1)?;
+                            x = body.x;
+                            let remaining = Rect::new(x, y, body.width, 1);
+                            super::controls::action_rect(bounds, remaining, action, theme)
+                        })?;
+                    if rect.bottom() > body.bottom() {
+                        return None;
+                    }
+                    x = rect.right().checked_add(1)?;
+                    providers.push(rect);
+                }
+                let name = row(y.checked_add(1)?)?;
+                Some(Self {
+                    empty,
+                    explanation,
+                    catalog,
+                    command: None,
+                    name: Some(name),
+                    providers,
+                })
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+#[allow(clippy::too_many_arguments)]
+fn render_start_form(
+    frame: &mut Frame<'_>,
+    text: ShellText,
+    board: &NativeAgentBoardView<'_>,
+    draw: &crate::terminal_session::AgentBoardActualDraw,
+    layout: &StartFormLayout,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    frame.render_widget(
+        Paragraph::new(truncate_display(
+            text.board.empty,
+            usize::from(layout.empty.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::TextPrimary)),
+        layout.empty,
+    );
+    frame.render_widget(
+        Paragraph::new(truncate_display(
+            text.board.empty_start,
+            usize::from(layout.explanation.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::TextSecondary)),
+        layout.explanation,
+    );
+    let catalog = match board.start_catalog_status() {
+        AgentStartCatalogStatus::Loading => text.board.start_checking.to_owned(),
+        AgentStartCatalogStatus::Unavailable => text.board.start_catalog_unavailable.to_owned(),
+        AgentStartCatalogStatus::Ready if board.start_providers().is_empty() => {
+            text.board.start_none_found.to_owned()
+        }
+        AgentStartCatalogStatus::Ready => format!("{}:", text.board.start_providers),
+    };
+    frame.render_widget(
+        Paragraph::new(truncate_display(
+            &catalog,
+            usize::from(layout.catalog.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::TextSecondary)),
+        layout.catalog,
+    );
+    if let Some(command) = layout.command {
+        frame.render_widget(
+            Paragraph::new(truncate_display(
+                text.board.empty_start_command,
+                usize::from(command.width),
+                theme.glyphs.ellipsis,
+            ))
+            .style(theme.style(Role::TextDisabled)),
+            command,
+        );
+    }
+    for (index, (provider, rect)) in board
+        .start_providers()
+        .iter()
+        .zip(&layout.providers)
+        .enumerate()
+    {
+        let enabled = board.start_draft_editable();
+        let kind = if board.selected_start_provider() == Some(*provider) {
+            super::controls::ActionKind::Primary
+        } else {
+            super::controls::ActionKind::Auxiliary
+        };
+        let target = draw.control_target(AgentBoardControl::StartProvider(index));
+        let interaction = InteractionTarget::AgentBoardControl(target);
+        let spec = if enabled {
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+        } else {
+            InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
+        };
+        let pointer = pointer_presentation(hits.projected_pointer(
+            HitLayer::Overlay,
+            *rect,
+            *rect,
+            &interaction,
+            spec,
+        ));
+        let action = super::controls::ActionSpec::new(
+            provider,
+            kind,
+            super::controls::ControlSurface::Overlay,
+            interaction_state(enabled, false, false, pointer),
+        );
+        let Some(painted) = super::controls::render_action(frame, *rect, action, theme) else {
+            continue;
+        };
+        debug_assert_eq!(painted, *rect);
+        hits.record_interaction(HitLayer::Overlay, painted, painted, interaction, spec);
+    }
+    if let Some(name) = layout.name {
+        render_start_name(frame, name, text, board, theme);
+    }
+}
+
+#[cfg(windows)]
+fn render_start_name(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    text: ShellText,
+    board: &NativeAgentBoardView<'_>,
+    theme: &Theme,
+) {
+    let label = sanitize_terminal_text(text.board.start_name);
+    let value = if board.start_name().is_empty() {
+        text.board.start_name_placeholder
+    } else {
+        board.start_name()
+    };
+    let value = truncate_display(value, START_NAME_VALUE_COLUMNS, theme.glyphs.ellipsis);
+    let padding = START_NAME_VALUE_COLUMNS.saturating_sub(display_width(&value));
+    let value_role = if board.start_name().is_empty() {
+        Role::TextDisabled
+    } else {
+        Role::TextPrimary
+    };
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(label.to_string(), theme.style(Role::TextSecondary)),
+            Span::raw("  "),
+            Span::styled("[ ", theme.style(Role::AccentFocus)),
+            Span::styled(value, theme.style(value_role)),
+            Span::raw(" ".repeat(padding)),
+            Span::styled(" ]", theme.style(Role::AccentFocus)),
+        ])),
+        area,
+    );
+    if board.start_draft_editable() {
+        let x = area
+            .x
+            .saturating_add(u16::try_from(display_width(&label)).unwrap_or(u16::MAX))
+            .saturating_add(4)
+            .saturating_add(u16::try_from(board.start_name_cursor()).unwrap_or(u16::MAX));
+        if x < area.right() {
+            frame.set_cursor_position((x, area.y));
+        }
+    }
+}
+
+#[cfg(windows)]
+fn start_status(
+    text: ShellText,
+    board: &NativeAgentBoardView<'_>,
+    theme: &Theme,
+) -> (String, Role) {
+    let result = match board.start_phase() {
+        Some(AgentStartPhase::Starting) => (text.board.start_starting, Role::StatusPending),
+        Some(AgentStartPhase::Cancelling) => (text.board.start_cancelling, Role::StatusPending),
+        Some(AgentStartPhase::Started) => (text.board.start_started, Role::StatusSuccess),
+        Some(AgentStartPhase::Failed) => (text.board.start_failed, Role::StatusError),
+        Some(AgentStartPhase::Unknown) => (text.board.start_unknown, Role::StatusWarning),
+        Some(AgentStartPhase::Cancelled) => (text.board.start_cancelled, Role::StatusWarning),
+        None if board.start_catalog_status() == AgentStartCatalogStatus::Ready
+            && !board.start_providers().is_empty()
+            && orchbee_agent_observation_protocol::AgentName::parse(board.start_name())
+                .is_err() =>
+        {
+            (text.board.start_name_invalid, Role::StatusInfo)
+        }
+        None => ("", Role::TextSecondary),
+    };
+    let identity = board.start_operation_identity().map(|(name, provider)| {
+        format!(
+            "  {} {} {}",
+            name.as_str(),
+            theme.glyphs.middle_dot,
+            provider.as_str()
+        )
+    });
+    (
+        format!("{}{}", result.0, identity.unwrap_or_default()),
+        result.1,
+    )
+}
+
+#[cfg(windows)]
+fn render_start_footer_actions(
+    frame: &mut Frame<'_>,
+    row: Rect,
+    text: ShellText,
+    board: &NativeAgentBoardView<'_>,
+    draw: &crate::terminal_session::AgentBoardActualDraw,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    use super::controls::{ActionKind, ActionSpec, ControlSurface, PointerPresentation};
+    let cancelling = board.start_phase() == Some(AgentStartPhase::Cancelling);
+    let controls = if board.start_running() {
+        vec![(
+            AgentBoardControl::CancelStart,
+            text.board.start_cancel_button,
+            ActionKind::Secondary,
+            !cancelling,
+            cancelling,
+        )]
+    } else {
+        vec![
+            (
+                AgentBoardControl::Start,
+                text.board.start_button,
+                ActionKind::Primary,
+                board.can_start_agent(),
+                false,
+            ),
+            (
+                AgentBoardControl::Refresh,
+                text.board.refresh_button,
+                ActionKind::Secondary,
+                true,
+                matches!(board.read(), AgentBoardRead::InFlight),
+            ),
+        ]
+    };
+    let control_count = controls.len();
+    let mut remaining = row;
+    for (index, (control, label, kind, enabled, pending)) in controls.into_iter().enumerate() {
+        let rest = ActionSpec::new(
+            label,
+            kind,
+            ControlSurface::Overlay,
+            interaction_state(enabled, false, pending, PointerPresentation::Rest),
+        )
+        .with_pending_label(label);
+        let Some(rect) = super::controls::action_rect(frame.area(), remaining, rest, theme) else {
+            break;
+        };
+        let target = draw.control_target(control);
+        let interaction = InteractionTarget::AgentBoardControl(target);
+        let spec = if enabled {
+            InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
+        } else {
+            InteractionSpec::disabled(PrimaryContract::ActivateOnRelease)
+        };
+        let pointer = pointer_presentation(hits.projected_pointer(
+            HitLayer::Overlay,
+            rect,
+            rect,
+            &interaction,
+            spec,
+        ));
+        let action = ActionSpec::new(
+            label,
+            kind,
+            ControlSurface::Overlay,
+            interaction_state(enabled, false, pending, pointer),
+        )
+        .with_pending_label(label);
+        let Some(painted) = super::controls::render_action(frame, remaining, action, theme) else {
+            break;
+        };
+        if painted != rect {
+            break;
+        }
+        hits.record_interaction(HitLayer::Overlay, painted, painted, interaction, spec);
+        if index + 1 < control_count {
+            let Some(next_x) = painted.right().checked_add(2) else {
+                break;
+            };
+            remaining = Rect::new(
+                next_x,
+                row.y,
+                row.right().saturating_sub(next_x),
+                row.height,
+            );
+        }
     }
 }
 

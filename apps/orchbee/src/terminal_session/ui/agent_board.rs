@@ -16,6 +16,8 @@ use super::super::agent_board::{
     AgentBoardRowTarget, AgentBoardToken, JumpStage, JumpStep, NativeAgentBoardView,
     board_key_action, plan_jump_step,
 };
+#[cfg(windows)]
+use super::super::agent_board::{AgentStartKeyAction, agent_start_key_action};
 use super::{
     ActionBuildError, Arc, CarrierFailure, ClientAction, NativeUi, OperationDeadlines,
     SessionActionDisposition, SessionNotice, SessionPhaseKind, WorkbenchTabId,
@@ -72,6 +74,9 @@ impl NativeUi {
             }
             return SessionActionDisposition::KeepNavigator;
         }
+        #[cfg(windows)]
+        self.board.open_with_start_catalog(std::env::var_os("PATH"));
+        #[cfg(not(windows))]
         self.board.open();
         self.enqueue_board_snapshot_refresh();
         SessionActionDisposition::DismissNavigator
@@ -151,6 +156,33 @@ impl NativeUi {
         if !context.interactive() {
             return true;
         }
+        #[cfg(windows)]
+        if self.board.start_form_active() {
+            match agent_start_key_action(*event, self.board.start_running()) {
+                Some(AgentStartKeyAction::Start) => {
+                    if let Some(panel) = self
+                        .state
+                        .as_ref()
+                        .and_then(|state| state.focus_panel_id().cloned())
+                    {
+                        self.board.start_agent(panel);
+                    }
+                }
+                Some(AgentStartKeyAction::PreviousProvider) => {
+                    self.board.move_start_provider(-1);
+                }
+                Some(AgentStartKeyAction::NextProvider) => {
+                    self.board.move_start_provider(1);
+                }
+                Some(AgentStartKeyAction::Cancel) => {
+                    self.board.cancel_start();
+                }
+                None => {
+                    self.board.edit_start_draft(*event);
+                }
+            }
+            return true;
+        }
         match board_key_action(*event) {
             Some(AgentBoardKeyAction::SelectUp) => self.board.move_selection(-1),
             Some(AgentBoardKeyAction::SelectDown) => self.board.move_selection(1),
@@ -186,6 +218,17 @@ impl NativeUi {
         &mut self,
         target: &AgentBoardControlTarget,
     ) -> bool {
+        #[cfg(windows)]
+        if target.control() == super::super::agent_board::AgentBoardControl::Start {
+            let Some(panel) = self
+                .state
+                .as_ref()
+                .and_then(|state| state.focus_panel_id().cloned())
+            else {
+                return false;
+            };
+            return self.board.start_agent_drawn(target, panel);
+        }
         self.board.control_drawn(target)
     }
 
@@ -322,6 +365,10 @@ impl NativeUi {
                 })
         });
         changed |= self.board.drive_intent(now);
+        #[cfg(windows)]
+        {
+            changed |= self.board.drain_start();
+        }
         if allow_jump {
             changed |= self.drive_agent_jump(now);
         }

@@ -98,8 +98,10 @@ pub(super) fn run_agent(
     }
 }
 
+#[cfg(windows)]
+pub(crate) use linux::submit_prompt_on_session;
 #[cfg(any(target_os = "linux", windows))]
-pub(super) use linux::{Receipt, receipt_output, submit_prompt_on_session};
+pub(crate) use linux::{Receipt, receipt_output};
 
 #[cfg(all(test, any(target_os = "linux", windows)))]
 pub(super) use linux::test_receipt;

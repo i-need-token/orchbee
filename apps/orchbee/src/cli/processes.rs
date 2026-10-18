@@ -13,14 +13,14 @@ use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
 #[cfg(any(windows, test))]
 pub(super) use crate::agent_provider::provider;
 
-pub(super) struct Process<'a> {
-    pub(super) facts: &'a TerminalProcess,
-    pub(super) argv: Option<Vec<String>>,
+pub(crate) struct Process<'a> {
+    pub(crate) facts: &'a TerminalProcess,
+    pub(crate) argv: Option<Vec<String>>,
     pub(super) provider: Option<&'static str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Selection {
+pub(crate) enum Selection {
     AgentChain,
     Root,
     Ambiguous,
@@ -39,18 +39,18 @@ impl Selection {
 }
 
 #[derive(Debug)]
-pub(super) struct Foreground {
-    pub(super) selection: Selection,
+pub(crate) struct Foreground {
+    pub(crate) selection: Selection,
     pub(super) pid: Option<u32>,
-    pub(super) provider: Option<&'static str>,
+    pub(crate) provider: Option<&'static str>,
 }
 
-pub(super) struct Interpretation<'a> {
-    pub(super) processes: Vec<Process<'a>>,
-    pub(super) foreground: Foreground,
+pub(crate) struct Interpretation<'a> {
+    pub(crate) processes: Vec<Process<'a>>,
+    pub(crate) foreground: Foreground,
 }
 
-pub(super) fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
+pub(crate) fn interpret(sample: &TerminalProcessInfo) -> Interpretation<'_> {
     let processes: Vec<_> = sample
         .processes
         .iter()

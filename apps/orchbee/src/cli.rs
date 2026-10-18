@@ -83,6 +83,19 @@ pub(crate) mod results;
 pub(crate) mod runtime_status;
 pub(crate) mod schema;
 pub(crate) mod send;
+
+/// Narrow typed operations used by the app-owned Agent startup workflow.
+/// The CLI's broader query/process modules remain private to this adapter
+/// family instead of becoming crate-wide implementation surfaces.
+#[cfg(windows)]
+pub(crate) mod agent_start_runtime {
+    pub(crate) use super::processes::{Selection, interpret};
+    pub(crate) use super::query::{
+        obap_request_id, primary_terminal, read_agent_observation, read_terminal_processes,
+        snapshot_from_origin, stream_snapshot, wait_backoff,
+    };
+    pub(crate) use super::send::submit_prompt_on_session;
+}
 mod site;
 mod site_diagnose;
 mod site_stop;

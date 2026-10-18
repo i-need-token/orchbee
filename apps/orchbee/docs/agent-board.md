@@ -6,8 +6,9 @@ The Agent board is an input-capturing overlay in the
 [native Tab Session](native-tab-session.md) that lists Server-owned Agent sessions and jumps to an
 Agent's already-existing Panel. The Server owns every Agent fact — session identity, provider,
 status, canonical freshness, attention state and presentation bindings. The board is a Client
-projection and navigation surface only: it never infers Agent state from terminal pixels, never
-mutates Agent state, and never creates a Panel. Maintain this reference with the private
+projection, navigation and startup surface: rows never infer Agent state from terminal pixels,
+and the empty-state action hands a typed request to the private startup workflow rather than
+creating a Panel or synthesizing a session. Maintain this reference with the private
 `terminal_session/agent_board/` module, its narrow access points into `client_view`, `ui`,
 `tui_render`, `tui_pointer` and the dispatcher, the OBAP read lane, and their correctness evidence.
 
@@ -36,14 +37,23 @@ inner wheel scrolls the reading viewport without changing selection. The outer w
 and paste are consumed; nothing reaches the terminal shell. Modal or confirmation ownership
 refuses opening; prefix chords still resolve, so `Ctrl+B g` closes the board too. Both ownership
 edges — open and close — invalidate the published pointer hit map, so a click can never land on a
-vanished board row or pass through the overlay onto a stale foreground region. Names,
-notifications, task sending, scheduling, persistence and new panel creation are excluded.
+vanished board row or pass through the overlay onto a stale foreground region. Notifications,
+task sending, scheduling, persistence and new Panel creation are excluded.
 
-On Windows, after a complete empty list, the board explains how to start an Agent from an idle
-Orchbee terminal and shows `orchbee agent start <name> --kind <provider> --current`. The board does
-not infer PATH availability, select a provider, or start it. An empty incomplete read
-is labeled as partial rather than as proof that no sessions exist. See [Windows Agent startup](windows-agent-start.md)
-for the command's readiness and target requirements.
+On Windows, after a complete empty list, the board probes a bounded inherited `PATH` off the input
+thread and lists only canonical providers whose mapped startup command is a regular executable,
+script or command file it actually found. A tunneled Session does not treat the local Client's PATH
+as target availability, so its catalog remains unavailable and shows the manual CLI path. The user
+selects one of the verified providers, enters a bounded Agent name and activates **Start Agent** with
+`Enter` or the pointer. Activation injects the exact
+currently focused Panel id and runs the same typed reserve, single-submission and hook-readiness
+workflow as the CLI. It never installs a provider, changes integration/default configuration or
+selects an absent command. Closing the overlay leaves accepted startup work running; `c` or the
+visible cancel control is the explicit cancellation path. Generation and Panel identity reject stale
+completion, and an uncertain mutation or input is never replayed. If no supported command is found,
+the form stays disabled and shows `orchbee agent start <name> --kind <provider> --current` as the
+manual path. An empty incomplete read is labeled as partial rather than as proof that no sessions
+exist. See [Windows Agent startup](windows-agent-start.md) for readiness and target requirements.
 
 The successful surface frame grants a same-episode visibility lease for owner-local navigation and
 refresh. Therefore consecutive arrow or `j`/`k` keys can advance the cursor in one input packet even
@@ -51,7 +61,7 @@ after the first step invalidates its old row proof. Starting a jump and applying
 control effect still require an exact current draw; they wait for the next complete frame rather than
 acting on an unseen cursor.
 
-Visible Open, Refresh and Close controls use the shared action grammar. The localized shortcut line
+Visible Open, Refresh, Start Agent, Cancel start and Close controls use the shared action grammar. The localized shortcut line
 uses atomic key and verb items, ordered with `Esc` first, so narrow layouts drop only complete
 trailing hints. The header also has a close control. A row or control publishes the stable episode,
 row-source revision, logical selection, jump state, viewport offset and visible-row proof from the
@@ -63,7 +73,7 @@ never changes the logical selection; the next keyboard navigation reveals that s
 
 ## State and transition contract
 
-The board runs one lane thread per open epoch: a single active operation with one coalesced pending
+The board runs one read-lane thread per open epoch: a single active operation with one coalesced pending
 intent. A jump request replaces a pending refresh and supersedes an in-flight jump immediately —
 the logical jump is dead the moment the serial advances, whatever stage it reached. The superseded
 `Get` is different: its outcome may still be on the wire, so it keeps the physical lane credit
@@ -77,6 +87,12 @@ queued and still matches applies first; a request whose outcome can never arrive
 credit honestly — a jump fails `Unavailable`, a List settles as a failed round — and the board
 never hangs in flight.
 
+The Windows empty-state startup owner is separate from that read lane. It stores one bounded draft,
+one catalog task and at most one startup task. An accepted task pins its generation and exact Panel,
+continues when the overlay closes, and settles only a matching completion. Explicit cancellation
+wakes the workflow; Session teardown also wakes and joins the bounded task before releasing its
+origin. A reservation or input whose reply is unknown remains unknown and is never retried.
+
 | Transition     | Guard and result                                                                                                                                                                                                                                                                                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Open           | Modal/confirmation-free board admits a fresh epoch and one lane thread; a previous lane must have actually exited first. Last-good rows, their install age and the residual cooldown persist across the reopen; selection is repaired by opaque id against the preserved rows.                                                                                    |
@@ -86,7 +102,8 @@ never hangs in flight.
 | Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                              |
 | Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.        |
 | Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                         |
-| Close          | Invalidate the generation, cancel intents and in-flight work, then the owner reclaims thread, wake handle, socket and intent; reopen only after actual exit.                                                                                                                                                                                                      |
+| Start Agent    | A complete empty read plus a current successful draw admits one valid name, one discovered provider and the exact focused Panel. The background workflow reserves once, submits input once and waits for canonical readiness under one absolute deadline. A generation/Panel mismatch drops the completion.                                                        |
+| Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. An accepted startup task remains Session-owned and keeps running; only explicit cancel or Session teardown wakes it.                                                                                                                                                 |
 
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked
 stale; without `last_good` it may show only same-revision rows marked incomplete — and preserving
@@ -111,7 +128,7 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 ## Correctness evidence
 
-The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection and both locales.
+The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, truthful provider discovery, keyboard and pointer startup, close/cancel separation and both locales.
 
 Maintain the concrete witnesses in `src/terminal_session/agent_board/tests.rs`, `src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

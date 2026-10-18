@@ -14,8 +14,19 @@ orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format jso
 要求有效调用者上下文。`--panel` 与 `--current` 冲突。重复的 `--arg=<value>` 可替代尾随参数，
 两种形式混用会被拒绝。保留空参数，拒绝控制字符，编码后命令不能超过 8000 个 ASCII 字符。
 
-完整读取为空后，[Agent 看板](agent-board.zh-CN.md)会指向此当前终端命令。它不会探测或替用户选择
-提供方；需要自行填写规范提供方 ID，再从空闲的 Orchbee 终端输入命令。
+完整读取为空后，[Agent 看板](agent-board.zh-CN.md)会在输入线程之外扫描继承 `PATH` 中至多 256 个
+绝对本机目录。它针对每个规范 provider 使用与本流程相同的 `agent_provider::executable()` 映射，
+且仅在常规 `.exe`、`.com`、`.cmd`、`.bat` 或 `.ps1` 命令存在时列出该 provider。其中包括规范
+`amp`、`maki` 与 `muse` 身份；别名不会增加 kind。本地 PATH 不能证明隧道 Session 的可用性，
+因此远程 origin 会让目录保持不可用，并且只提供手动 CLI 路径。表单接纳相同的有界 Agent 名称，并在键盘或
+指针激活被接受时注入精确聚焦的 Panel id。它既不读取调用者上下文环境变量，也不启动子进程
+适配器。
+
+看板的后台任务在单一 30000 毫秒期限下直接调用应用私有的类型化流程。关闭看板不会取消任务；
+`c` 与可见取消操作才是显式路径。Session teardown 会唤醒并加入有界 owner。每个完成携带代际与
+Panel 目标，因此旧结果无法落定到替代草稿或目标。未知的预留或输入效果保持 unknown，绝不
+重放。看板不会安装 Agent，也不会改变集成／默认配置。发现结果为空时，它只把 CLI 语法显示为
+手动路径，而不会声称任何 provider 可用。
 
 终端必须有已观察到的空闲 cmd、PowerShell 或 pwsh 进程。运行中的命令、缺失的进程详情，
 或已知控制台基础设施以外的额外进程均拒绝启动。运行时的完整 PowerShell 初始化脚本
@@ -79,7 +90,7 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## 证据与归属
 
-`src/cli/agent_start` 拥有组合逻辑；Server 的
+`src/agent_start` 拥有类型化流程，`src/cli/agent_start.rs` 把其报告适配为 CLI 输出；Server 的
 [canonical 模型](../../orchbee-server/docs/agent-canonical-model.zh-CN.md)拥有预留状态。
 共享 OBAP 协议拥有 wire 校验。测试覆盖真实 Windows exe/ps1/cmd 参数边界、解析与补全范围、
 竞争预留、精确到期、旧绑定、canonical 就绪、输入中断及响应丢失。Windows CLI 命名管道测试

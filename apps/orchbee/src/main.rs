@@ -19,6 +19,8 @@ mod agent_configuration_windows;
 mod agent_doctor;
 mod agent_integrations;
 mod agent_provider;
+#[cfg(windows)]
+mod agent_start;
 mod cli;
 mod client_view;
 mod help;

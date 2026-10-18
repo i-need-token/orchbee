@@ -858,7 +858,7 @@ pub(crate) fn snapshot_session() -> Result<(LocalClient, Instant, Snapshot), Fai
 
 /// Existing-only stream admission and Snapshot read under one cancellable budget.
 #[cfg(windows)]
-pub(super) fn stream_snapshot(
+pub(crate) fn stream_snapshot(
     deadline: Instant,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<(LocalClient, Snapshot), Failure> {
@@ -887,6 +887,24 @@ pub(super) fn stream_snapshot(
             Err(Failure::new(FailureKind::ServiceUnavailable))
         }
     }
+}
+
+/// Reconnect through an already-admitted native Session origin and read one
+/// fresh Snapshot under the caller's absolute deadline and cancellation wake.
+/// This is the TUI counterpart of `stream_snapshot`: it preserves tunnel and
+/// cohort identity instead of rediscovering the process-local Site.
+#[cfg(windows)]
+pub(crate) fn snapshot_from_origin(
+    origin: &crate::local_client::LocalClientOrigin,
+    clock: crate::local_client::LocalOperationClock,
+    deadline: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(LocalClient, Snapshot), Failure> {
+    let mut client = origin
+        .reconnect_before_cancellable(deadline, clock, wake)
+        .map_err(classify_connect)?;
+    let snapshot = agent_target::read_snapshot(&mut client, deadline, wake)?;
+    Ok((client, snapshot))
 }
 
 /// The same preamble and admission as `snapshot_session`, but every stage

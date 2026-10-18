@@ -130,6 +130,8 @@ pub(crate) use ui::{
     AgentBoardInputContext, ConfirmationCaptureContext, NativeRenameInputContext,
     SetupCaptureContext,
 };
+#[cfg(windows)]
+pub(crate) use ui::{AgentStartCatalogStatus, AgentStartPhase};
 
 #[derive(Clone, Debug)]
 pub(crate) enum TerminalIntent {
