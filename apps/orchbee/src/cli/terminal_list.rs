@@ -140,7 +140,7 @@ fn observe_rows(
             .and_then(|report| report.agent.as_deref())
             .map(str::to_owned)
             .or_else(|| process_agent(&observation));
-        details_row.state = terminal_list_state(report, observed);
+        details_row.state = terminal_list_state(report, details_row.agent.is_some(), observed);
     }
     if let Some(reports) = &reports {
         verify_reports(client, snapshot, reports, deadline, signals)?;
@@ -162,20 +162,21 @@ fn process_agent(observation: &super::terminal_observation::Observation) -> Opti
 
 fn terminal_list_state(
     report: Option<&PanelAgentView>,
+    agent_identified: bool,
     observed_frame: bool,
 ) -> Option<TerminalListState> {
-    match report {
-        Some(report)
-            if report.state != PanelAgentState::Unknown
-                || report.agent.is_some()
-                || !observed_frame =>
-        {
-            Some(TerminalListState::Agent(report.state))
+    if let Some(report) = report {
+        if report.state != PanelAgentState::Unknown {
+            return Some(TerminalListState::Agent(report.state));
         }
-        Some(_) | None if observed_frame => Some(TerminalListState::Observed),
-        Some(_) => Some(TerminalListState::Agent(PanelAgentState::Unknown)),
-        None => None,
     }
+    if agent_identified {
+        return Some(TerminalListState::Agent(PanelAgentState::Unknown));
+    }
+    if observed_frame {
+        return Some(TerminalListState::Observed);
+    }
+    None
 }
 
 fn read_reports(
@@ -365,7 +366,9 @@ fn metadata_failure(reason: MetadataExchangeReason) -> FailureKind {
 mod tests {
     use super::*;
 
-    fn observed_frame_without_processes() -> super::super::terminal_observation::Observation {
+    fn observed_frame(
+        processes: Option<(String, results::PanelProcessInfoDoc)>,
+    ) -> super::super::terminal_observation::Observation {
         let route = orchbee_terminal_protocol::TerminalFrameRoute {
             attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
             host_epoch: orchbee_terminal_protocol::HostEpoch::from_bytes([2; 16]).unwrap(),
@@ -385,31 +388,77 @@ mod tests {
                     title: None,
                     current_directory: None,
                 },
-                processes: None,
+                processes,
             },
         ))
     }
 
+    fn terminal_row(terminal_id: String) -> results::TerminalRow {
+        results::TerminalRow {
+            terminal_id,
+            worker_id: "2".repeat(32),
+            presentation_id: "3".repeat(32),
+            panel_id: "4".repeat(32),
+            tab_id: "5".repeat(32),
+            terminal_context_id: "6".repeat(32),
+        }
+    }
+
+    fn observed_frame_with_process_agent() -> super::super::terminal_observation::Observation {
+        let attachment_id = orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap();
+        let terminal_id = orchbee_terminal_protocol::TerminalId::from_bytes([3; 16]).unwrap();
+        let info = orchbee_terminal_protocol::TerminalProcessInfo {
+            attachment_id,
+            terminal_id,
+            root_pid: 10,
+            processes: vec![
+                orchbee_terminal_protocol::TerminalProcess {
+                    pid: 10,
+                    parent_pid: None,
+                    creation_time: 10,
+                    image: Some("cmd.exe".to_owned()),
+                    command_line: Some("cmd.exe".to_owned()),
+                    current_directory: None,
+                },
+                orchbee_terminal_protocol::TerminalProcess {
+                    pid: 20,
+                    parent_pid: Some(10),
+                    creation_time: 20,
+                    image: Some("codex.exe".to_owned()),
+                    command_line: Some("codex.exe".to_owned()),
+                    current_directory: None,
+                },
+            ],
+        };
+        observed_frame(Some((
+            "job".to_owned(),
+            results::PanelProcessInfoDoc {
+                terminal: terminal_row(terminal_id.to_text()),
+                info,
+            },
+        )))
+    }
+
     #[test]
-    fn observed_frame_without_agent_or_process_state_is_not_reported_ready() {
-        let observation = observed_frame_without_processes();
+    fn observed_frame_without_agent_or_process_is_labeled_observed() {
+        let observation = observed_frame(None);
         assert!(process_agent(&observation).is_none());
         assert_eq!(
-            terminal_list_state(None, true),
+            terminal_list_state(None, false, true),
             Some(TerminalListState::Observed)
         );
     }
 
     #[test]
     fn explicit_agent_unknown_state_survives_frame_observation() {
-        let observation = observed_frame_without_processes();
+        let observation = observed_frame(None);
         let report = PanelAgentView {
             agent: Some("codex".to_owned()),
             state: PanelAgentState::Unknown,
             ..PanelAgentView::default()
         };
         assert_eq!(
-            terminal_list_state(Some(&report), true),
+            terminal_list_state(Some(&report), true, true),
             Some(TerminalListState::Agent(PanelAgentState::Unknown))
         );
         assert_eq!(
@@ -418,6 +467,7 @@ mod tests {
                     state: PanelAgentState::Working,
                     ..PanelAgentView::default()
                 }),
+                false,
                 true
             ),
             Some(TerminalListState::Agent(PanelAgentState::Working))
@@ -429,13 +479,24 @@ mod tests {
     fn empty_unknown_report_uses_observation_or_stays_unknown() {
         let report = PanelAgentView::default();
         assert_eq!(
-            terminal_list_state(Some(&report), true),
+            terminal_list_state(Some(&report), false, true),
             Some(TerminalListState::Observed)
         );
-        assert_eq!(
-            terminal_list_state(Some(&report), false),
-            Some(TerminalListState::Agent(PanelAgentState::Unknown))
-        );
+        assert_eq!(terminal_list_state(Some(&report), false, false), None);
+    }
+
+    #[test]
+    fn process_only_agent_without_a_known_report_state_stays_unknown() {
+        let observation = observed_frame_with_process_agent();
+        let agent = process_agent(&observation);
+        assert_eq!(agent.as_deref(), Some("codex"));
+
+        for report in [None, Some(PanelAgentView::default())] {
+            assert_eq!(
+                terminal_list_state(report.as_ref(), agent.is_some(), true),
+                Some(TerminalListState::Agent(PanelAgentState::Unknown))
+            );
+        }
     }
 
     #[test]
