@@ -796,7 +796,7 @@ fn default_configuration_quotes_and_roundtrips_binding_strings() {
     let config = text.replace(action_line, action_line.strip_prefix("# ").unwrap());
     let admitted = parse(&config, Path::new(r"C:\config.toml"), &|_| None).unwrap();
     assert!(admitted.diagnostics.is_empty());
-    let settings = admitted.keys;
+    let settings = &admitted.keys;
     let help = settings
         .overrides
         .iter()
@@ -810,8 +810,6 @@ fn default_configuration_quotes_and_roundtrips_binding_strings() {
         vec!["\"", "\\"]
     );
     assert!(help.triggers.iter().all(|trigger| trigger.prefix));
-    assert_eq!(
-        WindowsKeySettings::from_profile(&settings.profile()).unwrap(),
-        settings
-    );
+    let roundtripped = WindowsKeySettings::from_profile(&settings.profile()).unwrap();
+    assert_eq!(&roundtripped, settings);
 }
