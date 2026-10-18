@@ -47,7 +47,7 @@ export const UserPreferencesValuesSchema = z.strictObject({
 export const DEFAULT_USER_PREFERENCES: Readonly<UserPreferencesValues> = Object.freeze(
 	UserPreferencesValuesSchema.parse({
 		locale: 'system',
-		applicationTheme: 'light',
+		applicationTheme: 'system',
 		terminalDisplayTheme: 'host',
 		customForeground: '#141414',
 		customBackground: '#fcfcfc',

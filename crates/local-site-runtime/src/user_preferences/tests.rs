@@ -11,6 +11,15 @@ static SERIAL: AtomicU64 = AtomicU64::new(0);
 #[test]
 fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts() {
     let fixture = Fixture::new();
+    assert!(
+        fixture
+            .store
+            .terminal_launch_defaults(false)
+            .unwrap()
+            .colors
+            .is_none(),
+        "a fresh System + Host preference does not invent terminal colors"
+    );
     let executable = std::env::current_exe()
         .unwrap()
         .to_str()
@@ -23,6 +32,11 @@ fn new_terminal_defaults_capture_shared_changes_without_mutating_existing_facts(
         }}
     ]});
     let snapshot = fixture.update("missing", PreferenceKey::LaunchProfiles, profiles);
+    let snapshot = fixture.update(
+        &snapshot.source,
+        PreferenceKey::ApplicationTheme,
+        json!("light"),
+    );
     let before = fixture.store.terminal_launch_defaults(true).unwrap();
     assert_eq!(
         before.launch.as_ref().unwrap().arguments,
@@ -83,29 +97,43 @@ fn duplicate_claims_in_a_durable_record_are_not_silently_coalesced() {
 
 #[test]
 fn main_and_renderer_legacy_imports_each_run_once_in_either_order() {
-    for main_first in [false, true] {
-        let fixture = Fixture::new();
-        let main = UserPreferencesRequest::ImportDesktop {
-            part: DesktopPreferencesPart::Main,
-            changes: UserPreferencesPatch::set(PreferenceKey::ScrollbackBytes, json!(4096))
+    use orchbee_workbench_protocol::ApplicationAppearance as Appearance;
+
+    for (serialized_appearance, expected_appearance) in [
+        ("light", Appearance::Light),
+        ("dark", Appearance::Dark),
+        ("system", Appearance::System),
+    ] {
+        for main_first in [false, true] {
+            let fixture = Fixture::new();
+            let main = UserPreferencesRequest::ImportDesktop {
+                part: DesktopPreferencesPart::Main,
+                changes: UserPreferencesPatch::set(PreferenceKey::ScrollbackBytes, json!(4096))
+                    .unwrap(),
+            };
+            let renderer = UserPreferencesRequest::ImportDesktop {
+                part: DesktopPreferencesPart::Renderer,
+                changes: serde_json::from_value(json!({
+                    "soundEnabled": true,
+                    "applicationTheme": serialized_appearance
+                }))
                 .unwrap(),
-        };
-        let renderer = UserPreferencesRequest::ImportDesktop {
-            part: DesktopPreferencesPart::Renderer,
-            changes: UserPreferencesPatch::set(PreferenceKey::SoundEnabled, json!(true)).unwrap(),
-        };
-        let (first, second) = if main_first {
-            (&main, &renderer)
-        } else {
-            (&renderer, &main)
-        };
-        accepted(fixture.store.execute(first));
-        let complete = accepted(fixture.store.execute(second));
-        assert!(complete.desktop_imported && complete.desktop_main_imported);
-        assert_eq!(complete.values.scrollback_bytes, 4096);
-        assert!(complete.values.sound_enabled);
-        assert_eq!(accepted(fixture.store.execute(first)), complete);
-        assert_eq!(accepted(fixture.store.execute(second)), complete);
+            };
+            let (first, second) = if main_first {
+                (&main, &renderer)
+            } else {
+                (&renderer, &main)
+            };
+            accepted(fixture.store.execute(first));
+            let complete = accepted(fixture.store.execute(second));
+            assert!(complete.desktop_imported && complete.desktop_main_imported);
+            assert_eq!(complete.values.scrollback_bytes, 4096);
+            assert!(complete.values.sound_enabled);
+            assert_eq!(complete.values.application_theme, expected_appearance);
+            assert!(complete.claimed.contains(&PreferenceKey::ApplicationTheme));
+            assert_eq!(accepted(fixture.store.execute(first)), complete);
+            assert_eq!(accepted(fixture.store.execute(second)), complete);
+        }
     }
 }
 
@@ -197,23 +225,38 @@ fn delayed_import_cannot_resurrect_a_value_after_an_explicit_reset() {
     let old = fixture.store.read().unwrap();
     let reset = accepted(fixture.store.execute(&UserPreferencesRequest::Update {
         source: old.source,
-        changes: UserPreferencesPatch::reset([PreferenceKey::SoundEnabled]),
+        changes: UserPreferencesPatch::reset([
+            PreferenceKey::ApplicationTheme,
+            PreferenceKey::SoundEnabled,
+        ]),
     }));
     assert!(!reset.values.sound_enabled);
+    assert_eq!(
+        reset.values.application_theme,
+        orchbee_workbench_protocol::ApplicationAppearance::System
+    );
+    assert!(reset.claimed.contains(&PreferenceKey::ApplicationTheme));
     assert!(reset.claimed.contains(&PreferenceKey::SoundEnabled));
     let imported = accepted(
         fixture
             .store
             .execute(&UserPreferencesRequest::ImportDesktop {
                 part: DesktopPreferencesPart::Renderer,
-                changes: serde_json::from_value(
-                    json!({"soundEnabled": true, "copyOnSelect": false}),
-                )
+                changes: serde_json::from_value(json!({
+                    "soundEnabled": true,
+                    "copyOnSelect": false,
+                    "applicationTheme": "light"
+                }))
                 .unwrap(),
             }),
     );
     assert!(!imported.values.sound_enabled);
     assert!(!imported.values.copy_on_select);
+    assert_eq!(
+        imported.values.application_theme,
+        orchbee_workbench_protocol::ApplicationAppearance::System
+    );
+    assert!(imported.claimed.contains(&PreferenceKey::ApplicationTheme));
     let repeat = accepted(
         fixture
             .store
@@ -268,6 +311,121 @@ fn invalid_sources_and_invalid_changes_never_repair_or_replace_data() {
 }
 
 #[test]
+fn unclaimed_light_defaults_to_system_without_changing_the_read_token_or_bytes() {
+    use sha2::Digest;
+
+    let fixture = Fixture::new();
+    let values = UserPreferencesValues {
+        application_theme: orchbee_workbench_protocol::ApplicationAppearance::Light,
+        ..UserPreferencesValues::default()
+    };
+    let record = Record {
+        version: 1,
+        values,
+        claimed: BTreeSet::from([PreferenceKey::SoundEnabled]),
+        desktop_imported: false,
+        desktop_main_imported: false,
+    };
+    let mut original = serde_json::to_vec_pretty(&record).unwrap();
+    original.push(b'\n');
+    let path = fixture.store.scope.directory.join(RECORD_NAME);
+    fs::create_dir_all(&fixture.store.scope.directory).unwrap();
+    fs::write(&path, &original).unwrap();
+
+    let observed = fixture.store.read().unwrap();
+    assert_eq!(
+        observed.values.application_theme,
+        orchbee_workbench_protocol::ApplicationAppearance::System
+    );
+    assert_eq!(
+        observed.claimed,
+        BTreeSet::from([PreferenceKey::SoundEnabled])
+    );
+    assert_eq!(
+        observed.source,
+        format!("{:x}", sha2::Sha256::digest(&original))
+    );
+    assert_eq!(fs::read(&path).unwrap(), original);
+}
+
+#[test]
+fn unclaimed_light_is_persisted_as_system_only_by_an_accepted_cas_update() {
+    let fixture = Fixture::new();
+    let values = UserPreferencesValues {
+        application_theme: orchbee_workbench_protocol::ApplicationAppearance::Light,
+        ..UserPreferencesValues::default()
+    };
+    let record = Record {
+        version: 1,
+        values,
+        claimed: BTreeSet::new(),
+        desktop_imported: false,
+        desktop_main_imported: false,
+    };
+    let mut original = serde_json::to_vec_pretty(&record).unwrap();
+    original.push(b'\n');
+    let path = fixture.store.scope.directory.join(RECORD_NAME);
+    fs::create_dir_all(&fixture.store.scope.directory).unwrap();
+    fs::write(&path, &original).unwrap();
+
+    let observed = fixture.store.read().unwrap();
+    let committed = accepted(fixture.store.execute(&UserPreferencesRequest::Update {
+        source: observed.source,
+        changes: UserPreferencesPatch::set(PreferenceKey::CopyOnSelect, json!(false)).unwrap(),
+    }));
+
+    assert_eq!(
+        committed.values.application_theme,
+        orchbee_workbench_protocol::ApplicationAppearance::System
+    );
+    assert!(!committed.values.copy_on_select);
+    assert_eq!(
+        committed.claimed,
+        BTreeSet::from([PreferenceKey::CopyOnSelect])
+    );
+    let stored: Record = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        stored.values.application_theme,
+        orchbee_workbench_protocol::ApplicationAppearance::System
+    );
+    assert_eq!(
+        stored.claimed,
+        BTreeSet::from([PreferenceKey::CopyOnSelect])
+    );
+}
+
+#[test]
+fn explicitly_claimed_application_appearances_are_preserved() {
+    use orchbee_workbench_protocol::ApplicationAppearance as Appearance;
+
+    for appearance in [Appearance::Light, Appearance::Dark, Appearance::System] {
+        let fixture = Fixture::new();
+        let values = UserPreferencesValues {
+            application_theme: appearance,
+            ..UserPreferencesValues::default()
+        };
+        let record = Record {
+            version: 1,
+            values,
+            claimed: BTreeSet::from([PreferenceKey::ApplicationTheme]),
+            desktop_imported: false,
+            desktop_main_imported: false,
+        };
+        let original = serde_json::to_vec(&record).unwrap();
+        fs::create_dir_all(&fixture.store.scope.directory).unwrap();
+        fs::write(fixture.store.scope.directory.join(RECORD_NAME), &original).unwrap();
+
+        let snapshot = fixture.store.read().unwrap();
+        assert_eq!(snapshot.values.application_theme, appearance);
+        assert!(snapshot.claimed.contains(&PreferenceKey::ApplicationTheme));
+        assert_eq!(
+            fs::read(fixture.store.scope.directory.join(RECORD_NAME)).unwrap(),
+            original
+        );
+    }
+}
+
+#[test]
 fn a_competing_os_lock_refuses_without_stealing_or_leaving_a_pending_record() {
     let fixture = Fixture::new();
     let held = storage::Writer::acquire(&fixture.store.scope).unwrap();
@@ -305,35 +463,47 @@ fn publication_rechecks_the_source_after_candidate_preparation() {
 #[cfg(windows)]
 #[test]
 fn native_explicit_leaves_win_migration_without_rewriting_the_toml() {
-    let fixture = Fixture::new();
-    let native = "# keep me\n[theme]\nname='one-dark'\n[ui.toast]\nagent_delivery='off'\n[ui.sound]\nenabled=true\n";
-    fs::write(&fixture.store.scope.configuration, native).unwrap();
-    let read = fixture.store.read().unwrap();
-    assert!(read.values.sound_enabled);
-    let imported = accepted(
-        fixture
-            .store
-            .execute(&UserPreferencesRequest::ImportDesktop {
-                part: DesktopPreferencesPart::Renderer,
-                changes: serde_json::from_value(
-                    json!({"soundEnabled": false, "applicationTheme": "light", "locale": "zh-CN"}),
-                )
-                .unwrap(),
-            }),
-    );
-    assert!(imported.values.sound_enabled);
-    assert_eq!(
-        imported.values.application_theme,
-        orchbee_workbench_protocol::ApplicationAppearance::Dark
-    );
-    assert_eq!(
-        imported.values.locale,
-        orchbee_workbench_protocol::PreferencesLocale::ZhCn
-    );
-    assert_eq!(
-        fs::read_to_string(&fixture.store.scope.configuration).unwrap(),
-        native
-    );
+    use orchbee_workbench_protocol::ApplicationAppearance as Appearance;
+
+    for (legacy_theme, expected_appearance) in [
+        ("terminal-native", Appearance::System),
+        ("one-light", Appearance::Light),
+        ("one-dark", Appearance::Dark),
+    ] {
+        let fixture = Fixture::new();
+        let native = format!(
+            "# keep me\n[theme]\nname='{legacy_theme}'\n[ui.toast]\nagent_delivery='off'\n[ui.sound]\nenabled=true\n"
+        );
+        fs::write(&fixture.store.scope.configuration, &native).unwrap();
+        let read = fixture.store.read().unwrap();
+        assert!(read.values.sound_enabled);
+        assert_eq!(read.values.application_theme, expected_appearance);
+        assert!(read.claimed.contains(&PreferenceKey::ApplicationTheme));
+        let imported = accepted(
+            fixture
+                .store
+                .execute(&UserPreferencesRequest::ImportDesktop {
+                    part: DesktopPreferencesPart::Renderer,
+                    changes: serde_json::from_value(json!({
+                        "soundEnabled": false,
+                        "applicationTheme": "light",
+                        "locale": "zh-CN"
+                    }))
+                    .unwrap(),
+                }),
+        );
+        assert!(imported.values.sound_enabled);
+        assert_eq!(imported.values.application_theme, expected_appearance);
+        assert!(imported.claimed.contains(&PreferenceKey::ApplicationTheme));
+        assert_eq!(
+            imported.values.locale,
+            orchbee_workbench_protocol::PreferencesLocale::ZhCn
+        );
+        assert_eq!(
+            fs::read_to_string(&fixture.store.scope.configuration).unwrap(),
+            native
+        );
+    }
 }
 
 #[cfg(windows)]
@@ -349,7 +519,7 @@ fn generated_windows_configuration_preserves_missing_file_shared_preferences() {
     assert_eq!(without_file.values, UserPreferencesValues::default());
     assert_eq!(
         without_file.values.application_theme,
-        orchbee_workbench_protocol::ApplicationAppearance::Light
+        orchbee_workbench_protocol::ApplicationAppearance::System
     );
     assert_eq!(
         without_file.values.terminal_display_theme,

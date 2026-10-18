@@ -36,10 +36,13 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                 ColorLevel::Ansi16,
                 ColorLevel::Monochrome,
             ] {
-                let mut ui = ready();
+                let values = UserPreferencesValues {
+                    application_theme: ApplicationAppearance::Light,
+                    ..UserPreferencesValues::default()
+                };
+                let mut ui = ready_with_application_theme(ApplicationAppearance::Light);
                 let mut shell = ClientView::new(size.0);
                 shell.configure_color_level(level);
-                let values = UserPreferencesValues::default();
                 shell.apply_user_preferences(values.clone());
                 ui.apply_user_preferences(&values);
                 let area = ratatui::layout::Rect::new(0, 0, size.0, size.1);
@@ -84,7 +87,10 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
                     "confirmed program baseline at {size:?}, {fallback:?}, {level:?}; pane={pane:?}"
                 );
                 let token = ui.settings.editor.open().unwrap();
-                assert!(ui.settings.editor.loaded(token, draft_basis()));
+                assert!(ui.settings.editor.loaded(
+                    token,
+                    draft_basis_with_application_theme(ApplicationAppearance::Light)
+                ));
                 paint(&mut ui, &mut shell, size, fallback);
                 let confirmed_shell = shell.clone();
                 ui.settings.editor.edit(Edit::Select(Row::Theme));
@@ -177,9 +183,13 @@ fn draft_appearance_reaches_background_chrome_and_program_defaults_without_runti
 
 #[test]
 fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the_latest_snapshot() {
-    let mut ui = ready();
+    let mut ui = ready_with_application_theme(ApplicationAppearance::Light);
     let mut shell = ClientView::new(120);
-    shell.apply_user_preferences(UserPreferencesValues::default());
+    let initial = UserPreferencesValues {
+        application_theme: ApplicationAppearance::Light,
+        ..UserPreferencesValues::default()
+    };
+    shell.apply_user_preferences(initial.clone());
     ui.settings.editor.edit(Edit::Select(Row::Theme));
     ui.settings.editor.edit(Edit::Adjust(true));
     let mut latest = draft_basis();
@@ -207,7 +217,7 @@ fn external_confirmed_values_update_unedited_presentation_and_cancel_reveals_the
     );
     assert!(matches!(ui.settings.editor.view(), Some(View::Draft(draft))
         if draft.conflict && draft.values.application_theme == ApplicationAppearance::Dark
-            && draft.basis_values == &UserPreferencesValues::default()));
+            && draft.basis_values == &initial));
     ui.settings.editor.edit(Edit::Cancel);
     assert_eq!(shell.user_preferences.as_ref(), Some(&latest.values));
     let restored = paint(&mut ui, &mut shell, (120, 40), Locale::EnUs);

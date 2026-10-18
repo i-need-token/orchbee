@@ -40,7 +40,7 @@ const productPresentation = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.c
 
 export const DEFAULT_TERMINAL_APPEARANCE_PREFERENCES: TerminalAppearancePreferences = Object.freeze(
 	{
-		applicationTheme: 'light',
+		applicationTheme: 'system',
 		backgroundOpacityPercent: 100,
 		customBackground: '#fcfcfc',
 		customForeground: '#141414',

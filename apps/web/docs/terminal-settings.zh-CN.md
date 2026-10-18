@@ -75,7 +75,7 @@ interface StoredTerminalInteractionPreferencesV2 {
 
 | 字段                | 默认                                                               |
 | ------------------- | ------------------------------------------------------------------ |
-| 应用主题            | `light`                                                            |
+| 应用主题            | `system`                                                           |
 | 字体族              | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
 | 字号                | `13`                                                               |
 | 常规字重            | `400`                                                              |

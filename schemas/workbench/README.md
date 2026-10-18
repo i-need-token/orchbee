@@ -8,21 +8,21 @@ Rust and TypeScript bindings. The schema's default values are canonical; neither
 reset semantics or a second durable writer. The runtime owner is
 [`UserPreferencesStore`](../../crates/local-site-runtime/README.md#shared-user-preference-storage).
 
-| Key                                | Allowed value and default                                               | Effect boundary                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `locale`                           | `system` (default), `en-US`, `zh-CN`                                    | Application copy; user text and terminal output are unchanged                            |
-| `applicationTheme`                 | `system`, `light` (default), `dark`                                     | Application chrome; System follows the host appearance                                   |
-| `terminalDisplayTheme`             | `host` (default), `light`, `dark`, `custom`                             | Terminal default colors; explicit program colors retain their authority                  |
-| `customForeground`                 | Lowercase `#RRGGBB`, default `#141414`                                  | Used only by Custom terminal appearance                                                  |
-| `customBackground`                 | Lowercase `#RRGGBB`, default `#fcfcfc`                                  | Used only by Custom terminal appearance                                                  |
-| `copyOnSelect`                     | Boolean, default `true`                                                 | Selection completion                                                                     |
-| `trimTrailingBlankRowsForAgents`   | Boolean, default `true`                                                 | Projection of a currently observed live Agent's trailing blank rows                      |
-| `agentNotificationMode`            | `never` (default), `hidden`                                             | Future Agent attention events; Hidden requires no visible focused attachment             |
-| `completionReminderMode`           | `never` (default), `unfocused`, `always`                                | Future qualifying command-completion events                                              |
-| `completionReminderMinimumSeconds` | Integer 1–3,600, default 5                                              | Minimum command duration for a completion reminder                                       |
-| `soundEnabled`                     | Boolean, default `false`                                                | Sound for future eligible reminders; permission and host mute remain host-owned          |
-| `scrollbackBytes`                  | Integer 0–1,000,000,000, default 10,000,000                             | Newly provisioned terminals; no live history eviction                                    |
-| `launchProfiles`                   | Version-1 catalog, default `system-default` with non-login system shell | Newly provisioned terminals; running and restored launches retain their captured command |
+| Key                                | Allowed value and default                                               | Effect boundary                                                                                                         |
+| ---------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `locale`                           | `system` (default), `en-US`, `zh-CN`                                    | Application copy; user text and terminal output are unchanged                                                           |
+| `applicationTheme`                 | `system` (default), `light`, `dark`                                     | Application chrome; System follows GUI system appearance or native host colors, with Dark for unknown native appearance |
+| `terminalDisplayTheme`             | `host` (default), `light`, `dark`, `custom`                             | Terminal default colors; explicit program colors retain their authority                                                 |
+| `customForeground`                 | Lowercase `#RRGGBB`, default `#141414`                                  | Used only by Custom terminal appearance                                                                                 |
+| `customBackground`                 | Lowercase `#RRGGBB`, default `#fcfcfc`                                  | Used only by Custom terminal appearance                                                                                 |
+| `copyOnSelect`                     | Boolean, default `true`                                                 | Selection completion                                                                                                    |
+| `trimTrailingBlankRowsForAgents`   | Boolean, default `true`                                                 | Projection of a currently observed live Agent's trailing blank rows                                                     |
+| `agentNotificationMode`            | `never` (default), `hidden`                                             | Future Agent attention events; Hidden requires no visible focused attachment                                            |
+| `completionReminderMode`           | `never` (default), `unfocused`, `always`                                | Future qualifying command-completion events                                                                             |
+| `completionReminderMinimumSeconds` | Integer 1–3,600, default 5                                              | Minimum command duration for a completion reminder                                                                      |
+| `soundEnabled`                     | Boolean, default `false`                                                | Sound for future eligible reminders; permission and host mute remain host-owned                                         |
+| `scrollbackBytes`                  | Integer 0–1,000,000,000, default 10,000,000                             | Newly provisioned terminals; no live history eviction                                                                   |
+| `launchProfiles`                   | Version-1 catalog, default `system-default` with non-login system shell | Newly provisioned terminals; running and restored launches retain their captured command                                |
 
 All values belong to one explicitly selected configuration/device scope. They do not become
 Workbench-document, all-Workspace or all-device values. Browser preview origins and isolated

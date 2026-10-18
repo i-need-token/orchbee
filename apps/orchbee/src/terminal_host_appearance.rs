@@ -11,7 +11,7 @@ const OSC_DRAIN_LIMIT: usize = OSC_FRAME_LIMIT + 2;
 const OSC_DRAIN_IDLE: Duration = Duration::from_millis(50);
 const OSC_DRAIN_WINDOW: Duration = Duration::from_secs(1);
 
-/// The outer host's inferred background polarity; unknown never selects a named theme.
+/// The outer host's observed background polarity, independent of the System theme fallback.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum HostAppearance {
     Dark,

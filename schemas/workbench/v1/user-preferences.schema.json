@@ -87,7 +87,7 @@
 			],
 			"default": {
 				"locale": "system",
-				"applicationTheme": "light",
+				"applicationTheme": "system",
 				"terminalDisplayTheme": "host",
 				"customForeground": "#141414",
 				"customBackground": "#fcfcfc",

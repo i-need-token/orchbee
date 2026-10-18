@@ -139,7 +139,7 @@ impl Default for UserPreferencesValues {
     fn default() -> Self {
         Self {
             locale: PreferencesLocale::System,
-            application_theme: ApplicationAppearance::Light,
+            application_theme: ApplicationAppearance::System,
             terminal_display_theme: TerminalDisplayAppearance::Host,
             custom_foreground: "#141414".into(),
             custom_background: "#fcfcfc".into(),

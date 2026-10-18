@@ -87,10 +87,10 @@ fn every_admitted_key_edits_only_its_draft_and_submits_one_exact_patch() {
 
 #[test]
 fn preview_survives_child_return_and_pending_save_but_expires_with_its_episode() {
-    let mut editor = ready();
+    let mut editor = ready_with_application_theme(ApplicationAppearance::Light);
     editor.edit(Edit::Select(Row::Theme));
     editor.edit(Edit::Adjust(true));
-    let mut dark = basis().values;
+    let mut dark = basis_with_application_theme(ApplicationAppearance::Light).values;
     dark.application_theme = ApplicationAppearance::Dark;
     assert_eq!(
         editor.appearance_preview().unwrap().application_theme,
@@ -140,10 +140,10 @@ fn conflicts_merge_only_local_appearance_leaves_and_unknown_withdraws_preview() 
         Some(Reconciliation::SourceChanged),
         None,
     ] {
-        let mut editor = ready();
+        let mut editor = ready_with_application_theme(ApplicationAppearance::Light);
         editor.edit(Edit::Select(Row::Theme));
         editor.edit(Edit::Adjust(true));
-        let mut preview = basis().values;
+        let mut preview = basis_with_application_theme(ApplicationAppearance::Light).values;
         preview.application_theme = ApplicationAppearance::Dark;
         let submission = submit(&mut editor);
         let NativeSettingsOperation::Save { source, changes } = &submission.operation else {
@@ -242,7 +242,7 @@ fn invalid_color_entry_and_reset_confirmation_keep_reversible_valid_presentation
 
 #[test]
 fn passive_unrelated_updates_keep_preview_and_reset_claims_all_appearance_leaves() {
-    let mut editor = ready();
+    let mut editor = ready_with_application_theme(ApplicationAppearance::Light);
     editor.edit(Edit::Select(Row::Theme));
     editor.edit(Edit::Adjust(true));
     let mut external = basis();
@@ -268,5 +268,7 @@ fn passive_unrelated_updates_keep_preview_and_reset_claims_all_appearance_leaves
         ))
     );
     assert!(matches!(editor.view(), Some(View::Draft(draft))
-        if draft.conflict && draft.basis_values == &basis().values && !draft.enabled(Row::Save)));
+            if draft.conflict
+                && draft.basis_values == &basis_with_application_theme(ApplicationAppearance::Light).values
+                && !draft.enabled(Row::Save)));
 }

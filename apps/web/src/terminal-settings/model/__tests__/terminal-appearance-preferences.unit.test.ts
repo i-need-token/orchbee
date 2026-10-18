@@ -1,3 +1,4 @@
+import { DEFAULT_USER_PREFERENCES } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -13,6 +14,14 @@ import {
 } from '../terminal-appearance-preferences';
 
 describe('terminal appearance preferences', () => {
+	it('defaults application appearance to System while terminal colors remain Host-owned', () => {
+		expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.applicationTheme).toBe('system');
+		expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.applicationTheme).toBe(
+			DEFAULT_USER_PREFERENCES.applicationTheme,
+		);
+		expect(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.terminalDisplayTheme).toBe('host');
+	});
+
 	it('applies the Kitty-compatible two-point font-size policy within product bounds', () => {
 		expect(resolveTerminalFontSizeChange(13, 'increase')).toBe(15);
 		expect(resolveTerminalFontSizeChange(13, 'decrease')).toBe(11);

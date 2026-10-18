@@ -102,7 +102,7 @@ impl UserPreferencesStore {
                 if bytes.len() > MAXIMUM_USER_PREFERENCES_BYTES {
                     return Err(PreferencesFailure::InvalidSource);
                 }
-                let record: Record =
+                let mut record: Record =
                     serde_json::from_slice(bytes).map_err(|_| PreferencesFailure::InvalidSource)?;
                 if record.version != 1 {
                     return Err(PreferencesFailure::InvalidSource);
@@ -113,6 +113,10 @@ impl UserPreferencesStore {
                     .map_err(|_| PreferencesFailure::InvalidSource)?;
                 launch_admission::validate(&record.values.launch_profiles)
                     .map_err(|_| PreferencesFailure::InvalidSource)?;
+                if !record.claimed.contains(&PreferenceKey::ApplicationTheme) {
+                    record.values.application_theme =
+                        UserPreferencesValues::default().application_theme;
+                }
                 Ok((record, source_token(Some(bytes))))
             }
             None => {

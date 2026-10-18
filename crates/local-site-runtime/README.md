@@ -16,6 +16,12 @@ just like an edit. Windows uses the pinned private-cache boundary; Unix uses des
 no-follow private files and synchronizes the containing directory after replacement. A failure after
 replacement reports an unknown outcome and never authorizes automatic replay.
 
+After full validation, an unclaimed `applicationTheme` resolves to `system`, including an older
+record that serialized the former `light` default. Reading preserves the original bytes and source
+token and does not write or claim the key; an accepted write may persist the effective value with
+its complete candidate. Claimed Light, Dark and System values, including explicit legacy imports
+and resets, remain unchanged.
+
 Explicit legacy Windows TOML values seed unclaimed preferences without changing that file. The
 initial observation includes its source fingerprint. Desktop Main and renderer imports have separate
 one-time receipts and fill only unclaimed keys, in either order; a later import cannot undo an edit

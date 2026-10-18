@@ -122,12 +122,12 @@ fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
 }
 
 #[test]
-fn unknown_system_appearance_keeps_the_terminal_native_theme() {
+fn unknown_system_appearance_falls_back_to_the_dark_theme() {
     use crate::terminal_host_appearance::HostAppearance;
 
     assert_eq!(
         Theme::application_with_host(App::System, HostAppearance::Unknown, ColorLevel::Truecolor)
             .name,
-        "terminal-native"
+        "one-dark"
     );
 }

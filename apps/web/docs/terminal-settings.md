@@ -80,7 +80,7 @@ The complete product default is:
 
 | Field                  | Default                                                            |
 | ---------------------- | ------------------------------------------------------------------ |
-| Application theme      | `light`                                                            |
+| Application theme      | `system`                                                           |
 | Font family            | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
 | Font size              | `13`                                                               |
 | Regular font weight    | `400`                                                              |

@@ -81,7 +81,7 @@ fn named(palette: Palette) -> Theme {
 }
 
 impl Theme {
-    /// Resolve only an explicit System preference from known outer-host polarity.
+    /// Resolve System appearance from outer-host polarity; Unknown falls back to One Dark.
     pub(crate) fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
         host: HostAppearance,
@@ -92,7 +92,7 @@ impl Theme {
             ApplicationAppearance::System => match host {
                 HostAppearance::Dark => Self::one_dark(),
                 HostAppearance::Light => Self::one_light(),
-                HostAppearance::Unknown => Self::terminal_native(),
+                HostAppearance::Unknown => Self::one_dark(),
             },
             ApplicationAppearance::Light => Self::one_light(),
             ApplicationAppearance::Dark => Self::one_dark(),

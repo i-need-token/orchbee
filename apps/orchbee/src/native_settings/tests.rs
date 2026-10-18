@@ -14,12 +14,30 @@ fn basis() -> Basis {
         desktop_main_imported: false,
     }
 }
-fn ready() -> Editor {
+fn basis_with_application_theme(application_theme: ApplicationAppearance) -> Basis {
+    Basis {
+        source: "missing".into(),
+        values: UserPreferencesValues {
+            application_theme,
+            ..UserPreferencesValues::default()
+        },
+        claimed: Default::default(),
+        desktop_imported: false,
+        desktop_main_imported: false,
+    }
+}
+fn ready_with_basis(initial: Basis) -> Editor {
     let mut editor = Editor::default();
     let token = editor.open().unwrap();
-    assert!(editor.loaded(token, basis()));
+    assert!(editor.loaded(token, initial));
     draw(&mut editor);
     editor
+}
+fn ready() -> Editor {
+    ready_with_basis(basis())
+}
+fn ready_with_application_theme(application_theme: ApplicationAppearance) -> Editor {
+    ready_with_basis(basis_with_application_theme(application_theme))
 }
 fn draw(editor: &mut Editor) {
     editor.draw(editor.view().unwrap().token());
@@ -256,7 +274,7 @@ fn typed_boolean_and_changed_projections_follow_the_local_draft() {
 
 #[test]
 fn wheel_preserves_the_focus_anchor_and_painted_geometry_owns_row_activation() {
-    let mut editor = ready();
+    let mut editor = ready_with_application_theme(ApplicationAppearance::Light);
     editor.edit(Edit::Select(Row::Theme));
     draw(&mut editor);
     let View::Draft(before) = editor.view().unwrap() else {

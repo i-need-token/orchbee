@@ -9,18 +9,18 @@ use crate::{
 use ratatui::{Terminal, backend::TestBackend};
 mod appearance;
 fn ready() -> NativeUi {
+    ready_with_basis(draft_basis())
+}
+fn ready_with_application_theme(
+    application_theme: orchbee_workbench_protocol::ApplicationAppearance,
+) -> NativeUi {
+    ready_with_basis(draft_basis_with_application_theme(application_theme))
+}
+fn ready_with_basis(basis: Basis) -> NativeUi {
     let (mut ui, _, _, _) = super::super::tests::workspace_setup::ready(true);
     let token = ui.settings.editor.open().unwrap();
-    assert!(ui.settings.editor.loaded(
-        token,
-        Basis {
-            source: "missing".into(),
-            values: orchbee_workbench_protocol::UserPreferencesValues::default(),
-            claimed: Default::default(),
-            desktop_imported: false,
-            desktop_main_imported: false
-        }
-    ));
+    assert!(ui.settings.editor.loaded(token, basis.clone()));
+    ui.apply_user_preferences(&basis.values);
     ui.settings
         .editor
         .draw(ui.settings.editor.view().unwrap().token());
@@ -30,6 +30,20 @@ fn draft_basis() -> Basis {
     Basis {
         source: "missing".into(),
         values: orchbee_workbench_protocol::UserPreferencesValues::default(),
+        claimed: Default::default(),
+        desktop_imported: false,
+        desktop_main_imported: false,
+    }
+}
+fn draft_basis_with_application_theme(
+    application_theme: orchbee_workbench_protocol::ApplicationAppearance,
+) -> Basis {
+    Basis {
+        source: "missing".into(),
+        values: orchbee_workbench_protocol::UserPreferencesValues {
+            application_theme,
+            ..orchbee_workbench_protocol::UserPreferencesValues::default()
+        },
         claimed: Default::default(),
         desktop_imported: false,
         desktop_main_imported: false,
