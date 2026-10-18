@@ -22,13 +22,13 @@ steal focus for background status.
 
 ## Surface selection
 
-| Surface               | Use when                                                                                 | Avoid when                                                            |
-| --------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Status notice         | A result, state change, or refusal can be stated in one line and needs no response       | The person must choose or type                                        |
-| Status-line editor    | One short value is edited in place in the status row                                     | The value is long, multi-field, or needs surrounding context to judge |
-| Non-capturing overlay | A passive preview while typing continues to the pane                                      | The content must be acted on before the pane can continue             |
-| Capturing overlay     | A choice, picker, draft, or reference surface whose keys must not reach the pane          | One line of status or a status-line editor suffices                   |
-| Confirmation          | A brief decision precedes an effect that is not readily reversible                       | The effect is reversible, or the surface merely reports information   |
+| Surface               | Use when                                                                           | Avoid when                                                            |
+| --------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Status notice         | A result, state change, or refusal can be stated in one line and needs no response | The person must choose or type                                        |
+| Status-line editor    | One short value is edited in place in the status row                               | The value is long, multi-field, or needs surrounding context to judge |
+| Non-capturing overlay | A passive preview while typing continues to the pane                               | The content must be acted on before the pane can continue             |
+| Capturing overlay     | A choice, picker, draft, or reference surface whose keys must not reach the pane   | One line of status or a status-line editor suffices                   |
+| Confirmation          | A brief decision precedes an effect that is not readily reversible                 | The effect is reversible, or the surface merely reports information   |
 
 Any surface that consumes every key is capturing regardless of its size or name. A surface never
 changes capture kind while open.

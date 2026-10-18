@@ -1866,24 +1866,24 @@ primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs fr
 binding:{terminalId,workerId}|null}`.
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
 tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecycle, process, or
-Agent members. Windows text output is an aligned `#`, `HANDLE`, `TITLE`, `AGENT`, `STATE`, `CWD`
-table. Other platforms keep the same identity table and render unavailable runtime columns as
-`-`. `HANDLE` is the shortest unique `@terminal:<suffix>` selector against this snapshot; when
-the IDs share the maximum 31-hex suffix, it shows the full ID instead. `#` is the row position,
-not a selector. The text-only enrichment shares one five-second deadline and cancellation watch
-across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
-reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title. `CWD` is
-the validated terminal-frame directory, falling back to the observed root process directory;
-it never substitutes the Workbench Workspace path. `AGENT` uses the exact presentation report,
-then bounded foreground-process detection; `STATE` preserves a known presentation report state.
-An identified Agent with no known report state displays `unknown`. Otherwise, when a Host frame
-was observed, it displays `observed`, which does not mean the Shell is ready to accept input; with
-neither fact it displays `-`. Missing optional observations render as `-`; denial, transport,
-timeout, cancellation, and protocol failures remain query failures. Each attached viewer gets a
-best-effort detach attempt on both successful and failed
-observation paths. Text preserves printable path characters and escapes terminal controls.
-`--format json` stays on the original snapshot-only path and keeps the same result shape and
-schema version. `terminal get` returns the same identity facts under
+  Agent members. Windows text output is an aligned `#`, `HANDLE`, `TITLE`, `AGENT`, `STATE`, `CWD`
+  table. Other platforms keep the same identity table and render unavailable runtime columns as
+  `-`. `HANDLE` is the shortest unique `@terminal:<suffix>` selector against this snapshot; when
+  the IDs share the maximum 31-hex suffix, it shows the full ID instead. `#` is the row position,
+  not a selector. The text-only enrichment shares one five-second deadline and cancellation watch
+  across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
+  reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title. `CWD` is
+  the validated terminal-frame directory, falling back to the observed root process directory;
+  it never substitutes the Workbench Workspace path. `AGENT` uses the exact presentation report,
+  then bounded foreground-process detection; `STATE` preserves a known presentation report state.
+  An identified Agent with no known report state displays `unknown`. Otherwise, when a Host frame
+  was observed, it displays `observed`, which does not mean the Shell is ready to accept input; with
+  neither fact it displays `-`. Missing optional observations render as `-`; denial, transport,
+  timeout, cancellation, and protocol failures remain query failures. Each attached viewer gets a
+  best-effort detach attempt on both successful and failed
+  observation paths. Text preserves printable path characters and escapes terminal controls.
+  `--format json` stays on the original snapshot-only path and keeps the same result shape and
+  schema version. `terminal get` returns the same identity facts under
   `terminal`, which additionally carries a nested `launch` member — the document is
   `{terminal:{terminalId,workerId,boundTo,launch}}`, never a sibling `result.launch`. Only
   presentation-bound terminals are visible; a binding does not prove the process lives.

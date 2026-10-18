@@ -3,29 +3,18 @@
 	"$id": "orchbee.status.client",
 	"title": "Windows runtime client metadata",
 	"type": "object",
-	"required": [
-		"schema",
-		"version",
-		"source",
-		"result"
-	],
+	"required": ["schema", "version", "source", "result"],
 	"additionalProperties": false,
 	"properties": {
 		"schema": {
 			"const": "orchbee.status.client"
 		},
 		"version": {
-			"enum": [
-				1,
-				2,
-				3
-			]
+			"enum": [1, 2, 3]
 		},
 		"source": {
 			"type": "object",
-			"required": [
-				"kind"
-			],
+			"required": ["kind"],
 			"additionalProperties": false,
 			"properties": {
 				"kind": {
@@ -40,9 +29,7 @@
 			"oneOf": [
 				{
 					"type": "object",
-					"required": [
-						"path"
-					],
+					"required": ["path"],
 					"additionalProperties": false,
 					"properties": {
 						"path": {
@@ -53,9 +40,7 @@
 				},
 				{
 					"type": "object",
-					"required": [
-						"pathUtf16"
-					],
+					"required": ["pathUtf16"],
 					"additionalProperties": false,
 					"properties": {
 						"pathUtf16": {
@@ -73,10 +58,7 @@
 		},
 		"protocols": {
 			"type": "object",
-			"required": [
-				"admission",
-				"terminal"
-			],
+			"required": ["admission", "terminal"],
 			"additionalProperties": false,
 			"properties": {
 				"admission": {
@@ -93,10 +75,7 @@
 			"oneOf": [
 				{
 					"type": "object",
-					"required": [
-						"state",
-						"identity"
-					],
+					"required": ["state", "identity"],
 					"additionalProperties": false,
 					"properties": {
 						"state": {
@@ -110,23 +89,14 @@
 				},
 				{
 					"type": "object",
-					"required": [
-						"state",
-						"reason"
-					],
+					"required": ["state", "reason"],
 					"additionalProperties": false,
 					"properties": {
 						"state": {
 							"const": "unavailable"
 						},
 						"reason": {
-							"enum": [
-								"missing",
-								"invalid",
-								"denied",
-								"timed-out",
-								"io-error"
-							]
+							"enum": ["missing", "invalid", "denied", "timed-out", "io-error"]
 						}
 					}
 				}
@@ -161,10 +131,7 @@
 					"minLength": 1
 				},
 				"buildProfile": {
-					"enum": [
-						"debug",
-						"release"
-					]
+					"enum": ["debug", "release"]
 				},
 				"delivery": {
 					"const": "development-cohort"
@@ -213,24 +180,13 @@
 					"minLength": 1
 				},
 				"buildProfile": {
-					"enum": [
-						"debug",
-						"release"
-					]
+					"enum": ["debug", "release"]
 				},
 				"delivery": {
-					"enum": [
-						"development-cohort",
-						"native-release",
-						"unknown"
-					]
+					"enum": ["development-cohort", "native-release", "unknown"]
 				},
 				"updateChannel": {
-					"enum": [
-						"stable",
-						"preview",
-						null
-					]
+					"enum": ["stable", "preview", null]
 				},
 				"executable": {
 					"$ref": "#/$defs/path"
@@ -246,37 +202,23 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"state"
-							],
+							"required": ["state"],
 							"properties": {
 								"state": {
-									"enum": [
-										"development",
-										"unavailable"
-									]
+									"enum": ["development", "unavailable"]
 								}
 							}
 						},
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"state",
-								"channel",
-								"version",
-								"buildId",
-								"manifestSha256"
-							],
+							"required": ["state", "channel", "version", "buildId", "manifestSha256"],
 							"properties": {
 								"state": {
 									"const": "verified"
 								},
 								"channel": {
-									"enum": [
-										"stable",
-										"preview"
-									]
+									"enum": ["stable", "preview"]
 								},
 								"version": {
 									"type": "string",
@@ -346,9 +288,7 @@
 					"if": {
 						"properties": {
 							"installation": {
-								"required": [
-									"channel"
-								],
+								"required": ["channel"],
 								"properties": {
 									"state": {
 										"const": "verified"
@@ -382,9 +322,7 @@
 					"if": {
 						"properties": {
 							"installation": {
-								"required": [
-									"channel"
-								],
+								"required": ["channel"],
 								"properties": {
 									"state": {
 										"const": "verified"
@@ -418,10 +356,7 @@
 		},
 		"cohortDiagnostic": {
 			"type": "object",
-			"required": [
-				"ioKind",
-				"osError"
-			],
+			"required": ["ioKind", "osError"],
 			"additionalProperties": false,
 			"properties": {
 				"ioKind": {
@@ -465,10 +400,7 @@
 			"oneOf": [
 				{
 					"type": "object",
-					"required": [
-						"state",
-						"identity"
-					],
+					"required": ["state", "identity"],
 					"additionalProperties": false,
 					"properties": {
 						"state": {
@@ -482,24 +414,14 @@
 				},
 				{
 					"type": "object",
-					"required": [
-						"state",
-						"reason",
-						"diagnostic"
-					],
+					"required": ["state", "reason", "diagnostic"],
 					"additionalProperties": false,
 					"properties": {
 						"state": {
 							"const": "unavailable"
 						},
 						"reason": {
-							"enum": [
-								"missing",
-								"invalid",
-								"denied",
-								"timed-out",
-								"io-error"
-							]
+							"enum": ["missing", "invalid", "denied", "timed-out", "io-error"]
 						},
 						"diagnostic": {
 							"$ref": "#/$defs/cohortDiagnostic"
@@ -538,24 +460,13 @@
 					"minLength": 1
 				},
 				"buildProfile": {
-					"enum": [
-						"debug",
-						"release"
-					]
+					"enum": ["debug", "release"]
 				},
 				"delivery": {
-					"enum": [
-						"development-cohort",
-						"native-release",
-						"unknown"
-					]
+					"enum": ["development-cohort", "native-release", "unknown"]
 				},
 				"updateChannel": {
-					"enum": [
-						"stable",
-						"preview",
-						null
-					]
+					"enum": ["stable", "preview", null]
 				},
 				"executable": {
 					"$ref": "#/$defs/path"
@@ -571,37 +482,23 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"state"
-							],
+							"required": ["state"],
 							"properties": {
 								"state": {
-									"enum": [
-										"development",
-										"unavailable"
-									]
+									"enum": ["development", "unavailable"]
 								}
 							}
 						},
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"state",
-								"channel",
-								"version",
-								"buildId",
-								"manifestSha256"
-							],
+							"required": ["state", "channel", "version", "buildId", "manifestSha256"],
 							"properties": {
 								"state": {
 									"const": "verified"
 								},
 								"channel": {
-									"enum": [
-										"stable",
-										"preview"
-									]
+									"enum": ["stable", "preview"]
 								},
 								"version": {
 									"type": "string",
@@ -671,9 +568,7 @@
 					"if": {
 						"properties": {
 							"installation": {
-								"required": [
-									"channel"
-								],
+								"required": ["channel"],
 								"properties": {
 									"state": {
 										"const": "verified"
@@ -707,9 +602,7 @@
 					"if": {
 						"properties": {
 							"installation": {
-								"required": [
-									"channel"
-								],
+								"required": ["channel"],
 								"properties": {
 									"state": {
 										"const": "verified"

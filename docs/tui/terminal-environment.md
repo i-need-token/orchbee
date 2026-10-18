@@ -105,16 +105,16 @@ enabling.
 
 ## Capability detection
 
-| Capability           | Source                                                                                                                                                    | Unknown means                                   |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Color level          | `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM`, and terminfo in that precedence; documented vendor fallback without explicit descriptors or a multiplexer | 16 colors                                       |
+| Capability           | Source                                                                                                                                                                  | Unknown means                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Color level          | `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM`, and terminfo in that precedence; documented vendor fallback without explicit descriptors or a multiplexer               | 16 colors                                         |
 | Default colors       | One ordered OSC `10`/`11` query; classify a valid OSC `11` background; on Windows only, use `AppsUseLightTheme` if no valid OSC `11` background arrives by the deadline | Appearance unknown; System uses `terminal-native` |
-| Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                     | No live theme switching                         |
-| Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                      | Legacy decoding only                            |
-| Pointer any-motion   | Explicit host or adapter capability result, a product-owned platform contract with maintained conformance evidence, or an explicit supported user choice  | DEC `1002` + `1006` outside scoped menus        |
-| UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                           | ASCII glyph fallbacks                           |
-| Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                      | Not inside a multiplexer                        |
-| Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                       | No vendor-specific workaround applied           |
+| Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                                   | No live theme switching                           |
+| Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                                    | Legacy decoding only                              |
+| Pointer any-motion   | Explicit host or adapter capability result, a product-owned platform contract with maintained conformance evidence, or an explicit supported user choice                | DEC `1002` + `1006` outside scoped menus          |
+| UTF-8                | `LC_ALL`, `LC_CTYPE`, `LANG` in that precedence                                                                                                                         | ASCII glyph fallbacks                             |
+| Multiplexer          | `TMUX`, `ZELLIJ`, and `STY` presence                                                                                                                                    | Not inside a multiplexer                          |
+| Terminal name        | `TERM_PROGRAM` and vendor variables                                                                                                                                     | No vendor-specific workaround applied             |
 
 - Every query has a deadline that fits inside the Client's startup budget. A late reply is
   discarded, never applied.

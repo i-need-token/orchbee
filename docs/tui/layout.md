@@ -79,10 +79,10 @@ then decoration. A lower-priority item never displaces, clips, or visually domin
 Tiers give hints, chrome, and overlays a shared vocabulary for degradation. Width and height are
 classified independently; a surface uses the lower of the two.
 
-| Tier    | Width         | Height     | Behavior                                                                                                                             |
-| ------- | ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Full    | ≥ 100 columns | ≥ 24 rows  | Complete hints, docked side panel, full labels                                                                                       |
-| Compact | 60–99 columns | 12–23 rows | Shortened hints, side panel as overlay, truncated labels                                                                             |
+| Tier    | Width         | Height     | Behavior                                                                                                                                                                         |
+| ------- | ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full    | ≥ 100 columns | ≥ 24 rows  | Complete hints, docked side panel, full labels                                                                                                                                   |
+| Compact | 60–99 columns | 12–23 rows | Shortened hints, side panel as overlay, truncated labels                                                                                                                         |
 | Minimal | < 60 columns  | < 12 rows  | Hide optional top-strip actions to keep the first terminal row clear; preserve complete return/exit and primary actions while usable, otherwise suspend into the too-small state |
 
 Below 20 columns or 5 rows the Client paints one localized too-small notice and the status line,

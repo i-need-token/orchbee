@@ -154,12 +154,12 @@
 			"zhCnSha256": "86b18e725c73556efc878f8ae86d618943f88067f0e1b0f27f22d8e50cff698a"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "d80bd52b8fd0c544668536a275c87dfc699597e7ed5d9aab18720fea29877b35",
-			"zhCnSha256": "f5ceef7fdf84da767fe9c008a4fa77487a819014d409d239b40b41da96ac0ea2"
+			"englishSha256": "2c78096764ec69c7f85edb53b40ebc6ae07f85e1c3184d3b4014543c3383c7a4",
+			"zhCnSha256": "c2c277c49ab28e691cbb725189fadc13f15168d5f1d2df61903e28b6c7eadb5b"
 		},
 		"apps/orchbee/docs/agent-board.md": {
-			"englishSha256": "2a833b34abf40d6ef2c6192d2ea6d37a520af481218655af43b1c78451ed97ed",
-			"zhCnSha256": "ca310cbb13af3fa58f258b31bc65b6a7efa8dbaf2b38c5e7971e43044b6d1f12"
+			"englishSha256": "1930574ad82224b4fe93281d9a98c330395720baaec69a66eb40de6daafa5c5f",
+			"zhCnSha256": "028edd7850d85f86a29a98daac9028ae68d783d782b40bb63d3c6b4f8344c466"
 		},
 		"apps/orchbee/docs/cli-agent-skill.md": {
 			"englishSha256": "47bdd7ebdad2f3021ab47de1301432a3fa3f1811cd8b80f3a299d2e9ca66682d",
@@ -182,8 +182,8 @@
 			"zhCnSha256": "3074745601221111ef5a20b4662943ff3d15ee2fecb9144d4944375fe21526fd"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "9e32b895c3ad690ae297d1bda99c896cbb16e19a09e5c33d541b1c5310276649",
-			"zhCnSha256": "5dccad16f5e75aa0a38c8e50f6fdb5faa6f44c537da8fa55bdde32283d245601"
+			"englishSha256": "a951e32f5e887dea05dd8e62a14937efc221ee44f5771243b53302ff52c63e1d",
+			"zhCnSha256": "0a08cee48c07372779186d688c58a45c269b9e293b354d4a32259d536ac599f8"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "028cf6e0e7caa56b7f38a11ddbadf5a542f0e901613086c338dbc847824bdfa9",
@@ -310,8 +310,8 @@
 			"zhCnSha256": "ecf06690e7d44f04bd23cbb6dcaf175041d4173b75d925ef6d9bae2bdfc32eb6"
 		},
 		"apps/orchbee/docs/native-themes.md": {
-			"englishSha256": "18db66dcd9aab4702c3863aa7d2e0005ab97c62ba55de995f10e417b4847a45e",
-			"zhCnSha256": "457031a075dbfc130d336e2984c592ffdb4c57f016e6d2892d74e37543bbd106"
+			"englishSha256": "d27ac85e5dacd30739f46c20a67c0505c7d9a3c645702b1234949789ef2804cf",
+			"zhCnSha256": "8f063b05de676885bfe1a229b2e6bc8e45b8598434df5efbff7dd3d57d924cda"
 		},
 		"apps/orchbee/docs/native-workspace-close.md": {
 			"englishSha256": "ccc750ead2d559c69ab9291a745b2518dbe8bb9ee5de3b28d3337598ddf12ffd",
@@ -326,8 +326,8 @@
 			"zhCnSha256": "dd13179b0d28bf9ead5f59a8c816fe78e0e6915f938e817dca3312ce276b503a"
 		},
 		"apps/orchbee/docs/tui-shell-layout.md": {
-			"englishSha256": "2604274e515f4adaf32bf55766a59b3b021e941d6579b30f4650b08696fa054f",
-			"zhCnSha256": "0311cbba808b381a9c1230ac15b5d29ebed38ecc0133d8bac081b8f469423486"
+			"englishSha256": "45ed9221b9fdf8ece1af5d649307bc040c4ccdb9dfdbb1489a7a3965fb052457",
+			"zhCnSha256": "c7143be2f79b57b66dde22e76c6766d05ce973f31b6bb95cde6a901498968a22"
 		},
 		"apps/orchbee/docs/windows-agent-integrations.md": {
 			"englishSha256": "7eda870ed69796c0e789f8ec54cf1dbb3d1939211b06bc7e79d760180cca9683",
@@ -650,24 +650,24 @@
 			"zhCnSha256": "ca4a7b6a322ef852feb41f805954b01631e20eeb718d57049c77aded9a84b3c1"
 		},
 		"docs/tui/layout.md": {
-			"englishSha256": "f742e975a03276a5ced73b65545b6e52ccc7bd033f3b5cbbd11f7a581a7eb79c",
-			"zhCnSha256": "9bfcb69b88e3c0c4d36121ce3526b213a2a7e212d2e84de523682d77d5dfb6d7"
+			"englishSha256": "a9eff556cde84c33025647e2e81dacc770b68b6286a7dd26238dc2865395db46",
+			"zhCnSha256": "9a3de7773555fd5877f72958e3d57fddf92d84bec0b072396e6dfa33c160e6e8"
 		},
 		"docs/tui/mouse-input.md": {
 			"englishSha256": "89fbab054ba4882a2be13e16c2e898d9ea117b6651b5d3b477aa2738e0bd812b",
 			"zhCnSha256": "9cf328635ad42dbdc073c0a443fb1b8519368ad78a374de97cb61737b1d9e4d8"
 		},
 		"docs/tui/overlays-and-status.md": {
-			"englishSha256": "b649b7ee1b397be980b4a0eab080b698b99640626dbac8c681f1adadb13b846e",
-			"zhCnSha256": "287b117491b984f4994b7767d9165594d6340ea6d02b7aaf8257705dd7a826d5"
+			"englishSha256": "b62722f7509b77d5c7a3a4f97342ab5d7b5e9083c867baf2b307486e7f8489ff",
+			"zhCnSha256": "b67636fc01d960f03d0c7e6b11f10a80a4f328feda90d37ebe34068d81a37307"
 		},
 		"docs/tui/settings.md": {
 			"englishSha256": "b10c4de9e22c03a3f089115323494e3f19988fea539a7408cb070fd230046e80",
 			"zhCnSha256": "cabb3dc04659c51a3e02ce84ceac78764cc3f2c3f52087c4cf63d40a8bb3f479"
 		},
 		"docs/tui/terminal-environment.md": {
-			"englishSha256": "1b6b010ce04681468dc84c064d1b9065ae6e6d882810e43d6daab59cd07ab10a",
-			"zhCnSha256": "6c30e4c0600b060e909f5b0783e9daf01f58dff78203ec94f5992fc52712274a"
+			"englishSha256": "e1d31b3c26fa0b2f8b4040d75172e669ee6b18766ac8ef822209fa9f9080e069",
+			"zhCnSha256": "98fb747679e6ef07085ee4d8e869b6851706a573da0c5d60d49ae4ee32f25cce"
 		},
 		"docs/tui/verification.md": {
 			"englishSha256": "ac10ae28c7baedb56c44332aa3a5791282365da6c262677999af496029e98046",
