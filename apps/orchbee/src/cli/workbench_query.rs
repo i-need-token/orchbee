@@ -39,6 +39,24 @@ pub(crate) struct Document {
     contexts: Vec<ClientContextSelection>,
 }
 
+impl Document {
+    fn new(projection: Projection) -> Self {
+        Self {
+            projection: Box::new(projection),
+            client: None,
+            current_member: None,
+            agents: None,
+            terminals: None,
+            viewports: None,
+            worktrees: None,
+            metadata: None,
+            panel_metadata: None,
+            operations: vec![],
+            contexts: vec![],
+        }
+    }
+}
+
 fn failure(kind: FailureKind, client: &WorkbenchClientId) -> Failure {
     Failure::new(kind)
         .failure_schema("orchbee.cli.failure.client-query")
@@ -68,7 +86,7 @@ pub(crate) fn run(
             );
         }
     };
-    let result = execute(command, selected, deadline, &mut signals);
+    let result = execute(command, selected, format, deadline, &mut signals);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -196,6 +214,7 @@ pub(super) fn submission_failure(
 fn execute(
     command: &QueryCommand,
     selected: Option<&WorkbenchClientId>,
+    format: OutputFormat,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(Value, Document), Failure> {
@@ -203,6 +222,17 @@ fn execute(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = admitted?;
     let projection = results::project(command, &snapshot)?;
+    if snapshot_only_list_text(command, format) {
+        if let Some(selected) = selected {
+            let client = current(&mut client, &snapshot, selected, deadline, signals, false)?;
+            verify_membership(&snapshot, &client.view, &[])?;
+        }
+        signals.check_before(deadline)?;
+        return Ok((
+            results::snapshot_source(&snapshot),
+            Document::new(projection),
+        ));
+    }
     let panel_read = matches!(
         projection,
         Projection::PanelList(_) | Projection::PanelGet(_)
@@ -219,6 +249,14 @@ fn execute(
         deadline,
         signals,
     )
+}
+
+fn snapshot_only_list_text(command: &QueryCommand, format: OutputFormat) -> bool {
+    matches!(format, OutputFormat::Text)
+        && matches!(
+            command,
+            QueryCommand::WorkspaceList { .. } | QueryCommand::TabList { .. }
+        )
 }
 
 /// Enrich an already resolved projection using its original snapshot and Client selection.
@@ -250,19 +288,9 @@ pub(super) fn collect(
     {
         return Err(Failure::new(FailureKind::InternalFailure));
     }
-    let mut document = Document {
-        current_member,
-        projection: Box::new(projection),
-        client: original,
-        agents: None,
-        terminals: None,
-        viewports: None,
-        worktrees: None,
-        metadata: None,
-        panel_metadata: None,
-        operations: vec![],
-        contexts: vec![],
-    };
+    let mut document = Document::new(projection);
+    document.current_member = current_member;
+    document.client = original;
     if let Some(read) = document
         .current_member
         .as_ref()

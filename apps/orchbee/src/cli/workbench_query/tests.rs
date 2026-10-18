@@ -207,6 +207,43 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
 }
 
 #[test]
+fn workspace_and_tab_text_query_composition_is_only_the_list_table() {
+    let state = snapshot();
+    for command in [
+        QueryCommand::WorkspaceList { project: None },
+        QueryCommand::TabList {
+            workspace: None,
+            standalone: false,
+        },
+    ] {
+        assert!(snapshot_only_list_text(&command, OutputFormat::Text));
+        assert!(!snapshot_only_list_text(&command, OutputFormat::Json));
+        let source = results::snapshot_source(&state);
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let actual = success_output(
+                Projection::WorkbenchQuery(Box::new(Document::new(
+                    results::project(&command, &state).unwrap(),
+                ))),
+                source.clone(),
+                &command,
+                OutputFormat::Text,
+                locale,
+            );
+            let expected = success_output(
+                results::project(&command, &state).unwrap(),
+                source.clone(),
+                &command,
+                OutputFormat::Text,
+                locale,
+            );
+            assert_eq!(actual.status, expected.status);
+            assert_eq!(actual.stdout, expected.stdout);
+            assert_eq!(actual.stderr, expected.stderr);
+        }
+    }
+}
+
+#[test]
 fn client_query_refuses_false_empty_stale_tab_and_wrong_panel_membership() {
     let state = snapshot();
     let command = QueryCommand::WorkspaceList { project: None };
