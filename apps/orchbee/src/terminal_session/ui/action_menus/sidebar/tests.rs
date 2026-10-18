@@ -13,6 +13,7 @@ fn draw(ui: &mut NativeUi) -> MenuToken {
         selected: menu.selected,
         first: 0,
         visible_rows: menu.actions.len(),
+        result_actions: menu.result_actions.to_vec(),
     };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(draw)));
     draw.token

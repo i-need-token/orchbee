@@ -1,10 +1,97 @@
 use super::Locale;
 use crate::{
     action_menu::{MenuAction, MenuUnavailable},
+    action_projection::ActionSearchAlias,
     client_view::PanelDirection,
 };
 
 impl Locale {
+    pub(crate) const fn menu_search_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Search",
+            Self::ZhCn => "搜索",
+        }
+    }
+
+    pub(crate) fn menu_search_count(self, count: usize) -> String {
+        match self {
+            Self::EnUs => format!("{count} matches"),
+            Self::ZhCn => format!("{count} 项匹配"),
+        }
+    }
+
+    pub(crate) const fn menu_search_no_results(self) -> &'static str {
+        match self {
+            Self::EnUs => "No actions match this query.",
+            Self::ZhCn => "没有符合此搜索的动作。",
+        }
+    }
+
+    pub(crate) const fn menu_search_idle(self) -> &'static str {
+        match self {
+            Self::EnUs => "Type to search actions",
+            Self::ZhCn => "输入以搜索动作",
+        }
+    }
+
+    pub(crate) const fn menu_search_alias(self, alias: ActionSearchAlias) -> &'static str {
+        use ActionSearchAlias as A;
+        match (self, alias) {
+            #[cfg(windows)]
+            (Self::EnUs, A::Actions) => "actions",
+            #[cfg(windows)]
+            (Self::ZhCn, A::Actions) => "动作",
+            #[cfg(windows)]
+            (Self::EnUs, A::Commands) => "commands",
+            #[cfg(windows)]
+            (Self::ZhCn, A::Commands) => "命令",
+            (Self::EnUs, A::Preferences) => "preferences",
+            (Self::ZhCn, A::Preferences) => "偏好设置",
+            (Self::EnUs, A::Workspace) => "workspace",
+            (Self::ZhCn, A::Workspace) => "工作区",
+            #[cfg(windows)]
+            (Self::EnUs, A::Worktree) => "worktree",
+            #[cfg(windows)]
+            (Self::ZhCn, A::Worktree) => "Worktree",
+            (Self::EnUs, A::Project) => "project",
+            (Self::ZhCn, A::Project) => "项目",
+            (Self::EnUs, A::Tab) => "tab",
+            (Self::ZhCn, A::Tab) => "标签页",
+            (Self::EnUs, A::Pane) => "pane",
+            (Self::ZhCn, A::Pane) => "面板",
+            (Self::EnUs, A::Split) => "split",
+            (Self::ZhCn, A::Split) => "分屏",
+            #[cfg(windows)]
+            (Self::EnUs, A::Resize) => "resize",
+            #[cfg(windows)]
+            (Self::ZhCn, A::Resize) => "调整大小",
+            #[cfg(windows)]
+            (Self::EnUs, A::Copy) => "copy",
+            #[cfg(windows)]
+            (Self::ZhCn, A::Copy) => "复制",
+            (Self::EnUs, A::Close) => "close",
+            (Self::ZhCn, A::Close) => "关闭",
+            (Self::EnUs, A::Rename) => "rename",
+            (Self::ZhCn, A::Rename) => "重命名",
+            (Self::EnUs, A::Move) => "move",
+            (Self::ZhCn, A::Move) => "移动",
+            (Self::EnUs, A::Select) => "select",
+            (Self::ZhCn, A::Select) => "选择",
+            (Self::EnUs, A::Sidebar) => "sidebar",
+            (Self::ZhCn, A::Sidebar) => "侧栏",
+            (Self::EnUs, A::Navigator) => "navigator",
+            (Self::ZhCn, A::Navigator) => "导航",
+            (Self::EnUs, A::Agent) => "agent",
+            (Self::ZhCn, A::Agent) => "智能体",
+            (Self::EnUs, A::Help) => "help",
+            (Self::ZhCn, A::Help) => "帮助",
+            (Self::EnUs, A::Mouse) => "mouse",
+            (Self::ZhCn, A::Mouse) => "鼠标",
+            (Self::EnUs, A::Detach) => "detach",
+            (Self::ZhCn, A::Detach) => "分离",
+        }
+    }
+
     /// Uses the same saved name or localized built-in label for every launch row.
     pub(crate) fn launch_profile_name(
         self,

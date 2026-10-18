@@ -3,6 +3,7 @@
 use crate::client_view::{
     Binding, ClientAction, KeyCode, KeyEvent, KeyKind, Modifiers, PanelDirection,
 };
+use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 use crate::tui_presentation::{GeometrySettlement, PresentationPhase};
 
 mod tab_presentation;
@@ -382,12 +383,30 @@ impl MenuInputContext {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct MenuDraw {
     pub(crate) token: MenuToken,
     pub(crate) first: usize,
     pub(crate) visible_rows: usize,
     pub(crate) selected: usize,
+    /// Result positions map back to the admitted action snapshot, including when filtering.
+    pub(crate) result_actions: Vec<usize>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct MenuSearchChild {
+    pub(crate) parent: MenuAction,
+    pub(crate) source: MenuTarget,
+    pub(crate) actions: Vec<MenuAction>,
+    pub(crate) labels: Vec<Option<String>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct MenuDrawProof {
+    token: MenuToken,
+    first: usize,
+    visible_rows: usize,
+    selected: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -408,7 +427,11 @@ pub(crate) struct MenuView<'a> {
     pub(crate) tabs: Option<&'a TabMenuPresentation>,
     pub(crate) actions: &'a [MenuAction],
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
+    pub(crate) result_actions: &'a [usize],
+    pub(crate) query: Option<&'a str>,
+    pub(crate) search_children: &'a [MenuSearchChild],
     pub(crate) selected: usize,
+    pub(crate) pending_selected_action: Option<&'a MenuAction>,
     pub(crate) first: usize,
     pub(crate) follow_selection: bool,
     pub(crate) token: MenuToken,
@@ -443,7 +466,46 @@ impl MenuView<'_> {
     pub(crate) fn row_height(&self, first: usize, end: usize) -> usize {
         row_height(self.source, self.actions, first, end)
     }
+
+    pub(crate) fn result_separator_before(&self, results: &[usize], position: usize) -> bool {
+        position > 0
+            && self.query.is_none_or(str::is_empty)
+            && separator_before(self.source, self.actions, results[position])
+    }
+
+    pub(crate) fn result_row_height(&self, results: &[usize], first: usize, end: usize) -> usize {
+        end.saturating_sub(first)
+            + (first + 1..end)
+                .filter(|position| self.result_separator_before(results, *position))
+                .count()
+    }
+
+    pub(crate) fn first_visible_result_row(&self, rows: usize, results: &[usize]) -> usize {
+        let rows = rows.max(1);
+        if results.is_empty() {
+            return 0;
+        }
+        let mut maximum = results.len().saturating_sub(1);
+        while maximum > 0 && self.result_row_height(results, maximum - 1, results.len()) <= rows {
+            maximum -= 1;
+        }
+        let mut first = self.first.min(maximum);
+        if !self.follow_selection {
+            return first;
+        }
+        if self.selected < first {
+            first = self.selected;
+        }
+        while first < self.selected
+            && self.result_row_height(results, first, self.selected + 1) > rows
+        {
+            first += 1;
+        }
+        first.min(maximum)
+    }
 }
+
+pub(crate) const MAXIMUM_ACTION_MENU_QUERY_BYTES: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum GlobalMenuGroup {
@@ -515,12 +577,16 @@ struct Menu {
     title: String,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
+    result_actions: Vec<usize>,
+    query: Option<LineEditor>,
+    search_children: Vec<MenuSearchChild>,
+    pending_selected_action: Option<MenuAction>,
     selected: usize,
     first: usize,
     visible_rows: usize,
     follow_selection: bool,
     token: MenuToken,
-    drawn: Option<MenuDraw>,
+    drawn: Option<MenuDrawProof>,
     surface_presented: bool,
     anchor: Option<(u16, u16)>,
 }
@@ -540,11 +606,33 @@ impl ActionMenu {
     }
 
     pub(crate) fn select_action(&mut self, action: MenuAction) {
-        if let Some(index) = self
-            .menu
-            .as_ref()
-            .and_then(|menu| menu.actions.iter().position(|item| *item == action))
-        {
+        if self.menu.as_ref().is_some_and(|menu| {
+            menu.query
+                .as_ref()
+                .is_some_and(|query| !query.text().is_empty())
+                && menu.actions.contains(&action)
+        }) {
+            let Some(token) = self.allocate() else {
+                self.cancel();
+                return;
+            };
+            let Some(menu) = &mut self.menu else {
+                return;
+            };
+            menu.pending_selected_action = Some(action);
+            menu.selected = 0;
+            menu.first = 0;
+            menu.follow_selection = true;
+            menu.visible_rows = 0;
+            menu.token = token;
+            menu.drawn = None;
+            return;
+        }
+        if let Some(index) = self.menu.as_ref().and_then(|menu| {
+            menu.result_actions
+                .iter()
+                .position(|action_index| menu.actions.get(*action_index) == Some(&action))
+        }) {
             self.select_row(index);
         }
     }
@@ -555,7 +643,72 @@ impl ActionMenu {
         if Binding::new(KeyCode::Enter, Modifiers::NONE).matches(event) {
             return self.confirm();
         }
+        let searchable = self.menu.as_ref().is_some_and(|menu| menu.query.is_some());
+        if searchable {
+            match (event.mods, event.code) {
+                (Modifiers::NONE, KeyCode::Backspace) => {
+                    let changed = self
+                        .menu
+                        .as_mut()
+                        .and_then(|menu| menu.query.as_mut())
+                        .is_some_and(LineEditor::backspace);
+                    if changed {
+                        self.query_changed();
+                    }
+                    return false;
+                }
+                (mods, KeyCode::Char('u'))
+                    if mods == Modifiers::CTRL && !event.mods.shift && !event.mods.alt =>
+                {
+                    let changed = self
+                        .menu
+                        .as_mut()
+                        .and_then(|menu| menu.query.as_mut())
+                        .is_some_and(|query| {
+                            if query.text().is_empty() {
+                                false
+                            } else {
+                                query.clear();
+                                true
+                            }
+                        });
+                    if changed {
+                        self.query_changed();
+                    }
+                    return false;
+                }
+                (mods, KeyCode::Char(character))
+                    if (mods == Modifiers::NONE || mods == Modifiers::NONE.with_shift())
+                        && !character.is_control() =>
+                {
+                    let changed = self
+                        .menu
+                        .as_mut()
+                        .and_then(|menu| menu.query.as_mut())
+                        .is_some_and(|query| query.insert(&character.to_string()).is_ok());
+                    if changed {
+                        self.query_changed();
+                    }
+                    return false;
+                }
+                (Modifiers::NONE, KeyCode::Space) => {
+                    let changed = self
+                        .menu
+                        .as_mut()
+                        .and_then(|menu| menu.query.as_mut())
+                        .is_some_and(|query| query.insert(" ").is_ok());
+                    if changed {
+                        self.query_changed();
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
         if event.mods != Modifiers::NONE {
+            return false;
+        }
+        if searchable && self.menu.as_ref().is_some_and(|menu| menu.drawn.is_none()) {
             return false;
         }
         match event.code {
@@ -563,7 +716,12 @@ impl ActionMenu {
                 if self
                     .menu
                     .as_ref()
-                    .is_some_and(|menu| menu.actions[menu.selected].submenu()) =>
+                    .and_then(|menu| {
+                        menu.result_actions
+                            .get(menu.selected)
+                            .and_then(|index| menu.actions.get(*index))
+                    })
+                    .is_some_and(MenuAction::submenu) =>
             {
                 return self.confirm();
             }
@@ -629,12 +787,23 @@ impl ActionMenu {
         let Some(token) = self.allocate() else {
             return false;
         };
+        let searchable = matches!(&source, MenuTarget::Global | MenuTarget::TabCreate(_));
+        let result_actions = (0..actions.len()).collect();
         self.menu = Some(Menu {
             source,
             title,
             labels: vec![None; actions.len()],
             tabs: None,
             unavailable: vec![None; actions.len()],
+            result_actions,
+            query: searchable.then(|| {
+                LineEditor::new(
+                    String::new(),
+                    LengthLimit::Bytes(MAXIMUM_ACTION_MENU_QUERY_BYTES),
+                )
+            }),
+            search_children: Vec::new(),
+            pending_selected_action: None,
             actions,
             selected: 0,
             first: 0,
@@ -648,6 +817,56 @@ impl ActionMenu {
         self.confirmed = None;
         self.presentation = PresentationPhase::Pending;
         true
+    }
+
+    pub(crate) fn query(&self) -> Option<&str> {
+        self.menu.as_ref()?.query.as_ref().map(LineEditor::text)
+    }
+
+    pub(crate) fn set_query(&mut self, query: Option<&str>) {
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        let Some(editor) = &mut menu.query else {
+            return;
+        };
+        if editor.text() == query.unwrap_or_default() {
+            return;
+        }
+        let mut next = LineEditor::new(
+            String::new(),
+            LengthLimit::Bytes(MAXIMUM_ACTION_MENU_QUERY_BYTES),
+        );
+        if let Some(query) = query {
+            let _ = next.insert(query);
+        }
+        editor.clear();
+        *editor = next;
+        self.query_changed();
+    }
+
+    pub(crate) fn set_search_children(&mut self, children: Vec<MenuSearchChild>) {
+        let Some(menu) = &self.menu else {
+            return;
+        };
+        if menu.search_children == children {
+            return;
+        }
+        if self.confirmed.is_some() {
+            self.cancel();
+            return;
+        }
+        let Some(token) = self.allocate() else {
+            self.cancel();
+            return;
+        };
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        menu.search_children = children;
+        menu.token = token;
+        menu.drawn = None;
+        menu.visible_rows = 0;
     }
 
     pub(crate) fn set_labels(&mut self, label: impl Fn(MenuAction) -> Option<String>) {
@@ -728,7 +947,11 @@ impl ActionMenu {
             tabs: menu.tabs.as_ref(),
             actions: &menu.actions,
             unavailable: &menu.unavailable,
+            result_actions: &menu.result_actions,
+            query: menu.query.as_ref().map(LineEditor::text),
+            search_children: &menu.search_children,
             selected: menu.selected,
+            pending_selected_action: menu.pending_selected_action.as_ref(),
             first: menu.first,
             follow_selection: menu.follow_selection,
             token: menu.token,
@@ -742,21 +965,51 @@ impl ActionMenu {
         let Some(menu) = &self.menu else {
             return false;
         };
+        let empty_search_result = menu.query.is_some()
+            && draw.result_actions.is_empty()
+            && draw.first == 0
+            && draw.visible_rows == 0
+            && draw.selected == 0;
         if menu.token != draw.token
-            || draw.visible_rows == 0
-            || draw.first >= menu.actions.len()
-            || draw.selected != menu.selected
-            || draw.first.saturating_add(draw.visible_rows) > menu.actions.len()
+            || (draw.visible_rows == 0 && !empty_search_result)
+            || (!empty_search_result && draw.first >= draw.result_actions.len())
+            || (!empty_search_result && draw.selected >= draw.result_actions.len())
+            || (draw.selected != menu.selected
+                && !menu.pending_selected_action.as_ref().is_some_and(|action| {
+                    draw.result_actions
+                        .get(draw.selected)
+                        .and_then(|index| menu.actions.get(*index))
+                        == Some(action)
+                })
+                && !(menu.selected >= draw.result_actions.len() && draw.selected == 0))
+            || draw.first.saturating_add(draw.visible_rows) > draw.result_actions.len()
+            || draw
+                .result_actions
+                .iter()
+                .any(|index| *index >= menu.actions.len())
+            || draw
+                .result_actions
+                .windows(2)
+                .any(|indices| indices[0] >= indices[1])
         {
             self.revoke_exact_draw();
             return false;
         }
+        let proof = MenuDrawProof {
+            token: draw.token,
+            first: draw.first,
+            visible_rows: draw.visible_rows,
+            selected: draw.selected,
+        };
         let Some(menu) = &mut self.menu else {
             return false;
         };
+        menu.result_actions = draw.result_actions;
+        menu.selected = draw.selected;
+        menu.pending_selected_action = None;
         menu.first = draw.first;
         menu.visible_rows = draw.visible_rows;
-        menu.drawn = Some(draw);
+        menu.drawn = Some(proof);
         menu.surface_presented = true;
         self.presentation.presented();
         true
@@ -813,11 +1066,14 @@ impl ActionMenu {
         let Some(menu) = &mut self.menu else {
             return;
         };
+        if menu.result_actions.is_empty() {
+            return;
+        }
         let selected = match selection {
             MenuSelection::Previous => menu.selected.saturating_sub(1),
-            MenuSelection::Next => (menu.selected + 1).min(menu.actions.len() - 1),
+            MenuSelection::Next => (menu.selected + 1).min(menu.result_actions.len() - 1),
             MenuSelection::First => 0,
-            MenuSelection::Last => menu.actions.len() - 1,
+            MenuSelection::Last => menu.result_actions.len() - 1,
         };
         self.select_row(selected);
     }
@@ -834,15 +1090,16 @@ impl ActionMenu {
         }
         // Derive the actual terminal-row budget from the admitted window. Separators mean the same
         // budget can contain a different number of actions at the tail.
-        let rows = row_height(
-            &menu.source,
-            &menu.actions,
+        let view = self.view()?;
+        let rows = view.result_row_height(
+            &menu.result_actions,
             draw.first,
             draw.first.saturating_add(draw.visible_rows),
         );
-        let mut maximum = menu.actions.len().saturating_sub(1);
+        let mut maximum = menu.result_actions.len().saturating_sub(1);
         while maximum > 0
-            && row_height(&menu.source, &menu.actions, maximum - 1, menu.actions.len()) <= rows
+            && view.result_row_height(&menu.result_actions, maximum - 1, menu.result_actions.len())
+                <= rows
         {
             maximum -= 1;
         }
@@ -882,10 +1139,38 @@ impl ActionMenu {
             return;
         };
         menu.selected = selected;
+        menu.pending_selected_action = None;
         menu.follow_selection = true;
         menu.visible_rows = 0;
         menu.token = token;
         menu.drawn = None;
+    }
+
+    fn query_changed(&mut self) {
+        if self.confirmed.is_some() {
+            return;
+        }
+        let Some(token) = self.allocate() else {
+            self.cancel();
+            return;
+        };
+        let Some(menu) = &mut self.menu else {
+            return;
+        };
+        menu.token = token;
+        menu.selected = 0;
+        menu.pending_selected_action = None;
+        menu.first = 0;
+        menu.visible_rows = 0;
+        menu.follow_selection = true;
+        menu.drawn = None;
+        if menu
+            .query
+            .as_ref()
+            .is_some_and(|query| query.text().is_empty())
+        {
+            menu.result_actions = (0..menu.actions.len()).collect();
+        }
     }
 
     /// Reasons come from the operation owner; changing them revokes the painted proof.
@@ -929,14 +1214,17 @@ impl ActionMenu {
         let Some(menu) = &self.menu else {
             return false;
         };
+        let Some(action_index) = menu.result_actions.get(menu.selected).copied() else {
+            return false;
+        };
         if !self
             .input_context()
             .is_some_and(MenuInputContext::activation_ready)
-            || menu.unavailable[menu.selected].is_some()
+            || menu.unavailable[action_index].is_some()
         {
             return false;
         }
-        self.confirmed = Some(menu.actions[menu.selected].clone());
+        self.confirmed = Some(menu.actions[action_index].clone());
         true
     }
 
@@ -951,10 +1239,13 @@ impl ActionMenu {
             && self.presentation.interactive()
             && draw.token == token
             && menu.token == token
-            && row < menu.actions.len()
+            && row < menu.result_actions.len()
             && row >= draw.first
             && row < draw.first.saturating_add(draw.visible_rows)
-            && menu.unavailable[row].is_none()
+            && menu
+                .result_actions
+                .get(row)
+                .is_some_and(|index| menu.unavailable[*index].is_none())
     }
 
     /// Movement changes only the provisional menu candidate, never confirms an action.
@@ -970,6 +1261,7 @@ impl ActionMenu {
             return false;
         }
         menu.selected = row;
+        menu.pending_selected_action = None;
         menu.follow_selection = false;
         // Hover preserves the exact row window so every motion in a packet can update the
         // candidate. Enter still requires a draw whose selected row matches this candidate.
@@ -984,7 +1276,7 @@ impl ActionMenu {
             return false;
         };
         menu.selected = row;
-        self.confirmed = Some(menu.actions[row].clone());
+        self.confirmed = Some(menu.actions[menu.result_actions[row]].clone());
         true
     }
 

@@ -315,9 +315,10 @@ fn paint(
         })
     });
     assert_eq!(close.is_none(), port.menu.view().unwrap().context_menu);
+    let visible_rows = draw.visible_rows;
     assert!(port.menu.presented(draw));
     dispatcher.publish_hit_map(map);
-    (cell.0 + 1, cell.1 + 1, draw.visible_rows, close)
+    (cell.0 + 1, cell.1 + 1, visible_rows, close)
 }
 
 #[test]

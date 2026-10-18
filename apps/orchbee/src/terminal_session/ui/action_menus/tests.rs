@@ -69,17 +69,87 @@ fn tab_creation_exposes_saved_profiles_and_cancel_has_no_effect() {
     }
 }
 
+#[test]
+fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_menu() {
+    use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
+
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    let profile = UserLaunchProfile {
+        id: "search-profile".into(),
+        name: Some("PowerShell preview".into()),
+        command: UserLaunchCommand::CustomExecutable {
+            executable: r"C:\test\pwsh.exe".into(),
+            arguments: Vec::new(),
+        },
+    };
+    ui.preferences
+        .launch_profiles
+        .profiles
+        .push(profile.clone());
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    let menu = ui.view().action_menu().unwrap();
+    assert!(menu.search_children.iter().any(|child| {
+        child.parent == MenuAction::TabCreation
+            && child.actions.iter().any(|action| {
+                matches!(action, MenuAction::NewTabWithProfile(candidate) if candidate.id == profile.id)
+            })
+    }));
+
+    arm(&mut ui);
+    for character in "power".chars() {
+        ui.capture_action_menu_key(KeyEvent::press(
+            crate::client_view::KeyCode::Char(character),
+            crate::client_view::Modifiers::NONE,
+        ));
+    }
+    let menu = ui.view().action_menu().unwrap();
+    assert_eq!(menu.query, Some("power"));
+    ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
+        selected: 0,
+        token: menu.token,
+        first: 0,
+        visible_rows: 1,
+        result_actions: vec![0],
+    })));
+    ui.capture_action_menu_key(KeyEvent::press(
+        crate::client_view::KeyCode::Enter,
+        crate::client_view::Modifiers::NONE,
+    ));
+    assert!(ui.take_action_menu_action(false).is_none());
+
+    let child = ui.view().action_menu().unwrap();
+    assert!(matches!(child.source, MenuTarget::TabCreate(_)));
+    assert_eq!(child.query, Some("power"));
+    assert!(child.actions.iter().any(|action| {
+        matches!(action, MenuAction::NewTabWithProfile(candidate) if candidate.id == profile.id)
+    }));
+
+    ui.capture_action_menu_key(KeyEvent::press(
+        crate::client_view::KeyCode::Esc,
+        crate::client_view::Modifiers::NONE,
+    ));
+    let parent = ui.view().action_menu().unwrap();
+    assert_eq!(parent.query, Some("power"));
+    assert_eq!(parent.actions[parent.selected], MenuAction::TabCreation);
+}
+
 fn arm(ui: &mut NativeUi) -> MenuToken {
-    let (token, selected, visible_rows) = {
+    let (token, selected, visible_rows, result_actions) = {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
-        (menu.token, menu.selected, menu.actions.len())
+        (
+            menu.token,
+            menu.selected,
+            menu.actions.len(),
+            menu.result_actions.to_vec(),
+        )
     };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected,
         token,
         first: 0,
         visible_rows,
+        result_actions,
     })));
     token
 }

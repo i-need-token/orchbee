@@ -43,6 +43,14 @@ while selection and movement use a separate submenu.
 Painted group headers and the new-Tab button open distinct menus through the
 [group configuration owner](native-tab-groups.md#pointer-arrangement-and-menu-navigation).
 The global menu also exposes the new-Tab submenu for keyboard users.
+The global menu and its new-Tab submenu include a query row. Printable characters and Space edit the
+query directly; Backspace removes the previous grapheme and Ctrl+U clears it. The query is limited
+to 128 UTF-8 bytes, and menu capture keeps typed characters out of the terminal program. Matching
+uses a case-insensitive fuzzy subsequence over localized action labels, reviewed localized semantic
+aliases and the current effective shortcut. A matching child action makes its parent submenu
+searchable; opening it carries the query into the ordinary child menu, where the child actions are
+filtered under their existing ownership and availability rules. The query row shows the filtered
+count, and an empty result set shows a localized no-results state.
 The new-Tab submenu retains quick default creation and also lists the confirmed device launch
 profiles, including System default. Each saved choice names its profile and creates one Tab with
 that profile's literal executable and arguments; it never changes the shared default. System shell
@@ -81,8 +89,8 @@ A menu row shows the first effective chord only when an explicit `MenuTarget` pl
 mapping has the same dispatch meaning; a current-Tab or current-Workspace binding is never advertised
 for a background object merely because both actions share metadata. Menu execution still uses its
 typed target, exact coordinator proof and owner-derived availability; metadata and displayed chords
-grant no execution authority. Native command search is not present in this surface, so the alias
-metadata does not claim a search entry.
+grant no execution authority. Search aliases find only admitted actions in the global menu and its
+searchable child menus; they do not expose command identities or hidden configuration commands.
 
 Shortcut Help and the global Detach action share localized wording: only the current Client
 detaches, and terminal programs keep running. This differs from closing a Panel, Tab or Workspace;
@@ -104,8 +112,9 @@ and the exact menu source. They neither keep the covered status marked as displa
 ordinary Close. The resulting Resume confirmation must present its own exact prompt and status before
 it accepts confirmation.
 
-Up/Down or j/k select a row; Home/End select the first/last row; Enter executes the
-selected action. Keyboard selection reveals its row with the smallest viewport movement. Once the
+In the searchable global menu and new-Tab submenu, Up/Down select rows while printable characters,
+including Space, edit the query. In other menus, Up/Down or j/k select a row. Home/End select the
+first/last row; Enter executes the selected action. Keyboard selection reveals its row with the smallest viewport movement. Once the
 host and native adapter receive idle motion under global admission or the scoped menu request,
 unmodified, button-free motion
 moves the provisional menu candidate to an enabled drawn row, using the full-row selection fill
@@ -124,8 +133,8 @@ Esc at the root or a click outside cancels. Wheel outside the list is inert. Ins
 contributes three rows to a bounded, viewport-capped stream without wrapping or executing; wheel
 movement changes only the viewport and may leave keyboard selection offscreen. Reversal drops the
 previous direction's backlog and retains the first new notch. Separators are noninteractive and
-consume layout rows, while the global footer counts actions only. Rows scroll within the menu, leaving the
-status line visible. The global menu's fixed footer shows the selected row and total (`current/total`) plus ordered,
+consume layout rows, while the global footer counts filtered actions only. Rows scroll within the menu, leaving the
+status line visible. The global menu's fixed footer shows the selected row and filtered total (`current/total`) plus ordered,
 atomic key hints styled as key and localized verb. Exit is first; Enter and navigation disappear as
 whole items when space runs out. Shared Back or Close actions are shown when they fit. The menu
 footer owns routine key discovery, so a normally presented global menu leaves the session status row
@@ -446,6 +455,9 @@ source and token refusal, viewport retention, pointer leave, and no implicit sub
 Global-menu witnesses assert the Tab, Panel, Workspace and Session section boundaries, directional
 split and move actions, both localized labels, current effective shortcuts, parity with keyboard
 `ClientAction` dispatch, and the localized focused-panel-required reason when no pane is focused.
+Search witnesses cover effective-shortcut and localized-alias matching, nested new-Tab child hits,
+filtered identity and availability, grapheme Backspace, Ctrl+U clearing, query bounds and localized
+no-results presentation.
 
 Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_session/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

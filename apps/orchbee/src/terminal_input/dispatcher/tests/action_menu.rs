@@ -566,15 +566,21 @@ impl Port {
         }
     }
     fn arm(&mut self) {
-        let (token, visible_rows, selected) = {
+        let (token, visible_rows, selected, result_actions) = {
             let view = self.menu.view().unwrap();
-            (view.token, view.actions.len(), view.selected)
+            (
+                view.token,
+                view.actions.len(),
+                view.selected,
+                view.result_actions.to_vec(),
+            )
         };
         assert!(self.menu.presented(MenuDraw {
             token,
             first: 0,
             visible_rows,
             selected,
+            result_actions,
         }));
     }
 }
@@ -762,11 +768,13 @@ fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
             },
         );
     }
+    let result_actions = port.menu.view().unwrap().result_actions.to_vec();
     assert!(port.menu.presented(MenuDraw {
         token,
         first: 0,
         visible_rows: rows,
         selected,
+        result_actions,
     }));
     dispatcher.publish_hit_map(hits.finish());
 }

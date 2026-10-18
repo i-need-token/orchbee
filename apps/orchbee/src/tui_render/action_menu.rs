@@ -1,7 +1,7 @@
 //! Retained action-menu projection; only a complete successful frame arms input.
 
 use crate::{
-    action_menu::{MenuAction, MenuControl, MenuDraw, MenuView, TabMenuScope},
+    action_menu::{MenuAction, MenuControl, MenuDraw, MenuSearchChild, MenuView, TabMenuScope},
     action_projection::menu_binding_action,
     client_view::{
         Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
@@ -23,6 +23,7 @@ use ratatui::{
     text::Line,
     widgets::{Clear, Padding, Paragraph},
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 use super::controls::{
     ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState, FocusState,
@@ -64,6 +65,22 @@ pub(super) fn render(
         .iter()
         .map(|action| effective_binding(bindings, &menu, action, key_glyphs))
         .collect::<Vec<_>>();
+    let result_actions =
+        search_result_actions(&menu, bindings, locale, key_glyphs, &binding_labels);
+    let selected = menu
+        .pending_selected_action
+        .and_then(|action| {
+            result_actions
+                .iter()
+                .position(|index| menu.actions.get(*index) == Some(action))
+        })
+        .unwrap_or_else(|| {
+            if result_actions.is_empty() {
+                0
+            } else {
+                menu.selected.min(result_actions.len() - 1)
+            }
+        });
     let marker_width = display_width(theme.glyphs.navigation_marker);
     if marker_width == 0 {
         return ModalPresentation::NotPresented;
@@ -106,15 +123,25 @@ pub(super) fn render(
         .unwrap_or(u16::MAX)
         .min(content.width);
     // Discovery may change availability, never the frame's edge-clamped position or row slots.
+    let selected_action = result_actions.get(selected).copied();
     let reason_rows = usize::from(
-        menu.unavailable.iter().any(Option::is_some)
-            || menu.actions.contains(&MenuAction::WorkspaceWorktrees),
+        result_actions
+            .iter()
+            .any(|index| menu.unavailable[*index].is_some())
+            || result_actions
+                .iter()
+                .any(|index| menu.actions[*index] == MenuAction::WorkspaceWorktrees),
     );
-    let height = u16::try_from(
-        menu.row_height(0, menu.actions.len()) + 2 + footer_rows + reason_rows + header_rows,
-    )
-    .unwrap_or(u16::MAX)
-    .min(content.height);
+    let search_rows = usize::from(menu.query.is_some());
+    let result_row_count = if result_actions.is_empty() {
+        1
+    } else {
+        menu.result_row_height(&result_actions, 0, result_actions.len())
+    };
+    let height =
+        u16::try_from(result_row_count + search_rows + 2 + footer_rows + reason_rows + header_rows)
+            .unwrap_or(u16::MAX)
+            .min(content.height);
     let (x, y) = menu.anchor.unwrap_or((
         content.x + (content.width - width) / 2,
         content.y + (content.height - height) / 2,
@@ -176,13 +203,14 @@ pub(super) fn render(
     {
         return ModalPresentation::NotPresented;
     }
-    let rows = usize::from(inner.height).saturating_sub(footer_rows + reason_rows + header_rows);
+    let rows = usize::from(inner.height)
+        .saturating_sub(footer_rows + reason_rows + header_rows + search_rows);
     if rows == 0 {
         return ModalPresentation::NotPresented;
     }
-    let first = menu.first_visible_row(rows);
-    let visible_rows = visible_action_rows(&menu, first, rows);
-    if visible_rows == 0 {
+    let first = menu.first_visible_result_row(rows, &result_actions);
+    let visible_rows = visible_action_rows(&menu, &result_actions, first, rows);
+    if visible_rows == 0 && !result_actions.is_empty() {
         return ModalPresentation::NotPresented;
     }
     let tab_header = if header_rows == 0 {
@@ -195,10 +223,14 @@ pub(super) fn render(
         };
         Some(header)
     };
-    let rows_y = inner.y + u16::try_from(header_rows).unwrap_or(0);
-    let selected_visible = (first..first.saturating_add(visible_rows)).contains(&menu.selected);
+    let rows_y = inner.y + u16::try_from(header_rows + search_rows).unwrap_or(0);
+    let selected_visible = (first..first.saturating_add(visible_rows)).contains(&selected);
 
-    let position = format!("{}/{}", menu.selected + 1, menu.actions.len());
+    let position = if result_actions.is_empty() {
+        "0/0".to_owned()
+    } else {
+        format!("{}/{}", selected + 1, result_actions.len())
+    };
     let position_width = u16::try_from(display_width(&position)).unwrap_or(u16::MAX);
     let Some(hints_width) = inner.width.checked_sub(position_width.saturating_add(1)) else {
         return ModalPresentation::NotPresented;
@@ -233,7 +265,10 @@ pub(super) fn render(
         "/",
     );
     let mut hints = vec![KeyHint::new(exit_key.as_str(), exit_label)];
-    if !menu.transferring && selected_visible && menu.unavailable[menu.selected].is_none() {
+    if !menu.transferring
+        && selected_visible
+        && selected_action.is_some_and(|index| menu.unavailable[index].is_none())
+    {
         hints.push(KeyHint::new(enter_key.as_str(), locale.menu_run_hint()));
     }
     if !menu.transferring {
@@ -313,10 +348,28 @@ pub(super) fn render(
         header.paint(frame, &menu, locale, &exit_key, theme, hits);
     }
 
+    if let Some(query) = menu.query {
+        render_search_row(
+            frame,
+            Rect::new(
+                inner.x,
+                inner.y + u16::try_from(header_rows).unwrap_or(0),
+                inner.width,
+                1,
+            ),
+            query,
+            result_actions.len(),
+            locale,
+            theme,
+        );
+    }
+
     let mut painted_rows = 0;
     let mut used_rows = 0;
-    for (offset, action) in menu.actions.iter().enumerate().skip(first) {
-        if offset > first && menu.separator_before(offset) {
+    for position in first..result_actions.len() {
+        let action_index = result_actions[position];
+        let action = &menu.actions[action_index];
+        if position > first && menu.result_separator_before(&result_actions, position) {
             if used_rows + 1 >= rows {
                 break;
             }
@@ -350,10 +403,12 @@ pub(super) fn render(
             frame,
             row_area,
             &menu,
-            offset,
+            position,
+            action_index,
+            selected,
             action,
-            binding_labels[offset].as_deref(),
-            &project_suffixes[offset],
+            binding_labels[action_index].as_deref(),
+            &project_suffixes[action_index],
             locale,
             theme,
             hits,
@@ -363,7 +418,14 @@ pub(super) fn render(
     }
     debug_assert_eq!(painted_rows, visible_rows);
 
-    let unavailable = menu.unavailable[menu.selected];
+    if result_actions.is_empty() {
+        frame.render_widget(
+            Paragraph::new(locale.menu_search_no_results()).style(theme.style(Role::TextSecondary)),
+            Rect::new(inner.x, rows_y, inner.width, 1),
+        );
+    }
+
+    let unavailable = selected_action.and_then(|index| menu.unavailable[index]);
     if let Some(reason) = unavailable {
         let full = locale.menu_unavailable(reason, false);
         let reason = if Line::raw(full).width() <= usize::from(inner.width) {
@@ -424,15 +486,16 @@ pub(super) fn render(
         token: menu.token,
         first,
         visible_rows: painted_rows,
-        selected: menu.selected,
+        selected,
+        result_actions,
     })
 }
 
-fn visible_action_rows(menu: &MenuView<'_>, first: usize, rows: usize) -> usize {
+fn visible_action_rows(menu: &MenuView<'_>, results: &[usize], first: usize, rows: usize) -> usize {
     let mut painted_rows = 0;
     let mut used_rows = 0;
-    for index in first..menu.actions.len() {
-        if index > first && menu.separator_before(index) {
+    for position in first..results.len() {
+        if position > first && menu.result_separator_before(results, position) {
             if used_rows + 1 >= rows {
                 break;
             }
@@ -447,13 +510,188 @@ fn visible_action_rows(menu: &MenuView<'_>, first: usize, rows: usize) -> usize 
     painted_rows
 }
 
+fn search_result_actions(
+    menu: &MenuView<'_>,
+    bindings: &Bindings,
+    locale: Locale,
+    glyphs: KeyLabelGlyphs,
+    binding_labels: &[Option<String>],
+) -> Vec<usize> {
+    let Some(query) = menu.query.filter(|query| !query.is_empty()) else {
+        return (0..menu.actions.len()).collect();
+    };
+    menu.actions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, action)| {
+            let label = action_label(
+                locale,
+                action,
+                menu.labels[index].as_deref(),
+                menu.tabs.map(|tabs| tabs.rows[index]),
+                "·",
+                "›",
+            );
+            let own_match = action_matches_query(
+                query,
+                locale,
+                action,
+                &label,
+                binding_labels[index].as_deref(),
+            );
+            let child_match = !own_match
+                && menu.search_children.iter().any(|child| {
+                    child.parent == *action
+                        && child
+                            .actions
+                            .iter()
+                            .enumerate()
+                            .any(|(child_index, action)| {
+                                let label = action_label(
+                                    locale,
+                                    action,
+                                    child.labels.get(child_index).and_then(Option::as_deref),
+                                    None,
+                                    "·",
+                                    "›",
+                                );
+                                let binding = effective_binding_for_source(
+                                    bindings,
+                                    &child.source,
+                                    action,
+                                    glyphs,
+                                );
+                                action_matches_query(
+                                    query,
+                                    locale,
+                                    action,
+                                    &label,
+                                    binding.as_deref(),
+                                )
+                            })
+                });
+            (own_match || child_match).then_some(index)
+        })
+        .collect()
+}
+
+fn action_matches_query(
+    query: &str,
+    locale: Locale,
+    action: &MenuAction,
+    label: &str,
+    binding: Option<&str>,
+) -> bool {
+    let aliases = crate::action_projection::menu_metadata(action.clone())
+        .action
+        .search_aliases
+        .iter()
+        .map(|alias| locale.menu_search_alias(*alias))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let candidate = format!("{label} {aliases} {}", binding.unwrap_or_default());
+    fuzzy_contains(query, &candidate)
+}
+
+fn fuzzy_contains(query: &str, candidate: &str) -> bool {
+    let query = query.to_lowercase();
+    let mut candidate = candidate.to_lowercase().chars();
+    query
+        .chars()
+        .all(|character| candidate.by_ref().any(|candidate| candidate == character))
+}
+
+fn render_search_row(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    query: &str,
+    count: usize,
+    locale: Locale,
+    theme: &Theme,
+) {
+    let count = truncate_display(
+        &locale.menu_search_count(count),
+        usize::from(area.width / 2),
+        theme.glyphs.ellipsis,
+    );
+    let count_width = u16::try_from(display_width(&count)).unwrap_or(u16::MAX);
+    let left_width = area.width.saturating_sub(count_width.saturating_add(1));
+    let left = Rect::new(area.x, area.y, left_width, area.height);
+    let right = Rect::new(
+        area.right().saturating_sub(count_width),
+        area.y,
+        count_width,
+        area.height,
+    );
+    let prefix = format!("{}: ", locale.menu_search_label());
+    let query = sanitize_terminal_text(query).into_owned();
+    let budget = usize::from(left.width).saturating_sub(display_width(&prefix));
+    let (visible, cursor_column) = visible_query_tail(&query, budget, theme.glyphs.ellipsis);
+    let displayed = if query.is_empty() {
+        format!("{}{}", prefix, locale.menu_search_idle())
+    } else if visible.is_empty() {
+        prefix.clone()
+    } else {
+        format!("{prefix}{visible}")
+    };
+    frame.render_widget(
+        Paragraph::new(truncate_display(
+            &displayed,
+            usize::from(left.width),
+            theme.glyphs.ellipsis,
+        ))
+        .style(theme.style(Role::AccentFocus)),
+        left,
+    );
+    if count_width > 0 {
+        frame.render_widget(
+            Paragraph::new(count).style(theme.style(Role::TextSecondary)),
+            right,
+        );
+    }
+    if let Ok(offset) = u16::try_from(display_width(&prefix).saturating_add(cursor_column))
+        && offset < left.width
+    {
+        frame.set_cursor_position((left.x + offset, left.y));
+    }
+}
+
+fn visible_query_tail(query: &str, budget: usize, ellipsis: &str) -> (String, usize) {
+    if display_width(query) <= budget {
+        return (query.to_owned(), display_width(query));
+    }
+    let ellipsis_width = display_width(ellipsis).min(budget);
+    let available = budget.saturating_sub(ellipsis_width);
+    let mut start = query.len();
+    let mut width = 0;
+    for (index, grapheme) in query.grapheme_indices(true).rev() {
+        let grapheme_width = display_width(grapheme);
+        if width + grapheme_width > available {
+            break;
+        }
+        width += grapheme_width;
+        start = index;
+    }
+    let visible = format!("{ellipsis}{}", &query[start..]);
+    (visible, display_width(&visible))
+}
+
 fn effective_binding(
     bindings: &Bindings,
     menu: &MenuView<'_>,
     action: &MenuAction,
     glyphs: KeyLabelGlyphs,
 ) -> Option<String> {
-    let action = menu_binding_action(menu.source, action.clone())?;
+    effective_binding_for_source(bindings, menu.source, action, glyphs)
+}
+
+fn effective_binding_for_source(
+    bindings: &Bindings,
+    source: &crate::action_menu::MenuTarget,
+    action: &MenuAction,
+    glyphs: KeyLabelGlyphs,
+) -> Option<String> {
+    let action = menu_binding_action(source, action.clone())?;
     bindings
         .action_labels_with_glyphs(action, glyphs)
         .into_iter()
@@ -520,7 +758,9 @@ fn render_row(
     frame: &mut Frame<'_>,
     row: Rect,
     menu: &MenuView<'_>,
-    index: usize,
+    result_position: usize,
+    action_index: usize,
+    selected: usize,
     action: &MenuAction,
     binding: Option<&str>,
     project_suffix: &str,
@@ -568,8 +808,8 @@ fn render_row(
         &action_label(
             locale,
             action,
-            menu.labels[index].as_deref(),
-            menu.tabs.map(|tabs| tabs.rows[index]),
+            menu.labels[action_index].as_deref(),
+            menu.tabs.map(|tabs| tabs.rows[action_index]),
             theme.glyphs.middle_dot,
             theme.glyphs.disclosure_closed,
         ),
@@ -592,12 +832,12 @@ fn render_row(
         bands.push(RowContentBand::semantic(rect, Role::HintKey));
     }
 
-    let enabled = menu.unavailable[index].is_none() && !menu.transferring;
-    let focused = index == menu.selected;
+    let enabled = menu.unavailable[action_index].is_none() && !menu.transferring;
+    let focused = result_position == selected;
     let target = InteractionTarget::ActionMenuRow {
         source: menu.source.clone(),
         token: menu.token,
-        row: index,
+        row: result_position,
     };
     let spec = interaction_spec(enabled);
     let pointer = if menu.transferring {

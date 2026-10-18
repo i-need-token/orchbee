@@ -29,16 +29,22 @@ fn grouped() -> Snapshot {
 }
 
 fn present_action_menu(ui: &mut NativeUi) -> MenuToken {
-    let (token, selected, visible_rows) = {
+    let (token, selected, visible_rows, result_actions) = {
         let view = ui.view();
         let menu = view.action_menu().unwrap();
-        (menu.token, menu.selected, menu.actions.len())
+        (
+            menu.token,
+            menu.selected,
+            menu.actions.len(),
+            menu.result_actions.to_vec(),
+        )
     };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected,
         token,
         first: 0,
         visible_rows,
+        result_actions,
     })));
     token
 }
@@ -303,6 +309,7 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
     let menu = view.action_menu().unwrap();
     let source = menu.source.clone();
     let token = menu.token;
+    let result_actions = menu.result_actions.to_vec();
     let row = menu
         .actions
         .iter()
@@ -313,6 +320,7 @@ fn tab_group_selected_range_all_clear_and_stale_menu_proof_stay_client_local() {
         token,
         first: 0,
         visible_rows: ui.view().action_menu().unwrap().actions.len(),
+        result_actions,
     })));
     ui.state
         .as_mut()

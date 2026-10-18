@@ -5,7 +5,7 @@ use super::{
 };
 use crate::action_menu::{
     ActionMenu, DrawnMenuSource, MenuAction, MenuControl, MenuDraw, MenuInputContext,
-    MenuInputReadiness, MenuTarget, MenuToken, MenuUnavailable, MenuView,
+    MenuInputReadiness, MenuSearchChild, MenuTarget, MenuToken, MenuUnavailable, MenuView,
 };
 use crate::action_projection::ActionAvailability;
 use crate::client_view::KeyEvent;
@@ -385,6 +385,7 @@ struct ParentMenu {
     target: MenuTarget,
     anchor: Option<(u16, u16)>,
     selected: MenuAction,
+    query: Option<String>,
     resume_permit: Option<TabCloseResumePermit>,
 }
 
@@ -877,6 +878,51 @@ impl NativeUi {
             )
             .is_hidden()
         });
+        let search_children = if matches!(&entry, MenuTarget::Global)
+            && let Some(drawn) = self.view().tab_create_target()
+        {
+            let child_actions = [
+                MenuAction::NewTab,
+                MenuAction::NewTabInRecentGroup,
+                MenuAction::NewGroupWithTab,
+            ]
+            .into_iter()
+            .chain(
+                self.preferences
+                    .launch_profiles
+                    .profiles
+                    .iter()
+                    .map(|profile| MenuAction::NewTabWithProfile(Box::new(profile.clone()))),
+            )
+            .filter(|action| {
+                !action_availability(
+                    state,
+                    &target,
+                    action.clone(),
+                    pointer_released,
+                    resume_permit.as_ref(),
+                )
+                .is_hidden()
+            })
+            .collect::<Vec<_>>();
+            let labels = child_actions
+                .iter()
+                .map(|action| match action {
+                    MenuAction::NewTabInRecentGroup => state
+                        .and_then(NativeSessionState::recent_tab_group)
+                        .map(|group| group.label.clone()),
+                    _ => None,
+                })
+                .collect();
+            vec![MenuSearchChild {
+                parent: MenuAction::TabCreation,
+                source: MenuTarget::TabCreate(drawn),
+                actions: child_actions,
+                labels,
+            }]
+        } else {
+            Vec::new()
+        };
         let intent = Intent {
             entry,
             target,
@@ -894,6 +940,7 @@ impl NativeUi {
         {
             return false;
         }
+        self.menus.menu.set_search_children(search_children);
         self.menus.menu.set_labels(|action| match action {
             MenuAction::JoinWorkspaceProject(id) => intent
                 .project_choices
@@ -979,6 +1026,7 @@ impl NativeUi {
                 target,
                 anchor,
                 selected,
+                query,
                 resume_permit,
             }) = self.menus.parents.pop()
         {
@@ -995,6 +1043,7 @@ impl NativeUi {
                 released,
                 ResumePermitSeed::Inherit(resume_permit),
             ) {
+                self.menus.menu.set_query(query.as_deref());
                 self.menus.menu.select_action(selected);
             } else {
                 self.menus.parents.clear();
@@ -1503,11 +1552,13 @@ impl NativeUi {
                 target: intent.entry.clone(),
                 anchor: self.menus.menu.view()?.anchor,
                 selected: action,
+                query: self.menus.menu.query().map(str::to_owned),
                 resume_permit: intent.resume_permit.clone(),
             };
             self.menus.menu.take()?;
             self.menus.intent = None;
             if self.open_action_menu(child, parent.anchor, pointer_released) {
+                self.menus.menu.set_query(parent.query.as_deref());
                 self.menus.parents.push(parent);
             } else {
                 self.menus.parents.clear();
@@ -1523,6 +1574,7 @@ impl NativeUi {
                 target: intent.entry.clone(),
                 anchor: self.menus.menu.view()?.anchor,
                 selected: action,
+                query: self.menus.menu.query().map(str::to_owned),
                 resume_permit: intent.resume_permit.clone(),
             };
             self.menus.menu.take()?;
@@ -1544,6 +1596,7 @@ impl NativeUi {
                 target: intent.entry.clone(),
                 anchor: self.menus.menu.view()?.anchor,
                 selected: action,
+                query: self.menus.menu.query().map(str::to_owned),
                 resume_permit: intent.resume_permit.clone(),
             };
             self.menus.menu.take()?;
@@ -1595,6 +1648,7 @@ impl NativeUi {
                     target: intent.entry.clone(),
                     anchor: self.menus.menu.view()?.anchor,
                     selected: action,
+                    query: self.menus.menu.query().map(str::to_owned),
                     resume_permit: intent.resume_permit.clone(),
                 };
                 self.menus.menu.take()?;

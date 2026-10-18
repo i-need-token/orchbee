@@ -11,6 +11,143 @@ mod sidebar;
 mod tab_scope;
 
 #[test]
+fn global_search_uses_localized_aliases_effective_chords_and_nested_labels() {
+    use crate::action_menu::{MenuSearchChild, MenuTarget};
+    use orchbee_workbench_protocol::{UserLaunchCommand, UserLaunchProfile};
+
+    let profile = MenuAction::NewTabWithProfile(Box::new(UserLaunchProfile {
+        id: "search-profile".into(),
+        name: Some("PowerShell preview".into()),
+        command: UserLaunchCommand::CustomExecutable {
+            executable: r"C:\test\pwsh.exe".into(),
+            arguments: Vec::new(),
+        },
+    }));
+    let mut menu = ActionMenu::default();
+    assert!(menu.open_for(
+        MenuTarget::Global,
+        String::new(),
+        vec![
+            MenuAction::SplitPanel(crate::client_view::PanelDirection::Up),
+            MenuAction::Help,
+            MenuAction::TabCreation,
+        ],
+        None,
+    ));
+    menu.set_search_children(vec![MenuSearchChild {
+        parent: MenuAction::TabCreation,
+        source: MenuTarget::Global,
+        actions: vec![profile],
+        labels: vec![None],
+    }]);
+    let client = ClientView::new(80);
+    let theme = Theme::terminal_native();
+    let glyphs = key_label_glyphs(&theme);
+
+    for (locale, query) in [(Locale::EnUs, "spl"), (Locale::ZhCn, "分屏")] {
+        menu.set_query(Some(query));
+        let view = menu.view().unwrap();
+        let bindings = client.bindings();
+        let binding_labels = view
+            .actions
+            .iter()
+            .map(|action| effective_binding(bindings, &view, action, glyphs))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            search_result_actions(&view, bindings, locale, glyphs, &binding_labels),
+            [0],
+            "{locale:?} semantic alias"
+        );
+    }
+
+    menu.set_query(Some("powershell"));
+    let view = menu.view().unwrap();
+    let bindings = client.bindings();
+    let binding_labels = view
+        .actions
+        .iter()
+        .map(|action| effective_binding(bindings, &view, action, glyphs))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        search_result_actions(&view, bindings, Locale::EnUs, glyphs, &binding_labels),
+        [2],
+        "a matching nested action keeps its owning TabCreation row"
+    );
+
+    let chord = effective_binding(bindings, &view, &MenuAction::Help, glyphs)
+        .expect("Help has its existing effective shortcut");
+    menu.set_query(Some(&chord));
+    let view = menu.view().unwrap();
+    let binding_labels = view
+        .actions
+        .iter()
+        .map(|action| effective_binding(bindings, &view, action, glyphs))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        search_result_actions(&view, bindings, Locale::EnUs, glyphs, &binding_labels),
+        [1],
+        "the same displayed effective chord is searchable"
+    );
+}
+
+#[test]
+fn no_results_keeps_a_drawn_query_surface_without_an_activatable_row() {
+    use crate::action_menu::MenuTarget;
+
+    let mut menu = ActionMenu::default();
+    assert!(menu.open_for(
+        MenuTarget::Global,
+        String::new(),
+        vec![MenuAction::Help],
+        None
+    ));
+    menu.set_query(Some("no-such-action"));
+    let client = ClientView::new(80);
+    let theme = Theme::terminal_native();
+    let width = 80;
+    let height = 24;
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    let mut presentation = ModalPresentation::NotPresented;
+    terminal
+        .draw(|frame| {
+            presentation = render(
+                frame,
+                frame.area(),
+                menu.view().unwrap(),
+                client.bindings(),
+                Locale::EnUs,
+                &theme,
+                &mut hits,
+            );
+        })
+        .unwrap();
+    let ModalPresentation::Presented(draw) = presentation else {
+        panic!("the empty result still paints its query and explanation");
+    };
+    let token = draw.token;
+    assert!(draw.result_actions.is_empty());
+    assert!(menu.presented(draw.clone()));
+    assert!(!menu.confirm());
+    assert_eq!(
+        menu.input_context().unwrap().readiness(),
+        crate::action_menu::MenuInputReadiness::Continuation
+    );
+    let text = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(|cell| cell.symbol())
+        .collect::<String>();
+    assert!(text.contains(Locale::EnUs.menu_search_no_results()));
+    let count = Locale::EnUs.menu_search_count(0);
+    assert!(text.contains(count.as_str()));
+    let _hits = hits.finish();
+    assert!(menu.view().is_some_and(|view| view.token == token));
+}
+
+#[test]
 fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
     use crate::{action_menu::MenuTarget, terminal_session::NativeContextLocation};
     use orchbee_workbench_protocol::{
@@ -79,7 +216,7 @@ fn object_rename_rows_use_short_localized_copy_for_their_exact_actions() {
                     let ModalPresentation::Presented(draw) = presentation else {
                         panic!("one rename row fits the context menu");
                     };
-                    assert!(menu.presented(draw));
+                    assert!(menu.presented(draw.clone()));
                     let buffer = terminal.backend().buffer();
                     let row = action_row_rect(&map, buffer.area, draw.token);
                     let text: String = (row.x..row.right())
@@ -170,7 +307,7 @@ fn saved_launch_rows_localize_names_and_keep_existing_menu_geometry_and_cancel()
                 );
                 if let ModalPresentation::Presented(draw) = presentation {
                     assert_eq!(draw.visible_rows, 2);
-                    assert!(menu.presented(draw));
+                    assert!(menu.presented(draw.clone()));
                     if width >= 80 {
                         let text = terminal
                             .backend()
@@ -243,7 +380,7 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                         panic!("both menu kinds fit the declared geometry")
                     };
                     assert_eq!(draw.visible_rows, 2);
-                    assert!(menu.presented(draw));
+                    assert!(menu.presented(draw.clone()));
                     let text = terminal
                         .backend()
                         .buffer()
@@ -374,7 +511,7 @@ fn hovered_candidate_uses_the_full_row_selection_and_marker_in_every_usable_tier
                     let ModalPresentation::Presented(draw) = draw else {
                         panic!("menu fits the tier")
                     };
-                    assert!(menu.presented(draw));
+                    assert!(menu.presented(draw.clone()));
                     (buffer, hits.finish(), draw.token)
                 };
                 let (before, map, token) = paint(&mut menu);
@@ -430,6 +567,7 @@ fn render_machines_row(
             first: 0,
             visible_rows: 1,
             selected: 0,
+            ..
         })) if drawn == token
     ));
     (terminal.backend().buffer().clone(), hits.finish(), token)
@@ -607,7 +745,7 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
             panic!("the global menu fits at 140x60");
         };
         assert_eq!(draw.visible_rows, GLOBAL_ACTIONS.len());
-        assert!(menu.presented(draw));
+        assert!(menu.presented(draw.clone()));
         let map = hits.finish();
         let buffer = terminal.backend().buffer();
 

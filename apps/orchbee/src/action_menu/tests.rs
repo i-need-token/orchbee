@@ -12,6 +12,102 @@ fn menu() -> ActionMenu {
     menu
 }
 
+#[test]
+fn searchable_menu_edits_are_bounded_and_clear_the_query_without_navigation_leaks() {
+    let mut menu = menu();
+    present(&mut menu, 0, 2);
+    menu.key(KeyEvent::press(KeyCode::Char('j'), Modifiers::NONE));
+    assert_eq!(menu.query(), Some("j"));
+    assert_eq!(menu.view().unwrap().selected, 0);
+
+    menu.key(KeyEvent::press(KeyCode::Char('a'), Modifiers::NONE));
+    menu.key(KeyEvent::press(KeyCode::Backspace, Modifiers::NONE));
+    assert_eq!(menu.query(), Some("j"));
+    menu.key(KeyEvent::press(KeyCode::Char('e'), Modifiers::NONE));
+    menu.key(KeyEvent::press(KeyCode::Char('\u{301}'), Modifiers::NONE));
+    assert_eq!(menu.query(), Some("je\u{301}"));
+    menu.key(KeyEvent::press(KeyCode::Backspace, Modifiers::NONE));
+    assert_eq!(menu.query(), Some("j"), "Backspace removes one grapheme");
+    menu.key(KeyEvent::press(KeyCode::Char('u'), Modifiers::CTRL));
+    assert_eq!(menu.query(), Some(""));
+    assert_eq!(menu.view().unwrap().result_actions, [0, 1]);
+
+    for _ in 0..MAXIMUM_ACTION_MENU_QUERY_BYTES + 1 {
+        menu.key(KeyEvent::press(KeyCode::Char('x'), Modifiers::NONE));
+    }
+    assert_eq!(menu.query().unwrap().len(), MAXIMUM_ACTION_MENU_QUERY_BYTES);
+    let token = menu.view().unwrap().token;
+    menu.key(KeyEvent::press(KeyCode::Char('y'), Modifiers::NONE));
+    assert_eq!(menu.view().unwrap().token, token, "overflow stays bounded");
+}
+
+#[test]
+fn filtered_draw_rows_keep_their_original_action_identity_and_availability() {
+    let mut menu = ActionMenu::default();
+    assert!(menu.open(
+        "Actions".into(),
+        vec![MenuAction::Help, MenuAction::Detach],
+        None,
+    ));
+    present(&mut menu, 0, 2);
+    menu.key(KeyEvent::press(KeyCode::Char('d'), Modifiers::NONE));
+    let view = menu.view().unwrap();
+    let token = view.token;
+    assert!(menu.presented(MenuDraw {
+        token,
+        first: 0,
+        visible_rows: 1,
+        selected: 0,
+        result_actions: vec![1],
+    }));
+    assert!(menu.refresh_availability(|action| {
+        (action == MenuAction::Detach).then_some(MenuUnavailable::OperationBusy)
+    }));
+    let view = menu.view().unwrap();
+    let token = view.token;
+    assert!(menu.presented(MenuDraw {
+        token,
+        first: 0,
+        visible_rows: 1,
+        selected: 0,
+        result_actions: vec![1],
+    }));
+    assert!(
+        !menu.confirm(),
+        "filtered action stays disabled by its owner reason"
+    );
+    assert!(!menu.click(token, 0));
+}
+
+#[test]
+fn restored_action_selection_uses_its_filtered_result_position() {
+    let mut menu = ActionMenu::default();
+    let actions = vec![
+        MenuAction::Help,
+        MenuAction::RenameTab,
+        MenuAction::ClosePane,
+        MenuAction::Detach,
+        MenuAction::Zoom,
+    ];
+    assert!(menu.open("Actions".into(), actions, None));
+    menu.set_query(Some("e"));
+    menu.select_action(MenuAction::Zoom);
+    let token = {
+        let view = menu.view().unwrap();
+        assert_eq!(view.pending_selected_action, Some(&MenuAction::Zoom));
+        view.token
+    };
+    assert!(menu.presented(MenuDraw {
+        token,
+        first: 0,
+        visible_rows: 3,
+        selected: 2,
+        result_actions: vec![0, 2, 4],
+    }));
+    assert!(menu.confirm());
+    assert_eq!(menu.confirmed(), Some(MenuAction::Zoom));
+}
+
 fn present(menu: &mut ActionMenu, first: usize, visible_rows: usize) -> MenuDraw {
     let view = menu.view().unwrap();
     let draw = MenuDraw {
@@ -19,8 +115,9 @@ fn present(menu: &mut ActionMenu, first: usize, visible_rows: usize) -> MenuDraw
         first,
         visible_rows,
         selected: view.selected,
+        result_actions: view.result_actions.to_vec(),
     };
-    assert!(menu.presented(draw));
+    assert!(menu.presented(draw.clone()));
     draw
 }
 
@@ -54,7 +151,10 @@ fn presentation_lifecycle_refuses_a_first_block_and_suspends_an_admitted_menu() 
     assert_ne!(covered.token(), draw.token);
     assert_eq!(covered.phase(), PresentationPhase::Admitted);
     assert_eq!(covered.readiness(), MenuInputReadiness::Recovery);
-    assert!(!retained.presented(draw), "a pre-cover receipt stays stale");
+    assert!(
+        !retained.presented(draw.clone()),
+        "a pre-cover receipt stays stale"
+    );
     assert_eq!(
         retained.input_context().unwrap().readiness(),
         MenuInputReadiness::Recovery
@@ -248,12 +348,15 @@ fn disabled_pointer_rows_neither_select_nor_confirm() {
 #[test]
 fn activation_requires_the_exact_selected_row_and_painted_window() {
     let mut menu = menu();
-    let token = menu.view().unwrap().token;
+    let view = menu.view().unwrap();
+    let token = view.token;
+    let results = view.result_actions.to_vec();
     assert!(!menu.presented(MenuDraw {
         token,
         first: 0,
         visible_rows: 2,
         selected: 1,
+        result_actions: results,
     }));
     assert!(!menu.confirm(), "a draw for another selection is rejected");
     assert!(!menu.click(token, 2), "an unpainted row cannot activate");
@@ -292,11 +395,13 @@ fn selection_and_availability_revisions_retire_old_draw_receipts() {
 #[test]
 fn an_old_episode_receipt_cannot_arm_a_reopened_menu() {
     let mut menu = menu();
+    let view = menu.view().unwrap();
     let old = MenuDraw {
-        token: menu.view().unwrap().token,
+        token: view.token,
         first: 0,
         visible_rows: 1,
         selected: 0,
+        result_actions: view.result_actions.to_vec(),
     };
     menu.cancel();
     assert!(menu.open("Reopened".into(), vec![MenuAction::Help], None));
@@ -353,8 +458,9 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                         token: view.token,
                         first: view.selected,
                         visible_rows: 1,
+                        result_actions: view.result_actions.to_vec(),
                     };
-                    old = Some(draw);
+                    old = Some(draw.clone());
                     let _ = menu.presented(draw);
                 }
             }
@@ -366,7 +472,11 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                         return Err("disabled confirmation");
                     }
                     let view = menu.view().unwrap();
-                    expected = Some(view.actions[view.selected].clone());
+                    expected = view
+                        .result_actions
+                        .get(view.selected)
+                        .and_then(|index| view.actions.get(*index))
+                        .cloned();
                 }
             }
             4 => {
