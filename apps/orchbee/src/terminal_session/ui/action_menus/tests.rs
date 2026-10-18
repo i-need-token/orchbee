@@ -171,6 +171,41 @@ fn action_row(ui: &NativeUi, action: MenuAction) -> usize {
         .unwrap()
 }
 
+fn empty_ui_without_focused_panel() -> NativeUi {
+    let elapsed = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let clock = crate::local_client::tests::server::adjustable_operation_clock(elapsed);
+    let mailbox = std::sync::Arc::new(crate::terminal_session::mailbox::CommandMailbox::new(
+        10,
+        Geometry::new(120, 40, 8, 16).unwrap(),
+    ));
+    let mut ui = NativeUi::new(std::sync::Arc::clone(&mailbox), clock.clone());
+    let cache = crate::terminal_session::workbench_projection::project_native_standalone_tabs(
+        &tests::membership::snapshot(0, 1),
+    )
+    .unwrap();
+    let wait = mailbox
+        .publish_event_before(
+            WorkerEvent::Bootstrap {
+                selection: None,
+                cache,
+            },
+            crate::terminal_session::mailbox::EventDeadline::Startup(
+                clock.now() + crate::terminal_session::state::OPERATION_TOTAL,
+            ),
+            &clock,
+        )
+        .unwrap();
+    ui.tick();
+    assert!(mailbox.take_deposited_reply(&wait).unwrap().is_some());
+    assert!(
+        ui.state
+            .as_ref()
+            .is_some_and(|state| state.focus_pane_ref().is_none()),
+        "the empty standalone context keeps its live carrier without a focused panel"
+    );
+    ui
+}
+
 fn activate_row(ui: &mut NativeUi, token: MenuToken, row: usize) {
     ui.drive_action_menu();
     let Some(source) = ui.view().action_menu().map(|menu| menu.source.clone()) else {
@@ -253,9 +288,7 @@ fn global_menu_groups_existing_tab_panel_workspace_and_session_actions_and_dispa
 fn global_tab_and_panel_actions_report_when_no_panel_is_focused() {
     use crate::client_view::PanelDirection as Direction;
 
-    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
-    ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
-    ui.state = None;
+    let mut ui = empty_ui_without_focused_panel();
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     for action in [
         MenuAction::RenameTab,
@@ -1335,7 +1368,7 @@ fn ux_status_short_menu_exposes_its_selection_position() {
 }
 
 #[test]
-fn ux_status_menu_hides_the_pane_cursor_and_cancel_restores_it() {
+fn ux_status_menu_uses_a_search_cursor_and_cancel_restores_the_pane_cursor() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (mut ui, _, _, _) = tests::move_membership::ready_ui();
         super::super::tests::viewport::install_projection(&mut ui, Some((9, false, 24)), 0);
@@ -1362,7 +1395,10 @@ fn ux_status_menu_hides_the_pane_cursor_and_cancel_restores_it() {
                     );
                 })
                 .unwrap();
-            assert_eq!(terminal.backend().cursor_visible(), capturing);
+            assert!(
+                terminal.backend().cursor_visible(),
+                "the search field or restored pane owns a visible cursor"
+            );
             let cursor = terminal.get_cursor_position().unwrap();
             let hits = hits.finish();
             let target = hits.hit_target_at(cursor.x, cursor.y);

@@ -151,8 +151,19 @@ fn sidebar_menu_overlap_frame_and_backdrop_keep_distinct_capture_semantics() {
         paint_menu_over_sidebar(&view, &mut port, &mut dispatcher, locale);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;24;11Mtail");
         assert!(port.menu.active(), "frame press must not dismiss");
+        assert_eq!(
+            port.menu.query(),
+            Some("tail"),
+            "printable input after a frame press belongs to the searchable menu"
+        );
         assert!(port.calls.borrow().is_empty());
         assert!(view.machines.sidebar_navigation_active());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x7f\x7f\x7f\x7f");
+        assert_eq!(
+            port.menu.query(),
+            Some(""),
+            "Backspace clears the frame-test query"
+        );
         paint_menu_over_sidebar(&view, &mut port, &mut dispatcher, locale);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;24;11m");
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;81;12Mtail");
