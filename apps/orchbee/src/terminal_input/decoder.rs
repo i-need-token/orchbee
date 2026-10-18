@@ -558,7 +558,7 @@ impl LegacyDecoder {
                         replay_osc_candidate(
                             self,
                             &introducer,
-                            &frame.selector_bytes().to_vec(),
+                            frame.selector_bytes(),
                             now,
                             owned,
                             items,

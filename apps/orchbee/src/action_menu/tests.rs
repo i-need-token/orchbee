@@ -188,7 +188,7 @@ fn action_rows_in_terminal_rows(view: &MenuView<'_>, first: usize, terminal_rows
     let mut visible_rows = 0;
     while first + visible_rows < view.result_actions.len()
         && view.result_row_height(
-            &view.result_actions,
+            view.result_actions,
             first,
             first.saturating_add(visible_rows).saturating_add(1),
         ) <= terminal_rows
@@ -280,7 +280,7 @@ fn wheel_moves_only_the_viewport_and_keyboard_navigation_reveals_selection() {
     assert_eq!(view.selected, 0, "wheel movement never steals selection");
     assert_eq!(view.first, 3);
     assert!(!view.follow_selection);
-    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
+    let first = view.first_visible_result_row(3, view.result_actions, view.selected);
     assert_eq!(
         first, view.first,
         "the rendered window uses result-row indices"
@@ -301,21 +301,21 @@ fn wheel_moves_only_the_viewport_and_keyboard_navigation_reveals_selection() {
     assert_ne!(view.token, offscreen);
     assert!(view.follow_selection);
     assert_eq!(
-        view.first_visible_result_row(3, &view.result_actions, view.selected),
+        view.first_visible_result_row(3, view.result_actions, view.selected),
         0,
         "a boundary key still reveals"
     );
     let draw = present_in_terminal_rows(&mut menu, 0, 3);
     assert!(menu.scroll(draw.token, false, 3).is_some());
     let view = menu.view().unwrap();
-    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
+    let first = view.first_visible_result_row(3, view.result_actions, view.selected);
     present_in_terminal_rows(&mut menu, first, 3);
 
     menu.select(MenuSelection::Next);
     let view = menu.view().unwrap();
     assert_eq!(view.selected, 1);
     assert!(view.follow_selection);
-    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
+    let first = view.first_visible_result_row(3, view.result_actions, view.selected);
     assert!(first <= view.selected && view.selected < first + 3);
     present_in_terminal_rows(&mut menu, first, 3);
     assert!(menu.input_context().unwrap().activation_ready());
@@ -341,13 +341,13 @@ fn wheel_reaches_a_tail_window_using_terminal_rows_and_result_indices() {
     let view = menu.view().unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.selected, 0);
-    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
+    let first = view.first_visible_result_row(3, view.result_actions, view.selected);
     assert_eq!(first, view.first, "the tail view uses result-row indices");
     assert!(first > 0, "wheel navigation reaches the tail window");
     let visible = action_rows_in_terminal_rows(&view, first, 3);
     assert!(visible > 0);
     assert!(
-        view.result_row_height(&view.result_actions, first, first + visible) <= 3,
+        view.result_row_height(view.result_actions, first, first + visible) <= 3,
         "the displayed actions and separators fit the terminal-row budget"
     );
     assert_eq!(
@@ -357,7 +357,7 @@ fn wheel_reaches_a_tail_window_using_terminal_rows_and_result_indices() {
     );
     if first > 0 {
         assert!(
-            view.result_row_height(&view.result_actions, first - 1, view.result_actions.len()) > 3,
+            view.result_row_height(view.result_actions, first - 1, view.result_actions.len()) > 3,
             "the tail cannot reveal one more result within the same terminal-row budget"
         );
     }

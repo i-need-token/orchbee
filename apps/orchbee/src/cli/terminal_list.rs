@@ -165,10 +165,10 @@ fn terminal_list_state(
     agent_identified: bool,
     observed_frame: bool,
 ) -> Option<TerminalListState> {
-    if let Some(report) = report {
-        if report.state != PanelAgentState::Unknown {
-            return Some(TerminalListState::Agent(report.state));
-        }
+    if let Some(report) = report
+        && report.state != PanelAgentState::Unknown
+    {
+        return Some(TerminalListState::Agent(report.state));
     }
     if agent_identified {
         return Some(TerminalListState::Agent(PanelAgentState::Unknown));

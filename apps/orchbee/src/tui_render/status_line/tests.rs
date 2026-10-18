@@ -12,6 +12,12 @@ use crate::{
 
 use super::render;
 
+struct StatusContent<'a> {
+    primary: &'a str,
+    secondary_notice: Option<&'a str>,
+    recovery: bool,
+}
+
 #[cfg(windows)]
 #[test]
 fn workspace_and_tab_creation_hints_retain_the_same_effective_action_binding_and_localized_scope() {
@@ -71,9 +77,11 @@ fn paint_at_tier(
     paint_at_tier_with_locale(
         view,
         width,
-        status,
-        secondary_notice,
-        recovery_status,
+        StatusContent {
+            primary: status,
+            secondary_notice,
+            recovery: recovery_status,
+        },
         tier,
         Locale::EnUs,
         theme,
@@ -83,9 +91,7 @@ fn paint_at_tier(
 fn paint_at_tier_with_locale(
     view: &ClientView,
     width: u16,
-    status: &str,
-    secondary_notice: Option<&str>,
-    recovery_status: bool,
+    content: StatusContent<'_>,
     tier: ViewportTier,
     locale: Locale,
     theme: &Theme,
@@ -104,11 +110,11 @@ fn paint_at_tier_with_locale(
                 view,
                 None,
                 locale,
-                status,
-                secondary_notice,
+                content.primary,
+                content.secondary_notice,
                 false,
                 false,
-                recovery_status,
+                content.recovery,
                 tier,
                 theme,
                 None,
@@ -186,9 +192,11 @@ fn prefix_mode_hint_labels_are_localized_in_both_supported_locales() {
         let (terminal, _) = paint_at_tier_with_locale(
             &view,
             160,
-            "Ready",
-            None,
-            false,
+            StatusContent {
+                primary: "Ready",
+                secondary_notice: None,
+                recovery: false,
+            },
             ViewportTier::Full,
             locale,
             &theme,

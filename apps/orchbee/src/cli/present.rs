@@ -256,10 +256,10 @@ fn terminal_table_rows(
         .map(|(header, limit)| display_width(header).min(limit))
         .collect();
     let handles = terminal_handles(rows);
-    for index in 0..rows.len() {
+    for (index, handle) in handles.iter().enumerate() {
         for (column, cell) in terminal_list_cells(
             index + 1,
-            &handles[index],
+            handle,
             details.and_then(|details| details.get(index)),
             locale,
         )
@@ -308,11 +308,11 @@ fn terminal_table_rows(
             .collect::<Vec<_>>(),
         out,
     )?;
-    for index in 0..rows.len() {
+    for (index, handle) in handles.iter().enumerate() {
         render_row(
             &terminal_list_cells(
                 index + 1,
-                &handles[index],
+                handle,
                 details.and_then(|details| details.get(index)),
                 locale,
             ),
@@ -424,20 +424,6 @@ fn terminal_cell_width(value: &str) -> usize {
         .graphemes(true)
         .map(|grapheme| display_width(&unquoted(grapheme)))
         .sum()
-}
-
-#[cfg(test)]
-mod terminal_list_tests {
-    use super::truncate_terminal_cell;
-
-    #[test]
-    fn truncation_never_splits_a_visible_control_escape() {
-        assert_eq!(truncate_terminal_cell("1234567\u{001b}x", 15), "1234567…");
-        assert_eq!(
-            truncate_terminal_cell("1234567\u{001b}x", 16),
-            "1234567\\u{001b}x"
-        );
-    }
 }
 
 /// Non-UTF-8 values render as `hex:`-prefixed lowercase hex; UTF-8 paths and
@@ -1730,4 +1716,18 @@ fn panel_process(
             row.provider.unwrap_or("null").to_owned(),
         ]
     })
+}
+
+#[cfg(test)]
+mod terminal_list_tests {
+    use super::truncate_terminal_cell;
+
+    #[test]
+    fn truncation_never_splits_a_visible_control_escape() {
+        assert_eq!(truncate_terminal_cell("1234567\u{001b}x", 15), "1234567…");
+        assert_eq!(
+            truncate_terminal_cell("1234567\u{001b}x", 16),
+            "1234567\\u{001b}x"
+        );
+    }
 }

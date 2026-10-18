@@ -88,11 +88,13 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         ApplicationAppearance as Application, TerminalDisplayAppearance as Terminal,
     };
 
-    let mut values = orchbee_workbench_protocol::UserPreferencesValues::default();
-    values.application_theme = Application::System;
-    values.terminal_display_theme = Terminal::Custom;
-    values.custom_foreground = "#123456".into();
-    values.custom_background = "#654321".into();
+    let values = orchbee_workbench_protocol::UserPreferencesValues {
+        application_theme: Application::System,
+        terminal_display_theme: Terminal::Custom,
+        custom_foreground: "#123456".into(),
+        custom_background: "#654321".into(),
+        ..Default::default()
+    };
     let mut system = ClientView::new(120);
     system.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
     system.apply_user_preferences(values);
@@ -109,9 +111,11 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     assert!(system.configure_host_appearance(HostAppearance::Light));
     assert_eq!(system.configured_theme().unwrap().name, "one-light");
 
-    let mut host_values = orchbee_workbench_protocol::UserPreferencesValues::default();
-    host_values.application_theme = Application::System;
-    host_values.terminal_display_theme = Terminal::Host;
+    let host_values = orchbee_workbench_protocol::UserPreferencesValues {
+        application_theme: Application::System,
+        terminal_display_theme: Terminal::Host,
+        ..Default::default()
+    };
     let mut host = ClientView::new(120);
     host.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
     host.apply_user_preferences(host_values);
@@ -133,8 +137,10 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         (Application::Light, "one-light"),
         (Application::Dark, "one-dark"),
     ] {
-        let mut values = orchbee_workbench_protocol::UserPreferencesValues::default();
-        values.application_theme = application;
+        let values = orchbee_workbench_protocol::UserPreferencesValues {
+            application_theme: application,
+            ..Default::default()
+        };
         let mut explicit = ClientView::new(120);
         explicit.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
         explicit.apply_user_preferences(values);
