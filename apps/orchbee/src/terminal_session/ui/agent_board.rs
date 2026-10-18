@@ -175,7 +175,7 @@ impl NativeUi {
                     self.board.move_start_provider(1);
                 }
                 Some(AgentStartKeyAction::Cancel) => {
-                    self.board.cancel_start();
+                    self.board.cancel_start_drawn();
                 }
                 None => {
                     self.board.edit_start_draft(*event);

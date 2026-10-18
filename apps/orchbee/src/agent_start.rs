@@ -46,6 +46,27 @@ pub(crate) enum ReservationState {
     Completed,
 }
 
+/// What the startup workflow can prove about the one terminal input
+/// submission. This remains separate from the workflow verdict: a later
+/// readiness failure cannot erase input that was already accepted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DeliveryDisposition {
+    /// No record reached the Host queue, or submission never began.
+    NotApplied,
+    /// Every record reached the Host queue.
+    Applied,
+    /// A non-empty prefix reached the Host queue.
+    PartiallyApplied,
+    /// Transport loss left the delivery frontier unknown.
+    Unknown,
+}
+
+impl DeliveryDisposition {
+    pub(crate) const fn possibly_applied(self) -> bool {
+        !matches!(self, Self::NotApplied)
+    }
+}
+
 impl ReservationState {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
@@ -81,6 +102,7 @@ pub(crate) struct Report {
     pub(crate) reservation_state: ReservationState,
     pub(crate) submission: Option<Value>,
     pub(crate) submission_status: Option<u8>,
+    pub(crate) delivery: DeliveryDisposition,
     pub(crate) elapsed_ms: u64,
     pub(crate) verdict: Verdict,
 }
@@ -110,6 +132,7 @@ impl Report {
             reservation_state: ReservationState::None,
             submission: None,
             submission_status: None,
+            delivery: DeliveryDisposition::NotApplied,
             elapsed_ms: elapsed_ms(started),
             verdict: Verdict::Failed {
                 failure,

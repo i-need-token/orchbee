@@ -24,8 +24,15 @@ then returns the retained result without consuming another notification.
 
 The upstream `src/windows.rs` SHA-256 before correction is
 `76214e10c89af6589af8fc9c2ae1d4c319596a07b2a2945afbc4a23b1d52a2b9`.
-Only that file and `src/std/job_object.rs` carry runtime changes. Other source files
-are retained unmodified; they are not newly admitted runtime features.
+Only that file, `src/std.rs` and `src/std/job_object.rs` carry runtime changes. Other
+source files are retained unmodified; they are not newly admitted runtime features.
+
+The standard wrapper keeps upstream-compatible default behavior: `JobObject` alone
+does not enable `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. The explicit
+`KillOnJobClose` marker opts one command into that policy, in either registration
+order with `JobObject`. Orchbee's owned Client-PATH helper uses this opt-in so
+dropping its final owned wrapper is a process-tree termination guard after normal
+termination cannot be confirmed.
 
 ## Maintenance and evidence
 
@@ -33,10 +40,13 @@ The shared runtime owns native completion evidence in
 [`windows_command_child/tests.rs`](../../crates/local-site-runtime/src/windows_command_child/tests.rs):
 retain a live descendant's handle, release the root or cancel the Job, and require
 the descendant handle already signaled at return. Its failure fixture also proves that
-a failed Job wait cannot become cached root-exit success on retry. Worker discovery tests cover
-output bounds, cancellation and failure cleanup. Native Client integration tests
-cover its existing provider process adapter. Run affected tests and the applicable root
-host gate in [Verification](../../docs/VERIFICATION.md) before changing this patch.
+a failed Job wait cannot become cached root-exit success on retry. A separate native
+oracle retains root and descendant process handles, verifies both are alive, drops a
+`KillOnJobClose` wrapper without calling `start_kill`, and requires both handles to
+signal within its bounded wait. Worker discovery tests cover output bounds,
+cancellation and failure cleanup. Native Client integration tests cover its existing
+provider process adapter. Run affected tests and the applicable root host gate in
+[Verification](../../docs/VERIFICATION.md) before changing this patch.
 
 Rebase against an explicitly reviewed upstream release; compare the complete source
 diff, keep licenses, and rerun the native handle oracle. Remove this directory and

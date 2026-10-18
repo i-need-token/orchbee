@@ -100,6 +100,28 @@ fn explicit_wake_reports_cancelled_without_overwriting_mutation_uncertainty() {
     assert_eq!(unknown.kind, FailureKind::OutcomeUnknown);
 }
 
+#[test]
+fn typed_send_verdict_not_process_status_decides_delivery() {
+    use crate::cli::agent_start_runtime::SendVerdict;
+
+    for (verdict, expected) in [
+        (SendVerdict::Quiet, DeliveryDisposition::Applied),
+        (
+            SendVerdict::AcceptedCleanupUnconfirmed,
+            DeliveryDisposition::Applied,
+        ),
+        (SendVerdict::Rejected, DeliveryDisposition::NotApplied),
+        (
+            SendVerdict::PartialAccepted,
+            DeliveryDisposition::PartiallyApplied,
+        ),
+        (SendVerdict::Unavailable, DeliveryDisposition::NotApplied),
+        (SendVerdict::OutcomeUnknown, DeliveryDisposition::Unknown),
+    ] {
+        assert_eq!(delivery_disposition(verdict), expected);
+    }
+}
+
 // Model the real CreateProcess argv boundary, including quotes in the reader asset.
 fn quoted_windows_argument(value: &str) -> String {
     let mut quoted = String::from("\"");

@@ -814,6 +814,10 @@ pub(super) struct AgentBoard {
     dying_lanes: Vec<AgentReadLane>,
     #[cfg(windows)]
     start: start::State,
+    #[cfg(windows)]
+    start_catalog_path: Option<std::ffi::OsString>,
+    #[cfg(windows)]
+    start_catalog_ready_epoch: Option<u64>,
 }
 
 impl AgentBoard {
@@ -965,6 +969,10 @@ impl AgentBoard {
             dying_lanes: Vec::new(),
             #[cfg(windows)]
             start: start::State::new(),
+            #[cfg(windows)]
+            start_catalog_path: None,
+            #[cfg(windows)]
+            start_catalog_ready_epoch: None,
         }
     }
 
@@ -991,6 +999,11 @@ impl AgentBoard {
         self.epoch += 1;
         #[cfg(windows)]
         self.start.opened(self.epoch);
+        #[cfg(windows)]
+        {
+            self.start_catalog_ready_epoch = None;
+            self.start.retire_catalog();
+        }
         self.presentation = PresentationPhase::Pending;
         self.visible = false;
         self.shown = None;
@@ -1004,7 +1017,9 @@ impl AgentBoard {
     #[cfg(windows)]
     pub(super) fn open_with_start_catalog(&mut self, path: Option<std::ffi::OsString>) {
         self.open();
-        self.start.ensure_catalog(path);
+        // PATH is only captured here. Probe admission waits for this episode's
+        // complete empty List result and is fenced again in `drain_start`.
+        self.start_catalog_path = path;
     }
 
     pub(super) fn close(&mut self) {
@@ -1016,6 +1031,12 @@ impl AgentBoard {
         self.inflight = None;
         self.jump = None;
         self.notice = None;
+        #[cfg(windows)]
+        {
+            self.start_catalog_path = None;
+            self.start_catalog_ready_epoch = None;
+            self.start.retire_catalog();
+        }
         #[cfg(any(target_os = "linux", target_os = "macos", windows))]
         if let Some(mut lane) = self.lane.take() {
             // Cancel order: the epoch bump above already invalidates
@@ -1299,7 +1320,10 @@ impl AgentBoard {
     }
 
     #[cfg(windows)]
-    pub(super) fn cancel_start(&mut self) -> bool {
+    pub(super) fn cancel_start_drawn(&mut self) -> bool {
+        if !self.interactive() || self.current_draw().is_none() {
+            return false;
+        }
         self.start.cancel()
     }
 
@@ -1317,11 +1341,21 @@ impl AgentBoard {
 
     #[cfg(windows)]
     pub(super) fn drain_start(&mut self) -> bool {
-        let changed = self.start.drain();
-        if changed && self.start.phase(self.epoch) == Some(start::Phase::Started) {
+        let admitted = if self.open
+            && self.start_catalog_ready_epoch == Some(self.epoch)
+            && self.rows.is_empty()
+            && matches!(self.read, AgentBoardRead::Ready { complete: true, .. })
+            && self.start.catalog_unloaded()
+        {
+            self.start.ensure_catalog(self.start_catalog_path.clone())
+        } else {
+            false
+        };
+        let drained = self.start.drain();
+        if drained.started {
             self.request_refresh();
         }
-        changed
+        admitted || drained.changed
     }
 
     #[cfg(all(test, windows))]
@@ -1344,6 +1378,14 @@ impl AgentBoard {
         &self,
     ) -> Option<&orchbee_workbench_protocol::WorkbenchPanelId> {
         self.start.operation_panel()
+    }
+
+    #[cfg(all(test, windows))]
+    pub(in crate::terminal_session) fn queue_start_completion_t(
+        &mut self,
+        report: crate::agent_start::Report,
+    ) -> bool {
+        self.start.queue_completion(report)
     }
 
     /// Issue the queued intent through the lane — one outstanding lane
@@ -1399,6 +1441,13 @@ impl AgentBoard {
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn issue_list_round(&mut self, now: Instant) {
+        #[cfg(windows)]
+        {
+            // A new canonical read fences both a queued catalog answer and
+            // the previous episode/round's empty-list admission.
+            self.start_catalog_ready_epoch = None;
+            self.start.retire_catalog();
+        }
         let Some(deadline) = now.checked_add(AGENT_READ_DEADLINE) else {
             self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
             return;
@@ -1615,14 +1664,36 @@ impl AgentBoard {
                     at,
                 });
                 self.notice = None;
+                #[cfg(windows)]
+                if round.complete && self.rows.is_empty() {
+                    self.start_catalog_ready_epoch = Some(epoch);
+                } else {
+                    self.start_catalog_ready_epoch = None;
+                    self.start.retire_catalog();
+                }
             }
             Err(lane::LaneFailure::Denied) => {
+                #[cfg(windows)]
+                {
+                    self.start_catalog_ready_epoch = None;
+                    self.start.retire_catalog();
+                }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Denied);
             }
             Err(lane::LaneFailure::Unavailable) => {
+                #[cfg(windows)]
+                {
+                    self.start_catalog_ready_epoch = None;
+                    self.start.retire_catalog();
+                }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Unavailable);
             }
             Err(lane::LaneFailure::Transport) => {
+                #[cfg(windows)]
+                {
+                    self.start_catalog_ready_epoch = None;
+                    self.start.retire_catalog();
+                }
                 self.read = AgentBoardRead::Failed(AgentBoardReadFailure::Transport);
             }
         }

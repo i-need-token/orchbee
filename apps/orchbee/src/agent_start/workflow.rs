@@ -1,7 +1,7 @@
 //! Windows runtime workflow. One absolute budget covers admission, reservation,
 //! the single send, observation and best-effort name release.
 
-use super::{Report, Request, ReservationState, Verdict, elapsed_ms};
+use super::{DeliveryDisposition, Report, Request, ReservationState, Verdict, elapsed_ms};
 use crate::cli::{Failure, FailureKind, agent_start_runtime};
 use crate::invocation::Target;
 use crate::local_client::{
@@ -34,6 +34,7 @@ struct Workflow<'a> {
     state: ReservationState,
     submission: Option<Value>,
     submission_status: Option<u8>,
+    delivery: DeliveryDisposition,
     last_read_failure: Option<Value>,
 }
 
@@ -104,6 +105,7 @@ fn run_admitted(
         state: ReservationState::None,
         submission: None,
         submission_status: None,
+        delivery: DeliveryDisposition::NotApplied,
         last_read_failure: None,
     };
     let result = match super::command::launch(request.provider.as_str(), &request.args) {
@@ -245,9 +247,15 @@ impl Workflow<'_> {
             text,
             powershell,
             self.step()?,
+            wake,
         ) {
             Ok(receipt) => receipt,
             Err(failure) => {
+                self.delivery = if failure.kind == FailureKind::OutcomeUnknown {
+                    DeliveryDisposition::Unknown
+                } else {
+                    DeliveryDisposition::NotApplied
+                };
                 let mut document = json!({"schema":failure.failure_schema.unwrap_or("orchbee.cli.failure"), "version":failure.version, "failure":{"kind":failure.kind.as_str()}});
                 if let Some(source) = &failure.source {
                     document["source"] = source.clone();
@@ -261,6 +269,10 @@ impl Workflow<'_> {
         };
         let submitted = Instant::now();
         let status = receipt.exit_status();
+        self.delivery = delivery_disposition(receipt.verdict());
+        // Readiness and cleanup remain separate from delivery. In particular,
+        // status 5 is overloaded: its typed verdict decides whether input was
+        // accepted, never the numeric process status alone.
         self.submission_status = Some(status);
         self.submission = Some(receipt.document());
         if !receipt.accepted() {
@@ -461,11 +473,12 @@ impl Workflow<'_> {
     ) -> Result<(Value, crate::cli::results::PanelProcessInfoDoc), Failure> {
         loop {
             interrupted(wake)?;
-            let result = agent_start_runtime::read_terminal_processes(
+            let result = agent_start_runtime::read_terminal_processes_cancellable(
                 client,
                 self.step()?,
                 snapshot,
                 terminal,
+                wake,
             );
             match result {
                 Err(failure) if transient_sample(&failure) => {
@@ -543,9 +556,23 @@ impl Workflow<'_> {
             reservation_state: self.state,
             submission: self.submission,
             submission_status: self.submission_status,
+            delivery: self.delivery,
             elapsed_ms: elapsed_ms(self.started),
             verdict,
         }
+    }
+}
+
+const fn delivery_disposition(verdict: agent_start_runtime::SendVerdict) -> DeliveryDisposition {
+    match verdict {
+        agent_start_runtime::SendVerdict::Quiet
+        | agent_start_runtime::SendVerdict::AcceptedCleanupUnconfirmed => {
+            DeliveryDisposition::Applied
+        }
+        agent_start_runtime::SendVerdict::PartialAccepted => DeliveryDisposition::PartiallyApplied,
+        agent_start_runtime::SendVerdict::OutcomeUnknown => DeliveryDisposition::Unknown,
+        agent_start_runtime::SendVerdict::Rejected
+        | agent_start_runtime::SendVerdict::Unavailable => DeliveryDisposition::NotApplied,
     }
 }
 

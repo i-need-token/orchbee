@@ -40,20 +40,30 @@ edges — open and close — invalidate the published pointer hit map, so a clic
 vanished board row or pass through the overlay onto a stale foreground region. Notifications,
 task sending, scheduling, persistence and new Panel creation are excluded.
 
-On Windows, after a complete empty list, the board probes a bounded inherited `PATH` off the input
-thread and lists only canonical providers whose mapped startup command is a regular executable,
-script or command file it actually found. A tunneled Session does not treat the local Client's PATH
-as target availability, so its catalog remains unavailable and shows the manual CLI path. The user
-selects one of the verified providers, enters a bounded Agent name and activates **Start Agent** with
-`Enter` or the pointer. Activation injects the exact
-currently focused Panel id and runs the same typed reserve, single-submission and hook-readiness
+On Windows, after a complete empty list, the board asks a fixed System32 `where.exe` helper for
+canonical commands on the Client process's inherited `PATH`. The helper runs off the input thread
+with no output pipe. Once fixed local process creation and suspended Job assignment return, an owned
+Windows Job gives its waits one absolute deadline and bounded process-tree termination. The listed
+providers are Client-PATH candidates: they do not prove that the exact target terminal has
+the same environment or that the provider can start. A tunneled Session never treats the local
+Client's PATH as target evidence, so its catalog remains unavailable and shows the manual CLI path.
+The user selects one candidate, enters a bounded Agent name and activates **Start Agent** with
+`Enter` or the pointer. Both keyboard Start and Cancel require a current successful draw. Activation
+injects the exact currently focused Panel id and runs the same typed reserve, single-submission and hook-readiness
 workflow as the CLI. It never installs a provider, changes integration/default configuration or
 selects an absent command. Closing the overlay leaves accepted startup work running; `c` or the
-visible cancel control is the explicit cancellation path. Generation and Panel identity reject stale
-completion, and an uncertain mutation or input is never replayed. If no supported command is found,
+visible cancel control is the explicit cancellation path. Cancellation wakes cancellable reads and
+the one send exchange; teardown can still wait for an already-running Windows process-creation or
+Job-assignment call and the best-effort reservation release of at most one second, so cancellation
+is not instantaneous. Generation and Panel identity reject stale completion, and an uncertain
+mutation or input is never replayed. If no supported command candidate is found,
 the form stays disabled and shows `orchbee agent start <name> --kind <provider> --current` as the
 manual path. An empty incomplete read is labeled as partial rather than as proof that no sessions
 exist. See [Windows Agent startup](windows-agent-start.md) for readiness and target requirements.
+
+Closing or superseding a catalog cancels its owner and moves it to a retirement queue. The input
+thread reaps that owner only after it has exited. Session teardown owns the final join; application
+cancellation cannot shorten the initial Windows process-creation and Job-assignment calls.
 
 The successful surface frame grants a same-episode visibility lease for owner-local navigation and
 refresh. Therefore consecutive arrow or `j`/`k` keys can advance the cursor in one input packet even
@@ -91,7 +101,9 @@ The Windows empty-state startup owner is separate from that read lane. It stores
 one catalog task and at most one startup task. An accepted task pins its generation and exact Panel,
 continues when the overlay closes, and settles only a matching completion. Explicit cancellation
 wakes the workflow; Session teardown also wakes and joins the bounded task before releasing its
-origin. A reservation or input whose reply is unknown remains unknown and is never retried.
+origin. A disconnected accepted worker, a pending or unknown reservation, accepted or partially
+accepted input, and an unknown input frontier all remain recovery states across close and reopen.
+Only a result that proves zero input and a settled reservation becomes retryable.
 
 | Transition     | Guard and result                                                                                                                                                                                                                                                                                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -102,7 +114,7 @@ origin. A reservation or input whose reply is unknown remains unknown and is nev
 | Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                              |
 | Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.        |
 | Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                         |
-| Start Agent    | A complete empty read plus a current successful draw admits one valid name, one discovered provider and the exact focused Panel. The background workflow reserves once, submits input once and waits for canonical readiness under one absolute deadline. A generation/Panel mismatch drops the completion.                                                        |
+| Start Agent    | A complete empty read plus a current successful draw admits one valid name, one Client-PATH candidate and the exact focused Panel. The background workflow reserves once, submits input once and waits for canonical readiness under one absolute deadline. A generation/Panel mismatch drops the completion.                                                        |
 | Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. An accepted startup task remains Session-owned and keeps running; only explicit cancel or Session teardown wakes it.                                                                                                                                                 |
 
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked
@@ -128,7 +140,7 @@ Each epoch’s lane owns its outcome receiver; closing the lane prevents its lat
 
 ## Correctness evidence
 
-The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, truthful provider discovery, keyboard and pointer startup, close/cancel separation and both locales.
+The owning implementation tests cover same-revision row assembly, stable viewport anchoring, stale or superseded jumps, exact non-zero-panel landing, viewer death, bounded lane cleanup, exact-episode input isolation, first-draw refusal, admitted suspension and resume, stale draw rejection, Client-PATH candidate discovery, keyboard and pointer startup, current-draw cancellation, lost-worker recovery, close/cancel separation and both locales.
 
 Maintain the concrete witnesses in `src/terminal_session/agent_board/tests.rs`, `src/tui_render/agent_board.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

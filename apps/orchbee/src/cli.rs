@@ -91,10 +91,12 @@ pub(crate) mod send;
 pub(crate) mod agent_start_runtime {
     pub(crate) use super::processes::{Selection, interpret};
     pub(crate) use super::query::{
-        obap_request_id, primary_terminal, read_agent_observation, read_terminal_processes,
-        snapshot_from_origin, stream_snapshot, wait_backoff,
+        obap_request_id, primary_terminal, read_agent_observation,
+        read_terminal_processes_cancellable, snapshot_from_origin, stream_snapshot, wait_backoff,
     };
-    pub(crate) use super::send::submit_prompt_on_session;
+    pub(crate) use super::send::{
+        SendVerdict, submit_prompt_on_session_cancellable as submit_prompt_on_session,
+    };
 }
 mod site;
 mod site_diagnose;

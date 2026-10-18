@@ -15,7 +15,7 @@ pub use core::{ChildWrapper, CommandWrap, CommandWrapper};
 pub use creation_flags::CreationFlags;
 #[cfg(all(windows, feature = "job-object"))]
 #[doc(inline)]
-pub use job_object::{JobObject, JobObjectChild};
+pub use job_object::{JobObject, JobObjectChild, KillOnJobClose};
 #[cfg(all(unix, feature = "process-group"))]
 #[doc(inline)]
 pub use process_group::{ProcessGroup, ProcessGroupChild};

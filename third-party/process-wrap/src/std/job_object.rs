@@ -41,6 +41,17 @@ use super::{ChildWrapper, CommandWrap, CommandWrapper};
 #[derive(Clone, Copy, Debug)]
 pub struct JobObject;
 
+/// Marker which makes a [`JobObject`] terminate every assigned process when its final handle closes.
+///
+/// Register this marker and [`JobObject`] on the same command. Registration order does not matter.
+/// This enables Windows' `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` policy, so dropping the resulting
+/// [`JobObjectChild`] remains a process-tree termination guard even when an explicit termination
+/// request fails or cannot be confirmed.
+#[derive(Clone, Copy, Debug)]
+pub struct KillOnJobClose;
+
+impl CommandWrapper for KillOnJobClose {}
+
 fn user_creation_flags(core: &CommandWrap) -> PROCESS_CREATION_FLAGS {
 	#[cfg(feature = "creation-flags")]
 	{
@@ -82,10 +93,12 @@ impl CommandWrapper for JobObject {
 		mut inner: Box<dyn ChildWrapper>,
 		core: &CommandWrap,
 	) -> Result<Box<dyn ChildWrapper>> {
+		let kill_on_close = core.has_wrap::<KillOnJobClose>();
 		let policy = job_creation_flags(user_creation_flags(core));
 
 		#[cfg(feature = "tracing")]
 		debug!(
+			kill_on_close,
 			resume_after_assignment = policy.resume_after_assignment,
 			"options from other wrappers"
 		);
@@ -103,7 +116,7 @@ impl CommandWrapper for JobObject {
 			}
 		};
 
-		let job_port = match make_job_object(handle, false) {
+		let job_port = match make_job_object(handle, kill_on_close) {
 			Ok(job_port) => job_port,
 			Err(error) => {
 				terminate_child(&mut *inner);

@@ -17,15 +17,27 @@ caller context. `--panel` and `--current` conflict. Repeated `--arg=<value>` is 
 to trailing arguments; mixing both forms is refused. Empty arguments are retained, control
 characters are refused, and the encoded command must fit 8000 ASCII characters.
 
-After a complete empty read, the [Agent board](agent-board.md) scans at most 256 inherited absolute
-local `PATH` directories off the input thread. For every canonical provider it uses the same
-`agent_provider::executable()` mapping as this workflow and lists the provider only when a regular
-`.exe`, `.com`, `.cmd`, `.bat` or `.ps1` command exists. This includes the canonical `amp`, `maki`
-and `muse` identities; aliases do not add kinds. This local PATH is not evidence for a tunneled
-Session, so a remote origin keeps the catalog unavailable and offers only the manual CLI path. The
-form accepts the same bounded Agent name and
+After a complete empty read, the [Agent board](agent-board.md) runs fixed System32 `where.exe`
+queries for the commands mapped by `agent_provider::executable()`. The helper owns no output pipe.
+After fixed local process creation and suspended assignment, it runs in a kill-on-close Windows Job
+and shares one absolute catalog deadline; cancellation requests Job termination and confirms process
+exit within a fixed teardown slot. The resulting `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` matches
+are only Client-PATH candidates. This includes the
+canonical `amp`, `maki` and `muse` identities; aliases do not add kinds. A candidate does not prove
+the target terminal inherited the same PATH or that the provider can start there. This local PATH
+is not evidence for a tunneled Session, so a remote origin keeps the catalog unavailable and offers
+only the manual CLI path. The form accepts the same bounded Agent name and
 injects the exact focused Panel id when keyboard or pointer activation is accepted. It neither reads
 caller-context environment variables nor starts a subprocess adapter.
+
+Fixed local System32 process creation and suspended Job assignment are synchronous Windows ownership
+primitives which application cancellation cannot interrupt. After the owned child is returned, every
+wait polls cancellation and the absolute deadline; Job termination plus kill-on-close covers the
+process tree, and the owner joins only after confirmed exit or the fixed teardown slot expires.
+Closing or superseding the catalog cancels its owner into a retirement queue. The input thread drops
+and joins only owners whose worker has exited. Session teardown owns the final join, which can still
+wait for an initial process-creation or Job-assignment call already in progress; after ownership, the
+deadline and teardown slot bound it.
 
 The board's background task calls the app-private typed workflow directly under one 30000 ms
 deadline. Closing the board does not cancel it. `c` and the visible cancel action are explicit;
@@ -33,7 +45,10 @@ Session teardown wakes and joins the bounded owner. Every completion carries its
 Panel target, so an old result cannot settle a replacement draft or target. Unknown reservation or
 input effects remain visible as unknown and are never replayed. The board does not install Agents or
 change integration/default configuration. When discovery finds nothing, it shows the CLI syntax as
-the manual path without claiming any provider is available.
+the manual path without claiming any provider is available. Cancellation wakes process sampling and
+the single send exchange, but an in-progress Windows process-creation/Job-assignment call and a
+best-effort reservation release of at most one second can still delay teardown; cancellation is not
+instantaneous.
 
 The terminal must contain an observed idle cmd, PowerShell or pwsh process. Running commands,
 missing process details and additional processes other than known console infrastructure
@@ -99,6 +114,12 @@ with independently retained reservation disposition, last observed reservation, 
 receipt or submission failure. Remaining time in the last observation is historical.
 Known partial input retains exit 9; unknown input or a lost mutating reply retains exit 8.
 Accepted input with unconfirmed cleanup is not startup success.
+
+The board keeps a non-retryable recovery result for any pending or unknown reservation, accepted or
+partially accepted input, unknown delivery frontier, or accepted worker that disconnects without its
+typed completion. Closing and reopening does not clear that result. It offers a retry only after the
+workflow proves zero input and a settled reservation. A queued completion is channel-authoritative
+even if its worker has already exited, so worker-exit observation cannot discard a Started result.
 
 Timeout, cancellation and release do not kill the Agent. If release is not confirmed, inspect
 `agent names` and the terminal before retrying. Never replay an uncertain reserve, complete or

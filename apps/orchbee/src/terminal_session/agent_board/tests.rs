@@ -118,6 +118,43 @@ fn board_with(sessions: &[&str]) -> AgentBoard {
     board
 }
 
+#[cfg(windows)]
+#[test]
+fn one_started_completion_requests_exactly_one_refresh() {
+    use crate::agent_start::{DeliveryDisposition, Report, ReservationState, Verdict};
+    use orchbee_agent_observation_protocol::{AgentName, ObapRequestId};
+
+    let mut board = AgentBoard::new(clock());
+    board.set_origin(crate::local_client::tests::server::disconnected_origin());
+    board.open();
+    board.start.install_catalog(&["codex"]);
+    board.start.set_name("alpha");
+    board.start.accept_without_task();
+    let target = panel_id(1);
+    assert!(board.start.start(board.epoch, target, board.clock.clone()));
+    let report = Report {
+        name: AgentName::parse("alpha").unwrap(),
+        provider: AgentProviderId::parse("codex").unwrap(),
+        reservation: Some(ObapRequestId::parse(&"1".repeat(32)).unwrap()),
+        last_observed: None,
+        reservation_state: ReservationState::Completed,
+        submission: None,
+        submission_status: Some(0),
+        delivery: DeliveryDisposition::Applied,
+        elapsed_ms: 1,
+        verdict: Verdict::Started {
+            session: AgentSessionId::parse("session-1").unwrap(),
+        },
+    };
+    assert!(board.queue_start_completion_t(report));
+    board.intent = None;
+    assert!(board.drain_start());
+    assert!(matches!(board.intent, Some(BoardIntent::Refresh)));
+    board.intent = None;
+    assert!(!board.drain_start());
+    assert!(board.intent.is_none());
+}
+
 fn presented(board: &AgentBoard, visible_rows: usize) -> AgentBoardDraw {
     AgentBoardDraw::Presented(
         board
@@ -847,6 +884,70 @@ mod lane_outcomes {
     use orchbee_agent_observation_protocol::{
         AgentCapability, AgentSessionDetail, AgentSessionSnapshot, AgentTurnState,
     };
+
+    #[cfg(windows)]
+    #[test]
+    fn client_path_catalog_waits_for_the_same_open_episodes_complete_empty_read() {
+        let mut board = AgentBoard::new(clock());
+        board.set_origin(crate::local_client::tests::server::disconnected_remote_origin());
+        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
+        assert!(!board.drain_start());
+        assert_eq!(board.start.catalog_status(), start::CatalogStatus::Loading);
+
+        board.inflight = Some(BoardInflight::ListRound);
+        board.apply_list_outcome(
+            board.epoch,
+            Ok(lane::ListRound {
+                revision: Some(1),
+                items: vec![],
+                complete: false,
+            }),
+            Instant::now(),
+        );
+        assert!(!board.drain_start());
+        board.inflight = Some(BoardInflight::ListRound);
+        board.apply_list_outcome(
+            board.epoch,
+            Ok(lane::ListRound {
+                revision: Some(2),
+                items: vec![summary("s-1", vec![])],
+                complete: true,
+            }),
+            Instant::now(),
+        );
+        assert!(!board.drain_start());
+
+        board.inflight = Some(BoardInflight::ListRound);
+        board.apply_list_outcome(
+            board.epoch,
+            Ok(lane::ListRound {
+                revision: Some(3),
+                items: vec![],
+                complete: true,
+            }),
+            Instant::now(),
+        );
+        assert!(board.drain_start());
+        assert_eq!(
+            board.start.catalog_status(),
+            start::CatalogStatus::Unavailable
+        );
+        board.close();
+        assert!(
+            !board.drain_start(),
+            "close fences deferred probe admission"
+        );
+        board.open_with_start_catalog(Some(std::ffi::OsString::from("C:\\client-bin")));
+        assert!(matches!(
+            board.read,
+            AgentBoardRead::Ready { complete: true, .. }
+        ));
+        assert!(
+            !board.drain_start(),
+            "a previous episode's complete-empty result cannot admit a probe"
+        );
+        board.close();
+    }
 
     #[test]
     fn list_outcome_replaces_rows_and_marks_incomplete() {

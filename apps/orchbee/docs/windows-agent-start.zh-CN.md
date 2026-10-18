@@ -14,19 +14,31 @@ orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format jso
 要求有效调用者上下文。`--panel` 与 `--current` 冲突。重复的 `--arg=<value>` 可替代尾随参数，
 两种形式混用会被拒绝。保留空参数，拒绝控制字符，编码后命令不能超过 8000 个 ASCII 字符。
 
-完整读取为空后，[Agent 看板](agent-board.zh-CN.md)会在输入线程之外扫描继承 `PATH` 中至多 256 个
-绝对本机目录。它针对每个规范 provider 使用与本流程相同的 `agent_provider::executable()` 映射，
-且仅在常规 `.exe`、`.com`、`.cmd`、`.bat` 或 `.ps1` 命令存在时列出该 provider。其中包括规范
-`amp`、`maki` 与 `muse` 身份；别名不会增加 kind。本地 PATH 不能证明隧道 Session 的可用性，
-因此远程 origin 会让目录保持不可用，并且只提供手动 CLI 路径。表单接纳相同的有界 Agent 名称，并在键盘或
+完整读取为空后，[Agent 看板](agent-board.zh-CN.md)会运行固定 System32 `where.exe`，查询
+`agent_provider::executable()` 映射的命令。helper 不持有输出管道。固定本机进程创建与 suspended
+分配完成后，它在 kill-on-close Windows Job 中运行并共享单一绝对目录期限；取消会请求终止 Job，
+并在固定 teardown 时槽内确认进程退出。
+得到的 `.exe`、`.com`、`.cmd`、`.bat` 与 `.ps1` 匹配项只是 Client PATH 候选项。其中包括规范
+`amp`、`maki` 与 `muse` 身份；别名不会增加 kind。候选项不能证明目标终端继承了相同 PATH，
+也不能证明 provider 能在那里启动。本地 PATH 不能证明隧道 Session 的可用性，因此远程 origin
+会让目录保持不可用，并且只提供手动 CLI 路径。表单接纳相同的有界 Agent 名称，并在键盘或
 指针激活被接受时注入精确聚焦的 Panel id。它既不读取调用者上下文环境变量，也不启动子进程
 适配器。
+
+固定本机 System32 进程创建及 suspended Job 分配是同步 Windows 所有权原语，应用取消无法中断。
+取得自有 child 后，每次等待都会轮询取消与绝对期限；Job 终止加 kill-on-close 覆盖整个进程树，
+owner 只在
+确认退出或固定 teardown 时槽耗尽后结束 join。
+关闭或取代目录时会把已取消的 owner 移入退休队列。输入线程只会 drop 并 join worker 已退出的
+owner。Session teardown 负责最终 join；它仍可能等待已开始的初始进程创建或 Job 分配调用；取得
+所有权后，期限与 teardown 时槽会约束它。
 
 看板的后台任务在单一 30000 毫秒期限下直接调用应用私有的类型化流程。关闭看板不会取消任务；
 `c` 与可见取消操作才是显式路径。Session teardown 会唤醒并加入有界 owner。每个完成携带代际与
 Panel 目标，因此旧结果无法落定到替代草稿或目标。未知的预留或输入效果保持 unknown，绝不
 重放。看板不会安装 Agent，也不会改变集成／默认配置。发现结果为空时，它只把 CLI 语法显示为
-手动路径，而不会声称任何 provider 可用。
+手动路径，而不会声称任何 provider 可用。取消会唤醒进程采样与单次 send 交换，但进行中的
+Windows 进程创建／Job 分配调用以及最长一秒的尽力预留释放仍可能延迟 teardown；取消并非瞬时。
 
 终端必须有已观察到的空闲 cmd、PowerShell 或 pwsh 进程。运行中的命令、缺失的进程详情，
 或已知控制台基础设施以外的额外进程均拒绝启动。运行时的完整 PowerShell 初始化脚本
@@ -78,6 +90,11 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 失败为 `orchbee.cli.failure.agent-start` v1，独立保留预留处置、最后观察到的预留、有界上游原因，以及输入
 回执或提交失败。最后观察中的剩余时间是历史事实。已知部分输入保留退出码 9；输入未知
 或变更响应丢失保留退出码 8。已接受输入但清理未确认，不算启动成功。
+
+对任何 Pending 或 Unknown 预留、已接受或部分接受的输入、未知投递前沿，或已接纳后未返回
+类型化完成便失联的 worker，看板都会保留不可重试的 recovery 结果。关闭并重开不会清除该结果。
+只有流程证明零输入且预留已落定后才提供重试。即使 worker 已退出，已入队的完成也以 channel
+为权威，因此 worker 退出观察不能丢弃 Started 结果。
 
 超时、取消和释放都不终止 Agent。释放未确认时，重试前检查 `agent names` 与终端。
 不自动重放结果不确定的 reserve、complete 或 send。`agent names` v2 分别列出已绑定名称

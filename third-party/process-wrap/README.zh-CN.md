@@ -19,7 +19,13 @@
 
 修正前上游 `src/windows.rs` 的 SHA-256 为
 `76214e10c89af6589af8fc9c2ae1d4c319596a07b2a2945afbc4a23b1d52a2b9`。
-运行时只修改此文件及 `src/std/job_object.rs`。其他源码原样保留，不代表接纳新的运行时特性。
+运行时只修改此文件、`src/std.rs` 及 `src/std/job_object.rs`。其他源码原样保留，
+不代表接纳新的运行时特性。
+
+标准 wrapper 保持与上游兼容的默认行为：单独使用 `JobObject` 不会启用
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`。显式 `KillOnJobClose` marker 才会让单个命令
+选择该策略；它与 `JobObject` 的注册顺序不限。Orchbee 的自有 Client PATH helper 使用
+该 opt-in，因此常规终止无法确认后，drop 最后一个自有 wrapper 会成为进程树终止兜底。
 
 ## 维护与证据
 
@@ -27,9 +33,11 @@
 [`windows_command_child/tests.rs`](../../crates/local-site-runtime/src/windows_command_child/tests.rs)
 中拥有原生完成证据：保留存活后代的句柄，放行根进程或取消 Job，并要求返回时后代句柄
 已发出退出信号。其失败夹具还证明，失败的 Job 等待不能在重试时变成缓存的根进程退出成功。
-Worker 发现测试覆盖输出边界、取消和失败清理；原生 Client 集成测试
-覆盖现有 provider 进程适配器。修改此补丁前运行受影响测试及[验证](../../docs/VERIFICATION.md)
-中适用的根主机门禁。
+另一个原生判据会保留根进程与后代进程句柄，先确认二者存活，再在不调用 `start_kill`
+的情况下 drop `KillOnJobClose` wrapper，并要求两个句柄都在有界等待内发出退出信号。
+Worker 发现测试覆盖输出边界、取消和失败清理；原生 Client 集成测试覆盖现有 provider
+进程适配器。修改此补丁前运行受影响测试及[验证](../../docs/VERIFICATION.md)中适用的
+根主机门禁。
 
 更新时明确审核上游版本，对照完整源码差异、保留许可证，并重跑原生句柄判据。
 当上游版本提供等价完成语义并通过这些测试时，删除本目录和根 patch。根进程退出、

@@ -515,20 +515,18 @@ impl LocalClient {
         request: TerminalSendRequest,
         deadline: Instant,
     ) -> Result<TerminalSendResult, SubmissionError> {
-        self.submit_terminal_send_with_deadline(request, Some(deadline))
+        self.submit_terminal_send_cancellable(request, deadline, None)
     }
 
-    fn submit_terminal_send_with_deadline(
+    pub(crate) fn submit_terminal_send_cancellable(
         &mut self,
         request: TerminalSendRequest,
-        deadline: Option<Instant>,
+        deadline: Instant,
+        wake: Option<BorrowedFd<'_>>,
     ) -> Result<TerminalSendResult, SubmissionError> {
         let request_id = request.request_id().clone();
         let message = ClientMessage::TerminalSend(request);
-        let result = match deadline {
-            Some(deadline) => self.exchange_before(message, &request_id, deadline)?,
-            None => self.exchange(message, &request_id)?,
-        };
+        let result = self.exchange_with_wake(message, &request_id, Some(deadline), wake)?;
         let ServerMessage::TerminalSendResult(result) = result else {
             return self.retire_with_unknown(
                 request_id,
@@ -600,15 +598,6 @@ impl LocalClient {
         request_id: &RequestId,
     ) -> Result<ServerMessage, SubmissionError> {
         self.exchange_with_deadline(request, request_id, None)
-    }
-
-    fn exchange_before(
-        &mut self,
-        request: ClientMessage,
-        request_id: &RequestId,
-        deadline: Instant,
-    ) -> Result<ServerMessage, SubmissionError> {
-        self.exchange_with_deadline(request, request_id, Some(deadline))
     }
 
     fn exchange_with_deadline(

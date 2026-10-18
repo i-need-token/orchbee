@@ -98,10 +98,10 @@ pub(super) fn run_agent(
     }
 }
 
-#[cfg(windows)]
-pub(crate) use linux::submit_prompt_on_session;
 #[cfg(any(target_os = "linux", windows))]
 pub(crate) use linux::{Receipt, receipt_output};
+#[cfg(windows)]
+pub(crate) use linux::{submit_prompt_on_session, submit_prompt_on_session_cancellable};
 
 #[cfg(all(test, any(target_os = "linux", windows)))]
 pub(super) use linux::test_receipt;
@@ -369,6 +369,11 @@ mod linux {
                 }
             )
         }
+
+        #[cfg(windows)]
+        pub(crate) fn verdict(&self) -> SendVerdict {
+            send_verdict(self.result.outcome())
+        }
         fn into_answer(self) -> SendAnswer {
             answer(&self.result, &self.fact, &self.facts, self.source)
         }
@@ -390,6 +395,7 @@ mod linux {
             snapshot,
             prepare(target, input, snapshot)?,
             deadline,
+            None,
         )
     }
 
@@ -400,6 +406,26 @@ mod linux {
         text: &str,
         codex_boundary: bool,
         deadline: Instant,
+    ) -> Result<Receipt, Failure> {
+        submit_prompt_on_session_cancellable(
+            client,
+            snapshot,
+            target,
+            text,
+            codex_boundary,
+            deadline,
+            None,
+        )
+    }
+
+    pub(crate) fn submit_prompt_on_session_cancellable(
+        client: &mut crate::local_client::LocalClient,
+        snapshot: &Snapshot,
+        target: &Target,
+        text: &str,
+        codex_boundary: bool,
+        deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> Result<Receipt, Failure> {
         let internal = |_| Failure::new(FailureKind::InternalFailure);
         let mut records = vec![SendRecord::Paste {
@@ -417,7 +443,7 @@ mod linux {
         });
         let records = SendRecords::new(records).map_err(internal)?;
         let prepared = prepare_records(target, snapshot, (records, "sequence", Some(text.len())))?;
-        submit_prepared(client, snapshot, prepared, deadline)
+        submit_prepared(client, snapshot, prepared, deadline, wake)
     }
 
     fn submit_prepared(
@@ -425,11 +451,14 @@ mod linux {
         snapshot: &Snapshot,
         (request, fact, facts): (TerminalSendRequest, PayloadFact, RequestFacts),
         deadline: Instant,
+        wake: Option<orchbee_local_ipc::LocalIo<'_>>,
     ) -> Result<Receipt, Failure> {
         let source = send_source(snapshot, request.request_id().as_str());
-        let result = client
-            .submit_terminal_send_before(request, deadline)
-            .map_err(|error| classify_send(error).source(source.clone()))?;
+        let result = match wake {
+            Some(wake) => client.submit_terminal_send_cancellable(request, deadline, Some(wake)),
+            None => client.submit_terminal_send_before(request, deadline),
+        }
+        .map_err(|error| classify_send(error).source(source.clone()))?;
         Ok(Receipt {
             result,
             fact,
@@ -666,7 +695,8 @@ mod linux {
             "acceptedEncodedBytes".to_owned(),
             json!(progress.accepted_encoded_bytes()),
         );
-        let (input_status, cleanup, reason, status, verdict) = match result.outcome() {
+        let verdict = send_verdict(result.outcome());
+        let (input_status, cleanup, reason, status) = match result.outcome() {
             TerminalSendOutcome::Accepted { cleanup, .. } => (
                 "accepted",
                 *cleanup,
@@ -675,11 +705,6 @@ mod linux {
                     0
                 } else {
                     5
-                },
-                if matches!(cleanup, SendCleanupStatus::Confirmed) {
-                    SendVerdict::Quiet
-                } else {
-                    SendVerdict::AcceptedCleanupUnconfirmed
                 },
             ),
             TerminalSendOutcome::Rejected {
@@ -697,11 +722,6 @@ mod linux {
                     *cleanup,
                     Some(rejected_reason(*reason)),
                     if partial { 9 } else { 3 },
-                    if partial {
-                        SendVerdict::PartialAccepted
-                    } else {
-                        SendVerdict::Rejected
-                    },
                 )
             }
             TerminalSendOutcome::Unavailable {
@@ -725,16 +745,9 @@ mod linux {
                     } else {
                         4
                     },
-                    if partial {
-                        SendVerdict::PartialAccepted
-                    } else {
-                        SendVerdict::Unavailable
-                    },
                 )
             }
-            TerminalSendOutcome::OutcomeUnknown { cleanup, .. } => {
-                ("unknown", *cleanup, None, 8, SendVerdict::OutcomeUnknown)
-            }
+            TerminalSendOutcome::OutcomeUnknown { cleanup, .. } => ("unknown", *cleanup, None, 8),
         };
         document.insert("inputStatus".to_owned(), json!(input_status));
         document.insert("cleanupStatus".to_owned(), json!(cleanup_status(cleanup)));
@@ -748,6 +761,36 @@ mod linux {
             verdict,
             reason,
             cleanup_unconfirmed: matches!(cleanup, SendCleanupStatus::Unconfirmed),
+        }
+    }
+
+    /// Preserve delivery truth independently from the process status. Status 5
+    /// deliberately covers both accepted input with unconfirmed cleanup and a
+    /// zero-input Host protocol fault, so it cannot answer retry safety.
+    fn send_verdict(outcome: &TerminalSendOutcome) -> SendVerdict {
+        match outcome {
+            TerminalSendOutcome::Accepted { cleanup, .. } => {
+                if matches!(cleanup, SendCleanupStatus::Confirmed) {
+                    SendVerdict::Quiet
+                } else {
+                    SendVerdict::AcceptedCleanupUnconfirmed
+                }
+            }
+            TerminalSendOutcome::Rejected { .. } => {
+                if outcome.progress().records_accepted() > 0 {
+                    SendVerdict::PartialAccepted
+                } else {
+                    SendVerdict::Rejected
+                }
+            }
+            TerminalSendOutcome::Unavailable { .. } => {
+                if outcome.progress().records_accepted() > 0 {
+                    SendVerdict::PartialAccepted
+                } else {
+                    SendVerdict::Unavailable
+                }
+            }
+            TerminalSendOutcome::OutcomeUnknown { .. } => SendVerdict::OutcomeUnknown,
         }
     }
 

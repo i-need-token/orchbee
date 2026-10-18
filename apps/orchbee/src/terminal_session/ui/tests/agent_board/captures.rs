@@ -295,7 +295,7 @@ fn capture_board_frame(
 
 #[cfg(windows)]
 #[test]
-fn empty_board_renders_the_installed_start_route_in_both_locales() {
+fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
     let (mut ui, mailbox, clock) = fixture();
     bootstrap(&mut ui, &mailbox, &clock);
     ready(&mut ui);
@@ -360,6 +360,34 @@ fn empty_board_renders_the_installed_start_route_in_both_locales() {
     assert!(ui.capture_agent_board_key(
         context.episode(),
         &crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Char('c'),
+            crate::client_view::Modifiers::NONE,
+        ),
+    ));
+    assert_eq!(
+        ui.agent_board_view().unwrap().start_phase(),
+        Some(crate::terminal_session::agent_board::AgentStartPhase::Starting),
+        "Cancel in the same input packet cannot act before Starting is painted"
+    );
+
+    ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
+    let mut cancelling_frame =
+        render_board_frame(&ui, 120, 40, crate::localization::Locale::EnUs, &theme);
+    cancelling_frame.settle(&mut ui);
+    assert!(ui.capture_agent_board_key(
+        context.episode(),
+        &crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Char('c'),
+            crate::client_view::Modifiers::NONE,
+        ),
+    ));
+    assert_eq!(
+        ui.agent_board_view().unwrap().start_phase(),
+        Some(crate::terminal_session::agent_board::AgentStartPhase::Cancelling),
+    );
+    assert!(ui.capture_agent_board_key(
+        context.episode(),
+        &crate::client_view::KeyEvent::press(
             crate::client_view::KeyCode::Esc,
             crate::client_view::Modifiers::NONE,
         ),
@@ -368,12 +396,11 @@ fn empty_board_renders_the_installed_start_route_in_both_locales() {
         ui.board.start_running(),
         "closing the Board does not cancel accepted startup"
     );
-    assert!(ui.board.cancel_start(), "cancellation remains explicit");
 }
 
 #[cfg(windows)]
 #[test]
-fn empty_board_without_a_verified_provider_keeps_the_manual_route_in_both_locales() {
+fn empty_board_without_a_client_path_candidate_keeps_the_manual_route_in_both_locales() {
     let (mut ui, mailbox, clock) = fixture();
     bootstrap(&mut ui, &mailbox, &clock);
     ready(&mut ui);

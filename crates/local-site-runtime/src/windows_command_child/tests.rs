@@ -12,6 +12,7 @@ use std::{
 };
 
 use orchbee_local_ipc::ChildOutputReader;
+use process_wrap::std::KillOnJobClose;
 
 #[test]
 fn captured_commands_settle_on_work_deadline_or_caller_interruption() {
@@ -42,7 +43,7 @@ fn captured_commands_settle_on_work_deadline_or_caller_interruption() {
 }
 use winsafe::{HPROCESS, co};
 
-fn tree() -> (WindowsCommandChild, ChildOutputReader) {
+fn tree_command() -> (Command, ChildOutputReader) {
     let executable = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
         .join("System32/WindowsPowerShell/v1.0/powershell.exe");
     let (output, writer) = ChildOutputReader::pipe().unwrap();
@@ -51,6 +52,11 @@ fn tree() -> (WindowsCommandChild, ChildOutputReader) {
         "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
         "$ErrorActionPreference='Stop'; $s=New-Object System.Diagnostics.ProcessStartInfo; $s.FileName=$env:SystemRoot+'\\System32\\ping.exe'; $s.Arguments='-n 30 127.0.0.1'; $s.UseShellExecute=$false; $s.CreateNoWindow=$true; $s.RedirectStandardOutput=$true; $c=[System.Diagnostics.Process]::Start($s); [Console]::WriteLine($c.Id); [Console]::Out.Flush(); $null=[Console]::ReadLine(); exit 7",
     ]).stdin(Stdio::piped()).stdout(writer).stderr(Stdio::null());
+    (command, output)
+}
+
+fn tree() -> (WindowsCommandChild, ChildOutputReader) {
+    let (command, output) = tree_command();
     (WindowsCommandChild::spawn(command).unwrap(), output)
 }
 
@@ -76,6 +82,53 @@ fn announced_child(reader: &mut ChildOutputReader) -> u32 {
         thread::sleep(Duration::from_millis(10));
     }
     panic!("fixture did not announce its child");
+}
+
+fn wait_for_process_exit(process: &HPROCESS, description: &str) {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        let state = process.WaitForSingleObject(Some(0)).unwrap();
+        if state == co::WAIT::OBJECT_0 {
+            return;
+        }
+        assert_eq!(state, co::WAIT::TIMEOUT);
+        assert!(
+            Instant::now() < deadline,
+            "{description} survived kill-on-close Job teardown"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn kill_on_job_close_drop_terminates_root_and_retained_descendant() {
+    let (command, mut output) = tree_command();
+    let mut wrapped = CommandWrap::from(command);
+    wrapped
+        .wrap(CreationFlags(CREATE_NO_WINDOW))
+        .wrap(KillOnJobClose)
+        .wrap(JobObject);
+    let child = wrapped.spawn().unwrap();
+    drop(wrapped);
+
+    let root = HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, child.id()).unwrap();
+    let descendant_pid = announced_child(&mut output);
+    let descendant =
+        HPROCESS::OpenProcess(co::PROCESS::SYNCHRONIZE, false, descendant_pid).unwrap();
+    assert_eq!(
+        root.WaitForSingleObject(Some(0)).unwrap(),
+        co::WAIT::TIMEOUT
+    );
+    assert_eq!(
+        descendant.WaitForSingleObject(Some(0)).unwrap(),
+        co::WAIT::TIMEOUT
+    );
+
+    // This is the policy oracle: no explicit start_kill call participates.
+    // Unwinding before this point also drops the wrapper and closes the Job.
+    drop(child);
+    wait_for_process_exit(&root, "root process");
+    wait_for_process_exit(&descendant, "descendant process");
 }
 
 #[test]

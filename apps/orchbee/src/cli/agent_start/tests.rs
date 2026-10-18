@@ -1,12 +1,24 @@
 use super::*;
-use crate::agent_start::{ReservationState, Verdict};
+use crate::agent_start::{DeliveryDisposition, ReservationState, Verdict};
 use orchbee_agent_observation_protocol::{
     AgentName, AgentProviderId, AgentSessionId, ObapRequestId,
 };
-use orchbee_client_server_protocol::{SendCleanupStatus, SendProgress, TerminalSendOutcome};
+use orchbee_client_server_protocol::{
+    SendCleanupStatus, SendProgress, SendRejectedReason, SendUnavailableReason, TerminalSendOutcome,
+};
 use serde_json::Value;
 
 fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report {
+    report_with_delivery(receipt, state, DeliveryDisposition::Applied, 0, verdict)
+}
+
+fn report_with_delivery(
+    receipt: &Value,
+    state: ReservationState,
+    delivery: DeliveryDisposition,
+    status: u8,
+    verdict: Verdict,
+) -> Report {
     Report {
         name: AgentName::parse("alpha").unwrap(),
         provider: AgentProviderId::parse("codex").unwrap(),
@@ -14,9 +26,130 @@ fn report(receipt: &Value, state: ReservationState, verdict: Verdict) -> Report 
         last_observed: None,
         reservation_state: state,
         submission: Some(receipt.clone()),
-        submission_status: Some(0),
+        submission_status: Some(status),
+        delivery,
         elapsed_ms: 1,
         verdict,
+    }
+}
+
+#[test]
+fn every_non_success_send_receipt_keeps_its_cli_status_and_exact_envelope() {
+    use super::super::send::SendVerdict;
+
+    let cases = [
+        (
+            TerminalSendOutcome::Rejected {
+                reason: SendRejectedReason::HostInputBackpressure,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::Confirmed,
+            },
+            3,
+            SendVerdict::Rejected,
+            DeliveryDisposition::NotApplied,
+            FailureKind::Rejected,
+        ),
+        (
+            TerminalSendOutcome::Unavailable {
+                reason: SendUnavailableReason::WorkerUnavailable,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::NotNeeded,
+            },
+            4,
+            SendVerdict::Unavailable,
+            DeliveryDisposition::NotApplied,
+            FailureKind::ServiceUnavailable,
+        ),
+        (
+            TerminalSendOutcome::Unavailable {
+                reason: SendUnavailableReason::HostProtocolFault,
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::NotNeeded,
+            },
+            5,
+            SendVerdict::Unavailable,
+            DeliveryDisposition::NotApplied,
+            FailureKind::TransportLoss,
+        ),
+        (
+            TerminalSendOutcome::Accepted {
+                progress: SendProgress::complete(2, 10),
+                cleanup: SendCleanupStatus::Unconfirmed,
+            },
+            5,
+            SendVerdict::AcceptedCleanupUnconfirmed,
+            DeliveryDisposition::Applied,
+            FailureKind::TransportLoss,
+        ),
+        (
+            TerminalSendOutcome::OutcomeUnknown {
+                progress: SendProgress::none(),
+                cleanup: SendCleanupStatus::Unconfirmed,
+            },
+            8,
+            SendVerdict::OutcomeUnknown,
+            DeliveryDisposition::Unknown,
+            FailureKind::OutcomeUnknown,
+        ),
+        (
+            TerminalSendOutcome::Rejected {
+                reason: SendRejectedReason::HostInputBackpressure,
+                progress: SendProgress::stopped(1, 4),
+                cleanup: SendCleanupStatus::Confirmed,
+            },
+            9,
+            SendVerdict::PartialAccepted,
+            DeliveryDisposition::PartiallyApplied,
+            FailureKind::Rejected,
+        ),
+        (
+            TerminalSendOutcome::Unavailable {
+                reason: SendUnavailableReason::InputBudgetExhausted,
+                progress: SendProgress::stopped(1, 4),
+                cleanup: SendCleanupStatus::Confirmed,
+            },
+            9,
+            SendVerdict::PartialAccepted,
+            DeliveryDisposition::PartiallyApplied,
+            FailureKind::Rejected,
+        ),
+    ];
+    let schema = jsonschema::validator_for(
+        &serde_json::from_str(include_str!(
+            "../schemas/orchbee.cli.failure.agent-start.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    for (outcome, status, expected_verdict, delivery, failure_kind) in cases {
+        let receipt = super::super::send::test_receipt(outcome);
+        assert_eq!(receipt.exit_status(), status);
+        assert_eq!(receipt.verdict(), expected_verdict);
+        let document = receipt.document();
+        let answer = project(
+            report_with_delivery(
+                &document,
+                ReservationState::Released,
+                delivery,
+                status,
+                Verdict::Failed {
+                    failure: crate::agent_start::failure(failure_kind, "input-not-accepted"),
+                    reason: "input-not-accepted".into(),
+                    cause: None,
+                },
+            ),
+            OutputFormat::Json,
+            Locale::EnUs,
+            None,
+        );
+        assert_eq!(answer.status, status);
+        let envelope: Value = serde_json::from_slice(&answer.stdout).unwrap();
+        assert!(schema.is_valid(&envelope), "{envelope}");
+        assert_eq!(envelope["failure"]["details"]["submission"], document);
+        assert!(
+            envelope["failure"]["details"].get("delivery").is_none(),
+            "delivery is private state, not a new CLI field"
+        );
     }
 }
 
