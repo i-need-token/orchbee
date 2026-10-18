@@ -1104,3 +1104,38 @@ fn modal_appearance_drain_has_a_hard_deadline_during_continuous_input() {
     let next = feed(&mut decoder, b"z", start + Duration::from_millis(1_002), 64);
     assert_eq!(appended(&next), "z");
 }
+
+#[test]
+fn modal_appearance_frame_deadline_is_enforced_per_byte_without_ticks() {
+    let start = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    feed(&mut decoder, b"\x1b]11;", start, 64);
+
+    // Repeated ESC bytes retain the frame's pending terminator prefix without
+    // increasing its payload count. The next byte at the one-second boundary
+    // must move it into the bounded drain even though no idle tick ran.
+    for packet in 1..=25 {
+        let (captured, events) =
+            decoder.push(b'\x1b', start + Duration::from_millis(packet * 40), 64);
+        assert!(captured);
+        assert!(events.is_empty());
+    }
+    let (captured, events) = decoder.push(b'\\', start + Duration::from_millis(1_001), 64);
+    assert!(captured);
+    assert!(appended(&events).is_empty());
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, Event::HostReply(_)))
+    );
+    let next = feed(&mut decoder, b"z", start + Duration::from_millis(1_002), 64);
+    assert_eq!(appended(&next), "z");
+
+    // A C1 OSC prefix has no short ESC ambiguity window, but its one-second
+    // frame deadline still releases its buffered non-target selector.
+    let c1_start = start + Duration::from_secs(2);
+    feed(&mut decoder, b"\x9d1", c1_start, 64);
+    let resumed = feed(&mut decoder, b"1", c1_start + Duration::from_secs(1), 64);
+    assert_eq!(appended(&resumed), "11");
+}

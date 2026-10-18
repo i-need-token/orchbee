@@ -545,8 +545,15 @@ impl LegacyDecoder {
                     selector_deadline,
                     owned,
                 } => {
-                    if frame.target().is_none()
-                        && selector_deadline.is_some_and(|deadline| now >= deadline)
+                    if frame.target().is_some() && frame.expired(now) {
+                        self.state = State::OscDrain {
+                            drain: frame.drain(now),
+                            owned,
+                        };
+                        pending = Some(byte);
+                    } else if frame.target().is_none()
+                        && (frame.expired(now)
+                            || selector_deadline.is_some_and(|deadline| now >= deadline))
                     {
                         replay_osc_candidate(
                             self,

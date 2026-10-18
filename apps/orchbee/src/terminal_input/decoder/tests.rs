@@ -1038,6 +1038,49 @@ fn an_appearance_drain_has_a_hard_deadline_even_while_bytes_keep_arriving() {
 }
 
 #[test]
+fn appearance_frame_deadline_is_enforced_per_byte_without_ticks() {
+    let start = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    for byte in b"\x1b]11;" {
+        assert!(decoder.push(*byte, start, false).is_empty());
+    }
+
+    // Repeated ESC bytes retain the frame's pending terminator prefix without
+    // increasing its payload count. The next byte at the one-second boundary
+    // must move it into the bounded drain even though no idle tick ran.
+    for packet in 1..=25 {
+        assert!(
+            decoder
+                .push(b'\x1b', start + Duration::from_millis(packet * 40), false)
+                .is_empty()
+        );
+    }
+    assert!(
+        decoder
+            .push(b'\\', start + Duration::from_millis(1_001), false)
+            .is_empty()
+    );
+    assert_eq!(
+        decoder.push(b'z', start + Duration::from_millis(1_002), false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+
+    // A C1 OSC prefix has no short ESC ambiguity window, but its one-second
+    // frame deadline still releases its buffered non-target selector.
+    let c1_start = start + Duration::from_secs(2);
+    assert!(decoder.push(0x9d, c1_start, false).is_empty());
+    assert!(decoder.push(b'1', c1_start, false).is_empty());
+    let resumed = decoder.push(b'1', c1_start + Duration::from_secs(1), false);
+    assert_eq!(
+        resumed
+            .iter()
+            .filter(|item| item.kind == press(KeyCode::Char('1')))
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn an_unrecognized_alt_right_bracket_keeps_its_escape_deadline() {
     let start = Instant::now();
     let mut decoder = LegacyDecoder::default();

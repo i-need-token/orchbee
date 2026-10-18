@@ -461,8 +461,14 @@ impl ModalDecoder {
                     mut frame,
                     selector_deadline,
                 } => {
-                    if frame.target().is_none()
-                        && selector_deadline.is_some_and(|deadline| now >= deadline)
+                    if frame.target().is_some() && frame.expired(now) {
+                        self.phase = Phase::OscDrain {
+                            drain: frame.drain(now),
+                        };
+                        pending = Some(byte);
+                    } else if frame.target().is_none()
+                        && (frame.expired(now)
+                            || selector_deadline.is_some_and(|deadline| now >= deadline))
                     {
                         let selector = frame.selector_bytes().to_vec();
                         self.replay_osc_candidate(&introducer, &selector, now, &mut events);
