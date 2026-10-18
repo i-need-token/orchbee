@@ -316,7 +316,7 @@ pub(crate) struct TerminalListDetails {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TerminalListState {
-    Ready,
+    Observed,
     Agent(orchbee_workbench_protocol::PanelAgentState),
 }
 

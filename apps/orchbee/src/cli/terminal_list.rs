@@ -12,7 +12,8 @@ use crate::{
 };
 use orchbee_workbench_protocol::{
     MAXIMUM_PANEL_AGENT_READ_ROWS, PanelAgentAction, PanelAgentFailure, PanelAgentOutcome,
-    PanelAgentRequest, PanelAgentView, Snapshot, TerminalPresentationId, WorkbenchRevision,
+    PanelAgentRequest, PanelAgentState, PanelAgentView, Snapshot, TerminalPresentationId,
+    WorkbenchRevision,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -139,11 +140,7 @@ fn observe_rows(
             .and_then(|report| report.agent.as_deref())
             .map(str::to_owned)
             .or_else(|| process_agent(&observation));
-        details_row.state = report
-            .map(|report| report.state)
-            .filter(|state| *state != orchbee_workbench_protocol::PanelAgentState::Unknown)
-            .map(TerminalListState::Agent)
-            .or_else(|| observed.then_some(TerminalListState::Ready));
+        details_row.state = terminal_list_state(report, observed);
     }
     if let Some(reports) = &reports {
         verify_reports(client, snapshot, reports, deadline, signals)?;
@@ -161,6 +158,24 @@ fn process_agent(observation: &super::terminal_observation::Observation) -> Opti
             .provider
             .map(str::to_owned)
     })
+}
+
+fn terminal_list_state(
+    report: Option<&PanelAgentView>,
+    observed_frame: bool,
+) -> Option<TerminalListState> {
+    match report {
+        Some(report)
+            if report.state != PanelAgentState::Unknown
+                || report.agent.is_some()
+                || !observed_frame =>
+        {
+            Some(TerminalListState::Agent(report.state))
+        }
+        Some(_) | None if observed_frame => Some(TerminalListState::Observed),
+        Some(_) => Some(TerminalListState::Agent(PanelAgentState::Unknown)),
+        None => None,
+    }
 }
 
 fn read_reports(
@@ -349,6 +364,79 @@ fn metadata_failure(reason: MetadataExchangeReason) -> FailureKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn observed_frame_without_processes() -> super::super::terminal_observation::Observation {
+        let route = orchbee_terminal_protocol::TerminalFrameRoute {
+            attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
+            host_epoch: orchbee_terminal_protocol::HostEpoch::from_bytes([2; 16]).unwrap(),
+            sequence: std::num::NonZeroU64::new(1).unwrap(),
+            generation: std::num::NonZeroU64::new(1).unwrap(),
+            revision: 0,
+            base_revision: None,
+        };
+        super::super::terminal_observation::Observation::Observed(Box::new(
+            query::terminal_metadata::Read {
+                frame: query::terminal_metadata::Metadata {
+                    route,
+                    columns: 80,
+                    rows: 24,
+                    alternate_screen: false,
+                    scrollback_rows: 0,
+                    title: None,
+                    current_directory: None,
+                },
+                processes: None,
+            },
+        ))
+    }
+
+    #[test]
+    fn observed_frame_without_agent_or_process_state_is_not_reported_ready() {
+        let observation = observed_frame_without_processes();
+        assert!(process_agent(&observation).is_none());
+        assert_eq!(
+            terminal_list_state(None, true),
+            Some(TerminalListState::Observed)
+        );
+    }
+
+    #[test]
+    fn explicit_agent_unknown_state_survives_frame_observation() {
+        let observation = observed_frame_without_processes();
+        let report = PanelAgentView {
+            agent: Some("codex".to_owned()),
+            state: PanelAgentState::Unknown,
+            ..PanelAgentView::default()
+        };
+        assert_eq!(
+            terminal_list_state(Some(&report), true),
+            Some(TerminalListState::Agent(PanelAgentState::Unknown))
+        );
+        assert_eq!(
+            terminal_list_state(
+                Some(&PanelAgentView {
+                    state: PanelAgentState::Working,
+                    ..PanelAgentView::default()
+                }),
+                true
+            ),
+            Some(TerminalListState::Agent(PanelAgentState::Working))
+        );
+        assert!(process_agent(&observation).is_none());
+    }
+
+    #[test]
+    fn empty_unknown_report_uses_observation_or_stays_unknown() {
+        let report = PanelAgentView::default();
+        assert_eq!(
+            terminal_list_state(Some(&report), true),
+            Some(TerminalListState::Observed)
+        );
+        assert_eq!(
+            terminal_list_state(Some(&report), false),
+            Some(TerminalListState::Agent(PanelAgentState::Unknown))
+        );
+    }
 
     #[test]
     fn panel_agent_unavailable_is_optional_but_denial_and_transport_faults_are_not() {

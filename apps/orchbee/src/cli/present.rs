@@ -171,7 +171,8 @@ fn terminal_table_rows(
         .iter()
         .enumerate()
         {
-            widths[column] = widths[column].max(display_width(cell).min(COLUMN_LIMITS[column]));
+            widths[column] =
+                widths[column].max(terminal_cell_width(cell).min(COLUMN_LIMITS[column]));
         }
     }
 
@@ -241,22 +242,10 @@ fn terminal_list_cells(
     vec![
         number.to_string(),
         handle.to_owned(),
-        details
-            .title
-            .as_deref()
-            .map(unquoted)
-            .unwrap_or_else(|| "-".to_owned()),
-        details
-            .agent
-            .as_deref()
-            .map(unquoted)
-            .unwrap_or_else(|| "-".to_owned()),
+        details.title.clone().unwrap_or_else(|| "-".to_owned()),
+        details.agent.clone().unwrap_or_else(|| "-".to_owned()),
         state.to_owned(),
-        details
-            .cwd
-            .as_deref()
-            .map(unquoted)
-            .unwrap_or_else(|| "-".to_owned()),
+        details.cwd.clone().unwrap_or_else(|| "-".to_owned()),
     ]
 }
 
@@ -313,8 +302,8 @@ fn common_suffix(left: &str, right: &str) -> usize {
 }
 
 fn truncate_terminal_cell(value: &str, width: usize) -> String {
-    if display_width(value) <= width {
-        return value.to_owned();
+    if terminal_cell_width(value) <= width {
+        return unquoted(value);
     }
     if width == 0 {
         return String::new();
@@ -333,6 +322,27 @@ fn truncate_terminal_cell(value: &str, width: usize) -> String {
         used += fragment_width;
     }
     rendered
+}
+
+fn terminal_cell_width(value: &str) -> usize {
+    value
+        .graphemes(true)
+        .map(|grapheme| display_width(&unquoted(grapheme)))
+        .sum()
+}
+
+#[cfg(test)]
+mod terminal_list_tests {
+    use super::truncate_terminal_cell;
+
+    #[test]
+    fn truncation_never_splits_a_visible_control_escape() {
+        assert_eq!(truncate_terminal_cell("1234567\u{001b}x", 15), "1234567…");
+        assert_eq!(
+            truncate_terminal_cell("1234567\u{001b}x", 16),
+            "1234567\\u{001b}x"
+        );
+    }
 }
 
 /// Non-UTF-8 values render as `hex:`-prefixed lowercase hex; UTF-8 paths and

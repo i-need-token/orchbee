@@ -4048,9 +4048,9 @@ impl Locale {
         use crate::cli::results::TerminalListState;
         use orchbee_workbench_protocol::PanelAgentState;
         match (self, state) {
-            (_, TerminalListState::Ready) => match self {
-                Self::EnUs => "ready",
-                Self::ZhCn => "就绪",
+            (_, TerminalListState::Observed) => match self {
+                Self::EnUs => "observed",
+                Self::ZhCn => "已观察",
             },
             (Self::EnUs, TerminalListState::Agent(PanelAgentState::Idle)) => "idle",
             (Self::EnUs, TerminalListState::Agent(PanelAgentState::Working)) => "working",

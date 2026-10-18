@@ -390,7 +390,6 @@ fn empty_terminal_lists_keep_the_localized_header() {
 
 #[test]
 fn terminal_list_agent_states_are_localized() {
-    let state = TerminalListState::Agent(orchbee_workbench_protocol::PanelAgentState::Idle);
     let row = TerminalRow {
         terminal_id: ID.into(),
         worker_id: "1".repeat(32),
@@ -399,22 +398,29 @@ fn terminal_list_agent_states_are_localized() {
         tab_id: "4".repeat(32),
         terminal_context_id: "5".repeat(32),
     };
+    let states = [
+        TerminalListState::Observed,
+        TerminalListState::Agent(orchbee_workbench_protocol::PanelAgentState::Idle),
+        TerminalListState::Agent(orchbee_workbench_protocol::PanelAgentState::Unknown),
+    ];
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let output = super::success_output(
-            Projection::TerminalListHuman(TerminalListDocument {
-                rows: vec![row.clone()],
-                details: vec![TerminalListDetails {
-                    state: Some(state),
-                    ..TerminalListDetails::default()
-                }],
-            }),
-            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
-            &QueryCommand::TerminalList,
-            OutputFormat::Text,
-            locale,
-        );
-        let text = String::from_utf8(output.stdout).unwrap();
-        assert!(text.contains(locale.cli_terminal_list_state(state)));
+        for state in states {
+            let output = super::success_output(
+                Projection::TerminalListHuman(TerminalListDocument {
+                    rows: vec![row.clone()],
+                    details: vec![TerminalListDetails {
+                        state: Some(state),
+                        ..TerminalListDetails::default()
+                    }],
+                }),
+                json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+                &QueryCommand::TerminalList,
+                OutputFormat::Text,
+                locale,
+            );
+            let text = String::from_utf8(output.stdout).unwrap();
+            assert!(text.contains(locale.cli_terminal_list_state(state)));
+        }
     }
 }
 
@@ -490,7 +496,7 @@ fn terminal_list_human_enrichment_does_not_change_json_bytes() {
             details: vec![TerminalListDetails {
                 title: Some("pwsh".into()),
                 agent: Some("grok".into()),
-                state: Some(TerminalListState::Ready),
+                state: Some(TerminalListState::Observed),
                 cwd: Some("C:\\work".into()),
             }],
         }),

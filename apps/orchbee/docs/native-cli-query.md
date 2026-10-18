@@ -1854,10 +1854,12 @@ across the snapshot, exact-presentation report batches, and at most 64 exact-bou
 reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title. `CWD` is
 the validated terminal-frame directory, falling back to the observed root process directory;
 it never substitutes the Workbench Workspace path. `AGENT` uses the exact presentation report,
-then bounded foreground-process detection; `STATE` uses a known presentation report state, or
-`ready` when a Host frame was observed without a known Agent state. Missing optional observations
-render as `-`; denial, transport, timeout, cancellation, and protocol failures remain query
-failures. Each attached viewer gets a best-effort detach attempt on both successful and failed
+then bounded foreground-process detection; `STATE` preserves the presentation report state,
+including `unknown` for a named Agent. If no report state is available but a Host frame was
+observed, it displays `observed`, which does not mean the Shell is ready to accept input; with
+neither fact it displays `-`. Missing optional observations render as `-`; denial, transport,
+timeout, cancellation, and protocol failures remain query failures. Each attached viewer gets a
+best-effort detach attempt on both successful and failed
 observation paths. Text preserves printable path characters and escapes terminal controls.
 `--format json` stays on the original snapshot-only path and keeps the same result shape and
 schema version. `terminal get` returns the same identity facts under
