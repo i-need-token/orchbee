@@ -304,9 +304,19 @@ fn action_menu_emits_borders_without_leaving_crossing_underlay_glyphs() {
                 let right = points.iter().map(|(x, _)| *x).max().unwrap() + 1;
                 let bottom = points.iter().map(|(_, y)| *y).max().unwrap() + 1;
                 let area = Rect::new(left, top, right - left, bottom - top);
-                assert_eq!(area.height, 9);
+                assert_eq!(area.height, 12);
+                let first_row = points.iter().find_map(|(x, y)| {
+                    matches!(
+                        canonical_hits.hit_target_at(*x, *y),
+                        Some(HitTarget::ActionMenuRow { token: drawn, row: 0 })
+                            if *drawn == token
+                    )
+                    .then_some((*x, *y))
+                });
+                let (first_row_x, first_row_y) =
+                    first_row.expect("the first action row is painted");
                 assert_eq!(
-                    canonical_hits.hit_target_at(left + 2, top + 1),
+                    canonical_hits.hit_target_at(first_row_x, first_row_y),
                     Some(&HitTarget::ActionMenuRow { token, row: 0 })
                 );
 

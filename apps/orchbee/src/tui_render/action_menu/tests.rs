@@ -44,7 +44,7 @@ fn global_search_uses_localized_aliases_effective_chords_and_nested_labels() {
     let theme = Theme::terminal_native();
     let glyphs = key_label_glyphs(&theme);
 
-    for (locale, query) in [(Locale::EnUs, "spl"), (Locale::ZhCn, "分屏")] {
+    for (locale, query) in [(Locale::EnUs, "split"), (Locale::ZhCn, "分屏")] {
         menu.set_query(Some(query));
         let view = menu.view().unwrap();
         let bindings = client.bindings();
@@ -217,18 +217,32 @@ fn no_results_keeps_a_drawn_query_surface_without_an_activatable_row() {
         menu.input_context().unwrap().readiness(),
         crate::action_menu::MenuInputReadiness::Continuation
     );
-    let text = terminal
-        .backend()
-        .buffer()
-        .content
-        .iter()
-        .map(|cell| cell.symbol())
-        .collect::<String>();
+    let text = visible_buffer_text(terminal.backend().buffer());
     assert!(text.contains(Locale::EnUs.menu_search_no_results()));
     let count = Locale::EnUs.menu_search_count(0);
     assert!(text.contains(count.as_str()));
-    let _hits = hits.finish();
+    let map = hits.finish();
+    assert!((0..height).any(|y| {
+        (0..width).any(|x| map.hit_target_at(x, y) == Some(&HitTarget::OverlaySurface))
+    }));
+    assert!((0..height).all(|y| {
+        (0..width).all(|x| {
+            !matches!(
+                map.hit_target_at(x, y),
+                Some(HitTarget::ActionMenuRow { .. })
+            )
+        })
+    }));
     assert!(menu.view().is_some_and(|view| view.token == token));
+    menu.key(KeyEvent::press(
+        KeyCode::Esc,
+        crate::client_view::Modifiers::NONE,
+    ));
+    assert!(
+        !menu.active(),
+        "Escape closes an empty search without activation"
+    );
+    assert!(menu.confirmed().is_none());
 }
 
 #[test]
@@ -465,16 +479,17 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                     };
                     assert_eq!(draw.visible_rows, 2);
                     assert!(menu.presented(draw.clone()));
-                    let text = terminal
-                        .backend()
-                        .buffer()
-                        .content
-                        .iter()
-                        .map(|cell| cell.symbol())
-                        .collect::<String>();
+                    let buffer = terminal.backend().buffer();
+                    let text = visible_buffer_text(buffer);
                     assert_eq!(text.contains("QZX"), !context);
                     assert_eq!(text.contains("Esc"), !context);
                     assert_eq!(text.contains("1/2"), !context);
+                    assert_eq!(text.contains(locale.menu_search_label()), !context);
+                    let search_row = (buffer.area.y..buffer.area.bottom()).find(|y| {
+                        visible_row_text(buffer, Rect::new(buffer.area.x, *y, buffer.area.width, 1))
+                            .contains(locale.menu_search_label())
+                    });
+                    assert_eq!(search_row.is_some(), !context);
                     let map = hits.finish();
                     let has_chrome_control = (0..height).any(|y| {
                         (0..width).any(|x| {
@@ -485,8 +500,15 @@ fn context_menus_omit_chrome_and_hidden_controls_without_changing_global_discove
                         })
                     });
                     assert_eq!(has_chrome_control, !context);
-                    let row = action_row_rect(&map, terminal.backend().buffer().area, draw.token);
-                    assert_eq!(row.y, 3, "the first row follows the anchored top border");
+                    let row = action_row_rect(&map, buffer.area, draw.token);
+                    if let Some(search_row) = search_row {
+                        assert!(
+                            row.y > search_row,
+                            "the first action row follows the localized query row"
+                        );
+                    } else {
+                        assert!(row.y > buffer.area.y, "the first row is inside the frame");
+                    }
                     menu.key(crate::client_view::KeyEvent::press(
                         KeyCode::Esc,
                         Modifiers::NONE,
@@ -735,6 +757,31 @@ fn assert_bound_row_layout(
     assert!(chord_x - label_end >= ROW_BINDING_GAP);
 }
 
+fn visible_row_text(buffer: &Buffer, row: Rect) -> String {
+    let mut text = String::new();
+    let mut x = row.x;
+    while x < row.right() {
+        let symbol = buffer[(x, row.y)].symbol();
+        text.push_str(symbol);
+        x = x.saturating_add(u16::try_from(display_width(symbol).max(1)).unwrap_or(u16::MAX));
+    }
+    text
+}
+
+fn visible_buffer_text(buffer: &Buffer) -> String {
+    let mut text = String::new();
+    for y in buffer.area.y..buffer.area.bottom() {
+        let mut x = buffer.area.x;
+        while x < buffer.area.right() {
+            let symbol = buffer[(x, y)].symbol();
+            text.push_str(symbol);
+            x = x.saturating_add(u16::try_from(display_width(symbol).max(1)).unwrap_or(u16::MAX));
+        }
+        text.push('\n');
+    }
+    text
+}
+
 #[test]
 fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_action() {
     use crate::{
@@ -839,9 +886,7 @@ fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_actio
                 .position(|candidate| candidate == action)
                 .expect("the global menu includes each requested action");
             let row = action_row_rect_for(&map, buffer.area, draw.token, index);
-            let text = (row.x..row.right())
-                .map(|x| buffer[(x, row.y)].symbol())
-                .collect::<String>();
+            let text = visible_row_text(buffer, row);
             let chord = client
                 .bindings()
                 .action_labels_with_glyphs(binding_action.clone(), key_label_glyphs(&theme))

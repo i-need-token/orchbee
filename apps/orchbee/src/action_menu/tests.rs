@@ -175,6 +175,29 @@ fn present(menu: &mut ActionMenu, first: usize, visible_rows: usize) -> MenuDraw
     draw
 }
 
+fn present_in_terminal_rows(menu: &mut ActionMenu, first: usize, terminal_rows: usize) -> MenuDraw {
+    // MenuDraw::visible_rows counts action results; separators consume terminal rows but are not
+    // actions. Build receipts with the same result-index geometry the renderer paints.
+    let view = menu.view().unwrap();
+    let visible_rows = action_rows_in_terminal_rows(&view, first, terminal_rows);
+    assert!(visible_rows > 0, "the window paints an action row");
+    present(menu, first, visible_rows)
+}
+
+fn action_rows_in_terminal_rows(view: &MenuView<'_>, first: usize, terminal_rows: usize) -> usize {
+    let mut visible_rows = 0;
+    while first + visible_rows < view.result_actions.len()
+        && view.result_row_height(
+            &view.result_actions,
+            first,
+            first.saturating_add(visible_rows).saturating_add(1),
+        ) <= terminal_rows
+    {
+        visible_rows += 1;
+    }
+    visible_rows
+}
+
 #[test]
 fn presentation_lifecycle_refuses_a_first_block_and_suspends_an_admitted_menu() {
     let mut pending = menu();
@@ -250,16 +273,22 @@ fn wheel_moves_only_the_viewport_and_keyboard_navigation_reveals_selection() {
         ],
         None,
     ));
-    let draw = present(&mut menu, 0, 3);
+    let draw = present_in_terminal_rows(&mut menu, 0, 3);
     let scrolled = menu.scroll(draw.token, false, 3).unwrap();
     let view = menu.view().unwrap();
     assert_eq!(view.token, scrolled);
     assert_eq!(view.selected, 0, "wheel movement never steals selection");
     assert_eq!(view.first, 3);
     assert!(!view.follow_selection);
-    assert_eq!(view.first_visible_row(3), 3);
+    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
+    assert_eq!(
+        first, view.first,
+        "the rendered window uses result-row indices"
+    );
+    assert!(first > 0, "wheel navigation moves the viewport");
+    assert!(view.selected < first, "the old selection remains offscreen");
 
-    present(&mut menu, 3, 3);
+    present_in_terminal_rows(&mut menu, first, 3);
     assert_eq!(
         menu.input_context().unwrap().readiness(),
         MenuInputReadiness::Continuation
@@ -271,23 +300,29 @@ fn wheel_moves_only_the_viewport_and_keyboard_navigation_reveals_selection() {
     let view = menu.view().unwrap();
     assert_ne!(view.token, offscreen);
     assert!(view.follow_selection);
-    assert_eq!(view.first_visible_row(3), 0, "a boundary key still reveals");
-    let draw = present(&mut menu, 0, 3);
+    assert_eq!(
+        view.first_visible_result_row(3, &view.result_actions, view.selected),
+        0,
+        "a boundary key still reveals"
+    );
+    let draw = present_in_terminal_rows(&mut menu, 0, 3);
     assert!(menu.scroll(draw.token, false, 3).is_some());
-    present(&mut menu, 3, 3);
+    let view = menu.view().unwrap();
+    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
+    present_in_terminal_rows(&mut menu, first, 3);
 
     menu.select(MenuSelection::Next);
     let view = menu.view().unwrap();
     assert_eq!(view.selected, 1);
     assert!(view.follow_selection);
-    let first = view.first_visible_row(3);
+    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
     assert!(first <= view.selected && view.selected < first + 3);
-    present(&mut menu, first, 3);
+    present_in_terminal_rows(&mut menu, first, 3);
     assert!(menu.input_context().unwrap().activation_ready());
 }
 
 #[test]
-fn wheel_can_reach_a_tail_window_that_contains_more_separators() {
+fn wheel_reaches_a_tail_window_using_terminal_rows_and_result_indices() {
     let mut menu = ActionMenu::default();
     assert!(menu.open(
         "Actions".into(),
@@ -301,13 +336,32 @@ fn wheel_can_reach_a_tail_window_that_contains_more_separators() {
         ],
         None,
     ));
-    let draw = present(&mut menu, 0, 3);
+    let draw = present_in_terminal_rows(&mut menu, 0, 3);
     let token = menu.scroll(draw.token, false, usize::MAX).unwrap();
     let view = menu.view().unwrap();
     assert_eq!(view.token, token);
     assert_eq!(view.selected, 0);
-    assert_eq!(view.first_visible_row(3), 4);
-    let draw = present(&mut menu, 4, 2);
+    let first = view.first_visible_result_row(3, &view.result_actions, view.selected);
+    assert_eq!(first, view.first, "the tail view uses result-row indices");
+    assert!(first > 0, "wheel navigation reaches the tail window");
+    let visible = action_rows_in_terminal_rows(&view, first, 3);
+    assert!(visible > 0);
+    assert!(
+        view.result_row_height(&view.result_actions, first, first + visible) <= 3,
+        "the displayed actions and separators fit the terminal-row budget"
+    );
+    assert_eq!(
+        first + visible,
+        view.result_actions.len(),
+        "the wheel reaches the final result in its tail viewport"
+    );
+    if first > 0 {
+        assert!(
+            view.result_row_height(&view.result_actions, first - 1, view.result_actions.len()) > 3,
+            "the tail cannot reveal one more result within the same terminal-row budget"
+        );
+    }
+    let draw = present_in_terminal_rows(&mut menu, first, 3);
     assert_eq!(
         menu.scroll(draw.token, false, usize::MAX),
         Some(draw.token),

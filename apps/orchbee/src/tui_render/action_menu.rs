@@ -119,6 +119,11 @@ pub(super) fn render(
             ),
         )
     });
+    let desired = if result_actions.is_empty() {
+        desired.max(display_width(locale.menu_search_no_results()).saturating_add(2))
+    } else {
+        desired
+    };
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);

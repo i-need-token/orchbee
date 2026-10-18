@@ -11,8 +11,8 @@ fn hover_moves_only_the_menu_candidate_and_one_click_activates_the_painted_row()
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
-        let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
-        let y = y + 1;
+        let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        let (x, y) = painted.row(&MenuAction::Help);
         dispatch_all(
             &mut dispatcher,
             &mut view,
@@ -62,13 +62,14 @@ fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, false);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
-    let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
-    let motion = |code, row| format!("\x1b[<{code};{x};{row}M");
+    let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
+    let help_point = painted.row(&MenuAction::Help);
+    let motion = |code, (x, row)| format!("\x1b[<{code};{x};{row}M");
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        motion(35, y + 1).as_bytes(),
+        motion(35, help_point).as_bytes(),
     );
     assert_eq!(
         port.menu.view().unwrap().selected,
@@ -85,13 +86,14 @@ fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
         dispatcher.pointer_capture,
         PointerCaptureRequest::MenuMotion
     );
-    paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
+    let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::ZhCn);
+    let help_point = painted.row(&MenuAction::Help);
     for code in [39, 43, 51, 32] {
         dispatch_all(
             &mut dispatcher,
             &mut view,
             &mut port,
-            motion(code, y + 1).as_bytes(),
+            motion(code, help_point).as_bytes(),
         );
         assert_eq!(
             port.menu.view().unwrap().selected,
@@ -99,11 +101,12 @@ fn hover_admission_leave_and_keyboard_navigation_preserve_menu_ownership() {
             "modified or held motion is inert"
         );
     }
+    let reload_point = painted.row(&MenuAction::Reload);
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        format!("{}{}", motion(35, y + 1), motion(35, y + 2)).as_bytes(),
+        format!("{}{}", motion(35, help_point), motion(35, reload_point)).as_bytes(),
     );
     assert_eq!(
         port.menu.view().unwrap().selected,
@@ -156,7 +159,8 @@ fn captured_menu_press_loses_authority_on_owner_source_geometry_or_transport_ret
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
-        let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        let (x, y) = painted.row_at(0);
         dispatch_all(
             &mut dispatcher,
             &mut view,
@@ -225,13 +229,14 @@ fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute()
     let mut view = ClientView::new(50);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
-    let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    let (help_x, help_y) = painted.row(&MenuAction::Help);
 
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        format!("\x1b[<35;{x};{}M\r", y + 2).as_bytes(),
+        format!("\x1b[<35;{help_x};{help_y}M\r").as_bytes(),
     );
     assert_eq!(port.menu.view().unwrap().selected, 2);
     assert_eq!(port.menu.confirmed(), None);
@@ -240,12 +245,13 @@ fn hover_and_keyboard_bursts_require_a_draw_before_their_candidate_can_execute()
         "Enter cannot accept an unpainted hover"
     );
 
-    paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    let (reload_x, reload_y) = painted.row(&MenuAction::Reload);
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        format!("\x1b[<35;{x};{}M\x1b[B\r", y + 1).as_bytes(),
+        format!("\x1b[<35;{reload_x};{reload_y}M\x1b[B\r").as_bytes(),
     );
     assert_eq!(
         port.menu.view().unwrap().selected,
@@ -273,7 +279,7 @@ fn paint(
     port: &mut Port,
     bindings: &crate::client_view::Bindings,
     locale: Locale,
-) -> (u16, u16, usize, Option<(u16, u16)>) {
+) -> PaintedActionMenu {
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(50, 10)).unwrap();
     let mut hits = HitMapBuilder::with_pointer(dispatcher.pointer_projection());
     let mut draw = ModalPresentation::NotPresented;
@@ -294,17 +300,20 @@ fn paint(
         panic!("menu fits");
     };
     let map = hits.finish();
-    let cell = (0..10)
-        .find_map(|y| {
+    let actions = port.menu.view().unwrap().actions.to_vec();
+    let mut rows = vec![None; actions.len()];
+    for (position, action_index) in draw.result_actions.iter().copied().enumerate() {
+        rows[action_index] = (0..10).find_map(|y| {
             (0..50).find_map(|x| {
                 matches!(
                     map.hit_target_at(x, y),
-                    Some(HitTarget::ActionMenuRow { .. })
+                    Some(HitTarget::ActionMenuRow { token, row })
+                        if *token == draw.token && *row == position
                 )
-                .then_some((x, y))
+                .then_some((x + 1, y + 1))
             })
-        })
-        .unwrap();
+        });
+    }
     let close = (0..10).find_map(|y| {
         (0..50).find_map(|x| {
             matches!(
@@ -318,7 +327,44 @@ fn paint(
     let visible_rows = draw.visible_rows;
     assert!(port.menu.presented(draw));
     dispatcher.publish_hit_map(map);
-    (cell.0 + 1, cell.1 + 1, visible_rows, close)
+    PaintedActionMenu {
+        actions,
+        rows,
+        visible_rows,
+        close,
+    }
+}
+
+struct PaintedActionMenu {
+    actions: Vec<MenuAction>,
+    rows: Vec<Option<(u16, u16)>>,
+    visible_rows: usize,
+    close: Option<(u16, u16)>,
+}
+
+impl PaintedActionMenu {
+    fn row(&self, action: &MenuAction) -> (u16, u16) {
+        let index = self
+            .actions
+            .iter()
+            .position(|candidate| candidate == action)
+            .expect("the requested action belongs to the menu");
+        self.row_at(index)
+    }
+
+    fn row_at(&self, index: usize) -> (u16, u16) {
+        self.rows
+            .get(index)
+            .and_then(|point| *point)
+            .expect("the requested action row is painted")
+    }
+
+    fn first_visible(&self) -> (u16, u16) {
+        self.rows
+            .iter()
+            .find_map(|point| *point)
+            .expect("the menu has a painted action row")
+    }
 }
 
 #[test]
@@ -330,7 +376,9 @@ fn menu_wheel_is_regional_bounded_reversible_and_cancelled_by_keyboard() {
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
-        let (x, y, capacity, _) = paint(&mut dispatcher, &mut port, view.bindings(), locale);
+        let painted = paint(&mut dispatcher, &mut port, view.bindings(), locale);
+        let (x, y) = painted.first_visible();
+        let capacity = painted.visible_rows;
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<65;1;1M");
         assert_eq!(
             port.menu.view().unwrap().selected,
@@ -349,7 +397,8 @@ fn menu_wheel_is_regional_bounded_reversible_and_cancelled_by_keyboard() {
             capacity,
             "one flush is one viewport"
         );
-        let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), locale);
+        let painted = paint(&mut dispatcher, &mut port, view.bindings(), locale);
+        let (x, y) = painted.first_visible();
         dispatch_all(
             &mut dispatcher,
             &mut view,
@@ -417,8 +466,10 @@ fn global_menu_button_and_close_follow_painted_cells_and_own_the_tail() {
     );
     assert!(port.menu.active());
     assert_eq!(port.target, Some(MenuTarget::Global));
-    let (_, _, _, close_cell) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
-    let close_cell = close_cell.expect("global menu retains its painted close control");
+    let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+    let close_cell = painted
+        .close
+        .expect("global menu retains its painted close control");
     dispatch_all(
         &mut dispatcher,
         &mut view,
@@ -815,7 +866,8 @@ fn cancelled_menu_painted_press_settles_its_parallel_release_debt_once() {
         let mut view = ClientView::new(50);
         dispatcher.set_pointer_capture(&mut view, &mut port, true);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
-        let (x, y, _, _) = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
+        let (x, y) = painted.row_at(0);
         dispatch_all(
             &mut dispatcher,
             &mut view,

@@ -254,6 +254,7 @@ fn global_tab_and_panel_actions_report_when_no_panel_is_focused() {
     use crate::client_view::PanelDirection as Direction;
 
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
     ui.state = None;
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
     for action in [
@@ -415,6 +416,17 @@ fn guarded_menu_keys_consume_owned_phases_and_reject_stale_snapshots() {
         "a stale central snapshot is fail-closed"
     );
     assert_eq!(ui.menus.menu.confirmed(), None);
+    assert!(ui.capture_action_menu_key_for(
+        continuation,
+        KeyEvent::press(KeyCode::Down, Modifiers::NONE)
+    ));
+    assert_eq!(
+        ui.view().action_menu().unwrap().selected,
+        1,
+        "a second move waits for the exact selected row to be drawn"
+    );
+    arm(&mut ui);
+    let continuation = ui.action_menu_input_context().unwrap();
     assert!(ui.capture_action_menu_key_for(
         continuation,
         KeyEvent::press(KeyCode::Down, Modifiers::NONE)
@@ -660,6 +672,7 @@ fn global_menu_renders_the_resolved_configured_binding_with_ascii_fallback() {
     let (mut ui, _, _, _) = tests::move_membership::ready_ui();
     ui.observe_geometry(Geometry::new(120, 30, 8, 16).unwrap());
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    ui.menus.menu.select_action(MenuAction::Help);
     let help_row = action_row(&ui, MenuAction::Help);
     let mut view = ClientView::new(120);
     view.configure_keys(&WindowsKeySettings {
@@ -774,6 +787,17 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                     let top = cells.iter().map(|(_, y)| *y).min().unwrap();
                     let right = cells.iter().map(|(x, _)| *x).max().unwrap() + 1;
                     let bottom = cells.iter().map(|(_, y)| *y).max().unwrap() + 1;
+                    let selected = ui.view().action_menu().unwrap().selected;
+                    let selected_row_y = (0..height)
+                        .find(|y| {
+                            (0..width).any(|x| {
+                                matches!(
+                                    hits.hit_target_at(x, *y),
+                                    Some(HitTarget::ActionMenuRow { row, .. }) if *row == selected
+                                )
+                            })
+                        })
+                        .expect("the selected action row is painted");
                     let buffer = terminal.backend().buffer();
                     assert_ne!(
                         buffer[(left, top)].symbol(),
@@ -782,12 +806,12 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                     );
                     let selection = theme.style(crate::tui_theme::Role::SurfaceSelection);
                     assert_eq!(
-                        buffer[(left + 1, top + 1)].symbol(),
+                        buffer[(left + 1, selected_row_y)].symbol(),
                         theme.glyphs.navigation_marker
                     );
                     let mut x = left + 1;
                     while x < right - 1 {
-                        let cell = &buffer[(x, top + 1)];
+                        let cell = &buffer[(x, selected_row_y)];
                         assert_eq!(cell.bg, selection.bg.unwrap());
                         // Wide-character continuation cells inherit the lead's visible style.
                         x += u16::try_from(
@@ -1323,6 +1347,7 @@ fn ux_status_menu_hides_the_pane_cursor_and_cancel_restores_it() {
             } else {
                 ui.cancel_action_menu();
             }
+            let mut hits = HitMapBuilder::new();
             terminal
                 .draw(|frame| {
                     crate::tui_render::render_terminal_shell(
@@ -1333,11 +1358,19 @@ fn ux_status_menu_hides_the_pane_cursor_and_cancel_restores_it() {
                             ui.view(),
                         )),
                         &Theme::one_light(),
-                        &mut HitMapBuilder::new(),
+                        &mut hits,
                     );
                 })
                 .unwrap();
-            assert_eq!(terminal.backend().cursor_visible(), !capturing);
+            assert_eq!(terminal.backend().cursor_visible(), capturing);
+            let cursor = terminal.get_cursor_position().unwrap();
+            let hits = hits.finish();
+            let target = hits.hit_target_at(cursor.x, cursor.y);
+            if capturing {
+                assert_eq!(target, Some(&crate::tui_pointer::HitTarget::OverlaySurface));
+            } else {
+                assert_ne!(target, Some(&crate::tui_pointer::HitTarget::OverlaySurface));
+            }
         }
     }
 }
@@ -1757,11 +1790,11 @@ fn carrier_retirement_revokes_members_and_stateless_global_menu_observes_geometr
         assert_eq!(
             ui.view().action_menu().unwrap().actions,
             &[
+                MenuAction::Detach,
                 MenuAction::Machines,
                 MenuAction::Help,
                 MenuAction::Sidebar,
                 MenuAction::ReleasePointer,
-                MenuAction::Detach
             ]
         );
     }
