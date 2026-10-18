@@ -322,13 +322,71 @@ fn remote_origin_never_publishes_the_local_process_path_as_target_availability()
 }
 
 #[test]
-fn catalog_helper_reports_supported_client_path_candidates_and_honors_pre_cancel() {
+fn catalog_mapping_deadline_and_cancel_are_deterministic() {
+    use std::cell::Cell;
+
+    let mut observed = Vec::new();
+    let found = catalog::resolve_candidates(
+        || false,
+        |command| {
+            observed.push(command.to_owned());
+            match command {
+                "codex" | "agent" | "amp" | "maki" | "muse" => catalog::Query::Found,
+                _ => catalog::Query::Missing,
+            }
+        },
+    )
+    .unwrap();
+    let expected_commands = crate::agent_provider::CANONICAL_IDS
+        .iter()
+        .filter_map(|provider| crate::agent_provider::executable(provider))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        observed, expected_commands,
+        "every canonical mapping is queried"
+    );
+    assert_eq!(found, ["codex", "cursor", "amp", "maki", "muse"]);
+
+    let probes = Cell::new(0);
+    assert!(
+        catalog::resolve_candidates(
+            || probes.get() == 2,
+            |_| {
+                probes.set(probes.get() + 1);
+                catalog::Query::Missing
+            },
+        )
+        .is_none(),
+        "a stop verdict interrupts the mapping before another lookup"
+    );
+    assert_eq!(probes.get(), 2);
+    assert!(
+        catalog::resolve_candidates(|| false, |_| catalog::Query::Unavailable).is_none(),
+        "one unavailable OS lookup makes the whole catalog unavailable"
+    );
+
+    let cancelled = AtomicBool::new(true);
+    assert!(
+        catalog::client_path_candidates(None, &cancelled, Instant::now() + CATALOG_DEADLINE,)
+            .is_none(),
+        "pre-cancel returns without starting an OS lookup"
+    );
+    let active = AtomicBool::new(false);
+    assert!(
+        catalog::client_path_candidates(None, &active, Instant::now()).is_none(),
+        "an already-expired catalog budget returns without starting an OS lookup"
+    );
+}
+
+#[test]
+fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
     use std::{fs, path::PathBuf, time::SystemTime};
 
     struct Fixture(PathBuf);
     impl Drop for Fixture {
         fn drop(&mut self) {
-            for command in ["codex.cmd", "agent.exe", "amp.ps1", "maki.bat", "muse.com"] {
+            for command in ["codex.cmd", "amp.ps1"] {
                 let _ = fs::remove_file(self.0.join(command));
             }
             let _ = fs::remove_dir(self.0.join("claude.exe"));
@@ -346,26 +404,29 @@ fn catalog_helper_reports_supported_client_path_candidates_and_honors_pre_cancel
     ));
     fs::create_dir(&root).unwrap();
     let fixture = Fixture(root);
-    for command in ["codex.cmd", "agent.exe", "amp.ps1", "maki.bat", "muse.com"] {
+    for command in ["codex.cmd", "amp.ps1"] {
         fs::write(fixture.0.join(command), []).unwrap();
     }
     fs::create_dir(fixture.0.join("claude.exe")).unwrap();
+    let system = PathBuf::from(winsafe::GetSystemDirectory().unwrap());
+    let executable = system.join("where.exe");
     let cancelled = AtomicBool::new(false);
-    let found = catalog::client_path_candidates(
-        Some(fixture.0.as_os_str()),
-        &cancelled,
-        Instant::now() + CATALOG_DEADLINE,
-    )
-    .unwrap();
-    assert_eq!(found, ["codex", "cursor", "amp", "maki", "muse"]);
-
-    cancelled.store(true, Ordering::Release);
-    assert!(
-        catalog::client_path_candidates(
+    let lookup = |command| {
+        // This guard exists only to reclaim a stuck owned Job. The semantic
+        // witness does not make the product's whole-catalog deadline a claim
+        // about completion time under parallel test-process contention.
+        let deadline = Instant::now() + Duration::from_secs(15);
+        catalog::query(
+            &executable,
+            &system,
             Some(fixture.0.as_os_str()),
+            command,
             &cancelled,
-            Instant::now() + CATALOG_DEADLINE,
+            deadline,
+            deadline,
         )
-        .is_none()
-    );
+    };
+    assert_eq!(lookup("codex"), catalog::Query::Found);
+    assert_eq!(lookup("amp"), catalog::Query::Found);
+    assert_eq!(lookup("claude"), catalog::Query::Missing);
 }

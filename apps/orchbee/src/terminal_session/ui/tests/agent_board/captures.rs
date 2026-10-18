@@ -312,7 +312,7 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
             40,
             "No Agent sessions",
         ),
-        (crate::localization::Locale::ZhCn, 58, 12, "没有智能体会话"),
+        (crate::localization::Locale::ZhCn, 80, 24, "没有智能体会话"),
     ] {
         ui.observe_geometry(Geometry::new(width, height, 8, 16).unwrap());
         let mut frame = render_board_frame(&ui, width, height, locale, &theme);
@@ -396,6 +396,56 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
         ui.board.start_running(),
         "closing the Board does not cancel accepted startup"
     );
+}
+
+#[cfg(windows)]
+#[test]
+fn narrow_zh_empty_board_suspends_start_without_publishing_a_start_target() {
+    use crate::{localization::RecoveryVerb, tui_presentation::PresentationPhase};
+
+    let (mut ui, mailbox, clock) = fixture();
+    bootstrap(&mut ui, &mailbox, &clock);
+    ready(&mut ui);
+    install_capture_empty_read(&mut ui);
+    ui.board
+        .install_start_draft_t(&["codex", "amp", "muse"], "alpha");
+    ui.board.accept_start_without_task_t();
+    let theme = crate::tui_theme::Theme::terminal_native();
+    let locale = crate::localization::Locale::ZhCn;
+
+    ui.observe_geometry(Geometry::new(80, 24, 8, 16).unwrap());
+    let mut admitted = render_board_frame(&ui, 80, 24, locale, &theme);
+    assert!(admitted.control_hit(AgentBoardControl::Start).is_some());
+    admitted.settle(&mut ui);
+
+    // This is the exact narrow boundary that exposed the original false
+    // full-form assertion: the admitted Board retains local close ownership,
+    // but no incomplete Start form or effect target may escape.
+    ui.observe_geometry(Geometry::new(58, 12, 8, 16).unwrap());
+    let mut narrow = render_board_frame(&ui, 58, 12, locale, &theme);
+    let text = narrow.text();
+    assert!(text.contains(locale.presentation_notice(true)), "{text:?}");
+    assert!(
+        text.contains(locale.recovery_verb(RecoveryVerb::Close)),
+        "{text:?}"
+    );
+    assert!(text.contains("Esc"), "{text:?}");
+    assert!(narrow.control_hit(AgentBoardControl::Start).is_none());
+    narrow.settle(&mut ui);
+
+    let context = ui
+        .agent_board_input_context()
+        .expect("the admitted Board is retained for local recovery");
+    assert_eq!(context.presentation(), PresentationPhase::Suspended);
+    assert!(!context.interactive());
+    assert!(ui.capture_agent_board_key(
+        context.episode(),
+        &crate::client_view::KeyEvent::press(
+            crate::client_view::KeyCode::Esc,
+            crate::client_view::Modifiers::NONE,
+        ),
+    ));
+    assert!(!ui.board.is_open(), "Esc closes the suspended Board");
 }
 
 #[cfg(windows)]

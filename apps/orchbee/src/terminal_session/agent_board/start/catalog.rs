@@ -19,7 +19,8 @@ use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 const POLL: Duration = Duration::from_millis(10);
 const TEARDOWN: Duration = Duration::from_millis(600);
 
-enum Query {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Query {
     Found,
     Missing,
     Unavailable,
@@ -46,23 +47,38 @@ pub(super) fn client_path_candidates(
     let system = PathBuf::from(winsafe::GetSystemDirectory().ok()?);
     let executable = system.join("where.exe");
     let run_deadline = deadline.checked_sub(TEARDOWN)?;
+    resolve_candidates(
+        || stopped(cancelled, run_deadline),
+        |command| {
+            query(
+                &executable,
+                &system,
+                path,
+                command,
+                cancelled,
+                run_deadline,
+                deadline,
+            )
+        },
+    )
+}
+
+/// Projects the closed provider mapping through one lookup verdict per command.
+/// The OS query stays outside this deterministic policy loop so cancellation,
+/// mapping, and process behavior can each carry focused evidence.
+pub(super) fn resolve_candidates(
+    mut should_stop: impl FnMut() -> bool,
+    mut lookup: impl FnMut(&str) -> Query,
+) -> Option<Vec<&'static str>> {
     let mut candidates = Vec::new();
     for provider in crate::agent_provider::CANONICAL_IDS.iter().copied() {
-        if stopped(cancelled, run_deadline) {
+        if should_stop() {
             return None;
         }
         let Some(command) = crate::agent_provider::executable(provider) else {
             continue;
         };
-        match query(
-            &executable,
-            &system,
-            path,
-            command,
-            cancelled,
-            run_deadline,
-            deadline,
-        ) {
+        match lookup(command) {
             Query::Found => candidates.push(provider),
             Query::Missing => {}
             Query::Unavailable => return None,
@@ -71,7 +87,7 @@ pub(super) fn client_path_candidates(
     Some(candidates)
 }
 
-fn query(
+pub(super) fn query(
     executable: &Path,
     system: &Path,
     path: Option<&OsStr>,
