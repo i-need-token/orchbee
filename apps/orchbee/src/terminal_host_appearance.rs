@@ -70,9 +70,17 @@ enum ProbeState {
 }
 
 /// One admitted terminal endpoint's irreversible, bounded appearance observation.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct Probe {
     state: ProbeState,
+}
+
+impl Default for Probe {
+    fn default() -> Self {
+        Self {
+            state: ProbeState::Unissued,
+        }
+    }
 }
 
 /// The query deadline expired without a valid OSC 11 background.

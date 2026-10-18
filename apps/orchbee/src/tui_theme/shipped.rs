@@ -1,5 +1,6 @@
 //! Shipped RGB palettes project every existing semantic role; no renderer owns colors.
 use super::{Color, ColorLevel, GlyphSet, Modifier, Polarity, RoleStyles, Style, Theme};
+use crate::terminal_host_appearance::HostAppearance;
 use ratatui::widgets::BorderType;
 
 struct Palette {
@@ -84,21 +85,21 @@ impl Theme {
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
         level: ColorLevel,
     ) -> Self {
-        Self::application_with_host(appearance, super::HostAppearance::Unknown, level)
+        Self::application_with_host(appearance, HostAppearance::Unknown, level)
     }
 
     /// Resolve only an explicit System preference from known outer-host polarity.
     pub(crate) fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
-        host: super::HostAppearance,
+        host: HostAppearance,
         level: ColorLevel,
     ) -> Self {
         use orchbee_workbench_protocol::ApplicationAppearance;
         match appearance {
             ApplicationAppearance::System => match host {
-                super::HostAppearance::Dark => Self::one_dark(),
-                super::HostAppearance::Light => Self::one_light(),
-                super::HostAppearance::Unknown => Self::terminal_native(),
+                HostAppearance::Dark => Self::one_dark(),
+                HostAppearance::Light => Self::one_light(),
+                HostAppearance::Unknown => Self::terminal_native(),
             },
             ApplicationAppearance::Light => Self::one_light(),
             ApplicationAppearance::Dark => Self::one_dark(),

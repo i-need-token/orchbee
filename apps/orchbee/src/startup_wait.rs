@@ -85,12 +85,22 @@ pub(crate) fn standalone_presentable_area(dimensions: WindowDimensions) -> Optio
 /// [`TerminalModeGuard`], keeping mode ownership and panic restoration with
 /// the lifecycle owner; tests inject a scripted guard through `enter`.
 pub(crate) trait WaitModeGuard {
+    fn query_host_appearance(
+        &mut self,
+        query: crate::terminal_host_appearance::Query,
+    ) -> io::Result<()>;
     fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()>;
     fn set_pointer_capture(&mut self, request: PointerCaptureRequest) -> io::Result<()>;
     fn restore(&mut self) -> io::Result<()>;
 }
 
 impl<M: TerminalModes> WaitModeGuard for TerminalModeGuard<M> {
+    fn query_host_appearance(
+        &mut self,
+        query: crate::terminal_host_appearance::Query,
+    ) -> io::Result<()> {
+        TerminalModeGuard::query_host_appearance(self, query)
+    }
     fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
         TerminalModeGuard::set_bracketed_paste(self, enabled)
     }
@@ -188,6 +198,9 @@ where
                     (deps.clock)(),
                     |_, _| Ok(false),
                     &mut |request| match request {
+                        crate::terminal_input::ModeRequest::AppearanceQuery(query) => {
+                            guard.query_host_appearance(query)
+                        }
                         crate::terminal_input::ModeRequest::GraphicsQuery(_)
                         | crate::terminal_input::ModeRequest::PointerAdmissionQuery(_)
                         | crate::terminal_input::ModeRequest::Bell => {

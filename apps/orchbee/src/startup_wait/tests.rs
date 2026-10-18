@@ -123,6 +123,12 @@ impl RecordingGuard {
 }
 
 impl WaitModeGuard for RecordingGuard {
+    fn query_host_appearance(
+        &mut self,
+        _: crate::terminal_host_appearance::Query,
+    ) -> io::Result<()> {
+        self.record("query-host-appearance")
+    }
     fn set_bracketed_paste(&mut self, enabled: bool) -> io::Result<()> {
         self.record(if enabled {
             "enable-bracketed-paste"

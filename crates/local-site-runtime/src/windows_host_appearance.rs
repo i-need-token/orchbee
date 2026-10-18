@@ -1,6 +1,6 @@
 //! Read the current user's documented app-theme fallback without mutating Windows appearance.
 
-use winsafe::{self as w, co, prelude::*};
+use winsafe::{self as w, co};
 
 const PERSONALIZE_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 const APPS_USE_LIGHT_THEME: &str = "AppsUseLightTheme";

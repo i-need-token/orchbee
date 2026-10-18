@@ -60,7 +60,7 @@ fn framed_reply_is_bounded_and_requires_a_complete_terminator() {
 
     let mut oversized = OscReplyFrame::new(now);
     for byte in b"11" {
-        assert_eq!(oversized.push(byte), OscStep::Pending);
+        assert_eq!(oversized.push(*byte), OscStep::Pending);
     }
     assert_eq!(oversized.push(b';'), OscStep::Pending);
     let mut over_bound = None;
