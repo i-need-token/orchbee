@@ -147,7 +147,7 @@ fn exit_help_and_unknown_input_cannot_become_adjustments() {
 }
 
 #[test]
-fn help_pages_use_plain_keys_inside_mode_and_are_consumed_with_help_closed() {
+fn help_scroll_keys_work_inside_resize_mode_and_are_consumed_with_help_closed() {
     let mut view = ClientView::new(80);
     enter(&mut view);
     assert_eq!(
@@ -170,7 +170,7 @@ fn help_pages_use_plain_keys_inside_mode_and_are_consumed_with_help_closed() {
         .action(),
         Some(ClientAction::PageShortcutHelp)
     );
-    assert_eq!(view.help_page(), 1);
+    assert_eq!(view.help_page(), 8);
     assert_eq!(
         apply(
             &mut view,
@@ -195,7 +195,7 @@ fn help_pages_use_plain_keys_inside_mode_and_are_consumed_with_help_closed() {
 }
 
 #[test]
-fn resolved_help_bound_includes_configured_only_actions_instead_of_the_default_prefix_table() {
+fn help_scroll_requests_accept_configured_actions_until_a_draw_settles_them() {
     let body = (0..64)
         .map(|i| format!("[[keys.command]]\ncommand='echo {i}'\n"))
         .collect::<String>();
@@ -220,6 +220,5 @@ fn resolved_help_bound_includes_configured_only_actions_instead_of_the_default_p
             PrefixInput::Key(KeyEvent::press(KeyCode::PageDown, Modifiers::NONE)),
         );
     }
-    assert!(view.help_page() >= 64);
-    assert_eq!(view.help_page(), view.bindings().descriptions().len());
+    assert_eq!(view.help_page(), 1_600);
 }

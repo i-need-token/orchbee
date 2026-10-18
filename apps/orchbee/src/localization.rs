@@ -13,6 +13,8 @@ mod tab_menu;
 pub(crate) use presentation::RecoveryVerb;
 #[cfg(windows)]
 mod plugins;
+mod shortcut_help;
+pub(crate) use shortcut_help::{ShortcutHelpEntry, ShortcutHelpGroup, shortcut_filter_matches};
 mod runtime_configuration;
 mod settings;
 mod status;
@@ -324,16 +326,21 @@ pub(crate) struct ShellText<'a> {
     pub(crate) hint_short: &'a str,
     pub(crate) other_keys_label: &'static str,
     pub(crate) binding_unbound: &'static str,
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     history_previous: &'static str,
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     help_next: &'static str,
     #[cfg(not(windows))]
     pub(crate) overlay_input_hint: &'static str,
+    #[cfg(test)]
     pub(crate) help_close_label: &'static str,
+    #[cfg(test)]
     pub(crate) help_previous_label: &'static str,
+    #[cfg(test)]
     pub(crate) help_next_label: &'static str,
+    #[cfg(test)]
     pub(crate) help_pages_label: &'static str,
+    #[cfg(test)]
     pub(crate) help_escape_close_hint: &'static str,
     pub(crate) overlay_refused: &'static str,
     #[cfg(not(windows))]
@@ -439,16 +446,21 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     no_client_session: "No Orchbee session is connected.",
     other_keys_label: "Other keys",
     binding_unbound: "Unbound",
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     history_previous: "Enter retained history when Help is closed; page back while Help is open",
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     help_next: "Page forward while this shortcut help is open",
     #[cfg(not(windows))]
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
+    #[cfg(test)]
     help_close_label: "Close help",
+    #[cfg(test)]
     help_previous_label: "Previous page",
+    #[cfg(test)]
     help_next_label: "Next page",
+    #[cfg(test)]
     help_pages_label: "Turn pages",
+    #[cfg(test)]
     help_escape_close_hint: "Esc close",
     panel_title: "Terminal",
     pointer_released: "mouse released · Ctrl+B m restores",
@@ -516,16 +528,21 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     no_client_session: "当前未连接 Orchbee 会话。",
     other_keys_label: "其他按键",
     binding_unbound: "未绑定",
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     history_previous: "帮助关闭时进入保留历史；帮助打开时向前翻页",
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     help_next: "在此快捷键帮助打开时向后翻页",
     #[cfg(not(windows))]
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
+    #[cfg(test)]
     help_close_label: "关闭帮助",
+    #[cfg(test)]
     help_previous_label: "上一页",
+    #[cfg(test)]
     help_next_label: "下一页",
+    #[cfg(test)]
     help_pages_label: "翻页",
+    #[cfg(test)]
     help_escape_close_hint: "Esc 关闭帮助",
     panel_title: "终端",
     pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
@@ -2001,6 +2018,7 @@ impl<'a> ShellText<'a> {
 }
 
 impl ShellText<'_> {
+    #[cfg(test)]
     pub(crate) fn configured_shortcut_rows(
         &self,
         view: &crate::client_view::ClientView,

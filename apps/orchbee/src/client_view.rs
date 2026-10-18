@@ -12,7 +12,7 @@ pub(crate) mod navigator;
 #[cfg(windows)]
 mod resize;
 
-pub(crate) use bindings::{Bindings, PrefixAction, PrefixDesc};
+pub(crate) use bindings::{Bindings, DiscoveryEntry, PrefixAction, PrefixDesc};
 #[cfg(windows)]
 pub(crate) use copy::{
     CopyHintLabel, CopyModeKey, CopySearchCommand, decide as copy_mode_key,
@@ -25,7 +25,7 @@ pub(crate) use keys::{
     format_binding_with_glyphs, join_key_labels,
 };
 
-#[cfg(windows)]
+#[cfg(all(windows, test))]
 const SIDEBAR_HELP_PAGES: [Binding; 2] = [
     Binding::new(KeyCode::PageUp, Modifiers::NONE),
     Binding::new(KeyCode::PageDown, Modifiers::NONE),
@@ -428,8 +428,8 @@ pub(crate) struct ClientView {
     pub(crate) resize_pending: bool,
     viewport: ViewportClass,
     wide_sidebar_visible: bool,
-    /// Client-local Help incarnation, requested page, and successful-frame
-    /// proof. It never enters NativeSession business state.
+    /// Client-local Help incarnation, filter, requested scroll offset, and
+    /// successful-frame proof. It never enters NativeSession business state.
     help: help::State,
     /// The pointer-capture release flag: `Ctrl+B m` and `--mouse off`
     /// release host mouse reporting; while released the status line carries
@@ -440,23 +440,6 @@ pub(crate) struct ClientView {
 }
 
 impl ClientView {
-    // The resolved registry, including configured-only actions, bounds held paging input.
-    fn help_page_bound(&self) -> usize {
-        #[cfg(windows)]
-        if self.machines.sidebar_navigation_active() {
-            return crate::machine_picker::SIDEBAR_BINDINGS.len() + 1;
-        }
-        #[cfg(windows)]
-        if self.copy_mode_active {
-            return self.copy_help_rows().len();
-        }
-        #[cfg(windows)]
-        if self.resize_mode {
-            return self.resize_help_rows().len();
-        }
-        self.bindings.descriptions().len()
-    }
-
     pub(crate) fn new(width: u16) -> Self {
         Self {
             user_preferences: None,
@@ -600,7 +583,55 @@ impl ClientView {
     }
 
     fn request_help_page(&mut self, page: usize) {
-        self.help.request_page(page, self.help_page_bound());
+        // The renderer publishes the maximum scroll offset for its exact
+        // viewport; until then input may request beyond it.
+        self.help.request_page(page, usize::MAX);
+    }
+
+    fn edit_help_filter(&mut self, event: KeyEvent) -> Option<ClientAction> {
+        if event.kind == KeyKind::Release {
+            return None;
+        }
+        if Binding::new(KeyCode::PageUp, Modifiers::NONE).matches(event) {
+            self.request_help_page(self.help.page().saturating_sub(8));
+            return Some(ClientAction::PageShortcutHelp);
+        }
+        if Binding::new(KeyCode::PageDown, Modifiers::NONE).matches(event) {
+            self.request_help_page(self.help.page().saturating_add(8));
+            return Some(ClientAction::PageShortcutHelp);
+        }
+        if Binding::new(KeyCode::Up, Modifiers::NONE).matches(event) {
+            self.request_help_page(self.help.page().saturating_sub(1));
+            return Some(ClientAction::PageShortcutHelp);
+        }
+        if Binding::new(KeyCode::Down, Modifiers::NONE).matches(event) {
+            self.request_help_page(self.help.page().saturating_add(1));
+            return Some(ClientAction::PageShortcutHelp);
+        }
+        if Binding::new(KeyCode::Home, Modifiers::NONE).matches(event) {
+            self.request_help_page(0);
+            return Some(ClientAction::PageShortcutHelp);
+        }
+        if Binding::new(KeyCode::End, Modifiers::NONE).matches(event) {
+            if let Some(page) = self.help.end_page() {
+                self.request_help_page(page);
+                return Some(ClientAction::PageShortcutHelp);
+            }
+            return None;
+        }
+        let (code, modifiers) = event.normalized();
+        if code == KeyCode::Char('u') && modifiers.ctrl && !modifiers.alt && !modifiers.super_ {
+            self.help.clear_filter();
+        } else if Binding::new(KeyCode::Backspace, Modifiers::NONE).matches(event) {
+            self.help.backspace_filter();
+        } else if !modifiers.ctrl
+            && !modifiers.alt
+            && !modifiers.super_
+            && let KeyCode::Char(character) = event.code
+        {
+            self.help.append_filter(character);
+        }
+        None
     }
 
     #[cfg(windows)]
@@ -631,8 +662,7 @@ impl ClientView {
         self.prefix_active
     }
 
-    /// The help page the renderer should draw. Consumed by the paged
-    /// `render_shortcut_help` seam; always a bounded counter.
+    /// Whether pane resize mode currently owns ordinary Client input.
     pub(crate) const fn resize_mode(&self) -> bool {
         #[cfg(windows)]
         {
@@ -657,7 +687,7 @@ impl ClientView {
         self.copy_mode_active = active;
     }
 
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     pub(crate) fn copy_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         copy::help_rows()
     }
@@ -674,14 +704,6 @@ impl ClientView {
                 } else {
                     let _ = self.open_help();
                 }
-                true
-            }
-            Some(CopyModeKey::Page { older }) if self.overlay == Some(Overlay::ShortcutHelp) => {
-                self.request_help_page(if older {
-                    self.help.page().saturating_sub(1)
-                } else {
-                    self.help.page() + 1
-                });
                 true
             }
             _ => false,
@@ -716,6 +738,7 @@ impl ClientView {
     }
 
     #[cfg(windows)]
+    #[cfg(test)]
     pub(crate) fn resize_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         self.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode)
     }
@@ -743,8 +766,13 @@ impl ClientView {
         ]
     }
 
+    /// First rendered line requested by the Help list.
     pub(crate) const fn help_page(&self) -> usize {
         self.help.page()
+    }
+
+    pub(crate) fn help_filter(&self) -> &str {
+        self.help.filter()
     }
 
     /// Projects the exact current Help candidate without granting input authority.
@@ -754,7 +782,7 @@ impl ClientView {
 
     /// Settles only the source carried by a successfully published frame map.
     /// `None` revokes a covered, reset, or incomplete candidate without
-    /// changing the requested page or closing the capturing overlay.
+    /// changing the requested offset or closing the capturing overlay.
     pub(crate) fn settle_help_draw(&mut self, source: Option<help::HelpDrawSource>) {
         self.help
             .settle(source, self.overlay == Some(Overlay::ShortcutHelp));
@@ -916,7 +944,7 @@ impl ClientView {
         self.exit_resize_mode();
     }
 
-    #[cfg(windows)]
+    #[cfg(all(windows, test))]
     pub(crate) fn sidebar_help_page_label() -> String {
         SIDEBAR_HELP_PAGES
             .iter()
@@ -932,18 +960,9 @@ impl ClientView {
             return false;
         }
         if event.kind == KeyKind::Release {
-            return true;
+            return false;
         }
-        if let Some(index) = SIDEBAR_HELP_PAGES
-            .iter()
-            .position(|binding| binding.matches(event))
-        {
-            self.request_help_page(if index == 0 {
-                self.help_page().saturating_sub(1)
-            } else {
-                self.help_page() + 1
-            });
-        } else if crate::machine_picker::SIDEBAR_BINDINGS
+        if crate::machine_picker::SIDEBAR_BINDINGS
             .iter()
             .any(|(binding, command)| {
                 binding.matches(event)
@@ -955,8 +974,10 @@ impl ClientView {
             })
         {
             self.dismiss_overlay();
+            true
+        } else {
+            false
         }
-        true
     }
 
     /// Applies the navigator settlement of a pointer-issued action. Pointer
@@ -1026,6 +1047,35 @@ impl ClientView {
     pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
         let mut next = self.clone();
         if self.overlay == Some(Overlay::ShortcutHelp) {
+            if let PrefixInput::Key(event) = input
+                && event.kind != KeyKind::Release
+                && Binding::new(KeyCode::Esc, Modifiers::NONE).matches(event)
+            {
+                next.dismiss_overlay();
+                next.prefix_active = false;
+                return ClientTransition {
+                    next,
+                    action: Some(ClientAction::CloseShortcutHelp),
+                    shell: ShellCommand::None,
+                    layout_changed: false,
+                };
+            }
+            if self.prefix_active
+                && matches!(
+                    input,
+                    PrefixInput::Key(KeyEvent {
+                        kind: KeyKind::Release,
+                        ..
+                    })
+                )
+            {
+                return ClientTransition {
+                    next,
+                    action: None,
+                    shell: ShellCommand::None,
+                    layout_changed: false,
+                };
+            }
             if self.prefix_active {
                 let (action, shell) = next.decide_prefix(input);
                 if action == ClientAction::ForwardLiteralPrefix {
@@ -1055,8 +1105,7 @@ impl ClientView {
                 };
             }
             if let PrefixInput::Key(event) = input {
-                if self.bindings.prefix.matches(event) {
-                    next.prefix_active = true;
+                if event.kind == KeyKind::Release {
                     return ClientTransition {
                         next,
                         action: None,
@@ -1064,11 +1113,11 @@ impl ClientView {
                         layout_changed: false,
                     };
                 }
-                if Binding::new(KeyCode::Esc, Modifiers::NONE).matches(event) {
-                    next.dismiss_overlay();
+                if self.bindings.prefix.matches(event) {
+                    next.prefix_active = true;
                     return ClientTransition {
                         next,
-                        action: Some(ClientAction::CloseShortcutHelp),
+                        action: None,
                         shell: ShellCommand::None,
                         layout_changed: false,
                     };
@@ -1083,25 +1132,13 @@ impl ClientView {
                     };
                 }
                 #[cfg(windows)]
-                if self.resize_mode {
-                    let action = match resize::decide(event) {
-                        Some(resize::ResizeKey::Help) => {
-                            next.dismiss_overlay();
-                            Some(ClientAction::CloseShortcutHelp)
-                        }
-                        Some(resize::ResizeKey::Page { previous }) => {
-                            next.request_help_page(if previous {
-                                next.help_page().saturating_sub(1)
-                            } else {
-                                next.help_page() + 1
-                            });
-                            Some(ClientAction::PageShortcutHelp)
-                        }
-                        _ => None,
-                    };
+                if self.resize_mode
+                    && matches!(resize::decide(event), Some(resize::ResizeKey::Help))
+                {
+                    next.dismiss_overlay();
                     return ClientTransition {
                         next,
-                        action,
+                        action: Some(ClientAction::CloseShortcutHelp),
                         shell: ShellCommand::None,
                         layout_changed: false,
                     };
@@ -1130,6 +1167,13 @@ impl ClientView {
                         next,
                     };
                 }
+                let action = next.edit_help_filter(event);
+                return ClientTransition {
+                    next,
+                    action,
+                    shell: ShellCommand::None,
+                    layout_changed: false,
+                };
             }
             return ClientTransition {
                 next,
@@ -1483,12 +1527,11 @@ impl ClientView {
             PrefixAction::ShowHelp => self.apply_action_decision(ClientAction::OpenShortcutHelp),
             PrefixAction::HelpPagePrevious | PrefixAction::HelpPageNext => {
                 if self.overlay == Some(Overlay::ShortcutHelp) {
-                    // Only an open help pages: the page key is consumed
-                    // while the overlay is up, and the renderer's clamped
-                    // page settles the upper bound on the next draw.
+                    // Only open Help scrolls. The renderer's exact viewport
+                    // settles any requested offset beyond its last line.
                     self.request_help_page(match member.action {
-                        PrefixAction::HelpPagePrevious => self.help_page().saturating_sub(1),
-                        _ => self.help_page() + 1,
+                        PrefixAction::HelpPagePrevious => self.help_page().saturating_sub(8),
+                        _ => self.help_page().saturating_add(8),
                     });
                     (ClientAction::PageShortcutHelp, ShellCommand::None)
                 } else if member.action == PrefixAction::HelpPagePrevious {

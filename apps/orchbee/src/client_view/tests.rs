@@ -280,9 +280,10 @@ fn shortcut_help_captures_input_and_escape_closes_it() {
     assert_eq!(opened.action(), Some(ClientAction::OpenShortcutHelp));
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
 
-    // Help owns ordinary input while visible, but the global prefix can still
-    // close it or replace it with another Client overlay.
+    // Help filters ordinary input while visible, but the global prefix can
+    // still close it or replace it with another Client overlay.
     assert_eq!(commit(&mut view, plain('x')).shell(), ShellCommand::None);
+    assert_eq!(view.help_filter(), "x");
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
     let escaped = commit(&mut view, key(KeyCode::Esc));
     assert_eq!(escaped.action(), Some(ClientAction::CloseShortcutHelp));
@@ -303,14 +304,20 @@ fn shortcut_help_captures_input_and_escape_closes_it() {
 }
 
 #[test]
-fn help_capture_keeps_prefix_escape_local_and_allows_prefix_overlay_switches() {
+fn help_escape_closes_even_after_prefix_and_other_prefix_actions_switch_surfaces() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
     commit(&mut view, plain('?'));
 
     enter_prefix(&mut view);
-    let dismissed_prefix = commit(&mut view, key(KeyCode::Esc));
-    assert_eq!(dismissed_prefix.action(), Some(ClientAction::DismissPrefix));
+    let escaped = commit(&mut view, key(KeyCode::Esc));
+    assert_eq!(escaped.action(), Some(ClientAction::CloseShortcutHelp));
+    assert_eq!(escaped.shell(), ShellCommand::None);
+    assert_eq!(view.overlay(), None);
+    assert!(!view.prefix_active());
+
+    enter_prefix(&mut view);
+    commit(&mut view, plain('?'));
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
 
     enter_prefix(&mut view);
@@ -453,7 +460,7 @@ fn unconnected_fallback_reports_the_new_panel_actions_and_keeps_focus_keys_silen
 }
 
 #[test]
-fn page_keys_page_an_open_help_and_reset_on_close_and_reopen() {
+fn prefix_page_keys_scroll_open_help_and_reset_on_close_and_reopen() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     assert_eq!(view.help_page(), 0);
 
@@ -465,14 +472,14 @@ fn page_keys_page_an_open_help_and_reset_on_close_and_reopen() {
     let paged = commit(&mut view, key(KeyCode::PageDown));
     assert_eq!(paged.action(), Some(ClientAction::PageShortcutHelp));
     assert_eq!(paged.shell(), ShellCommand::None);
-    assert_eq!(view.help_page(), 1);
+    assert_eq!(view.help_page(), 8);
 
     enter_prefix(&mut view);
     commit(&mut view, key(KeyCode::PageDown));
-    assert_eq!(view.help_page(), 2);
+    assert_eq!(view.help_page(), 16);
     enter_prefix(&mut view);
     commit(&mut view, key(KeyCode::PageUp));
-    assert_eq!(view.help_page(), 1);
+    assert_eq!(view.help_page(), 8);
 
     // Closing and reopening starts again at page 0.
     enter_prefix(&mut view);
@@ -514,48 +521,47 @@ fn page_keys_without_help_follow_the_unknown_prefix_rules() {
 }
 
 #[test]
-fn unprefixed_page_keys_still_reach_the_terminal() {
+fn unprefixed_page_keys_scroll_help_and_reach_the_terminal_without_it() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     for page_key in [KeyCode::PageUp, KeyCode::PageDown] {
         let transition = commit(&mut view, key(page_key));
         assert_eq!(transition.action(), None);
         assert_eq!(transition.shell(), ShellCommand::ForwardTerminal);
     }
-    // And the same holds while the help overlay is open: it never
-    // captures ordinary input.
     enter_prefix(&mut view);
     commit(&mut view, plain('?'));
     let transition = commit(&mut view, key(KeyCode::PageDown));
-    assert_eq!(transition.shell(), ShellCommand::ForwardTerminal);
-    assert_eq!(view.help_page(), 0);
+    assert_eq!(transition.action(), Some(ClientAction::PageShortcutHelp));
+    assert_eq!(transition.shell(), ShellCommand::None);
+    assert_eq!(view.help_page(), 8);
 }
 
 #[test]
-fn help_page_requests_are_bounded_and_only_an_exact_draw_settles_clamping() {
+fn help_scroll_requests_clamp_only_after_an_exact_draw_settles() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
     commit(&mut view, plain('?'));
 
     let bound = view.bindings().descriptions().len();
-    // PageDown can never run away: the counter is capped by the registry
-    // row bound, and PageUp saturates at 0.
+    // Input may request beyond the current viewport; the exact presented
+    // source settles it after the renderer knows the scroll boundary.
     for _ in 0..(bound + 8) {
         enter_prefix(&mut view);
         commit(&mut view, key(KeyCode::PageDown));
     }
-    assert_eq!(view.help_page(), bound);
+    assert_eq!(view.help_page(), (bound + 8) * 8);
     enter_prefix(&mut view);
     commit(&mut view, key(KeyCode::PageUp));
-    assert_eq!(view.help_page(), bound - 1);
+    assert_eq!(view.help_page(), (bound + 8) * 8 - 8);
 
     // Only a successfully published exact source settles the effective page
     // after geometry shrinks the real page count.
     let candidate = view.help_draw_candidate().unwrap();
     view.settle_help_draw(candidate.presented(3, 3));
     assert_eq!(view.help_page(), 3);
-    // A page request revokes that source and remains bounded by the registry.
+    // A scroll request revokes that source and remains pending until the next draw.
     view.request_help_page(usize::MAX);
-    assert_eq!(view.help_page(), bound);
+    assert_eq!(view.help_page(), usize::MAX);
     view.request_help_page(0);
     assert_eq!(view.help_page(), 0);
 }

@@ -1,14 +1,11 @@
-//! Shortcut-help geometry, effective binding discovery, and exact draw authority.
+//! Shortcut-help geometry, semantic binding discovery, and exact draw authority.
 
-#[cfg(windows)]
-use crate::client_view::PrefixDesc;
 use crate::{
     client_view::{
-        ClientView, KeyLabelGlyphs, LabelStyle, PrefixAction,
+        ClientView, KeyLabelGlyphs,
         help::{DrawnHelpControl, HelpControl, HelpDrawCandidate, HelpDrawSource},
-        join_key_labels,
     },
-    localization::{Locale, ShellText},
+    localization::{Locale, ShellText, ShortcutHelpEntry},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_layout::place_overlay,
     tui_pointer::{
@@ -25,50 +22,14 @@ use ratatui::{
 };
 
 use super::controls::{
-    Availability, ControlSurface, IconActionGlyph, IconActionSpec, KeyHint, PointerPresentation,
-    icon_action_rect, measure_key_hints, render_icon_action, render_key_hints,
+    Availability, ControlSurface, IconActionGlyph, IconActionSpec, PointerPresentation,
+    icon_action_rect, render_icon_action,
 };
 
-/// Rows the footer always owns: close/input semantics, then paging and position.
+/// Rows the footer always owns: filter input, then scroll/close guidance.
 const FOOTER_ROWS: u16 = 2;
-const MINIMUM_ROWS_PER_PAGE: u16 = 2;
 const PREFERRED_WIDTH: u16 = 76;
 const TITLE_CONTROL_GAP: u16 = 1;
-const FOOTER_GAP: u16 = 1;
-
-#[derive(Debug)]
-struct OwnedHint {
-    key: String,
-    label: String,
-}
-
-impl OwnedHint {
-    fn new(key: String, label: impl Into<String>) -> Self {
-        Self {
-            key,
-            label: label.into(),
-        }
-    }
-
-    fn borrowed(&self) -> KeyHint<'_> {
-        KeyHint::new(self.key.as_str(), self.label.as_str())
-    }
-}
-
-#[derive(Debug)]
-struct FooterModel {
-    top: Vec<OwnedHint>,
-    paging: Vec<OwnedHint>,
-    note: Option<&'static str>,
-}
-
-#[derive(Debug)]
-struct FooterPlan {
-    top_hints: Option<Rect>,
-    note: Option<(Rect, String)>,
-    position: Rect,
-    paging_hints: Option<Rect>,
-}
 
 #[derive(Debug)]
 struct ControlPlan {
@@ -83,6 +44,7 @@ pub(super) struct RenderContext<'a> {
     text: ShellText<'a>,
     locale: Locale,
     view: &'a ClientView,
+    session_available: bool,
     candidate: HelpDrawCandidate,
 }
 
@@ -91,18 +53,20 @@ impl<'a> RenderContext<'a> {
         text: ShellText<'a>,
         locale: Locale,
         view: &'a ClientView,
+        session_available: bool,
         candidate: HelpDrawCandidate,
     ) -> Self {
         Self {
             text,
             locale,
             view,
+            session_available,
             candidate,
         }
     }
 }
 
-/// Paints a complete Help panel and publishes the exact episode/page source.
+/// Paints a complete Help panel and publishes the exact episode/scroll source.
 ///
 /// Every required row, footer field, title control, and source is resolved before
 /// the first cell changes. `None` therefore leaves both the candidate buffer and
@@ -118,14 +82,11 @@ pub(super) fn render(
         text,
         locale,
         view,
+        session_available,
         candidate,
     } = context;
-    let rows = text.configured_shortcut_rows(view);
-    let height = u16::try_from(rows.len())
-        .unwrap_or(u16::MAX)
-        .saturating_add(FOOTER_ROWS)
-        .saturating_add(2);
-    let area = place_overlay(area, PREFERRED_WIDTH, height)?;
+    let entries = locale.shortcut_help_entries(view, session_available, key_label_glyphs(theme));
+    let area = place_overlay(area, PREFERRED_WIDTH, area.height)?;
     if frame.area().intersection(area) != area {
         return None;
     }
@@ -133,72 +94,27 @@ pub(super) fn render(
     let [previous_rect, next_rect, close_rect] = title_control_rects(frame.area(), area)?;
     let block = help_block(area, previous_rect, text.shortcut_title, theme)?;
     let inner = block.inner(area);
-    let rows_per_page = inner.height.saturating_sub(FOOTER_ROWS);
-    if rows_per_page < MINIMUM_ROWS_PER_PAGE || inner.width == 0 {
+    if inner.height <= FOOTER_ROWS || inner.width == 0 {
         return None;
     }
-    let rows_per_page = usize::from(rows_per_page);
     let width = usize::from(inner.width);
-
-    // Each registry row owns a padded chord column. Continuations align below
-    // its localized description, and no grapheme or logical row crosses pages.
-    let row_lines = rows
-        .iter()
-        .map(|(chord, label)| {
-            let indent = display_width(chord);
-            if indent > width {
-                return None;
-            }
-            let wrapped = wrap_display(label, width - indent)?;
-            let mut lines = Vec::with_capacity(wrapped.len());
-            let mut parts = wrapped.into_iter();
-            lines.push(Line::from(vec![
-                Span::styled(chord.clone(), theme.style(Role::HintKey)),
-                Span::styled(
-                    parts.next().unwrap_or_default(),
-                    theme.style(Role::TextPrimary),
-                ),
-            ]));
-            lines.extend(parts.map(|part| {
-                Line::styled(
-                    format!("{:<indent$}{part}", ""),
-                    theme.style(Role::TextPrimary),
-                )
-            }));
-            Some(lines)
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let pages = paginate_rows(
-        &row_lines.iter().map(Vec::len).collect::<Vec<_>>(),
-        rows_per_page,
-    )?;
-    let last = pages.len().checked_sub(1)?;
+    let [rows_area, footer_area] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(FOOTER_ROWS)]).areas(inner);
+    if rows_area.height == 0 || rows_area.width == 0 || footer_area.height != FOOTER_ROWS {
+        return None;
+    }
+    let lines = shortcut_lines(&entries, view.help_filter(), locale, width, theme)?;
+    let last = lines.len().saturating_sub(usize::from(rows_area.height));
     let page = candidate.page().min(last);
     let source = candidate.presented(page, last)?;
-    let (start, end) = pages[page];
-
-    let [rows_area, footer_area] =
-        Layout::vertical([Constraint::Min(0), Constraint::Length(FOOTER_ROWS)]).areas(inner);
-    let footer = footer_model(view, locale, text, key_label_glyphs(theme));
-    let top_hints = footer
-        .top
-        .iter()
-        .map(OwnedHint::borrowed)
-        .collect::<Vec<_>>();
-    let paging_hints = footer
-        .paging
-        .iter()
-        .map(OwnedHint::borrowed)
-        .collect::<Vec<_>>();
-    let position = format!("{}/{}", page + 1, last + 1);
-    let footer_plan = footer_plan(
-        footer_area,
-        &top_hints,
-        &paging_hints,
-        footer.note,
-        &position,
-        theme,
-    )?;
+    let filter_line = format!(
+        "{}: {} · {}",
+        locale.shortcut_search_label(),
+        view.help_filter(),
+        locale.shortcut_filter_hint()
+    );
+    let filter_line = truncate_display(&filter_line, width, theme.glyphs.ellipsis);
+    let scroll_line = truncate_display(locale.shortcut_scroll_hint(), width, theme.glyphs.ellipsis);
 
     let close = control_plan(
         hits,
@@ -225,9 +141,11 @@ pub(super) fn render(
         page < last,
     );
 
-    let items = row_lines[start..end]
+    let visible_end = page
+        .saturating_add(usize::from(rows_area.height))
+        .min(lines.len());
+    let items = lines[page..visible_end]
         .iter()
-        .flatten()
         .map(|line| ListItem::new(line.clone()))
         .collect::<Vec<_>>();
 
@@ -235,26 +153,19 @@ pub(super) fn render(
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
     frame.render_widget(List::new(items), rows_area);
-    if let Some(rect) = footer_plan.top_hints {
-        let painted = render_key_hints(frame, rect, &top_hints, theme)
-            .expect("the first complete Help hint was preflighted in this exact area");
-        debug_assert_eq!(rect.intersection(painted), painted);
-    }
-    if let Some((rect, note)) = footer_plan.note {
-        frame.render_widget(
-            Paragraph::new(note).style(theme.style(Role::TextSecondary)),
-            rect,
-        );
-    }
     frame.render_widget(
-        Paragraph::new(position).style(theme.style(Role::TextSecondary)),
-        footer_plan.position,
+        Paragraph::new(filter_line).style(theme.style(Role::TextSecondary)),
+        Rect::new(footer_area.x, footer_area.y, footer_area.width, 1),
     );
-    if let Some(rect) = footer_plan.paging_hints {
-        let painted = render_key_hints(frame, rect, &paging_hints, theme)
-            .expect("the first complete Help paging hint was preflighted in this exact area");
-        debug_assert_eq!(rect.intersection(painted), painted);
-    }
+    frame.render_widget(
+        Paragraph::new(scroll_line).style(theme.style(Role::TextSecondary)),
+        Rect::new(
+            footer_area.x,
+            footer_area.y.saturating_add(1),
+            footer_area.width,
+            1,
+        ),
+    );
 
     // Specific controls publish before the broad list/surface regions. Disabled
     // endpoints remain visible and frontmost but can never arm an activation.
@@ -280,7 +191,7 @@ pub(super) fn render(
 }
 
 /// Paints the complete three-cell recovery close when the full panel refuses.
-/// No page boundary or paging control is invented for this surface.
+/// No scroll boundary or list-control authority is invented for this surface.
 pub(super) fn render_refused(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -426,205 +337,6 @@ fn control_plan(
     }
 }
 
-fn footer_plan(
-    area: Rect,
-    top_hints: &[KeyHint<'_>],
-    paging_hints: &[KeyHint<'_>],
-    note: Option<&str>,
-    position: &str,
-    theme: &Theme,
-) -> Option<FooterPlan> {
-    if area.height != FOOTER_ROWS || area.width == 0 {
-        return None;
-    }
-    let top_row = Rect::new(area.x, area.y, area.width, 1);
-    let paging_row = Rect::new(area.x, area.y.checked_add(1)?, area.width, 1);
-
-    let note = note.map(|text| sanitize_terminal_text(text).into_owned());
-    let note_width = note.as_deref().map(display_width).unwrap_or(0);
-    if (note.is_some() && note_width == 0) || note_width > usize::from(top_row.width) {
-        return None;
-    }
-    let note_rect = if note.is_some() {
-        let width = u16::try_from(note_width).ok()?;
-        Some(Rect::new(
-            top_row.right().checked_sub(width)?,
-            top_row.y,
-            width,
-            1,
-        ))
-    } else {
-        None
-    };
-
-    let top_hints_rect = if top_hints.is_empty() {
-        None
-    } else {
-        let _ = measure_key_hints(top_hints, theme)?;
-        let end = note_rect.map_or(top_row.right(), |rect| rect.x.saturating_sub(FOOTER_GAP));
-        let rect = Rect::new(top_row.x, top_row.y, end.saturating_sub(top_row.x), 1);
-        let first = measure_key_hints(&top_hints[..1], theme)?;
-        (first <= usize::from(rect.width)).then_some(rect)?;
-        Some(rect)
-    };
-
-    let position = sanitize_terminal_text(position).into_owned();
-    let position_width = display_width(&position);
-    if position_width == 0 || position_width > usize::from(paging_row.width) {
-        return None;
-    }
-    let position_width = u16::try_from(position_width).ok()?;
-    let position_rect = Rect::new(paging_row.x, paging_row.y, position_width, 1);
-    let paging_hints_rect = if paging_hints.is_empty() {
-        None
-    } else {
-        let _ = measure_key_hints(paging_hints, theme)?;
-        let x = position_rect.right().checked_add(FOOTER_GAP)?;
-        let rect = Rect::new(x, paging_row.y, paging_row.right().saturating_sub(x), 1);
-        let first = measure_key_hints(&paging_hints[..1], theme)?;
-        (first <= usize::from(rect.width)).then_some(rect)?;
-        Some(rect)
-    };
-
-    Some(FooterPlan {
-        top_hints: top_hints_rect,
-        note: note_rect.zip(note),
-        position: position_rect,
-        paging_hints: paging_hints_rect,
-    })
-}
-
-fn footer_model(
-    view: &ClientView,
-    locale: Locale,
-    text: ShellText<'_>,
-    glyphs: KeyLabelGlyphs,
-) -> FooterModel {
-    #[cfg(not(windows))]
-    let _ = locale;
-    #[cfg(windows)]
-    if view.machines.sidebar_navigation_active() {
-        use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
-        let help_open = view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp);
-        let mut actions = vec![(SidebarCommand::Help, text.help_close_label)];
-        if !help_open {
-            actions.push((
-                SidebarCommand::Exit,
-                locale.sidebar_navigation_action(SidebarCommand::Exit),
-            ));
-        }
-        let top = actions
-            .into_iter()
-            .filter_map(|(command, label)| {
-                sidebar_binding_label(command, glyphs).map(|key| OwnedHint::new(key, label))
-            })
-            .collect();
-        let paging = vec![OwnedHint::new(
-            ClientView::sidebar_help_page_label(),
-            text.help_pages_label,
-        )];
-        return FooterModel {
-            top,
-            paging,
-            note: help_open.then_some(text.help_escape_close_hint),
-        };
-    }
-
-    #[cfg(windows)]
-    if view.copy_mode_active() {
-        let help_open = view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp);
-        let rows = view.copy_help_rows();
-        let mut actions = vec![(PrefixDesc::ShowHelp, text.help_close_label)];
-        if !help_open {
-            actions.push((
-                PrefixDesc::CopyExit,
-                locale.copy_hint_label(crate::client_view::CopyHintLabel::Exit),
-            ));
-        }
-        let top = actions
-            .into_iter()
-            .filter_map(|(desc, label)| {
-                registry_key(&rows, desc).map(|key| OwnedHint::new(key, label))
-            })
-            .collect();
-        let paging = registry_key(&rows, PrefixDesc::CopyPage)
-            .map(|key| vec![OwnedHint::new(key, text.help_pages_label)])
-            .unwrap_or_default();
-        return FooterModel {
-            top,
-            paging,
-            note: help_open.then_some(text.help_escape_close_hint),
-        };
-    }
-
-    #[cfg(windows)]
-    if view.resize_mode() {
-        let help_open = view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp);
-        let rows = view.resize_help_rows_with_glyphs(glyphs);
-        let mut actions = vec![(PrefixDesc::ShowHelp, text.help_close_label)];
-        if !help_open {
-            actions.push((
-                PrefixDesc::ResizeExit,
-                (text.prefix_desc)(PrefixDesc::ResizeExit),
-            ));
-        }
-        let top = actions
-            .into_iter()
-            .filter_map(|(desc, label)| {
-                registry_key(&rows, desc).map(|key| OwnedHint::new(key, label))
-            })
-            .collect();
-        let paging = registry_key(&rows, PrefixDesc::HelpPage)
-            .map(|key| vec![OwnedHint::new(key, text.help_pages_label)])
-            .unwrap_or_default();
-        return FooterModel {
-            top,
-            paging,
-            note: help_open.then_some(text.help_escape_close_hint),
-        };
-    }
-
-    let top = effective_action_label(view, PrefixAction::ShowHelp, glyphs)
-        .map(|key| vec![OwnedHint::new(key, text.help_close_label)])
-        .unwrap_or_default();
-    let paging = [
-        (PrefixAction::HelpPagePrevious, text.help_previous_label),
-        (PrefixAction::HelpPageNext, text.help_next_label),
-    ]
-    .into_iter()
-    .filter_map(|(action, label)| {
-        effective_action_label(view, action, glyphs).map(|key| OwnedHint::new(key, label))
-    })
-    .collect();
-    FooterModel {
-        top,
-        paging,
-        note: Some(text.help_escape_close_hint),
-    }
-}
-
-#[cfg(windows)]
-fn registry_key(rows: &[(String, PrefixDesc)], desc: PrefixDesc) -> Option<String> {
-    rows.iter()
-        .find(|(_, candidate)| *candidate == desc)
-        .map(|(key, _)| sanitize_terminal_text(key).trim().to_owned())
-        .filter(|key| display_width(key) > 0)
-}
-
-fn effective_action_label(
-    view: &ClientView,
-    action: PrefixAction,
-    glyphs: KeyLabelGlyphs,
-) -> Option<String> {
-    let labels = view.bindings().action_labels_with_glyphs(action, glyphs);
-    if labels.is_empty() {
-        return None;
-    }
-    let label = join_key_labels(&labels, LabelStyle::for_host(), " / ");
-    let label = sanitize_terminal_text(&label).into_owned();
-    (display_width(&label) > 0).then_some(label)
-}
-
 const fn key_label_glyphs(theme: &Theme) -> KeyLabelGlyphs {
     match theme.glyphs.mode() {
         GlyphMode::Unicode => KeyLabelGlyphs::Unicode,
@@ -641,25 +353,69 @@ const fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation 
     }
 }
 
-/// Groups whole logical rows into rendered-line budgets. A logical shortcut
-/// never splits across pages, and an over-tall row rejects the candidate.
-fn paginate_rows(row_lines: &[usize], rows_per_page: usize) -> Option<Vec<(usize, usize)>> {
-    let mut pages = Vec::new();
-    let mut start = 0;
-    let mut used = 0;
-    for (index, &lines) in row_lines.iter().enumerate() {
-        if lines > rows_per_page {
+fn shortcut_lines(
+    entries: &[ShortcutHelpEntry],
+    query: &str,
+    locale: Locale,
+    width: usize,
+    theme: &Theme,
+) -> Option<Vec<Line<'static>>> {
+    let matching = entries
+        .iter()
+        .filter(|entry| crate::localization::shortcut_filter_matches(query, &entry.search_text))
+        .collect::<Vec<_>>();
+    if matching.is_empty() {
+        return Some(vec![Line::styled(
+            locale.shortcut_no_matches(),
+            theme.style(Role::TextSecondary),
+        )]);
+    }
+
+    let mut lines = Vec::new();
+    let mut group = None;
+    for entry in matching {
+        if group != Some(entry.group) {
+            group = Some(entry.group);
+            lines.push(Line::styled(
+                locale.shortcut_group_name(entry.group),
+                theme
+                    .style(Role::TextSecondary)
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            ));
+        }
+
+        let key = sanitize_terminal_text(&entry.key).trim().into_owned();
+        let title = sanitize_terminal_text(&entry.title).into_owned();
+        let description = match entry.disabled_reason.as_deref() {
+            Some(reason) => format!("{title} · {}", sanitize_terminal_text(reason)),
+            None => title,
+        };
+        let indent = display_width(&key).saturating_add(2);
+        if indent >= width {
             return None;
         }
-        if used + lines > rows_per_page {
-            pages.push((start, index));
-            start = index;
-            used = 0;
-        }
-        used += lines;
+        let wrapped = wrap_display(&description, width - indent)?;
+        let mut parts = wrapped.into_iter();
+        let disabled = entry.disabled_reason.is_some();
+        let key_style = theme.style(if disabled {
+            Role::TextDisabled
+        } else {
+            Role::HintKey
+        });
+        let description_style = theme.style(if disabled {
+            Role::TextDisabled
+        } else {
+            Role::TextPrimary
+        });
+        lines.push(Line::from(vec![
+            Span::styled(format!("{key}  "), key_style),
+            Span::styled(parts.next().unwrap_or_default(), description_style),
+        ]));
+        lines.extend(
+            parts.map(|part| Line::styled(format!("{:indent$}{part}", ""), description_style)),
+        );
     }
-    pages.push((start, row_lines.len()));
-    Some(pages)
+    Some(lines)
 }
 
 /// Wraps terminal text at grapheme boundaries while preferring word breaks.

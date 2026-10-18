@@ -7,6 +7,14 @@ use super::{ClientAction, Modifiers, PanelDirection, PrefixAction, ShellCommand}
 use crate::action_projection::{ActionMetadata, binding_metadata};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct DiscoveryEntry<'a> {
+    pub(crate) action: PrefixAction,
+    pub(crate) description: PrefixDesc,
+    pub(crate) metadata: ActionMetadata<'a>,
+    pub(crate) key: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Entry {
     enabled: bool,
     pub(crate) prefix: bool,
@@ -68,6 +76,28 @@ impl Default for Bindings {
 }
 
 impl Bindings {
+    /// Returns only effective, bound actions for keyboard discovery. The
+    /// action metadata is the semantic identity shared by menus and help;
+    /// chord text comes from the exact same resolved entries used by dispatch.
+    pub(crate) fn discovery_entries(
+        &self,
+        glyphs: super::super::KeyLabelGlyphs,
+    ) -> Vec<DiscoveryEntry<'_>> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.enabled)
+            .filter_map(|entry| {
+                let metadata = binding_metadata(&entry.member.action)?;
+                Some(DiscoveryEntry {
+                    action: entry.member.action.clone(),
+                    description: entry.desc,
+                    metadata,
+                    key: self.entry_label(entry, glyphs),
+                })
+            })
+            .collect()
+    }
+
     #[cfg(windows)]
     pub(crate) fn configured_description(&self, desc: PrefixDesc) -> Option<&str> {
         let PrefixDesc::ConfiguredCommand(index) = desc else {

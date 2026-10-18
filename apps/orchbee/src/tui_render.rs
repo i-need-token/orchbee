@@ -598,7 +598,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     help::render(
                         frame,
                         overlay_area(&areas),
-                        help::RenderContext::new(text, locale, view, candidate),
+                        help::RenderContext::new(text, locale, view, session.is_some(), candidate),
                         theme,
                         hits,
                     )

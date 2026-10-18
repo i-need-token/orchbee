@@ -37,6 +37,37 @@ fn presented_pages_clamp_exactly_and_page_changes_revoke_the_proof() {
 }
 
 #[test]
+fn filtering_resets_scroll_and_revokes_a_previously_presented_frame() {
+    let mut help = State::default();
+    assert!(help.open());
+    help.request_page(8, usize::MAX);
+    let old = help.candidate().presented(8, 12).unwrap();
+    help.settle(Some(old), true);
+    assert_eq!(help.page(), 8);
+
+    assert!(help.append_filter('w'));
+    assert_eq!(help.filter(), "w");
+    assert_eq!(help.page(), 0);
+    help.settle(Some(old), true);
+    assert_eq!(
+        help.activate(&DrawnHelpControl::new(old, HelpControl::Close)),
+        None
+    );
+    assert!(help.candidate().presented(0, 3).is_some());
+}
+
+#[test]
+fn filter_backspace_removes_one_complete_grapheme() {
+    let mut help = State::default();
+    assert!(help.open());
+    assert!(help.append_filter('e'));
+    assert!(help.append_filter('\u{301}'));
+    assert_eq!(help.filter(), "e\u{301}");
+    assert!(help.backspace_filter());
+    assert!(help.filter().is_empty());
+}
+
+#[test]
 fn refused_frames_authorize_only_their_exact_close() {
     let mut help = State::default();
     assert!(help.open());

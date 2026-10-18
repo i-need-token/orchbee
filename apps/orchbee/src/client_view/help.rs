@@ -1,5 +1,7 @@
 //! Client-owned shortcut-help incarnation and exact successful-frame authority.
 
+use unicode_segmentation::UnicodeSegmentation;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct HelpEpisodeToken(u64);
 
@@ -7,6 +9,7 @@ pub(crate) struct HelpEpisodeToken(u64);
 pub(crate) struct HelpDrawCandidate {
     episode: HelpEpisodeToken,
     page: usize,
+    revision: u64,
 }
 
 impl HelpDrawCandidate {
@@ -15,8 +18,8 @@ impl HelpDrawCandidate {
     }
 
     /// Constructs the exact source for a complete help panel. The renderer may
-    /// clamp a requested page after geometry changes, but it cannot publish a
-    /// different page or an invalid last-page boundary.
+    /// clamp the first visible line after geometry changes, but it cannot
+    /// publish a different filter revision or an invalid scroll boundary.
     pub(crate) const fn presented(
         self,
         effective_page: usize,
@@ -28,6 +31,7 @@ impl HelpDrawCandidate {
                 episode: self.episode,
                 page: effective_page,
                 last,
+                revision: self.revision,
             })
         } else {
             None
@@ -35,11 +39,12 @@ impl HelpDrawCandidate {
     }
 
     /// A refused surface proves only the complete recovery control for the
-    /// requested page. It deliberately carries no invented page boundary.
+    /// requested scroll offset. It deliberately carries no invented boundary.
     pub(crate) const fn refused(self) -> HelpDrawSource {
         HelpDrawSource::Refused {
             episode: self.episode,
             page: self.page,
+            revision: self.revision,
         }
     }
 }
@@ -50,10 +55,12 @@ pub(crate) enum HelpDrawSource {
         episode: HelpEpisodeToken,
         page: usize,
         last: usize,
+        revision: u64,
     },
     Refused {
         episode: HelpEpisodeToken,
         page: usize,
+        revision: u64,
     },
 }
 
@@ -67,6 +74,12 @@ impl HelpDrawSource {
     pub(crate) const fn page(self) -> usize {
         match self {
             Self::Presented { page, .. } | Self::Refused { page, .. } => page,
+        }
+    }
+
+    pub(crate) const fn revision(self) -> u64 {
+        match self {
+            Self::Presented { revision, .. } | Self::Refused { revision, .. } => revision,
         }
     }
 }
@@ -107,7 +120,11 @@ pub(super) enum Activation {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct State {
     episode: u64,
+    /// First rendered line in the continuous result list (the old name stays
+    /// on the draw protocol to preserve its narrow pointer contract).
     page: usize,
+    revision: u64,
+    filter: String,
     shown: Option<HelpDrawSource>,
 }
 
@@ -118,12 +135,15 @@ impl State {
         };
         self.episode = episode;
         self.page = 0;
+        self.revision = 0;
+        self.filter.clear();
         self.shown = None;
         true
     }
 
     pub(super) fn close(&mut self) {
         self.page = 0;
+        self.filter.clear();
         self.shown = None;
     }
 
@@ -135,12 +155,62 @@ impl State {
         HelpDrawCandidate {
             episode: HelpEpisodeToken(self.episode),
             page: self.page,
+            revision: self.revision,
         }
     }
 
     pub(super) fn request_page(&mut self, page: usize, bound: usize) {
         self.page = page.min(bound);
+        self.bump_revision();
         self.shown = None;
+    }
+
+    pub(super) fn filter(&self) -> &str {
+        &self.filter
+    }
+
+    pub(super) fn end_page(&self) -> Option<usize> {
+        match self.shown {
+            Some(HelpDrawSource::Presented { last, .. }) => Some(last),
+            Some(HelpDrawSource::Refused { .. }) | None => None,
+        }
+    }
+
+    pub(super) fn append_filter(&mut self, character: char) -> bool {
+        if character.is_control() || self.filter.chars().count() >= 128 {
+            return false;
+        }
+        self.filter.push(character);
+        self.page = 0;
+        self.bump_revision();
+        self.shown = None;
+        true
+    }
+
+    pub(super) fn backspace_filter(&mut self) -> bool {
+        let Some(grapheme_width) = self.filter.graphemes(true).next_back().map(str::len) else {
+            return false;
+        };
+        self.filter.truncate(self.filter.len() - grapheme_width);
+        self.page = 0;
+        self.bump_revision();
+        self.shown = None;
+        true
+    }
+
+    pub(super) fn clear_filter(&mut self) -> bool {
+        if self.filter.is_empty() {
+            return false;
+        }
+        self.filter.clear();
+        self.page = 0;
+        self.bump_revision();
+        self.shown = None;
+        true
+    }
+
+    fn bump_revision(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
     }
 
     pub(super) fn settle(&mut self, source: Option<HelpDrawSource>, active: bool) {
@@ -151,7 +221,8 @@ impl State {
         let Some(source) = source else {
             return;
         };
-        if source.episode() != HelpEpisodeToken(self.episode) {
+        if source.episode() != HelpEpisodeToken(self.episode) || source.revision() != self.revision
+        {
             return;
         }
         match source {
@@ -173,6 +244,7 @@ impl State {
         if self.shown != Some(source)
             || source.episode() != HelpEpisodeToken(self.episode)
             || source.page() != self.page
+            || source.revision() != self.revision
         {
             return None;
         }
@@ -192,6 +264,7 @@ impl State {
         if self.shown.as_ref() != Some(source)
             || source.episode() != HelpEpisodeToken(self.episode)
             || source.page() != self.page
+            || source.revision() != self.revision
         {
             return None;
         }
