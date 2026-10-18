@@ -180,7 +180,7 @@ fn empty_ui_without_focused_panel() -> NativeUi {
     ));
     let mut ui = NativeUi::new(std::sync::Arc::clone(&mailbox), clock.clone());
     let cache = crate::terminal_session::workbench_projection::project_native_standalone_tabs(
-        &tests::membership::snapshot(0, 1),
+        &super::super::tests::membership::snapshot(0, 1),
     )
     .unwrap();
     let wait = mailbox
