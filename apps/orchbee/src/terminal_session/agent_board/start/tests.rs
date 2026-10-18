@@ -46,7 +46,10 @@ fn draft_is_bounded_and_every_visible_change_invalidates_the_draw_source() {
     let mut state = State::new();
     state.install_catalog(&["codex", "amp"]);
     let first = state.draw_source();
-    assert!(state.edit(KeyEvent::press(KeyCode::Char('A'), Modifiers::SHIFT)));
+    assert!(state.edit(KeyEvent::press(
+        KeyCode::Char('A'),
+        Modifiers::NONE.with_shift()
+    )));
     assert_eq!(state.name(), "a");
     assert_ne!(state.draw_source(), first);
     let named = state.draw_source();

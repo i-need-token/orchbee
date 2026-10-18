@@ -2001,6 +2001,10 @@ impl<'a> NativeAgentBoardView<'a> {
         self.board.start.phase(self.board.epoch)
     }
     #[cfg(windows)]
+    pub(crate) fn start_running(&self) -> bool {
+        self.board.start_running()
+    }
+    #[cfg(windows)]
     pub(crate) fn start_operation_identity(
         &self,
     ) -> Option<(

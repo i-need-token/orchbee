@@ -1,9 +1,11 @@
 //! Agent startup composes a name reservation, one terminal submission and
 //! canonical readiness. Every failure retains the independently known effects.
 
+#[cfg(any(not(windows), test))]
+use super::Failure;
 #[cfg(windows)]
 use super::output;
-use super::{Failure, FailureKind, Output, failure_output};
+use super::{FailureKind, Output, failure_output};
 #[cfg(windows)]
 use crate::{
     agent_start::{Report, Request, Verdict},
