@@ -7,6 +7,9 @@ use std::time::{Duration, Instant};
 
 const QUERY_DEADLINE: Duration = Duration::from_millis(350);
 const OSC_FRAME_LIMIT: usize = 96;
+const OSC_DRAIN_LIMIT: usize = OSC_FRAME_LIMIT + 2;
+const OSC_DRAIN_IDLE: Duration = Duration::from_millis(50);
+const OSC_DRAIN_WINDOW: Duration = Duration::from_secs(1);
 
 /// The outer host's inferred background polarity; unknown never selects a named theme.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -152,7 +155,6 @@ pub(crate) struct OscReplyFrame {
     target: Option<ColorTarget>,
     payload: Vec<u8>,
     byte_count: usize,
-    over_bound: bool,
     malformed: bool,
     escape_pending: bool,
     deadline: Instant,
@@ -163,7 +165,67 @@ pub(crate) struct OscReplyFrame {
 pub(crate) enum OscStep {
     Pending,
     NotColorReply(Vec<u8>),
+    OverBound(ColorTarget),
     Complete(ColorReply),
+}
+
+/// A payload-free, bounded resynchronizer for a targeted OSC reply tail.
+#[derive(Debug)]
+pub(crate) struct OscDrain {
+    escape_pending: bool,
+    bytes_left: usize,
+    idle_deadline: Instant,
+    deadline: Instant,
+}
+
+/// One bounded drain transition; `Reprocess` leaves the current byte to ordinary input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OscDrainStep {
+    Pending,
+    Finished,
+    Reprocess,
+}
+
+impl OscDrain {
+    fn new(now: Instant, escape_pending: bool) -> Self {
+        Self {
+            escape_pending,
+            bytes_left: OSC_DRAIN_LIMIT,
+            idle_deadline: now + OSC_DRAIN_IDLE,
+            deadline: now + OSC_DRAIN_WINDOW,
+        }
+    }
+
+    /// Whether this bounded recovery window has ended.
+    pub(crate) fn expired(&self, now: Instant) -> bool {
+        now >= self.idle_deadline || now >= self.deadline
+    }
+
+    /// Consumes a possible tail terminator and returns fresh bytes for normal decoding.
+    pub(crate) fn push(&mut self, byte: u8, now: Instant) -> OscDrainStep {
+        if self.expired(now) {
+            return OscDrainStep::Reprocess;
+        }
+        if self.bytes_left == 0 {
+            return OscDrainStep::Reprocess;
+        }
+        if self.escape_pending && byte == b'\\' {
+            self.bytes_left -= 1;
+            return OscDrainStep::Finished;
+        }
+        if byte == 0x07 || byte == 0x9c {
+            self.bytes_left -= 1;
+            return OscDrainStep::Finished;
+        }
+        self.bytes_left -= 1;
+        self.escape_pending = byte == 0x1b;
+        self.idle_deadline = now + OSC_DRAIN_IDLE;
+        if self.bytes_left == 0 && !self.escape_pending {
+            OscDrainStep::Finished
+        } else {
+            OscDrainStep::Pending
+        }
+    }
 }
 
 impl OscReplyFrame {
@@ -174,7 +236,6 @@ impl OscReplyFrame {
             target: None,
             payload: Vec::with_capacity(24),
             byte_count: 0,
-            over_bound: false,
             malformed: false,
             escape_pending: false,
             deadline: now + Duration::from_secs(1),
@@ -184,6 +245,16 @@ impl OscReplyFrame {
     /// Whether the exact OSC selector has identified a queried color.
     pub(crate) const fn target(&self) -> Option<ColorTarget> {
         self.target
+    }
+
+    /// Whether an ESC immediately preceded the frame boundary.
+    pub(crate) const fn escape_pending(&self) -> bool {
+        self.escape_pending
+    }
+
+    /// Transfers the targeted frame's terminator prefix into bounded recovery.
+    pub(crate) fn drain(&self, now: Instant) -> OscDrain {
+        OscDrain::new(now, self.escape_pending)
     }
 
     /// Advances one OSC byte; query replies are capped before payload retention.
@@ -225,7 +296,7 @@ impl OscReplyFrame {
         }
         self.byte_count += 1;
         if self.byte_count > OSC_FRAME_LIMIT {
-            self.over_bound = true;
+            return OscStep::OverBound(self.target.expect("target set before payload"));
         } else {
             self.payload.push(byte);
         }
@@ -245,7 +316,7 @@ impl OscReplyFrame {
         let Some(target) = self.target else {
             return OscStep::NotColorReply(self.selector.clone());
         };
-        let rgb = (!self.over_bound && !self.malformed)
+        let rgb = (!self.malformed)
             .then(|| parse_rgb(&self.payload))
             .flatten();
         OscStep::Complete(ColorReply { target, rgb })

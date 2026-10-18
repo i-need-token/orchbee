@@ -1004,3 +1004,103 @@ fn malformed_and_timed_out_appearance_replies_do_not_leak_tail_text() {
     );
     assert_eq!(appended(&tail), "y");
 }
+
+#[test]
+fn modal_alt_right_bracket_keeps_its_escape_deadline() {
+    let start = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    assert!(feed(&mut decoder, b"\x1b]", start, 64).is_empty());
+
+    let resolved = feed(&mut decoder, b"1", start + Duration::from_millis(51), 64);
+    assert_eq!(appended(&resolved), "1");
+    let next = feed(&mut decoder, b"z", start + Duration::from_millis(52), 64);
+    assert_eq!(appended(&next), "z");
+}
+
+#[test]
+fn modal_timeout_preserves_split_st_then_resumes_text() {
+    let start = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    assert!(feed(&mut decoder, b"\x1b]11;rgb:1010\x1b", start, 64).is_empty());
+
+    assert!(decoder.tick(start + Duration::from_secs(1)).is_empty());
+    let terminated = feed(
+        &mut decoder,
+        b"\\",
+        start + Duration::from_millis(1_001),
+        64,
+    );
+    assert_eq!(appended(&terminated), "");
+    let next = feed(&mut decoder, b"z", start + Duration::from_millis(1_002), 64);
+    assert_eq!(appended(&next), "z");
+}
+
+#[test]
+fn modal_truncated_tail_releases_after_idle_and_resumes_text() {
+    let start = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    assert!(feed(&mut decoder, b"\x1b]11;rgb:1010", start, 64).is_empty());
+
+    assert!(decoder.tick(start + Duration::from_secs(1)).is_empty());
+    let released = decoder.tick(start + Duration::from_millis(1_051));
+    assert!(released.contains(&Event::Completeness(true)));
+    let next = feed(&mut decoder, b"z", start + Duration::from_millis(1_052), 64);
+    assert_eq!(appended(&next), "z");
+}
+
+#[test]
+fn modal_oversized_tail_releases_at_its_byte_cap() {
+    let start = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    assert!(feed(&mut decoder, b"\x1b]11;", start, 64).is_empty());
+    let mut overflow = Vec::new();
+    for byte in std::iter::repeat_n(b'a', 97) {
+        let (captured, events) = decoder.push(byte, start, 64);
+        assert!(captured);
+        overflow.extend(events);
+    }
+    assert!(overflow.iter().any(|event| matches!(
+        event,
+        Event::HostReply(crate::terminal_input::HostReply::Appearance(
+            crate::terminal_host_appearance::ColorReply {
+                target: crate::terminal_host_appearance::ColorTarget::Background,
+                rgb: None,
+            }
+        ))
+    )));
+
+    let resumed = feed(&mut decoder, &vec![b'x'; 256], start, 64);
+    assert!(!appended(&resumed).is_empty());
+    assert!(!resumed.contains(&Event::Fault));
+    let next = feed(&mut decoder, b"z", start, 64);
+    assert_eq!(appended(&next), "z");
+}
+
+#[test]
+fn modal_appearance_drain_has_a_hard_deadline_during_continuous_input() {
+    let start = Instant::now();
+    let mut decoder = ModalDecoder::default();
+    assert!(decoder.start());
+    feed(&mut decoder, b"\x1b]11;", start, 64);
+    for byte in std::iter::repeat_n(b'a', 97) {
+        decoder.push(byte, start, 64);
+    }
+
+    for tick in 1..=24 {
+        let now = start + Duration::from_millis(tick * 40);
+        let (captured, events) = decoder.push(b'x', now, 64);
+        assert!(captured);
+        assert!(events.is_empty());
+    }
+    assert!(
+        decoder
+            .tick(start + Duration::from_millis(1_001))
+            .contains(&Event::Completeness(true))
+    );
+    let next = feed(&mut decoder, b"z", start + Duration::from_millis(1_002), 64);
+    assert_eq!(appended(&next), "z");
+}

@@ -63,15 +63,17 @@ fn framed_reply_is_bounded_and_requires_a_complete_terminator() {
         assert_eq!(oversized.push(byte), OscStep::Pending);
     }
     assert_eq!(oversized.push(b';'), OscStep::Pending);
+    let mut over_bound = None;
     for byte in std::iter::repeat_n(b'a', 128) {
-        assert_eq!(oversized.push(byte), OscStep::Pending);
+        let step = oversized.push(byte);
+        if step != OscStep::Pending {
+            over_bound = Some(step);
+            break;
+        }
     }
     assert_eq!(
-        oversized.push(0x07),
-        OscStep::Complete(ColorReply {
-            target: ColorTarget::Background,
-            rgb: None,
-        })
+        over_bound,
+        Some(OscStep::OverBound(ColorTarget::Background))
     );
 }
 
@@ -212,6 +214,36 @@ fn late_reply_does_not_change_the_deadline_fallback_decision() {
         probe.settle_fallback(HostAppearance::Light),
         Some(HostAppearance::Light)
     );
+}
+
+#[test]
+fn a_complete_late_background_reply_is_consumed_but_cannot_replace_fallback() {
+    let start = Instant::now();
+    let mut probe = Probe::default();
+    probe.begin(start);
+    assert_eq!(
+        probe.timeout(start + Duration::from_millis(350)),
+        Some(super::Timeout)
+    );
+    assert_eq!(
+        probe.settle_fallback(HostAppearance::Dark),
+        Some(HostAppearance::Dark)
+    );
+
+    let mut frame = OscReplyFrame::new(start + Duration::from_millis(300));
+    let mut late = None;
+    for byte in b"11;#fefefe\x07" {
+        if let OscStep::Complete(reply) = frame.push(*byte) {
+            late = Some(reply);
+        }
+    }
+    let late = late.expect("the complete OSC frame remains recognizable");
+    assert_eq!(late.rgb, Some([254, 254, 254]));
+    assert_eq!(
+        probe.observe(late, start + Duration::from_millis(400)),
+        None
+    );
+    assert_eq!(probe.appearance(), Some(HostAppearance::Dark));
 }
 
 #[test]

@@ -146,8 +146,12 @@ digits per component) and `#RRGGBB` values are parsed within a 96-byte payload b
 frame deadline. The background is scaled to RGB8 and classified Dark below the weighted luminance
 threshold `299R + 587G + 114B < 128000`; otherwise it is Light. Foreground-only, malformed,
 oversized, or incomplete responses do not classify appearance; the probe waits until its deadline
-for a valid background. Recognized replies and their drains never enter prefix, modal, pane, or
-editor input. Late replies remain consumed after the probe settles and cannot change the theme.
+for a valid background. An unresolved ESC `]` candidate keeps the ordinary escape deadline until an
+exact selector claims it, preserving Alt+] behavior for other input. After a targeted frame times
+out or exceeds its payload bound, the decoder drains toward BEL, C1 ST, or ESC `\\` for at most 98
+bytes, 50 ms without input, or one second total. A late byte after those limits returns to ordinary
+input because an unframed tail cannot be distinguished from new typing. Recognized late replies
+remain inert after the appearance probe settles.
 
 If no valid OSC `11` background arrives by the deadline, Windows uses its fallback: the Client asks
 `local-site-runtime` to read the current user's

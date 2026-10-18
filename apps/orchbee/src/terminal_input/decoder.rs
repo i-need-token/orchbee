@@ -185,11 +185,12 @@ enum State {
     Osc {
         introducer: Vec<u8>,
         frame: crate::terminal_host_appearance::OscReplyFrame,
+        selector_deadline: Option<Instant>,
         owned: bool,
     },
-    /// A targeted appearance string expired mid-frame; consume its tail through BEL/ST.
+    /// A targeted appearance string expired mid-frame; drain a bounded tail through BEL/ST.
     OscDrain {
-        escape_pending: bool,
+        drain: crate::terminal_host_appearance::OscDrain,
         owned: bool,
     },
     /// An in-progress UTF-8 scalar; `raw` includes an optional leading ESC
@@ -328,14 +329,12 @@ impl LegacyDecoder {
             State::Osc {
                 introducer,
                 frame,
+                selector_deadline,
                 owned,
-            } if frame.expired(now) => {
-                if frame.target().is_some() {
-                    self.state = State::OscDrain {
-                        escape_pending: false,
-                        owned,
-                    };
-                } else {
+            } => {
+                if frame.target().is_none()
+                    && selector_deadline.is_some_and(|deadline| now >= deadline)
+                {
                     replay_osc_candidate(
                         self,
                         &introducer,
@@ -344,6 +343,34 @@ impl LegacyDecoder {
                         owned,
                         &mut items,
                     );
+                } else if frame.expired(now) {
+                    if frame.target().is_some() {
+                        self.state = State::OscDrain {
+                            drain: frame.drain(now),
+                            owned,
+                        };
+                    } else {
+                        replay_osc_candidate(
+                            self,
+                            &introducer,
+                            frame.selector_bytes(),
+                            now,
+                            owned,
+                            &mut items,
+                        );
+                    }
+                } else {
+                    self.state = State::Osc {
+                        introducer,
+                        frame,
+                        selector_deadline,
+                        owned,
+                    };
+                }
+            }
+            State::OscDrain { drain, owned } => {
+                if !drain.expired(now) {
+                    self.state = State::OscDrain { drain, owned };
                 }
             }
             State::Csi {
@@ -437,8 +464,10 @@ impl LegacyDecoder {
             match std::mem::replace(&mut self.state, State::Ground) {
                 State::Ground => self.feed_ground(byte, now, owned, items),
                 State::Esc {
-                    owned: frame_owned, ..
-                } => self.feed_esc(byte, now, frame_owned, owned, items),
+                    deadline,
+                    owned: frame_owned,
+                    ..
+                } => self.feed_esc(byte, now, deadline, frame_owned, owned, items),
                 State::Csi { mut raw, owned, .. } => {
                     if matches!(byte, 0x1b | 0x9b | 0x8f) {
                         // ESC/C1 aborts the sequence; the abort byte is
@@ -513,42 +542,82 @@ impl LegacyDecoder {
                 State::Osc {
                     introducer,
                     mut frame,
-                    owned,
-                } => match frame.push(byte) {
-                    crate::terminal_host_appearance::OscStep::Pending => {
-                        self.state = State::Osc {
-                            introducer,
-                            frame,
-                            owned,
-                        };
-                    }
-                    crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
-                        replay_osc_candidate(self, &introducer, &selector, now, owned, items);
-                    }
-                    crate::terminal_host_appearance::OscStep::Complete(reply) => {
-                        items.push(DecodedItem {
-                            kind: DecodedKind::HostReply(super::HostReply::Appearance(reply)),
-                            raw: Box::default(),
-                            owned,
-                        });
-                    }
-                },
-                State::OscDrain {
-                    mut escape_pending,
+                    selector_deadline,
                     owned,
                 } => {
-                    if escape_pending && byte == b'\\' {
-                        // ST closes the response-shaped tail.
-                    } else if byte == 0x07 || byte == 0x9c {
-                        // BEL or C1 ST closes the response-shaped tail.
-                    } else {
-                        escape_pending = byte == 0x1b;
-                        self.state = State::OscDrain {
-                            escape_pending,
+                    if frame.target().is_none()
+                        && selector_deadline.is_some_and(|deadline| now >= deadline)
+                    {
+                        replay_osc_candidate(
+                            self,
+                            &introducer,
+                            &frame.selector_bytes().to_vec(),
+                            now,
                             owned,
-                        };
+                            items,
+                        );
+                        pending = Some(byte);
+                    } else {
+                        match frame.push(byte) {
+                            crate::terminal_host_appearance::OscStep::Pending => {
+                                self.state = State::Osc {
+                                    introducer,
+                                    selector_deadline: if frame.target().is_some() {
+                                        None
+                                    } else {
+                                        selector_deadline
+                                    },
+                                    frame,
+                                    owned,
+                                };
+                            }
+                            crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
+                                replay_osc_candidate(
+                                    self,
+                                    &introducer,
+                                    &selector,
+                                    now,
+                                    owned,
+                                    items,
+                                );
+                            }
+                            crate::terminal_host_appearance::OscStep::OverBound(target) => {
+                                items.push(DecodedItem {
+                                    kind: DecodedKind::HostReply(super::HostReply::Appearance(
+                                        crate::terminal_host_appearance::ColorReply {
+                                            target,
+                                            rgb: None,
+                                        },
+                                    )),
+                                    raw: Box::default(),
+                                    owned,
+                                });
+                                self.state = State::OscDrain {
+                                    drain: frame.drain(now),
+                                    owned,
+                                };
+                            }
+                            crate::terminal_host_appearance::OscStep::Complete(reply) => {
+                                items.push(DecodedItem {
+                                    kind: DecodedKind::HostReply(super::HostReply::Appearance(
+                                        reply,
+                                    )),
+                                    raw: Box::default(),
+                                    owned,
+                                });
+                            }
+                        }
                     }
                 }
+                State::OscDrain { mut drain, owned } => match drain.push(byte, now) {
+                    crate::terminal_host_appearance::OscDrainStep::Pending => {
+                        self.state = State::OscDrain { drain, owned };
+                    }
+                    crate::terminal_host_appearance::OscDrainStep::Finished => {}
+                    crate::terminal_host_appearance::OscDrainStep::Reprocess => {
+                        pending = Some(byte);
+                    }
+                },
                 State::Ss3 { mut raw, owned, .. } => {
                     if matches!(byte, 0x1b | 0x9b | 0x8f) {
                         items.push(DecodedItem::nondecision(&raw, owned));
@@ -781,6 +850,7 @@ impl LegacyDecoder {
                 self.state = State::Osc {
                     introducer: vec![byte],
                     frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    selector_deadline: None,
                     owned,
                 };
             }
@@ -836,6 +906,7 @@ impl LegacyDecoder {
         &mut self,
         byte: u8,
         now: Instant,
+        escape_deadline: Instant,
         frame_owned: bool,
         byte_owned: bool,
         items: &mut Vec<DecodedItem>,
@@ -845,6 +916,7 @@ impl LegacyDecoder {
                 self.state = State::Osc {
                     introducer: vec![0x1b, byte],
                     frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    selector_deadline: Some(escape_deadline),
                     owned: frame_owned,
                 };
             }

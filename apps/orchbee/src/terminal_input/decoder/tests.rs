@@ -889,7 +889,7 @@ fn malformed_and_oversized_appearance_replies_are_consumed_atomically() {
     assert_eq!(malformed[1].kind, press(KeyCode::Char('x')));
 
     let mut oversized = b"\x1b]11;".to_vec();
-    oversized.extend(std::iter::repeat_n(b'a', 256));
+    oversized.extend(std::iter::repeat_n(b'a', 128));
     oversized.extend_from_slice(b"\x07y");
     let oversized = decode(&oversized);
     assert_eq!(oversized.len(), 2);
@@ -924,6 +924,142 @@ fn timed_out_appearance_reply_drains_late_tail_before_resuming_keys() {
     }
     assert_eq!(
         decoder.push(b'z', now + Duration::from_secs(2), false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+}
+
+#[test]
+fn appearance_drain_preserves_a_split_st_after_frame_timeout() {
+    let start = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    for byte in b"\x1b]11;rgb:1010\x1b" {
+        assert!(decoder.push(*byte, start, false).is_empty());
+    }
+
+    assert!(decoder.tick(start + Duration::from_secs(1)).is_empty());
+    assert!(
+        decoder
+            .push(b'\\', start + Duration::from_millis(1_001), false)
+            .is_empty()
+    );
+    assert_eq!(
+        decoder.push(b'z', start + Duration::from_millis(1_002), false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+}
+
+#[test]
+fn a_truncated_appearance_tail_releases_after_idle_and_resumes_keys() {
+    let start = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    for byte in b"\x1b]11;rgb:1010" {
+        assert!(decoder.push(*byte, start, false).is_empty());
+    }
+
+    assert!(decoder.tick(start + Duration::from_secs(1)).is_empty());
+    assert!(
+        decoder
+            .tick(start + Duration::from_millis(1_051))
+            .is_empty()
+    );
+    assert_eq!(
+        decoder.push(b'z', start + Duration::from_millis(1_052), false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+}
+
+#[test]
+fn an_oversized_appearance_tail_releases_at_its_byte_cap() {
+    use crate::terminal_host_appearance::{ColorReply, ColorTarget};
+    use crate::terminal_input::HostReply;
+
+    let start = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    for byte in b"\x1b]11;" {
+        assert!(decoder.push(*byte, start, false).is_empty());
+    }
+    let mut overflow = Vec::new();
+    for byte in std::iter::repeat_n(b'a', 97) {
+        overflow.extend(decoder.push(byte, start, false));
+    }
+    assert_eq!(
+        overflow.last().map(|item| &item.kind),
+        Some(&DecodedKind::HostReply(HostReply::Appearance(ColorReply {
+            target: ColorTarget::Background,
+            rgb: None,
+        })))
+    );
+
+    let mut resumed = false;
+    for _ in 0..256 {
+        if decoder
+            .push(b'x', start, false)
+            .iter()
+            .any(|item| item.kind == press(KeyCode::Char('x')))
+        {
+            resumed = true;
+            break;
+        }
+    }
+    assert!(
+        resumed,
+        "ordinary keys resume after the bounded OSC tail cap"
+    );
+    assert_eq!(
+        decoder.push(b'z', start, false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+}
+
+#[test]
+fn an_appearance_drain_has_a_hard_deadline_even_while_bytes_keep_arriving() {
+    let start = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    for byte in b"\x1b]11;" {
+        assert!(decoder.push(*byte, start, false).is_empty());
+    }
+    for byte in std::iter::repeat_n(b'a', 97) {
+        decoder.push(byte, start, false);
+    }
+
+    for tick in 1..=24 {
+        let now = start + Duration::from_millis(tick * 40);
+        assert!(decoder.push(b'x', now, false).is_empty());
+    }
+    assert!(
+        decoder
+            .tick(start + Duration::from_millis(1_001))
+            .is_empty()
+    );
+    assert_eq!(
+        decoder.push(b'z', start + Duration::from_millis(1_002), false)[0].kind,
+        press(KeyCode::Char('z'))
+    );
+}
+
+#[test]
+fn an_unrecognized_alt_right_bracket_keeps_its_escape_deadline() {
+    let start = Instant::now();
+    let mut decoder = LegacyDecoder::default();
+    assert!(decoder.push(0x1b, start, false).is_empty());
+    assert!(
+        decoder
+            .push(b']', start + Duration::from_millis(1), false)
+            .is_empty()
+    );
+    let items = decoder.push(b'1', start + Duration::from_millis(51), false);
+    assert_eq!(
+        items.iter().map(|item| &item.kind).collect::<Vec<_>>(),
+        [
+            &DecodedKind::Key(KeyEvent::press(
+                KeyCode::Char(']'),
+                Modifiers::NONE.with_alt(),
+            )),
+            &press(KeyCode::Char('1')),
+        ]
+    );
+    assert_eq!(
+        decoder.push(b'z', start + Duration::from_millis(52), false)[0].kind,
         press(KeyCode::Char('z'))
     );
 }

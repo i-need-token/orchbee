@@ -95,10 +95,11 @@ enum Phase {
     Osc {
         introducer: Vec<u8>,
         frame: crate::terminal_host_appearance::OscReplyFrame,
+        selector_deadline: Option<Instant>,
     },
-    /// A response-shaped OSC exceeded its bound or deadline and owns its tail through BEL/ST.
+    /// A response-shaped OSC exceeded its bound or deadline and owns a bounded tail.
     OscDrain {
-        escape_pending: bool,
+        drain: crate::terminal_host_appearance::OscDrain,
     },
     Paste(Paste),
     /// The modal released its lease: every remaining byte of the packet
@@ -250,7 +251,7 @@ impl ModalDecoder {
             Phase::Mouse { discard, .. } => *discard = true,
             Phase::GraphicsStart(_)
             | Phase::Graphics(_)
-            | Phase::Osc(_)
+            | Phase::Osc { .. }
             | Phase::OscDrain { .. } => {}
             Phase::Utf8 { discard, .. } => *discard = true,
             Phase::Escape(_) => {}
@@ -303,21 +304,40 @@ impl ModalDecoder {
                 self.finish_frame(now, &mut events);
             }
             Phase::Graphics(reply) => reply.tick(now),
+            Phase::Osc {
+                frame,
+                selector_deadline,
+                ..
+            } if frame.target().is_none()
+                && selector_deadline.is_some_and(|deadline| now >= deadline) =>
+            {
+                let (introducer, selector) =
+                    match std::mem::replace(&mut self.phase, Phase::Suppressed) {
+                        Phase::Osc {
+                            introducer, frame, ..
+                        } => (introducer, frame.selector_bytes().to_vec()),
+                        _ => unreachable!("the OSC selector phase was matched immediately above"),
+                    };
+                self.replay_osc_candidate(&introducer, &selector, now, &mut events);
+            }
             Phase::Osc { frame, .. } if frame.expired(now) => {
                 if frame.target().is_some() {
                     self.phase = Phase::OscDrain {
-                        escape_pending: false,
+                        drain: frame.drain(now),
                     };
                 } else {
                     let (introducer, selector) =
                         match std::mem::replace(&mut self.phase, Phase::Suppressed) {
-                            Phase::Osc { introducer, frame } => {
-                                (introducer, frame.selector_bytes().to_vec())
-                            }
+                            Phase::Osc {
+                                introducer, frame, ..
+                            } => (introducer, frame.selector_bytes().to_vec()),
                             _ => unreachable!("the OSC phase was matched immediately above"),
                         };
                     self.replay_osc_candidate(&introducer, &selector, now, &mut events);
                 }
+            }
+            Phase::OscDrain { drain } if drain.expired(now) => {
+                self.finish_frame(now, &mut events);
             }
             Phase::Mouse {
                 discard, deadline, ..
@@ -388,6 +408,7 @@ impl ModalDecoder {
                             self.phase = Phase::Osc {
                                 introducer: vec![byte],
                                 frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                                selector_deadline: None,
                             }
                         }
                         0x9b | 0x8f => self.phase = Phase::Sequence(Sequence::c1(byte, now)),
@@ -397,12 +418,13 @@ impl ModalDecoder {
                         _ => {}
                     }
                 }
-                Phase::Escape(_) => match byte {
+                Phase::Escape(deadline) => match byte {
                     b'_' => self.phase = Phase::GraphicsStart(now + WAIT),
                     b']' => {
                         self.phase = Phase::Osc {
                             introducer: vec![0x1b, byte],
                             frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                            selector_deadline: Some(deadline),
                         }
                     }
                     b'[' | b'O' => self.phase = Phase::Sequence(Sequence::new(byte, now)),
@@ -437,32 +459,64 @@ impl ModalDecoder {
                 Phase::Osc {
                     introducer,
                     mut frame,
-                } => match frame.push(byte) {
-                    crate::terminal_host_appearance::OscStep::Pending => {
-                        self.phase = Phase::Osc { introducer, frame };
-                    }
-                    crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
+                    selector_deadline,
+                } => {
+                    if frame.target().is_none()
+                        && selector_deadline.is_some_and(|deadline| now >= deadline)
+                    {
+                        let selector = frame.selector_bytes().to_vec();
                         self.replay_osc_candidate(&introducer, &selector, now, &mut events);
-                    }
-                    crate::terminal_host_appearance::OscStep::Complete(reply) => {
-                        self.finish_frame(now, &mut events);
-                        events.push(ModalInputEvent::HostReply(super::HostReply::Appearance(
-                            reply,
-                        )));
-                    }
-                },
-                Phase::OscDrain { mut escape_pending } => {
-                    if escape_pending && byte == b'\\' {
-                        // ST closes the response-shaped tail.
-                        self.finish_frame(now, &mut events);
-                    } else if byte == 0x07 || byte == 0x9c {
-                        // BEL or C1 ST closes the response-shaped tail.
-                        self.finish_frame(now, &mut events);
+                        pending = Some(byte);
                     } else {
-                        escape_pending = byte == 0x1b;
-                        self.phase = Phase::OscDrain { escape_pending };
+                        match frame.push(byte) {
+                            crate::terminal_host_appearance::OscStep::Pending => {
+                                self.phase = Phase::Osc {
+                                    introducer,
+                                    selector_deadline: if frame.target().is_some() {
+                                        None
+                                    } else {
+                                        selector_deadline
+                                    },
+                                    frame,
+                                };
+                            }
+                            crate::terminal_host_appearance::OscStep::NotColorReply(selector) => {
+                                self.replay_osc_candidate(&introducer, &selector, now, &mut events);
+                            }
+                            crate::terminal_host_appearance::OscStep::Complete(reply) => {
+                                self.finish_frame(now, &mut events);
+                                events.push(ModalInputEvent::HostReply(
+                                    super::HostReply::Appearance(reply),
+                                ));
+                            }
+                            crate::terminal_host_appearance::OscStep::OverBound(target) => {
+                                events.push(ModalInputEvent::HostReply(
+                                    super::HostReply::Appearance(
+                                        crate::terminal_host_appearance::ColorReply {
+                                            target,
+                                            rgb: None,
+                                        },
+                                    ),
+                                ));
+                                self.phase = Phase::OscDrain {
+                                    drain: frame.drain(now),
+                                };
+                            }
+                        }
                     }
                 }
+                Phase::OscDrain { mut drain } => match drain.push(byte, now) {
+                    crate::terminal_host_appearance::OscDrainStep::Pending => {
+                        self.phase = Phase::OscDrain { drain };
+                    }
+                    crate::terminal_host_appearance::OscDrainStep::Finished => {
+                        self.finish_frame(now, &mut events);
+                    }
+                    crate::terminal_host_appearance::OscDrainStep::Reprocess => {
+                        self.finish_frame(now, &mut events);
+                        pending = Some(byte);
+                    }
+                },
                 Phase::Utf8 {
                     scalar, discard, ..
                 } => self.scalar_byte(scalar, discard, byte, now, &mut events),
@@ -556,6 +610,7 @@ impl ModalDecoder {
                 self.phase = Phase::Osc {
                     introducer: vec![byte],
                     frame: crate::terminal_host_appearance::OscReplyFrame::new(now),
+                    selector_deadline: None,
                 };
             }
             // Ctrl+A/Ctrl+E collapse onto Home/End at the input boundary, the

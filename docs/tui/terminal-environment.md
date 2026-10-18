@@ -125,9 +125,11 @@ enabling.
   arrived, including when the reply is foreground-only, malformed, partial, or absent. Other
   platforms settle Unknown when no valid background arrived.
 - Both ordinary and modal decoders consume recognized OSC `10`/`11` reply strings. Payloads are
-  bounded; malformed and oversized replies do not classify appearance. At the deadline Windows
-  uses its registry fallback if no valid background arrived, while other platforms settle Unknown.
-  Late replies cannot change the settled appearance or reach a pane as input.
+  bounded; malformed and oversized replies do not classify appearance. An incomplete targeted
+  frame drains for at most 98 bytes, 50 ms without input, or one second total, then ordinary input
+  resumes because an unframed late tail is indistinguishable from new typing. Late framed replies
+  cannot change the settled appearance. At the deadline Windows uses its registry fallback if no
+  valid background arrived, while other platforms settle Unknown.
 - Queries are issued and their replies consumed before ordinary key dispatch begins, or the decoder
   recognizes and removes reply sequences so they never reach a pane as typed input.
 - Inside a multiplexer the multiplexer answers queries about itself. Treat its answers as the host
