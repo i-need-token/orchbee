@@ -1169,7 +1169,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
     let mut visible = false;
     let mut pending = None;
     let mut stale = None;
-    let mut values = (1, false, false);
+    let mut values = (0, false, false);
     let mut row = Row::Theme;
     let mut presented = false;
     let mut drawn = false;
@@ -1207,7 +1207,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                     }
                     if phase == 1 {
                         phase = if visible { 2 } else { 0 };
-                        values = (1, false, false);
+                        values = (0, false, false);
                         row = Row::Theme;
                         presented = false;
                         drawn = false;
@@ -1239,7 +1239,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                 }
             }
             Trace::Activate => {
-                let dirty = values != (1, false, false);
+                let dirty = values != (0, false, false);
                 let expected =
                     phase == 2 && provisional.is_none() && row == Row::Save && drawn && dirty;
                 let submission = editor.edit(Edit::Activate);
@@ -1352,7 +1352,7 @@ fn replay(trace: &[Trace]) -> Result<(), String> {
                 || (draft.values.agent_notification_mode == AgentReminderMode::Hidden) != values.1
                 || draft.values.sound_enabled != values.2
                 || draft.selected != row
-                || draft.dirty != (values != (1, false, false))
+                || draft.dirty != (values != (0, false, false))
             {
                 return Err("draft projection".into());
             }

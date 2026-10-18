@@ -31,7 +31,7 @@ fn full_settings_body_has_one_label_value_row_per_setting_and_no_scrolling_actio
         [
             "Appearance",
             "Language Follow system >",
-            "Application theme Light >",
+            "Application theme Follow system >",
             "Terminal display theme Host default >",
             "Foreground color [ #141414 ]",
             "Background color [ #fcfcfc ]",
@@ -184,9 +184,9 @@ fn same_modal_picker_keeps_parent_value_checked_and_routes_typed_pointer_accepta
             locale.settings_row(Row::Theme)
         )));
         let original =
-            Choice::ApplicationTheme(orchbee_workbench_protocol::ApplicationAppearance::Light);
+            Choice::ApplicationTheme(orchbee_workbench_protocol::ApplicationAppearance::System);
         let candidate =
-            Choice::ApplicationTheme(orchbee_workbench_protocol::ApplicationAppearance::Dark);
+            Choice::ApplicationTheme(orchbee_workbench_protocol::ApplicationAppearance::Light);
         let original_target = HitTarget::SettingsControl {
             token: draw.token(),
             control: Control::Choose(original),
@@ -203,7 +203,7 @@ fn same_modal_picker_keeps_parent_value_checked_and_routes_typed_pointer_accepta
         assert!(matches!(editor.view(), Some(View::Draft(draft)) if !draft.dirty));
         editor.control(draw.token(), Control::Choose(candidate));
         assert!(
-            matches!(editor.view(), Some(View::Draft(draft)) if draft.dirty && draft.picker.is_none() && draft.values.application_theme == orchbee_workbench_protocol::ApplicationAppearance::Dark)
+            matches!(editor.view(), Some(View::Draft(draft)) if draft.dirty && draft.picker.is_none() && draft.values.application_theme == orchbee_workbench_protocol::ApplicationAppearance::Light)
         );
     }
 }
