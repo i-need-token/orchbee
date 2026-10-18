@@ -332,8 +332,31 @@ fn generated_default_config_passes_the_offline_config_check() {
     std::fs::write(&config, uncommented).unwrap();
     let document = config_check_document(&fixture);
     let user_config = &document["result"]["checks"][5];
-    assert_eq!(user_config["status"], "pass");
+    assert_eq!(actions.len(), 37);
+    assert_eq!(user_config["status"], "warning");
     assert_eq!(user_config["details"]["keyOverrides"], json!(actions.len()));
+    assert_eq!(user_config["details"]["diagnosticsOmitted"], 0);
+    assert_eq!(
+        user_config["details"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .len(),
+        5
+    );
+    for action in [
+        "focus_agent",
+        "resize_pane_down",
+        "resize_pane_left",
+        "resize_pane_right",
+        "resize_pane_up",
+    ] {
+        assert_warning_diagnostic(
+            &document,
+            &format!("keys.{action}"),
+            "invalid-binding",
+            "disabled",
+        );
+    }
 }
 
 fn assert_warning_diagnostic(document: &Value, field: &str, reason: &str, disposition: &str) {
