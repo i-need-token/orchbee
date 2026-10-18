@@ -66,8 +66,7 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
         };
         choose(ui, parent);
     }
-    // A menu first owns navigation only after one complete surface draw. Selection changes keep
-    // that surface lease, but revoke row-level activation until the new selection is painted.
+    // Each key renews the searchable menu's draw fence before the next key can be captured.
     present_action_menu(ui);
     let view = ui.view();
     let menu = view.action_menu().unwrap();
@@ -81,13 +80,14 @@ fn choose(ui: &mut NativeUi, action: MenuAction) {
         crate::client_view::KeyCode::Home,
         crate::client_view::Modifiers::NONE,
     ));
+    present_action_menu(ui);
     for _ in 0..row {
         ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
             crate::client_view::KeyCode::Down,
             crate::client_view::Modifiers::NONE,
         ));
+        present_action_menu(ui);
     }
-    present_action_menu(ui);
     ui.capture_action_menu_key(crate::client_view::KeyEvent::press(
         crate::client_view::KeyCode::Enter,
         crate::client_view::Modifiers::NONE,
