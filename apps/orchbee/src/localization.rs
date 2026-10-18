@@ -14,7 +14,7 @@ pub(crate) use presentation::RecoveryVerb;
 #[cfg(windows)]
 mod plugins;
 mod shortcut_help;
-pub(crate) use shortcut_help::{ShortcutHelpEntry, ShortcutHelpGroup, shortcut_filter_matches};
+pub(crate) use shortcut_help::{ShortcutHelpEntry, shortcut_filter_matches};
 mod runtime_configuration;
 mod settings;
 mod status;

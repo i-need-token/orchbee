@@ -2,10 +2,14 @@ use super::Locale;
 use crate::{
     action_projection::{ActionCategory, ActionIdentity, ActionMetadata, ActionSearchAlias},
     client_view::{
-        ClientAction, ClientView, DiscoveryEntry, KeyLabelGlyphs, PanelDirection, PrefixAction,
+        ClientAction, ClientView, DiscoveryEntry, KeyLabelGlyphs, Overlay, PanelDirection,
+        PrefixAction,
     },
     terminal_text::sanitize_terminal_text,
 };
+
+#[cfg(windows)]
+use crate::client_view::{LabelStyle, PrefixDesc, format_binding_with_glyphs};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) enum ShortcutHelpGroup {
@@ -38,7 +42,6 @@ pub(crate) struct ShortcutHelpEntry {
     pub(crate) search_text: String,
     pub(crate) disabled_reason: Option<String>,
     identity: String,
-    custom: bool,
 }
 
 impl Locale {
@@ -75,34 +78,20 @@ impl Locale {
                 self.shortcut_group_name(group),
                 disabled_reason.as_deref().unwrap_or_default()
             );
-            if let Some(existing) = entries.iter_mut().find(|existing| {
-                existing.group == group
-                    && existing.title == title
-                    && existing.disabled_reason == disabled_reason
-                    && if existing.custom {
-                        existing.identity == identity_key(binding.metadata.identity)
-                    } else {
-                        !is_configured_action(binding.metadata)
-                    }
-            }) {
-                if !existing.key.split(" / ").any(|key| key == binding.key) {
-                    existing.key.push_str(" / ");
-                    existing.key.push_str(&binding.key);
-                }
-                existing.search_text.push(' ');
-                existing.search_text.push_str(&search_text);
-            } else {
-                entries.push(ShortcutHelpEntry {
+            merge_help_entry(
+                &mut entries,
+                ShortcutHelpEntry {
                     key: binding.key,
                     title,
                     group,
                     search_text,
                     disabled_reason,
                     identity: identity_key(binding.metadata.identity),
-                    custom: is_configured_action(binding.metadata),
-                });
-            }
+                },
+            );
         }
+        #[cfg(windows)]
+        self.append_contextual_entries(view, glyphs, &mut entries);
         entries.sort_by_key(|entry| entry.group.order());
         entries
     }
@@ -160,6 +149,14 @@ impl Locale {
     }
 
     fn shortcut_action_title(self, view: &ClientView, binding: &DiscoveryEntry<'_>) -> String {
+        if view.overlay() == Some(Overlay::ShortcutHelp)
+            && matches!(
+                binding.action,
+                PrefixAction::ShowHelp | PrefixAction::Client(ClientAction::OpenShortcutHelp)
+            )
+        {
+            return self.shortcut_close_label().to_owned();
+        }
         #[cfg(windows)]
         if let Some(description) = view.bindings().configured_description(binding.description) {
             return sanitize_terminal_text(description).into_owned();
@@ -175,8 +172,203 @@ impl Locale {
         self.shortcut_local_action_title(&binding.action)
     }
 
+    pub(crate) const fn shortcut_close_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Close help",
+            Self::ZhCn => "关闭帮助",
+        }
+    }
+
+    pub(crate) const fn shortcut_scroll_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Scroll Help",
+            Self::ZhCn => "滚动帮助",
+        }
+    }
+
+    const fn shortcut_context_alias(
+        self,
+        english: &'static str,
+        chinese: &'static str,
+    ) -> &'static str {
+        match self {
+            Self::EnUs => english,
+            Self::ZhCn => chinese,
+        }
+    }
+
+    #[cfg(windows)]
+    fn append_contextual_entries(
+        self,
+        view: &ClientView,
+        glyphs: KeyLabelGlyphs,
+        entries: &mut Vec<ShortcutHelpEntry>,
+    ) {
+        use crate::machine_picker::{SIDEBAR_BINDINGS, SidebarCommand};
+
+        let shell = self.shell();
+        if view.machines.sidebar_navigation_active() {
+            for (binding, command) in SIDEBAR_BINDINGS {
+                if *command == SidebarCommand::Exit {
+                    continue;
+                }
+                let key = format_binding_with_glyphs(binding, LabelStyle::for_host(), glyphs);
+                let (title, identity) = match command {
+                    SidebarCommand::Help => (
+                        self.shortcut_close_label().to_owned(),
+                        semantic_identity(PrefixAction::ShowHelp),
+                    ),
+                    SidebarCommand::NewWorkspace => {
+                        let action = PrefixAction::Client(ClientAction::RequestQuickWorkspace);
+                        (
+                            self.shortcut_local_action_title(&action),
+                            semantic_identity(action),
+                        )
+                    }
+                    _ => (
+                        self.sidebar_navigation_action(*command).to_owned(),
+                        format!("context.sidebar.{command:?}"),
+                    ),
+                };
+                let group = if *command == SidebarCommand::NewWorkspace {
+                    ShortcutHelpGroup::Workspace
+                } else {
+                    ShortcutHelpGroup::Other
+                };
+                self.merge_context_entry(
+                    entries,
+                    key,
+                    &title,
+                    group,
+                    identity,
+                    self.shortcut_context_alias("sidebar navigation", "侧栏导航"),
+                );
+            }
+            for binding in view
+                .bindings()
+                .discovery_entries(glyphs)
+                .into_iter()
+                .filter(|binding| {
+                    matches!(
+                        binding.action,
+                        PrefixAction::HelpPagePrevious | PrefixAction::HelpPageNext
+                    )
+                })
+            {
+                self.merge_context_entry(
+                    entries,
+                    binding.key,
+                    self.shortcut_scroll_label(),
+                    ShortcutHelpGroup::Other,
+                    identity_key(binding.metadata.identity),
+                    self.shortcut_context_alias("sidebar navigation", "侧栏导航"),
+                );
+            }
+        } else if view.copy_mode_active() {
+            for (key, description) in view.copy_help_rows() {
+                if description == PrefixDesc::CopyExit {
+                    continue;
+                }
+                let (title, identity, group) = match description {
+                    PrefixDesc::ShowHelp => (
+                        self.shortcut_close_label(),
+                        semantic_identity(PrefixAction::ShowHelp),
+                        ShortcutHelpGroup::Other,
+                    ),
+                    PrefixDesc::CopyPage => (
+                        self.shortcut_scroll_label(),
+                        semantic_identity(PrefixAction::HelpPageNext),
+                        ShortcutHelpGroup::Other,
+                    ),
+                    _ => (
+                        (shell.prefix_desc)(description),
+                        format!("context.copy.{description:?}"),
+                        ShortcutHelpGroup::Panel,
+                    ),
+                };
+                self.merge_context_entry(
+                    entries,
+                    key,
+                    title,
+                    group,
+                    identity,
+                    self.shortcut_context_alias("copy mode", "复制模式"),
+                );
+            }
+        } else if view.resize_mode() {
+            for (key, description) in view.resize_help_rows_with_glyphs(glyphs) {
+                if description == PrefixDesc::ResizeExit {
+                    continue;
+                }
+                let (title, identity, group) = match description {
+                    PrefixDesc::ShowHelp => (
+                        self.shortcut_close_label(),
+                        semantic_identity(PrefixAction::ShowHelp),
+                        ShortcutHelpGroup::Other,
+                    ),
+                    PrefixDesc::HelpPage => (
+                        self.shortcut_scroll_label(),
+                        semantic_identity(PrefixAction::HelpPageNext),
+                        ShortcutHelpGroup::Other,
+                    ),
+                    _ => (
+                        (shell.prefix_desc)(description),
+                        format!("context.resize.{description:?}"),
+                        ShortcutHelpGroup::Panel,
+                    ),
+                };
+                self.merge_context_entry(
+                    entries,
+                    key,
+                    title,
+                    group,
+                    identity,
+                    self.shortcut_context_alias("resize mode", "调整大小模式"),
+                );
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    fn merge_context_entry(
+        self,
+        entries: &mut Vec<ShortcutHelpEntry>,
+        key: String,
+        title: &str,
+        group: ShortcutHelpGroup,
+        identity: String,
+        scope: &str,
+    ) {
+        let search_text = format!("{title} {key} {} {scope}", self.shortcut_group_name(group));
+        merge_help_entry(
+            entries,
+            ShortcutHelpEntry {
+                key,
+                title: title.to_owned(),
+                group,
+                search_text,
+                disabled_reason: None,
+                identity,
+            },
+        );
+    }
+
     fn shortcut_local_action_title(self, action: &PrefixAction) -> String {
         use ClientAction as A;
+
+        match action {
+            PrefixAction::Client(A::MovePanelFocus(direction)) => {
+                return self.panel_direction_title("Focus panel", "聚焦面板", *direction);
+            }
+            PrefixAction::Client(A::SplitPanel(direction)) => {
+                return self.panel_direction_title("Split panel", "分割面板", *direction);
+            }
+            PrefixAction::Client(A::MovePanel(direction)) => {
+                return self.panel_direction_title("Move panel", "移动面板", *direction);
+            }
+            _ => {}
+        }
+
         let title = match action {
             PrefixAction::Client(A::OpenSettings) => Some(match self {
                 Self::EnUs => "Settings",
@@ -274,9 +466,6 @@ impl Locale {
                 Self::EnUs => "Select next Workspace",
                 Self::ZhCn => "选择下一个工作区",
             }),
-            PrefixAction::Client(A::MovePanelFocus(direction)) => {
-                Some(self.panel_direction_title("Focus panel", "聚焦面板", *direction))
-            }
             PrefixAction::Client(A::PreviousPresentation) => Some(match self {
                 Self::EnUs => "Select previous terminal",
                 Self::ZhCn => "选择上一个终端",
@@ -285,12 +474,6 @@ impl Locale {
                 Self::EnUs => "Select next terminal",
                 Self::ZhCn => "选择下一个终端",
             }),
-            PrefixAction::Client(A::SplitPanel(direction)) => {
-                Some(self.panel_direction_title("Split panel", "分割面板", *direction))
-            }
-            PrefixAction::Client(A::MovePanel(direction)) => {
-                Some(self.panel_direction_title("Move panel", "移动面板", *direction))
-            }
             PrefixAction::Client(A::ForwardLiteralPrefix) => Some(match self {
                 Self::EnUs => "Send prefix to terminal",
                 Self::ZhCn => "向终端发送前缀",
@@ -475,6 +658,24 @@ fn searchable(text: &str) -> String {
         .collect()
 }
 
+fn merge_help_entry(entries: &mut Vec<ShortcutHelpEntry>, incoming: ShortcutHelpEntry) {
+    if let Some(existing) = entries.iter_mut().find(|existing| {
+        existing.identity == incoming.identity
+            && existing.group == incoming.group
+            && existing.title == incoming.title
+            && existing.disabled_reason == incoming.disabled_reason
+    }) {
+        if !existing.key.split(" / ").any(|key| key == incoming.key) {
+            existing.key.push_str(" / ");
+            existing.key.push_str(&incoming.key);
+        }
+        existing.search_text.push(' ');
+        existing.search_text.push_str(&incoming.search_text);
+    } else {
+        entries.push(incoming);
+    }
+}
+
 fn fuzzy_subsequence(query: &str, target: &str) -> bool {
     let mut query = query.chars();
     let Some(mut expected) = query.next() else {
@@ -510,24 +711,19 @@ fn help_group(metadata: ActionMetadata<'_>) -> ShortcutHelpGroup {
     }
 }
 
-fn is_configured_action(metadata: ActionMetadata<'_>) -> bool {
-    #[cfg(windows)]
-    {
-        matches!(metadata.identity, ActionIdentity::ConfiguredCommand(_))
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = metadata;
-        false
-    }
-}
-
 fn identity_key(identity: ActionIdentity<'_>) -> String {
     match identity {
         ActionIdentity::BuiltIn(id) => id.to_owned(),
         #[cfg(windows)]
         ActionIdentity::ConfiguredCommand(id) => format!("command:{id}"),
     }
+}
+
+#[cfg(windows)]
+fn semantic_identity(action: PrefixAction) -> String {
+    crate::action_projection::binding_metadata(&action)
+        .map(|metadata| identity_key(metadata.identity))
+        .unwrap_or_else(|| format!("contextual:{action:?}"))
 }
 
 fn requires_session(action: &PrefixAction) -> bool {
@@ -614,23 +810,27 @@ mod tests {
     }
 
     #[test]
-    fn help_entries_merge_workspace_aliases_hide_unbound_and_localize_groups() {
+    fn help_entries_keep_same_named_actions_separate_and_localize_groups() {
         let view = view_with_help();
         let entries = Locale::EnUs.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
         let workspace = entries
             .iter()
-            .find(|entry| entry.title == "New Workspace")
-            .expect("workspace creation is discoverable");
-        assert_eq!(
-            entries
-                .iter()
-                .filter(|entry| entry.title == "New Workspace")
-                .count(),
-            1,
-            "workspace aliases produce one semantic help row"
-        );
-        assert!(workspace.key.contains("Ctrl+b a"), "{}", workspace.key);
-        assert!(workspace.key.contains("Shift+N"), "{}", workspace.key);
+            .filter(|entry| entry.title == "New Workspace")
+            .collect::<Vec<_>>();
+        assert!(!workspace.is_empty(), "workspace creation is discoverable");
+        assert!(workspace.iter().any(|entry| entry.key.contains("Ctrl+b a")));
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                workspace.len(),
+                2,
+                "same display names with different semantic identities stay separate"
+            );
+            assert!(workspace.iter().any(|entry| entry.key.contains("Shift+N")));
+            assert!(workspace[0].identity != workspace[1].identity);
+        }
+        #[cfg(not(windows))]
+        assert_eq!(workspace.len(), 1);
         assert!(!entries.iter().any(|entry| entry.key.contains("Unbound")));
         assert!(entries.iter().all(|entry| entry.title != "Shortcut"));
         assert!(
@@ -642,6 +842,165 @@ mod tests {
             Locale::ZhCn.shortcut_group_name(ShortcutHelpGroup::Workspace),
             "工作区"
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn multiple_bindings_merge_when_their_semantic_identity_matches() {
+        use orchbee_local_site_runtime::{
+            WindowsKeyChord, WindowsKeyOverride, WindowsKeySettings, WindowsKeyTrigger,
+        };
+
+        let chord = |key: &str| WindowsKeyChord {
+            key: key.into(),
+            ctrl: false,
+            alt: false,
+            shift: false,
+            super_key: false,
+        };
+        let mut view = ClientView::new(100);
+        view.configure_keys(&WindowsKeySettings {
+            prefix: WindowsKeyChord {
+                key: "b".into(),
+                ctrl: true,
+                alt: false,
+                shift: false,
+                super_key: false,
+            },
+            overrides: vec![WindowsKeyOverride {
+                action: "new_workspace",
+                triggers: vec![
+                    WindowsKeyTrigger {
+                        prefix: true,
+                        chord: chord("x"),
+                    },
+                    WindowsKeyTrigger {
+                        prefix: true,
+                        chord: chord("z"),
+                    },
+                ],
+            }],
+            commands: Vec::new(),
+        });
+        let transition = view.decide(crate::client_view::PrefixInput::Key(
+            crate::client_view::KeyEvent::press(
+                crate::client_view::KeyCode::Char('b'),
+                crate::client_view::Modifiers::CTRL,
+            ),
+        ));
+        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        let transition = view.decide(crate::client_view::PrefixInput::Key(
+            crate::client_view::KeyEvent::press(
+                crate::client_view::KeyCode::Char('?'),
+                crate::client_view::Modifiers::NONE,
+            ),
+        ));
+        view.commit(transition, SessionActionDisposition::KeepNavigator);
+
+        let entries = Locale::EnUs.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
+        let workspace = entries
+            .iter()
+            .filter(|entry| entry.title == "New Workspace")
+            .collect::<Vec<_>>();
+        assert_eq!(workspace.len(), 2);
+        let configured = workspace
+            .iter()
+            .find(|entry| entry.key.contains("Ctrl+b x"))
+            .expect("configured Workspace action is listed");
+        assert!(configured.key.contains("Ctrl+b z"));
+        assert!(!configured.key.contains("Shift+N"));
+        let quick_create = workspace
+            .iter()
+            .find(|entry| entry.key.contains("Shift+N"))
+            .expect("quick Workspace action remains a separate action");
+        assert!(!quick_create.key.contains("Ctrl+b x"));
+        assert_ne!(configured.identity, quick_create.identity);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn active_local_modes_contribute_their_owner_bindings_without_exit_keys() {
+        fn press(
+            view: &mut ClientView,
+            code: crate::client_view::KeyCode,
+            mods: crate::client_view::Modifiers,
+        ) {
+            let transition = view.decide(crate::client_view::PrefixInput::Key(
+                crate::client_view::KeyEvent::press(code, mods),
+            ));
+            view.commit(transition, SessionActionDisposition::KeepNavigator);
+        }
+
+        fn open_help(view: &mut ClientView) {
+            use crate::client_view::{KeyCode, Modifiers};
+            press(view, KeyCode::Char('b'), Modifiers::CTRL);
+            press(view, KeyCode::Char('?'), Modifiers::NONE);
+        }
+
+        use crate::{
+            client_view::{KeyCode, KeyLabelGlyphs, Modifiers},
+            machine_picker::{SidebarCommand, sidebar_binding_label},
+        };
+
+        let mut copy = ClientView::new(100);
+        copy.settle_copy_mode(true);
+        open_help(&mut copy);
+        assert!(copy.copy_mode_active());
+        assert_eq!(
+            copy.overlay(),
+            Some(crate::client_view::Overlay::ShortcutHelp)
+        );
+        let copy_rows = copy.copy_help_rows();
+        let copy_entries = Locale::EnUs.shortcut_help_entries(&copy, true, KeyLabelGlyphs::Unicode);
+        let move_key = copy_rows
+            .iter()
+            .find(|(_, description)| *description == PrefixDesc::CopyMove)
+            .unwrap()
+            .0
+            .as_str();
+        assert!(copy_entries.iter().any(|entry| entry.key == move_key));
+        assert!(!copy_entries.iter().any(|entry| entry.key == "Esc"));
+        let copy_entries_zh =
+            Locale::ZhCn.shortcut_help_entries(&copy, true, KeyLabelGlyphs::Unicode);
+        assert!(
+            copy_entries_zh
+                .iter()
+                .any(|entry| { entry.key == move_key && entry.title == "移动复制光标" })
+        );
+
+        let mut resize = ClientView::new(100);
+        press(&mut resize, KeyCode::Char('b'), Modifiers::CTRL);
+        press(&mut resize, KeyCode::Char('P'), Modifiers::NONE);
+        press(&mut resize, KeyCode::Char('?'), Modifiers::NONE);
+        assert!(resize.resize_mode());
+        let resize_rows = resize.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode);
+        let resize_entries =
+            Locale::EnUs.shortcut_help_entries(&resize, true, KeyLabelGlyphs::Unicode);
+        let coarse_key = resize_rows
+            .iter()
+            .find(|(_, description)| *description == PrefixDesc::ResizeCoarse)
+            .unwrap()
+            .0
+            .as_str();
+        assert!(resize_entries.iter().any(|entry| entry.key == coarse_key));
+        assert!(!resize_entries.iter().any(|entry| entry.key == "Esc"));
+
+        let mut sidebar = ClientView::new(100);
+        assert!(sidebar.machines.enter_sidebar_navigation());
+        open_help(&mut sidebar);
+        assert!(sidebar.machines.sidebar_navigation_active());
+        let sidebar_entries =
+            Locale::EnUs.shortcut_help_entries(&sidebar, true, KeyLabelGlyphs::Unicode);
+        let search_key =
+            sidebar_binding_label(SidebarCommand::Search, KeyLabelGlyphs::Unicode).unwrap();
+        assert!(sidebar_entries.iter().any(|entry| entry.key == search_key));
+        assert!(!sidebar_entries.iter().any(|entry| entry.key == "Esc"));
+        let help_key =
+            sidebar_binding_label(SidebarCommand::Help, KeyLabelGlyphs::Unicode).unwrap();
+        assert!(sidebar_entries.iter().any(|entry| {
+            entry.key.split(" / ").any(|key| key == help_key)
+                && entry.title == Locale::EnUs.shortcut_close_label()
+        }));
     }
 
     #[cfg(windows)]

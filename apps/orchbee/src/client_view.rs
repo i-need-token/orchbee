@@ -687,7 +687,7 @@ impl ClientView {
         self.copy_mode_active = active;
     }
 
-    #[cfg(all(windows, test))]
+    #[cfg(windows)]
     pub(crate) fn copy_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         copy::help_rows()
     }
@@ -737,8 +737,7 @@ impl ClientView {
         }
     }
 
-    #[cfg(windows)]
-    #[cfg(test)]
+    #[cfg(all(windows, test))]
     pub(crate) fn resize_help_rows(&self) -> Vec<(String, PrefixDesc)> {
         self.resize_help_rows_with_glyphs(KeyLabelGlyphs::Unicode)
     }

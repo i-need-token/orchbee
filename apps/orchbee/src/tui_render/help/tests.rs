@@ -9,7 +9,12 @@ use crate::{
     tui_pointer::{FrameHitMap, HitLayer, HitMapBuilder, HitTarget, ListScrollTarget},
     tui_theme::{Role, Theme},
 };
-use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, layout::Rect};
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    buffer::{Buffer, CellWidth},
+    layout::Rect,
+};
 
 fn press(view: &mut ClientView, code: KeyCode, mods: Modifiers) -> Option<ClientAction> {
     let transition = view.decide(PrefixInput::Key(KeyEvent::press(code, mods)));
@@ -62,9 +67,18 @@ fn render_panel(
 fn rows(buffer: &Buffer) -> String {
     (buffer.area.y..buffer.area.bottom())
         .map(|y| {
-            (buffer.area.x..buffer.area.right())
-                .map(|x| buffer[(x, y)].symbol())
-                .collect::<String>()
+            let mut row = String::new();
+            let mut hidden_tail_cells = 0;
+            for x in buffer.area.x..buffer.area.right() {
+                if hidden_tail_cells > 0 {
+                    hidden_tail_cells -= 1;
+                    continue;
+                }
+                let symbol = buffer[(x, y)].symbol();
+                row.push_str(symbol);
+                hidden_tail_cells = symbol.cell_width().saturating_sub(1);
+            }
+            row
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -120,12 +134,19 @@ fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
 fn fuzzy_filter_uses_semantic_names_and_clear_restores_the_list() {
     let mut view = ClientView::new(80);
     open_help(&mut view);
-    for character in "nwb".chars() {
+    for character in "nwid".chars() {
         press(&mut view, KeyCode::Char(character), Modifiers::NONE);
     }
     let (buffer, _, _) = render_panel(80, 24, &view, Locale::EnUs, true);
     let filtered = rows(&buffer);
-    assert!(filtered.contains("New Workspace"), "{filtered}");
+    assert!(
+        filtered.contains("Ctrl+b e  New Workspace in directory"),
+        "{filtered}"
+    );
+    assert!(
+        filtered.contains("Workspace"),
+        "the result keeps its group: {filtered}"
+    );
     assert!(!filtered.contains("New Tab"), "{filtered}");
 
     press(&mut view, KeyCode::Char('u'), Modifiers::CTRL);
@@ -241,6 +262,64 @@ fn no_match_and_backspace_are_visible_without_leaking_input() {
     assert!(rows(&buffer).contains(Locale::EnUs.shortcut_no_matches()));
     press(&mut view, KeyCode::Backspace, Modifiers::NONE);
     assert_eq!(view.help_filter(), "nomatchz");
+}
+
+#[test]
+fn bidi_filter_text_is_sanitized_for_display_while_raw_query_still_matches() {
+    let mut view = ClientView::new(80);
+    open_help(&mut view);
+    for character in ['n', 'w', '\u{202e}', 'b'] {
+        press(&mut view, KeyCode::Char(character), Modifiers::NONE);
+    }
+    assert_eq!(view.help_filter(), "nw\u{202e}b");
+
+    let (buffer, _, _) = render_panel(80, 24, &view, Locale::EnUs, true);
+    let rendered = rows(&buffer);
+    assert!(rendered.contains("New Workspace"), "{rendered}");
+    assert!(rendered.contains("Filter: nwb"), "{rendered}");
+    assert!(!rendered.contains('\u{202e}'), "{rendered}");
+}
+
+#[test]
+fn long_alias_lists_wrap_between_complete_chords_and_keep_other_rows_visible() {
+    let mut view = ClientView::new(120);
+    open_help(&mut view);
+    let mut entries = Locale::EnUs.shortcut_help_entries(
+        &view,
+        true,
+        crate::client_view::KeyLabelGlyphs::Unicode,
+    );
+    let aliases = [
+        "Ctrl+Shift+Alt+Super+F12",
+        "Ctrl+Shift+Alt+Super+F11",
+        "Ctrl+Shift+Alt+Super+F10",
+    ];
+    let entry = entries
+        .iter_mut()
+        .find(|entry| entry.title.starts_with("Settings"))
+        .expect("the Help list has a short action to use as a long-alias witness");
+    entry.key = aliases.join(" / ");
+
+    let lines = super::shortcut_lines(&entries, "", Locale::EnUs, 30, &Theme::rgb_test_dark())
+        .expect("a long alias list must not refuse the complete Help surface");
+    let rendered = lines
+        .iter()
+        .map(|line| {
+            line.spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    for alias in aliases {
+        assert!(rendered.contains(alias), "{rendered}");
+    }
+    assert!(
+        rendered.contains("Other"),
+        "the Settings action keeps its group: {rendered}"
+    );
+    assert!(rendered.contains("New Workspace"), "{rendered}");
 }
 
 #[test]

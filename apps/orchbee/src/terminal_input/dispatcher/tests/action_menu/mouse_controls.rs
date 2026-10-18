@@ -533,7 +533,7 @@ fn help_map(
 }
 
 #[test]
-fn unpresentable_help_keeps_a_painted_mouse_exit_without_losing_the_underlying_mode() {
+fn small_help_keeps_a_painted_mouse_exit_without_losing_the_underlying_mode() {
     for (width, height) in [(39, 14), (40, 10), (19, 4), (5, 2)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut port = Port::new(MenuAction::Help);
@@ -624,7 +624,7 @@ fn unpresentable_help_keeps_a_painted_mouse_exit_without_losing_the_underlying_m
             assert_eq!(
                 close_cells.len(),
                 3,
-                "Minimal refusal publishes one complete three-cell close"
+                "Help paints one complete close control"
             );
             let (x, y) = close_cells[0];
             assert_eq!(close_cells, [(x, y), (x + 1, y), (x + 2, y)]);
@@ -637,7 +637,7 @@ fn unpresentable_help_keeps_a_painted_mouse_exit_without_losing_the_underlying_m
             let source = dispatcher.publish_hit_map_with_help(map);
             assert!(matches!(
                 source,
-                Some(crate::client_view::help::HelpDrawSource::Refused { .. })
+                Some(crate::client_view::help::HelpDrawSource::Presented { .. })
             ));
             view.settle_help_draw(source);
             dispatch_all(

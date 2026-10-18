@@ -339,11 +339,12 @@ fn atomic_paste_release_and_mode_help_keep_exclusive_capture() {
     );
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"?");
     assert_eq!(
-        copy_mode_key(*port.keys.last().unwrap()),
-        Some(CopyModeKey::Search(
-            crate::terminal_copy::CopySearchDirection::Backward
-        ))
+        port.keys.len(),
+        before,
+        "Help keeps ordinary search input away from the copy cursor"
     );
+    assert_eq!(view.help_filter(), "?");
+    assert!(port.active, "Help remains above the underlying copy mode");
     assert!(port.forwarded.is_empty());
     assert!(!view.prefix_active());
 }

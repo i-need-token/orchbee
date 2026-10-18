@@ -1609,6 +1609,11 @@ struct ConfirmationBoardPort {
 }
 
 impl TerminalInputPort for ConfirmationBoardPort {
+    fn forward(&mut self, bytes: &[u8]) -> Result<(), TerminalInputUnavailable> {
+        self.calls.borrow_mut().push(Call::Forward(bytes.to_vec()));
+        Ok(())
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
         crate::tui_composition::NativeCaptureClaims::default()
             .with_panel_close(true)
@@ -1943,6 +1948,7 @@ fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
     };
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
+    view.machines.available = true;
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
     assert!(!owned.get());
     assert!(matches!(
@@ -1990,7 +1996,7 @@ fn agent_board_consumes_literal_prefix_and_global_actions_use_the_action_owner()
     assert!(!view.prefix_active());
     assert!(calls.borrow().is_empty());
 
-    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02z");
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02v");
     assert!(owned.get(), "an unbound suffix does not replace the Board");
     assert_eq!(
         view.notice(),

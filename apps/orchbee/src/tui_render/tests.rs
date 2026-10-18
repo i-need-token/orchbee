@@ -885,13 +885,25 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     assert!(without_cell_padding(&prefix_mode).contains("前缀Ctrl+b"));
 
     commit(&mut view, plain('?'));
+    for character in "关闭帮助".chars() {
+        commit(&mut view, plain(character));
+    }
+    let filtered_help = rendered_text(120, 32, &view, Locale::ZhCn);
+    let filtered_compact = without_cell_padding(&filtered_help);
+    assert!(filtered_help.contains("Ctrl+b ?"));
+    assert!(filtered_compact.contains("Ctrl+b?关闭帮助"));
+    assert!(filtered_compact.contains("其他"));
+
+    commit(
+        &mut view,
+        PrefixInput::Key(KeyEvent::press(KeyCode::Char('u'), Modifiers::CTRL)),
+    );
+    assert!(view.help_filter().is_empty());
     let help = rendered_text(120, 32, &view, Locale::ZhCn);
     let compact_help = without_cell_padding(&help);
     assert!(compact_help.contains("键盘快捷键"));
     assert!(help.contains("Ctrl+b c"));
     assert!(help.contains("Ctrl+b ,"));
-    assert!(compact_help.contains("Ctrl+b?关闭帮助"));
-    assert!(compact_help.contains("Esc关闭帮助"));
 
     // The composed registry paginates whole groups at this size: the
     // literal-prefix row sits on a later page. Page forward with the

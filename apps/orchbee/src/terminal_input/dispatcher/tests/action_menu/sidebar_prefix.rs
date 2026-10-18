@@ -361,6 +361,7 @@ fn sidebar_toggle_prefix_closes_and_reopens_the_narrow_sidebar_overlay() {
         "the sidebar toggle closes its overlay"
     );
     assert!(!view.machines.sidebar_navigation_active());
+    dispatcher.publish_hit_map(rendered_sidebar_map_at(&view, 87));
 
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
     assert_eq!(
@@ -368,6 +369,7 @@ fn sidebar_toggle_prefix_closes_and_reopens_the_narrow_sidebar_overlay() {
         Some(Overlay::BusinessSidebar),
         "the same binding opens the sidebar again"
     );
+    dispatcher.publish_hit_map(rendered_sidebar_map_at(&view, 87));
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
     assert_eq!(
         view.overlay(),

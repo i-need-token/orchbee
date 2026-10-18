@@ -79,7 +79,12 @@ fn sidebar_view_with_agent() -> (ClientView, crate::machine_picker::SidebarTarge
 }
 
 fn rendered_sidebar_map(view: &ClientView) -> crate::tui_pointer::FrameHitMap {
-    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 40)).unwrap();
+    rendered_sidebar_map_at(view, 120)
+}
+
+fn rendered_sidebar_map_at(view: &ClientView, width: u16) -> crate::tui_pointer::FrameHitMap {
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 40)).unwrap();
     let mut hits = HitMapBuilder::new();
     terminal
         .draw(|frame| {
@@ -484,7 +489,7 @@ fn sidebar_help_covers_navigation_without_activating_or_losing_its_owner() {
         assert_eq!(view.machines.sidebar_focused_target(), before.as_ref());
         assert!(view.machines.request.is_none());
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[6~");
-        assert_eq!(view.help_page(), 1);
+        assert_eq!(view.help_page(), 9);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
         assert_eq!(
             view.overlay(),
@@ -1168,20 +1173,26 @@ fn tab_create_focus_loss_cancels_action_and_fences_its_late_release_packet() {
 }
 
 #[test]
-fn capturing_navigator_consumes_menu_prefix_without_changing_owners() {
+fn capturing_navigator_prefix_switches_to_menu_without_forwarding() {
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w");
     assert!(view.navigator_active());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQtail");
-    assert!(view.navigator_active());
-    assert!(!port.menu.active());
+    assert!(
+        !view.navigator_active(),
+        "the global menu prefix replaces Navigator"
+    );
+    assert!(
+        port.menu.active(),
+        "the menu owner captures the complete packet"
+    );
     assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
 #[test]
-fn menu_prefix_split_reads_preserve_help_underlay_and_capture_opening_and_decision_tails() {
+fn menu_prefix_split_reads_replace_help_and_capture_opening_and_decision_tails() {
     let opening = b"\x02\x1bOQtail";
     for split in 0..=opening.len() - 4 {
         let mut port = Port::new(MenuAction::Help);
@@ -1194,7 +1205,11 @@ fn menu_prefix_split_reads_preserve_help_underlay_and_capture_opening_and_decisi
         dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[..split]);
         dispatch_all(&mut dispatcher, &mut view, &mut port, &opening[split..]);
         assert!(port.menu.active(), "split {split}");
-        assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+        assert_eq!(
+            view.overlay(),
+            None,
+            "the global menu prefix replaces the Help overlay at split {split}"
+        );
         assert!(forwarded_bytes(&port.calls).is_empty());
         port.arm();
         dispatch_all(
@@ -1206,21 +1221,22 @@ fn menu_prefix_split_reads_preserve_help_underlay_and_capture_opening_and_decisi
         assert!(!port.menu.active());
         assert_eq!(
             view.overlay(),
-            None,
-            "the existing Help action toggles its underlay closed"
+            Some(Overlay::ShortcutHelp),
+            "choosing Help opens it after the menu has replaced the prior overlay"
         );
         assert!(forwarded_bytes(&port.calls).is_empty());
         assert_eq!(
             port.calls
                 .borrow()
                 .iter()
-                .filter(|call| matches!(call, Call::Action(ClientAction::CloseShortcutHelp)))
+                .filter(|call| matches!(call, Call::Action(ClientAction::OpenShortcutHelp)))
                 .count(),
             1
         );
         dispatcher.publish_hit_map(HitMapBuilder::new().finish());
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
-        assert_eq!(forwarded_bytes(&port.calls), b"normal");
+        assert_eq!(view.help_filter(), "normal");
+        assert!(forwarded_bytes(&port.calls).is_empty());
     }
 }
 
@@ -1562,7 +1578,8 @@ fn escape_timeout_and_idle_action_completion_keep_the_already_polled_packet_capt
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
     dispatcher.publish_hit_map(HitMapBuilder::new().finish());
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
-    assert_eq!(forwarded_bytes(&port.calls), b"normal");
+    assert_eq!(view.help_filter(), "normal");
+    assert!(forwarded_bytes(&port.calls).is_empty());
 }
 
 #[test]

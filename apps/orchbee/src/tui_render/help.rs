@@ -107,10 +107,11 @@ pub(super) fn render(
     let last = lines.len().saturating_sub(usize::from(rows_area.height));
     let page = candidate.page().min(last);
     let source = candidate.presented(page, last)?;
+    let filter_query = sanitize_terminal_text(view.help_filter());
     let filter_line = format!(
         "{}: {} · {}",
         locale.shortcut_search_label(),
-        view.help_filter(),
+        filter_query,
         locale.shortcut_filter_hint()
     );
     let filter_line = truncate_display(&filter_line, width, theme.glyphs.ellipsis);
@@ -384,18 +385,12 @@ fn shortcut_lines(
             ));
         }
 
-        let key = sanitize_terminal_text(&entry.key).trim().into_owned();
+        let key = sanitize_terminal_text(&entry.key).trim().to_owned();
         let title = sanitize_terminal_text(&entry.title).into_owned();
         let description = match entry.disabled_reason.as_deref() {
             Some(reason) => format!("{title} · {}", sanitize_terminal_text(reason)),
             None => title,
         };
-        let indent = display_width(&key).saturating_add(2);
-        if indent >= width {
-            return None;
-        }
-        let wrapped = wrap_display(&description, width - indent)?;
-        let mut parts = wrapped.into_iter();
         let disabled = entry.disabled_reason.is_some();
         let key_style = theme.style(if disabled {
             Role::TextDisabled
@@ -407,13 +402,61 @@ fn shortcut_lines(
         } else {
             Role::TextPrimary
         });
-        lines.push(Line::from(vec![
-            Span::styled(format!("{key}  "), key_style),
-            Span::styled(parts.next().unwrap_or_default(), description_style),
-        ]));
-        lines.extend(
-            parts.map(|part| Line::styled(format!("{:indent$}{part}", ""), description_style)),
-        );
+        let indent = display_width(&key).saturating_add(2);
+        if indent < width {
+            let wrapped = wrap_display(&description, width - indent)?;
+            let mut parts = wrapped.into_iter();
+            lines.push(Line::from(vec![
+                Span::styled(format!("{key}  "), key_style),
+                Span::styled(parts.next().unwrap_or_default(), description_style),
+            ]));
+            lines.extend(
+                parts.map(|part| Line::styled(format!("{:indent$}{part}", ""), description_style)),
+            );
+        } else {
+            for key_line in wrap_key_aliases(&key, width)? {
+                lines.push(Line::styled(key_line, key_style));
+            }
+            let description_indent = 2.min(width.saturating_sub(1));
+            let wrapped = wrap_display(&description, width - description_indent)?;
+            lines.extend(wrapped.into_iter().map(|part| {
+                Line::styled(
+                    format!("{:description_indent$}{part}", ""),
+                    description_style,
+                )
+            }));
+        }
+    }
+    Some(lines)
+}
+
+/// Keeps every alias chord intact when the alias list wraps. A single chord
+/// wider than the available column is still split safely so it cannot refuse
+/// the rest of Help.
+fn wrap_key_aliases(key: &str, width: usize) -> Option<Vec<String>> {
+    if width == 0 {
+        return None;
+    }
+    let mut lines = Vec::new();
+    let mut line = String::new();
+    for alias in key.split(" / ") {
+        if display_width(alias) > width {
+            if !line.is_empty() {
+                lines.push(std::mem::take(&mut line));
+            }
+            lines.extend(wrap_display(alias, width)?);
+        } else if line.is_empty() {
+            line.push_str(alias);
+        } else if display_width(&line) + 3 + display_width(alias) <= width {
+            line.push_str(" / ");
+            line.push_str(alias);
+        } else {
+            lines.push(std::mem::take(&mut line));
+            line.push_str(alias);
+        }
+    }
+    if !line.is_empty() {
+        lines.push(line);
     }
     Some(lines)
 }

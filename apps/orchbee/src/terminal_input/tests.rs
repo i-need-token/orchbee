@@ -392,6 +392,7 @@ fn shortcut_help_captures_ordinary_input_and_consumes_escape() {
         input.recorded,
         [
             Recorded::Action(ClientAction::OpenShortcutHelp),
+            Recorded::Action(ClientAction::PageShortcutHelp),
             Recorded::Action(ClientAction::CloseShortcutHelp)
         ],
         "the consumed Escape must never reach the terminal port"
