@@ -94,7 +94,6 @@ fn dark_and_light_backgrounds_classify_and_foreground_only_waits_for_timeout() {
     );
     assert!(dark.timeout(now + Duration::from_secs(1)).is_none());
     assert!(dark.settle_fallback(HostAppearance::Light).is_none());
-    assert_eq!(dark.appearance(), Some(HostAppearance::Dark));
 
     let mut light = Probe::default();
     light.begin(now);
@@ -110,7 +109,6 @@ fn dark_and_light_backgrounds_classify_and_foreground_only_waits_for_timeout() {
     );
     assert!(light.timeout(now + Duration::from_secs(1)).is_none());
     assert!(light.settle_fallback(HostAppearance::Dark).is_none());
-    assert_eq!(light.appearance(), Some(HostAppearance::Light));
 
     let mut foreground_only = Probe::default();
     foreground_only.begin(now);
@@ -128,12 +126,15 @@ fn dark_and_light_backgrounds_classify_and_foreground_only_waits_for_timeout() {
         foreground_only.timeout(now + Duration::from_millis(351)),
         Some(super::Timeout)
     );
-    assert!(foreground_only.appearance().is_none());
     assert_eq!(
         foreground_only.settle_fallback(HostAppearance::Unknown),
         Some(HostAppearance::Unknown)
     );
-    assert_eq!(foreground_only.appearance(), Some(HostAppearance::Unknown));
+    assert!(
+        foreground_only
+            .settle_fallback(HostAppearance::Light)
+            .is_none()
+    );
 }
 
 #[test]
@@ -147,7 +148,6 @@ fn no_reply_timeout_accepts_fallback_and_late_color_cannot_change_it() {
         probe.timeout(now + Duration::from_millis(350)),
         Some(super::Timeout)
     );
-    assert_eq!(probe.appearance(), None);
     assert_eq!(
         probe.settle_fallback(HostAppearance::Dark),
         Some(HostAppearance::Dark)
@@ -162,7 +162,7 @@ fn no_reply_timeout_accepts_fallback_and_late_color_cannot_change_it() {
         ),
         None
     );
-    assert_eq!(probe.appearance(), Some(HostAppearance::Dark));
+    assert!(probe.settle_fallback(HostAppearance::Light).is_none());
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn malformed_background_reply_waits_for_deadline_and_keeps_fallback_eligible() {
         probe.settle_fallback(HostAppearance::Light),
         Some(HostAppearance::Light)
     );
-    assert_eq!(probe.appearance(), Some(HostAppearance::Light));
+    assert!(probe.settle_fallback(HostAppearance::Dark).is_none());
 }
 
 #[test]
@@ -243,7 +243,7 @@ fn a_complete_late_background_reply_is_consumed_but_cannot_replace_fallback() {
         probe.observe(late, start + Duration::from_millis(400)),
         None
     );
-    assert_eq!(probe.appearance(), Some(HostAppearance::Dark));
+    assert!(probe.settle_fallback(HostAppearance::Light).is_none());
 }
 
 #[test]

@@ -16,7 +16,11 @@ fn host_defaults_follow_resolved_application_appearance_without_replacing_explic
             (Terminal::Dark, Some((0xd4d4d4, 0x1e1e1e))),
             (Terminal::Custom, Some((0x123456, 0x654321))),
         ] {
-            let chrome = Theme::application(application, ColorLevel::Truecolor);
+            let chrome = Theme::application_with_host(
+                application,
+                crate::terminal_host_appearance::HostAppearance::Unknown,
+                ColorLevel::Truecolor,
+            );
             let theme = chrome
                 .with_terminal_appearance_for_application(
                     application,

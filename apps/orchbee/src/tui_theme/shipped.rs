@@ -81,13 +81,6 @@ fn named(palette: Palette) -> Theme {
 }
 
 impl Theme {
-    pub(crate) fn application(
-        appearance: orchbee_workbench_protocol::ApplicationAppearance,
-        level: ColorLevel,
-    ) -> Self {
-        Self::application_with_host(appearance, HostAppearance::Unknown, level)
-    }
-
     /// Resolve only an explicit System preference from known outer-host polarity.
     pub(crate) fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,

@@ -136,14 +136,6 @@ impl Probe {
         self.state = ProbeState::Settled(appearance);
         Some(appearance)
     }
-
-    /// The currently settled host appearance, if any.
-    pub(crate) const fn appearance(&self) -> Option<HostAppearance> {
-        match self.state {
-            ProbeState::Settled(appearance) => Some(appearance),
-            ProbeState::Unissued | ProbeState::Pending { .. } | ProbeState::FallbackPending => None,
-        }
-    }
 }
 
 /// Maps the Windows current-user app-theme registry value; invalid or missing stays unknown.
