@@ -398,6 +398,13 @@ pub(crate) fn menu_binding_action(
         (T::Global | T::Create(None), M::OpenWorktree) => {
             PrefixAction::Client(A::RequestWorktreeOpen)
         }
+        (T::Global, M::SplitPanel(direction)) => PrefixAction::Client(A::SplitPanel(direction)),
+        (T::Global, M::ClosePane) => PrefixAction::Client(A::ClosePanel),
+        (T::Global, M::Zoom) => PrefixAction::Client(A::ToggleZoom),
+        (T::Global, M::MovePanel(direction)) => PrefixAction::Client(A::MovePanel(direction)),
+        (T::Global, M::RenameTab) => PrefixAction::Client(A::RequestRenameTab),
+        (T::Global, M::Copy) => PrefixAction::Client(A::EnterCopyMode),
+        (T::Global, M::Resize) => PrefixAction::Client(A::EnterResizeMode),
         (T::Global, M::Reload) => PrefixAction::Client(A::ReloadConfiguration),
         (T::Global, M::Settings) => PrefixAction::Client(A::OpenSettings),
         (T::Global, M::Machines) => PrefixAction::Client(A::OpenMachines),
@@ -463,8 +470,8 @@ pub(crate) fn menu_metadata(action: MenuAction) -> MenuActionMetadata {
         ActionTone::Ordinary
     };
     let projected = match action {
-        A::SplitVertical => split_panel(PanelDirection::Right),
-        A::SplitHorizontal => split_panel(PanelDirection::Down),
+        A::SplitPanel(direction) => split_panel(direction),
+        A::MovePanel(direction) => move_panel(direction),
         A::Zoom => built_in("workbench.panel.active.maximization.toggle", C::Pane, PANE),
         A::Resize => built_in("orchbee.native.pane.resize-mode.enter", C::Pane, RESIZE),
         A::Copy => built_in("orchbee.native.copy-mode.enter", C::Input, COPY),

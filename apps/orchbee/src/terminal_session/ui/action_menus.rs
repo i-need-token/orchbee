@@ -119,6 +119,21 @@ fn action_availability(
     if action == MenuAction::MoveToNewWindow {
         return ActionAvailability::Hidden;
     }
+    if matches!(target, Target::Global)
+        && matches!(
+            action,
+            MenuAction::RenameTab
+                | MenuAction::SplitPanel(_)
+                | MenuAction::Zoom
+                | MenuAction::Resize
+                | MenuAction::Copy
+                | MenuAction::ClosePane
+                | MenuAction::MovePanel(_)
+        )
+        && state.is_none_or(|state| state.focus_pane_ref().is_none())
+    {
+        return ActionAvailability::Disabled(MenuUnavailable::FocusedPanelRequired);
+    }
     if matches!(
         action,
         MenuAction::NewGroupWithTab

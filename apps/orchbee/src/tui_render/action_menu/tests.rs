@@ -436,12 +436,17 @@ fn render_machines_row(
 }
 
 fn action_row_rect(map: &FrameHitMap, area: Rect, token: MenuToken) -> Rect {
+    action_row_rect_for(map, area, token, 0)
+}
+
+fn action_row_rect_for(map: &FrameHitMap, area: Rect, token: MenuToken, row_index: usize) -> Rect {
     let points = (area.y..area.bottom())
         .flat_map(|y| (area.x..area.right()).map(move |x| (x, y)))
         .filter(|(x, y)| {
             matches!(
                 map.hit_target_at(*x, *y),
-                Some(HitTarget::ActionMenuRow { token: drawn, row: 0 }) if *drawn == token
+                Some(HitTarget::ActionMenuRow { token: drawn, row })
+                    if *drawn == token && *row == row_index
             )
         })
         .collect::<Vec<_>>();
@@ -457,7 +462,8 @@ fn action_row_rect(map: &FrameHitMap, area: Rect, token: MenuToken) -> Rect {
     for x in row.x..row.right() {
         assert!(matches!(
             map.hit_target_at(x, row.y),
-            Some(HitTarget::ActionMenuRow { token: drawn, row: 0 }) if *drawn == token
+            Some(HitTarget::ActionMenuRow { token: drawn, row })
+                if *drawn == token && *row == row_index
         ));
     }
     row
@@ -505,6 +511,128 @@ fn assert_bound_row_layout(
     }
     assert_eq!(chord_x - label_right, ROW_BINDING_GAP);
     assert!(chord_x - label_end >= ROW_BINDING_GAP);
+}
+
+#[test]
+fn global_tab_and_panel_rows_render_the_current_binding_for_each_localized_action() {
+    use crate::{
+        action_menu::{GLOBAL_ACTIONS, MenuTarget},
+        client_view::PanelDirection as Direction,
+    };
+
+    let cases = [
+        (
+            MenuAction::RenameTab,
+            PrefixAction::Client(ClientAction::RequestRenameTab),
+        ),
+        (
+            MenuAction::SplitPanel(Direction::Up),
+            PrefixAction::Client(ClientAction::SplitPanel(Direction::Up)),
+        ),
+        (
+            MenuAction::SplitPanel(Direction::Down),
+            PrefixAction::Client(ClientAction::SplitPanel(Direction::Down)),
+        ),
+        (
+            MenuAction::SplitPanel(Direction::Left),
+            PrefixAction::Client(ClientAction::SplitPanel(Direction::Left)),
+        ),
+        (
+            MenuAction::SplitPanel(Direction::Right),
+            PrefixAction::Client(ClientAction::SplitPanel(Direction::Right)),
+        ),
+        (
+            MenuAction::ClosePane,
+            PrefixAction::Client(ClientAction::ClosePanel),
+        ),
+        (
+            MenuAction::Zoom,
+            PrefixAction::Client(ClientAction::ToggleZoom),
+        ),
+        (
+            MenuAction::MovePanel(Direction::Up),
+            PrefixAction::Client(ClientAction::MovePanel(Direction::Up)),
+        ),
+        (
+            MenuAction::MovePanel(Direction::Down),
+            PrefixAction::Client(ClientAction::MovePanel(Direction::Down)),
+        ),
+        (
+            MenuAction::MovePanel(Direction::Left),
+            PrefixAction::Client(ClientAction::MovePanel(Direction::Left)),
+        ),
+        (
+            MenuAction::MovePanel(Direction::Right),
+            PrefixAction::Client(ClientAction::MovePanel(Direction::Right)),
+        ),
+        (
+            MenuAction::Copy,
+            PrefixAction::Client(ClientAction::EnterCopyMode),
+        ),
+        (
+            MenuAction::Resize,
+            PrefixAction::Client(ClientAction::EnterResizeMode),
+        ),
+    ];
+
+    let width = 140;
+    let height = 60;
+    let client = ClientView::new(width);
+    let theme = Theme::terminal_native();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let mut menu = ActionMenu::default();
+        assert!(menu.open_for(
+            MenuTarget::Global,
+            String::new(),
+            GLOBAL_ACTIONS.to_vec(),
+            None,
+        ));
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        let mut presentation = ModalPresentation::NotPresented;
+        terminal
+            .draw(|frame| {
+                presentation = render(
+                    frame,
+                    frame.area(),
+                    menu.view().unwrap(),
+                    client.bindings(),
+                    locale,
+                    &theme,
+                    &mut hits,
+                );
+            })
+            .unwrap();
+        let ModalPresentation::Presented(draw) = presentation else {
+            panic!("the global menu fits at 140x60");
+        };
+        assert_eq!(draw.visible_rows, GLOBAL_ACTIONS.len());
+        assert!(menu.presented(draw));
+        let map = hits.finish();
+        let buffer = terminal.backend().buffer();
+
+        for (action, binding_action) in &cases {
+            let index = GLOBAL_ACTIONS
+                .iter()
+                .position(|candidate| candidate == action)
+                .expect("the global menu includes each requested action");
+            let row = action_row_rect_for(&map, buffer.area, draw.token, index);
+            let text = (row.x..row.right())
+                .map(|x| buffer[(x, row.y)].symbol())
+                .collect::<String>();
+            let chord = client
+                .bindings()
+                .action_labels_with_glyphs(binding_action.clone(), key_label_glyphs(&theme))
+                .into_iter()
+                .next()
+                .expect("the keyboard action has an effective binding");
+            assert!(
+                text.contains(locale.menu_action(action)),
+                "{locale:?}: {text}"
+            );
+            assert!(text.contains(&chord), "{locale:?}: {text}");
+        }
+    }
 }
 
 fn configured_prefix(

@@ -1,5 +1,8 @@
 use super::Locale;
-use crate::action_menu::{MenuAction, MenuUnavailable};
+use crate::{
+    action_menu::{MenuAction, MenuUnavailable},
+    client_view::PanelDirection,
+};
 
 impl Locale {
     /// Uses the same saved name or localized built-in label for every launch row.
@@ -107,6 +110,12 @@ impl Locale {
             }
             (Self::EnUs, MenuUnavailable::WorkspaceRequired, true) => "Workspace",
             (Self::ZhCn, MenuUnavailable::WorkspaceRequired, true) => "需工作区",
+            (Self::EnUs, MenuUnavailable::FocusedPanelRequired, false) => {
+                "A focused panel is required for this action."
+            }
+            (Self::ZhCn, MenuUnavailable::FocusedPanelRequired, false) => "此操作需要焦点面板。",
+            (Self::EnUs, MenuUnavailable::FocusedPanelRequired, true) => "Focus panel",
+            (Self::ZhCn, MenuUnavailable::FocusedPanelRequired, true) => "需焦点面板",
             (Self::EnUs, MenuUnavailable::ProjectWorkspaceRequired, false) => {
                 "Select a Workspace in this Project first."
             }
@@ -166,10 +175,14 @@ impl Locale {
             (Self::ZhCn, NewGroupWithTab) => "新建分组及标签页",
             (Self::EnUs, DuplicateTab) => "Duplicate Tab",
             (Self::ZhCn, DuplicateTab) => "复制标签页",
-            (Self::EnUs, SplitVertical) => "Split side by side",
-            (Self::ZhCn, SplitVertical) => "左右分屏",
-            (Self::EnUs, SplitHorizontal) => "Split top and bottom",
-            (Self::ZhCn, SplitHorizontal) => "上下分屏",
+            (Self::EnUs, SplitPanel(PanelDirection::Left)) => "Split left",
+            (Self::ZhCn, SplitPanel(PanelDirection::Left)) => "向左分屏",
+            (Self::EnUs, SplitPanel(PanelDirection::Down)) => "Split down",
+            (Self::ZhCn, SplitPanel(PanelDirection::Down)) => "向下分屏",
+            (Self::EnUs, SplitPanel(PanelDirection::Up)) => "Split up",
+            (Self::ZhCn, SplitPanel(PanelDirection::Up)) => "向上分屏",
+            (Self::EnUs, SplitPanel(PanelDirection::Right)) => "Split right",
+            (Self::ZhCn, SplitPanel(PanelDirection::Right)) => "向右分屏",
             (Self::EnUs, Zoom) => "Toggle pane zoom",
             (Self::ZhCn, Zoom) => "切换面板缩放",
             (Self::EnUs, Resize) => "Resize panes",
@@ -180,6 +193,14 @@ impl Locale {
             (Self::ZhCn, Takeover) => "接管输入与尺寸",
             (Self::EnUs, ClosePane) => "Close pane…",
             (Self::ZhCn, ClosePane) => "关闭面板…",
+            (Self::EnUs, MovePanel(PanelDirection::Left)) => "Move pane left",
+            (Self::ZhCn, MovePanel(PanelDirection::Left)) => "向左移动面板",
+            (Self::EnUs, MovePanel(PanelDirection::Down)) => "Move pane down",
+            (Self::ZhCn, MovePanel(PanelDirection::Down)) => "向下移动面板",
+            (Self::EnUs, MovePanel(PanelDirection::Up)) => "Move pane up",
+            (Self::ZhCn, MovePanel(PanelDirection::Up)) => "向上移动面板",
+            (Self::EnUs, MovePanel(PanelDirection::Right)) => "Move pane right",
+            (Self::ZhCn, MovePanel(PanelDirection::Right)) => "向右移动面板",
             (Self::EnUs, MoveTabPrevious) => "Move this Tab left",
             (Self::ZhCn, MoveTabPrevious) => "向左移动此标签页",
             (Self::EnUs, MoveTabNext) => "Move this Tab right",

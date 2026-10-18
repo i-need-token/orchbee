@@ -60,13 +60,13 @@ pub(crate) struct DrawnTabCreate {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MenuAction {
-    SplitVertical,
-    SplitHorizontal,
+    SplitPanel(PanelDirection),
     Zoom,
     Resize,
     Copy,
     Takeover,
     ClosePane,
+    MovePanel(PanelDirection),
     NewTab,
     /// A frozen saved choice; never changes the shared default profile.
     NewTabWithProfile(Box<orchbee_workbench_protocol::UserLaunchProfile>),
@@ -144,6 +144,7 @@ pub(crate) enum MenuUnavailable {
     DirectoryConfigured,
     EmptyWorkspaceRequired,
     WorkspaceRequired,
+    FocusedPanelRequired,
     LegacyWorkspace,
     ProjectWorkspaceRequired,
     OperationBusy,
@@ -171,13 +172,13 @@ impl MenuAction {
     /// They cannot fall back to an action on the current Workspace.
     pub(crate) fn client_action(&self) -> Option<ClientAction> {
         Some(match self {
-            Self::SplitVertical => ClientAction::SplitPanel(PanelDirection::Right),
-            Self::SplitHorizontal => ClientAction::SplitPanel(PanelDirection::Down),
+            Self::SplitPanel(direction) => ClientAction::SplitPanel(*direction),
             Self::Zoom => ClientAction::ToggleZoom,
             Self::Resize => ClientAction::EnterResizeMode,
             Self::Copy => ClientAction::EnterCopyMode,
             Self::Takeover => ClientAction::RequestControlTakeover,
             Self::ClosePane => ClientAction::ClosePanel,
+            Self::MovePanel(direction) => ClientAction::MovePanel(*direction),
             Self::MoveTabPrevious
             | Self::ResumeTabClose
             | Self::CloseSelectedTabs
@@ -255,8 +256,8 @@ impl MenuAction {
 }
 
 pub(crate) const PANE_ACTIONS: &[MenuAction] = &[
-    MenuAction::SplitVertical,
-    MenuAction::SplitHorizontal,
+    MenuAction::SplitPanel(PanelDirection::Right),
+    MenuAction::SplitPanel(PanelDirection::Down),
     MenuAction::Zoom,
     MenuAction::Resize,
     MenuAction::Copy,
@@ -300,10 +301,24 @@ pub(crate) const PROJECT_ACTIONS: &[MenuAction] = &[
 ];
 pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::TabCreation,
+    MenuAction::RenameTab,
+    MenuAction::SplitPanel(PanelDirection::Up),
+    MenuAction::SplitPanel(PanelDirection::Down),
+    MenuAction::SplitPanel(PanelDirection::Left),
+    MenuAction::SplitPanel(PanelDirection::Right),
+    MenuAction::ClosePane,
+    MenuAction::Zoom,
+    MenuAction::MovePanel(PanelDirection::Up),
+    MenuAction::MovePanel(PanelDirection::Down),
+    MenuAction::MovePanel(PanelDirection::Left),
+    MenuAction::MovePanel(PanelDirection::Right),
+    MenuAction::Copy,
+    MenuAction::Resize,
     MenuAction::NewWorkspace,
     MenuAction::WorkspaceAtDirectory,
     MenuAction::NewWorktree,
     MenuAction::OpenWorktree,
+    MenuAction::Detach,
     MenuAction::Reload,
     MenuAction::Settings,
     MenuAction::Machines,
@@ -312,7 +327,6 @@ pub(crate) const GLOBAL_ACTIONS: &[MenuAction] = &[
     MenuAction::Navigator,
     MenuAction::AgentBoard,
     MenuAction::ReleasePointer,
-    MenuAction::Detach,
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -431,11 +445,41 @@ impl MenuView<'_> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum GlobalMenuGroup {
+    Tab,
+    Panel,
+    Workspace,
+    Session,
+    Other,
+}
+
+fn global_menu_group(action: &MenuAction) -> GlobalMenuGroup {
+    match action {
+        MenuAction::TabCreation | MenuAction::RenameTab => GlobalMenuGroup::Tab,
+        MenuAction::SplitPanel(_)
+        | MenuAction::Zoom
+        | MenuAction::Resize
+        | MenuAction::Copy
+        | MenuAction::ClosePane
+        | MenuAction::MovePanel(_) => GlobalMenuGroup::Panel,
+        MenuAction::NewWorkspace
+        | MenuAction::WorkspaceAtDirectory
+        | MenuAction::NewWorktree
+        | MenuAction::OpenWorktree => GlobalMenuGroup::Workspace,
+        MenuAction::Detach => GlobalMenuGroup::Session,
+        _ => GlobalMenuGroup::Other,
+    }
+}
+
 fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -> bool {
     if index == 0 {
         return false;
     }
     let action = &actions[index];
+    if matches!(source, MenuTarget::Global) {
+        return global_menu_group(&actions[index - 1]) != global_menu_group(action);
+    }
     match action {
         MenuAction::JoinWorkspaceProject(_) => {
             return !matches!(actions[index - 1], MenuAction::JoinWorkspaceProject(_));

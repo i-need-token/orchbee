@@ -103,6 +103,119 @@ fn activate_row(ui: &mut NativeUi, token: MenuToken, row: usize) {
 }
 
 #[test]
+fn global_menu_groups_existing_tab_panel_workspace_and_session_actions_and_dispatches_them() {
+    use crate::client_view::PanelDirection as Direction;
+
+    let expected = [
+        (MenuAction::RenameTab, ClientAction::RequestRenameTab),
+        (
+            MenuAction::SplitPanel(Direction::Up),
+            ClientAction::SplitPanel(Direction::Up),
+        ),
+        (
+            MenuAction::SplitPanel(Direction::Down),
+            ClientAction::SplitPanel(Direction::Down),
+        ),
+        (
+            MenuAction::SplitPanel(Direction::Left),
+            ClientAction::SplitPanel(Direction::Left),
+        ),
+        (
+            MenuAction::SplitPanel(Direction::Right),
+            ClientAction::SplitPanel(Direction::Right),
+        ),
+        (MenuAction::ClosePane, ClientAction::ClosePanel),
+        (MenuAction::Zoom, ClientAction::ToggleZoom),
+        (
+            MenuAction::MovePanel(Direction::Up),
+            ClientAction::MovePanel(Direction::Up),
+        ),
+        (
+            MenuAction::MovePanel(Direction::Down),
+            ClientAction::MovePanel(Direction::Down),
+        ),
+        (
+            MenuAction::MovePanel(Direction::Left),
+            ClientAction::MovePanel(Direction::Left),
+        ),
+        (
+            MenuAction::MovePanel(Direction::Right),
+            ClientAction::MovePanel(Direction::Right),
+        ),
+        (MenuAction::Copy, ClientAction::EnterCopyMode),
+        (MenuAction::Resize, ClientAction::EnterResizeMode),
+    ];
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        assert_eq!(menu.actions, crate::action_menu::GLOBAL_ACTIONS);
+        let separators = (1..menu.actions.len())
+            .filter(|index| menu.separator_before(*index))
+            .collect::<Vec<_>>();
+        assert_eq!(separators, [2, 14, 18, 19]);
+    }
+    ui.cancel_action_menu();
+
+    for (action, expected_client_action) in expected {
+        assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+        let row = action_row(&ui, action.clone());
+        assert_eq!(ui.view().action_menu().unwrap().unavailable[row], None);
+        let token = arm(&mut ui);
+        activate_row(&mut ui, token, row);
+        assert_eq!(
+            ui.take_action_menu_action(false),
+            Some(expected_client_action),
+            "{action:?} must use the same ClientAction as its keyboard binding"
+        );
+    }
+}
+
+#[test]
+fn global_tab_and_panel_actions_report_when_no_panel_is_focused() {
+    use crate::client_view::PanelDirection as Direction;
+
+    let (mut ui, _, _, _) = tests::move_membership::ready_ui();
+    ui.state = None;
+    assert!(ui.open_action_menu(MenuTarget::Global, None, false));
+    for action in [
+        MenuAction::RenameTab,
+        MenuAction::SplitPanel(Direction::Up),
+        MenuAction::SplitPanel(Direction::Down),
+        MenuAction::SplitPanel(Direction::Left),
+        MenuAction::SplitPanel(Direction::Right),
+        MenuAction::ClosePane,
+        MenuAction::Zoom,
+        MenuAction::MovePanel(Direction::Up),
+        MenuAction::MovePanel(Direction::Down),
+        MenuAction::MovePanel(Direction::Left),
+        MenuAction::MovePanel(Direction::Right),
+        MenuAction::Copy,
+        MenuAction::Resize,
+    ] {
+        let row = action_row(&ui, action);
+        assert_eq!(
+            ui.view().action_menu().unwrap().unavailable[row],
+            Some(MenuUnavailable::FocusedPanelRequired)
+        );
+    }
+    assert_eq!(
+        Locale::EnUs.menu_unavailable(MenuUnavailable::FocusedPanelRequired, false),
+        "A focused panel is required for this action."
+    );
+    assert_eq!(
+        Locale::ZhCn.menu_unavailable(MenuUnavailable::FocusedPanelRequired, false),
+        "此操作需要焦点面板。"
+    );
+    let row = action_row(&ui, MenuAction::SplitPanel(Direction::Up));
+    let token = arm(&mut ui);
+    activate_row(&mut ui, token, row);
+    assert_eq!(ui.take_action_menu_action(false), None);
+    assert!(ui.action_menu_active());
+}
+
+#[test]
 fn legacy_workspace_menu_keeps_tab_actions_and_refuses_canonical_workspace_effects() {
     let (mut ui, mailbox, _, _) = tests::context_selection::ready(false);
     let location = ui.state.as_ref().unwrap().cache().location().clone();

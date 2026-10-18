@@ -775,7 +775,7 @@ fn paint_menu(dispatcher: &mut InputDispatcher, port: &mut Port) {
 fn globally_admitted_menu_hover_tracks_motion_without_activating_or_forwarding() {
     let mut port = Port::new(MenuAction::Help);
     port.actions = vec![
-        MenuAction::SplitVertical,
+        MenuAction::SplitPanel(crate::client_view::PanelDirection::Right),
         MenuAction::Help,
         MenuAction::Detach,
     ];

@@ -228,15 +228,19 @@ cancelled menus or retarget another episode. The [shell layout](tui-shell-layout
 owns the entry geometry and direct Tab-strip create gesture.
 
 Pane menus expose existing split, zoom, keyboard resize, copy, takeover and close actions. Tab menus
-expose create, rename and close. The global menu exposes Workspace creation, Worktrees, reload,
-Settings, machine/Workspace/Agent search, help, sidebar, navigator, Agent board, pointer release and
-detach. Ordinary confirmed Close retains its compatibility behavior; sidebar conditional Delete follows
-the authority admission above. Settings delegates to its existing editor; checkout deletion, policy
-editing and custom or plugin-defined menus are outside this surface.
+expose create, rename and close. The global menu groups its existing actions under Tab, Panel,
+Workspace and Session sections. Tab includes new-Tab options and Rename. Panel includes directional
+split and move, close, zoom, keyboard resize and copy mode. Workspace includes creation and Worktree
+actions; Session includes Detach. These rows use the current binding registry for their shortcut and
+dispatch the same existing ClientAction as the keyboard. Pane actions and Rename Tab require a focused pane
+and show the localized focused-panel-required reason when none is available. Other global actions
+follow these sections. Ordinary confirmed Close retains its compatibility behavior; sidebar
+conditional Delete follows the authority admission above. Settings delegates to its existing editor;
+checkout deletion, policy editing and custom or plugin-defined menus are outside this surface.
 
-When the carrier is unavailable, the global menu keeps only client-local search, help,
-sidebar, pointer release and detach. Member menus require a live carrier. An observed
-geometry is required even before the first session state arrives.
+When the carrier is unavailable, the global menu remains independently available; pane actions and
+Rename Tab show the focused-panel-required reason. Member menus require a live
+carrier. An observed geometry is required even before the first session state arrives.
 
 ## Tab scope and current values
 
@@ -438,6 +442,10 @@ event replay, cancellation, source/target/focus drift, exact draft capture, at-m
 known-commit retention and execution deadlines independent of browsing time. Candidate-hover
 witnesses cover successive pre-paint motions, keyboard continuation, disabled and unpainted rows,
 source and token refusal, viewport retention, pointer leave, and no implicit submenu or action.
+
+Global-menu witnesses assert the Tab, Panel, Workspace and Session section boundaries, directional
+split and move actions, both localized labels, current effective shortcuts, parity with keyboard
+`ClientAction` dispatch, and the localized focused-panel-required reason when no pane is focused.
 
 Maintain the concrete witnesses in `src/action_menu/tests.rs`, `src/terminal_session/ui/action_menus/tests.rs`, `src/terminal_input/dispatcher/tests/action_menu.rs`, `src/tui_render/tests.rs` and the adjacent state, carrier, input and rendering suites. Use controlled completion/clock order and generated trace replay where the workflow has multiple outcomes.
 

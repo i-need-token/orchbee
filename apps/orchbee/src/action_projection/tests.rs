@@ -92,12 +92,36 @@ fn configured_command_identity_preserves_the_opaque_id() {
 fn menu_and_binding_presenters_share_common_action_identity() {
     let cases = [
         (
-            MenuAction::SplitVertical,
+            MenuAction::SplitPanel(PanelDirection::Right),
             PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Right)),
         ),
         (
-            MenuAction::SplitHorizontal,
+            MenuAction::SplitPanel(PanelDirection::Down),
             PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Down)),
+        ),
+        (
+            MenuAction::SplitPanel(PanelDirection::Left),
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Left)),
+        ),
+        (
+            MenuAction::SplitPanel(PanelDirection::Up),
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Up)),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Left),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Left)),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Down),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Down)),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Up),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Up)),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Right),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Right)),
         ),
         (
             MenuAction::Zoom,
@@ -284,6 +308,58 @@ fn menu_binding_projection_requires_the_same_typed_target_semantics() {
     let global = MenuTarget::Global;
     let cases = [
         (
+            MenuAction::SplitPanel(PanelDirection::Up),
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Up)),
+        ),
+        (
+            MenuAction::SplitPanel(PanelDirection::Down),
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Down)),
+        ),
+        (
+            MenuAction::SplitPanel(PanelDirection::Left),
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Left)),
+        ),
+        (
+            MenuAction::SplitPanel(PanelDirection::Right),
+            PrefixAction::Client(ClientAction::SplitPanel(PanelDirection::Right)),
+        ),
+        (
+            MenuAction::ClosePane,
+            PrefixAction::Client(ClientAction::ClosePanel),
+        ),
+        (
+            MenuAction::Zoom,
+            PrefixAction::Client(ClientAction::ToggleZoom),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Up),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Up)),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Down),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Down)),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Left),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Left)),
+        ),
+        (
+            MenuAction::MovePanel(PanelDirection::Right),
+            PrefixAction::Client(ClientAction::MovePanel(PanelDirection::Right)),
+        ),
+        (
+            MenuAction::Copy,
+            PrefixAction::Client(ClientAction::EnterCopyMode),
+        ),
+        (
+            MenuAction::Resize,
+            PrefixAction::Client(ClientAction::EnterResizeMode),
+        ),
+        (
+            MenuAction::RenameTab,
+            PrefixAction::Client(ClientAction::RequestRenameTab),
+        ),
+        (
             MenuAction::Settings,
             PrefixAction::Client(ClientAction::OpenSettings),
         ),
@@ -311,6 +387,11 @@ fn menu_binding_projection_requires_the_same_typed_target_semantics() {
     assert_eq!(
         menu_binding_action(&MenuTarget::Create(None), MenuAction::Settings),
         None
+    );
+    assert_eq!(
+        menu_binding_action(&tab, MenuAction::SplitPanel(PanelDirection::Up)),
+        None,
+        "a global current-pane shortcut is not advertised for an exact background target"
     );
 }
 
