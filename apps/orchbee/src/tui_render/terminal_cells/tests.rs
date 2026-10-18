@@ -26,7 +26,8 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
         tui_backend::FixedViewportBackend,
     };
     use orchbee_workbench_protocol::{
-        TerminalDisplayAppearance as Appearance, UserPreferencesValues,
+        ApplicationAppearance as Application, TerminalDisplayAppearance as Appearance,
+        UserPreferencesValues,
     };
     use std::{
         cell::RefCell,
@@ -50,8 +51,8 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
         "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
     ))
     .unwrap();
-    source.foreground = 0x141414;
-    source.background = 0xfcfcfc;
+    source.foreground = 0x123456;
+    source.background = 0x9abcde;
     source.geometry.columns = 16;
     source.geometry.rows = 2;
     let mut default_style = source.rows[0].cells[0].style;
@@ -80,12 +81,26 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
         Appearance::Host,
     ] {
         let values = UserPreferencesValues {
+            application_theme: if appearance == Appearance::Host {
+                Application::System
+            } else {
+                Application::Light
+            },
             terminal_display_theme: appearance,
             custom_foreground: "#cccccc".into(),
             custom_background: "#cccccc".into(),
             ..UserPreferencesValues::default()
         };
-        let theme = Theme::one_dark().with_terminal_preferences(&values);
+        let theme = if appearance == Appearance::Host {
+            Theme::application_with_host(
+                Application::System,
+                crate::terminal_host_appearance::HostAppearance::Dark,
+                ColorLevel::Truecolor,
+            )
+        } else {
+            Theme::one_dark()
+        }
+        .with_terminal_preferences(&values);
         let writer = Writer::default();
         let bytes = writer.0.clone();
         let backend = FixedViewportBackend::new(
@@ -107,11 +122,14 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
                 .unwrap();
             let output = bytes.borrow();
             let output = std::str::from_utf8(&output[offset..]).unwrap();
-            let channel = if matches!(appearance, Appearance::Dark | Appearance::Host) {
+            let channel = if appearance == Appearance::Dark {
                 255
             } else {
                 0
             };
+            if appearance == Appearance::Host {
+                assert!(output.contains("\x1b[38;2;18;52;86m\x1b[48;2;154;188;222mGet-Date"));
+            }
             assert!(
                 output.contains(&format!("\x1b[48;2;{channel};{channel};{channel}m{glyph}")),
                 "{appearance:?} {output:?}"
@@ -420,7 +438,8 @@ fn shared_tail_paints_retained_rows_and_moves_the_cursor_with_its_live_row() {
 #[test]
 fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_program_colors() {
     use orchbee_workbench_protocol::{
-        TerminalDisplayAppearance as Appearance, UserPreferencesValues,
+        ApplicationAppearance as Application, TerminalDisplayAppearance as Appearance,
+        UserPreferencesValues,
     };
     let mut frame = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
         "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
@@ -432,25 +451,34 @@ fn shared_terminal_colors_change_defaults_without_changing_chrome_or_explicit_pr
     frame.rows[0].cells[0].style.background = 0x0100_0000;
     frame.rows[0].cells[1].style.foreground = 0x112233;
     frame.rows[0].cells[1].style.background = 0x445566;
-    for (appearance, foreground, background) in [
+    for (application, appearance, foreground, background) in [
         (
+            Application::System,
             Appearance::Host,
-            Color::Rgb(212, 212, 212),
-            Color::Rgb(30, 30, 30),
+            Color::Rgb(0xab, 0xcd, 0xef),
+            Color::Rgb(0x10, 0x20, 0x30),
         ),
         (
+            Application::Light,
             Appearance::Light,
             Color::Rgb(20, 20, 20),
             Color::Rgb(252, 252, 252),
         ),
         (
+            Application::Light,
             Appearance::Dark,
             Color::Rgb(212, 212, 212),
             Color::Rgb(30, 30, 30),
         ),
-        (Appearance::Custom, Color::Rgb(1, 2, 3), Color::Rgb(4, 5, 6)),
+        (
+            Application::Light,
+            Appearance::Custom,
+            Color::Rgb(1, 2, 3),
+            Color::Rgb(4, 5, 6),
+        ),
     ] {
         let values = UserPreferencesValues {
+            application_theme: application,
             terminal_display_theme: appearance,
             custom_foreground: "#010203".into(),
             custom_background: "#040506".into(),

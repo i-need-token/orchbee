@@ -18,7 +18,12 @@ fn host_defaults_follow_resolved_application_appearance_without_replacing_explic
         ] {
             let chrome = Theme::application(application, ColorLevel::Truecolor);
             let theme = chrome
-                .with_terminal_appearance(terminal, "#123456", "#654321")
+                .with_terminal_appearance_for_application(
+                    application,
+                    terminal,
+                    "#123456",
+                    "#654321",
+                )
                 .with_host_terminal_colors(0xabcdef, 0x102030);
             let color = |rgb: u32| Color::Rgb((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8);
             let (foreground, background) = explicit.unwrap_or(host_pair);
@@ -36,10 +41,14 @@ fn host_defaults_follow_resolved_application_appearance_without_replacing_explic
 
 #[test]
 fn a_system_preview_uses_captured_host_defaults_without_mutating_the_confirmed_theme() {
-    let confirmed =
-        Theme::one_dark().with_terminal_appearance(Terminal::Host, "#141414", "#fcfcfc");
+    let confirmed = Theme::one_dark().with_terminal_appearance_for_application(
+        App::Dark,
+        Terminal::Host,
+        "#141414",
+        "#fcfcfc",
+    );
     let preview = Theme::terminal_native()
-        .with_terminal_appearance(Terminal::Host, "#141414", "#fcfcfc")
+        .with_terminal_appearance_for_application(App::System, Terminal::Host, "#141414", "#fcfcfc")
         .with_host_terminal_colors(0x112233, 0xeeddbb);
     assert_eq!(
         confirmed.terminal_defaults(),

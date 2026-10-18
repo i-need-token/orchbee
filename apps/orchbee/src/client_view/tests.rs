@@ -94,6 +94,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     values.custom_foreground = "#123456".into();
     values.custom_background = "#654321".into();
     let mut system = ClientView::new(120);
+    system.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
     system.apply_user_preferences(values);
     assert!(system.configure_host_appearance(HostAppearance::Dark));
     let dark = system.configured_theme().unwrap();
@@ -112,6 +113,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     host_values.application_theme = Application::System;
     host_values.terminal_display_theme = Terminal::Host;
     let mut host = ClientView::new(120);
+    host.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
     host.apply_user_preferences(host_values);
     assert!(host.configure_host_appearance(HostAppearance::Dark));
     let host_theme = host
@@ -134,6 +136,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
         let mut values = orchbee_workbench_protocol::UserPreferencesValues::default();
         values.application_theme = application;
         let mut explicit = ClientView::new(120);
+        explicit.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
         explicit.apply_user_preferences(values);
         assert!(!explicit.configure_host_appearance(HostAppearance::Dark));
         let theme = explicit

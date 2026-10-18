@@ -22,6 +22,10 @@ fn appended(events: &[Event]) -> String {
         .collect()
 }
 
+fn assert_osc_capture_prelude(events: &[Event]) {
+    assert_eq!(events, [Event::Completeness(false)]);
+}
+
 fn pasted(events: &[Event]) -> String {
     events
         .iter()
@@ -994,7 +998,13 @@ fn malformed_and_timed_out_appearance_replies_do_not_leak_tail_text() {
     let mut decoder = ModalDecoder::default();
     assert!(decoder.start());
     let started = feed(&mut decoder, b"\x1b]11;rgb:", now, 64);
-    assert!(started.is_empty());
+    assert_osc_capture_prelude(&started);
+    assert_eq!(appended(&started), "");
+    assert!(
+        !started
+            .iter()
+            .any(|event| matches!(event, Event::HostReply(_)))
+    );
     assert!(decoder.tick(now + Duration::from_secs(2)).is_empty());
     let tail = feed(
         &mut decoder,
@@ -1010,7 +1020,9 @@ fn modal_alt_right_bracket_keeps_its_escape_deadline() {
     let start = Instant::now();
     let mut decoder = ModalDecoder::default();
     assert!(decoder.start());
-    assert!(feed(&mut decoder, b"\x1b]", start, 64).is_empty());
+    let started = feed(&mut decoder, b"\x1b]", start, 64);
+    assert_osc_capture_prelude(&started);
+    assert_eq!(appended(&started), "");
 
     let resolved = feed(&mut decoder, b"1", start + Duration::from_millis(51), 64);
     assert_eq!(appended(&resolved), "1");
@@ -1023,7 +1035,9 @@ fn modal_timeout_preserves_split_st_then_resumes_text() {
     let start = Instant::now();
     let mut decoder = ModalDecoder::default();
     assert!(decoder.start());
-    assert!(feed(&mut decoder, b"\x1b]11;rgb:1010\x1b", start, 64).is_empty());
+    let started = feed(&mut decoder, b"\x1b]11;rgb:1010\x1b", start, 64);
+    assert_osc_capture_prelude(&started);
+    assert_eq!(appended(&started), "");
 
     assert!(decoder.tick(start + Duration::from_secs(1)).is_empty());
     let terminated = feed(
@@ -1042,7 +1056,9 @@ fn modal_truncated_tail_releases_after_idle_and_resumes_text() {
     let start = Instant::now();
     let mut decoder = ModalDecoder::default();
     assert!(decoder.start());
-    assert!(feed(&mut decoder, b"\x1b]11;rgb:1010", start, 64).is_empty());
+    let started = feed(&mut decoder, b"\x1b]11;rgb:1010", start, 64);
+    assert_osc_capture_prelude(&started);
+    assert_eq!(appended(&started), "");
 
     assert!(decoder.tick(start + Duration::from_secs(1)).is_empty());
     let released = decoder.tick(start + Duration::from_millis(1_051));
@@ -1056,7 +1072,9 @@ fn modal_oversized_tail_releases_at_its_byte_cap() {
     let start = Instant::now();
     let mut decoder = ModalDecoder::default();
     assert!(decoder.start());
-    assert!(feed(&mut decoder, b"\x1b]11;", start, 64).is_empty());
+    let started = feed(&mut decoder, b"\x1b]11;", start, 64);
+    assert_osc_capture_prelude(&started);
+    assert_eq!(appended(&started), "");
     let mut overflow = Vec::new();
     for byte in std::iter::repeat_n(b'a', 97) {
         let (captured, events) = decoder.push(byte, start, 64);

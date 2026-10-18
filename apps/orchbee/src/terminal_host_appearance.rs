@@ -255,11 +255,6 @@ impl OscReplyFrame {
         self.target
     }
 
-    /// Whether an ESC immediately preceded the frame boundary.
-    pub(crate) const fn escape_pending(&self) -> bool {
-        self.escape_pending
-    }
-
     /// Transfers the targeted frame's terminator prefix into bounded recovery.
     pub(crate) fn drain(&self, now: Instant) -> OscDrain {
         OscDrain::new(now, self.escape_pending)

@@ -777,27 +777,6 @@ impl Theme {
         )
     }
 
-    /// Accepts only validated display preferences, with no runtime behavior policy.
-    pub(crate) fn with_terminal_appearance(
-        self,
-        appearance: orchbee_workbench_protocol::TerminalDisplayAppearance,
-        custom_foreground: &str,
-        custom_background: &str,
-    ) -> Self {
-        use orchbee_workbench_protocol::ApplicationAppearance;
-        let application = match self.polarity {
-            Some(Polarity::Light) => ApplicationAppearance::Light,
-            Some(Polarity::Dark) => ApplicationAppearance::Dark,
-            None => ApplicationAppearance::System,
-        };
-        self.with_terminal_appearance_for_application(
-            application,
-            appearance,
-            custom_foreground,
-            custom_background,
-        )
-    }
-
     /// Resolves terminal defaults from the user's app choice, independent of a System palette's
     /// detected polarity; System + Host must continue to use captured terminal colors.
     pub(crate) fn with_terminal_appearance_for_application(
