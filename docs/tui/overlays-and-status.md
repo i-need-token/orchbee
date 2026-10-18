@@ -26,8 +26,8 @@ steal focus for background status.
 | --------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Status notice         | A result, state change, or refusal can be stated in one line and needs no response       | The person must choose or type                                        |
 | Status-line editor    | One short value is edited in place in the status row                                     | The value is long, multi-field, or needs surrounding context to judge |
-| Non-capturing overlay | Reference content such as help or a navigator preview while typing continues to the pane | The content must be acted on before the pane can continue             |
-| Capturing overlay     | A choice, picker, or multi-value draft needs exclusive keyboard ownership                | One line of status or a status-line editor suffices                   |
+| Non-capturing overlay | A passive preview while typing continues to the pane                                      | The content must be acted on before the pane can continue             |
+| Capturing overlay     | A choice, picker, draft, or reference surface whose keys must not reach the pane          | One line of status or a status-line editor suffices                   |
 | Confirmation          | A brief decision precedes an effect that is not readily reversible                       | The effect is reversible, or the surface merely reports information   |
 
 Any surface that consumes every key is capturing regardless of its size or name. A surface never
@@ -58,6 +58,9 @@ pickers, confirmations and global action discovery.
 
 - One overlay is open at a time. A child task replaces the shell's task slots under the same capture
   owner; it never opens a second overlay above the first.
+- A capturing overlay may admit the configured global prefix for close or switch actions through
+  its established action owner. Modal tasks and confirmations keep first refusal; other keys and
+  paste remain with the overlay and never reach the covered pane.
 - The header states what the overlay is about, not the action name alone. A confirmation header
   names the object being affected.
 - A non-capturing overlay states in its footer that typing reaches the pane.

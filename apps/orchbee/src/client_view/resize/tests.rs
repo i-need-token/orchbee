@@ -64,8 +64,17 @@ fn mode_owns_unknown_keys_and_help_ends_with_exit_and_does_not_nest_prefix() {
         &mut view,
         PrefixInput::Key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE)),
     );
-    assert!(!view.resize_mode());
+    assert!(view.resize_mode());
     assert_eq!(view.overlay(), None);
+    assert_eq!(
+        apply(
+            &mut view,
+            PrefixInput::Key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE))
+        )
+        .action(),
+        Some(ClientAction::ExitResizeMode)
+    );
+    assert!(!view.resize_mode());
     assert_eq!(
         apply(
             &mut view,

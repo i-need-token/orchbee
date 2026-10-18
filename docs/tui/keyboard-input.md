@@ -82,7 +82,7 @@ Every key or paste event has exactly one owner, resolved through these four laye
 1. An exclusive capture, such as the topmost modal task, line editor, or confirmation.
 2. The current named input owner or mode, including an explicitly focused, visibly indicated
    Orchbee chrome surface or control.
-3. The armed prefix layer.
+3. The armed prefix layer, when the higher owner admits it.
 4. Unmodified passthrough to the focused terminal pane.
 
 Ownership rules:
@@ -98,20 +98,26 @@ Ownership rules:
   keyboard ownership.
 - Outside an exclusive capture or named owner, the Client binds no unmodified printable key, no
   bare `Enter`, `Tab`, `Esc`, or `Backspace`, and no `Ctrl+C`, `Ctrl+D`, or `Ctrl+Z`. The prefix
-  chord is the only default unconditional interception after higher owners decline it. Pressing the
-  prefix twice forwards the literal chord. Explicit user configuration may add safe direct chords
-  after higher ownership; the same printable, editing, and signal-key exclusions apply.
+  chord is the only default unconditional interception after higher owners decline it. When no
+  capture owns input, pressing the prefix twice forwards the literal chord; a capturing owner may
+  consume it under its own contract. Explicit user configuration may add safe direct chords after
+  higher ownership; the same printable, editing, and signal-key exclusions apply.
 - An armed prefix has no timeout. `Esc` dismisses it. An unbound key after the prefix dismisses the
   prefix, forwards nothing, and shows a transient notice naming the effective help binding.
 - A named mode owns one domain for its duration. Its name and return route stay visible; every key
   resolves to at most one intent; unbound keys are ignored, never forwarded. Modes do not nest:
   entering another mode replaces the current mode through a documented transition.
-- An exclusive capture consumes every key, including the prefix chord, until it submits, cancels,
-  or yields through its documented local return step. Only an exclusive capture may accept
-  unmodified printable text without first taking visible named ownership.
+- An exclusive capture such as a modal task or confirmation consumes every key, including the
+  prefix chord, until it submits, cancels, or yields through its documented local return step. Only
+  an exclusive capture may accept unmodified printable text without first taking visible named
+  ownership.
+- A capturing overlay may admit the configured prefix for actions that close it or switch to
+  another surface, but those actions still resolve through the normal binding owner. Ordinary keys
+  and paste remain with the overlay, and this route never bypasses an exclusive capture above it.
 - Bytes that no higher owner consumes reach the focused terminal unchanged and in order. The Client
   never reorders, merges, or drops passthrough input. In particular, `Esc` remains pane input when
-  a terminal pane owns the keyboard.
+  a terminal pane owns the keyboard; a named owner resolves `Esc` through its own local return
+  contract.
 - Ownership is a pure decision over the last presented interaction state and one event. Network
   progress and background work do not silently move ownership. A completed frame may establish a
   new owner for later events; it never reroutes an event already being dispatched.

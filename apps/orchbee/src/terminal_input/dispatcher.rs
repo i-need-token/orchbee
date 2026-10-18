@@ -1420,9 +1420,9 @@ impl InputDispatcher {
                 mode,
             );
         }
-        // Help is noncapturing, but an accepted generic Help press owns its
-        // exact release even when intervening packet bytes were fenced. Route
-        // that release before `item.owned` can consume it as ordinary tail.
+        // An accepted generic Help press owns its exact release even when
+        // intervening packet bytes were fenced. Route that release before
+        // `item.owned` can consume it as ordinary tail.
         if let DecodedKind::Mouse(event) = item.kind
             && event.action == super::MouseAction::Release
             && self.modal_release.is_some_and(|button| {
@@ -1458,7 +1458,53 @@ impl InputDispatcher {
             self.flush_pending(view, port);
             return Ok(DispatchOutcome::Continue);
         }
-        if let Some(owner) = Self::projected_capture(view, port) {
+        let projected = Self::projected_capture(view, port);
+        if view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp)
+            && client_chrome_overlay_allowed(projected)
+        {
+            match &item.kind {
+                DecodedKind::Key(event) if event.kind == KeyKind::Release => {
+                    self.flush_pending(view, port);
+                    return Ok(DispatchOutcome::Continue);
+                }
+                DecodedKind::Key(_) | DecodedKind::Nondecision => {
+                    self.flush_pending(view, port);
+                    return self.decide(view, port, now, item, after_layout, mode);
+                }
+                DecodedKind::Paste { .. } | DecodedKind::RejectedPaste => {
+                    self.flush_pending(view, port);
+                    return Ok(DispatchOutcome::Continue);
+                }
+                DecodedKind::Ignored
+                | DecodedKind::Focus(_)
+                | DecodedKind::HostReply(_)
+                | DecodedKind::Mouse(_) => {}
+            }
+        }
+        if projected == Some(CaptureOwner::Native(NativeCaptureOwner::AgentBoard))
+            && matches!(
+                &item.kind,
+                DecodedKind::Key(event)
+                    if event.kind != KeyKind::Release
+                        && (view.prefix_active() || view.bindings().prefix.matches(*event))
+            )
+        {
+            self.flush_pending(view, port);
+            let DecodedKind::Key(event) = item.kind else {
+                unreachable!("the Agent Board prefix route accepts only keys")
+            };
+            let transition = view.decide_agent_board_prefix(PrefixInput::Key(event));
+            return self.apply_transition(
+                view,
+                port,
+                now,
+                transition,
+                Some(&item),
+                after_layout,
+                mode,
+            );
+        }
+        if let Some(owner) = projected {
             if client_chrome_overlay_allowed(Some(owner))
                 && let DecodedKind::Mouse(event) = &item.kind
                 && self.capture_help_mouse(view, port, *event)
@@ -1510,7 +1556,17 @@ impl InputDispatcher {
         if self.navigator.packet || view.navigator_active() {
             self.flush_pending(view, port);
             if !self.navigator.packet {
-                self.navigator_item(view, port, &item);
+                if let Some(transition) = self.navigator_item(view, port, &item) {
+                    return self.apply_transition(
+                        view,
+                        port,
+                        now,
+                        transition,
+                        Some(&item),
+                        after_layout,
+                        mode,
+                    );
+                }
                 self.reconcile(view, port, now);
                 after_layout(view, port)?;
             }

@@ -200,17 +200,14 @@ fn requested_page_clamps_only_through_the_presented_source() {
     assert!(last > 0);
     let rendered = rows(&buffer).join("\n");
     assert!(rendered.contains(&format!("{}/{}", last + 1, last + 1)));
-    assert!(rendered.contains("Typing continues"));
+    assert!(rendered.contains("Esc close"));
     assert!(rendered.contains("Previous page"));
 }
 
 #[test]
 fn english_and_chinese_wrap_complete_descriptions_without_clipping() {
     let theme = Theme::rgb_test_dark();
-    for (locale, expected) in [
-        (Locale::EnUs, "Typing continues"),
-        (Locale::ZhCn, "输入继续传递"),
-    ] {
+    for (locale, expected) in [(Locale::EnUs, "Esc close"), (Locale::ZhCn, "Esc 关闭帮助")] {
         let mut view = ClientView::new(46);
         open_help(&mut view);
         let mut rendered = String::new();
@@ -293,7 +290,7 @@ fn global_footer_uses_default_overridden_and_unbound_effective_actions() {
     let unbound = rows(&buffer);
     let top = &unbound[usize::from(area.bottom() - 3)];
     assert!(!top.contains("Close help"), "no fallback chord: {top:?}");
-    assert!(top.contains("Typing continues"));
+    assert!(top.contains("Esc close"));
     assert!(unbound[usize::from(area.bottom() - 2)].contains("Ctrl+a PageUp Previous page"));
 }
 
@@ -310,8 +307,8 @@ fn copy_mode_footer_uses_its_complete_local_binding_groups() {
     let top = &rows[usize::from(area.bottom() - 3)];
     let paging = &rows[usize::from(area.bottom() - 2)];
     assert!(top.contains("F1 Close help"), "{top:?}");
-    assert!(top.contains("q / Esc Exit"), "{top:?}");
-    assert!(!top.contains("Typing continues"), "{top:?}");
+    assert!(top.contains("Esc close"), "{top:?}");
+    assert!(!top.contains("q / Esc Exit"), "{top:?}");
     assert!(
         paging.contains("PageUp / PageDown Turn pages"),
         "{paging:?}"
@@ -340,8 +337,8 @@ fn resize_mode_footer_uses_its_typed_registry_and_key_hint_layers() {
     let top = &rendered[usize::from(top_y)];
     let paging = &rendered[usize::from(paging_y)];
     assert!(top.contains("? Close help"), "{top:?}");
-    assert!(top.contains("Esc Leave resize mode"), "{top:?}");
-    assert!(!top.contains("Typing continues"), "{top:?}");
+    assert!(top.contains("Esc close"), "{top:?}");
+    assert!(!top.contains("Esc Leave resize mode"), "{top:?}");
     assert!(
         paging.contains("PageUp / PageDown Turn pages"),
         "{paging:?}"

@@ -364,34 +364,61 @@ fn admitted_backend_action_uses_its_session_disposition() {
 }
 
 #[test]
-fn noncapturing_overlays_preserve_ordinary_terminal_input() {
-    #[cfg(windows)]
-    let commands = b"?".as_slice();
-    #[cfg(not(windows))]
-    let commands = b"w?".as_slice();
-    for &command in commands {
-        let mut view = ClientView::new(120);
-        let mut dispatcher = InputDispatcher::default();
-        let mut input = RecordingTerminalInput::default();
-        dispatch(&mut dispatcher, &mut view, &[0x02, command], &mut input);
-        assert!(matches!(
-            view.overlay(),
-            Some(Overlay::WorkbenchNavigator | Overlay::ShortcutHelp)
-        ));
+fn shortcut_help_captures_ordinary_input_and_consumes_escape() {
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    let mut input = RecordingTerminalInput::default();
+    dispatch(&mut dispatcher, &mut view, b"\x02?", &mut input);
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
 
-        dispatch(
-            &mut dispatcher,
-            &mut view,
-            b"text\x03\x04\x1b[A",
-            &mut input,
-        );
-        assert!(
-            input
-                .recorded
-                .contains(&Recorded::Forward(b"text\x03\x04\x1b[A".to_vec()))
-        );
-        assert!(view.overlay().is_some());
-    }
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        b"text\x03\x04\x1b[A",
+        &mut input,
+    );
+    assert!(
+        !input
+            .recorded
+            .iter()
+            .any(|call| matches!(call, Recorded::Forward(_))),
+        "Help owns ordinary keys, controls and escape sequences"
+    );
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+
+    dispatch(&mut dispatcher, &mut view, b"\x1b[27u", &mut input);
+    assert_eq!(view.overlay(), None);
+    assert_eq!(
+        input.recorded,
+        [
+            Recorded::Action(ClientAction::OpenShortcutHelp),
+            Recorded::Action(ClientAction::CloseShortcutHelp)
+        ],
+        "the consumed Escape must never reach the terminal port"
+    );
+}
+
+#[test]
+#[cfg(not(windows))]
+fn noncapturing_navigator_preview_preserves_ordinary_terminal_input() {
+    let mut view = ClientView::new(120);
+    let mut dispatcher = InputDispatcher::default();
+    let mut input = RecordingTerminalInput::default();
+    dispatch(&mut dispatcher, &mut view, b"\x02w", &mut input);
+    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
+
+    dispatch(
+        &mut dispatcher,
+        &mut view,
+        b"text\x03\x04\x1b[A",
+        &mut input,
+    );
+    assert!(
+        input
+            .recorded
+            .contains(&Recorded::Forward(b"text\x03\x04\x1b[A".to_vec()))
+    );
+    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 }
 
 #[test]

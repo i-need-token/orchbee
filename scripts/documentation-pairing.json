@@ -154,12 +154,12 @@
 			"zhCnSha256": "86b18e725c73556efc878f8ae86d618943f88067f0e1b0f27f22d8e50cff698a"
 		},
 		"apps/orchbee/README.md": {
-			"englishSha256": "c1215271d4a68108984b4e55e6b9f4f85f27ae256a85c230e150b8b6f8f5fc6d",
-			"zhCnSha256": "6eb1d4c210111f0a91c4a0f6f7ab442b3bbb511a5c9930f9e36d146ae87c2dcc"
+			"englishSha256": "f572d869096cb64d022c5630d47d6c185a581966769c49cf421cd1c2308ef40c",
+			"zhCnSha256": "0a6ee21b474b964ebecb0ba4a579ef479177db6844078a7f4be45247ffc715c7"
 		},
 		"apps/orchbee/docs/agent-board.md": {
-			"englishSha256": "b66ff2fb8f663b529c26062182e3e5abb31f0acea083fe6554501d5deaa62d02",
-			"zhCnSha256": "f0ab921bc7819b7898391d1c76ddd4f87482bdd5e9c1b45a9293f5a8297bbdb9"
+			"englishSha256": "69c140c8696a344f44acef91860010bc0b257cd1cb9f5498de1b33c3a5c5b7a1",
+			"zhCnSha256": "a966cd9a8adca65f624d76ca34a7a94f0f52ba7afdf6855987e1dc7d2668f9c3"
 		},
 		"apps/orchbee/docs/cli-agent-skill.md": {
 			"englishSha256": "47bdd7ebdad2f3021ab47de1301432a3fa3f1811cd8b80f3a299d2e9ca66682d",
@@ -646,8 +646,8 @@
 			"zhCnSha256": "06cc0df802c543d9a998e66a08336a1aad47cdf237508265aaf30750abcf0491"
 		},
 		"docs/tui/keyboard-input.md": {
-			"englishSha256": "4190724ab5fa11c65a6f97b7e854b7c7ac6850ed67bf2ff670720a5cf436fc12",
-			"zhCnSha256": "1dfe8835e6f39e77c1a98ca6ee54c4c27eaa1f070289046a856c5d043003d45a"
+			"englishSha256": "f7a172a902ceef567adfed109582ce3f09d5db44d3969ecc0c4b6185edff43a7",
+			"zhCnSha256": "ca4a7b6a322ef852feb41f805954b01631e20eeb718d57049c77aded9a84b3c1"
 		},
 		"docs/tui/layout.md": {
 			"englishSha256": "f742e975a03276a5ced73b65545b6e52ccc7bd033f3b5cbbd11f7a581a7eb79c",
@@ -658,8 +658,8 @@
 			"zhCnSha256": "9cf328635ad42dbdc073c0a443fb1b8519368ad78a374de97cb61737b1d9e4d8"
 		},
 		"docs/tui/overlays-and-status.md": {
-			"englishSha256": "65ce628c08205d47a6dadf0e431e65d609899a76d3090e687576a5aa145e37fe",
-			"zhCnSha256": "9d12c47e5fcaed47ba7cd3e425a72a8b4b1b89a0f0588514e26ee6c495e132c3"
+			"englishSha256": "b649b7ee1b397be980b4a0eab080b698b99640626dbac8c681f1adadb13b846e",
+			"zhCnSha256": "287b117491b984f4994b7767d9165594d6340ea6d02b7aaf8257705dd7a826d5"
 		},
 		"docs/tui/settings.md": {
 			"englishSha256": "b10c4de9e22c03a3f089115323494e3f19988fea539a7408cb070fd230046e80",

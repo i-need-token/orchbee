@@ -299,27 +299,58 @@ fn captured_utf8_csi_and_paste_fragments_cannot_escape_after_retirement() {
 }
 
 #[test]
-fn local_prefix_unknown_double_prefix_paste_and_escape_never_dispatch_actions() {
+fn local_prefix_unknown_double_prefix_paste_and_escape_stay_navigator_owned() {
     let (mut d, mut v, mut p) = opened();
     dispatch_all(
         &mut d,
         &mut v,
         &mut p,
-        b"\x02\x02\x02c\x1b[200~\x02w\x1b[201~\x02",
+        b"\x02\x02\x02z\x1b[200~\x02w\x1b[201~\x02",
     );
     assert!(v.navigator_active());
+    escape(&mut d, &mut v, &mut p);
+    assert!(
+        v.navigator_active(),
+        "Escape first dismisses the local prefix"
+    );
+    assert!(!v.prefix_active());
     escape(&mut d, &mut v, &mut p);
     assert!(!v.navigator_active());
     assert!(!v.prefix_active());
     assert!(forwarded_bytes(&p.calls).is_empty());
     assert_eq!(
-        p.calls
-            .borrow()
-            .iter()
-            .filter(|call| matches!(call, Call::Action(_)))
-            .count(),
-        1
+        *p.calls.borrow(),
+        [Call::Action(ClientAction::OpenWorkbenchNavigator)]
     );
+}
+
+#[test]
+fn navigator_prefix_can_close_itself_or_switch_to_help() {
+    let (mut d, mut v, mut p) = opened();
+    dispatch_all(&mut d, &mut v, &mut p, b"\x02w");
+    assert!(!v.navigator_active());
+    assert_eq!(
+        *p.calls.borrow(),
+        [
+            Call::Action(ClientAction::OpenWorkbenchNavigator),
+            Call::Action(ClientAction::CloseWorkbenchNavigator),
+        ]
+    );
+
+    let (mut d, mut v, mut p) = opened();
+    dispatch_all(&mut d, &mut v, &mut p, b"\x02?");
+    assert!(!v.navigator_active());
+    assert_eq!(v.overlay(), Some(crate::client_view::Overlay::ShortcutHelp));
+    assert_eq!(
+        *p.calls.borrow(),
+        [
+            Call::Action(ClientAction::OpenWorkbenchNavigator),
+            Call::Action(ClientAction::OpenShortcutHelp),
+        ]
+    );
+    escape(&mut d, &mut v, &mut p);
+    assert!(v.overlay().is_none());
+    assert!(forwarded_bytes(&p.calls).is_empty());
 }
 
 #[test]

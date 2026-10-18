@@ -359,12 +359,12 @@ fn help_control_copy_is_localized_without_embedding_key_labels() {
     assert_eq!(english.help_previous_label, "Previous page");
     assert_eq!(english.help_next_label, "Next page");
     assert_eq!(english.help_pages_label, "Turn pages");
-    assert_eq!(english.help_typing_continues, "Typing continues");
+    assert_eq!(english.help_escape_close_hint, "Esc close");
     assert_eq!(chinese.help_close_label, "关闭帮助");
     assert_eq!(chinese.help_previous_label, "上一页");
     assert_eq!(chinese.help_next_label, "下一页");
     assert_eq!(chinese.help_pages_label, "翻页");
-    assert_eq!(chinese.help_typing_continues, "输入继续传递");
+    assert_eq!(chinese.help_escape_close_hint, "Esc 关闭帮助");
     for label in [
         english.help_close_label,
         english.help_previous_label,

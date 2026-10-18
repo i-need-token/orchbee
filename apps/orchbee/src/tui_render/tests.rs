@@ -891,7 +891,7 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     assert!(help.contains("Ctrl+b c"));
     assert!(help.contains("Ctrl+b ,"));
     assert!(compact_help.contains("Ctrl+b?关闭帮助"));
-    assert!(compact_help.contains("输入继续传递"));
+    assert!(compact_help.contains("Esc关闭帮助"));
 
     // The composed registry paginates whole groups at this size: the
     // literal-prefix row sits on a later page. Page forward with the

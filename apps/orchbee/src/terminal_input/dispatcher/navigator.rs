@@ -1,7 +1,7 @@
 //! Navigator capture uses the shared decoder and successful frame map.
 use super::{ClientView, DecodedItem, DecodedKind, InputDispatcher, KeyKind, TerminalInputPort};
 use crate::client_view::{
-    Notice, PrefixAction,
+    ClientTransition, Notice, PrefixAction, PrefixInput,
     navigator::{Admission, Command, Reconcile, Row},
 };
 use crate::terminal_input::{MouseAction, MouseButton};
@@ -109,28 +109,20 @@ impl InputDispatcher {
         view: &mut ClientView,
         port: &mut (impl TerminalInputPort + ?Sized),
         item: &DecodedItem,
-    ) {
+    ) -> Option<ClientTransition> {
         match item.kind {
             DecodedKind::Key(key) if key.kind != KeyKind::Release => {
+                if view.navigator.prefix {
+                    return Some(view.decide_navigator_prefix(PrefixInput::Key(key)));
+                }
                 let command = crate::client_view::navigator::command(key);
                 if command == Some(Command::Exit) {
                     view.close_navigator(None);
-                    return;
-                }
-                if view.navigator.prefix {
-                    view.navigator.prefix = false;
-                    if view
-                        .bindings()
-                        .find(key, true)
-                        .is_some_and(|member| member.action == PrefixAction::NavigatorToggle)
-                    {
-                        view.close_navigator(None);
-                    }
-                    return;
+                    return None;
                 }
                 if view.bindings().prefix.matches(key) {
                     view.navigator.prefix = true;
-                    return;
+                    return None;
                 }
                 if view
                     .bindings()
@@ -138,7 +130,7 @@ impl InputDispatcher {
                     .is_some_and(|member| member.action == PrefixAction::NavigatorToggle)
                 {
                     view.close_navigator(None);
-                    return;
+                    return None;
                 }
                 if command == Some(Command::Open) {
                     let row = self.pointer.navigator_paint().and_then(|paint| {
@@ -210,5 +202,6 @@ impl InputDispatcher {
             },
             _ => {}
         }
+        None
     }
 }

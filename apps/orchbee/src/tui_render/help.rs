@@ -59,13 +59,13 @@ impl OwnedHint {
 struct FooterModel {
     top: Vec<OwnedHint>,
     paging: Vec<OwnedHint>,
-    typing: Option<&'static str>,
+    note: Option<&'static str>,
 }
 
 #[derive(Debug)]
 struct FooterPlan {
     top_hints: Option<Rect>,
-    typing: Option<(Rect, String)>,
+    note: Option<(Rect, String)>,
     position: Rect,
     paging_hints: Option<Rect>,
 }
@@ -195,7 +195,7 @@ pub(super) fn render(
         footer_area,
         &top_hints,
         &paging_hints,
-        footer.typing,
+        footer.note,
         &position,
         theme,
     )?;
@@ -240,9 +240,9 @@ pub(super) fn render(
             .expect("the first complete Help hint was preflighted in this exact area");
         debug_assert_eq!(rect.intersection(painted), painted);
     }
-    if let Some((rect, typing)) = footer_plan.typing {
+    if let Some((rect, note)) = footer_plan.note {
         frame.render_widget(
-            Paragraph::new(typing).style(theme.style(Role::TextSecondary)),
+            Paragraph::new(note).style(theme.style(Role::TextSecondary)),
             rect,
         );
     }
@@ -430,7 +430,7 @@ fn footer_plan(
     area: Rect,
     top_hints: &[KeyHint<'_>],
     paging_hints: &[KeyHint<'_>],
-    typing: Option<&str>,
+    note: Option<&str>,
     position: &str,
     theme: &Theme,
 ) -> Option<FooterPlan> {
@@ -440,13 +440,13 @@ fn footer_plan(
     let top_row = Rect::new(area.x, area.y, area.width, 1);
     let paging_row = Rect::new(area.x, area.y.checked_add(1)?, area.width, 1);
 
-    let typing = typing.map(|text| sanitize_terminal_text(text).into_owned());
-    let typing_width = typing.as_deref().map(display_width).unwrap_or(0);
-    if (typing.is_some() && typing_width == 0) || typing_width > usize::from(top_row.width) {
+    let note = note.map(|text| sanitize_terminal_text(text).into_owned());
+    let note_width = note.as_deref().map(display_width).unwrap_or(0);
+    if (note.is_some() && note_width == 0) || note_width > usize::from(top_row.width) {
         return None;
     }
-    let typing_rect = if typing.is_some() {
-        let width = u16::try_from(typing_width).ok()?;
+    let note_rect = if note.is_some() {
+        let width = u16::try_from(note_width).ok()?;
         Some(Rect::new(
             top_row.right().checked_sub(width)?,
             top_row.y,
@@ -461,7 +461,7 @@ fn footer_plan(
         None
     } else {
         let _ = measure_key_hints(top_hints, theme)?;
-        let end = typing_rect.map_or(top_row.right(), |rect| rect.x.saturating_sub(FOOTER_GAP));
+        let end = note_rect.map_or(top_row.right(), |rect| rect.x.saturating_sub(FOOTER_GAP));
         let rect = Rect::new(top_row.x, top_row.y, end.saturating_sub(top_row.x), 1);
         let first = measure_key_hints(&top_hints[..1], theme)?;
         (first <= usize::from(rect.width)).then_some(rect)?;
@@ -488,7 +488,7 @@ fn footer_plan(
 
     Some(FooterPlan {
         top_hints: top_hints_rect,
-        typing: typing_rect.zip(typing),
+        note: note_rect.zip(note),
         position: position_rect,
         paging_hints: paging_hints_rect,
     })
@@ -505,18 +505,20 @@ fn footer_model(
     #[cfg(windows)]
     if view.machines.sidebar_navigation_active() {
         use crate::machine_picker::{SidebarCommand, sidebar_binding_label};
-        let top = [
-            (SidebarCommand::Help, text.help_close_label),
-            (
+        let help_open = view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp);
+        let mut actions = vec![(SidebarCommand::Help, text.help_close_label)];
+        if !help_open {
+            actions.push((
                 SidebarCommand::Exit,
                 locale.sidebar_navigation_action(SidebarCommand::Exit),
-            ),
-        ]
-        .into_iter()
-        .filter_map(|(command, label)| {
-            sidebar_binding_label(command, glyphs).map(|key| OwnedHint::new(key, label))
-        })
-        .collect();
+            ));
+        }
+        let top = actions
+            .into_iter()
+            .filter_map(|(command, label)| {
+                sidebar_binding_label(command, glyphs).map(|key| OwnedHint::new(key, label))
+            })
+            .collect();
         let paging = vec![OwnedHint::new(
             ClientView::sidebar_help_page_label(),
             text.help_pages_label,
@@ -524,53 +526,61 @@ fn footer_model(
         return FooterModel {
             top,
             paging,
-            typing: None,
+            note: help_open.then_some(text.help_escape_close_hint),
         };
     }
 
     #[cfg(windows)]
     if view.copy_mode_active() {
+        let help_open = view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp);
         let rows = view.copy_help_rows();
-        let top = [
-            (PrefixDesc::ShowHelp, text.help_close_label),
-            (
+        let mut actions = vec![(PrefixDesc::ShowHelp, text.help_close_label)];
+        if !help_open {
+            actions.push((
                 PrefixDesc::CopyExit,
                 locale.copy_hint_label(crate::client_view::CopyHintLabel::Exit),
-            ),
-        ]
-        .into_iter()
-        .filter_map(|(desc, label)| registry_key(&rows, desc).map(|key| OwnedHint::new(key, label)))
-        .collect();
+            ));
+        }
+        let top = actions
+            .into_iter()
+            .filter_map(|(desc, label)| {
+                registry_key(&rows, desc).map(|key| OwnedHint::new(key, label))
+            })
+            .collect();
         let paging = registry_key(&rows, PrefixDesc::CopyPage)
             .map(|key| vec![OwnedHint::new(key, text.help_pages_label)])
             .unwrap_or_default();
         return FooterModel {
             top,
             paging,
-            typing: None,
+            note: help_open.then_some(text.help_escape_close_hint),
         };
     }
 
     #[cfg(windows)]
     if view.resize_mode() {
+        let help_open = view.overlay() == Some(crate::client_view::Overlay::ShortcutHelp);
         let rows = view.resize_help_rows_with_glyphs(glyphs);
-        let top = [
-            (PrefixDesc::ShowHelp, text.help_close_label),
-            (
+        let mut actions = vec![(PrefixDesc::ShowHelp, text.help_close_label)];
+        if !help_open {
+            actions.push((
                 PrefixDesc::ResizeExit,
                 (text.prefix_desc)(PrefixDesc::ResizeExit),
-            ),
-        ]
-        .into_iter()
-        .filter_map(|(desc, label)| registry_key(&rows, desc).map(|key| OwnedHint::new(key, label)))
-        .collect();
+            ));
+        }
+        let top = actions
+            .into_iter()
+            .filter_map(|(desc, label)| {
+                registry_key(&rows, desc).map(|key| OwnedHint::new(key, label))
+            })
+            .collect();
         let paging = registry_key(&rows, PrefixDesc::HelpPage)
             .map(|key| vec![OwnedHint::new(key, text.help_pages_label)])
             .unwrap_or_default();
         return FooterModel {
             top,
             paging,
-            typing: None,
+            note: help_open.then_some(text.help_escape_close_hint),
         };
     }
 
@@ -589,7 +599,7 @@ fn footer_model(
     FooterModel {
         top,
         paging,
-        typing: Some(text.help_typing_continues),
+        note: Some(text.help_escape_close_hint),
     }
 }
 

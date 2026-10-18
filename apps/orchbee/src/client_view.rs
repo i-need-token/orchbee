@@ -754,7 +754,7 @@ impl ClientView {
 
     /// Settles only the source carried by a successfully published frame map.
     /// `None` revokes a covered, reset, or incomplete candidate without
-    /// changing the requested page or closing the noncapturing overlay.
+    /// changing the requested page or closing the capturing overlay.
     pub(crate) fn settle_help_draw(&mut self, source: Option<help::HelpDrawSource>) {
         self.help
             .settle(source, self.overlay == Some(Overlay::ShortcutHelp));
@@ -1025,6 +1025,119 @@ impl ClientView {
 
     pub(crate) fn decide(&self, input: PrefixInput) -> ClientTransition {
         let mut next = self.clone();
+        if self.overlay == Some(Overlay::ShortcutHelp) {
+            if self.prefix_active {
+                let (action, shell) = next.decide_prefix(input);
+                if action == ClientAction::ForwardLiteralPrefix {
+                    return ClientTransition {
+                        next,
+                        action: None,
+                        shell: ShellCommand::None,
+                        layout_changed: false,
+                    };
+                }
+                if next.overlay == Some(Overlay::ShortcutHelp)
+                    && !matches!(
+                        &action,
+                        ClientAction::DismissPrefix
+                            | ClientAction::UnknownPrefix
+                            | ClientAction::PageShortcutHelp
+                    )
+                {
+                    next.dismiss_overlay();
+                }
+                return ClientTransition {
+                    action: Some(action),
+                    shell,
+                    layout_changed: matches!(self.sidebar_surface(), SidebarSurface::Docked(_))
+                        != matches!(next.sidebar_surface(), SidebarSurface::Docked(_)),
+                    next,
+                };
+            }
+            if let PrefixInput::Key(event) = input {
+                if self.bindings.prefix.matches(event) {
+                    next.prefix_active = true;
+                    return ClientTransition {
+                        next,
+                        action: None,
+                        shell: ShellCommand::None,
+                        layout_changed: false,
+                    };
+                }
+                if Binding::new(KeyCode::Esc, Modifiers::NONE).matches(event) {
+                    next.dismiss_overlay();
+                    return ClientTransition {
+                        next,
+                        action: Some(ClientAction::CloseShortcutHelp),
+                        shell: ShellCommand::None,
+                        layout_changed: false,
+                    };
+                }
+                #[cfg(windows)]
+                if next.copy_help_key(event) {
+                    return ClientTransition {
+                        next,
+                        action: None,
+                        shell: ShellCommand::None,
+                        layout_changed: false,
+                    };
+                }
+                #[cfg(windows)]
+                if self.resize_mode {
+                    let action = match resize::decide(event) {
+                        Some(resize::ResizeKey::Help) => {
+                            next.dismiss_overlay();
+                            Some(ClientAction::CloseShortcutHelp)
+                        }
+                        Some(resize::ResizeKey::Page { previous }) => {
+                            next.request_help_page(if previous {
+                                next.help_page().saturating_sub(1)
+                            } else {
+                                next.help_page() + 1
+                            });
+                            Some(ClientAction::PageShortcutHelp)
+                        }
+                        _ => None,
+                    };
+                    return ClientTransition {
+                        next,
+                        action,
+                        shell: ShellCommand::None,
+                        layout_changed: false,
+                    };
+                }
+                #[cfg(windows)]
+                if next.machines.sidebar_navigation_active() && next.sidebar_help_key(event) {
+                    return ClientTransition {
+                        next,
+                        action: None,
+                        shell: ShellCommand::None,
+                        layout_changed: false,
+                    };
+                }
+                if let Some(member) = self.bindings.find(event, false)
+                    && matches!(
+                        &member.action,
+                        PrefixAction::ShowHelp
+                            | PrefixAction::Client(ClientAction::OpenShortcutHelp)
+                    )
+                {
+                    let (action, shell) = next.decide_member(input, Some(member));
+                    return ClientTransition {
+                        action: Some(action),
+                        shell,
+                        layout_changed: self.sidebar_surface() != next.sidebar_surface(),
+                        next,
+                    };
+                }
+            }
+            return ClientTransition {
+                next,
+                action: None,
+                shell: ShellCommand::None,
+                layout_changed: false,
+            };
+        }
         #[cfg(windows)]
         if self.resize_mode {
             let key = match input {
@@ -1108,6 +1221,30 @@ impl ClientView {
             action: None,
             shell: ShellCommand::ForwardTerminal,
             layout_changed: false,
+        }
+    }
+
+    pub(crate) fn decide_agent_board_prefix(&self, input: PrefixInput) -> ClientTransition {
+        let transition = self.decide(input);
+        if matches!(
+            transition.action(),
+            Some(
+                ClientAction::ForwardLiteralPrefix
+                    | ClientAction::DismissPrefix
+                    | ClientAction::UnknownPrefix
+            )
+        ) {
+            // The native Agent Board owns input while visible. Literal,
+            // canceled, and unknown local prefix results stay in that owner;
+            // only a recognized global binding leaves through its action.
+            ClientTransition {
+                next: transition.next,
+                action: None,
+                shell: ShellCommand::None,
+                layout_changed: false,
+            }
+        } else {
+            transition
         }
     }
 
@@ -1252,6 +1389,51 @@ impl ClientView {
             PrefixInput::NonKey => None,
         };
         self.decide_member(input, member.as_ref())
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn decide_navigator_prefix(&self, input: PrefixInput) -> ClientTransition {
+        debug_assert!(self.navigator_active() && self.navigator.prefix);
+        let mut next = self.clone();
+        next.navigator.prefix = false;
+        let (action, shell) = next.decide_prefix(input);
+        if action == ClientAction::ForwardLiteralPrefix {
+            // The capturing Navigator never forwards a literal prefix to the
+            // covered pane.
+            next.notice = self.notice;
+            return ClientTransition {
+                next,
+                action: None,
+                shell: ShellCommand::None,
+                layout_changed: false,
+            };
+        }
+        if matches!(
+            &action,
+            ClientAction::DismissPrefix | ClientAction::UnknownPrefix
+        ) {
+            // The Navigator's local prefix preserves its prior behavior:
+            // canceling or failing to complete it does not dispatch a shell
+            // action or replace the visible owner.
+            next.notice = self.notice;
+            return ClientTransition {
+                next,
+                action: None,
+                shell: ShellCommand::None,
+                layout_changed: false,
+            };
+        }
+        if next.navigator_active() {
+            // Global prefix actions replace the capturing Navigator unless
+            // they are merely dismissing an uncompleted prefix.
+            next.close_navigator(None);
+        }
+        ClientTransition {
+            layout_changed: self.sidebar_surface() != next.sidebar_surface(),
+            next,
+            action: Some(action),
+            shell,
+        }
     }
 
     fn decide_member(

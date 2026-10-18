@@ -273,26 +273,28 @@ fn wide_sidebar_toggle_replaces_an_open_overlay() {
 }
 
 #[test]
-fn question_mark_toggles_the_shortcut_help_without_capturing_input() {
+fn shortcut_help_captures_input_and_escape_closes_it() {
     let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
     enter_prefix(&mut view);
     let opened = commit(&mut view, plain('?'));
     assert_eq!(opened.action(), Some(ClientAction::OpenShortcutHelp));
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
 
-    // The help overlay never captures: ordinary keys and Esc keep
-    // forwarding so the program's own Esc stays untouched.
-    assert_eq!(
-        commit(&mut view, plain('x')).shell(),
-        ShellCommand::ForwardTerminal
-    );
-    assert_eq!(
-        commit(&mut view, key(KeyCode::Esc)).shell(),
-        ShellCommand::ForwardTerminal
-    );
+    // Help owns ordinary input while visible, but the global prefix can still
+    // close it or replace it with another Client overlay.
+    assert_eq!(commit(&mut view, plain('x')).shell(), ShellCommand::None);
     assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+    let escaped = commit(&mut view, key(KeyCode::Esc));
+    assert_eq!(escaped.action(), Some(ClientAction::CloseShortcutHelp));
+    assert_eq!(escaped.shell(), ShellCommand::None);
+    assert_eq!(view.overlay(), None);
 
     // The same binding closes the overlay it opened.
+    enter_prefix(&mut view);
+    assert_eq!(
+        commit(&mut view, plain('?')).action(),
+        Some(ClientAction::OpenShortcutHelp)
+    );
     enter_prefix(&mut view);
     let closed = commit(&mut view, plain('?'));
     assert_eq!(closed.action(), Some(ClientAction::CloseShortcutHelp));
@@ -301,24 +303,23 @@ fn question_mark_toggles_the_shortcut_help_without_capturing_input() {
 }
 
 #[test]
-fn overlays_never_make_ordinary_or_escape_input_modal() {
-    for input in [plain('w'), plain('?')] {
-        let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
-        enter_prefix(&mut view);
-        commit(&mut view, input);
-        let expected = view.overlay();
+fn help_capture_keeps_prefix_escape_local_and_allows_prefix_overlay_switches() {
+    let mut view = ClientView::new(WIDE_VIEWPORT_MINIMUM_COLUMNS);
+    enter_prefix(&mut view);
+    commit(&mut view, plain('?'));
 
-        assert_eq!(
-            commit(&mut view, plain('x')).shell(),
-            ShellCommand::ForwardTerminal
-        );
-        assert_eq!(view.overlay(), expected);
-        assert_eq!(
-            commit(&mut view, key(KeyCode::Esc)).shell(),
-            ShellCommand::ForwardTerminal
-        );
-        assert_eq!(view.overlay(), expected);
-    }
+    enter_prefix(&mut view);
+    let dismissed_prefix = commit(&mut view, key(KeyCode::Esc));
+    assert_eq!(dismissed_prefix.action(), Some(ClientAction::DismissPrefix));
+    assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
+
+    enter_prefix(&mut view);
+    let switched = commit(&mut view, plain('w'));
+    assert_eq!(
+        switched.action(),
+        Some(ClientAction::OpenWorkbenchNavigator)
+    );
+    assert_eq!(view.overlay(), Some(Overlay::WorkbenchNavigator));
 }
 
 #[test]

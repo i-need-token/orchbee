@@ -344,6 +344,48 @@ fn sidebar_prefix_decisions_do_not_also_navigate_and_escape_returns_to_sidebar()
 }
 
 #[test]
+fn sidebar_toggle_prefix_closes_and_reopens_the_narrow_sidebar_overlay() {
+    let mut view = sidebar_view();
+    view.resize(87);
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02B");
+    assert_eq!(view.overlay(), Some(Overlay::BusinessSidebar));
+    assert!(view.machines.sidebar_navigation_active());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
+    assert_eq!(
+        view.overlay(),
+        None,
+        "the sidebar toggle closes its overlay"
+    );
+    assert!(!view.machines.sidebar_navigation_active());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
+    assert_eq!(
+        view.overlay(),
+        Some(Overlay::BusinessSidebar),
+        "the same binding opens the sidebar again"
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
+    assert_eq!(
+        view.overlay(),
+        None,
+        "repeating the binding closes it again"
+    );
+    assert_eq!(
+        *port.calls.borrow(),
+        [
+            Call::Action(ClientAction::ToggleBusinessSidebar),
+            Call::Action(ClientAction::ToggleBusinessSidebar),
+            Call::Action(ClientAction::ToggleBusinessSidebar),
+        ]
+    );
+    assert!(forwarded_bytes(&port.calls).is_empty());
+}
+
+#[test]
 fn sidebar_menu_keeps_exclusive_capture_over_global_prefix_and_closing_packet() {
     let mut view = sidebar_view();
     view.resize(87);

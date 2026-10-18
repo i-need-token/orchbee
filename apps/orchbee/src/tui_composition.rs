@@ -227,9 +227,9 @@ pub(crate) const fn project_capture(
     None
 }
 
-/// Whether noncapturing Client chrome may paint and handle pointer input over
-/// the selected owner. Help remains transparent to ordinary terminal input;
-/// Copy and Resize therefore stay the keyboard owners beneath it.
+/// Whether Client chrome may paint and handle pointer input over the selected
+/// owner. Help can cover Copy and Resize while retaining those modes for
+/// resumption; native task captures remain above Client chrome.
 pub(crate) const fn client_chrome_overlay_allowed(owner: Option<CaptureOwner>) -> bool {
     match owner {
         None => true,

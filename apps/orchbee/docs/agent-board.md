@@ -19,11 +19,14 @@ either admits that episode or refuses it when geometry cannot present the surfac
 episode closes and reports the refusal separately. Once admitted, a temporary small viewport
 suspends presentation instead: rows, selection, manual reading position and already accepted work
 remain owned for the same episode. While covered or suspended, ordinary keys, paste, wheel and
-activation are consumed without an effect; `Esc` remains the board's local close route. A later
-complete paint resumes the episode, while a receipt from an older episode can neither reopen it nor
-restore input authority. Accepted lane work may settle into the same hidden episode, but staged jump
-navigation advances only while the compositor still names the board as the top native owner and its
-same-episode visibility lease is live. It never moves Workbench focus behind a covering surface,
+activation are consumed without an effect; `Esc` remains the board's local close route. After modal
+and confirmation owners decline a configured prefix, its binding runs through the normal Client
+action owner: `Ctrl+B g` closes the board, and other prefix actions close or replace it through their
+destination. A doubled prefix is consumed by the board instead of reaching the covered terminal. A
+later complete paint resumes the episode, while a receipt from an older episode can neither reopen
+it nor restore input authority. Accepted lane work may settle into the same hidden episode, but staged
+jump navigation advances only while the compositor still names the board as the top native owner and
+its same-episode visibility lease is live. It never moves Workbench focus behind a covering surface,
 including the interval after a child opens and before the next cover receipt.
 
 While interactive, Up/Down and `j`/`k` move the logical selection by opaque Agent session id and

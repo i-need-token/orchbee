@@ -141,6 +141,7 @@ enum Call {
     Focus(bool),
     Mode(ModeRequest),
     Action(ClientAction),
+    Confirmation(crate::client_view::ClientKey),
     BoardSelect(orchbee_agent_observation_protocol::AgentSessionId),
 }
 
@@ -1557,9 +1558,11 @@ impl TerminalInputPort for BoardPort {
     fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
         if action == ClientAction::ToggleAgentBoard {
             self.owned.set(!self.owned.get());
+        } else {
+            self.owned.set(false);
         }
         self.calls.borrow_mut().push(Call::Action(action));
-        None
+        Some(SessionActionDisposition::KeepNavigator)
     }
 
     fn capture_agent_board_key_for(
@@ -1598,6 +1601,69 @@ impl TerminalInputPort for BoardPort {
             .borrow_mut()
             .push(Call::BoardSelect(target.session().clone()));
         true
+    }
+}
+
+struct ConfirmationBoardPort {
+    calls: Rc<RefCell<Vec<Call>>>,
+}
+
+impl TerminalInputPort for ConfirmationBoardPort {
+    fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
+        crate::tui_composition::NativeCaptureClaims::default()
+            .with_panel_close(true)
+            .with_agent_board(true)
+    }
+
+    fn native_capture_context(
+        &self,
+        owner: crate::tui_composition::NativeCaptureOwner,
+    ) -> Option<crate::terminal_session::NativeCaptureContext> {
+        match owner {
+            crate::tui_composition::NativeCaptureOwner::PanelClose => {
+                Some(crate::terminal_session::NativeCaptureContext::PanelClose(
+                    crate::terminal_session::ConfirmationCaptureContext {
+                        token: crate::terminal_session::NativePanelCloseConfirmationToken::for_test(
+                            2,
+                        ),
+                        phase: crate::tui_presentation::PresentationPhase::Admitted,
+                        readiness: crate::terminal_session::CaptureReadiness::Interactive,
+                    },
+                ))
+            }
+            crate::tui_composition::NativeCaptureOwner::AgentBoard => {
+                Some(crate::terminal_session::NativeCaptureContext::AgentBoard(
+                    crate::terminal_session::AgentBoardInputContext::for_test(
+                        crate::terminal_session::AgentBoardEpisodeToken::for_test(1),
+                        crate::tui_presentation::PresentationPhase::Admitted,
+                        true,
+                    ),
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    fn capture_panel_confirmation_key_for(
+        &mut self,
+        _token: crate::terminal_session::NativePanelCloseConfirmationToken,
+        key: crate::client_view::ClientKey,
+    ) -> bool {
+        self.calls.borrow_mut().push(Call::Confirmation(key));
+        true
+    }
+
+    fn capture_agent_board_key_for(
+        &mut self,
+        _episode: crate::terminal_session::AgentBoardEpisodeToken,
+        _key: crate::client_view::KeyEvent,
+    ) -> bool {
+        true
+    }
+
+    fn apply_client_action(&mut self, action: ClientAction) -> Option<SessionActionDisposition> {
+        self.calls.borrow_mut().push(Call::Action(action));
+        Some(SessionActionDisposition::KeepNavigator)
     }
 }
 
@@ -1745,7 +1811,7 @@ fn the_board_open_edge_also_invalidates_so_a_click_cannot_miss_the_overlay() {
 }
 
 #[test]
-fn an_open_board_consumes_prefix_and_paste_before_the_binding_layer() {
+fn an_open_board_admits_prefix_toggles_and_keeps_paste_captured() {
     for packet in [
         b"\x02\x1b[200~payload\x1b[201~".as_slice(),
         b"\x02\x1b[200~\xffpayload\x1b[201~".as_slice(),
@@ -1758,8 +1824,6 @@ fn an_open_board_consumes_prefix_and_paste_before_the_binding_layer() {
         };
         let mut dispatcher = InputDispatcher::default();
         let mut view = ClientView::new(100);
-        // A real input stream: the board owns the chord before it can arm the
-        // binding layer, then owns the bracketed paste in the same read.
         dispatcher
             .dispatch(
                 &mut view,
@@ -1772,12 +1836,12 @@ fn an_open_board_consumes_prefix_and_paste_before_the_binding_layer() {
             .unwrap();
         assert!(
             calls.borrow().is_empty(),
-            "the board swallows the paste whole: nothing may reach the pane"
+            "the board captures paste while the configured prefix stays armed"
         );
-        assert!(!view.prefix_active());
+        assert!(view.prefix_active());
         assert!(view.notice().is_none());
-        // A later `g` remains Board input; it cannot become the tail of a
-        // prefix chord and close the surface through the global binding.
+        // The later `g` completes the prefix toggle through ClientView and
+        // closes the same board episode.
         dispatcher
             .dispatch(
                 &mut view,
@@ -1788,9 +1852,210 @@ fn an_open_board_consumes_prefix_and_paste_before_the_binding_layer() {
                 &mut |_| Ok(()),
             )
             .unwrap();
-        assert!(calls.borrow().is_empty());
+        assert_eq!(
+            *calls.borrow(),
+            [Call::Action(ClientAction::ToggleAgentBoard)]
+        );
+        assert!(!owned.get());
         assert!(!view.prefix_active());
+        assert!(forwarded_bytes(&calls).is_empty());
     }
+}
+
+#[test]
+fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
+    for (suffix, expected_action, expected_overlay) in [
+        (
+            b'w',
+            ClientAction::OpenWorkbenchNavigator,
+            Some(crate::client_view::Overlay::WorkbenchNavigator),
+        ),
+        (
+            b'?',
+            ClientAction::OpenShortcutHelp,
+            Some(crate::client_view::Overlay::ShortcutHelp),
+        ),
+    ] {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let owned = Rc::new(std::cell::Cell::new(true));
+        let mut port = BoardPort {
+            calls: Rc::clone(&calls),
+            owned: Rc::clone(&owned),
+        };
+        let mut dispatcher = InputDispatcher::default();
+        let mut view = ClientView::new(100);
+
+        dispatch_all(&mut dispatcher, &mut view, &mut port, &[0x02, suffix]);
+
+        assert!(!owned.get(), "switching away closes the native Board");
+        assert_eq!(view.overlay(), expected_overlay);
+        assert_eq!(
+            calls.borrow().as_slice(),
+            [Call::Action(expected_action.clone())]
+        );
+
+        if suffix == b'w' {
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02w");
+            assert_eq!(view.overlay(), None, "repeating Navigator closes it");
+            assert_eq!(
+                calls.borrow().as_slice(),
+                [
+                    Call::Action(ClientAction::OpenWorkbenchNavigator),
+                    Call::Action(ClientAction::CloseWorkbenchNavigator),
+                ]
+            );
+        } else {
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02?");
+            assert_eq!(view.overlay(), None, "repeating Help toggle closes it");
+            assert_eq!(
+                calls.borrow().as_slice(),
+                [
+                    Call::Action(ClientAction::OpenShortcutHelp),
+                    Call::Action(ClientAction::CloseShortcutHelp),
+                ]
+            );
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02?");
+            assert_eq!(
+                view.overlay(),
+                Some(crate::client_view::Overlay::ShortcutHelp),
+                "the same binding opens Help again after the local close"
+            );
+            dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+            assert_eq!(view.overlay(), None, "Escape closes Help");
+            assert_eq!(
+                calls.borrow().as_slice(),
+                [
+                    Call::Action(ClientAction::OpenShortcutHelp),
+                    Call::Action(ClientAction::CloseShortcutHelp),
+                    Call::Action(ClientAction::OpenShortcutHelp),
+                    Call::Action(ClientAction::CloseShortcutHelp),
+                ]
+            );
+            assert!(forwarded_bytes(&calls).is_empty());
+        }
+    }
+
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(true));
+    let mut port = BoardPort {
+        calls: Rc::clone(&calls),
+        owned: Rc::clone(&owned),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
+    assert!(!owned.get());
+    assert!(matches!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Docked(_)
+    ));
+    assert_eq!(
+        calls.borrow().as_slice(),
+        [Call::Action(ClientAction::ToggleBusinessSidebar)]
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
+    assert_eq!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Hidden
+    );
+    assert_eq!(
+        calls.borrow().len(),
+        2,
+        "repeating sidebar toggle closes it"
+    );
+}
+
+#[test]
+fn agent_board_consumes_literal_prefix_and_global_actions_use_the_action_owner() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(true));
+    let mut port = BoardPort {
+        calls: Rc::clone(&calls),
+        owned: Rc::clone(&owned),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x02");
+    assert!(
+        owned.get(),
+        "a literal prefix keeps the Board capture active"
+    );
+    assert!(!view.prefix_active());
+    assert!(calls.borrow().is_empty());
+    assert!(forwarded_bytes(&calls).is_empty());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1b[27u");
+    assert!(owned.get(), "Escape cancels only the armed prefix");
+    assert!(!view.prefix_active());
+    assert!(calls.borrow().is_empty());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02z");
+    assert!(owned.get(), "an unbound suffix does not replace the Board");
+    assert_eq!(
+        view.notice(),
+        Some(crate::client_view::Notice::UnknownPrefix)
+    );
+    assert!(calls.borrow().is_empty());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02m");
+    assert!(
+        !owned.get(),
+        "a global prefix action leaves the Board episode"
+    );
+    assert_eq!(
+        calls.borrow().as_slice(),
+        [Call::Action(ClientAction::TogglePointerCapture)]
+    );
+    assert!(forwarded_bytes(&calls).is_empty());
+}
+
+#[test]
+fn agent_board_prefix_toggle_opens_and_closes_through_native_owner() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let owned = Rc::new(std::cell::Cell::new(false));
+    let mut port = BoardPort {
+        calls: Rc::clone(&calls),
+        owned: Rc::clone(&owned),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02g");
+    assert!(owned.get());
+    assert_eq!(
+        calls.borrow().as_slice(),
+        [Call::Action(ClientAction::ToggleAgentBoard)]
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02g");
+    assert!(!owned.get());
+    assert_eq!(
+        calls.borrow().as_slice(),
+        [
+            Call::Action(ClientAction::ToggleAgentBoard),
+            Call::Action(ClientAction::ToggleAgentBoard),
+        ]
+    );
+    assert!(forwarded_bytes(&calls).is_empty());
+}
+
+#[test]
+fn confirmation_capture_keeps_first_refusal_over_the_agent_board_prefix_route() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = ConfirmationBoardPort {
+        calls: Rc::clone(&calls),
+    };
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02g");
+
+    assert_eq!(
+        *calls.borrow(),
+        [Call::Confirmation(crate::client_view::ClientKey::ControlB)]
+    );
+    assert!(!view.prefix_active());
+    assert!(forwarded_bytes(&calls).is_empty());
 }
 
 #[test]
