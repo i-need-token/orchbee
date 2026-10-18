@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
 	cpSync,
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
@@ -21,16 +22,20 @@ import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const canonical = path.join(root, 'apps', 'desktop', 'resources', 'agent-observation-adapters');
+const CAPSULE_STAGING_PREFIX = 'orchbee-capsule-staging-';
+
+function removeOwnedTemporaryDirectory(directory, parent, prefix) {
+	const normalizedParent = realpathSync(parent);
+	const actual = realpathSync(directory);
+	if (path.dirname(actual) !== normalizedParent || !path.basename(actual).startsWith(prefix))
+		throw new Error('Refusing cleanup outside the owned staging directory');
+	rmSync(actual, { recursive: true });
+}
 
 function ownedTemporaryDirectory(t, prefix) {
 	const parent = realpathSync(tmpdir());
 	const directory = mkdtempSync(path.join(parent, prefix));
-	t.after(() => {
-		const actual = realpathSync(directory);
-		assert.equal(path.dirname(actual), parent);
-		assert.ok(path.basename(actual).startsWith(prefix));
-		rmSync(actual, { recursive: true });
-	});
+	t.after(() => removeOwnedTemporaryDirectory(directory, parent, prefix));
 	return directory;
 }
 
@@ -109,12 +114,40 @@ test('Windows ConPTY staging rejects missing, altered and linked bundles before 
 });
 
 function stagedCopy(mutate) {
-	const directory = mkdtempSync(path.join(tmpdir(), 'orchbee-capsule-staging-'));
+	const parent = realpathSync(tmpdir());
+	const directory = mkdtempSync(path.join(parent, CAPSULE_STAGING_PREFIX));
 	const copy = path.join(directory, 'agent-observation-adapters');
-	cpSync(canonical, copy, { recursive: true });
-	mutate(copy);
-	return { directory, copy };
+	try {
+		cpSync(canonical, copy, { recursive: true });
+		mutate(copy);
+		return { directory, copy };
+	} catch (error) {
+		try {
+			removeOwnedTemporaryDirectory(directory, parent, CAPSULE_STAGING_PREFIX);
+		} catch (cleanupError) {
+			throw new AggregateError(
+				[error, cleanupError],
+				`Staged capsule preparation failed and its temporary directory could not be removed: ${directory}`,
+				{ cause: error },
+			);
+		}
+		throw error;
+	}
 }
+
+test('staged capsule copy removes its temporary directory when the mutator throws', () => {
+	let directory;
+	const cause = new Error('The capsule mutator failed');
+	assert.throws(
+		() =>
+			stagedCopy((copy) => {
+				directory = path.dirname(copy);
+				throw cause;
+			}),
+		(error) => error === cause,
+	);
+	assert.equal(existsSync(directory), false);
+});
 
 test('canonical resource capsule verifies and reports its declared digest', () => {
 	const declared = JSON.parse(
@@ -129,7 +162,9 @@ test('a tampered payload byte is rejected', (t) => {
 		const file = path.join(target, 'bundle', 'package.json');
 		writeFileSync(file, `${readFileSync(file, 'utf8')}\n`);
 	});
-	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	t.after(() =>
+		removeOwnedTemporaryDirectory(directory, realpathSync(tmpdir()), CAPSULE_STAGING_PREFIX),
+	);
 	assert.equal(verifiedCapsuleDigest(copy), null);
 });
 
@@ -139,7 +174,9 @@ test('a capsule manifest drift is rejected', (t) => {
 		manifest.contractVersion = 4;
 		writeFileSync(path.join(target, 'capsule.json'), JSON.stringify(manifest));
 	});
-	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	t.after(() =>
+		removeOwnedTemporaryDirectory(directory, realpathSync(tmpdir()), CAPSULE_STAGING_PREFIX),
+	);
 	assert.equal(verifiedCapsuleDigest(copy), null);
 });
 
@@ -149,7 +186,9 @@ test('a capsule manifest with an unknown member is rejected', (t) => {
 		manifest.extra = true;
 		writeFileSync(path.join(target, 'capsule.json'), JSON.stringify(manifest));
 	});
-	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	t.after(() =>
+		removeOwnedTemporaryDirectory(directory, realpathSync(tmpdir()), CAPSULE_STAGING_PREFIX),
+	);
 	assert.equal(verifiedCapsuleDigest(copy), null);
 });
 
@@ -157,7 +196,9 @@ test('a missing required payload file is rejected', (t) => {
 	const { directory, copy } = stagedCopy((target) => {
 		rmSync(path.join(target, 'bundle', 'package.json'));
 	});
-	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	t.after(() =>
+		removeOwnedTemporaryDirectory(directory, realpathSync(tmpdir()), CAPSULE_STAGING_PREFIX),
+	);
 	assert.equal(verifiedCapsuleDigest(copy), null);
 });
 
@@ -169,6 +210,8 @@ test('a symbolic link inside the capsule is rejected', (t) => {
 			process.platform === 'win32' ? 'junction' : 'dir',
 		);
 	});
-	t.after(() => rmSync(directory, { recursive: true, force: true }));
+	t.after(() =>
+		removeOwnedTemporaryDirectory(directory, realpathSync(tmpdir()), CAPSULE_STAGING_PREFIX),
+	);
 	assert.equal(verifiedCapsuleDigest(copy), null);
 });

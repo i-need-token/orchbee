@@ -51,6 +51,7 @@ function removeOwnedTemporary(directory, parent) {
 	rmSync(resolved, { recursive: true });
 }
 
+// The probe uses fixed filenames, so the caller must pass its empty, invocation-owned directory.
 export function assertWindowsFileSymlinkSupport(directory, createSymlink = symlinkSync) {
 	const target = path.join(directory, 'file-symlink-target');
 	const link = path.join(directory, 'file-symlink-probe');
