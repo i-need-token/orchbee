@@ -1,6 +1,7 @@
 //! Exact named-theme admission, independent of rendering and host capabilities.
 use super::{
     WindowsSettingsDiagnosticDisposition as Disposition, diagnostics::DiagnosticsCollector,
+    windows_user_config_has_child,
 };
 
 /// A shipped chrome theme admitted from the Windows user configuration.
@@ -42,7 +43,10 @@ pub(super) fn admit(
         diagnostics.push("theme", "wrong-type", Disposition::Defaulted);
         return WindowsThemeName::default();
     };
-    for key in table.keys().filter(|key| key.as_str() != "name") {
+    for key in table
+        .keys()
+        .filter(|key| !windows_user_config_has_child("theme", key))
+    {
         diagnostics.push(
             super::diagnostics::unknown_field("theme", key),
             "unsupported-herdr",

@@ -625,10 +625,10 @@ pub(crate) fn completion(shell: CompletionShell, locale: Locale) -> Output {
 
 #[cfg(windows)]
 pub(crate) fn default_config(locale: Locale) -> Output {
-    fixed_text(
-        orchbee_local_site_runtime::default_windows_user_settings_toml(),
-        locale,
-    )
+    let actions = crate::client_view::Bindings::default_windows_key_action_bindings();
+    let config =
+        orchbee_local_site_runtime::default_windows_user_settings_toml_with_actions(&actions);
+    fixed_text(&config, locale)
 }
 
 /// Print the same build's offline Agent instructions through the bounded sink.

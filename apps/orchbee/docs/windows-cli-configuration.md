@@ -29,7 +29,7 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ### Default configuration output
 
-`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. The output contains explicit setting defaults and the default `keys.prefix`, while action overrides remain absent so redirecting the output to `config.toml` does not freeze the Client's evolving default action registry. Parsing the emitted document produces the same effective settings and bindings as an absent default file.
+`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. A fixed-English comment reference lists admitted setting defaults, choices and purposes; English keeps this copyable config artifact identical across CLI locales. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The reference also describes named themes and custom-command rules. `config check` accepts the generated output without warnings, and parsing it produces the same effective settings and bindings as an absent default file.
 
 ## Named chrome themes
 

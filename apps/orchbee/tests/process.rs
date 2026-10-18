@@ -44,10 +44,19 @@ fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error
     assert!(english.stderr.is_empty());
     assert!(chinese.stderr.is_empty());
     assert_eq!(english.stdout, chinese.stdout);
-    assert_eq!(
-        english.stdout,
-        orchbee_local_site_runtime::default_windows_user_settings_toml().as_bytes()
-    );
+    let text = String::from_utf8(english.stdout)?;
+    assert!(text.ends_with('\n'));
+    let parsed: toml::Value = toml::from_str(&text)?;
+    assert_eq!(parsed["keys"]["prefix"].as_str(), Some("ctrl+b"));
+    for action in orchbee_local_site_runtime::WindowsKeySettings::registered_actions() {
+        let prefix = format!("# {action} = ");
+        assert!(
+            text.lines().any(|line| line.starts_with(prefix.as_str())),
+            "default action {action} is missing"
+        );
+    }
+    assert!(text.contains("# resize_pane_left = []"));
+    assert!(text.contains("# focus_agent = []"));
 
     for arguments in [
         &["--default-config", "--format=json"][..],

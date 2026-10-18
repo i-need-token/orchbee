@@ -1,6 +1,7 @@
 //! Bounded Windows key configuration. Semantic dispatch stays with the Client.
 use super::{
-    DiagnosticsCollector, WindowsSettingsDiagnosticDisposition, WindowsSettingsError, unknown_field,
+    DiagnosticsCollector, WindowsSettingsDiagnosticDisposition, WindowsSettingsError,
+    unknown_field, windows_user_config_has_child,
 };
 mod commands;
 pub use commands::{
@@ -127,6 +128,11 @@ fn error(reason: &'static str) -> WindowsSettingsError {
 }
 
 impl WindowsKeySettings {
+    /// The built-in Windows Client actions admitted under `[keys]`.
+    pub const fn registered_actions() -> &'static [&'static str] {
+        ACTIONS
+    }
+
     pub(super) fn parse_lenient(
         value: &toml::Value,
         diagnostics: &mut DiagnosticsCollector,
@@ -155,8 +161,7 @@ impl WindowsKeySettings {
             }
         }
         for key in table.keys().filter(|key| {
-            !matches!(key.as_str(), "prefix" | "command" | "fullscreen")
-                && !ACTIONS.contains(&key.as_str())
+            !windows_user_config_has_child("keys", key) && !ACTIONS.contains(&key.as_str())
         }) {
             let unsupported = HERDR_ONLY_ACTIONS.contains(&key.as_str());
             diagnostics.push(

@@ -299,6 +299,43 @@ fn config_check_document(fixture: &Fixture) -> Value {
     document
 }
 
+#[test]
+fn generated_default_config_passes_the_offline_config_check() {
+    let fixture = Fixture::new();
+    let generated = fixture.run(&["--default-config"]);
+    assert_eq!(generated.status.code(), Some(0));
+    assert!(generated.stderr.is_empty());
+    let config = fixture.0.join("appdata/Orchbee/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    std::fs::write(&config, generated.stdout).unwrap();
+
+    let document = config_check_document(&fixture);
+    let user_config = &document["result"]["checks"][5];
+    assert_eq!(user_config["name"], "user-config");
+    assert_eq!(user_config["status"], "pass");
+    assert_eq!(user_config["details"]["diagnostics"], json!([]));
+    assert_eq!(user_config["details"]["keyOverrides"], 0);
+
+    let generated = std::fs::read_to_string(&config).unwrap();
+    let actions = orchbee_local_site_runtime::WindowsKeySettings::registered_actions();
+    let mut uncommented = String::new();
+    for line in generated.lines() {
+        let action_line = line.strip_prefix("# ").filter(|candidate| {
+            actions.iter().any(|action| {
+                let prefix = format!("{action} = ");
+                candidate.starts_with(prefix.as_str())
+            })
+        });
+        uncommented.push_str(action_line.unwrap_or(line));
+        uncommented.push('\n');
+    }
+    std::fs::write(&config, uncommented).unwrap();
+    let document = config_check_document(&fixture);
+    let user_config = &document["result"]["checks"][5];
+    assert_eq!(user_config["status"], "pass");
+    assert_eq!(user_config["details"]["keyOverrides"], json!(actions.len()));
+}
+
 fn assert_warning_diagnostic(document: &Value, field: &str, reason: &str, disposition: &str) {
     assert_eq!(document["result"]["ok"], true);
     let check = &document["result"]["checks"][5];

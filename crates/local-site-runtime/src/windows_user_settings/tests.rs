@@ -725,7 +725,7 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     let text = default_windows_user_settings_toml();
     assert!(text.ends_with('\n'));
     assert!(!text.ends_with("\n\n"));
-    let admitted = parse(text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
     let defaults = WindowsUserSettings::default();
     assert!(admitted.diagnostics.is_empty());
     assert_eq!(admitted.keys, defaults.keys);
@@ -748,4 +748,37 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     assert_eq!(admitted.path, Some(PathBuf::from(r"C:\config.toml")));
     assert!(admitted.exists);
     assert!(!admitted.explicit);
+}
+
+#[test]
+fn default_configuration_reference_covers_the_setting_and_action_registries() {
+    let actions = WindowsKeySettings::registered_actions()
+        .iter()
+        .map(|&action| WindowsDefaultActionBindings {
+            action,
+            bindings: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let text = default_windows_user_settings_toml_with_actions(&actions);
+    for option in WINDOWS_USER_CONFIG_OPTIONS {
+        let path_line = format!("# {}", option.path);
+        assert!(
+            text.lines().any(|line| line == path_line.as_str()),
+            "{} is missing from the generated reference",
+            option.path
+        );
+        assert!(text.contains(&format!("#   Default: {}", option.default)));
+        let parts = option.path.split('.').collect::<Vec<_>>();
+        for index in 0..parts.len() - 1 {
+            let table = parts[..index + 1].join(".");
+            assert!(windows_user_config_has_child(&table, parts[index + 1]));
+        }
+    }
+    for action in WindowsKeySettings::registered_actions() {
+        let action_line = format!("# {action} = []");
+        assert!(text.lines().any(|line| line == action_line.as_str()));
+    }
+    let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
+    assert!(admitted.diagnostics.is_empty());
+    assert_eq!(admitted.keys, WindowsUserSettings::default().keys);
 }

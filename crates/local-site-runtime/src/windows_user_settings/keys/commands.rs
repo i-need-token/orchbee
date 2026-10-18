@@ -1,5 +1,8 @@
 //! Immutable configured actions; the settings reader never executes them.
-use super::{WindowsKeySettings, WindowsKeyTrigger, WindowsSettingsError, parse_chord};
+use super::{
+    WindowsKeySettings, WindowsKeyTrigger, WindowsSettingsError, parse_chord,
+    windows_user_config_has_child,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WindowsCustomCommandAction {
@@ -80,12 +83,10 @@ pub(super) fn parse(
     let mut result: Vec<WindowsCustomCommand> = Vec::new();
     for value in entries {
         let table = value.as_table().ok_or(error("wrong-type"))?;
-        if table.keys().any(|k| {
-            !matches!(
-                k.as_str(),
-                "command" | "type" | "key" | "description" | "width" | "height"
-            )
-        }) {
+        if table
+            .keys()
+            .any(|key| !windows_user_config_has_child("keys.command[]", key))
+        {
             return Err(error("unknown-key"));
         }
         let command = string(table.get("command").ok_or(error("invalid-binding"))?, 4096)?;

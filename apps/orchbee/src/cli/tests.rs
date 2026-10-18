@@ -4,6 +4,57 @@
 
 use serde_json::{Value, json};
 
+#[cfg(windows)]
+#[test]
+fn default_config_uses_the_setting_and_client_action_registries() {
+    let output = super::default_config(Locale::EnUs);
+    assert_eq!(output.status, 0);
+    assert!(output.stderr.is_empty());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.ends_with('\n'));
+    let parsed: toml::Value = toml::from_str(&text).unwrap();
+    let keys = parsed["keys"].as_table().unwrap();
+    assert_eq!(keys.len(), 1, "default action rows must remain comments");
+    assert_eq!(keys["prefix"].as_str(), Some("ctrl+b"));
+
+    for option in orchbee_local_site_runtime::WINDOWS_USER_CONFIG_OPTIONS {
+        let path_line = format!("# {}", option.path);
+        assert!(
+            text.lines().any(|line| line == path_line.as_str()),
+            "{}",
+            option.path
+        );
+        assert!(text.contains(&format!("#   Default: {}", option.default)));
+    }
+    let actions = crate::client_view::Bindings::default_windows_key_action_bindings();
+    let registered_actions = actions.iter().map(|entry| entry.action).collect::<Vec<_>>();
+    assert_eq!(
+        registered_actions.as_slice(),
+        orchbee_local_site_runtime::WindowsKeySettings::registered_actions()
+    );
+    for action in actions {
+        let value = if action.bindings.is_empty() {
+            "[]".to_owned()
+        } else {
+            let values = action
+                .bindings
+                .iter()
+                .map(|binding| toml::Value::String(binding.clone()).to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("[{values}]")
+        };
+        let action_line = format!("# {} = {value}", action.action);
+        assert!(
+            text.lines().any(|line| line == action_line.as_str()),
+            "missing or stale default binding for {}",
+            action.action
+        );
+    }
+    assert!(text.contains("# resize_pane_left = []"));
+    assert!(text.contains("# focus_agent = []"));
+}
+
 #[cfg(any(unix, windows))]
 #[test]
 fn integration_list_documents_cover_the_entire_provider_registry() {
@@ -577,7 +628,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     #[cfg(windows)]
     bodies.push((
         "default config".to_owned(),
-        orchbee_local_site_runtime::default_windows_user_settings_toml().to_owned(),
+        super::default_config(Locale::EnUs).stdout,
     ));
     for family in [
         Family::Agent,

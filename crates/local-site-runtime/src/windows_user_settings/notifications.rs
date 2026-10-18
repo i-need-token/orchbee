@@ -1,7 +1,8 @@
 //! Manual and automatic notification policy shared by startup, checking and live reload.
 
 use super::{
-    DiagnosticsCollector, WindowsSettingsDiagnosticDisposition, WindowsSettingsError, unknown_field,
+    DiagnosticsCollector, WindowsSettingsDiagnosticDisposition, WindowsSettingsError,
+    unknown_field, windows_user_config_has_child,
 };
 
 pub const MAXIMUM_NOTIFICATION_PROFILE_BYTES: usize = 16 * 1024;
@@ -96,12 +97,10 @@ impl WindowsNotificationSettings {
             );
             return;
         };
-        for key in table.keys().filter(|key| {
-            !matches!(
-                key.as_str(),
-                "delivery" | "enabled" | "agent_delivery" | "delay_seconds" | "herdr"
-            )
-        }) {
+        for key in table
+            .keys()
+            .filter(|key| !windows_user_config_has_child("ui.toast", key))
+        {
             let unsupported = key == "clipboard";
             diagnostics.push(
                 unknown_field("ui.toast", key),
@@ -183,7 +182,10 @@ impl WindowsNotificationSettings {
             );
             return;
         };
-        for key in herdr.keys().filter(|key| key.as_str() != "position") {
+        for key in herdr
+            .keys()
+            .filter(|key| !windows_user_config_has_child("ui.toast.herdr", key))
+        {
             diagnostics.push(
                 unknown_field("ui.toast.herdr", key),
                 "unknown-key",
@@ -221,7 +223,7 @@ impl WindowsNotificationSettings {
         };
         for key in table
             .keys()
-            .filter(|key| !matches!(key.as_str(), "enabled" | "agents"))
+            .filter(|key| !windows_user_config_has_child("ui.sound", key))
         {
             let unsupported = matches!(key.as_str(), "path" | "done_path" | "request_path");
             diagnostics.push(
@@ -304,12 +306,10 @@ impl WindowsNotificationSettings {
 
     fn parse_toast(&mut self, raw: &toml::Value) -> Result<(), WindowsSettingsError> {
         let table = raw.as_table().ok_or(toast_error("wrong-type"))?;
-        if table.keys().any(|key| {
-            !matches!(
-                key.as_str(),
-                "delivery" | "enabled" | "agent_delivery" | "delay_seconds" | "herdr"
-            )
-        }) {
+        if table
+            .keys()
+            .any(|key| !windows_user_config_has_child("ui.toast", key))
+        {
             return Err(toast_error("unknown-key"));
         }
         if let Some(enabled) = table.get("enabled") {
@@ -337,7 +337,10 @@ impl WindowsNotificationSettings {
         }
         if let Some(herdr) = table.get("herdr") {
             let herdr = herdr.as_table().ok_or(toast_error("wrong-type"))?;
-            if herdr.keys().any(|key| key != "position") {
+            if herdr
+                .keys()
+                .any(|key| !windows_user_config_has_child("ui.toast.herdr", key))
+            {
                 return Err(toast_error("unknown-key"));
             }
             if let Some(position) = herdr.get("position") {
@@ -357,7 +360,7 @@ impl WindowsNotificationSettings {
         let table = raw.as_table().ok_or(sound_error("wrong-type"))?;
         if table
             .keys()
-            .any(|key| !matches!(key.as_str(), "enabled" | "agents"))
+            .any(|key| !windows_user_config_has_child("ui.sound", key))
         {
             return Err(sound_error("unknown-key"));
         }

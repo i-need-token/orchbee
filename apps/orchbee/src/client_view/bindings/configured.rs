@@ -5,6 +5,8 @@ use super::{
 #[cfg(windows)]
 use super::{ClientAction, Modifiers, PanelDirection, PrefixAction, ShellCommand};
 use crate::action_projection::{ActionMetadata, binding_metadata};
+#[cfg(windows)]
+use orchbee_local_site_runtime::WindowsDefaultActionBindings;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct DiscoveryEntry<'a> {
@@ -94,6 +96,27 @@ impl Bindings {
                     metadata,
                     key: self.entry_label(entry, glyphs),
                 })
+            })
+            .collect()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn default_windows_key_action_bindings() -> Vec<WindowsDefaultActionBindings> {
+        let defaults = Self::default();
+        orchbee_local_site_runtime::WindowsKeySettings::registered_actions()
+            .iter()
+            .map(|&name| {
+                let (action, _, _) = action(name);
+                let bindings = defaults
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.enabled && entry.member.action == action)
+                    .map(configuration_trigger)
+                    .collect();
+                WindowsDefaultActionBindings {
+                    action: name,
+                    bindings,
+                }
             })
             .collect()
     }
@@ -302,6 +325,63 @@ impl Bindings {
             entries: user,
         }
     }
+}
+
+#[cfg(windows)]
+fn configuration_trigger(entry: &Entry) -> String {
+    let chord = match entry.member.keys {
+        KeySet::CharRange(first, last) => format!("{first}..{last}"),
+        KeySet::One(binding) => configuration_chord(binding),
+    };
+    if entry.prefix {
+        format!("prefix+{chord}")
+    } else {
+        chord
+    }
+}
+
+#[cfg(windows)]
+fn configuration_chord(binding: Binding) -> String {
+    let mut parts = Vec::new();
+    if binding.mods.ctrl {
+        parts.push("ctrl".to_owned());
+    }
+    if binding.mods.alt {
+        parts.push("alt".to_owned());
+    }
+    if binding.mods.shift && !matches!(binding.code, KeyCode::Char(key) if key.is_ascii_lowercase())
+    {
+        parts.push("shift".to_owned());
+    }
+    if binding.mods.super_ {
+        parts.push("super".to_owned());
+    }
+    let key = match binding.code {
+        KeyCode::Char('+') => "plus".to_owned(),
+        KeyCode::Char(' ') => "space".to_owned(),
+        KeyCode::Char(key) if binding.mods.shift && key.is_ascii_lowercase() => {
+            key.to_ascii_uppercase().to_string()
+        }
+        KeyCode::Char(key) => key.to_string(),
+        KeyCode::Esc => "esc".to_owned(),
+        KeyCode::Backspace => "backspace".to_owned(),
+        KeyCode::Delete => "delete".to_owned(),
+        KeyCode::Insert => "insert".to_owned(),
+        KeyCode::Home => "home".to_owned(),
+        KeyCode::End => "end".to_owned(),
+        KeyCode::PageUp => "pageup".to_owned(),
+        KeyCode::PageDown => "pagedown".to_owned(),
+        KeyCode::Up => "up".to_owned(),
+        KeyCode::Down => "down".to_owned(),
+        KeyCode::Left => "left".to_owned(),
+        KeyCode::Right => "right".to_owned(),
+        KeyCode::F(number) => format!("f{number}"),
+        KeyCode::Enter | KeyCode::Tab | KeyCode::Space => {
+            unreachable!("bindings are stored in canonical form")
+        }
+    };
+    parts.push(key);
+    parts.join("+")
 }
 
 #[cfg(windows)]
