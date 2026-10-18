@@ -334,6 +334,14 @@ manual or automatic labels. Reordering changes numbers without changing identiti
 Empty contexts have zero Tabs and Panels. A Panel is one leaf of a Tab's split tree;
 child presentations and terminal bindings never increase its count.
 
+Human `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT` columns;
+`tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. Handles are exact full-ID
+selectors (`@workspace:<id>` and `@tab:<id>`), including when a list is filtered.
+Project and Workspace ownership cells show their canonical names; standalone Tabs
+show a localized standalone label. Name cells are quoted, control-safe, and clipped
+to keep each table within 80 terminal cells. These lists do not treat a Workspace's
+primary directory as a process CWD or expose internal context IDs as names.
+
 `panel list` includes `workspaceId` (null for standalone), plus the primary
 presentation's `label`, nullable `customLabel`, and `displayLabel`. These are the
 same canonical values returned by `panel get`, not inferred process or Agent titles.
@@ -1817,6 +1825,9 @@ counts:{projects,workspaces,tabs,panels,boundTerminals},
 worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`. `boundTerminals` counts
   presentations with a `binding`; snapshot validation already guarantees terminal IDs are unique,
   so each binding names a distinct terminal. `reachable` proves only this read succeeded.
+  Text reports a running Session only after a successful snapshot read, followed by the
+  localized resource counts. It omits the internal Site ID, snapshot revision, and Worker
+  observation detail; it does not claim Worker or Agent readiness. The JSON document is unchanged.
 - `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`;
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
 workspaces:[{workspaceId,label}]}}`.

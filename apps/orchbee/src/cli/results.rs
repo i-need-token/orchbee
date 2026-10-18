@@ -219,6 +219,9 @@ pub(crate) struct WorkspaceRow {
     pub(crate) workspace_id: String,
     pub(crate) label: String,
     pub(crate) project_id: Option<String>,
+    /// Canonical Project label for human output; deliberately absent from the
+    /// stable machine projection, which continues to expose `project_id`.
+    pub(crate) project_label: Option<String>,
     pub(crate) primary_directory_id: Option<String>,
     pub(crate) terminal_context_id: String,
 }
@@ -240,6 +243,8 @@ pub(crate) struct ContextRef {
     pub(crate) standalone: bool,
     pub(crate) terminal_context_id: String,
     pub(crate) workspace_id: Option<String>,
+    /// Canonical Workspace label for human list ownership; omitted from JSON.
+    pub(crate) workspace_label: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -1983,10 +1988,11 @@ pub(super) fn terminal_row_json(row: &TerminalRow) -> Value {
     })
 }
 
-/// context id → owning workspace id for every workspace-bound context.
+/// Context ID → owning Workspace identity and canonical label for each
+/// workspace-bound context.
 struct ContextIndex<'a> {
     standalone_id: &'a str,
-    owners: HashMap<&'a str, &'a str>,
+    owners: HashMap<&'a str, (&'a str, &'a str)>,
 }
 
 impl<'a> ContextIndex<'a> {
@@ -1995,7 +2001,7 @@ impl<'a> ContextIndex<'a> {
         for workspace in &snapshot.navigation.workspaces {
             owners.insert(
                 workspace.terminal_context_id.as_str(),
-                workspace.workspace_id.as_str(),
+                (workspace.workspace_id.as_str(), workspace.label.as_str()),
             );
         }
         Self {
@@ -2005,11 +2011,12 @@ impl<'a> ContextIndex<'a> {
     }
 
     fn reference(&self, context: &'a TerminalContext) -> ContextRef {
-        let workspace_id = self.owners.get(context.terminal_context_id.as_str());
+        let owner = self.owners.get(context.terminal_context_id.as_str());
         ContextRef {
             standalone: context.terminal_context_id.as_str() == self.standalone_id,
             terminal_context_id: context.terminal_context_id.as_str().to_owned(),
-            workspace_id: workspace_id.map(|id| (*id).to_owned()),
+            workspace_id: owner.map(|(id, _label)| (*id).to_owned()),
+            workspace_label: owner.map(|(_id, label)| (*label).to_owned()),
         }
     }
 }
@@ -2465,6 +2472,11 @@ fn workspace_row(
         workspace_id: workspace.workspace_id.as_str().to_owned(),
         label: workspace.label.clone(),
         project_id: workspace.project_id.as_ref().map(ToString::to_string),
+        project_label: workspace
+            .project_id
+            .as_ref()
+            .and_then(|id| snapshot.navigation.project(id))
+            .map(|project| project.label.clone()),
         primary_directory_id: workspace
             .primary_directory_id
             .as_ref()

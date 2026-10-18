@@ -21,7 +21,7 @@ use orchbee_workbench_protocol::{
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::config::CheckReport;
-use super::escape::{display_width, escape, quoted, table_label, unquoted};
+use super::escape::{display_width, escape, quoted, table_label, table_label_width, unquoted};
 use super::output::{Bounded, TooLarge};
 use super::results::{
     AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, PresentationRow, Projection,
@@ -83,6 +83,101 @@ fn table<Row>(
         render_row(&cells(row), out)?;
     }
     Ok(())
+}
+
+/// Render a compact, localized list table. Callers reserve the full width of
+/// selector cells and bound all display labels before they reach this sink.
+fn compact_table<Row>(
+    out: &mut Bounded,
+    headers: &[&str],
+    widths: &[usize],
+    rows: &[Row],
+    cells: impl Fn(&Row) -> Vec<String>,
+) -> Result<(), TooLarge> {
+    let render_row = |cells: &[String], out: &mut Bounded| -> Result<(), TooLarge> {
+        for (index, cell) in cells.iter().enumerate() {
+            if index > 0 {
+                out.push("  ")?;
+            }
+            out.push(cell)?;
+            if index + 1 < cells.len() {
+                out.push(&" ".repeat(widths[index].saturating_sub(display_width(cell))))?;
+            }
+        }
+        out.push("\n")
+    };
+    render_row(
+        &headers
+            .iter()
+            .map(|header| (*header).to_owned())
+            .collect::<Vec<_>>(),
+        out,
+    )?;
+    for row in rows {
+        render_row(&cells(row), out)?;
+    }
+    Ok(())
+}
+
+fn workspace_list(
+    out: &mut Bounded,
+    rows: &[super::results::WorkspaceRow],
+    text: &CliLabels,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    const NAME_WIDTH: usize = 18;
+    const PROJECT_WIDTH: usize = 14;
+    let handle_width = rows
+        .iter()
+        .map(|row| "@workspace:".len() + row.workspace_id.len())
+        .max()
+        .unwrap_or(0)
+        .max(display_width(text.workspace_headers[0]));
+    let widths = [handle_width, NAME_WIDTH, PROJECT_WIDTH];
+    compact_table(out, &text.workspace_headers, &widths, rows, |row| {
+        let project = match (&row.project_id, &row.project_label) {
+            (None, _) => locale.cli_ungrouped(),
+            (Some(_), Some(label)) => label.as_str(),
+            (Some(_), None) => "-",
+        };
+        vec![
+            format!("@workspace:{}", row.workspace_id),
+            table_label_width(&row.label, NAME_WIDTH),
+            table_label_width(project, PROJECT_WIDTH),
+        ]
+    })
+}
+
+fn tab_list(
+    out: &mut Bounded,
+    rows: &[super::results::TabRow],
+    text: &CliLabels,
+) -> Result<(), TooLarge> {
+    const NAME_WIDTH: usize = 18;
+    const PANELS_WIDTH: usize = 6;
+    const WORKSPACE_WIDTH: usize = 13;
+    let handle_width = rows
+        .iter()
+        .map(|row| "@tab:".len() + row.tab_id.len())
+        .max()
+        .unwrap_or(0)
+        .max(display_width(text.tab_headers[0]));
+    let widths = [handle_width, NAME_WIDTH, PANELS_WIDTH, WORKSPACE_WIDTH];
+    compact_table(out, &text.tab_headers, &widths, rows, |row| {
+        let owner = if row.context.standalone {
+            text.standalone.to_owned()
+        } else if let Some(workspace) = &row.context.workspace_label {
+            table_label_width(workspace, WORKSPACE_WIDTH)
+        } else {
+            "-".to_owned()
+        };
+        vec![
+            format!("@tab:{}", row.tab_id),
+            table_label_width(&row.label, NAME_WIDTH),
+            row.panel_count.to_string(),
+            owner,
+        ]
+    })
 }
 
 fn field(out: &mut Bounded, name: &str, value: &str) -> Result<(), TooLarge> {
@@ -606,22 +701,7 @@ pub(crate) fn render(
                 },
             )
         }
-        Projection::WorkspaceList(rows) => table(out, &text.workspace_headers, rows, |row| {
-            vec![
-                row.number.to_string(),
-                row.workspace_id.clone(),
-                table_label(&row.label),
-                row.tab_count.to_string(),
-                row.panel_count.to_string(),
-                row.project_id
-                    .clone()
-                    .unwrap_or_else(|| locale.cli_ungrouped().to_owned()),
-                row.primary_directory_id
-                    .clone()
-                    .unwrap_or_else(|| "-".to_owned()),
-                row.terminal_context_id.clone(),
-            ]
-        }),
+        Projection::WorkspaceList(rows) => workspace_list(out, rows, text, locale),
         Projection::WorkspaceGet(doc) => {
             field(out, text.workspace, &quoted(&doc.row.label))?;
             field(out, text.number, &doc.row.number.to_string())?;
@@ -647,18 +727,7 @@ pub(crate) fn render(
                 vec![tab.tab_id.clone(), table_label(&tab.label)]
             })
         }
-        Projection::TabList(rows) => table(out, &text.tab_headers, rows, |row| {
-            vec![
-                row.number.to_string(),
-                row.tab_id.clone(),
-                table_label(&row.label),
-                row.panel_count.to_string(),
-                row.pinned.to_string(),
-                row.group_id.clone().unwrap_or_else(|| "-".to_owned()),
-                context_text(&row.context),
-                row.context.terminal_context_id.clone(),
-            ]
-        }),
+        Projection::TabList(rows) => tab_list(out, rows, text),
         Projection::TabGet(doc) => {
             field(out, text.tab, &quoted(&doc.row.label))?;
             field(out, text.number, &doc.row.number.to_string())?;
@@ -1248,26 +1317,17 @@ fn agent_explanation_fields(
 }
 
 fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), TooLarge> {
-    out.write(format_args!(
-        "{:<14}{} ({} {})\n",
-        text.site, text.reachable, text.revision_label, doc.revision
-    ))?;
-    field(out, text.site_id, &doc.site_id)?;
-    out.write(format_args!(
-        "{:<14}{} {} · {} {} · {} {} · {} {} · {} {}\n",
-        text.counts,
-        text.projects_word,
-        doc.projects,
-        text.workspaces_word,
-        doc.workspaces,
-        text.tabs_word,
-        doc.tabs,
-        text.panels_word,
-        doc.panels,
+    field(out, text.status_session, text.status_running)?;
+    out.write(format_args!("{}\n", text.counts))?;
+    field(out, text.projects_word, &doc.projects.to_string())?;
+    field(out, text.workspaces_word, &doc.workspaces.to_string())?;
+    field(out, text.tabs_word, &doc.tabs.to_string())?;
+    field(out, text.panels_word, &doc.panels.to_string())?;
+    field(
+        out,
         text.bound_terminals_word,
-        doc.bound_terminals,
-    ))?;
-    field(out, text.worker, text.worker_unknown)
+        &doc.bound_terminals.to_string(),
+    )
 }
 
 fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), TooLarge> {

@@ -267,6 +267,14 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 空上下文的 Tab 和 Panel 数量均为零。Panel 是 Tab 分割树中的一个叶节点；
 子 presentation 和终端绑定都不会增加 Panel 数量。
 
+人类文本中的 `workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
+`PROJECT`（项目）列；`tab list` 使用 `HANDLE`（句柄）、`NAME`（名称）、`PANELS`（面板）、
+`WORKSPACE`（工作区）列。句柄是完整 ID 选择器（`@workspace:<id>` 和
+`@tab:<id>`），筛选列表时也保持完整。项目和工作区所属列显示规范名称；独立 Tab
+显示本地化的独立上下文名称。名称单元格带引号、转义控制字符并限制宽度，使每张表
+不超过 80 个终端单元。这些列表不会把 Workspace 主目录当作进程 CWD，也不会用内部
+上下文 ID 充当名称。
+
 `panel list` 包含 `workspaceId`（独立上下文为 null），以及主 presentation 的
 `label`、可空 `customLabel` 和 `displayLabel`。这些值与 `panel get` 返回的
 规范值相同，并非推断的进程或 Agent 标题。JSON 原样保留标签；文本输出转义标签，
@@ -1491,7 +1499,9 @@ terminal 绑定按该 panel 顺序且 `primaryPresentation` 先于 `childPresent
 counts:{projects,workspaces,tabs,panels,boundTerminals},
 worker:{status:"unknown",reason:"not-in-workbench-snapshot"}}`。`boundTerminals` 统计带
   `binding` 的 presentation；快照校验已保证 terminalId 全局唯一，故每个绑定恰命名一个不同
-  终端。`reachable` 只证明本次读取成功。
+  终端。`reachable` 只证明本次读取成功。文本视图仅在快照成功读取后报告 Session 正在运行，
+  随后列出本地化的资源计数。它省略内部 Site ID、快照修订号和 Worker 观察详情，也不声称
+  Worker 或 Agent 已就绪。JSON 文档保持不变。
 - `orchbee.project.list` → `{projects:[{projectId,label,directoryCount,workspaceCount}]}`；
   `orchbee.project.get` → `{project:{projectId,label,directories:[{directoryId,workerId,path}],
 workspaces:[{workspaceId,label}]}}`。

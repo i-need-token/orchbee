@@ -1,4 +1,4 @@
-use super::{diagnostic_token, escape, quoted, table_label, unquoted};
+use super::{diagnostic_token, escape, quoted, table_label, table_label_width, unquoted};
 
 #[test]
 fn unquoted_text_preserves_copyable_paths_quotes_and_unicode() {
@@ -71,6 +71,21 @@ fn table_labels_budget_and_preserve_complete_graphemes() {
         assert!(super::display_width(&cell) <= 80, "{cell}");
         assert_eq!(cell, format!("\"{prefix}{retained}…\""));
     }
+}
+
+#[test]
+fn narrow_table_labels_keep_quotes_and_whole_control_escapes() {
+    for (value, width, expected) in [
+        ("short", 8, "\"short\""),
+        ("long label", 8, "\"long …\""),
+        ("\u{1b}x", 8, "\"…\""),
+    ] {
+        let label = table_label_width(value, width);
+        assert_eq!(label, expected);
+        assert!(super::display_width(&label) <= width, "{label}");
+    }
+    assert_eq!(table_label_width("long", 1), "…");
+    assert_eq!(table_label_width("long", 0), "");
 }
 
 #[test]
