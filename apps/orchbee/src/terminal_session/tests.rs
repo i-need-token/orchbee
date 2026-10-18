@@ -792,7 +792,15 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         .map_err(|error| format!("ordinary Poll was not observed: {error}"))?;
     assert!(!render_native_session(&session, &client_view)?.contains("Ready · controlling"));
     let ready = render_prefix_session(&session, &client_view)?;
-    assert!(ready.contains("Tab 1 · Ready · controlling"));
+    assert!(
+        ready.contains("Tab 1 · Ready · controlling"),
+        "active position/status={:?}/{:?}\n{ready}",
+        match session.view() {
+            TerminalSessionView::Native(native) => native.active_position(),
+            TerminalSessionView::Legacy { .. } => None,
+        },
+        session.status()
+    );
 
     // The Windows navigator captures prefix actions; dispatch from the terminal surface.
     #[cfg(not(windows))]
@@ -1073,7 +1081,15 @@ fn native_move_key_settles_canonical_order_or_explicit_recovery_with_the_same_in
             );
             assert!(rendered.contains("Ctrl+b w refresh"), "{rendered}");
         } else {
-            assert!(rendered.contains("Tab 2 · Ready · controlling"));
+            assert!(
+                rendered.contains("Tab 2 · Ready · controlling"),
+                "active position/status={:?}/{:?}\n{rendered}",
+                match session.view() {
+                    TerminalSessionView::Native(native) => native.active_position(),
+                    TerminalSessionView::Legacy { .. } => None,
+                },
+                session.status()
+            );
         }
         assert!(TerminalInputPort::forward(&mut session, b"still attached").is_ok());
         assert!(spin_with_draw(&mut session, |_| input_seen
@@ -2342,11 +2358,19 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             assert!(!rendered.contains("Ctrl+b t"), "{rendered}");
         }
         let prefixed = render_prefix_session(&session, &client_view)?;
-        assert!(prefixed.contains(if controlling {
-            "Tab 1 · Ready · controlling"
-        } else {
-            "Tab 1 · Ready · view only"
-        }));
+        assert!(
+            prefixed.contains(if controlling {
+                "Tab 1 · Ready · controlling"
+            } else {
+                "Tab 1 · Ready · view only"
+            }),
+            "active position/status={:?}/{:?}\n{prefixed}",
+            match session.view() {
+                TerminalSessionView::Native(native) => native.active_position(),
+                TerminalSessionView::Legacy { .. } => None,
+            },
+            session.status()
+        );
         open_navigator(&mut client_view);
         let navigator = render_native_session(&session, &client_view)?;
         assert!(navigator.contains("* 1 standalone"), "{navigator}");
