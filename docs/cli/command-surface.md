@@ -100,8 +100,9 @@ reference is a defect, and so is the reverse.
   custom headings or explanatory layouts for individual command families.
 - Commands that accept `--format` show both a default text example and an explicit JSON example.
 - A missing child on a family path lists its direct commands. A usage diagnostic may add at most
-  three close spelling candidates from that command or option's grammar scope; advice never
-  changes parsing, validity, or effects.
+  three close spelling candidates from the grammar scope at the failure point: direct children
+  for an unknown command, or admitted options for the root, selected family, or exact command path.
+  Advice never changes parsing, validity, or effects.
 - `--version` is legal only as the sole argument and prints one line naming the executable and its
   version.
 - `completion <shell>` prints a static projection of the grammar for a declared closed set of

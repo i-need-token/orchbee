@@ -22,37 +22,24 @@ pub(crate) fn children(context: UsageContext) -> Vec<(&'static str, HelpTopic)> 
 /// At most three close static spellings from this failure's grammar scope.
 /// Oversized and non-ASCII input produces no advice and cannot grow the work budget.
 pub(crate) fn suggestions(reason: &UsageReason) -> Vec<&'static str> {
-    let (word, candidates) = match reason {
-        UsageReason::UnknownCommand { context, word } => (
-            word.as_str(),
-            children(*context)
-                .into_iter()
-                .map(|(name, _)| name)
-                .collect::<Vec<_>>(),
-        ),
-        UsageReason::UnknownOption {
-            context: UsageContext::Path(context),
-            option,
-        } => {
-            let flags = help_paths()
-                .iter()
-                .find_map(|path| {
-                    if path.words().join(" ") == *context
-                        && let HelpTopic::Command(command) = path.topic()
-                    {
-                        Some(super::completion::help_flags(command))
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default();
-            (option.split('=').next().unwrap_or(option), flags)
-        }
+    let word = match reason {
+        UsageReason::UnknownCommand { word, .. } => word.as_str(),
+        UsageReason::UnknownOption { option, .. } => option.split('=').next().unwrap_or(option),
         _ => return Vec::new(),
     };
     if word.len() > 64 || !word.is_ascii() {
         return Vec::new();
     }
+    let candidates = match reason {
+        UsageReason::UnknownCommand { context, .. } => children(*context)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect::<Vec<_>>(),
+        UsageReason::UnknownOption { context, .. } => {
+            super::completion::usage_option_candidates(*context)
+        }
+        _ => unreachable!("reason was checked above"),
+    };
     let threshold = if word.len() <= 3 { 1 } else { 2 };
     let mut ranked = candidates
         .into_iter()

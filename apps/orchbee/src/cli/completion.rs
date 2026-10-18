@@ -22,6 +22,48 @@ const GLOBAL_FLAGS: &[&str] = &[
     "--session",
 ];
 
+/// Root-only option modes the shell adapters offer before a command path.
+#[derive(Clone, Copy)]
+struct RootModeFlag {
+    spelling: &'static str,
+    /// PowerShell offers this mode only before any flag has been consumed.
+    requires_no_seen_flags: bool,
+}
+
+const ROOT_MODE_FLAGS: &[RootModeFlag] = &[
+    RootModeFlag {
+        spelling: "--help",
+        requires_no_seen_flags: false,
+    },
+    RootModeFlag {
+        spelling: "--version",
+        requires_no_seen_flags: false,
+    },
+    RootModeFlag {
+        spelling: "-v",
+        requires_no_seen_flags: false,
+    },
+    RootModeFlag {
+        spelling: "-V",
+        requires_no_seen_flags: false,
+    },
+    RootModeFlag {
+        spelling: "--skill",
+        requires_no_seen_flags: false,
+    },
+    #[cfg(windows)]
+    RootModeFlag {
+        spelling: "--default-config",
+        requires_no_seen_flags: true,
+    },
+];
+
+/// Prefix selectors are consumed before the ordinary invocation grammar.
+const PREFIX_FLAGS: &[&str] = &[
+    #[cfg(windows)]
+    "--machine",
+];
+
 /// Top-level words the grammar accepts before any option.
 const ROOT_WORDS: &[&str] = &[
     #[cfg(windows)]
@@ -1752,14 +1794,25 @@ const HELP_LEVEL3: &[(&str, &[&str])] = &[
 const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
 const FORMAT_VALUES: &[&str] = &["text", "json"];
 
-#[cfg(windows)]
-const DEFAULT_CONFIG_PATTERN: &str = "|--default-config";
-#[cfg(not(windows))]
-const DEFAULT_CONFIG_PATTERN: &str = "";
-#[cfg(windows)]
-const DEFAULT_CONFIG_CANDIDATE: &str = " --default-config";
-#[cfg(not(windows))]
-const DEFAULT_CONFIG_CANDIDATE: &str = "";
+fn root_mode_flags(separator: &str) -> String {
+    ROOT_MODE_FLAGS
+        .iter()
+        .map(|flag| flag.spelling)
+        .collect::<Vec<_>>()
+        .join(separator)
+}
+
+fn root_mode_pattern() -> String {
+    root_mode_flags("|")
+}
+
+fn root_mode_fish_cases() -> String {
+    ROOT_MODE_FLAGS
+        .iter()
+        .map(|flag| format!("'{}'", flag.spelling))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 pub(crate) fn render(shell: CompletionShell) -> String {
     match shell {
@@ -1993,6 +2046,53 @@ pub(super) fn help_flags(path: crate::invocation::CommandPath) -> Vec<&'static s
         flags.push("--format");
     }
     flags.push("--help");
+    flags
+}
+
+/// Static option spellings admitted at the failure's route depth. Families
+/// union the same leaf tables used by completion; root includes every option
+/// scope because command options may precede their route words.
+pub(super) fn usage_option_candidates(
+    context: crate::invocation::UsageContext,
+) -> Vec<&'static str> {
+    use crate::invocation::{HelpTopic, UsageContext};
+
+    let mut flags = Vec::new();
+    match context {
+        UsageContext::Root => {
+            for path in crate::invocation::help_paths() {
+                if let HelpTopic::Command(command) = path.topic() {
+                    flags.extend(help_flags(command));
+                }
+            }
+            flags.extend(ROOT_MODE_FLAGS.iter().map(|flag| flag.spelling));
+            flags.extend(PREFIX_FLAGS);
+        }
+        UsageContext::Path(path) => {
+            let words = path.split_whitespace().collect::<Vec<_>>();
+            let Some(entry) = crate::invocation::help_paths()
+                .iter()
+                .find(|entry| entry.words() == words.as_slice())
+            else {
+                return flags;
+            };
+            match entry.topic() {
+                HelpTopic::Command(command) => flags.extend(help_flags(command)),
+                HelpTopic::Family(_) => {
+                    for child in crate::invocation::help_paths() {
+                        if child.words().starts_with(&words)
+                            && let HelpTopic::Command(command) = child.topic()
+                        {
+                            flags.extend(help_flags(command));
+                        }
+                    }
+                }
+            }
+        }
+        UsageContext::Literal(_) => return flags,
+    }
+    flags.sort_unstable();
+    flags.dedup();
     flags
 }
 
@@ -2833,7 +2933,7 @@ fn bash() -> String {
             "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --help|--version|-v|-V|--skill{default_config_pattern}) done=1 ;;\n",
+            "            {root_mode_pattern}) done=1 ;;\n",
             "            -*) done=1 ;;\n",
             "            *)\n",
             "                case \"$state\" in\n",
@@ -2972,7 +3072,7 @@ fn bash() -> String {
             "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
             "        [[ __ORCHBEE_MOUSE_POSSIBLE_GUARD__ ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
-            "            candidates=\"$candidates --help --version -v -V --skill{default_config_candidate}\"\n",
+            "            candidates=\"$candidates {root_mode_flags}\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
@@ -3037,8 +3137,8 @@ fn bash() -> String {
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
-        default_config_pattern = DEFAULT_CONFIG_PATTERN,
-        default_config_candidate = DEFAULT_CONFIG_CANDIDATE,
+        root_mode_pattern = root_mode_pattern(),
+        root_mode_flags = root_mode_flags(" "),
         flag_patterns = BUSINESS_FLAGS.join("|"),
         seen_decls = BUSINESS_FLAGS
             .iter()
@@ -3227,7 +3327,7 @@ fn zsh() -> String {
             "{joined_seen_cases}\n",
             "                    esac\n",
             "                fi ;;\n",
-            "            --help|--version|-v|-V|--skill{default_config_pattern}) done=1 ;;\n",
+            "            {root_mode_pattern}) done=1 ;;\n",
             "            -*) done=1 ;;\n",
             "            *)\n",
             "                case \"$state\" in\n",
@@ -3358,7 +3458,7 @@ fn zsh() -> String {
             "        ((seen_format || !accepts_format)) || candidates=\"$candidates --format --format=\"\n",
             "        [[ __ORCHBEE_MOUSE_POSSIBLE_GUARD__ ]] && ((!seen_mouse)) && candidates=\"$candidates --mouse\"\n",
             "        if (({no_options})); then\n",
-            "            candidates=\"$candidates --help --version -v -V --skill{default_config_candidate}\"\n",
+            "            candidates=\"$candidates {root_mode_flags}\"\n",
             "        fi\n",
             "    elif [[ $state == sub ]]; then\n",
             "        candidates=\"$verbs\"\n",
@@ -3419,8 +3519,8 @@ fn zsh() -> String {
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
-        default_config_pattern = DEFAULT_CONFIG_PATTERN,
-        default_config_candidate = DEFAULT_CONFIG_CANDIDATE,
+        root_mode_pattern = root_mode_pattern(),
+        root_mode_flags = root_mode_flags(" "),
         flag_patterns = BUSINESS_FLAGS.join("|"),
         seen_decls = BUSINESS_FLAGS
             .iter()
@@ -4076,7 +4176,7 @@ fn fish() -> String {
             "{joined_seen_cases}\n",
             "                    end\n",
             "                end\n",
-            "            case '--help' '--version' '-v' '-V' '--skill'{default_config_candidate}; set done 1\n",
+            "            case {root_mode_pattern}; set done 1\n",
             "            case '-*'; set done 1\n",
             "            case '*'\n",
             "                switch \"$state\"\n",
@@ -4216,7 +4316,7 @@ fn fish() -> String {
             "        if test $seen_format -eq 0 -a $accepts_format -eq 1; set -a candidates --format --format=; end\n",
             "        if begin; __ORCHBEE_MOUSE_POSSIBLE_GUARD__; end; and test $seen_mouse -eq 0; set -a candidates --mouse; end\n",
             "        if {no_options}\n",
-            "            set -a candidates --help --version -v -V --skill{default_config_candidate}\n",
+            "            set -a candidates {root_mode_flags}\n",
             "        end\n",
             "    else if test \"$state\" = sub\n",
             "        set candidates $verbs\n",
@@ -4274,7 +4374,8 @@ fn fish() -> String {
         roots = ROOT_WORDS.join(" "),
         format_roots = FORMAT_ROOT_WORDS.join(" "),
         shells = SHELLS.join(" "),
-        default_config_candidate = DEFAULT_CONFIG_CANDIDATE,
+        root_mode_pattern = root_mode_fish_cases(),
+        root_mode_flags = root_mode_flags(" "),
         flag_patterns = BUSINESS_FLAGS
             .iter()
             .map(|flag| format!("'{flag}'"))

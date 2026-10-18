@@ -48,7 +48,7 @@
     for word $args[1..-1] {
       if (eq $word --) { return }
       if (not-eq $pending '') { set values[$pending] = $word; set pending = ''; continue }
-      if (has-value [--help -h --version -v -V --skill__ORCHBEE_DEFAULT_CONFIG_ELVISH__] $word) { return }
+      if (or (has-value $grammar[rootModeFlags] $word) (eq $word -h)) { return }
       if (and (str:has-prefix $word -) (> (count $word) 1)) {
         var pair = [(str:split &max=2 = $word)]
         var flag = $pair[0]
@@ -175,7 +175,7 @@
         }
       } else {
         set candidates = [$@candidates $@offered]
-        if (and (== $n 0) (== (count $seen) 0)) { set candidates = [$@candidates help completion --version -v -V --skill__ORCHBEE_DEFAULT_CONFIG_ELVISH__] }
+        if (and (== $n 0) (== (count $seen) 0)) { set candidates = [$@candidates help completion $@grammar[rootModeFlags]] }
       }
     }
     # The editor owns prefix/fuzzy matching and quoting. Emit each static value once.

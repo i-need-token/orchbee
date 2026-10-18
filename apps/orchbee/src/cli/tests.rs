@@ -222,6 +222,41 @@ fn usage_advice_uses_command_scope_and_preserves_usage_exits() {
 }
 
 #[test]
+fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
+    use crate::invocation::{UsageContext, UsageReason};
+
+    let advice = |context, option: &str| {
+        super::usage::suggestions(&UsageReason::UnknownOption {
+            context,
+            option: option.to_owned(),
+        })
+    };
+
+    assert!(advice(UsageContext::Root, "--hlep").contains(&"--help"));
+    #[cfg(windows)]
+    {
+        assert!(advice(UsageContext::Root, "--sesion").contains(&"--session"));
+        assert!(advice(UsageContext::Root, "--machne").contains(&"--machine"));
+    }
+    #[cfg(not(windows))]
+    {
+        assert!(!advice(UsageContext::Root, "--sesion").contains(&"--session"));
+        assert!(!advice(UsageContext::Root, "--machne").contains(&"--machine"));
+    }
+    assert!(advice(UsageContext::Path("agent"), "--prvider").contains(&"--provider"));
+    assert!(
+        advice(UsageContext::Path("agent integration"), "--adapter-souce")
+            .contains(&"--adapter-source")
+    );
+    assert!(advice(UsageContext::Path("terminal list"), "--formt").contains(&"--format"));
+    assert!(advice(UsageContext::Path("terminal list"), "--formt=json").contains(&"--format"));
+
+    assert!(advice(UsageContext::Root, &format!("--{}", "x".repeat(65))).is_empty());
+    assert!(advice(UsageContext::Root, "--hélp").is_empty());
+    assert!(advice(UsageContext::Root, "--for").len() <= 3);
+}
+
+#[test]
 fn wide_terminal_lists_keep_full_ids_in_readable_record_blocks() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let projection = Projection::TerminalList(vec![TerminalRow {

@@ -9,10 +9,7 @@ use serde_json::json;
 
 pub(super) fn build() -> serde_json::Value {
     let global_flags = super::GLOBAL_FLAGS;
-    #[cfg(windows)]
-    let prefix_flags = ["--machine"].as_slice();
-    #[cfg(not(windows))]
-    let prefix_flags: &[&str] = &[];
+    let prefix_flags = super::PREFIX_FLAGS;
     let mut commands = Vec::new();
     for (family, verbs) in FAMILY_VERBS {
         for verb in *verbs {
@@ -96,6 +93,8 @@ pub(super) fn build() -> serde_json::Value {
         "flags": BUSINESS_FLAGS.iter().copied().chain(["--format", "--mouse"]).chain(global_flags.iter().copied()).collect::<Vec<_>>(),
         "globalFlags": global_flags,
         "prefixFlags": prefix_flags,
+        "rootModeFlags": super::ROOT_MODE_FLAGS.iter().map(|flag| flag.spelling).collect::<Vec<_>>(),
+        "rootModeFlagsRequireNoSeenFlags": super::ROOT_MODE_FLAGS.iter().filter(|flag| flag.requires_no_seen_flags).map(|flag| flag.spelling).collect::<Vec<_>>(),
         "repeatable": REPEATABLE_FLAGS,
         "shells": SHELLS,
         "formats": FORMAT_VALUES,

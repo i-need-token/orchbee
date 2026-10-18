@@ -18,6 +18,47 @@ fn switches_do_not_consume_the_next_completion_word() {
 }
 
 #[test]
+fn root_mode_candidates_share_the_completion_grammar() {
+    let grammar = super::grammar::build();
+    let root_mode_flags = super::ROOT_MODE_FLAGS
+        .iter()
+        .map(|flag| flag.spelling)
+        .collect::<Vec<_>>();
+    let root_mode_flags_requiring_no_seen_flags = super::ROOT_MODE_FLAGS
+        .iter()
+        .filter(|flag| flag.requires_no_seen_flags)
+        .map(|flag| flag.spelling)
+        .collect::<Vec<_>>();
+    assert_eq!(grammar["rootModeFlags"], serde_json::json!(root_mode_flags));
+    assert_eq!(
+        grammar["rootModeFlagsRequireNoSeenFlags"],
+        serde_json::json!(root_mode_flags_requiring_no_seen_flags)
+    );
+    assert_eq!(
+        grammar["prefixFlags"],
+        serde_json::json!(super::PREFIX_FLAGS)
+    );
+
+    for shell in [
+        CompletionShell::Bash,
+        CompletionShell::Zsh,
+        CompletionShell::Fish,
+        CompletionShell::PowerShell,
+        CompletionShell::Elvish,
+    ] {
+        let script = render(shell);
+        for flag in &root_mode_flags {
+            assert!(script.contains(flag), "{shell:?} lacks root mode {flag}");
+        }
+        assert_eq!(
+            script.contains("--default-config"),
+            cfg!(windows),
+            "{shell:?} has a platform-inappropriate default-config mode"
+        );
+    }
+}
+
+#[test]
 fn completion_and_help_admit_the_same_command_paths() {
     let grammar = super::grammar::build();
     let completed = grammar["commands"]
