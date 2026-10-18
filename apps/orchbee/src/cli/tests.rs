@@ -1147,16 +1147,21 @@ fn usage_reason_never_reaches_the_machine_envelope() {
     };
     let with_reason = super::parse_failure(reasoned, Locale::EnUs);
     let without = super::parse_failure(plain, Locale::EnUs);
+    assert_eq!(with_reason.status, 2);
     assert_eq!(with_reason.status, without.status);
     assert_eq!(with_reason.stdout, without.stdout);
     assert_eq!(
-        envelope(&with_reason.stdout)["failure"]["kind"],
-        "invalid-usage"
+        envelope(&with_reason.stdout),
+        json!({
+            "schema": "orchbee.cli.failure",
+            "version": 1,
+            "failure": { "kind": "invalid-usage" }
+        })
     );
     assert!(with_reason.stdout.iter().all(|byte| byte.is_ascii()));
     assert_eq!(
         with_reason.stderr,
-        "Unknown option \"--bogus\". Run 'orchbee --help'.\n"
+        "Unknown option \"--bogus\". Did you mean \"--focus\"? Run 'orchbee --help'.\n"
     );
     assert_ne!(with_reason.stderr, without.stderr);
 }
