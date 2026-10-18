@@ -871,21 +871,55 @@ mod tests {
         #[cfg(not(windows))]
         assert_eq!(workspace.len(), 1);
 
+        let entries_zh = Locale::ZhCn.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
         let rename_workspace = entries
             .iter()
-            .find(|entry| entry.title == "Rename Workspace")
-            .expect("Workspace rename keeps its semantic action");
+            .find(|entry| entry.key.contains("Ctrl+b r"))
+            .expect("Workspace rename keeps its owning binding");
         let rename_project = entries
             .iter()
-            .find(|entry| entry.title == "Rename Project")
-            .expect("Project rename keeps its semantic action");
+            .find(|entry| entry.key.contains("Ctrl+b Shift+R"))
+            .expect("Project rename keeps its owning binding");
         assert_ne!(rename_workspace.identity, rename_project.identity);
-        assert!(rename_workspace.key.contains("Ctrl+b r"));
-        assert!(rename_project.key.contains("Ctrl+b Shift+R"));
+        let rename_workspace_zh = entries_zh
+            .iter()
+            .find(|entry| entry.key.contains("Ctrl+b r"))
+            .expect("localized Workspace rename keeps its owning binding");
+        let rename_project_zh = entries_zh
+            .iter()
+            .find(|entry| entry.key.contains("Ctrl+b Shift+R"))
+            .expect("localized Project rename keeps its owning binding");
+        assert_eq!(rename_workspace.identity, rename_workspace_zh.identity);
+        assert_eq!(rename_project.identity, rename_project_zh.identity);
+        #[cfg(windows)]
+        {
+            assert_eq!(
+                rename_workspace.title,
+                Locale::EnUs.menu_action(&crate::action_menu::MenuAction::RenameWorkspace)
+            );
+            assert_eq!(
+                rename_project.title,
+                Locale::EnUs.menu_action(&crate::action_menu::MenuAction::RenameProject)
+            );
+            assert_eq!(
+                rename_workspace_zh.title,
+                Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::RenameWorkspace)
+            );
+            assert_eq!(
+                rename_project_zh.title,
+                Locale::ZhCn.menu_action(&crate::action_menu::MenuAction::RenameProject)
+            );
+        }
+        #[cfg(not(windows))]
+        {
+            assert_eq!(rename_workspace.title, "Rename Workspace");
+            assert_eq!(rename_project.title, "Rename Project");
+            assert_eq!(rename_workspace_zh.title, "重命名工作区");
+            assert_eq!(rename_project_zh.title, "重命名项目");
+        }
 
         assert!(!entries.iter().any(|entry| entry.key.contains("Unbound")));
         assert!(entries.iter().all(|entry| entry.title != "Shortcut"));
-        let entries_zh = Locale::ZhCn.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
         let workspace_zh = entries_zh
             .iter()
             .filter(|entry| entry.title == "新建工作区")
