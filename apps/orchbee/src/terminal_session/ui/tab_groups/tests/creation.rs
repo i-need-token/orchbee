@@ -185,7 +185,9 @@ fn creation_routes_install_foreground_marks_and_preserve_duplicate_or_removed_ta
             .unwrap();
         ui.tick();
         let Some(UiReply::CreateProjection(CreateProjectionDecision::Cleanup(cleanup))) =
-            mailbox.take_deposited_reply(&wait).unwrap()
+            mailbox.take_deposited_reply(&wait).unwrap_or_else(|error| {
+                panic!("create route kind={kind}, removed={removed}: {error:?}")
+            })
         else {
             panic!("candidate before cleanup")
         };
