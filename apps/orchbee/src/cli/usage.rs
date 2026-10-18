@@ -30,6 +30,9 @@ pub(crate) fn suggestions(reason: &UsageReason) -> Vec<&'static str> {
     if word.len() > 64 || !word.is_ascii() {
         return Vec::new();
     }
+    if matches!(reason, UsageReason::UnknownOption { .. }) && is_single_letter_short_option(word) {
+        return Vec::new();
+    }
     let candidates = match reason {
         UsageReason::UnknownCommand { context, .. } => children(*context)
             .into_iter()
@@ -53,6 +56,12 @@ pub(crate) fn suggestions(reason: &UsageReason) -> Vec<&'static str> {
         .take(3)
         .map(|(_, candidate)| candidate)
         .collect()
+}
+
+fn is_single_letter_short_option(option: &str) -> bool {
+    option
+        .strip_prefix('-')
+        .is_some_and(|letter| letter.len() == 1 && letter.as_bytes()[0].is_ascii_alphabetic())
 }
 
 fn edit_distance(word: &str, candidate: &str) -> usize {

@@ -262,6 +262,19 @@ fn usage_advice_uses_command_scope_and_preserves_usage_exits() {
             );
         }
     }
+    for option in ["-x", "-x=value"] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let failure = parse_request([OsString::from(option)].into_iter()).unwrap_err();
+            let output = super::parse_failure(failure, locale);
+            assert_eq!(output.status, 2);
+            assert!(output.stdout.is_empty());
+            let expected = match locale {
+                Locale::EnUs => format!("Unknown option \"{option}\". Run 'orchbee --help'.\n"),
+                Locale::ZhCn => format!("未知选项 \"{option}\"。请运行 ‘orchbee --help’。\n"),
+            };
+            assert_eq!(output.stderr, expected, "{locale:?} {option}");
+        }
+    }
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let failure = parse_request([OsString::from("agent")].into_iter()).unwrap_err();
         let output = super::parse_failure(failure, locale);
@@ -306,6 +319,13 @@ fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
     );
     assert!(advice(UsageContext::Path("terminal list"), "--formt").contains(&"--format"));
     assert!(advice(UsageContext::Path("terminal list"), "--formt=json").contains(&"--format"));
+    for option in ["-x", "-x=value"] {
+        assert!(advice(UsageContext::Root, option).is_empty(), "{option}");
+        assert!(
+            advice(UsageContext::Path("agent"), option).is_empty(),
+            "{option}"
+        );
+    }
 
     assert!(advice(UsageContext::Root, &format!("--{}", "x".repeat(65))).is_empty());
     assert!(advice(UsageContext::Root, "--hélp").is_empty());
