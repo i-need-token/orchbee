@@ -628,7 +628,7 @@ fn fixed_outputs_are_far_below_the_bound() {
     #[cfg(windows)]
     bodies.push((
         "default config".to_owned(),
-        super::default_config(Locale::EnUs).stdout,
+        String::from_utf8(super::default_config(Locale::EnUs).stdout).unwrap(),
     ));
     for family in [
         Family::Agent,
