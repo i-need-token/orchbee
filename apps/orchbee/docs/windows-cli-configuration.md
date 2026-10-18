@@ -318,9 +318,10 @@ fixed at five points, Shift+arrows at one, and Esc exits. Extra resize keys whil
 not queued. Profiles opting into these action names require a matching current cohort; remove those
 keys before using an older reader. Other existing profiles retain their defaults. Direct resize bindings require a modifier or a function key; bare editing keys stay with the pane.
 
-The resolved registry supplies dispatch, help rows and principal live hints. Disabled actions stay
-in help. Existing native defaults remain for actions without an explicit override; unsupported Herdr
-fields warn without changing the effective registry. Invalid custom-command configuration disables
+The resolved registry supplies dispatch, help rows and principal live hints. Help omits actions with
+no effective binding; a bound action that requires a session stays listed with a connection hint when
+no session is available. Existing native defaults remain for actions without an explicit override;
+unsupported Herdr fields warn without changing the effective registry. Invalid custom-command configuration disables
 configured commands rather than executing a partial or unvalidated command. Navigation-mode mappings,
 ordinal Agent/indexed Workspace keys and other unsupported actions remain unfinished. Targeted evidence covers bounds, collisions/default precedence,
 ownership, dispatch and discovery; no full regression or visual acceptance is claimed.
