@@ -236,14 +236,14 @@ fn read_reports(
                     .iter()
                     .map(|row| (row.presentation_id.as_str(), row))
                     .collect();
-                let mut seen = BTreeSet::new();
+                let mut seen = BTreeSet::<String>::new();
                 for presentation in presentations {
                     let id = presentation.presentation_id.as_str();
                     let row = expected
                         .get(id)
                         .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?;
                     let binding = presentation.panel.binding.as_ref();
-                    if !seen.insert(id)
+                    if !seen.insert(id.to_owned())
                         || presentation.panel.panel_id.as_str() != row.panel_id.as_str()
                         || binding.is_none_or(|binding| {
                             binding.terminal_id.as_str() != row.terminal_id.as_str()
@@ -367,7 +367,7 @@ mod tests {
     use super::*;
 
     fn observed_frame(
-        processes: Option<(String, results::PanelProcessInfoDoc)>,
+        processes: Option<(serde_json::Value, results::PanelProcessInfoDoc)>,
     ) -> super::super::terminal_observation::Observation {
         let route = orchbee_terminal_protocol::TerminalFrameRoute {
             attachment_id: orchbee_terminal_protocol::AttachmentId::from_bytes([1; 16]).unwrap(),
@@ -431,7 +431,18 @@ mod tests {
             ],
         };
         observed_frame(Some((
-            "job".to_owned(),
+            serde_json::json!({
+                "kind": "terminal-process-query",
+                "siteId": "1".repeat(32),
+                "snapshotRevision": 1,
+                "requestId": "7".repeat(32),
+                "hostRequestId": "8".repeat(32),
+                "hostEpoch": orchbee_terminal_protocol::HostEpoch::from_bytes([2; 16])
+                    .unwrap()
+                    .to_text(),
+                "attachmentId": attachment_id.to_text(),
+                "hostTerminalId": terminal_id.to_text(),
+            }),
             results::PanelProcessInfoDoc {
                 terminal: terminal_row(terminal_id.to_text()),
                 info,
