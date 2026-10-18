@@ -13,6 +13,60 @@ fn menu() -> ActionMenu {
 }
 
 #[test]
+fn searchable_escape_cancels_before_draw_after_edit_and_after_cover() {
+    let mut pending = menu();
+    assert!(pending.active());
+    pending.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(!pending.active(), "an undrawn root menu can always exit");
+
+    let mut edited = menu();
+    present(&mut edited, 0, 2);
+    edited.key(KeyEvent::press(KeyCode::Char('x'), Modifiers::NONE));
+    assert_eq!(
+        edited.input_context().unwrap().readiness(),
+        MenuInputReadiness::Continuation
+    );
+    edited.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(
+        !edited.active(),
+        "query edits do not defer Esc to a later paint"
+    );
+
+    let mut covered = menu();
+    present(&mut covered, 0, 2);
+    covered.not_presented();
+    assert_eq!(
+        covered.input_context().unwrap().readiness(),
+        MenuInputReadiness::Recovery
+    );
+    covered.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(
+        !covered.active(),
+        "an admitted but covered root menu can exit"
+    );
+}
+
+#[test]
+fn searchable_escape_cancels_a_confirmed_transfer_and_ignores_modified_or_release_escape() {
+    let mut menu = menu();
+    present(&mut menu, 0, 2);
+    assert!(!menu.key(KeyEvent {
+        code: KeyCode::Esc,
+        mods: Modifiers::NONE,
+        kind: KeyKind::Release,
+    }));
+    assert!(menu.active());
+    assert!(!menu.key(KeyEvent::press(KeyCode::Esc, Modifiers::CTRL)));
+    assert!(menu.active());
+
+    assert!(menu.key(KeyEvent::press(KeyCode::Enter, Modifiers::NONE)));
+    assert_eq!(menu.confirmed(), Some(MenuAction::Help));
+    menu.key(KeyEvent::press(KeyCode::Esc, Modifiers::NONE));
+    assert!(!menu.active());
+    assert_eq!(menu.confirmed(), None);
+}
+
+#[test]
 fn searchable_menu_edits_are_bounded_and_clear_the_query_without_navigation_leaks() {
     let mut menu = menu();
     present(&mut menu, 0, 2);
@@ -532,8 +586,8 @@ fn replay(steps: &[u8]) -> Result<(), &'static str> {
                 }
             }
             _ => {
-                if let Some(draw) = old {
-                    let _ = menu.presented(draw);
+                if let Some(draw) = old.as_ref() {
+                    let _ = menu.presented(draw.clone());
                 }
             }
         }

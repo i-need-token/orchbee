@@ -91,6 +91,90 @@ fn global_search_uses_localized_aliases_effective_chords_and_nested_labels() {
 }
 
 #[test]
+fn restored_filtered_selection_is_visible_on_the_first_small_frame() {
+    use crate::action_menu::MenuTarget;
+
+    let mut menu = ActionMenu::default();
+    assert!(menu.open_for(
+        MenuTarget::Global,
+        String::new(),
+        vec![
+            MenuAction::Help,
+            MenuAction::Detach,
+            MenuAction::ClosePane,
+            MenuAction::Zoom,
+            MenuAction::RenameTab,
+            MenuAction::Reload,
+            MenuAction::Settings,
+            MenuAction::AgentBoard,
+        ],
+        None,
+    ));
+    menu.set_query(Some("e"));
+    let selected_action = {
+        let view = menu.view().unwrap();
+        let client = ClientView::new(80);
+        let theme = Theme::terminal_native();
+        let glyphs = key_label_glyphs(&theme);
+        let binding_labels = view
+            .actions
+            .iter()
+            .map(|action| effective_binding(client.bindings(), &view, action, glyphs))
+            .collect::<Vec<_>>();
+        let results = search_result_actions(
+            &view,
+            client.bindings(),
+            Locale::EnUs,
+            glyphs,
+            &binding_labels,
+        );
+        assert!(
+            results.len() >= 5,
+            "the selected result is below the first page"
+        );
+        view.actions[*results.last().unwrap()].clone()
+    };
+    menu.select_action(selected_action.clone());
+
+    let client = ClientView::new(80);
+    let theme = Theme::terminal_native();
+    let width = 80;
+    let height = 8;
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    let mut hits = HitMapBuilder::new();
+    let mut presentation = ModalPresentation::NotPresented;
+    terminal
+        .draw(|frame| {
+            presentation = render(
+                frame,
+                frame.area(),
+                menu.view().unwrap(),
+                client.bindings(),
+                Locale::EnUs,
+                &theme,
+                &mut hits,
+            );
+        })
+        .unwrap();
+    let ModalPresentation::Presented(draw) = presentation else {
+        panic!("the compact global menu fits");
+    };
+    assert!(draw.selected >= 4);
+    assert!(draw.first > 0);
+    assert!((draw.first..draw.first.saturating_add(draw.visible_rows)).contains(&draw.selected));
+    let map = hits.finish();
+    let buffer = terminal.backend().buffer();
+    let _row = action_row_rect_for(&map, buffer.area, draw.token, draw.selected);
+    assert!(menu.presented(draw));
+    assert_eq!(
+        menu.input_context().unwrap().readiness(),
+        crate::action_menu::MenuInputReadiness::ActivationReady
+    );
+    assert!(menu.confirm());
+    assert_eq!(menu.confirmed(), Some(selected_action));
+}
+
+#[test]
 fn no_results_keeps_a_drawn_query_surface_without_an_activatable_row() {
     use crate::action_menu::MenuTarget;
 

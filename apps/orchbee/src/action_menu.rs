@@ -480,11 +480,17 @@ impl MenuView<'_> {
                 .count()
     }
 
-    pub(crate) fn first_visible_result_row(&self, rows: usize, results: &[usize]) -> usize {
+    pub(crate) fn first_visible_result_row(
+        &self,
+        rows: usize,
+        results: &[usize],
+        selected: usize,
+    ) -> usize {
         let rows = rows.max(1);
         if results.is_empty() {
             return 0;
         }
+        let selected = selected.min(results.len() - 1);
         let mut maximum = results.len().saturating_sub(1);
         while maximum > 0 && self.result_row_height(results, maximum - 1, results.len()) <= rows {
             maximum -= 1;
@@ -493,12 +499,10 @@ impl MenuView<'_> {
         if !self.follow_selection {
             return first;
         }
-        if self.selected < first {
-            first = self.selected;
+        if selected < first {
+            first = selected;
         }
-        while first < self.selected
-            && self.result_row_height(results, first, self.selected + 1) > rows
-        {
+        while first < selected && self.result_row_height(results, first, selected + 1) > rows {
             first += 1;
         }
         first.min(maximum)
@@ -640,6 +644,10 @@ impl ActionMenu {
         if event.kind == KeyKind::Release {
             return false;
         }
+        if event.code == KeyCode::Esc && event.mods == Modifiers::NONE {
+            self.cancel();
+            return false;
+        }
         if Binding::new(KeyCode::Enter, Modifiers::NONE).matches(event) {
             return self.confirm();
         }
@@ -725,7 +733,6 @@ impl ActionMenu {
             {
                 return self.confirm();
             }
-            KeyCode::Esc => self.cancel(),
             KeyCode::Up | KeyCode::Char('k') => self.select(MenuSelection::Previous),
             KeyCode::Down | KeyCode::Char('j') => self.select(MenuSelection::Next),
             KeyCode::Home => self.select(MenuSelection::First),

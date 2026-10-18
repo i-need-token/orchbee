@@ -87,7 +87,8 @@ fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_me
         .profiles
         .push(profile.clone());
     assert!(ui.open_action_menu(MenuTarget::Global, None, false));
-    let menu = ui.view().action_menu().unwrap();
+    let view = ui.view();
+    let menu = view.action_menu().unwrap();
     assert!(menu.search_children.iter().any(|child| {
         child.parent == MenuAction::TabCreation
             && child.actions.iter().any(|action| {
@@ -102,11 +103,15 @@ fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_me
             crate::client_view::Modifiers::NONE,
         ));
     }
-    let menu = ui.view().action_menu().unwrap();
-    assert_eq!(menu.query, Some("power"));
+    let token = {
+        let view = ui.view();
+        let menu = view.action_menu().unwrap();
+        assert_eq!(menu.query, Some("power"));
+        menu.token
+    };
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(MenuDraw {
         selected: 0,
-        token: menu.token,
+        token,
         first: 0,
         visible_rows: 1,
         result_actions: vec![0],
@@ -117,7 +122,8 @@ fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_me
     ));
     assert!(ui.take_action_menu_action(false).is_none());
 
-    let child = ui.view().action_menu().unwrap();
+    let view = ui.view();
+    let child = view.action_menu().unwrap();
     assert!(matches!(child.source, MenuTarget::TabCreate(_)));
     assert_eq!(child.query, Some("power"));
     assert!(child.actions.iter().any(|action| {
@@ -128,7 +134,8 @@ fn global_search_routes_nested_profile_hits_through_the_existing_tab_creation_me
         crate::client_view::KeyCode::Esc,
         crate::client_view::Modifiers::NONE,
     ));
-    let parent = ui.view().action_menu().unwrap();
+    let view = ui.view();
+    let parent = view.action_menu().unwrap();
     assert_eq!(parent.query, Some("power"));
     assert_eq!(parent.actions[parent.selected], MenuAction::TabCreation);
 }

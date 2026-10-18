@@ -15,8 +15,9 @@ fn draw(ui: &mut NativeUi) -> MenuToken {
         visible_rows: menu.actions.len(),
         result_actions: menu.result_actions.to_vec(),
     };
+    let token = draw.token;
     ui.after_action_menu_draw(Some(ModalPresentation::Presented(draw)));
-    draw.token
+    token
 }
 
 fn ready_discovery(ui: &NativeUi) -> SidebarDiscovery {

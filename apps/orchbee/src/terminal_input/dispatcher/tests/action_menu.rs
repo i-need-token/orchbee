@@ -1303,6 +1303,35 @@ fn ux_menu_disabled_decision_packets_stay_captured_until_cancel_and_fresh_draw()
 }
 
 #[test]
+fn searchable_menu_escape_after_query_edit_cancels_and_restores_terminal_forwarding() {
+    let mut port = Port::new(MenuAction::Help);
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(80);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1bOQ");
+    assert!(port.menu.active());
+    port.arm();
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"x");
+    assert_eq!(port.menu.query(), Some("x"));
+    assert_eq!(
+        port.menu.input_context().unwrap().readiness(),
+        crate::action_menu::MenuInputReadiness::Continuation
+    );
+    assert!(forwarded_bytes(&port.calls).is_empty());
+
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[27u");
+    assert!(!port.menu.active(), "Esc cancels before the next menu draw");
+    assert!(
+        forwarded_bytes(&port.calls).is_empty(),
+        "Esc stays menu-owned"
+    );
+
+    dispatcher.publish_hit_map(HitMapBuilder::new().finish());
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"normal");
+    assert_eq!(forwarded_bytes(&port.calls), b"normal");
+}
+
+#[test]
 fn right_menu_does_not_focus_and_policy_chrome_modifiers_and_release_keep_ownership() {
     for (content, policy, mods, opens) in [
         (

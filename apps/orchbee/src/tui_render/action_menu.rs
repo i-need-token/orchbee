@@ -1,7 +1,7 @@
 //! Retained action-menu projection; only a complete successful frame arms input.
 
 use crate::{
-    action_menu::{MenuAction, MenuControl, MenuDraw, MenuSearchChild, MenuView, TabMenuScope},
+    action_menu::{MenuAction, MenuControl, MenuDraw, MenuView, TabMenuScope},
     action_projection::menu_binding_action,
     client_view::{
         Binding, Bindings, KeyCode, KeyLabelGlyphs, LabelStyle, Modifiers,
@@ -208,7 +208,7 @@ pub(super) fn render(
     if rows == 0 {
         return ModalPresentation::NotPresented;
     }
-    let first = menu.first_visible_result_row(rows, &result_actions);
+    let first = menu.first_visible_result_row(rows, &result_actions, selected);
     let visible_rows = visible_action_rows(&menu, &result_actions, first, rows);
     if visible_rows == 0 && !result_actions.is_empty() {
         return ModalPresentation::NotPresented;
@@ -595,7 +595,8 @@ fn action_matches_query(
 
 fn fuzzy_contains(query: &str, candidate: &str) -> bool {
     let query = query.to_lowercase();
-    let mut candidate = candidate.to_lowercase().chars();
+    let candidate = candidate.to_lowercase();
+    let mut candidate = candidate.chars();
     query
         .chars()
         .all(|character| candidate.by_ref().any(|candidate| candidate == character))
@@ -673,7 +674,8 @@ fn visible_query_tail(query: &str, budget: usize, ellipsis: &str) -> (String, us
         start = index;
     }
     let visible = format!("{ellipsis}{}", &query[start..]);
-    (visible, display_width(&visible))
+    let width = display_width(&visible);
+    (visible, width)
 }
 
 fn effective_binding(
