@@ -14,7 +14,9 @@ const error_success: windows.LSTATUS = 0;
 const error_file_not_found: windows.LSTATUS = 2;
 const error_path_not_found: windows.LSTATUS = 3;
 const error_no_more_items: windows.LSTATUS = 259;
-const key_query_value: windows.REGSAM = 0x0001;
+const key_query_value: windows.REGSAM = .{
+    .SPECIFIC = .{ .KEY = .{ .QUERY_VALUE = true } },
+};
 const reg_sz: windows.DWORD = 1;
 const reg_expand_sz: windows.DWORD = 2;
 
