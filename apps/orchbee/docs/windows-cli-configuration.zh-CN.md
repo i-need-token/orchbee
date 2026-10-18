@@ -29,15 +29,15 @@ manifest_check = true
 
 ### 默认配置输出
 
-`orchbee --default-config` 是独占式离线调用。参数解析会在读取任何环境变量或发现运行时前选中它，且不会激活 Session。它向 stdout 写入确定性的 UTF-8 TOML，并以一个换行结尾。固定英文注释列出已接纳设置的默认值、选项和用途；使用英文可让此可复制配置产物在不同 CLI 语言环境下保持一致。已注册的 Client 动作会以注释按键数组列出，没有默认绑定的动作显示为 `[]`；只有取消注释的行才会成为覆盖，因此不改动生成文件会继续沿用 Client 持续演进的默认值。动作行由 Client 使用的同一默认绑定注册表生成。参考还说明命名主题和自定义命令规则。`config check` 可无警告地接纳生成结果；解析后得到的有效设置和按键绑定与默认配置文件缺失时相同。
+`orchbee --default-config` 是独占式离线调用。参数解析会在读取任何环境变量或发现运行时前选中它，且不会激活 Session。它向 stdout 写入确定性的 UTF-8 TOML，并以一个换行结尾。固定英文注释列出已接纳设置的默认值、选项和用途；使用英文可让此可复制配置产物在不同 CLI 语言环境下保持一致。已注册的 Client 动作会以注释按键数组列出，没有默认绑定的动作显示为 `[]`；只有取消注释的行才会成为覆盖，因此不改动生成文件会继续沿用 Client 持续演进的默认值。动作行由 Client 使用的同一默认绑定注册表生成。参考还说明命名主题和自定义命令规则。旧叶字段 `theme.name`、`ui.toast.agent_delivery` 和 `ui.sound.enabled` 保持注释；共享偏好记录不存在时，只有取消注释某一项才会将其显式迁移到共享用户偏好。当前共享偏好由 Settings 管理。`config check` 可无警告地接纳生成结果；Windows CLI 解析后的有效设置和按键绑定与配置文件缺失时相同。原生 `UserPreferencesStore` 读取生成文件时，共享偏好值也保持在文件缺失时的默认状态。
 
 ## 命名 chrome 主题
 
 共享的[应用外观偏好](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)
 支持浅色（`light`）、深色（`dark`）和系统（`system`）；当前默认仍为浅色。在原生 TUI 中，
 系统模式会跟随宿主专用解析器检测到的外观。Windows TOML `[theme] name` 是单独的旧命名主题
-迁移输入，接受 `terminal-native`、`one-light` 或 `one-dark`；离线默认 TOML 保留
-`name = "terminal-native"`。无效名称或类型给出警告并让该字段回退；旧 TOML 设置仍不支持
+迁移输入，接受 `terminal-native`、`one-light` 或 `one-dark`；离线默认 TOML 将注册表默认值保留为
+注释示例 `# name = "terminal-native"`，只有在共享偏好记录不存在且显式取消注释后才会迁移。无效名称或类型给出警告并让该字段回退；旧 TOML 设置仍不支持
 `theme.custom`。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、
 共享重载及回退。Herdr 导入保留现有转换排除项；在候选文件中显式选择主题。
 

@@ -242,22 +242,25 @@ manifest_check = true
 prefix = "ctrl+b"
 # <default-action-bindings>
 
+# Legacy leaves theme.name, ui.toast.agent_delivery, and ui.sound.enabled stay commented below.
+# With no shared preference record, uncommenting one imports its value into shared preferences.
+# Settings manages current shared preferences.
 [theme]
-name = "terminal-native"
+# name = "terminal-native"
 
 [ui]
 window_title = "{hostname}: {workspace}"
 
 [ui.toast]
 delivery = "off"
-agent_delivery = "orchbee"
+# agent_delivery = "orchbee"
 delay_seconds = 1
 
 [ui.toast.herdr]
 position = "bottom-right"
 
 [ui.sound]
-enabled = false
+# enabled = false
 "#;
 
 /// Return the deterministic offline Windows configuration template without Client action rows.

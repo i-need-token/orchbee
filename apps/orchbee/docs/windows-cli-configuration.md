@@ -29,7 +29,7 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 ### Default configuration output
 
-`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. A fixed-English comment reference lists admitted setting defaults, choices and purposes; English keeps this copyable config artifact identical across CLI locales. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The reference also describes named themes and custom-command rules. `config check` accepts the generated output without warnings, and parsing it produces the same effective settings and bindings as an absent default file.
+`orchbee --default-config` is a sole offline invocation. Argument parsing selects it before any environment read or runtime discovery, and it does not activate a Session. It writes deterministic UTF-8 TOML with one trailing newline to stdout. A fixed-English comment reference lists admitted setting defaults, choices and purposes; English keeps this copyable config artifact identical across CLI locales. Registered Client actions appear as commented binding arrays, including `[]` for actions without a default binding, so uncommenting a row opts into an override while leaving the generated file unchanged preserves the Client registry's evolving defaults. The action rows are rendered from the same default binding registry used by the Client. The reference also describes named themes and custom-command rules. The legacy leaves `theme.name`, `ui.toast.agent_delivery`, and `ui.sound.enabled` remain commented; when no shared preference record exists, uncommenting one explicitly migrates its value into shared user preferences. Settings manages current shared preferences. `config check` accepts the generated output without warnings, and Windows CLI parsing produces the same effective settings and bindings as an absent file. Reading the generated file through the native `UserPreferencesStore` also preserves shared preference values at their absent-file defaults.
 
 ## Named chrome themes
 
@@ -38,7 +38,8 @@ supports Light (`light`), Dark (`dark`) and System (`system`); Light remains the
 current default. In the native TUI, System follows the appearance detected by the
 host-specific resolver. Windows TOML `[theme] name` remains a separate legacy
 named-theme migration input: it accepts `terminal-native`, `one-light` or `one-dark`,
-and the offline default TOML keeps `name = "terminal-native"`. Invalid names or
+and the offline default TOML keeps the registry default as the commented example
+`# name = "terminal-native"`, which migrates only when explicitly uncommented with no shared preference record. Invalid names or
 types warn and default this field; `theme.custom` remains unsupported by this legacy
 setting. See [native themes](native-themes.md) for polarity, color capabilities,
 all chrome consumers, shared reload and rollback. Herdr import keeps its existing

@@ -338,6 +338,36 @@ fn native_explicit_leaves_win_migration_without_rewriting_the_toml() {
 
 #[cfg(windows)]
 #[test]
+fn generated_windows_configuration_preserves_missing_file_shared_preferences() {
+    let fixture = Fixture::new();
+    let configuration = fixture.root.join("generated.toml");
+    let store =
+        UserPreferencesStore::new(UserPreferencesScope::for_configuration(&configuration).unwrap());
+
+    let without_file = store.read().unwrap();
+    assert_eq!(without_file.source, "missing");
+    assert_eq!(without_file.values, UserPreferencesValues::default());
+    assert_eq!(
+        without_file.values.application_theme,
+        orchbee_workbench_protocol::ApplicationAppearance::Light
+    );
+    assert_eq!(
+        without_file.values.terminal_display_theme,
+        orchbee_workbench_protocol::TerminalDisplayAppearance::Host
+    );
+    assert_eq!(
+        without_file.values.agent_notification_mode,
+        orchbee_workbench_protocol::AgentReminderMode::Never
+    );
+
+    fs::write(&configuration, crate::default_windows_user_settings_toml()).unwrap();
+    let with_generated_file = store.read().unwrap();
+    assert_eq!(with_generated_file.values, UserPreferencesValues::default());
+    assert_eq!(with_generated_file.values, without_file.values);
+}
+
+#[cfg(windows)]
+#[test]
 fn a_legacy_edit_before_first_save_invalidates_the_observed_source() {
     let fixture = Fixture::new();
     fs::write(

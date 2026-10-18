@@ -725,6 +725,16 @@ fn printed_default_configuration_roundtrips_without_freezing_action_defaults() {
     let text = default_windows_user_settings_toml();
     assert!(text.ends_with('\n'));
     assert!(!text.ends_with("\n\n"));
+    for line in [
+        "# Legacy leaves theme.name, ui.toast.agent_delivery, and ui.sound.enabled stay commented below.",
+        "# With no shared preference record, uncommenting one imports its value into shared preferences.",
+        "# Settings manages current shared preferences.",
+        "# name = \"terminal-native\"",
+        "# agent_delivery = \"orchbee\"",
+        "# enabled = false",
+    ] {
+        assert!(text.lines().any(|generated| generated == line));
+    }
     let admitted = parse(&text, Path::new(r"C:\config.toml"), &|_| None).unwrap();
     let defaults = WindowsUserSettings::default();
     assert!(admitted.diagnostics.is_empty());
