@@ -503,18 +503,15 @@ fn settled_button_only_initialization_queries_once_before_the_first_draw() -> io
             ClientView::new(initial.columns),
         );
         assert_eq!(result.unwrap(), LoopExit::Signal);
-        assert_eq!(
-            modes
-                .iter()
-                .filter(|request| matches!(request, ModeRequest::PointerAdmissionQuery(_)))
-                .count(),
-            expected_queries
-        );
-        assert!(
-            modes
-                .iter()
-                .all(|request| matches!(request, ModeRequest::PointerAdmissionQuery(_)))
-        );
+        let mut expected_modes = vec![ModeRequest::AppearanceQuery(
+            crate::terminal_host_appearance::Query,
+        )];
+        if expected_queries == 1 {
+            expected_modes.push(ModeRequest::PointerAdmissionQuery(
+                crate::terminal_pointer_admission::Query,
+            ));
+        }
+        assert_eq!(modes, expected_modes);
     }
     Ok(())
 }

@@ -127,8 +127,13 @@ fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_termina
             } else {
                 0
             };
-            if appearance == Appearance::Host {
-                assert!(output.contains("\x1b[38;2;18;52;86m\x1b[48;2;154;188;222mGet-Date"));
+            // The first frame paints the captured Host colors. The later cursor-only redraw
+            // intentionally emits only the old and new cursor cells, not the retained row.
+            if appearance == Appearance::Host && column == 8 {
+                assert!(
+                    output.contains("\x1b[38;2;18;52;86m\x1b[48;2;154;188;222mGet-Date"),
+                    "{output:?}"
+                );
             }
             assert!(
                 output.contains(&format!("\x1b[48;2;{channel};{channel};{channel}m{glyph}")),
