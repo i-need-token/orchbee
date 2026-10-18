@@ -37,8 +37,8 @@ pub(super) fn render_live(
     if let Some(occupied) =
         occupied_header.filter(|occupied| !header.intersection(*occupied).is_empty())
     {
-        // Minimal shell chrome shares this row. Only the indicator yields its
-        // occupied columns; the live content and cursor keep their original area.
+        // A caller can share the chrome row with this indicator. Yield only
+        // those occupied columns; live content and cursor keep their geometry.
         header.width = occupied.x.saturating_sub(header.x).min(header.width);
     }
     if header.is_empty() {

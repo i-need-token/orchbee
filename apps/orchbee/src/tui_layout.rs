@@ -121,8 +121,8 @@ pub(crate) struct ShellAreas {
     pub(crate) workbench: Rect,
 }
 
-/// Authored guidance yields the actual global chrome rectangle without changing
-/// terminal geometry. Minimal layouts paint that action over the first body row.
+/// Authored guidance yields rows occupied by a global chrome action without
+/// changing terminal geometry.
 #[cfg(windows)]
 pub(crate) fn guidance_area(content: Rect, global_action: Option<Rect>) -> Rect {
     let Some(action) = global_action.filter(|action| !content.intersection(*action).is_empty())

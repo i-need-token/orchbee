@@ -500,13 +500,13 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
     use crate::{
         client_view::{ClientAction, SidebarSurface},
         terminal_text::display_width,
-        tui_layout::project_shell_areas,
+        tui_layout::{ViewportTier, project_shell_areas},
         tui_pointer::{HitMapBuilder, HitTarget},
         tui_theme::{Role, Theme},
     };
     use ratatui::{layout::Rect, style::Modifier};
 
-    for (width, height) in [(50, 10), (80, 24), (120, 40)] {
+    for (width, height) in [(20, 5), (40, 14), (50, 10), (59, 11), (80, 24), (120, 40)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             let mut view = ClientView::new(width);
             view.machines.available = true;
@@ -572,12 +572,16 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
                 assert_eq!(x, rect.right(), "action styles cover the exact target");
             };
 
-            let menu = target_rect(&HitTarget::MenuButton).expect("global Menu action");
-            assert_action(menu, locale.menu_title());
-            if projected.tabs.is_empty() {
-                assert_eq!(menu.right() + 1, projected.workbench.right());
+            let menu = target_rect(&HitTarget::MenuButton);
+            if projected.tier == ViewportTier::Minimal {
+                assert!(
+                    menu.is_none(),
+                    "{width}x{height} {locale:?}: no content overlay"
+                );
                 assert!(target_rect(&HitTarget::SidebarRestoreButton).is_none());
             } else {
+                let menu = menu.expect("global Menu action");
+                assert_action(menu, locale.menu_title());
                 assert_eq!(menu.right(), projected.tabs.right());
                 let restore = target_rect(&HitTarget::SidebarRestoreButton)
                     .expect("hidden available sidebar restore action");

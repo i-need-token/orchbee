@@ -168,18 +168,15 @@ fn scrollbar_composed_render_preserves_terminal_cells_geometry_and_localized_chr
                 );
                 for y in content.y..content.bottom() {
                     #[cfg(windows)]
-                    let menu =
-                        map.hit_target_at(content.right() - 1, y) == Some(&HitTarget::MenuButton);
-                    #[cfg(not(windows))]
-                    let menu = false;
-                    if menu {
-                        assert_eq!(areas.tier, crate::tui_layout::ViewportTier::Minimal);
-                        assert_eq!(y, content.y);
-                    }
+                    assert_ne!(
+                        map.hit_target_at(content.right() - 1, y),
+                        Some(&HitTarget::MenuButton),
+                        "global Actions never covers a terminal cell"
+                    );
                     assert_eq!(
                         buffer[(content.right() - 1, y)].symbol(),
-                        if menu { "]" } else { "x" },
-                        "only the Minimal Actions overlay may cover terminal cells"
+                        "x",
+                        "terminal cells remain visible beside the scrollbar"
                     );
                 }
                 assert_eq!(

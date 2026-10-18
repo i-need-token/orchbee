@@ -56,11 +56,9 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
                     .filter(|character| !character.is_whitespace())
                     .collect()
             };
-            let expected_header = match (width, locale) {
-                (40, Locale::EnUs) => "Crop:scrollup[Actions]",
-                (40, Locale::ZhCn) => "裁切：向上滚动[动作菜单]",
-                (_, Locale::EnUs) => "LivecropCtrl+bPageUpHistory",
-                (_, Locale::ZhCn) => "实时裁切Ctrl+bPageUp历史",
+            let expected_header = match locale {
+                Locale::EnUs => "LivecropCtrl+bPageUpHistory",
+                Locale::ZhCn => "实时裁切Ctrl+bPageUp历史",
             };
             assert_eq!(row_text(pane.y), expected_header, "{width} {locale:?}");
             let action_row = if areas.tabs.is_empty() {
@@ -72,7 +70,14 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
                 Locale::EnUs => "[Actions]",
                 Locale::ZhCn => "[动作菜单]",
             };
-            assert!(row_text(action_row).ends_with(action), "{width} {locale:?}");
+            if areas.tier == crate::tui_layout::ViewportTier::Minimal {
+                assert!(
+                    !row_text(action_row).ends_with(action),
+                    "{width} {locale:?}"
+                );
+            } else {
+                assert!(row_text(action_row).ends_with(action), "{width} {locale:?}");
+            }
             assert_eq!(
                 terminal.backend().buffer()[(pane.x, pane.bottom() - 2)].symbol(),
                 ">"
@@ -93,6 +98,105 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
                 "a clipped current grid is readable even without older scrollback"
             );
             assert_eq!(recv_viewports(&mailbox), [ViewportStep::Enter]);
+            mailbox.close(CarrierFailure::WorkerExited);
+        }
+    }
+}
+
+#[test]
+fn minimal_global_actions_leave_the_projected_first_row_and_live_cursor_to_the_terminal() {
+    use crate::terminal_device::WindowDimensions;
+    use crate::tui_layout::ViewportTier;
+
+    for (width, height) in [(40, 14), (59, 11), (20, 5)] {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let (mut ui, mailbox, _, _) = ready_ui();
+            let view = ClientView::new(width);
+            let host = Rect::new(0, 0, width, height);
+            let areas = project_shell_areas(host, view.sidebar_surface());
+            assert_eq!(areas.tier, ViewportTier::Minimal, "{width}x{height}");
+            assert!(areas.tabs.is_empty(), "{width}x{height}");
+
+            let pane = crate::tui_shell::active_pane_area(
+                &areas,
+                Some(TerminalSessionView::Native(ui.view())),
+            )
+            .expect("Minimal remains a presentable terminal viewport");
+            let geometry = crate::tui_shell::terminal_geometry(
+                WindowDimensions {
+                    columns: width,
+                    pixel_height: height * 16,
+                    pixel_width: width * 8,
+                    rows: height,
+                },
+                &view,
+                Some(TerminalSessionView::Native(ui.view())),
+            )
+            .unwrap()
+            .expect("Minimal publishes terminal geometry");
+            assert_eq!(
+                geometry,
+                Geometry::new(pane.width, pane.height, 8, 16).unwrap()
+            );
+            assert_eq!(
+                pane.y, host.y,
+                "{width}x{height}: terminal starts at row zero"
+            );
+            assert!(!pane.intersects(areas.tabs), "{width}x{height}");
+            ui.observe_geometry(geometry);
+            drain(&mailbox);
+
+            let key = install_projection(&mut ui, None, 0);
+            let projection = projection_at(&mut ui, &key);
+            let mut source = frame(&projection.value, 0, false, pane.height);
+            source.geometry.columns = pane.width;
+            source.geometry.rows = pane.height;
+            source.cursor.visible = true;
+            source.cursor.column = 0;
+            source.cursor.row = 0;
+            source.rows[0].cells[0].text = ">".into();
+            projection.value.install_frame_for_test(source);
+
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            let mut hits = HitMapBuilder::new();
+            terminal
+                .draw(|frame| {
+                    crate::tui_render::render_terminal_shell(
+                        frame,
+                        &view,
+                        locale,
+                        Some(TerminalSessionView::Native(ui.view())),
+                        &Theme::terminal_native(),
+                        &mut hits,
+                    );
+                })
+                .unwrap();
+            let map = hits.finish();
+
+            assert_eq!(terminal.backend().buffer()[(pane.x, pane.y)].symbol(), ">");
+            let cursor = terminal.get_cursor_position().unwrap();
+            assert!(
+                pane.contains(cursor),
+                "{width}x{height} {locale:?}: cursor is in terminal area"
+            );
+            assert_eq!(
+                cursor,
+                ratatui::layout::Position::new(pane.x, pane.y),
+                "{width}x{height} {locale:?}: live cursor uses projected terminal origin"
+            );
+            assert!(matches!(
+                map.hit_target_at(pane.x, pane.y),
+                Some(HitTarget::Pane { content, .. }) if content == &pane
+            ));
+            assert!(
+                (0..height).all(|y| (0..width)
+                    .all(|x| { map.hit_target_at(x, y) != Some(&HitTarget::MenuButton) })),
+                "{width}x{height} {locale:?}: Actions is not drawn over terminal content"
+            );
+            assert!(
+                mailbox.try_recv().unwrap().is_none(),
+                "paint does not resize the PTY"
+            );
             mailbox.close(CarrierFailure::WorkerExited);
         }
     }

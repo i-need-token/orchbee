@@ -1147,8 +1147,11 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                 (WindowsThemeName::TerminalNative, Theme::terminal_native()),
             ] {
                 view.configure_theme(name);
-                let menu_button = if areas.tier == crate::tui_layout::ViewportTier::TooSmall
-                    || !areas.tabs.is_empty()
+                let menu_button = if matches!(
+                    areas.tier,
+                    crate::tui_layout::ViewportTier::Minimal
+                        | crate::tui_layout::ViewportTier::TooSmall
+                ) || !areas.tabs.is_empty()
                 {
                     None
                 } else {
@@ -1211,8 +1214,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     "{context} {name:?}: geometry"
                 );
                 // This sessionless fixture has canvas beneath the unavailable notice and panel
-                // frame. Chrome owns the projected bars, sidebar, and the global menu control;
-                // Minimal moves that control from the omitted tab bar into the workbench.
+                // frame. Chrome owns the projected bars, sidebar, and the global menu control.
                 for y in 0..height {
                     let mut x = 0;
                     while x < width {

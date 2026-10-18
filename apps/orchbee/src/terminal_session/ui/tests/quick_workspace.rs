@@ -465,7 +465,11 @@ fn no_workspace_screen_keeps_content_blank_and_creation_controls_available_acros
                             .flat_map(|y| (0..width).map(move |x| (x, y)))
                             .any(|(x, y)| hits.hit_target_at(x, y) == Some(&target))
                     };
-                    assert_eq!(has_target(HitTarget::MenuButton), presentable);
+                    assert_eq!(
+                        has_target(HitTarget::MenuButton),
+                        presentable && areas.tier != crate::tui_layout::ViewportTier::Minimal,
+                        "{width}x{height}: Minimal keeps the global pointer action off terminal content"
+                    );
                     if available {
                         for target in [
                             HitTarget::NewWorkspaceButton,

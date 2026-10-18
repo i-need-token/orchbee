@@ -2,8 +2,10 @@
 
 ## Interaction
 
-Windows `Ctrl+B F2`, `[keys].menu` and the upper-right Actions button open the global action menu. In Minimal layout the button overlays the upper-right content cells, leaving the scrollbar column free and preserving terminal dimensions. Unmodified right-click opens a menu for a drawn pane, tab or Workspace
-row. Opening or cancelling does not change focus. Pane content retains its configured
+Windows `Ctrl+B F2`, `[keys].menu` and the upper-right Actions button open the global action menu.
+The pointer button appears in Full and Compact; Minimal hides it so the first terminal row stays
+uncovered, while both keyboard routes remain available. Unmodified right-click opens a menu for a drawn
+pane, tab or Workspace row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.
 The sidebar footer opens Settings directly; no permanent Menu or Machines footer remains.

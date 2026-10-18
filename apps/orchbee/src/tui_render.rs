@@ -281,7 +281,10 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     #[cfg(windows)]
     let menu_label = locale.menu_title();
     #[cfg(windows)]
-    let menu_button = if areas.tier == ViewportTier::TooSmall {
+    // The Minimal projection gives every available row to the terminal. Keep
+    // its pointer route out of the terminal's first row; Ctrl+B F2 remains the
+    // keyboard route to the same menu.
+    let menu_button = if matches!(areas.tier, ViewportTier::Minimal | ViewportTier::TooSmall) {
         None
     } else {
         let action = controls::ActionSpec::new(

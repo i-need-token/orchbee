@@ -2,7 +2,8 @@
 
 ## 交互
 
-Windows 的 `Ctrl+B F2`、`[keys].menu` 和右上角动作菜单按钮打开全局动作菜单。Minimal 布局中，按钮覆盖右上角内容单元格，留出滚动条列并保持终端尺寸。
+Windows 的 `Ctrl+B F2`、`[keys].menu` 和右上角动作菜单按钮打开全局动作菜单。鼠标按钮在
+Full 和 Compact 可见；Minimal 会隐藏该按钮，让终端首行不被覆盖，同时保留两条键盘路径。
 无修饰右键为已绘制的 pane、tab 或 Workspace 行打开菜单。打开或取消不改变焦点。
 pane 内容保留配置的 `right_click = "panel"` 策略；pane 标题仍属于 Client。
 Shift 手势保留外层终端旁路。Machines 保留 `Ctrl+B Shift+M`。

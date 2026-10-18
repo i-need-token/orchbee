@@ -119,6 +119,23 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
 }
 
 #[test]
+fn minimal_viewports_keep_the_terminal_at_the_first_row_without_a_top_strip() {
+    for (width, height) in [(40, 14), (59, 11), (20, 5)] {
+        let viewport = Rect::new(7, 3, width, height);
+        let areas = project_shell_areas(viewport, SidebarSurface::Hidden);
+
+        assert_eq!(areas.tier, ViewportTier::Minimal, "{width}x{height}");
+        assert!(areas.tabs.is_empty(), "{width}x{height}");
+        assert_eq!(areas.panel, viewport, "{width}x{height}");
+
+        let terminal = native_terminal_area(areas.panel, false, false);
+        assert_eq!(terminal.y, viewport.y, "{width}x{height}");
+        assert_eq!(terminal.bottom(), viewport.bottom(), "{width}x{height}");
+        assert!(!terminal.intersects(areas.tabs), "{width}x{height}");
+    }
+}
+
+#[test]
 fn terminal_area_reports_degenerate_panels_as_empty_never_fabricated() {
     // A framed degenerate panel yields an empty rect; callers must treat that
     // as "cannot present" (Ok(None)) — never floor it to a fake 1x1 resize.

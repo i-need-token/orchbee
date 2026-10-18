@@ -80,13 +80,13 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                        | Compact                           | Minimal                   | TooSmall     |
-| ------------ | --------------------------- | --------------------------------- | ------------------------- | ------------ |
-| Top strip    | 1 row (tabs)                | 1 row (tabs)                      | none                      | none         |
-| Status       | overlay, no reserved rows   | overlay, no reserved rows         | overlay, no reserved rows | exit overlay |
-| Side panel   | docked, bounded preference  | overlay, bounded preference, left | hidden                    | hidden       |
-| Panel chrome | split frame and leaf titles | split frame and leaf titles       | not drawn                 | not drawn    |
-| Content      | remainder                   | remainder                         | remainder                 | notice only  |
+| Chrome       | Full                        | Compact                           | Minimal                        | TooSmall     |
+| ------------ | --------------------------- | --------------------------------- | ------------------------------ | ------------ |
+| Top strip    | 1 row (tabs)                | 1 row (tabs)                      | none; Actions button hidden    | none         |
+| Status       | overlay, no reserved rows   | overlay, no reserved rows         | overlay, no reserved rows      | exit overlay |
+| Side panel   | docked, bounded preference  | overlay, bounded preference, left | hidden                         | hidden       |
+| Panel chrome | split frame and leaf titles | split frame and leaf titles       | not drawn                      | not drawn    |
+| Content      | remainder                   | remainder                         | remainder                      | notice only  |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -110,10 +110,11 @@ omits Site, terminal-status, Business, Projects and Workspaces placeholders, inc
 Workspaces heading. New workspace, Search and Settings keep their complete existing targets and
 footer geometry. A creation preview retains its Workspace heading and pending row.
 The no-Workspace main content stays blank, without a Terminal title, onboarding statement or repeated
-creation hint. Fixed actions, the global Actions entry and effective keyboard routes remain available.
-An empty canonical Workspace keeps its localized directory and Tab creation guidance.
-Minimal guidance yields the actual global Actions rectangle through the layout owner, so that
-chrome cannot overpaint its complete fact. This changes authored guidance space, not PTY geometry.
+creation hint. Fixed actions and effective keyboard routes remain available. The global Actions
+button is visible in Full and Compact; Minimal hides its pointer button and keeps the Ctrl+B F2 route.
+An empty canonical Workspace keeps its localized directory and Tab creation guidance. With no
+Minimal Actions button, the first workbench row remains available to authored guidance or terminal
+content. This does not reserve PTY geometry.
 
 Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
 blank cells after the button. A hint that cannot fit in full is omitted; its cells are outside
@@ -211,9 +212,9 @@ within its current Project/ungrouped list. The existing row-menu binding retains
 and shares the same stable target proof as secondary click. These local bindings appear in sidebar
 help from the binding registry; the gesture does not add a separate shortcut system.
 
-The Windows top strip contains Tabs, their creation control, any active Presentation selector and
-the global Actions entry. Workspace names and Agent metadata remain with their sidebar owners;
-the strip adds no context breadcrumb or report/status subheader. Non-Windows Clients retain their
+At Full and Compact tiers, the Windows top strip contains Tabs, their creation control, any active
+Presentation selector, and the global Actions entry. Workspace names and Agent metadata remain with
+their sidebar owners; the strip adds no context breadcrumb or report/status subheader. Non-Windows Clients retain their
 context breadcrumb because their sidebar does not project canonical navigation rows; a location
 equal to the active Tab label is still omitted there. Active
 Tabs use padding, `surface-current` and bold identity; the current marker appears only when reduced
@@ -245,9 +246,10 @@ for the sidebar, tab strip and split-pane title bands. Overlays paint their
 own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
 
-The global Actions button occupies the right end of the top strip. In Minimal it overlays the
-first workbench row immediately before the reserved history gutter. Copy and resize modes replace
-the top strip with their controls, or overlay that first workbench row when no strip exists.
+The global Actions button occupies the right end of the Full and Compact top strip. Minimal hides
+the pointer button and keeps its Ctrl+B F2 route, leaving the first workbench row to the terminal.
+Copy and resize modes replace the top strip with their controls, or overlay that first workbench row
+when no strip exists.
 These controls reserve no additional terminal geometry; painted control cells take pointer
 precedence over the content beneath them. Their behavior belongs to the owning action, copy
 and resize references.
