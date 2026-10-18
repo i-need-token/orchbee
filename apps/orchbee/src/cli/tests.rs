@@ -168,7 +168,10 @@ fn launch_profile_documents_preserve_platform_paths_and_legacy_constraints() {
     }
 }
 
-use super::results::{ContextRef, Projection, TabDoc, TabRow, TerminalRow};
+use super::results::{
+    ContextRef, Projection, TabDoc, TabRow, TerminalListDetails, TerminalListDocument,
+    TerminalListState, TerminalRow,
+};
 use super::{OutputFormat, output};
 use crate::invocation::{ParseFailure, ParseFailureKind, QueryCommand, Target};
 use crate::localization::Locale;
@@ -308,45 +311,200 @@ fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
 }
 
 #[test]
-fn wide_terminal_lists_keep_full_ids_in_readable_record_blocks() {
+fn terminal_lists_use_localized_headers_and_copyable_snapshot_handles() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        let projection = Projection::TerminalList(vec![TerminalRow {
-            terminal_id: ID.into(),
-            worker_id: "1".repeat(32),
-            presentation_id: "2".repeat(32),
-            panel_id: "3".repeat(32),
-            tab_id: "4".repeat(32),
-            terminal_context_id: "5".repeat(32),
-        }]);
+        let rows = (1..=2)
+            .map(|number| TerminalRow {
+                terminal_id: format!("{number:032x}"),
+                worker_id: "1".repeat(32),
+                presentation_id: "2".repeat(32),
+                panel_id: "3".repeat(32),
+                tab_id: "4".repeat(32),
+                terminal_context_id: "5".repeat(32),
+            })
+            .collect();
         let output = super::success_output(
-            projection,
+            Projection::TerminalList(rows),
             json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
             &QueryCommand::TerminalList,
             OutputFormat::Text,
             locale,
         );
         let text = String::from_utf8(output.stdout).unwrap();
-        assert_eq!(text.lines().count(), 6);
+        assert_eq!(text.lines().count(), 3);
         assert!(
             text.lines()
                 .all(|line| super::escape::display_width(line) <= 80)
         );
-        for value in [
-            ID.to_owned(),
-            "1".repeat(32),
-            "2".repeat(32),
-            "3".repeat(32),
-            "4".repeat(32),
-            "5".repeat(32),
-        ] {
-            assert!(text.contains(&value), "{text}");
+        assert!(text.contains("@terminal:1"), "{text}");
+        assert!(text.contains("@terminal:2"), "{text}");
+        assert!(!text.contains(ID), "full identities belong to JSON: {text}");
+        assert!(text.starts_with(locale.cli_labels().terminal_list_headers[0]));
+    }
+}
+
+#[test]
+fn terminal_handles_expand_to_unique_suffixes_without_truncation() {
+    let suffix = "a".repeat(30);
+    let rows = [format!("1b{suffix}"), format!("2c{suffix}")].map(|terminal_id| TerminalRow {
+        terminal_id,
+        worker_id: "1".repeat(32),
+        presentation_id: "2".repeat(32),
+        panel_id: "3".repeat(32),
+        tab_id: "4".repeat(32),
+        terminal_context_id: "5".repeat(32),
+    });
+    let output = super::success_output(
+        Projection::TerminalList(rows.into()),
+        json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+        &QueryCommand::TerminalList,
+        OutputFormat::Text,
+        Locale::EnUs,
+    );
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains(&format!("@terminal:b{suffix}")), "{text}");
+    assert!(text.contains(&format!("@terminal:c{suffix}")), "{text}");
+    assert!(
+        text.lines()
+            .all(|line| super::escape::display_width(line) <= 80)
+    );
+}
+
+#[test]
+fn empty_terminal_lists_keep_the_localized_header() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let output = super::success_output(
+            Projection::TerminalList(vec![]),
+            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+            &QueryCommand::TerminalList,
+            OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(text.lines().count(), 1);
+        for header in locale.cli_labels().terminal_list_headers {
+            assert!(text.contains(header), "missing {header:?} in {text:?}");
         }
     }
 }
 
+#[test]
+fn terminal_list_agent_states_are_localized() {
+    let state = TerminalListState::Agent(orchbee_workbench_protocol::PanelAgentState::Idle);
+    let row = TerminalRow {
+        terminal_id: ID.into(),
+        worker_id: "1".repeat(32),
+        presentation_id: "2".repeat(32),
+        panel_id: "3".repeat(32),
+        tab_id: "4".repeat(32),
+        terminal_context_id: "5".repeat(32),
+    };
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let output = super::success_output(
+            Projection::TerminalListHuman(TerminalListDocument {
+                rows: vec![row.clone()],
+                details: vec![TerminalListDetails {
+                    state: Some(state),
+                    ..TerminalListDetails::default()
+                }],
+            }),
+            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+            &QueryCommand::TerminalList,
+            OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(text.contains(locale.cli_terminal_list_state(state)));
+    }
+}
+
+#[test]
+fn terminal_list_truncates_long_paths_and_escapes_terminal_controls() {
+    let row = TerminalRow {
+        terminal_id: ID.into(),
+        worker_id: "1".repeat(32),
+        presentation_id: "2".repeat(32),
+        panel_id: "3".repeat(32),
+        tab_id: "4".repeat(32),
+        terminal_context_id: "5".repeat(32),
+    };
+    let output = super::success_output(
+        Projection::TerminalListHuman(TerminalListDocument {
+            rows: vec![row],
+            details: vec![TerminalListDetails {
+                title: Some("pwsh\n\u{001b}[31m".into()),
+                agent: Some("grok".into()),
+                state: Some(TerminalListState::Agent(
+                    orchbee_workbench_protocol::PanelAgentState::Idle,
+                )),
+                cwd: Some(format!("C:\\work\\{}\\\u{001b}", "nested\\".repeat(32))),
+            }],
+        }),
+        json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+        &QueryCommand::TerminalList,
+        OutputFormat::Text,
+        Locale::EnUs,
+    );
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(
+        text.lines().count(),
+        2,
+        "controls must not add lines: {text:?}"
+    );
+    assert!(
+        text.lines()
+            .all(|line| super::escape::display_width(line) <= 80)
+    );
+    assert!(text.contains("@terminal:f"));
+    assert!(text.contains("pwsh"));
+    assert!(text.contains("grok"));
+    assert!(text.contains("C:\\work\\"));
+    assert!(text.contains('…'));
+    assert!(text.contains("\\n"));
+    assert!(text.contains("\\u{001b}"));
+    assert!(!text.contains('\u{001b}'));
+}
+
+#[test]
+fn terminal_list_human_enrichment_does_not_change_json_bytes() {
+    let rows = vec![TerminalRow {
+        terminal_id: ID.into(),
+        worker_id: "1".repeat(32),
+        presentation_id: "2".repeat(32),
+        panel_id: "3".repeat(32),
+        tab_id: "4".repeat(32),
+        terminal_context_id: "5".repeat(32),
+    }];
+    let source = json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"});
+    let command = QueryCommand::TerminalList;
+    let plain = super::success_output(
+        Projection::TerminalList(rows.clone()),
+        source.clone(),
+        &command,
+        OutputFormat::Json,
+        Locale::EnUs,
+    );
+    let enriched = super::success_output(
+        Projection::TerminalListHuman(TerminalListDocument {
+            rows,
+            details: vec![TerminalListDetails {
+                title: Some("pwsh".into()),
+                agent: Some("grok".into()),
+                state: Some(TerminalListState::Ready),
+                cwd: Some("C:\\work".into()),
+            }],
+        }),
+        source,
+        &command,
+        OutputFormat::Json,
+        Locale::EnUs,
+    );
+    assert_eq!(plain.stdout, enriched.stdout);
+}
+
 fn oversized_terminals() -> Projection {
-    // ~42k rows × ~200 rendered bytes exceeds the 8 MiB preparation bound in
-    // every format without any Site or wire involvement.
+    // ~42k rows × six full identity fields exceeds the 8 MiB JSON preparation
+    // bound without any Site or wire involvement.
     let row = || TerminalRow {
         terminal_id: ID.to_owned(),
         worker_id: "6f7263686265652d6c6f63616c2d7631".to_owned(),
@@ -435,23 +593,6 @@ fn terminal_get_preserves_launch_arguments_and_omits_unknown_selection_in_all_lo
             }
         }
     }
-}
-
-#[test]
-fn oversized_text_result_stays_silent_and_reports_too_large() {
-    let output = super::success_output(
-        oversized_terminals(),
-        json!({"kind": "workbench-snapshot", "siteId": ID, "revision": "7"}),
-        &QueryCommand::TerminalList,
-        OutputFormat::Text,
-        Locale::EnUs,
-    );
-    assert_eq!(output.status, 1);
-    assert!(
-        output.stdout.is_empty(),
-        "preparation overflow writes no result prefix"
-    );
-    assert!(!output.stderr.is_empty(), "localized diagnostic on stderr");
 }
 
 #[test]

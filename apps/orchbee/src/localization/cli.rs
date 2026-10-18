@@ -3748,6 +3748,7 @@ pub(crate) struct CliLabels {
     pub(crate) panel_headers: [&'static str; 9],
     pub(crate) presentation_headers: [&'static str; 4],
     pub(crate) terminal_headers: [&'static str; 6],
+    pub(crate) terminal_list_headers: [&'static str; 6],
     // Agent read field labels and column headers.
     pub(crate) agent_session: &'static str,
     pub(crate) agent_provider: &'static str,
@@ -3873,6 +3874,7 @@ const EN_US_LABELS: CliLabels = CliLabels {
     ],
     presentation_headers: ["ID", "LABEL", "TERMINAL", "WORKER"],
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "CONTEXT"],
+    terminal_list_headers: ["#", "HANDLE", "TITLE", "AGENT", "STATE", "CWD"],
     agent_session: "Session",
     agent_provider: "Provider",
     agent_lifecycle: "Lifecycle",
@@ -3992,6 +3994,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     ],
     presentation_headers: ["ID", "LABEL", "终端", "WORKER"],
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "上下文"],
+    terminal_list_headers: ["序号", "句柄", "标题", "Agent", "状态", "目录"],
     agent_session: "会话",
     agent_provider: "提供方",
     agent_lifecycle: "生命周期",
@@ -4035,6 +4038,32 @@ impl Locale {
         match self {
             Self::EnUs => &EN_US_LABELS,
             Self::ZhCn => &ZH_CN_LABELS,
+        }
+    }
+
+    pub(crate) const fn cli_terminal_list_state(
+        self,
+        state: crate::cli::results::TerminalListState,
+    ) -> &'static str {
+        use crate::cli::results::TerminalListState;
+        use orchbee_workbench_protocol::PanelAgentState;
+        match (self, state) {
+            (_, TerminalListState::Ready) => match self {
+                Self::EnUs => "ready",
+                Self::ZhCn => "就绪",
+            },
+            (Self::EnUs, TerminalListState::Agent(PanelAgentState::Idle)) => "idle",
+            (Self::EnUs, TerminalListState::Agent(PanelAgentState::Working)) => "working",
+            (Self::EnUs, TerminalListState::Agent(PanelAgentState::Blocked)) => "blocked",
+            (Self::EnUs, TerminalListState::Agent(PanelAgentState::Done)) => "done",
+            (Self::EnUs, TerminalListState::Agent(PanelAgentState::Error)) => "error",
+            (Self::EnUs, TerminalListState::Agent(PanelAgentState::Unknown)) => "unknown",
+            (Self::ZhCn, TerminalListState::Agent(PanelAgentState::Idle)) => "空闲",
+            (Self::ZhCn, TerminalListState::Agent(PanelAgentState::Working)) => "工作中",
+            (Self::ZhCn, TerminalListState::Agent(PanelAgentState::Blocked)) => "受阻",
+            (Self::ZhCn, TerminalListState::Agent(PanelAgentState::Done)) => "已完成",
+            (Self::ZhCn, TerminalListState::Agent(PanelAgentState::Error)) => "错误",
+            (Self::ZhCn, TerminalListState::Agent(PanelAgentState::Unknown)) => "未知",
         }
     }
 }

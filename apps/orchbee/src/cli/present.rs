@@ -18,6 +18,7 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceCloseMemberStatus, WorkbenchWorkspaceCloseReadOutcome, WorktreeEntry,
     WorktreeEntryText,
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 use super::config::CheckReport;
 use super::escape::{display_width, escape, quoted, table_label, unquoted};
@@ -124,8 +125,214 @@ fn terminal_table(
     out: &mut Bounded,
     text: &CliLabels,
     rows: &[TerminalRow],
+    locale: Locale,
 ) -> Result<(), TooLarge> {
-    table(out, &text.terminal_headers, rows, terminal_cells)
+    terminal_table_rows(out, &text.terminal_list_headers, rows, None, locale)
+}
+
+fn terminal_table_human(
+    out: &mut Bounded,
+    text: &CliLabels,
+    doc: &super::results::TerminalListDocument,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    terminal_table_rows(
+        out,
+        &text.terminal_list_headers,
+        &doc.rows,
+        Some(&doc.details),
+        locale,
+    )
+}
+
+fn terminal_table_rows(
+    out: &mut Bounded,
+    headers: &[&str],
+    rows: &[TerminalRow],
+    details: Option<&[super::results::TerminalListDetails]>,
+    locale: Locale,
+) -> Result<(), TooLarge> {
+    const MAXIMUM_WIDTH: usize = 80;
+    const COLUMN_LIMITS: [usize; 6] = [5, 41, 24, 14, 12, MAXIMUM_WIDTH];
+
+    let mut widths: Vec<usize> = headers
+        .iter()
+        .zip(COLUMN_LIMITS)
+        .map(|(header, limit)| display_width(header).min(limit))
+        .collect();
+    let handles = terminal_handles(rows);
+    for index in 0..rows.len() {
+        for (column, cell) in terminal_list_cells(
+            index + 1,
+            &handles[index],
+            details.and_then(|details| details.get(index)),
+            locale,
+        )
+        .iter()
+        .enumerate()
+        {
+            widths[column] = widths[column].max(display_width(cell).min(COLUMN_LIMITS[column]));
+        }
+    }
+
+    let mut minimums: Vec<_> = headers.iter().map(|header| display_width(header)).collect();
+    // A handle is a selector; never cut it to fit the display. Other cells
+    // absorb any required width reduction before the selector does.
+    minimums[1] = widths[1];
+    let mut total = widths.iter().sum::<usize>() + headers.len().saturating_sub(1) * 2;
+    for column in [5, 2, 3, 4, 0] {
+        if total <= MAXIMUM_WIDTH {
+            break;
+        }
+        let reduction = widths[column]
+            .saturating_sub(minimums[column])
+            .min(total - MAXIMUM_WIDTH);
+        widths[column] -= reduction;
+        total -= reduction;
+    }
+
+    let render_row = |cells: &[String], out: &mut Bounded| -> Result<(), TooLarge> {
+        for (index, (cell, width)) in cells.iter().zip(&widths).enumerate() {
+            if index > 0 {
+                out.push("  ")?;
+            }
+            let cell = truncate_terminal_cell(cell, *width);
+            out.push(&cell)?;
+            if index + 1 < cells.len() {
+                out.push(&" ".repeat(width.saturating_sub(display_width(&cell))))?;
+            }
+        }
+        out.push("\n")
+    };
+
+    render_row(
+        &headers
+            .iter()
+            .map(|header| (*header).to_owned())
+            .collect::<Vec<_>>(),
+        out,
+    )?;
+    for index in 0..rows.len() {
+        render_row(
+            &terminal_list_cells(
+                index + 1,
+                &handles[index],
+                details.and_then(|details| details.get(index)),
+                locale,
+            ),
+            out,
+        )?;
+    }
+    Ok(())
+}
+
+fn terminal_list_cells(
+    number: usize,
+    handle: &str,
+    details: Option<&super::results::TerminalListDetails>,
+    locale: Locale,
+) -> Vec<String> {
+    let empty = super::results::TerminalListDetails::default();
+    let details = details.unwrap_or(&empty);
+    let state = details
+        .state
+        .map(|state| locale.cli_terminal_list_state(state))
+        .unwrap_or("-");
+    vec![
+        number.to_string(),
+        handle.to_owned(),
+        details
+            .title
+            .as_deref()
+            .map(unquoted)
+            .unwrap_or_else(|| "-".to_owned()),
+        details
+            .agent
+            .as_deref()
+            .map(unquoted)
+            .unwrap_or_else(|| "-".to_owned()),
+        state.to_owned(),
+        details
+            .cwd
+            .as_deref()
+            .map(unquoted)
+            .unwrap_or_else(|| "-".to_owned()),
+    ]
+}
+
+/// Choose the shortest selector suffix that resolves exactly within this
+/// snapshot. If two IDs share the maximum selector suffix, show the typed ID.
+fn terminal_handles(rows: &[TerminalRow]) -> Vec<String> {
+    let mut order: Vec<_> = (0..rows.len()).collect();
+    order.sort_by(|left, right| {
+        rows[*left]
+            .terminal_id
+            .as_bytes()
+            .iter()
+            .rev()
+            .cmp(rows[*right].terminal_id.as_bytes().iter().rev())
+    });
+
+    let mut shared_suffix = vec![0; rows.len()];
+    for position in 0..order.len() {
+        let index = order[position];
+        if position > 0 {
+            let previous = &rows[order[position - 1]].terminal_id;
+            shared_suffix[index] =
+                shared_suffix[index].max(common_suffix(previous, &rows[index].terminal_id));
+        }
+        if position + 1 < order.len() {
+            let next = &rows[order[position + 1]].terminal_id;
+            shared_suffix[index] =
+                shared_suffix[index].max(common_suffix(next, &rows[index].terminal_id));
+        }
+    }
+    rows.iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let suffix_len = shared_suffix[index] + 1;
+            if suffix_len <= 31 {
+                format!(
+                    "@terminal:{}",
+                    &row.terminal_id[row.terminal_id.len() - suffix_len..]
+                )
+            } else {
+                row.terminal_id.clone()
+            }
+        })
+        .collect()
+}
+
+fn common_suffix(left: &str, right: &str) -> usize {
+    left.as_bytes()
+        .iter()
+        .rev()
+        .zip(right.as_bytes().iter().rev())
+        .take_while(|(left, right)| left == right)
+        .count()
+}
+
+fn truncate_terminal_cell(value: &str, width: usize) -> String {
+    if display_width(value) <= width {
+        return value.to_owned();
+    }
+    if width == 0 {
+        return String::new();
+    }
+
+    let mut rendered = String::new();
+    let mut used = 0;
+    for grapheme in value.graphemes(true) {
+        let fragment = unquoted(grapheme);
+        let fragment_width = display_width(&fragment);
+        if used + fragment_width > width.saturating_sub(1) {
+            rendered.push('…');
+            return rendered;
+        }
+        rendered.push_str(&fragment);
+        used += fragment_width;
+    }
+    rendered
 }
 
 /// Non-UTF-8 values render as `hex:`-prefixed lowercase hex; UTF-8 paths and
@@ -482,7 +689,8 @@ pub(crate) fn render(
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
         Projection::PanelProcessInfo(doc) => panel_process(out, doc, text, locale),
-        Projection::TerminalList(rows) => terminal_table(out, text, rows),
+        Projection::TerminalList(rows) => terminal_table(out, text, rows, locale),
+        Projection::TerminalListHuman(doc) => terminal_table_human(out, text, doc, locale),
         // `terminal read` emits the observed content itself: one output line
         // per emitted grid row — or, under `--unwrap`, per joined logical
         // line — preserving printable text and escaping controls, followed by

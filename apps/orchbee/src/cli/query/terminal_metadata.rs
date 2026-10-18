@@ -65,17 +65,37 @@ pub(in crate::cli) fn read(
             processes,
         })
     })();
-    if let Ok(request_id) = obcs_request_id() {
-        let _ = client.submit_terminal_viewer_cancellable(
-            TerminalViewerRequest::new(
-                request_id,
-                TerminalViewerAction::Detach {
-                    attachment_id: viewer,
-                },
-            ),
-            Some(deadline),
-            wake,
-        );
-    }
+    detach_after(result, || {
+        if let Ok(request_id) = obcs_request_id() {
+            let _ = client.submit_terminal_viewer_cancellable(
+                TerminalViewerRequest::new(
+                    request_id,
+                    TerminalViewerAction::Detach {
+                        attachment_id: viewer,
+                    },
+                ),
+                Some(deadline),
+                wake,
+            );
+        }
+    })
+}
+
+fn detach_after<T>(result: Result<T, Failure>, detach: impl FnOnce()) -> Result<T, Failure> {
+    detach();
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detach_is_attempted_after_both_successful_and_failed_observations() {
+        for result in [Ok(()), Err(Failure::new(FailureKind::Denied))] {
+            let detached = std::cell::Cell::new(false);
+            let _ = detach_after(result, || detached.set(true));
+            assert!(detached.get());
+        }
+    }
 }

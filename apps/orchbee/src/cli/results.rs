@@ -304,6 +304,29 @@ pub(crate) struct TerminalRow {
     pub(crate) terminal_context_id: String,
 }
 
+/// Human-only enrichment for one terminal-list row. It is deliberately kept
+/// outside `TerminalRow`, whose identity fields define the stable JSON shape.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TerminalListDetails {
+    pub(crate) title: Option<String>,
+    pub(crate) agent: Option<String>,
+    pub(crate) state: Option<TerminalListState>,
+    pub(crate) cwd: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TerminalListState {
+    Ready,
+    Agent(orchbee_workbench_protocol::PanelAgentState),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalListDocument {
+    pub(crate) rows: Vec<TerminalRow>,
+    /// Aligned with `rows`; missing entries are rendered as unknown values.
+    pub(crate) details: Vec<TerminalListDetails>,
+}
+
 #[derive(Debug)]
 pub(crate) struct PanelProcessInfoDoc {
     pub(crate) terminal: TerminalRow,
@@ -1103,6 +1126,9 @@ pub(crate) enum Projection {
     PanelGet(PanelDoc),
     PanelProcessInfo(PanelProcessInfoDoc),
     TerminalList(Vec<TerminalRow>),
+    /// Same identity document as `TerminalList`; the extra facts belong only
+    /// to human text and never alter the machine result.
+    TerminalListHuman(TerminalListDocument),
     TerminalGet(TerminalGetDoc),
     TerminalOutput(super::terminal_output::TerminalOutputDoc),
     TerminalRead(TerminalReadDoc),
@@ -1517,6 +1543,9 @@ impl Projection {
             }),
             Self::TerminalList(rows) => json!({
                 "terminals": rows.iter().map(terminal_row_json).collect::<Vec<_>>(),
+            }),
+            Self::TerminalListHuman(doc) => json!({
+                "terminals": doc.rows.iter().map(terminal_row_json).collect::<Vec<_>>(),
             }),
             Self::TerminalGet(doc) => {
                 // `terminal` keeps the shared routing row and gains `launch`

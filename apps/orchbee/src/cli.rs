@@ -54,6 +54,8 @@ mod terminal_clear;
 #[cfg(windows)]
 mod terminal_editor;
 #[cfg(windows)]
+mod terminal_list;
+#[cfg(windows)]
 pub(crate) use terminal_clear::run as clear_terminal;
 #[cfg(windows)]
 pub(crate) use terminal_editor::run as edit_terminal_scrollback;
@@ -682,6 +684,10 @@ pub(crate) fn agent_integration(
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    #[cfg(windows)]
+    if matches!(command, QueryCommand::TerminalList) {
+        return terminal_list::run(format, locale);
+    }
     #[cfg(windows)]
     if matches!(
         command,

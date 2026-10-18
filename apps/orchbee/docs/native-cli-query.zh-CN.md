@@ -1519,10 +1519,23 @@ primaryPresentation,childPresentations}}`，`slotPath` 为自 root 至该叶子�
   链（root 本身即 panel 时为 `[]`），每个 presentation 为 `{presentationId,label,
 binding:{terminalId,workerId}|null}`。
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
-tabId,terminalContextId}}]}`；`terminal get` 在 `terminal` 下返回同一身份事实，其中嵌套一个
+tabId,terminalContextId}}]}`；JSON 行只包含身份，不含 lifecycle、process 或 Agent 成员。
+Windows 文本输出为对齐的 `#`、`HANDLE`、`TITLE`、`AGENT`、`STATE`、`CWD` 表格。
+其他平台保留相同身份表格，无法观察的运行时列显示为 `-`。
+`HANDLE` 是针对此快照的最短唯一 `@terminal:<suffix>` 选择器；若 ID 的 31 位十六进制后缀
+仍冲突，则显示完整 ID。`#` 是行位置，不是选择器。仅文本的补充数据在快照、精确
+Presentation 报告批次和最多 64 次精确绑定的 Host viewer 读取之间共用一个五秒期限与取消
+监视；其余行的补充字段保留为 `-`。`TITLE` 是已清理的 Host 帧标题。`CWD` 使用经校验的
+终端帧目录，并在其缺失时回退至观察到的根进程目录；不会用 Workbench Workspace 路径代替。
+`AGENT` 优先使用精确 Presentation 报告，其次使用有界前台进程识别；`STATE` 使用已知的
+Presentation 报告状态，若没有已知 Agent 状态但已观察到 Host 帧，则显示 `ready`。缺失的可选
+观察显示为 `-`；拒绝、传输、超时、取消和协议错误仍会使查询失败。每个已附加 viewer 在观察
+成功或失败后都会尝试 best-effort detach。文本保留可打印的路径字符并转义终端控制字符。
+`--format json` 继续使用原有的纯快照路径，结果形状和 schema 版本不变。`terminal get` 在
+`terminal` 下返回同一身份事实，其中嵌套一个
   `launch` 成员——文档形状为 `{terminal:{terminalId,workerId,boundTo,launch}}`，绝不出现兄弟
-  `result.launch`。只有被 presentation 绑定的终端可见；绑定存在不证明进程存活。其余任何位置
-  都没有 lifecycle/process/agent 字段。与 `terminal list` 不同，`terminal get` 不从 Client
+  `result.launch`。只有被 presentation 绑定的终端可见；绑定存在不证明进程存活。与
+  `terminal list` 不同，`terminal get` 不从 Client
   持有的快照作答：它在已准入 session 上发送一次 `terminal.launch.read` 请求，由 Server 在
   coordinator 锁内解析当前绑定、路由与 retained launch fact——快照只提供类型化目标 id。
   其 envelope 为 `version:4`，`source:{kind:"terminal-launch-read",siteId,revision}` 的
