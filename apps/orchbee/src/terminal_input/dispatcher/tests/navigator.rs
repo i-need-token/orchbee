@@ -466,13 +466,15 @@ fn remapped_direct_and_disabled_toggles_stay_beneath_local_capture() {
             assert!(!v.navigator_active());
         }
         assert!(forwarded_bytes(&p.calls).is_empty());
-        let expected_actions = if disabled {
-            vec![ClientAction::OpenWorkbenchNavigator]
-        } else {
+        let expected_actions = if prefix {
             vec![
                 ClientAction::OpenWorkbenchNavigator,
                 ClientAction::CloseWorkbenchNavigator,
             ]
+        } else {
+            // Direct toggles close the locally owned overlay without another
+            // external action; only prefixed toggles route the close action.
+            vec![ClientAction::OpenWorkbenchNavigator]
         };
         let actions = p
             .calls

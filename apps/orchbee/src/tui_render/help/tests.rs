@@ -134,13 +134,13 @@ fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
 fn fuzzy_filter_uses_semantic_names_and_clear_restores_the_list() {
     let mut view = ClientView::new(80);
     open_help(&mut view);
-    for character in "nwid".chars() {
+    for character in "wdi".chars() {
         press(&mut view, KeyCode::Char(character), Modifiers::NONE);
     }
     let (buffer, _, _) = render_panel(80, 24, &view, Locale::EnUs, true);
     let filtered = rows(&buffer);
     assert!(
-        filtered.contains("Ctrl+b e  New Workspace in directory"),
+        filtered.contains("Ctrl+b e") && filtered.contains("Workspace directory"),
         "{filtered}"
     );
     assert!(

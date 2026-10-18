@@ -919,7 +919,7 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
         |session| matches!(session.view(), TerminalSessionView::Native(view) if matches!(view.refresh_status(), Some(NativeRefreshStatus::Success(_))))
     ));
     #[cfg(windows)]
-    let now = {
+    {
         // Reconcile the completed refresh, then publish the actual navigator draw.
         input(&mut dispatcher, &mut session, &mut view, b"", now);
         let rendered = draw_frame(
@@ -931,50 +931,58 @@ fn actual_navigator_to_rename_entry_dismisses_overlay_and_qualifies_only_the_edi
             Some(&mut dispatcher),
         )?;
         assert!(rendered.contains(Locale::EnUs.shell().navigator_title));
-        input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
-        assert_eq!(
-            view.overlay(),
-            Some(crate::client_view::Overlay::WorkbenchNavigator)
-        );
-        assert!(session.rename_input_context().is_none());
-        assert!(server.commands.lock().unwrap().is_empty());
-        assert!(server.inputs.lock().unwrap().is_empty());
-
-        input(&mut dispatcher, &mut session, &mut view, b"\x1b", now);
-        let now = now + Duration::from_millis(100);
-        dispatcher.synchronize(
-            &mut view,
-            &mut session,
-            now,
-            &mut |_| Ok::<_, io::Error>(()),
-        )?;
-        assert_eq!(view.overlay(), None);
-        // Even a fresh packet stays captured until the terminal is really drawn.
-        input(&mut dispatcher, &mut session, &mut view, b"\x02,\r", now);
-        assert!(session.rename_input_context().is_none());
-        assert!(server.commands.lock().unwrap().is_empty());
-        assert!(server.inputs.lock().unwrap().is_empty());
-        draw_frame(
-            &mut session,
-            &view,
-            Locale::EnUs,
-            120,
-            32,
-            Some(&mut dispatcher),
-        )?;
-        now
-    };
-    input(&mut dispatcher, &mut session, &mut view, b"\x02,\r", now);
+    }
+    // A global prefix action is routed through the Navigator owner and replaces
+    // it with the native rename editor instead of leaving the shortcut swallowed.
+    input(&mut dispatcher, &mut session, &mut view, b"\x02,", now);
     assert_eq!(view.overlay(), None);
     assert!(server.commands.lock().unwrap().is_empty());
-    let rendered = draw(&mut session, &view, Locale::EnUs, 120, 32)?;
-    assert!(rendered.contains(Locale::EnUs.rename_title()));
-    input(&mut dispatcher, &mut session, &mut view, b"\r", now);
+    assert!(server.inputs.lock().unwrap().is_empty());
+    let token = session
+        .rename_input_context()
+        .expect("Navigator action creates the rename editor capture")
+        .token();
+    let rendered = draw_frame(
+        &mut session,
+        &view,
+        Locale::EnUs,
+        120,
+        32,
+        Some(&mut dispatcher),
+    )?;
+    assert!(
+        rendered
+            .replace(' ', "")
+            .contains(&Locale::EnUs.rename_title().replace(' ', "")),
+        "{rendered}"
+    );
+    assert!(
+        rendered
+            .replace(' ', "")
+            .contains(&Locale::EnUs.rename_warning().replace(' ', "")),
+        "{rendered}"
+    );
+    assert_eq!(session.rename_input_context().unwrap().token(), token);
+    input(
+        &mut dispatcher,
+        &mut session,
+        &mut view,
+        "\x15雪😀e\u{301}".as_bytes(),
+        now,
+    );
+    input(&mut dispatcher, &mut session, &mut view, b"\r\n\x02q", now);
     spin(&mut session, |_| {
         !server.commands.lock().unwrap().is_empty()
     });
-    assert_eq!(server.commands.lock().unwrap().len(), 1);
+    let commands = server.commands.lock().unwrap();
+    assert_eq!(commands.len(), 1);
+    let WorkbenchAction::TabRename { label, .. } = &commands[0].action else {
+        unreachable!()
+    };
+    assert_eq!(label.as_str(), "雪😀e\u{301}");
+    drop(commands);
     assert!(server.inputs.lock().unwrap().is_empty());
+    assert!(session.rename_input_context().is_none());
     server.finish(session)?;
     Ok(())
 }

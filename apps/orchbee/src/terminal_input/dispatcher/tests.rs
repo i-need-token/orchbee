@@ -1949,6 +1949,16 @@ fn board_prefix_routes_switch_to_navigator_help_and_sidebar() {
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(100);
     view.machines.available = true;
+    let hide_initial_sidebar = view.decide_action(ClientAction::ToggleBusinessSidebar);
+    view.commit(
+        hide_initial_sidebar,
+        crate::client_view::SessionActionDisposition::KeepNavigator,
+    );
+    assert_eq!(
+        view.sidebar_surface(),
+        crate::client_view::SidebarSurface::Hidden,
+        "the board binding opens the initially hidden wide sidebar"
+    );
     dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02b");
     assert!(!owned.get());
     assert!(matches!(

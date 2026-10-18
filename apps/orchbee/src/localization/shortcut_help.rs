@@ -438,6 +438,10 @@ impl Locale {
                 Self::EnUs => "Rename Tab",
                 Self::ZhCn => "重命名标签页",
             }),
+            PrefixAction::Client(A::CreateTab) => Some(match self {
+                Self::EnUs => "New Tab",
+                Self::ZhCn => "新建标签页",
+            }),
             PrefixAction::Client(A::RequestCloseTab) => Some(match self {
                 Self::EnUs => "Close Tab",
                 Self::ZhCn => "关闭标签页",
@@ -494,6 +498,10 @@ impl Locale {
                 Self::EnUs => "Take control of this panel",
                 Self::ZhCn => "接管此面板",
             }),
+            #[cfg(windows)]
+            PrefixAction::Client(A::FocusBusinessSidebar) => {
+                Some((self.shell().prefix_desc)(PrefixDesc::SidebarFocus))
+            }
             #[cfg(windows)]
             PrefixAction::Client(A::OpenMachines) => Some(match self {
                 Self::EnUs => "Search machines, Workspaces and Agents",
@@ -833,6 +841,30 @@ mod tests {
         assert_eq!(workspace.len(), 1);
         assert!(!entries.iter().any(|entry| entry.key.contains("Unbound")));
         assert!(entries.iter().all(|entry| entry.title != "Shortcut"));
+        let create_tab = entries
+            .iter()
+            .find(|entry| entry.key.contains("Ctrl+b c"))
+            .expect("Tab creation keeps its semantic name");
+        assert_eq!(create_tab.title, "New Tab");
+        let entries_zh = Locale::ZhCn.shortcut_help_entries(&view, true, KeyLabelGlyphs::Unicode);
+        let create_tab_zh = entries_zh
+            .iter()
+            .find(|entry| entry.key.contains("Ctrl+b c"))
+            .expect("localized Tab creation keeps its semantic name");
+        assert_eq!(create_tab_zh.title, "新建标签页");
+        #[cfg(windows)]
+        {
+            let focus_sidebar = entries
+                .iter()
+                .find(|entry| entry.key.contains("Shift+B"))
+                .expect("sidebar focus keeps its owning binding");
+            assert_eq!(focus_sidebar.title, "Focus sidebar navigation");
+            let focus_sidebar_zh = entries_zh
+                .iter()
+                .find(|entry| entry.key.contains("Shift+B"))
+                .expect("localized sidebar focus keeps its owning binding");
+            assert_eq!(focus_sidebar_zh.title, "聚焦侧栏导航");
+        }
         assert!(
             entries
                 .iter()
@@ -986,6 +1018,7 @@ mod tests {
         assert!(!resize_entries.iter().any(|entry| entry.key == "Esc"));
 
         let mut sidebar = ClientView::new(100);
+        sidebar.machines.available = true;
         assert!(sidebar.machines.enter_sidebar_navigation());
         open_help(&mut sidebar);
         assert!(sidebar.machines.sidebar_navigation_active());

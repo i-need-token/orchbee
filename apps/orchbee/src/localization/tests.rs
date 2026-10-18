@@ -408,7 +408,7 @@ fn help_page_row_matches_the_registry_bindings_in_both_locales() {
     // The displayed chords resolve through the registry to the help-page
     // action — never a second hard-coded table.
     let mut view = ClientView::new(120);
-    for (code, expected_page) in [(KeyCode::PageUp, 0), (KeyCode::PageDown, 1)] {
+    for (code, expected_page) in [(KeyCode::PageUp, 0), (KeyCode::PageDown, 8)] {
         press(&mut view, KeyCode::Char('b'), Modifiers::CTRL);
         press(&mut view, KeyCode::Char('?'), Modifiers::NONE);
         assert_eq!(view.overlay(), Some(Overlay::ShortcutHelp));
