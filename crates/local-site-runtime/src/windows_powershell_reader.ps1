@@ -31,7 +31,8 @@
             # Save status before marker writes; the modern original would recapture their success.
             $orchbeeLastStatus = $?
             Microsoft.PowerShell.Core\Set-StrictMode -Off
-            [Console]::Write("$([char]27)]133;A`a$([char]27)]133;B`a")
+            # The prompt is already drawn. P marks this boundary without A's fresh-line effect.
+            [Console]::Write("$([char]27)]133;P`a$([char]27)]133;B`a")
             try {
                 if ($orchbeeStatusAwareReader) {
                     [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($host.Runspace, $orchbeeReadContext, $orchbeeLastStatus)

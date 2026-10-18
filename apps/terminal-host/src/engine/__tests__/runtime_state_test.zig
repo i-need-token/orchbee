@@ -1692,7 +1692,7 @@ test "application reset returns alternate state to a fresh primary terminal" {
         "PRIMARY\x1b[?1049h\x1b]2;Reset metadata\x1b\\" ++
             "\x1b]7;file:///workspace/reset\x1b\\" ++
             "\x1b[5 q\x1b[?25l\x1b[?1h\x1b=\x1b[?2004h" ++
-            "\x1b[?1003h\x1b[?1016h\x1b[4;5HRESET",
+            "\x1b[?1003h\x1b[?1016h\x1b]133;A;redraw=1\x07\x1b[4;5HRESET",
     ));
     runtimeState(runtime).terminal_mutex.lock();
     runtimeState(runtime).terminal.modes.set(.focus_event, true);
@@ -1741,6 +1741,16 @@ test "application reset returns alternate state to a fresh primary terminal" {
     try std.testing.expectEqual(@as(u16, 0), summary.cursor_row);
     // A fresh Ghostty terminal enables DEC 1007; all other interaction bits reset.
     try std.testing.expectEqual(@as(u32, 1 << 18), try readFrameInt(u32, frame.bytes, 100));
+    if (target_builtin.os.tag == .windows) {
+        try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+            runtime,
+            "PS> \x1b]133;P\x07\x1b]133;B\x07",
+        ));
+        _ = try runtime.resizeGeometry(10, 7, 0, 0);
+        const prompt = try runtime.plainString(std.testing.allocator);
+        defer std.testing.allocator.free(prompt);
+        try std.testing.expectEqualStrings("PS> ", prompt);
+    }
 }
 test "application terminal controls reject counter exhaustion before mutation" {
     const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});

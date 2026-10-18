@@ -578,11 +578,11 @@ pub fn build(builder: *std.Build) void {
     test_compile_step.dependOn(&conpty_resize_tests.step);
     const conpty_resize_step = builder.step(
         "test-conpty-resize",
-        "Run ConPTY cursor synchronization and resize gate regressions",
+        "Run ConPTY prompt cursor, synchronization and resize gate regressions",
     );
     const resize_gate_tests = builder.addTest(.{
         .root_module = engine_test_module,
-        .filters = &.{"cursor query read during attachment resize"},
+        .filters = &.{ "cursor query read during attachment resize", "Windows prompt resize", "application reset returns alternate" },
     });
     resize_gate_tests.root_module.link_libc = true;
     conpty_resize_step.dependOn(&builder.addRunArtifact(resize_gate_tests).step);

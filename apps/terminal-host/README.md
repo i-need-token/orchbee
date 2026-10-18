@@ -332,6 +332,12 @@ the Host application-signal queue. A deterministic engine check pauses an attach
 the platform effect and proves a concurrent cursor query cannot produce a reply until the new
 Ghostty geometry commits. Existing history-generation and selection-reflow tests remain the
 authority for retained selection semantics.
+The same bundled-runtime suite launches Windows PowerShell and, when installed in its standard
+location, PowerShell 7 without user profiles. It requires the initial cursor and typed draft to
+stay immediately after the prompt, including after a geometry change; semantic reader markers
+must not insert a fresh line.
+Windows preserves prompt cells during resize by default; RIS and ResetTerminal restore that
+default, while explicit OSC 133 redraw options remain authoritative until reset.
 
 On native Windows x64, `zig build test-conpty-orchbee-pointer` runs a controlled pointer-admission
 witness against the same manifest-verified ConPTY bundle and the pinned Ghostty parser. A copied

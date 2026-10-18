@@ -985,7 +985,12 @@ Windows 上交互 PowerShell 启动在正常 profile 执行后使用 Local Site 
 reader 扩展要求标准 PSReadLine 模块／导出 ScriptBlock 身份，以及双参数 2.0.0 与保留状态的三参数
 2.4.5 包装定义的封闭 SHA-256 指纹；仅规范化 CRLF 与外围空白。未知或自定义定义保持原样，
 不发出空闲证明。独立调用的子作用域确保跳过或重复安装不会从外围初始化命令返回。
-包装的第一条语句捕获 `$?`，保留 StrictMode／调试器行为，然后发送 A/B。旧 reader 委托原
+包装的第一条语句捕获 `$?`，保留 StrictMode／调试器行为，然后在已绘制提示符的输入边界发送 P/B。
+P 标记提示符语义，但不会执行 A 的换至新行动作，因此进入 reader 时光标和提示符文字保持原位。
+Windows 启动、RIS 与 ResetTerminal 默认在 resize 时保留提示符单元格，因为 PSReadLine/ConPTY
+不会在每次 geometry 改变时重画它们。显式 OSC 133 `A;redraw=...` 仍可覆盖该默认值，直到 reset。
+确定性的 stream 和 application-reset 检查覆盖保留、显式重画与默认值恢复。
+旧 reader 委托原
 ScriptBlock；已识别的现代适配器向原生 ReadLine 传入已保存状态与原模块执行上下文。
 两者都在 finally 中发送 C，保留输入／异常，保留 prompt 输出（包括 mise）、PSReadLine 历史／键位钩子和全部
 profile 文件。命令、脚本及未知 shell 不注入。缺失或受限制的 reader 支持不产生空闲证明。
@@ -995,6 +1000,8 @@ profile 文件。命令、脚本及未知 shell 不注入。缺失或受限制�
 Host owner 在接受带门禁的优雅信号派发前立即重新检查严格采样；拒绝不改变 Core 意图，也不
 发送信号。Server 保留迟到拒绝／部分结果，绝不强制执行未经确认的 Close。运行时／进程回归及
 持续运行的 `powershell-prompt.test.mjs` 检查覆盖排队输入的消费歧义、内建命令与提示符、直接 Agent 根进程、
-reader 输出／异常、自定义模块拒绝、初始化继续执行和保留钩子。真实 PSReadLine 预测反馈见证在
+reader 输出／异常、自定义模块拒绝、初始化继续执行和保留钩子。
+bundled-ConPTY 光标套件还会检查真实 Windows PowerShell 和可用 PowerShell 7 的启动、resize 及
+草稿输入，确保插入位置始终位于提示符所在行。真实 PSReadLine 预测反馈见证在
 原生 ReadLine 边界检查失败／成功命令状态。真实启动、全部 Tab 成员及 OS 调度仍要求原生 TUI 证据；采样证据
 不是原子的 OS 进程创建事务。

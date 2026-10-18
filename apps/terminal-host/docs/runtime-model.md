@@ -1991,7 +1991,13 @@ SHA-256 definition fingerprints for the two-argument 2.0.0 and status-aware thre
 wrappers, normalizing only CRLF and outer whitespace. Unknown or custom definitions remain
 untouched and emit no idle proof. Its invoked child scope keeps skipped or repeated installation
 from returning out of the surrounding initializer. The wrapper captures `$?` as its first
-statement, retains StrictMode/debugger behavior, then emits A/B. The legacy reader delegates to
+statement, retains StrictMode/debugger behavior, then emits P/B at the already-rendered prompt's
+input boundary. P marks prompt semantics without A's fresh-line action, so reader entry preserves
+the cursor and prompt text. Windows startup, RIS and ResetTerminal default to retaining prompt
+cells during resize because PSReadLine/ConPTY does not redraw them on every geometry change.
+An explicit OSC 133 `A;redraw=...` still overrides that default until reset. Deterministic stream
+and application-reset checks cover preservation, explicit redraw and default restoration.
+The legacy reader delegates to
 the original ScriptBlock; the recognized modern adapter calls native ReadLine with saved status
 and the original module execution context. Both emit C in finally and preserve input/errors.
 It preserves prompt output (including mise), PSReadLine history/key hooks and all profile files.
@@ -2005,6 +2011,8 @@ refusal leaves Core intent unchanged and sends no signal. The Server retains lat
 results and never forces an unconfirmed Close. Runtime/process regressions and the recurring
 `powershell-prompt.test.mjs` check cover queued-input consumption ambiguity, builtin-vs-prompt state, direct Agent roots,
 reader output/exceptions, custom-module refusal, initializer continuation and preserved hooks.
+The bundled-ConPTY cursor suite also checks real Windows PowerShell and available PowerShell 7
+startup, resize and draft input without moving the insertion position off the prompt line.
 A real PSReadLine prediction-feedback witness checks failed/successful command status at the
 native ReadLine boundary. Native TUI evidence remains required for live startup,
 all-Tab membership and actual OS scheduling; sampled evidence is not an atomic OS process-spawn

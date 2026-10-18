@@ -4,6 +4,41 @@ const ghostty_vt = @import("ghostty-vt");
 const engine_boundary = @import("terminal-host-engine");
 const terminal_stream = engine_boundary.testing.terminal_stream;
 
+test "Windows prompt resize preserves text by default and honors explicit redraw until reset" {
+    if (@import("builtin").os.tag != .windows) return error.SkipZigTest;
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 40,
+        .rows = 4,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream: terminal_stream.Stream = .init(.{ .handler = .init(&terminal) });
+    defer stream.deinit();
+
+    stream.nextSlice("PS C:\\> \x1b]133;P\x07\x1b]133;B\x07");
+    try std.testing.expectEqual(@as(u16, 0), terminal.screens.active.cursor.y);
+    try std.testing.expectEqual(@as(u16, 8), terminal.screens.active.cursor.x);
+    try terminal.resize(std.testing.allocator, .{ .cols = 50, .rows = 5 });
+    {
+        const text = try terminal.plainString(std.testing.allocator);
+        defer std.testing.allocator.free(text);
+        try std.testing.expectEqualStrings("PS C:\\> ", text);
+    }
+
+    stream.nextSlice("\r\x1b]133;A;redraw=1\x07PS C:\\> \x1b]133;B\x07");
+    try terminal.resize(std.testing.allocator, .{ .cols = 40, .rows = 4 });
+    {
+        const text = try terminal.plainString(std.testing.allocator);
+        defer std.testing.allocator.free(text);
+        try std.testing.expectEqualStrings("", text);
+    }
+
+    stream.nextSlice("\x1bcPS C:\\> \x1b]133;P\x07\x1b]133;B\x07");
+    try terminal.resize(std.testing.allocator, .{ .cols = 50, .rows = 5 });
+    const text = try terminal.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(text);
+    try std.testing.expectEqualStrings("PS C:\\> ", text);
+}
+
 test "Host OSC parser allocator enforces and releases its byte budget" {
     var state = terminal_stream.ParserAllocator.init(std.testing.allocator);
     defer state.deinit();

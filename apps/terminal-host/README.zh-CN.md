@@ -220,6 +220,11 @@ grow、shrink、regrow 后继续输出。Runner 会下载并验证声明的 ConP
 queue。确定性的 engine 检查会在 platform effect 返回后暂停 attachment resize，并证明并发游标
 查询只能在新的 Ghostty geometry 提交后产生回复。既有 history-generation 与 selection-reflow 测试
 继续负责 retained selection 语义。
+同一个 bundled-runtime 测试套件会启动不加载用户 profile 的 Windows PowerShell，以及在标准
+位置安装时的 PowerShell 7。它要求初始光标和输入草稿始终紧跟提示符，包括 geometry 改变之后；
+语义 reader 标记不得插入新行。
+Windows 默认在 resize 时保留提示符单元格；RIS 与 ResetTerminal 恢复该默认值，显式 OSC 133
+重画选项在 reset 之前保持权威。
 
 在原生 Windows x64 上，`zig build test-conpty-orchbee-pointer` 会针对同一份经 manifest 验证的
 ConPTY bundle 和固定 Ghostty parser 运行受控的 pointer-admission 见证。复制出的 Orchbee Rust

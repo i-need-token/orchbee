@@ -51,7 +51,7 @@ pub fn applyTerminalControl(
         .reset => {
             self.terminal.fullReset();
             std.debug.assert(mode_effects.resetLocked(self));
-            terminal_stream.restoreColorDefaults(&self.terminal);
+            terminal_stream.restoreResetDefaults(&self.terminal);
             self.profile.applyCursorDefaults(&self.terminal);
         },
     }

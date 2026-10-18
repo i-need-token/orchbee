@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const ghostty_vt = @import("ghostty-vt");
 
@@ -113,6 +114,7 @@ pub const Handler = struct {
     discard_actions: bool = false,
 
     pub fn init(terminal: *ghostty_vt.Terminal) Handler {
+        restorePromptRedrawDefault(terminal);
         var result: Handler = .{
             .terminal_handler = .init(terminal),
         };
@@ -180,7 +182,7 @@ pub const Handler = struct {
                 const had_metadata = self.terminal_handler.terminal.getTitle() != null or
                     self.terminal_handler.terminal.getPwd() != null;
                 self.terminal_handler.vt(action, value);
-                restoreColorDefaults(self.terminal_handler.terminal);
+                restoreResetDefaults(self.terminal_handler.terminal);
                 if (self.full_reset) |apply| apply(self);
                 if (had_metadata) if (self.metadata_reset) |apply| apply(self);
                 return;
@@ -227,14 +229,20 @@ pub const Handler = struct {
 
 pub const xtgettcap_request_limit_bytes = 4096;
 
-/// RIS and Host-owned application reset both return dynamic colors to the
-/// latest runtime theme, not to the launch-time profile or prior OSC values.
-pub fn restoreColorDefaults(terminal: *ghostty_vt.Terminal) void {
+/// RIS and Host-owned reset restore platform prompt handling and the latest runtime colors.
+pub fn restoreResetDefaults(terminal: *ghostty_vt.Terminal) void {
+    restorePromptRedrawDefault(terminal);
     terminal.colors.background.override = null;
     terminal.colors.foreground.override = null;
     terminal.colors.cursor.override = null;
     terminal.colors.palette.resetAll();
     terminal.flags.dirty.palette = true;
+}
+
+fn restorePromptRedrawDefault(terminal: *ghostty_vt.Terminal) void {
+    // ConPTY retains the console contents; PSReadLine does not redraw the prompt on every resize.
+    // Preserve it unless the child explicitly opts into OSC 133 prompt redrawing.
+    if (builtin.os.tag == .windows) terminal.flags.shell_redraws_prompt = .false;
 }
 
 pub const Stream = ghostty_vt.Stream(Handler);

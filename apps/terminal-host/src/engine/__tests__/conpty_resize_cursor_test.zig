@@ -9,6 +9,102 @@ const options = @import("conpty_resize_test_options");
 const capture_limit_bytes = 512 * 1024;
 const marker_timeout_ns = 20 * std.time.ns_per_s;
 
+test "bundled Windows ConPTY keeps Windows PowerShell input on its prompt line" {
+    if (builtin.os.tag != .windows or builtin.cpu.arch != .x86_64) return error.SkipZigTest;
+    const directory = try pty_process.environmentVariableOwned(std.testing.allocator, "SystemRoot");
+    defer std.testing.allocator.free(directory);
+    const executable = try std.fs.path.join(std.testing.allocator, &.{ directory, "System32", "WindowsPowerShell", "v1.0", "powershell.exe" });
+    defer std.testing.allocator.free(executable);
+    try expectPowerShellPromptCursor(executable);
+}
+
+test "bundled Windows ConPTY keeps PowerShell 7 input on its prompt line" {
+    if (builtin.os.tag != .windows or builtin.cpu.arch != .x86_64) return error.SkipZigTest;
+    const directory = try pty_process.environmentVariableOwned(std.testing.allocator, "ProgramFiles");
+    defer std.testing.allocator.free(directory);
+    const executable = try std.fs.path.join(std.testing.allocator, &.{ directory, "PowerShell", "7", "pwsh.exe" });
+    defer std.testing.allocator.free(executable);
+    const file = std.Io.Dir.openFileAbsolute(std.testing.io, executable, .{}) catch |err| switch (err) {
+        error.FileNotFound => return error.SkipZigTest,
+        else => return err,
+    };
+    file.close(std.testing.io);
+    try expectPowerShellPromptCursor(executable);
+}
+
+fn expectPowerShellPromptCursor(executable: []const u8) !void {
+    try std.testing.expect(try platform.testing.conpty.initializedFromBundle());
+    const drive = try pty_process.environmentVariableOwned(std.testing.allocator, "SystemDrive");
+    defer std.testing.allocator.free(drive);
+    const directory = try std.fmt.allocPrint(std.testing.allocator, "{s}\\", .{drive});
+    defer std.testing.allocator.free(directory);
+    const prompt = try std.fmt.allocPrint(std.testing.allocator, "PS {s}> ", .{directory});
+    defer std.testing.allocator.free(prompt);
+    const runtime = try TerminalRuntime.createWithOptions(std.testing.allocator, .{
+        .arguments = &.{ "-NoLogo", "-NoProfile" },
+        .columns = 80,
+        .current_directory = directory,
+        .environment = &.{},
+        .executable = executable,
+        .rows = 24,
+    }, .{});
+    defer runtime.destroy();
+
+    try waitForPowerShellInput(runtime, prompt);
+    try expectPowerShellCursor(runtime, prompt.len);
+    // No wrapping or history is involved: changing geometry must preserve the input anchor.
+    _ = try runtime.resizeGeometry(89, 37, 0, 0);
+    try expectPowerShellCursor(runtime, prompt.len);
+    try waitForPowerShellInput(runtime, prompt);
+
+    const input = "cursor_probe";
+    const draft = try std.fmt.allocPrint(std.testing.allocator, "{s}{s}", .{ prompt, input });
+    defer std.testing.allocator.free(draft);
+    _ = try runtime.enqueueRawInput(input);
+    try waitForPowerShellInput(runtime, draft);
+    try expectPowerShellCursor(runtime, draft.len);
+}
+
+fn waitForPowerShellInput(runtime: *TerminalRuntime, expected: []const u8) !void {
+    var timer = try platform.monotonic.Timer.start();
+    while (true) {
+        const state = harness.runtimeState(runtime);
+        state.terminal_mutex.lock();
+        const ready = state.close_prompt_phase == .input_ready;
+        state.terminal_mutex.unlock();
+        if (ready) {
+            var capture = try runtime.captureScrollbackText(std.testing.allocator, capture_limit_bytes);
+            defer capture.deinit();
+            if (std.mem.eql(u8, std.mem.trim(u8, capture.text(), " \r\n"), std.mem.trim(u8, expected, " "))) return;
+        }
+        if (runtime.primaryFailure() != null) return error.TerminalRuntimeFailed;
+        if (timer.read() >= marker_timeout_ns) {
+            var capture = try runtime.captureScrollbackText(std.testing.allocator, capture_limit_bytes);
+            defer capture.deinit();
+            state.terminal_mutex.lock();
+            defer state.terminal_mutex.unlock();
+            std.debug.print("PowerShell input timeout: expected {s}, phase {s}, cursor {d},{d}, screen {s}\n", .{
+                expected,
+                @tagName(state.close_prompt_phase),
+                state.terminal.screens.active.cursor.x,
+                state.terminal.screens.active.cursor.y,
+                capture.text(),
+            });
+            return error.PowerShellInputTimedOut;
+        }
+        platform.monotonic.sleep(10 * std.time.ns_per_ms);
+    }
+}
+
+fn expectPowerShellCursor(runtime: *TerminalRuntime, column: usize) !void {
+    const state = harness.runtimeState(runtime);
+    state.terminal_mutex.lock();
+    defer state.terminal_mutex.unlock();
+    try std.testing.expectEqual(@as(u16, 0), state.terminal.screens.active.cursor.y);
+    try std.testing.expectEqual(column, state.terminal.screens.active.cursor.x);
+    try std.testing.expect(state.terminal.cursorIsAtPrompt());
+}
+
 fn captureWhenPhaseCommitted(
     runtime: *TerminalRuntime,
     marker: []const u8,
