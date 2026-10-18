@@ -480,7 +480,11 @@ fn remapped_direct_and_disabled_toggles_stay_beneath_local_capture() {
             .iter()
             .filter_map(|call| match call {
                 Call::Action(action) => Some(action.clone()),
-                Call::Forward(_) => None,
+                Call::Forward(_)
+                | Call::Focus(_)
+                | Call::Mode(_)
+                | Call::Confirmation(_)
+                | Call::BoardSelect(_) => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(actions, expected_actions);
