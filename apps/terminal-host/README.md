@@ -245,8 +245,11 @@ environment plus the same ordered launch inputs.
 The two registry scopes admit at most 256 enumerated values and 512 KiB of stored WTF-8 names,
 values, and entry separators in aggregate. One admitted registry value, one expanded output, and the
 combined `PATH` each admit at most 256 KiB. The final projected map admits at most 1,536 entries and
-1 MiB of stored WTF-8 names, values, and entry separators. The real registry reader and deterministic
-snapshot projection enforce the same limits and return typed size failures rather than truncating input.
+1 MiB of stored WTF-8 names, values, and entry separators. One projection admits 65,536 combined
+expandable-value visits and token resolutions. `PATH` deduplication scans at most 4,096 input
+segments, counting empty and duplicate segments. The real registry reader and deterministic snapshot
+projection enforce these limits and return typed failures rather than truncating input or continuing
+unbounded work.
 
 ### Windows observation transport runtime
 

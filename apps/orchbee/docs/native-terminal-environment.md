@@ -90,9 +90,11 @@ projection.
 The two registry scopes admit at most 256 enumerated values and 512 KiB of stored WTF-8 names,
 values, and entry separators in aggregate. One admitted registry value, one expanded output, and the
 combined `PATH` each admit at most 256 KiB. The final projected map admits at most 1,536 entries and
-1 MiB of stored WTF-8 names, values, and entry separators. The real reader and pure projection return
-typed size failures rather than truncating. Deterministic tests cover these boundaries, name matching,
-expansion dependencies,
+1 MiB of stored WTF-8 names, values, and entry separators. One projection admits 65,536 combined
+expandable-value visits and token resolutions. `PATH` deduplication scans at most 4,096 input
+segments, counting empty and duplicate segments. The real reader and pure projection return typed
+failures rather than truncating or continuing unbounded work. Deterministic tests cover these
+boundaries, name matching, expansion dependencies,
 User `%PATH%` phase semantics, unresolved names, cycles, unnamed values, missing and unreadable
 scopes, `PATH` order and deduplication, inherited admission, launch priority and separate-launch
 refresh. A controlled native Windows witness must additionally keep the Site alive, change a

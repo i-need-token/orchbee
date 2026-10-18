@@ -146,6 +146,93 @@ test "Windows terminal environment enforces expansion output bounds" {
     );
 }
 
+test "Windows terminal environment bounds non-growing dependency expansion work" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var inherited = EnvironmentMap.init(std.testing.allocator);
+    defer inherited.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    // Every level doubles recursive visits but still expands to an empty
+    // value, so output-size limits alone cannot bound this dependency DAG.
+    // A1 through A13 consume 49,107 shared units; adding A14 reaches 98,256.
+    const values = try arena.alloc(subject.Value, 15);
+    for (values, 0..) |*value, index| {
+        const name = try std.fmt.allocPrint(arena, "A{d}", .{index});
+        if (index == 0) {
+            value.* = .{ .name = name, .value = "", .kind = .literal };
+            continue;
+        }
+        const dependency = values[index - 1].name;
+        value.* = .{
+            .name = name,
+            .value = try std.fmt.allocPrint(
+                arena,
+                "%{s}%%{s}%",
+                .{ dependency, dependency },
+            ),
+            .kind = .expandable,
+        };
+    }
+
+    var below_limit = try subject.buildEnvironment(
+        std.testing.allocator,
+        &inherited,
+        .{ .machine = .{ .values = values[0..14] }, .user = .missing },
+        &.{},
+    );
+    defer below_limit.deinit();
+    try std.testing.expectEqualStrings("", below_limit.get("A13").?);
+    try std.testing.expectError(
+        error.RegistryExpansionWorkLimitExceeded,
+        subject.buildEnvironment(
+            std.testing.allocator,
+            &inherited,
+            .{ .machine = .{ .values = values }, .user = .missing },
+            &.{},
+        ),
+    );
+}
+
+test "Windows terminal environment bounds all scanned PATH segments" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var inherited = EnvironmentMap.init(std.testing.allocator);
+    defer inherited.deinit();
+    const separators = try std.testing.allocator.alloc(u8, subject.limits.path_segments);
+    defer std.testing.allocator.free(separators);
+    @memset(separators, ';');
+
+    const exact = [_]subject.Value{.{
+        .name = "PATH",
+        .value = separators[0 .. subject.limits.path_segments - 1],
+        .kind = .literal,
+    }};
+    var at_limit = try subject.buildEnvironment(
+        std.testing.allocator,
+        &inherited,
+        .{ .machine = .{ .values = &exact }, .user = .missing },
+        &.{},
+    );
+    defer at_limit.deinit();
+    try std.testing.expectEqualStrings("", at_limit.get("PATH").?);
+
+    const over = [_]subject.Value{.{
+        .name = "PATH",
+        .value = separators,
+        .kind = .literal,
+    }};
+    try std.testing.expectError(
+        error.PathSegmentLimitExceeded,
+        subject.buildEnvironment(
+            std.testing.allocator,
+            &inherited,
+            .{ .machine = .{ .values = &over }, .user = .missing },
+            &.{},
+        ),
+    );
+}
+
 test "Windows terminal environment bounds combined PATH and final projection" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var inherited = EnvironmentMap.init(std.testing.allocator);

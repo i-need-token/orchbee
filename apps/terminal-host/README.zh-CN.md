@@ -175,8 +175,10 @@ malformed 输入以 unavailable 拒绝启动，越界输入则以 too-large 拒�
 
 两个注册表范围合计最多准入 256 个枚举值，以及 512 KiB 存储后的 WTF-8 name、value 与 entry
 separator。单个已准入注册表值、单次展开输出及合并后的 `PATH` 各自最多准入 256 KiB。最终投影
-map 最多准入 1,536 项，以及 1 MiB 存储后的 WTF-8 name、value 与 entry separator。真实注册表
-读取器与确定性快照投影执行相同 limit，以 typed size failure 拒绝越界输入，而不截断输入。
+map 最多准入 1,536 项，以及 1 MiB 存储后的 WTF-8 name、value 与 entry separator。单次投影最多
+执行 65,536 个 expandable-value visit 与 token resolution。`PATH` 去重最多扫描 4,096 个输入片段，
+空片段及重复片段均计数。真实注册表读取器与确定性快照投影执行这些 limit，以 typed failure 拒绝
+越界输入，而不截断输入或继续无界工作。
 
 ### Windows observation 传输运行时
 

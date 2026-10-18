@@ -73,9 +73,10 @@ Deferred creation 仅在尝试创建进程时读取注册表，重试会读取�
 
 两个注册表范围合计最多准入 256 个枚举值，以及 512 KiB 存储后的 WTF-8 name、value 与 entry
 separator。单个已准入注册表值、单次展开输出及合并后的 `PATH` 各自最多准入 256 KiB。最终投影
-map 最多准入 1,536 项，以及 1 MiB 存储后的 WTF-8 name、value 与 entry separator。真实读取器与
-纯投影以 typed size failure 拒绝越界输入，而不截断。确定性测试覆盖这些边界、名称匹配、展开依赖、
-User `%PATH%` phase 语义、未解析名称、环、
+map 最多准入 1,536 项，以及 1 MiB 存储后的 WTF-8 name、value 与 entry separator。单次投影最多
+执行 65,536 个 expandable-value visit 与 token resolution。`PATH` 去重最多扫描 4,096 个输入片段，
+空片段及重复片段均计数。真实读取器与纯投影以 typed failure 拒绝越界输入，而不截断或继续无界工作。
+确定性测试覆盖这些边界、名称匹配、展开依赖、User `%PATH%` phase 语义、未解析名称、环、
 unnamed value、缺失和不可读范围、`PATH` 顺序与去重、继承准入、启动优先级及不同启动之间的刷新。
 受控的原生 Windows 见证还须保持 Site 运行，修改一条可还原的 User `PATH` 项，并证明只有随后创建的
 terminal 能解析新命令，然后还原该项。
