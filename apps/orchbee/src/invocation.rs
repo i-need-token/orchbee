@@ -238,7 +238,7 @@ pub(crate) enum CompletionShell {
 }
 
 mod help;
-pub(crate) use help::help_paths;
+pub(crate) use help::{HelpPath, help_paths};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HelpTopic {

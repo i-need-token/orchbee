@@ -3,7 +3,7 @@
 
 use crate::help::{Document, Row, Section, render};
 use crate::{
-    invocation::{Family, HelpTopic, help_paths},
+    invocation::{Family, HelpPath, HelpTopic, help_paths},
     localization::{HelpText, Locale},
 };
 
@@ -121,6 +121,32 @@ pub(crate) fn root(locale: Locale) -> String {
     })
 }
 
+/// One line per direct child, taken from that command's own usage line so
+/// the quick reference follows the grammar it summarizes. The leading
+/// `orchbee` and the shared `--format` choice are omitted.
+fn synopsis(path: &str, children: &[&HelpPath], locale: Locale) -> Vec<String> {
+    children
+        .iter()
+        .filter_map(|child| match child.topic() {
+            HelpTopic::Command(command) if command.as_str() == child.words().join(" ") => {
+                let usage = locale.cli_command_help(command).usage;
+                let line = usage.lines().next().unwrap_or(usage);
+                let line = line.strip_prefix("orchbee ").unwrap_or(line);
+                Some(
+                    line.replace(" [--format text|json]", "")
+                        .trim_end()
+                        .to_owned(),
+                )
+            }
+            HelpTopic::Family(_) => Some(format!(
+                "{path} {} <command>",
+                child.words()[child.words().len() - 1]
+            )),
+            HelpTopic::Command(_) => None,
+        })
+        .collect()
+}
+
 pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
     let path = match topic {
         HelpTopic::Family(family) => family.as_str(),
@@ -188,6 +214,16 @@ pub(crate) fn directory(topic: HelpTopic, locale: Locale) -> Document {
             rows: vec![row("-h, --help", locale.cli_help_text(HelpText::ShowHelp))],
         },
     );
+    let synopsis = synopsis(path, &children, locale);
+    if topic != HelpTopic::Family(Family::Completion) && !synopsis.is_empty() {
+        sections.insert(
+            2,
+            Section::Syntax {
+                heading: locale.cli_help_text(HelpText::Synopsis).into(),
+                lines: synopsis,
+            },
+        );
+    }
     #[cfg(windows)]
     {
         let notes = match topic {

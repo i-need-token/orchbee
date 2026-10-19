@@ -810,6 +810,7 @@ pub(crate) enum HelpText {
     DefaultConfig,
     Descend,
     FormatScope,
+    Synopsis,
     ConfigLocation,
     Reference,
     Completion,
@@ -879,6 +880,7 @@ impl Locale {
                 "Use orchbee <command> -h or orchbee help <command> for details.",
                 "使用 orchbee <command> -h 或 orchbee help <command> 查看详情。",
             ),
+            HelpText::Synopsis => ("Synopsis", "语法概要"),
             HelpText::FormatScope => (
                 "Use --format text|json where supported; see each command for its output form.",
                 "支持时可使用 --format text|json；输出形式见具体命令帮助。",

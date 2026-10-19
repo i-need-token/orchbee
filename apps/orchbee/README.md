@@ -196,7 +196,7 @@ observation commands retain their documented platform limits.
 for your shell to source.
 
 Help uses shared section headings and ordering at each level. Root help provides quick start,
-command groups and global options; family help lists direct children; command help describes
+command groups and global options; family help lists direct children with a one-line synopsis each; command help describes
 arguments, options, examples and operational constraints. Session concepts and onboarding stay
 in this guide rather than introducing a separate help section.
 

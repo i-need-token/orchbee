@@ -311,3 +311,34 @@ fn option_values_follow_the_usage_line() {
     assert_eq!(super::usage_value(usage, "--plain"), None);
     assert!(!super::help_options(crate::invocation::CommandPath::ApiSchema).contains(&"--session"));
 }
+
+/// Family help lists every child's usage line, so a reader sees required
+/// options such as `tab rename --label` without descending.
+#[test]
+fn family_help_carries_a_synopsis_derived_from_child_usage() {
+    use crate::invocation::{Family, HelpTopic};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let text = super::help(HelpTopic::Family(Family::Tab), locale);
+        let heading = locale.cli_help_text(HelpText::Synopsis);
+        let synopsis = text
+            .split(heading)
+            .nth(1)
+            .expect("family help has a synopsis section");
+        let usage = locale
+            .cli_command_help(crate::invocation::CommandPath::TabRename)
+            .usage
+            .lines()
+            .next()
+            .unwrap()
+            .strip_prefix("orchbee ")
+            .unwrap()
+            .replace(" [--format text|json]", "");
+        let flattened = synopsis.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(flattened.contains(&usage), "{text}");
+        assert!(
+            text.lines()
+                .all(|line| ratatui::text::Line::from(line).width() <= 80),
+            "{text}"
+        );
+    }
+}

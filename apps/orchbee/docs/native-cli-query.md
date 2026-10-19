@@ -1109,8 +1109,10 @@ Help has three information levels, in both `en-US` and `zh-CN`:
 - Root help introduces Orchbee, shows a small set of common examples, groups each admitted
   top-level command once, and explains global options and how to descend.
 - Family help describes that resource and lists each direct child with its purpose. Nested
-  families such as `agent view` and `panel graphics` have their own directories; child syntax
-  belongs on the child page. `completion` lists its supported shells. Every family and command
+  families such as `agent view` and `panel graphics` have their own directories. A Synopsis
+  section repeats each direct child command's own usage line, without the leading `orchbee` and
+  the shared `--format` choice, so it follows the grammar; full option descriptions stay on the
+  child page. `completion` lists its supported shells. Every family and command
   page displays `-h, --help`; the `server` directory includes `stop` and `stop-status`, with
   `--confirm` identified on `stop`.
 - Command help contains complete syntax, positional arguments, admitted options, an example,
