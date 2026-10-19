@@ -258,6 +258,11 @@ Host／几何及 viewer 释放所有者。移动可选 `--content-revision`，�
 字面量／智能大小写／空搜索、前次起点、环绕、超过 1024 项的精确总数、效果前参数
 限制及实际 Windows CLI 成功／过期／错误回包／释放轨迹；最终部署 Host／模拟器验收独立保留。
 
+## Workbench 状态
+
+裸 `status` 读取一份 Workbench 快照并报告可达性和资源计数。只有显式提供 `--session` 时，
+Text 才显示所选 Session 名称，并显示当前 Client 的包版本。Windows `status server` 报告 Server 的实际构建元数据。
+
 ## Workbench 拓扑查询
 
 Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
@@ -269,8 +274,8 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 
 人类文本中的 `workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
 `PROJECT`（项目）列；`tab list` 使用 `HANDLE`（句柄）、`NAME`（名称）、`PANELS`（面板）、
-`WORKSPACE`（工作区）列。句柄是完整 ID 选择器（`@workspace:<id>` 和
-`@tab:<id>`），筛选列表时也保持完整。项目和工作区所属列显示规范名称；独立 Tab
+`WORKSPACE`（工作区）列。句柄使用解析器接受的精确完整 ID 形式，而不是
+`@workspace:<id>` 或 `@tab:<id>` 选择器；筛选列表时仍可直接使用。项目和工作区所属列显示规范名称；独立 Tab
 显示本地化的独立上下文名称。名称单元格带引号、转义控制字符并限制宽度，使每张表
 不超过 80 个终端单元。这些列表不会把 Workspace 主目录当作进程 CWD，也不会用内部
 上下文 ID 充当名称。

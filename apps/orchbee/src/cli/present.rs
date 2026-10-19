@@ -129,7 +129,7 @@ fn workspace_list(
     const PROJECT_WIDTH: usize = 14;
     let handle_width = rows
         .iter()
-        .map(|row| "@workspace:".len() + row.workspace_id.len())
+        .map(|row| display_width(&row.workspace_id))
         .max()
         .unwrap_or(0)
         .max(display_width(text.workspace_headers[0]));
@@ -141,7 +141,7 @@ fn workspace_list(
             (Some(_), None) => "-",
         };
         vec![
-            format!("@workspace:{}", row.workspace_id),
+            row.workspace_id.clone(),
             table_label_width(&row.label, NAME_WIDTH),
             table_label_width(project, PROJECT_WIDTH),
         ]
@@ -158,7 +158,7 @@ fn tab_list(
     const WORKSPACE_WIDTH: usize = 13;
     let handle_width = rows
         .iter()
-        .map(|row| "@tab:".len() + row.tab_id.len())
+        .map(|row| display_width(&row.tab_id))
         .max()
         .unwrap_or(0)
         .max(display_width(text.tab_headers[0]));
@@ -172,7 +172,7 @@ fn tab_list(
             "-".to_owned()
         };
         vec![
-            format!("@tab:{}", row.tab_id),
+            row.tab_id.clone(),
             table_label_width(&row.label, NAME_WIDTH),
             row.panel_count.to_string(),
             owner,
@@ -1302,17 +1302,83 @@ fn agent_explanation_fields(
     out.push(locale.cli_agent_navigate_only_facts())
 }
 
+fn status_field(
+    out: &mut Bounded,
+    indent: usize,
+    label: &str,
+    value: &str,
+    label_width: usize,
+) -> Result<(), TooLarge> {
+    let padding = label_width.saturating_sub(display_width(label)) + 2;
+    out.write(format_args!(
+        "{}{label}{}{value}\n",
+        " ".repeat(indent),
+        " ".repeat(padding)
+    ))
+}
+
 fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), TooLarge> {
-    field(out, text.status_session, text.status_running)?;
-    out.write(format_args!("{}\n", text.counts))?;
-    field(out, text.projects_word, &doc.projects.to_string())?;
-    field(out, text.workspaces_word, &doc.workspaces.to_string())?;
-    field(out, text.tabs_word, &doc.tabs.to_string())?;
-    field(out, text.panels_word, &doc.panels.to_string())?;
-    field(
+    let label_width = [
+        text.status_session,
+        text.status_session_name,
+        text.status_client_version,
+        text.projects_word,
+        text.workspaces_word,
+        text.tabs_word,
+        text.panels_word,
+        text.bound_terminals_word,
+    ]
+    .into_iter()
+    .map(display_width)
+    .max()
+    .unwrap_or(0);
+
+    status_field(
         out,
+        0,
+        text.status_session,
+        text.status_running,
+        label_width,
+    )?;
+    if let Some(session_name) = &doc.session_name {
+        status_field(out, 0, text.status_session_name, session_name, label_width)?;
+    }
+    status_field(
+        out,
+        0,
+        text.status_client_version,
+        &doc.client_version,
+        label_width,
+    )?;
+    out.write(format_args!("  {}\n", text.counts))?;
+    status_field(
+        out,
+        2,
+        text.projects_word,
+        &doc.projects.to_string(),
+        label_width,
+    )?;
+    status_field(
+        out,
+        2,
+        text.workspaces_word,
+        &doc.workspaces.to_string(),
+        label_width,
+    )?;
+    status_field(out, 2, text.tabs_word, &doc.tabs.to_string(), label_width)?;
+    status_field(
+        out,
+        2,
+        text.panels_word,
+        &doc.panels.to_string(),
+        label_width,
+    )?;
+    status_field(
+        out,
+        2,
         text.bound_terminals_word,
         &doc.bound_terminals.to_string(),
+        label_width,
     )
 }
 

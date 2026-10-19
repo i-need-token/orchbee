@@ -97,7 +97,30 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
             locale,
         );
         let workspace_text = String::from_utf8(workspace_output.stdout).unwrap();
-        assert!(workspace_text.contains(&format!("@workspace:{workspace_id}")));
+        let workspace_handle = workspace_text
+            .lines()
+            .nth(1)
+            .and_then(|line| line.split_whitespace().next())
+            .unwrap();
+        assert_eq!(workspace_handle, workspace_id);
+        assert!(!workspace_text.contains("@workspace:"));
+        assert!(
+            crate::invocation::parse_request(
+                ["workspace", "get", workspace_handle]
+                    .into_iter()
+                    .map(std::ffi::OsString::from)
+            )
+            .is_ok()
+        );
+        let rejected_workspace_handle = format!("@workspace:{workspace_id}");
+        assert!(
+            crate::invocation::parse_request(
+                ["workspace", "get", rejected_workspace_handle.as_str()]
+                    .into_iter()
+                    .map(std::ffi::OsString::from)
+            )
+            .is_err()
+        );
         assert!(workspace_text.contains("\"工作区\\n…\""));
         assert!(workspace_text.contains("\"\\u{001b}Pro…\""));
         assert!(workspace_text.contains(&format!("\"{}\"", locale.cli_ungrouped())));
@@ -128,7 +151,30 @@ fn workspace_and_tab_lists_show_localized_names_exact_handles_and_owners() {
             locale,
         );
         let tab_text = String::from_utf8(tab_output.stdout).unwrap();
-        assert!(tab_text.contains(&format!("@tab:{tab_id}")));
+        let tab_handle = tab_text
+            .lines()
+            .nth(1)
+            .and_then(|line| line.split_whitespace().next())
+            .unwrap();
+        assert_eq!(tab_handle, tab_id);
+        assert!(!tab_text.contains("@tab:"));
+        assert!(
+            crate::invocation::parse_request(
+                ["tab", "get", tab_handle]
+                    .into_iter()
+                    .map(std::ffi::OsString::from)
+            )
+            .is_ok()
+        );
+        let rejected_tab_handle = format!("@tab:{tab_id}");
+        assert!(
+            crate::invocation::parse_request(
+                ["tab", "get", rejected_tab_handle.as_str()]
+                    .into_iter()
+                    .map(std::ffi::OsString::from)
+            )
+            .is_err()
+        );
         assert!(tab_text.contains("\"终端 🐝\""));
         assert!(tab_text.contains("\"\\u{001b}Wo…\""));
         assert!(tab_text.contains(locale.cli_labels().standalone));
@@ -193,11 +239,25 @@ fn empty_workspace_and_tab_lists_keep_localized_table_headers() {
 }
 
 #[test]
-fn status_text_reports_only_observed_session_state_and_counts() {
-    for (locale, session, running, counts, projects, workspaces, tabs, panels, terminals) in [
+fn status_text_reports_selected_session_identity_client_version_and_counts() {
+    for (
+        locale,
+        session,
+        session_name,
+        client_version,
+        running,
+        counts,
+        projects,
+        workspaces,
+        tabs,
+        panels,
+        terminals,
+    ) in [
         (
             Locale::EnUs,
             "Session",
+            "Session name",
+            "Client version",
             "running",
             "Counts",
             "projects",
@@ -209,6 +269,8 @@ fn status_text_reports_only_observed_session_state_and_counts() {
         (
             Locale::ZhCn,
             "会话",
+            "会话名称",
+            "客户端版本",
             "运行中",
             "计数",
             "项目",
@@ -222,6 +284,8 @@ fn status_text_reports_only_observed_session_state_and_counts() {
             Projection::Status(StatusDoc {
                 site_id: ID.to_owned(),
                 revision: "999".to_owned(),
+                session_name: Some("work".to_owned()),
+                client_version: env!("CARGO_PKG_VERSION").to_owned(),
                 projects: 2,
                 workspaces: 3,
                 tabs: 4,
@@ -235,6 +299,10 @@ fn status_text_reports_only_observed_session_state_and_counts() {
         );
         let text = String::from_utf8(output.stdout).unwrap();
         assert!(text.contains(session));
+        assert!(text.contains(session_name));
+        assert!(text.contains("work"));
+        assert!(text.contains(client_version));
+        assert!(text.contains(env!("CARGO_PKG_VERSION")));
         assert!(text.contains(running));
         assert!(text.contains(counts));
         assert!(text.contains(projects));
@@ -249,7 +317,49 @@ fn status_text_reports_only_observed_session_state_and_counts() {
         assert!(!text.contains("999"));
         assert!(!text.contains("Worker"));
         assert!(!text.contains("unknown"));
+
+        let lines: Vec<_> = text.lines().collect();
+        let count_heading = lines.iter().find(|line| line.contains(counts)).unwrap();
+        assert!(count_heading.starts_with("  "));
+        let count_value_columns: Vec<_> = [projects, workspaces, tabs, panels, terminals]
+            .iter()
+            .map(|label| {
+                let line = lines.iter().find(|line| line.contains(label)).unwrap();
+                let value = line
+                    .char_indices()
+                    .find(|(_, character)| character.is_ascii_digit())
+                    .map(|(index, _)| index)
+                    .expect("count value");
+                crate::cli::escape::display_width(&line[..value])
+            })
+            .collect();
+        assert!(
+            count_value_columns
+                .iter()
+                .all(|column| *column == count_value_columns[0])
+        );
     }
+
+    let unnamed_output = success_output(
+        Projection::Status(StatusDoc {
+            site_id: ID.to_owned(),
+            revision: "999".to_owned(),
+            session_name: None,
+            client_version: env!("CARGO_PKG_VERSION").to_owned(),
+            projects: 0,
+            workspaces: 0,
+            tabs: 0,
+            panels: 0,
+            bound_terminals: 0,
+        }),
+        json!({"kind":"workbench-snapshot","siteId":ID,"revision":"999"}),
+        &QueryCommand::Status,
+        OutputFormat::Text,
+        Locale::EnUs,
+    );
+    let unnamed_text = String::from_utf8(unnamed_output.stdout).unwrap();
+    assert!(!unnamed_text.contains("Session name"));
+    assert!(!unnamed_text.contains("default"));
 }
 
 #[test]
@@ -350,6 +460,8 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
     let status = StatusDoc {
         site_id: ID.to_owned(),
         revision: "9".to_owned(),
+        session_name: Some("work".to_owned()),
+        client_version: env!("CARGO_PKG_VERSION").to_owned(),
         projects: 1,
         workspaces: 2,
         tabs: 3,

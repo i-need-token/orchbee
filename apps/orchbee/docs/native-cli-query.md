@@ -324,6 +324,12 @@ literal/smart-case/empty search, previous origins, wrapping and exact totals bey
 1024, parse-before-effect limits, and actual Windows CLI success/stale/forged
 reply/release traces. Final deployed Host/emulator acceptance remains separate.
 
+## Workbench status
+
+Bare `status` reads one Workbench snapshot and reports reachability and resource counts. Text
+includes the selected Session name when `--session` was explicit and the executing Client's
+package version. On Windows, `status server` reports the Server's actual build metadata.
+
 ## Workbench topology queries
 
 Windows `workspace list/get` return `number`, `tabCount`, and `panelCount`;
@@ -335,8 +341,9 @@ Empty contexts have zero Tabs and Panels. A Panel is one leaf of a Tab's split t
 child presentations and terminal bindings never increase its count.
 
 Human `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT` columns;
-`tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. Handles are exact full-ID
-selectors (`@workspace:<id>` and `@tab:<id>`), including when a list is filtered.
+`tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. Handles are exact full IDs
+in the parser's typed-ID form, not `@workspace:<id>` or `@tab:<id>` selectors; they
+remain usable when a list is filtered.
 Project and Workspace ownership cells show their canonical names; standalone Tabs
 show a localized standalone label. Name cells are quoted, control-safe, and clipped
 to keep each table within 80 terminal cells. These lists do not treat a Workspace's

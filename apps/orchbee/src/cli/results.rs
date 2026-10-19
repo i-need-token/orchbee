@@ -176,6 +176,8 @@ pub(crate) fn agent_source(request_id: &ObapRequestId) -> Value {
 pub(crate) struct StatusDoc {
     pub(crate) site_id: String,
     pub(crate) revision: String,
+    pub(crate) session_name: Option<String>,
+    pub(crate) client_version: String,
     pub(crate) projects: usize,
     pub(crate) workspaces: usize,
     pub(crate) tabs: usize,
@@ -2394,6 +2396,8 @@ fn status(snapshot: &Snapshot) -> StatusDoc {
     StatusDoc {
         site_id: snapshot.site_id.as_str().to_owned(),
         revision: snapshot.revision.to_string(),
+        session_name: crate::local_activation::selected_session_name().map(str::to_owned),
+        client_version: env!("CARGO_PKG_VERSION").to_owned(),
         projects: snapshot.navigation.projects.len(),
         workspaces: snapshot.navigation.workspaces.len(),
         tabs,
