@@ -740,6 +740,7 @@ fn renderer_path_lands_exactly_on_and_just_over_the_bound() {
                 number: 1,
                 panel_count: 1,
                 tab_id: ID.to_owned(),
+                handle: ID.to_owned(),
                 label: "t".to_owned(),
                 pinned: false,
                 group_id: None,

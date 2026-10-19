@@ -281,7 +281,7 @@ impl Locale {
             }
             FailureKind::Ambiguous => {
                 let (resource, target) = failure_target(failure);
-                self.cli_ambiguous(resource, &target)
+                self.cli_ambiguous(resource, &target, failure)
             }
             FailureKind::Denied => {
                 let command = failure
@@ -1471,13 +1471,44 @@ impl Locale {
         }
     }
 
-    fn cli_ambiguous(self, resource: &str, target: &str) -> String {
+    /// The bounded candidate list and the true total: list handles with
+    /// labels when the resolver supplied them, otherwise the JSON identifiers.
+    fn cli_ambiguous(self, resource: &str, target: &str, failure: &Failure) -> String {
         let escaped = crate::cli::escape::quoted(target);
+        let details = failure.details.as_ref();
+        let listed: Vec<String> = match &failure.candidate_display {
+            Some(display) => display.to_vec(),
+            None => details
+                .and_then(|details| details.get("candidates"))
+                .and_then(|value| value.as_array())
+                .into_iter()
+                .flatten()
+                .filter_map(|value| value.as_str().map(str::to_owned))
+                .collect(),
+        };
+        let total = details
+            .and_then(|details| details.get("totalCount"))
+            .and_then(serde_json::Value::as_u64)
+            .map_or(listed.len(), |total| {
+                usize::try_from(total).unwrap_or(usize::MAX)
+            });
+        if listed.is_empty() {
+            return match self {
+                Self::EnUs => {
+                    format!("More than one {resource} matches {escaped}; use its exact ID.\n")
+                }
+                Self::ZhCn => format!("多个 {resource} 与 {escaped} 匹配；请使用精确 ID。\n"),
+            };
+        }
+        let more = if total > listed.len() { ", …" } else { "" };
+        let list = listed.join(", ");
         match self {
-            Self::EnUs => {
-                format!("More than one {resource} matches {escaped}; use its exact ID.\n")
-            }
-            Self::ZhCn => format!("多个 {resource} 与 {escaped} 匹配；请使用精确 ID。\n"),
+            Self::EnUs => format!(
+                "{total} {resource} candidates match {escaped}: {list}{more}. Use one of these handles or the full ID.\n"
+            ),
+            Self::ZhCn => format!(
+                "共有 {total} 个 {resource} 与 {escaped} 匹配：{list}{more}。请改用其中一个句柄或完整 ID。\n"
+            ),
         }
     }
 

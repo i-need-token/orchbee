@@ -987,6 +987,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         failure_schema: None,
         version: 1,
         io_diagnostic: None,
+        candidate_display: None,
         usage: Some(Box::new(usage)),
     };
 
@@ -1037,6 +1038,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         failure_schema: None,
         version: 1,
         io_diagnostic: None,
+        candidate_display: None,
         usage: None,
     };
     assert_eq!(
@@ -1059,6 +1061,7 @@ fn cli_usage_diagnostics_are_localized_and_escaped() {
         failure_schema: None,
         version: 1,
         io_diagnostic: None,
+        candidate_display: None,
         usage: None,
     };
     assert_eq!(

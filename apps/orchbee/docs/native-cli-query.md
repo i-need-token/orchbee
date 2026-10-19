@@ -341,10 +341,14 @@ manual or automatic labels. Reordering changes numbers without changing identiti
 Empty contexts have zero Tabs and Panels. A Panel is one leaf of a Tab's split tree;
 child presentations and terminal bindings never increase its count.
 
-Human `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT` columns;
-`tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. Handles are exact full IDs
-in the parser's typed-ID form, not `@workspace:<id>` or `@tab:<id>` selectors; they
-remain usable when a list is filtered.
+Human `project list`, `workspace list` and `tab list` print a `HANDLE` column: the
+shortest `@<kind>:<suffix>` selector that is unique among every member of that kind in the
+snapshot, so a filtered list still prints handles its `get` resolves. When no suffix of at
+most 31 digits is unique, the handle is the bare full ID; a list never prints
+`@<kind>:<32 digits>`. `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT`
+columns; `tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. An ambiguous target's
+text diagnostic lists up to eight candidates as these handles with their quoted labels,
+plus the true total; JSON keeps the identifier `candidates` and `totalCount` details.
 Project and Workspace ownership cells show their canonical names; standalone Tabs
 show a localized standalone label. Name cells are quoted, control-safe, and clipped
 to keep each table within 80 terminal cells. These lists do not treat a Workspace's

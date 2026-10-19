@@ -1870,3 +1870,106 @@ mod terminal_wait {
         assert!(hit.excerpt.len() <= MAXIMUM_EXCERPT_BYTES);
     }
 }
+
+/// Every handle a list prints resolves through the matching `get` to the same
+/// member, including members whose short suffixes collide, and the parser
+/// accepts it; no handle is the rejected `@kind:<32 digits>` form.
+#[test]
+fn list_handles_round_trip_through_get() {
+    let snapshot = selector_snapshot();
+    let target = |handle: &str| {
+        if handle.starts_with('@') {
+            Target::Selector(handle.to_owned())
+        } else {
+            Target::Id(handle.to_owned())
+        }
+    };
+    let parses = |verb: [&str; 2], handle: &str| {
+        crate::invocation::parse_request(
+            [verb[0], verb[1], handle]
+                .into_iter()
+                .map(std::ffi::OsString::from),
+        )
+        .is_ok()
+    };
+    let Projection::ProjectList(projects) = project(&QueryCommand::ProjectList, &snapshot).unwrap()
+    else {
+        panic!("project list");
+    };
+    for row in &projects {
+        assert!(row.handle.len() < 32 + "@project:".len(), "{}", row.handle);
+        assert!(parses(["project", "get"], &row.handle), "{}", row.handle);
+        let Projection::ProjectGet(doc) =
+            project(&QueryCommand::ProjectGet(target(&row.handle)), &snapshot).unwrap()
+        else {
+            panic!("project get");
+        };
+        assert_eq!(doc.row.project_id, row.project_id);
+    }
+    // A filtered list keeps handles unique over every Workspace.
+    let Projection::WorkspaceList(workspaces) = project(
+        &QueryCommand::WorkspaceList {
+            project: Some(Target::Id(tid(0, 0xaa))),
+        },
+        &snapshot,
+    )
+    .unwrap() else {
+        panic!("workspace list");
+    };
+    assert_eq!(workspaces.len(), 1);
+    for row in &workspaces {
+        assert_eq!(row.handle, "@workspace:000000000000000cc");
+        assert!(parses(["workspace", "get"], &row.handle), "{}", row.handle);
+        let Projection::WorkspaceGet(doc) =
+            project(&QueryCommand::WorkspaceGet(target(&row.handle)), &snapshot).unwrap()
+        else {
+            panic!("workspace get");
+        };
+        assert_eq!(doc.row.workspace_id, row.workspace_id);
+    }
+    let Projection::TabList(tabs) = project(
+        &QueryCommand::TabList {
+            workspace: None,
+            standalone: false,
+        },
+        &snapshot,
+    )
+    .unwrap() else {
+        panic!("tab list");
+    };
+    for row in &tabs {
+        assert!(parses(["tab", "get"], &row.handle), "{}", row.handle);
+        let Projection::TabGet(doc) =
+            project(&QueryCommand::TabGet(target(&row.handle)), &snapshot).unwrap()
+        else {
+            panic!("tab get");
+        };
+        assert_eq!(doc.row.tab_id, row.tab_id);
+    }
+}
+
+/// The text ambiguity diagnostic lists bounded candidates as list handles
+/// with their labels and the true total; JSON keeps its identifier details.
+#[test]
+fn ambiguity_text_lists_candidate_handles_with_labels() {
+    let snapshot = selector_snapshot();
+    let failure = project(
+        &QueryCommand::WorkspaceGet(Target::Label("w".into())),
+        &snapshot,
+    )
+    .unwrap_err();
+    let details = failure.details.clone().unwrap();
+    assert_eq!(details["totalCount"], 2);
+    assert_eq!(details["candidates"], json!([tid(0, 0xcc), tid(1, 0xcc)]));
+    let english = crate::localization::Locale::EnUs.cli_failure(&failure);
+    assert_eq!(
+        english,
+        "2 workspace candidates match \"w\": @workspace:000000000000000cc (\"w\"), @workspace:100000000000000cc (\"w\"). Use one of these handles or the full ID.\n"
+    );
+    let chinese = crate::localization::Locale::ZhCn.cli_failure(&failure);
+    assert!(
+        chinese.contains("@workspace:100000000000000cc (\"w\")"),
+        "{chinese}"
+    );
+    assert!(chinese.contains("共有 2 个"), "{chinese}");
+}

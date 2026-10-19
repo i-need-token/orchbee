@@ -272,10 +272,13 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 空上下文的 Tab 和 Panel 数量均为零。Panel 是 Tab 分割树中的一个叶节点；
 子 presentation 和终端绑定都不会增加 Panel 数量。
 
-人类文本中的 `workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
+人类文本中的 `project list`、`workspace list` 与 `tab list` 输出 `HANDLE` 列：在快照中
+该类所有成员间唯一的最短 `@<kind>:<suffix>` 选择器，因此筛选后的列表输出的句柄仍可被
+对应 `get` 解析。没有不超过 31 位的唯一后缀时，句柄为裸完整 ID；列表绝不输出
+`@<kind>:<32 位>`。`workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
 `PROJECT`（项目）列；`tab list` 使用 `HANDLE`（句柄）、`NAME`（名称）、`PANELS`（面板）、
-`WORKSPACE`（工作区）列。句柄使用解析器接受的精确完整 ID 形式，而不是
-`@workspace:<id>` 或 `@tab:<id>` 选择器；筛选列表时仍可直接使用。项目和工作区所属列显示规范名称；独立 Tab
+`WORKSPACE`（工作区）列。目标歧义时，文本诊断以这些句柄加带引号的标签列出至多八个候选
+及真实总数；JSON 保留标识符形式的 `candidates` 与 `totalCount` 详情。项目和工作区所属列显示规范名称；独立 Tab
 显示本地化的独立上下文名称。名称单元格带引号、转义控制字符并限制宽度，使每张表
 不超过 80 个终端单元。这些列表不会把 Workspace 主目录当作进程 CWD，也不会用内部
 上下文 ID 充当名称。

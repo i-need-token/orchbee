@@ -130,7 +130,7 @@ fn workspace_list(
     const PROJECT_WIDTH: usize = 14;
     let handle_width = rows
         .iter()
-        .map(|row| display_width(&row.workspace_id))
+        .map(|row| display_width(&row.handle))
         .max()
         .unwrap_or(0)
         .max(display_width(text.workspace_headers[0]));
@@ -142,7 +142,7 @@ fn workspace_list(
             (Some(_), None) => "-",
         };
         vec![
-            row.workspace_id.clone(),
+            row.handle.clone(),
             table_label_width(&row.label, NAME_WIDTH),
             table_label_width(project, PROJECT_WIDTH),
         ]
@@ -159,7 +159,7 @@ fn tab_list(
     const WORKSPACE_WIDTH: usize = 13;
     let handle_width = rows
         .iter()
-        .map(|row| display_width(&row.tab_id))
+        .map(|row| display_width(&row.handle))
         .max()
         .unwrap_or(0)
         .max(display_width(text.tab_headers[0]));
@@ -173,7 +173,7 @@ fn tab_list(
             "-".to_owned()
         };
         vec![
-            row.tab_id.clone(),
+            row.handle.clone(),
             table_label_width(&row.label, NAME_WIDTH),
             row.panel_count.to_string(),
             owner,
@@ -613,7 +613,7 @@ pub(crate) fn render(
         Projection::Status(doc) => status(out, doc, text),
         Projection::ProjectList(rows) => table(out, &text.project_headers, rows, |row| {
             vec![
-                row.project_id.clone(),
+                row.handle.clone(),
                 table_label(&row.label),
                 row.directory_count.to_string(),
                 row.workspace_count.to_string(),
@@ -1786,9 +1786,7 @@ mod doctor_summary_tests {
 
     #[test]
     fn summary_counts_providers_and_names_the_first_enable_step() {
-        let row = |id: &str, executable: &str, hook: &str| {
-            json!({"id": id, "executable": {"state": executable}, "hook": {"state": hook}})
-        };
+        let row = |id: &str, executable: &str, hook: &str| json!({"id": id, "executable": {"state": executable}, "hook": {"state": hook}});
         let result = json!({"providers": [
             row("claude-code", "present", "present"),
             row("codex", "present", "absent"),

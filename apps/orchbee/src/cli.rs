@@ -399,6 +399,9 @@ pub(crate) struct Failure {
     /// localized text only. Raw I/O details belong to `status client` JSON.
     /// Boxed so it never enlarges the hot Result.
     pub(crate) io_diagnostic: Option<Box<IoDiagnostic>>,
+    /// Ambiguity candidates as list handles with their labels, carried to
+    /// localized text only; JSON keeps the identifier `candidates` detail.
+    pub(crate) candidate_display: Option<Box<[String]>>,
 }
 
 /// Artifact identity proven absent by its own open operation.
@@ -441,6 +444,7 @@ impl Failure {
             failure_schema: None,
             version: 1,
             io_diagnostic: None,
+            candidate_display: None,
         }
     }
 
@@ -602,6 +606,7 @@ pub(crate) fn parse_failure(failure: ParseFailure, locale: Locale) -> Output {
         failure_schema: None,
         version: 1,
         io_diagnostic: None,
+        candidate_display: None,
     };
     let format = match failure.envelope {
         crate::invocation::FailureEnvelope::Json => Some(OutputFormat::Json),

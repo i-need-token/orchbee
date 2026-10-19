@@ -186,6 +186,9 @@ pub(crate) struct StatusDoc {
 #[derive(Clone, Debug)]
 pub(crate) struct ProjectRow {
     pub(crate) project_id: String,
+    /// The text target spelling: the full ID by default, the shortest unique
+    /// selector once a list has seen every Project in the snapshot.
+    pub(crate) handle: String,
     pub(crate) label: String,
     pub(crate) directory_count: usize,
     pub(crate) workspace_count: usize,
@@ -217,6 +220,8 @@ pub(crate) struct WorkspaceRow {
     pub(crate) tab_count: usize,
     pub(crate) panel_count: usize,
     pub(crate) workspace_id: String,
+    /// See [`ProjectRow::handle`].
+    pub(crate) handle: String,
     pub(crate) label: String,
     pub(crate) project_id: Option<String>,
     /// Canonical Project label for human output; deliberately absent from the
@@ -252,6 +257,8 @@ pub(crate) struct TabRow {
     pub(crate) number: usize,
     pub(crate) panel_count: usize,
     pub(crate) tab_id: String,
+    /// See [`ProjectRow::handle`].
+    pub(crate) handle: String,
     pub(crate) label: String,
     pub(crate) pinned: bool,
     pub(crate) group_id: Option<String>,
@@ -2076,15 +2083,62 @@ pub(crate) fn resolve_or_fail<'a, Item, Label: AsRef<str>>(
     target: &Target,
     resource: Resource,
 ) -> Result<Item, Failure> {
-    match resolve(items, target) {
+    let items: Vec<_> = items.collect();
+    let labels: HashMap<&str, String> = items
+        .iter()
+        .map(|(id, label, _item)| (*id, label.as_ref().to_owned()))
+        .collect();
+    let ids: Vec<&str> = items.iter().map(|(id, _label, _item)| *id).collect();
+    match resolve(items.into_iter(), target) {
         Ok(item) => Ok(item),
         Err(candidates) if candidates.is_empty() => Err(not_found(resource, target)),
-        Err(candidates) => Err(ambiguous(
-            resource,
-            target,
-            candidates.into_iter().map(str::to_owned).collect(),
-        )),
+        Err(candidates) => {
+            let display = candidate_display(resource, &ids, &candidates, &labels);
+            let mut failure = ambiguous(
+                resource,
+                target,
+                candidates.into_iter().map(str::to_owned).collect(),
+            );
+            failure.candidate_display = Some(display.into_boxed_slice());
+            Err(failure)
+        }
     }
+}
+
+/// Shortest unique selector per member over the complete set a selector of
+/// this kind resolves against.
+fn list_handles<'a>(
+    resource: Resource,
+    ids: impl Iterator<Item = &'a str>,
+) -> HashMap<&'a str, String> {
+    let ids: Vec<&str> = ids.collect();
+    ids.iter()
+        .copied()
+        .zip(super::handles::short(resource.as_str(), &ids))
+        .collect()
+}
+
+/// Text-only ambiguity candidates: the same bounded prefix as the JSON
+/// `candidates`, each as the handle a list would print over the full member
+/// set, followed by its quoted label.
+fn candidate_display(
+    resource: Resource,
+    ids: &[&str],
+    candidates: &[&str],
+    labels: &HashMap<&str, String>,
+) -> Vec<String> {
+    let handles = list_handles(resource, ids.iter().copied());
+    candidates
+        .iter()
+        .take(8)
+        .map(|id| {
+            let handle = handles.get(id).map_or(*id, String::as_str);
+            match labels.get(id).filter(|label| !label.is_empty()) {
+                Some(label) => format!("{handle} ({})", super::escape::quoted(label)),
+                None => handle.to_owned(),
+            }
+        })
+        .collect()
 }
 
 pub(super) fn resolve_workspace<'a>(
@@ -2124,15 +2178,27 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
     let index = ContextIndex::new(snapshot);
     match command {
         QueryCommand::Status => Ok(Projection::Status(status(snapshot))),
-        QueryCommand::ProjectList => Ok(Projection::ProjectList(
-            snapshot
+        QueryCommand::ProjectList => {
+            let mut rows: Vec<_> = snapshot
                 .navigation
                 .ordered_projects()
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?
                 .into_iter()
                 .map(|project| project_row(snapshot, project))
-                .collect(),
-        )),
+                .collect();
+            let handles = list_handles(
+                Resource::Project,
+                snapshot
+                    .navigation
+                    .projects
+                    .iter()
+                    .map(|project| project.project_id.as_str()),
+            );
+            for row in &mut rows {
+                row.handle = handles[row.project_id.as_str()].clone();
+            }
+            Ok(Projection::ProjectList(rows))
+        }
         QueryCommand::ProjectGet(target) => {
             let project =
                 resolve_or_fail(
@@ -2149,21 +2215,31 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 .as_ref()
                 .map(|target| resolve_project(snapshot, target).map(|project| &project.project_id))
                 .transpose()?;
-            Ok(Projection::WorkspaceList(
+            let mut rows = snapshot
+                .navigation
+                .ordered_workspaces()
+                .map_err(|_| Failure::new(FailureKind::InternalFailure))?
+                .into_iter()
+                .enumerate()
+                .filter(|(_, (_, workspace))| {
+                    project_id.is_none_or(|id| workspace.project_id.as_ref() == Some(id))
+                })
+                .map(|(position, (_, workspace))| workspace_row(snapshot, workspace, position + 1))
+                .collect::<Result<Vec<_>, _>>()?;
+            // Handles are unique over every Workspace the selector resolves
+            // against, not only the filtered rows.
+            let handles = list_handles(
+                Resource::Workspace,
                 snapshot
                     .navigation
-                    .ordered_workspaces()
-                    .map_err(|_| Failure::new(FailureKind::InternalFailure))?
-                    .into_iter()
-                    .enumerate()
-                    .filter(|(_, (_, workspace))| {
-                        project_id.is_none_or(|id| workspace.project_id.as_ref() == Some(id))
-                    })
-                    .map(|(position, (_, workspace))| {
-                        workspace_row(snapshot, workspace, position + 1)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            ))
+                    .workspaces
+                    .iter()
+                    .map(|workspace| workspace.workspace_id.as_str()),
+            );
+            for row in &mut rows {
+                row.handle = handles[row.workspace_id.as_str()].clone();
+            }
+            Ok(Projection::WorkspaceList(rows))
         }
         QueryCommand::WorkspaceGet(target) => {
             let workspace = resolve_workspace(snapshot, target)?;
@@ -2205,18 +2281,27 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
             } else {
                 snapshot.terminal_contexts.iter().collect()
             };
-            Ok(Projection::TabList(
-                contexts
+            let mut rows: Vec<_> = contexts
+                .iter()
+                .flat_map(|context| {
+                    context
+                        .tabs
+                        .iter()
+                        .enumerate()
+                        .map(|(position, tab)| tab_row(tab, position, index.reference(context)))
+                })
+                .collect();
+            let handles = list_handles(
+                Resource::Tab,
+                snapshot
+                    .terminal_contexts
                     .iter()
-                    .flat_map(|context| {
-                        context
-                            .tabs
-                            .iter()
-                            .enumerate()
-                            .map(|(position, tab)| tab_row(tab, position, index.reference(context)))
-                    })
-                    .collect(),
-            ))
+                    .flat_map(|context| context.tabs.iter().map(|tab| tab.tab_id.as_str())),
+            );
+            for row in &mut rows {
+                row.handle = handles[row.tab_id.as_str()].clone();
+            }
+            Ok(Projection::TabList(rows))
         }
         QueryCommand::TabGet(target) => {
             let (context, tab, position) = resolve_or_fail(
@@ -2420,6 +2505,7 @@ fn project_directories<'a>(
 fn project_row(snapshot: &Snapshot, project: &Project) -> ProjectRow {
     ProjectRow {
         project_id: project.project_id.to_string(),
+        handle: project.project_id.to_string(),
         label: project.label.clone(),
         directory_count: project_directories(snapshot, project).len(),
         workspace_count: snapshot
@@ -2466,6 +2552,7 @@ fn workspace_row(
         tab_count: context.tabs.len(),
         panel_count: context.tabs.iter().map(|tab| panel_count(&tab.root)).sum(),
         workspace_id: workspace.workspace_id.as_str().to_owned(),
+        handle: workspace.workspace_id.as_str().to_owned(),
         label: workspace.label.clone(),
         project_id: workspace.project_id.as_ref().map(ToString::to_string),
         project_label: workspace
@@ -2528,6 +2615,7 @@ fn tab_row(tab: &Tab, position: usize, context: ContextRef) -> TabRow {
         number: position + 1,
         panel_count: panel_count(&tab.root),
         tab_id: tab.tab_id.as_str().to_owned(),
+        handle: tab.tab_id.as_str().to_owned(),
         label: tab.display_label(position).into_owned(),
         pinned: tab.pinned,
         group_id: tab.group_id.as_ref().map(|id| id.as_str().to_owned()),

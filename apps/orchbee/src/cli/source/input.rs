@@ -81,6 +81,7 @@ pub(super) fn usage(
         failure_schema: None,
         version: 1,
         io_diagnostic: None,
+        candidate_display: None,
         usage: Some(Box::new(UsageReason::SendSource {
             option,
             value,
