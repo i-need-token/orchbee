@@ -262,3 +262,52 @@ fn expired_and_cancelled_reads_have_no_source_or_effect_requests() -> io::Result
     }
     Ok(())
 }
+
+#[test]
+fn cancellation_and_deadline_interrupt_an_inflight_source_without_retry() -> io::Result<()> {
+    use std::sync::Arc;
+    for cancelled in [false, true] {
+        let cancel = Arc::new(AtomicU8::new(0));
+        let server_cancel = Arc::clone(&cancel);
+        let peer = FakeServer::start(move |mut stream| {
+            accept(&mut stream)?;
+            assert!(matches!(
+                read_agent_request(&mut stream).map_err(io::Error::other)?,
+                AgentRequest::Read(AgentReadRequest::List { .. })
+            ));
+            if cancelled {
+                server_cancel.store(1, std::sync::atomic::Ordering::Release);
+            }
+            // No answer is sent. The original admission must close without a
+            // second source request or any operation after interruption.
+            assert_eq!(stream.read(&mut [0])?, 0);
+            Ok(())
+        })?;
+        let admission = Instant::now() + Duration::from_secs(3);
+        let mut client = LocalClient::connect_before(peer.endpoint(), "test-cohort", admission)
+            .map_err(io::Error::other)?;
+        let deadline = if cancelled {
+            admission
+        } else {
+            Instant::now() + Duration::from_millis(100)
+        };
+        let result = read(
+            &mut client,
+            &machine_agents::tests::fixture(),
+            false,
+            deadline,
+            &cancel,
+        );
+        assert_eq!(
+            result.unwrap_err(),
+            if cancelled {
+                Error::Cancelled
+            } else {
+                Error::Timeout
+            }
+        );
+        drop(client);
+        peer.finish()?;
+    }
+    Ok(())
+}
