@@ -57,6 +57,13 @@ pub(crate) fn unquoted(value: &str) -> String {
 /// reported with forward slashes uses backslashes. Controls stay escaped and
 /// the result remains copyable.
 pub(crate) fn native_path(value: &str) -> String {
+    // `\\?\C:\…` is an API spelling; people read and paste `C:\…`.
+    let value = match value.strip_prefix("\\\\?\\") {
+        Some(rest) if matches!(rest.as_bytes(), [drive, b':', ..] if drive.is_ascii_alphabetic()) => {
+            rest
+        }
+        _ => value,
+    };
     let drive =
         matches!(value.as_bytes(), [drive, b':', b'/' | b'\\', ..] if drive.is_ascii_alphabetic());
     if cfg!(windows) && (drive || value.starts_with("//")) {

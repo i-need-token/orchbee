@@ -1861,3 +1861,68 @@ fn git_paths_render_with_native_separators() {
         }
     );
 }
+
+#[test]
+fn config_check_text_leads_with_its_verdict_and_keeps_raw_details_in_json() {
+    let checks = [
+        super::config::CheckReport {
+            name: "locale",
+            status: "pass",
+            details: serde_json::Map::from_iter([
+                ("locale".into(), serde_json::json!("en-US")),
+                ("source".into(), serde_json::json!("environment")),
+            ]),
+        },
+        super::config::CheckReport {
+            name: "user-config",
+            status: "warning",
+            details: serde_json::Map::from_iter([
+                ("path".into(), serde_json::json!("C:/Orchbee/config.toml")),
+                (
+                    "spacesSidebarProfile".into(),
+                    serde_json::json!("{\"rows\":[]}"),
+                ),
+                (
+                    "diagnostics".into(),
+                    serde_json::json!([{"field":"theme.name","reason":"unknown","disposition":"default"}]),
+                ),
+            ]),
+        },
+    ];
+    for (locale, verdict) in [
+        (Locale::EnUs, "Configuration usable with 1 warning(s).\n"),
+        (Locale::ZhCn, "配置可用，有 1 项警告。\n"),
+    ] {
+        let text = String::from_utf8(
+            super::output::render_text(|out| super::present::config_checks(out, &checks, locale))
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(text.starts_with(verdict), "{text}");
+        assert!(text.contains("en-US (environment)"), "{text}");
+        assert!(text.contains("  theme.name: unknown (default)\n"), "{text}");
+        assert!(!text.contains("spacesSidebarProfile"), "{text}");
+        assert!(text.contains(locale.cli_check_json_hint()), "{text}");
+    }
+}
+
+#[test]
+fn empty_lists_say_how_to_create_their_first_entry() {
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        for empty in [
+            locale.cli_session_empty(),
+            locale.cli_command_empty(),
+            locale.cli_launch_profile_empty(),
+        ] {
+            assert!(empty.contains("orchbee "), "{empty}");
+            assert!(
+                empty.ends_with('\n') && empty.lines().count() == 1,
+                "{empty}"
+            );
+        }
+    }
+    assert_eq!(
+        super::present::columns(&["A", "BB"], &[vec!["long".into(), "x".into()]]),
+        "A     BB\nlong  x\n"
+    );
+}

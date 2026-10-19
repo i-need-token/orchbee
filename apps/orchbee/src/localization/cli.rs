@@ -24,6 +24,7 @@ mod panel_metadata;
 mod panel_relocation;
 #[cfg(windows)]
 mod panel_terminal_creation;
+mod readable;
 mod receipt;
 pub(crate) use details::DetailLabel;
 mod runtime_status;

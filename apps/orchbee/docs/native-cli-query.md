@@ -548,6 +548,14 @@ selected runtime base. It reads at most 256 sessions under one five-second deadl
 no runtime state and reports running, stopping, stopped, absent, starting, deleting, recoverable or recovery-required
 from authenticated metadata and admitted lifecycle facts. Unknown/unsafe inventory fails explicitly.
 
+Check and list text views lead with their conclusion and keep raw reason structures in JSON.
+`config check` prints a verdict line, one aligned row per check with its path, locale or failure
+reason, any settings warnings, the file in use and a `--format json` pointer. `agent doctor` prints
+its readiness summary and next command first, then a provider table. `session list` has a heading
+row and native paths, and explains a `not created` session. A closed `workspace close-status` shows
+its members as closed. An empty `session list`, `command list` or `launch-profile list` prints one
+line saying how to create the first entry; the launch-profile catalog revision is JSON-only.
+
 `session attach <name> [--mouse on|off]` activates or reconnects the real TUI. `session stop
 <name> --confirm` reuses `server stop`, including its timeout, detach, request-id and retry options
 and its existing result schema. `session delete <name> --confirm` removes only that stopped

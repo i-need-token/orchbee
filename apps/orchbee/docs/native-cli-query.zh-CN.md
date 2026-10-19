@@ -439,6 +439,13 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 它在一个五秒总期限内读取最多 256 个会话，不创建运行时状态，根据认证元数据及准入后的生命周期事实
 报告 running、stopping、stopped、absent、starting、deleting、recoverable 或 recovery-required。未知／不安全清单明确失败。
 
+检查与列表的文本视图先给出结论，原始原因结构只保留在 JSON 中。
+`config check` 输出一行结论、每项检查一行对齐的路径／语言区域／失败原因、设置警告、正在使用的文件及
+`--format json` 指引。`agent doctor` 先输出就绪汇总和下一条命令，再输出提供方表格。`session list`
+带表头和原生路径，并解释 `not created` 会话。已关闭的 `workspace close-status` 把成员显示为已关闭。
+空的 `session list`、`command list` 或 `launch-profile list` 输出一行说明如何创建第一项；启动配置目录
+修订号仅出现在 JSON 中。
+
 `session attach <name> [--mouse on|off]` 激活或重连真实 TUI。`session stop <name> --confirm`
 复用 `server stop`，包括其 timeout、detach、request-id、retry 参数及现有结果 schema。
 `session delete <name> --confirm` 只移除该已停止命名会话的保留检查点和自有运行时文件，拒绝 default、

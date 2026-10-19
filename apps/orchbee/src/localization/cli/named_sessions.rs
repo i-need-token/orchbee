@@ -5,7 +5,12 @@ use orchbee_local_site_runtime::WindowsNamedSiteDeleteReason as Reason;
 impl Locale {
     pub(crate) fn cli_session_state(self, state: SessionState) -> &'static str {
         match self {
-            Self::EnUs => state.token(),
+            Self::EnUs => match state {
+                SessionState::Absent => "not created",
+                SessionState::Deleting => "delete incomplete",
+                SessionState::RecoveryRequired => "recovery required",
+                _ => state.token(),
+            },
             Self::ZhCn => match state {
                 SessionState::Running => "运行中",
                 SessionState::Stopping => "停止中",

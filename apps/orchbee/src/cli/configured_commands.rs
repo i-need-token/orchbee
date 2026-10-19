@@ -433,25 +433,31 @@ fn emit(
         OutputFormat::Json => output::encode_document(&document),
         OutputFormat::Text => {
             let text: String = match document["result"]["reply"]["outcome"]["entries"].as_array() {
-                Some(entries) => entries
-                    .iter()
-                    .map(|entry| {
-                        format!(
-                            "{}\t{}\t{}\t{}\n",
-                            entry["id"].as_str().unwrap_or(""),
-                            entry["action"].as_str().unwrap_or(""),
-                            entry["bindings"]
-                                .as_array()
-                                .map(|values| values
-                                    .iter()
-                                    .filter_map(serde_json::Value::as_str)
-                                    .collect::<Vec<_>>()
-                                    .join(" / "))
-                                .unwrap_or_default(),
-                            super::escape::escape(entry["description"].as_str().unwrap_or(""))
-                        )
-                    })
-                    .collect(),
+                Some(entries) if entries.is_empty() => locale.cli_command_empty().into(),
+                Some(entries) => super::present::columns(
+                    &locale.cli_command_headers(),
+                    &entries
+                        .iter()
+                        .map(|entry| {
+                            vec![
+                                entry["id"].as_str().unwrap_or("").to_owned(),
+                                entry["action"].as_str().unwrap_or("").to_owned(),
+                                entry["bindings"]
+                                    .as_array()
+                                    .map(|values| {
+                                        values
+                                            .iter()
+                                            .filter_map(serde_json::Value::as_str)
+                                            .collect::<Vec<_>>()
+                                            .join(" / ")
+                                    })
+                                    .filter(|keys| !keys.is_empty())
+                                    .unwrap_or_else(|| "-".to_owned()),
+                                super::escape::escape(entry["description"].as_str().unwrap_or("")),
+                            ]
+                        })
+                        .collect::<Vec<_>>(),
+                ),
                 None => locale.configured_command_status(status).into(),
             };
             output::encode_text(&text)

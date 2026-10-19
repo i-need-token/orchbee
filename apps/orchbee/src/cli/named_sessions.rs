@@ -169,7 +169,8 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
         let entries = Catalog::list(&base, &local, deadline)
             .map_err(|error| local_error_at(error, "runtime-base"))?;
         let mut documents = Vec::new();
-        let mut text = String::new();
+        let mut rows = Vec::new();
+        let mut absent = false;
         for entry in entries {
             if Instant::now() >= deadline {
                 return Err(Failure::new(FailureKind::Timeout));
@@ -191,13 +192,22 @@ fn list(format: OutputFormat, locale: Locale) -> Output {
                 "state":state.token(),"running":state.running(),"pid":pid,
                 "runtimeDirectory":path,"endpoint":endpoint.to_str()}),
             );
-            text.push_str(&format!(
-                "{}\t{}\t{}\n",
-                entry.name.as_str(),
-                locale.cli_session_state(state),
-                super::escape::escape(&entry.runtime.to_string_lossy())
-            ));
+            absent |= state == SessionState::Absent;
+            rows.push(vec![
+                entry.name.as_str().to_owned(),
+                locale.cli_session_state(state).to_owned(),
+                super::escape::native_path(&entry.runtime.to_string_lossy()),
+            ]);
         }
+        let text = if rows.is_empty() {
+            locale.cli_session_empty().to_owned()
+        } else {
+            let mut text = super::present::columns(&locale.cli_session_headers(), &rows);
+            if absent {
+                text.push_str(locale.cli_session_absent_note());
+            }
+            text
+        };
         Ok((json!({"sessions":documents}), text))
     })();
     let mut finalization = None;

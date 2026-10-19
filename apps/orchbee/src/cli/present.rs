@@ -468,6 +468,7 @@ fn workspace_close_status(
     out: &mut Bounded,
     outcome: &WorkbenchWorkspaceCloseReadOutcome,
     text: &CliLabels,
+    locale: Locale,
 ) -> Result<(), TooLarge> {
     let WorkbenchWorkspaceCloseReadOutcome::Available {
         close_request_id,
@@ -481,6 +482,7 @@ fn workspace_close_status(
     else {
         return out.push(&format!("{}\n", text.close_not_closing));
     };
+    out.push(locale.cli_close_status_verdict(close_status_token(status)))?;
     field(out, text.close_request_id, close_request_id.as_str())?;
     field(out, text.workspace_id, workspace_id.as_str())?;
     field(out, text.terminal_context, terminal_context_id.as_str())?;
@@ -502,16 +504,37 @@ fn workspace_close_status(
         ),
     )?;
     field(out, text.members, &members.len().to_string())?;
-    table(out, &text.close_member_headers, members, close_member_cells)
+    // A member keeps the status it was captured with; once the whole scope
+    // is closed, its last intermediate state is history, not a contradiction.
+    let closed = matches!(status, WorkbenchTabCloseStatus::Closed { .. });
+    table(out, &text.close_member_headers, members, |member| {
+        close_member_cells(member, closed)
+    })
 }
 
-fn close_member_cells(member: &WorkbenchWorkspaceCloseMember) -> Vec<String> {
+fn close_member_cells(member: &WorkbenchWorkspaceCloseMember, closed: bool) -> Vec<String> {
     vec![
         member.tab_id.as_str().to_owned(),
         member.panel_id.as_str().to_owned(),
         member.presentation_id.as_str().to_owned(),
-        member_status_text(&member.status),
+        if closed {
+            "closed".to_owned()
+        } else {
+            member_status_text(&member.status)
+        },
     ]
+}
+
+const fn close_status_token(status: &WorkbenchTabCloseStatus) -> &'static str {
+    match status {
+        WorkbenchTabCloseStatus::Closing { .. } => "closing",
+        WorkbenchTabCloseStatus::CleanupBlocked { .. } => "cleanup-blocked",
+        WorkbenchTabCloseStatus::OutcomeUnknown { .. } => "outcome-unknown",
+        WorkbenchTabCloseStatus::DisposedAwaitingPublication { .. } => {
+            "disposed-awaiting-publication"
+        }
+        WorkbenchTabCloseStatus::Closed { .. } => "closed",
+    }
 }
 
 /// The scope-level lifecycle status, spelled with the wire's own tokens —
@@ -880,7 +903,9 @@ pub(crate) fn render(
         // `workspace close-status` prints the retained operation's identity
         // block, its aggregate counts, then one row per captured member —
         // the same record the machine document carries, tombstone included.
-        Projection::WorkspaceCloseStatus(outcome) => workspace_close_status(out, outcome, text),
+        Projection::WorkspaceCloseStatus(outcome) => {
+            workspace_close_status(out, outcome, text, locale)
+        }
         // `worktree list` prints the resolved identity block, then one row
         // per observed Git worktree: the escaped path (or its hex byte
         // form), the verbatim HEAD (an all-zero value stays exactly as Git
@@ -890,27 +915,23 @@ pub(crate) fn render(
             field(out, text.path, &super::escape::native_path(&doc.path))?;
             table(out, &text.worktree_headers, &doc.entries, worktree_cells)
         }
-        // `launch-profile list` prints the catalog revision line, then one
-        // row per entry; `get` renders the resolved entry as the same
+        // `launch-profile list` prints one row per entry, or how to create
+        // the first one; the catalog revision stays in JSON. `get` renders the resolved entry as the same
         // name/value members the machine document carries.
-        Projection::LaunchProfileCatalog(doc) => {
-            field(
-                out,
-                text.catalog_revision,
-                &doc.catalog_revision.to_string(),
-            )?;
-            match &doc.selection {
-                LaunchProfileCatalogSelection::List(entries) => table(
-                    out,
-                    &text.launch_profile_headers,
-                    entries,
-                    launch_profile_cells,
-                ),
-                LaunchProfileCatalogSelection::Profile(entry) => {
-                    name_value_block(out, &super::results::launch_profile_entry_json(entry))
-                }
+        Projection::LaunchProfileCatalog(doc) => match &doc.selection {
+            LaunchProfileCatalogSelection::List(entries) if entries.is_empty() => {
+                out.push(locale.cli_launch_profile_empty())
             }
-        }
+            LaunchProfileCatalogSelection::List(entries) => table(
+                out,
+                &text.launch_profile_headers,
+                entries,
+                launch_profile_cells,
+            ),
+            LaunchProfileCatalogSelection::Profile(entry) => {
+                name_value_block(out, &super::results::launch_profile_entry_json(entry))
+            }
+        },
         // `api snapshot` answers a machine document in every format; the text
         // projection is unreachable by contract, not a second surface.
         Projection::ApiSnapshot(_) => {
@@ -1407,19 +1428,70 @@ fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), 
     )
 }
 
-/// `config check` text rendering: `name  status  key=value …` per check.
+/// Aligned columns with a heading row and no width degradation, for text
+/// views assembled outside a bounded sink. The last column is never padded.
+pub(crate) fn columns(headers: &[&str], rows: &[Vec<String>]) -> String {
+    let mut widths: Vec<usize> = headers.iter().map(|header| display_width(header)).collect();
+    for row in rows {
+        for (width, cell) in widths.iter_mut().zip(row) {
+            *width = (*width).max(display_width(cell));
+        }
+    }
+    let mut text = String::new();
+    let heading = headers
+        .iter()
+        .map(|header| (*header).to_owned())
+        .collect::<Vec<_>>();
+    for row in std::iter::once(&heading).chain(rows) {
+        for (index, cell) in row.iter().enumerate() {
+            if index > 0 {
+                text.push_str("  ");
+            }
+            text.push_str(cell);
+            if index + 1 < row.len() {
+                text.push_str(&" ".repeat(widths[index].saturating_sub(display_width(cell))));
+            }
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// `config check` text: the conclusion, one aligned row per check, any
+/// settings warnings, the file in use, then where the full detail lives.
 pub(crate) fn config_checks(
     out: &mut Bounded,
     checks: &[CheckReport],
     locale: Locale,
 ) -> Result<(), TooLarge> {
+    let count = |status| checks.iter().filter(|check| check.status == status).count();
+    out.push(&locale.cli_check_verdict(checks.len(), count("warning"), count("fail")))?;
+    let rows = checks
+        .iter()
+        .map(|check| {
+            vec![
+                check.name.to_owned(),
+                locale.cli_check_status(check.status).to_owned(),
+                check_summary(check),
+            ]
+        })
+        .collect::<Vec<_>>();
+    table(out, &locale.cli_check_headers(), &rows, Vec::clone)?;
     for check in checks {
-        out.write(format_args!("{:<18}{}", check.name, check.status))?;
-        for (key, value) in &check.details {
-            out.write(format_args!("  {key}="))?;
-            detail(out, value)?;
+        for diagnostic in check
+            .details
+            .get("diagnostics")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            out.write(format_args!(
+                "  {}: {} ({})\n",
+                diagnostic["field"].as_str().unwrap_or("?"),
+                diagnostic["reason"].as_str().unwrap_or("?"),
+                diagnostic["disposition"].as_str().unwrap_or("?"),
+            ))?;
         }
-        out.push("\n")?;
     }
     if let Some(path) = checks
         .iter()
@@ -1427,9 +1499,26 @@ pub(crate) fn config_checks(
         .and_then(|check| check.details.get("path"))
         .and_then(Value::as_str)
     {
-        out.push(&locale.cli_config_file_line(&unquoted(path)))?;
+        out.push(&locale.cli_config_file_line(&super::escape::native_path(path)))?;
     }
-    Ok(())
+    out.push(locale.cli_check_json_hint())
+}
+
+/// The one fact a check row shows: a failure's field and reason, else its
+/// path, else its locale and source.
+fn check_summary(check: &CheckReport) -> String {
+    let text = |key| check.details.get(key).and_then(Value::as_str);
+    if let Some(reason) = text("reason") {
+        return text("field")
+            .map_or_else(|| reason.to_owned(), |field| format!("{field}: {reason}"));
+    }
+    if let Some(path) = text("path") {
+        return super::escape::native_path(path);
+    }
+    match (text("locale"), text("source")) {
+        (Some(locale), Some(source)) => format!("{locale} ({source})"),
+        _ => String::new(),
+    }
 }
 
 /// `server diagnose` rows stream in the same `name  state  k=v` shape as
@@ -1557,80 +1646,68 @@ pub(crate) fn agent_doctor(
     locale: Locale,
 ) -> Result<(), TooLarge> {
     let text = locale.cli_labels();
-    out.push(text.agent_doctor_providers)?;
+    out.push(&doctor_summary(result, locale))?;
     out.push("\n")?;
-    if let Some(providers) = result["providers"].as_array() {
-        for provider in providers {
-            out.push("  ")?;
-            out.push(provider["id"].as_str().unwrap_or("?"))?;
-            out.push("\n")?;
-            for (name, fact) in [
-                ("executable", &provider["executable"]),
-                ("node", &provider["runtime"]["node"]),
-                ("hook", &provider["hook"]),
-            ] {
-                out.write(format_args!("    {name:<11}"))?;
-                doctor_fact(out, fact)?;
-            }
-        }
-    }
-
-    out.push(text.agent_doctor_endpoint)?;
-    out.push("\n  socket  ")?;
-    doctor_fact(out, &result["endpoint"]["socket"])?;
-
-    out.push(text.agent_doctor_environment)?;
-    out.push("\n  ORCHBEE_AGENT_OBSERVATION_SOCKET_V3  ")?;
-    doctor_fact(out, &result["environment"]["observationSocketEnv"])?;
-
-    out.push(text.agent_doctor_asset_roots)?;
+    let providers = result["providers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|provider| {
+            vec![
+                provider["id"].as_str().unwrap_or("?").to_owned(),
+                doctor_fact(&provider["executable"]),
+                doctor_fact(&provider["runtime"]["node"]),
+                doctor_fact(&provider["hook"]),
+            ]
+        })
+        .collect::<Vec<_>>();
+    table(out, &locale.cli_doctor_headers(), &providers, Vec::clone)?;
     out.push("\n")?;
-    if let Some(roots) = result["asset"]["roots"].as_array() {
+    aligned(
+        out,
+        &[
+            (
+                text.agent_doctor_endpoint,
+                doctor_fact(&result["endpoint"]["socket"]),
+            ),
+            (
+                text.agent_doctor_environment,
+                format!(
+                    "ORCHBEE_AGENT_OBSERVATION_SOCKET_V3 {}",
+                    doctor_fact(&result["environment"]["observationSocketEnv"])
+                ),
+            ),
+        ],
+    )?;
+    if let Some(roots) = result["asset"]["roots"].as_array()
+        && !roots.is_empty()
+    {
+        out.push(text.agent_doctor_asset_roots)?;
+        out.push("\n")?;
         for root in roots {
-            out.push("  ")?;
-            if let Some(path) = root["path"].as_str() {
-                out.push(&quoted(path))?;
-            } else {
-                out.push("pathBytesHex=")?;
-                detail(out, &root["pathBytesHex"])?;
-            }
-            out.push("  origin=")?;
-            detail(out, &root["origin"])?;
-            out.push("  state=")?;
-            detail(out, &root["state"])?;
-            if let Some(details) = root["detail"].as_object() {
-                for (key, value) in details {
-                    out.write(format_args!("  {key}="))?;
-                    detail(out, value)?;
-                }
-            }
-            out.push("\n")?;
+            let path = root["path"]
+                .as_str()
+                .map_or_else(|| "-".to_owned(), super::escape::native_path);
+            out.write(format_args!(
+                "  {path}  {}  {}\n",
+                root["origin"].as_str().unwrap_or("?"),
+                root["state"].as_str().unwrap_or("?"),
+            ))?;
         }
     }
-
-    out.push(text.agent_doctor_hints)?;
-    out.push("\n")?;
-    if let Some(hints) = result["hints"].as_array() {
+    if let Some(hints) = result["hints"].as_array()
+        && !hints.is_empty()
+    {
+        out.push(text.agent_doctor_hints)?;
+        out.push("\n")?;
         for hint in hints {
             out.push("  ")?;
             let id = hint["id"].as_str().unwrap_or_default();
             out.push(&locale.cli_agent_doctor_hint_text(id, &doctor_hint_subjects(result, hint)))?;
-            if let Some(evidence) = hint["evidence"].as_array()
-                && !evidence.is_empty()
-            {
-                out.push(" (")?;
-                for (index, row) in evidence.iter().enumerate() {
-                    if index > 0 {
-                        out.push(", ")?;
-                    }
-                    detail(out, row)?;
-                }
-                out.push(")")?;
-            }
             out.push("\n")?;
         }
     }
-    out.push(&doctor_summary(result, locale))
+    out.push(locale.cli_doctor_json_hint())
 }
 
 /// The closing conclusion: a provider is ready with both its executable and
@@ -1696,21 +1773,14 @@ fn doctor_hint_subjects(result: &Value, hint: &Value) -> Vec<String> {
     subjects
 }
 
-/// One doctor fact row: `state`, then `reason` when present, then every
-/// detail field through the shared writer.
+/// One doctor fact cell: `state`, with its `reason` when present. Detail
+/// fields stay in the JSON document.
 #[cfg(any(target_os = "linux", windows))]
-fn doctor_fact(out: &mut Bounded, fact: &Value) -> Result<(), TooLarge> {
-    out.push(fact["state"].as_str().unwrap_or("unknown"))?;
-    if let Some(reason) = fact["reason"].as_str() {
-        out.write(format_args!("  reason={reason}"))?;
-    }
-    if let Some(details) = fact["detail"].as_object() {
-        for (key, value) in details {
-            out.write(format_args!("  {key}="))?;
-            detail(out, value)?;
-        }
-    }
-    out.push("\n")
+fn doctor_fact(fact: &Value) -> String {
+    let state = fact["state"].as_str().unwrap_or("unknown");
+    fact["reason"]
+        .as_str()
+        .map_or_else(|| state.to_owned(), |reason| format!("{state} ({reason})"))
 }
 
 fn agent_changes(
