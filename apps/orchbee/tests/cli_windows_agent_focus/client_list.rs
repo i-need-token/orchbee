@@ -168,7 +168,7 @@ fn unified_list_keeps_matched_aliases_and_physical_only_agents_as_distinct_rows(
     let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
     let server = peer(&fixture, listener, move |mut stream| {
         snapshot_reply(&mut stream);
-        let mut canonical = completed();
+        let mut canonical = client_get::completed();
         canonical["snapshot"]["providerId"] = json!("grok");
         canonical["snapshot"]["presentationAttachments"] = json!([{
             "generation":id(1),"navigable":true,"presentationId":id(106),"visibility":"visible"
