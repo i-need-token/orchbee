@@ -1121,8 +1121,9 @@ fn read_terminal_frame(
 }
 
 /// `--history`: the same attach → poll preamble pins the frame's retained
-/// scrollback count, then exactly one `ReadRows` asks for the rows that have
-/// scrolled off the active screen. `K = min(requested, scrollback,
+/// scrollback count, then one `ReadRows` asks for the rows that have
+/// scrolled off the active screen; an aged pin repeats both on the next
+/// applied frame. `K = min(requested, scrollback,
 /// MAXIMUM_FRAME_CELLS / columns)` keeps the absolute start at the recent
 /// end; `scrollback == 0` short-circuits before any Host request. No
 /// `RowsApplied` is sent: a buffer read creates no pending anchor.
@@ -1141,14 +1142,24 @@ fn read_terminal_history(
     ),
     Failure,
 > {
-    let (row, viewer_id, attachment, epoch, projection) =
+    let (row, viewer_id, _attachment, _epoch, mut projection) =
         attach_viewer(client, deadline, snapshot, target)?;
-    let outcome = poll_terminal_frame(client, deadline, &viewer_id, projection).and_then(|frame| {
-        read_history_window(
-            client, deadline, &viewer_id, attachment, epoch, &frame, requested,
-        )
-        .map(|window| (frame, window))
-    });
+    let outcome = read_settled(
+        client,
+        deadline,
+        &viewer_id,
+        &mut projection,
+        |client, frame, sequence| {
+            let window =
+                read_history_window(client, deadline, &viewer_id, frame, requested, sequence)?;
+            // Only an abandoned pin is acknowledged: the Host publishes the
+            // next frame after it, while a consistent read sends no feedback.
+            if window.is_err() {
+                acknowledge_frame(client, deadline, &viewer_id, frame)?;
+            }
+            Ok(window)
+        },
+    );
     detach_viewer(client, deadline, viewer_id);
     outcome.map(|(frame, window)| (row, frame, window))
 }
@@ -1279,24 +1290,31 @@ fn detach_viewer(client: &mut LocalClient, deadline: Instant, viewer_id: ViewerI
     }
 }
 
-/// Issue the single Host `ReadRows` behind the validated frame and decode its
-/// answer. The effective window is `min(requested, scrollback, capacity)`
-/// rows ending at the scrollback boundary; a `RowsRejected` maps to its
-/// typed failure and any other outcome — including an `Empty` stand-in — is
-/// protocol-invalid. Exactly one request is ever sent: no retry.
+/// Issue one Host `ReadRows` behind the validated frame and decode its
+/// answer against the frame's own route, which the projection already bound
+/// to this attachment and epoch. The effective window is
+/// `min(requested, scrollback, capacity)` rows ending at the scrollback
+/// boundary; an aged pin answers its retryable reason, any other
+/// `RowsRejected` maps to its typed failure, and any other outcome —
+/// including an `Empty` stand-in — is protocol-invalid.
 #[cfg(any(target_os = "linux", windows))]
 fn read_history_window(
     client: &mut LocalClient,
     deadline: Instant,
     viewer_id: &ViewerId,
-    attachment: AttachmentId,
-    epoch: HostEpoch,
     frame: &TerminalTextFrame,
     requested: u16,
-) -> Result<Option<orchbee_terminal_protocol::TerminalTextRowWindow>, Failure> {
+    sequence: std::num::NonZeroU64,
+) -> Result<
+    Result<
+        Option<orchbee_terminal_protocol::TerminalTextRowWindow>,
+        orchbee_client_server_protocol::ViewerRowsRejectedReason,
+    >,
+    Failure,
+> {
     let scrollback = frame.scrollback_rows;
     if scrollback == 0 {
-        return Ok(None);
+        return Ok(Ok(None));
     }
     // The frame geometry was validated by the OBTF decoder: columns ≥ 1.
     let capacity = u64::try_from(orchbee_terminal_protocol::MAXIMUM_FRAME_CELLS)
@@ -1314,7 +1332,7 @@ fn read_history_window(
             row_count,
             revision: frame.route.revision,
             generation: frame.route.generation,
-            request_sequence: std::num::NonZeroU64::MIN,
+            request_sequence: sequence,
             maximum_bytes: orchbee_client_server_protocol::MAXIMUM_READ_ROWS_BYTES,
         },
     );
@@ -1324,17 +1342,15 @@ fn read_history_window(
     match result.outcome() {
         TerminalViewerOutcome::Record(record) => decode_history_window(
             record.clone(),
-            attachment,
-            epoch,
+            frame.route.attachment_id,
+            frame.route.host_epoch,
             frame,
             start_row,
             count,
-            std::num::NonZeroU64::MIN,
+            sequence,
         )
-        .map(Some),
-        TerminalViewerOutcome::RowsRejected { reason } => {
-            Err(classify_rows_rejected(*reason, "read-history"))
-        }
+        .map(|window| Ok(Some(window))),
+        TerminalViewerOutcome::RowsRejected { reason } => aged_pin(*reason),
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
         _ => Err(viewer_protocol_invalid()),
@@ -1387,6 +1403,97 @@ fn decode_history_window(
         return Err(viewer_protocol_invalid());
     }
     Ok(window)
+}
+
+/// One-shot reads pin a frame, then read rows at its exact revision. A pin
+/// that ages in between is abandoned for the next applied frame under the
+/// same deadline, with a strictly increasing row sequence; rows from
+/// different revisions are never spliced. `read` acknowledges any frame it
+/// abandons. After the deadline the last aged answer is the failure.
+#[cfg(any(target_os = "linux", windows))]
+fn read_settled<T>(
+    client: &mut LocalClient,
+    deadline: Instant,
+    viewer_id: &ViewerId,
+    projection: &mut TerminalProjection,
+    mut read: impl FnMut(
+        &mut LocalClient,
+        &TerminalTextFrame,
+        std::num::NonZeroU64,
+    ) -> Result<
+        Result<T, orchbee_client_server_protocol::ViewerRowsRejectedReason>,
+        Failure,
+    >,
+) -> Result<(TerminalTextFrame, T), Failure> {
+    let mut sequence = std::num::NonZeroU64::MIN;
+    let mut aged = None;
+    loop {
+        if let Err(failure) = poll_applied_frame(client, deadline, viewer_id, projection, None) {
+            return Err(match aged {
+                Some(reason) if Instant::now() >= deadline => {
+                    classify_rows_rejected(reason, "read-history")
+                }
+                _ => failure,
+            });
+        }
+        let frame = projection
+            .frame()
+            .cloned()
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+        match read(client, &frame, sequence)? {
+            Ok(value) => return Ok((frame, value)),
+            Err(reason) if Instant::now() >= deadline => {
+                return Err(classify_rows_rejected(reason, "read-history"));
+            }
+            Err(reason) => {
+                aged = Some(reason);
+                sequence = sequence
+                    .checked_add(1)
+                    .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+            }
+        }
+    }
+}
+
+/// Stale revision, stale generation and eviction mean the pinned frame aged
+/// before its rows were read; every other rejection is the read's failure.
+#[cfg(any(target_os = "linux", windows))]
+fn aged_pin<T>(
+    reason: orchbee_client_server_protocol::ViewerRowsRejectedReason,
+) -> Result<Result<T, orchbee_client_server_protocol::ViewerRowsRejectedReason>, Failure> {
+    use orchbee_client_server_protocol::ViewerRowsRejectedReason as Reason;
+    match reason {
+        Reason::StaleRevision | Reason::StaleGeneration | Reason::HistoryEvicted => Ok(Err(reason)),
+        other => Err(classify_rows_rejected(other, "read-history")),
+    }
+}
+
+/// Confirm an applied frame so the Host may publish the next one.
+#[cfg(any(target_os = "linux", windows))]
+fn acknowledge_frame(
+    client: &mut LocalClient,
+    deadline: Instant,
+    viewer: &ViewerId,
+    frame: &TerminalTextFrame,
+) -> Result<(), Failure> {
+    let request = TerminalViewerRequest::new(
+        obcs_request_id()?,
+        TerminalViewerAction::FrameApplied {
+            attachment_id: viewer.clone(),
+            sequence: frame.route.sequence,
+            generation: frame.route.generation,
+            revision: frame.route.revision,
+        },
+    );
+    let result = client
+        .submit_terminal_viewer_before(request, deadline)
+        .map_err(classify_viewer)?;
+    match result.outcome() {
+        TerminalViewerOutcome::FeedbackAccepted {} => Ok(()),
+        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
+        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
+        _ => Err(viewer_protocol_invalid()),
+    }
 }
 
 /// A typed `rows-rejected` answer maps to its fixed failure class: the local
@@ -1452,6 +1559,23 @@ fn poll_terminal_frame_cancellable(
     mut projection: TerminalProjection,
     wake: Option<BorrowedFd<'_>>,
 ) -> Result<TerminalTextFrame, Failure> {
+    poll_applied_frame(client, deadline, viewer_id, &mut projection, wake)?;
+    projection
+        .take_frame()
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))
+}
+
+/// Poll until one record applies to the borrowed projection. The projection
+/// keeps the applied frame as the base later delta frames require, so a read
+/// that abandons an aged pin can acknowledge it and poll for the next one.
+#[cfg(any(target_os = "linux", windows))]
+fn poll_applied_frame(
+    client: &mut LocalClient,
+    deadline: Instant,
+    viewer_id: &ViewerId,
+    projection: &mut TerminalProjection,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<(), Failure> {
     loop {
         let poll = TerminalViewerRequest::new(
             obcs_request_id()?,
@@ -1468,9 +1592,7 @@ fn poll_terminal_frame_cancellable(
                 match projection.receive_for_geometry(record, None) {
                     Ok(Some(feedback)) => {
                         if matches!(feedback, TerminalViewerAction::FrameApplied { .. }) {
-                            return projection
-                                .take_frame()
-                                .ok_or_else(|| Failure::new(FailureKind::InternalFailure));
+                            return Ok(());
                         }
                         let request = TerminalViewerRequest::new(obcs_request_id()?, feedback);
                         let result = client

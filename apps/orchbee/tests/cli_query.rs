@@ -4897,33 +4897,178 @@ fn terminal_read_history_clamps_to_the_retained_rows() -> TestResult {
     Ok(())
 }
 
-/// `rows-rejected` maps to its fixed failure vocabulary: Host state answers
-/// are unavailability with the typed reason, and the local budget overrun is
-/// a rejection. No second `ReadRows` is ever sent.
+/// An aged pin is not the read's answer: each stale or evicted reply
+/// acknowledges the abandoned frame, the next applied frame re-pins the
+/// window, and the retried read uses `request_sequence` 2 under the same
+/// deadline.
+#[test]
+fn terminal_read_history_aged_rows_answer_repins_and_retries() -> TestResult {
+    for (tag, reason) in [
+        ("stale-rev", ViewerRowsRejectedReason::StaleRevision),
+        ("stale-gen", ViewerRowsRejectedReason::StaleGeneration),
+        ("evicted", ViewerRowsRejectedReason::HistoryEvicted),
+    ] {
+        let base = base_dir(&format!("thist-aged-{tag}"));
+        let scope = stage_scope(&base);
+        let cells = [0_u32; 8];
+        let first = frame_record(&budget_obtf_scrolled(
+            8,
+            &[(0, &cells), (0, &cells)],
+            &["s"],
+            3,
+        ));
+        let second = frame_record(&budget_obtf_scrolled_at(
+            8,
+            &[(0, &cells), (0, &cells)],
+            &["s"],
+            3,
+            2,
+            2,
+        ));
+        let answer = history_record(&obrw_window(
+            1,
+            5,
+            8,
+            2,
+            2,
+            1,
+            &[(0x00, "late-a"), (0x00, "late-b")],
+        ));
+        let peer = read_peer(&scope, move |stream| {
+            let attachment = attach_with_fixture(stream);
+            let request = take_poll(stream, &attachment);
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::Record(first.clone()),
+            );
+            let (request, _, _) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::RowsRejected { reason },
+            );
+            take_frame_applied(stream, &attachment);
+            let request = take_poll(stream, &attachment);
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::Record(second.clone()),
+            );
+            let (request, start_row, row_count) = take_wait_read_rows(stream, &attachment, 2, 1, 2);
+            assert_eq!((start_row, row_count), (1, 2));
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::Record(answer.clone()),
+            );
+            answer_detach(stream, &attachment);
+            expect_session_eof(stream);
+        });
+        let output = run(
+            &base,
+            &[
+                "terminal",
+                "read",
+                TERMINAL_ID,
+                "--history",
+                "--rows",
+                "2",
+                "--format",
+                "json",
+            ],
+        );
+        peer.join().expect("peer finished");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{tag}: stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+        assert_eq!(document["result"]["contentRevision"], "2", "{tag}");
+        assert_eq!(document["result"]["history"]["windowRows"], 2, "{tag}");
+    }
+    Ok(())
+}
+
+/// A pin that keeps aging until the read's deadline fails with the last
+/// typed reason — never a partial window — and still releases the viewer.
+#[test]
+fn terminal_read_history_aging_until_deadline_reports_last_reason() -> TestResult {
+    let base = base_dir("thist-aging");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let mut pin = 1_u64;
+        loop {
+            let request = take_poll(stream, &attachment);
+            let record = frame_record(&budget_obtf_scrolled_at(
+                8,
+                &[(0, &cells)],
+                &["s"],
+                3,
+                pin,
+                pin,
+            ));
+            viewer_reply(stream, &request, TerminalViewerOutcome::Record(record));
+            let (request, _, _) = take_wait_read_rows(stream, &attachment, pin, 1, pin);
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::RowsRejected {
+                    reason: ViewerRowsRejectedReason::StaleRevision,
+                },
+            );
+            // Past the deadline the client releases instead of acknowledging.
+            let request = viewer_request(stream);
+            match request.action() {
+                TerminalViewerAction::FrameApplied { .. } => {
+                    viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {})
+                }
+                TerminalViewerAction::Detach { .. } => {
+                    viewer_reply(stream, &request, TerminalViewerOutcome::Detached {});
+                    break;
+                }
+                action => panic!("peer expected feedback or detach, got {action:?}"),
+            }
+            pin += 1;
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--history",
+            "--rows",
+            "1",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(4));
+    let failure = failure_kind(&output);
+    assert_eq!(failure["failure"]["kind"], "service-unavailable");
+    assert_eq!(failure["failure"]["details"]["reason"], "stale-revision");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("stale-revision"), "{stderr}");
+    assert!(stderr.contains("Retry the read"), "{stderr}");
+    Ok(())
+}
+
+/// A non-aged `rows-rejected` maps to its fixed failure vocabulary: Host
+/// state answers are unavailability with the typed reason, and the local
+/// budget overrun is a rejection. No second `ReadRows` is sent for them.
 #[test]
 fn terminal_read_history_rows_rejected_maps_typed_failures() -> TestResult {
     let cases: &[(&str, ViewerRowsRejectedReason, i32, &str, Option<&str>)] = &[
-        (
-            "evicted",
-            ViewerRowsRejectedReason::HistoryEvicted,
-            4,
-            "service-unavailable",
-            Some("history-evicted"),
-        ),
-        (
-            "stale-rev",
-            ViewerRowsRejectedReason::StaleRevision,
-            4,
-            "service-unavailable",
-            Some("stale-revision"),
-        ),
-        (
-            "stale-gen",
-            ViewerRowsRejectedReason::StaleGeneration,
-            4,
-            "service-unavailable",
-            Some("stale-generation"),
-        ),
         (
             "exhausted",
             ViewerRowsRejectedReason::ResourceExhausted,

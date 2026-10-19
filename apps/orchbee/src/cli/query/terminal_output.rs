@@ -3,16 +3,19 @@
 use super::{
     Failure, FailureKind, Instant, LocalClient, Projection, TerminalTextFrame,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerId, WaitRun,
-    WaitSample, agent_terminal, attach_viewer, classify_rows_rejected, classify_viewer,
-    classify_viewer_rejected, decode_history_window, detach_viewer, obcs_request_id,
-    poll_terminal_frame, snapshot_session, viewer_protocol_invalid, viewer_unavailable,
+    WaitSample, acknowledge_frame, aged_pin, agent_terminal, attach_viewer, classify_rows_rejected,
+    classify_viewer, classify_viewer_rejected, decode_history_window, detach_viewer,
+    obcs_request_id, read_settled, snapshot_session, viewer_protocol_invalid, viewer_unavailable,
 };
 use crate::cli::terminal_output::{self, SampleRange};
 use crate::invocation::{OutputSelection, OutputSource, OutputTarget};
+use crate::terminal_projection::TerminalProjection;
+use orchbee_client_server_protocol::ViewerRowsRejectedReason;
+use std::num::NonZeroU64;
 
 enum Sample {
     Text(Vec<terminal_output::OutputRow>),
-    Render(Vec<u8>),
+    Render(Vec<u8>, NonZeroU64),
     Visible,
 }
 
@@ -30,28 +33,16 @@ pub(crate) fn read_output(
         }
     };
     let outcome = (|| {
-        let (terminal, viewer, _attachment, _epoch, projection) =
+        let (terminal, viewer, _attachment, _epoch, mut projection) =
             attach_viewer(&mut client, deadline, &snapshot, &target)?;
-        let observed =
-            poll_terminal_frame(&mut client, deadline, &viewer, projection).and_then(|frame| {
-                acknowledge_frame(&mut client, deadline, &viewer, &frame)?;
-                let range = terminal_output::range(&frame, selection)?;
-                let rows = if range.count == 0 {
-                    Sample::Text(Vec::new())
-                } else if selection.source == OutputSource::Visible {
-                    Sample::Visible
-                } else {
-                    read_rows(
-                        &mut client,
-                        deadline,
-                        &viewer,
-                        &frame,
-                        range,
-                        ansi && selection.source != OutputSource::Detection,
-                    )?
-                };
-                Ok((frame, range, rows))
-            });
+        let observed = observe(
+            &mut client,
+            deadline,
+            &viewer,
+            &mut projection,
+            selection,
+            ansi,
+        );
         detach_viewer(&mut client, deadline, viewer);
         observed.map(|(frame, range, rows)| (terminal, frame, range, rows))
     })();
@@ -85,13 +76,13 @@ pub(crate) fn read_output(
                     range,
                     terminal_output::frame_rows(&frame, selection)?,
                 )?,
-                Sample::Render(record) => terminal_output::prepared_document(
+                Sample::Render(record, sequence) => terminal_output::prepared_document(
                     terminal,
                     &frame,
                     selection,
                     range,
                     terminal_output::ansi::window(
-                        &decode_render(&record, &frame, range)?,
+                        &decode_render(&record, &frame, range, sequence)?,
                         selection,
                     )?,
                 ),
@@ -103,32 +94,47 @@ pub(crate) fn read_output(
         .map_err(|failure| failure.source(source))
 }
 
-fn acknowledge_frame(
+/// Read the selected rows of one consistent frame. Every applied frame is
+/// acknowledged before its rows are pinned, so an aged pin can be abandoned
+/// for the next frame by the shared settle loop.
+fn observe(
     client: &mut LocalClient,
     deadline: Instant,
     viewer: &ViewerId,
-    frame: &TerminalTextFrame,
-) -> Result<(), Failure> {
-    let request = TerminalViewerRequest::new(
-        obcs_request_id()?,
-        TerminalViewerAction::FrameApplied {
-            attachment_id: viewer.clone(),
-            sequence: frame.route.sequence,
-            generation: frame.route.generation,
-            revision: frame.route.revision,
+    projection: &mut TerminalProjection,
+    selection: OutputSelection,
+    ansi: bool,
+) -> Result<(TerminalTextFrame, SampleRange, Sample), Failure> {
+    read_settled(
+        client,
+        deadline,
+        viewer,
+        projection,
+        |client, frame, sequence| {
+            acknowledge_frame(client, deadline, viewer, frame)?;
+            let range = terminal_output::range(frame, selection)?;
+            if range.count == 0 {
+                return Ok(Ok((range, Sample::Text(Vec::new()))));
+            }
+            if selection.source == OutputSource::Visible {
+                return Ok(Ok((range, Sample::Visible)));
+            }
+            Ok(read_rows(
+                client,
+                deadline,
+                viewer,
+                frame,
+                range,
+                ansi && selection.source != OutputSource::Detection,
+                sequence,
+            )?
+            .map(|rows| (range, rows)))
         },
-    );
-    let result = client
-        .submit_terminal_viewer_before(request, deadline)
-        .map_err(classify_viewer)?;
-    match result.outcome() {
-        TerminalViewerOutcome::FeedbackAccepted {} => Ok(()),
-        TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
-        TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
-        _ => Err(viewer_protocol_invalid()),
-    }
+    )
+    .map(|(frame, (range, rows))| (frame, range, rows))
 }
 
+/// One `ReadRows` pinned to `frame`; an aged pin answers its retryable reason.
 fn read_rows(
     client: &mut LocalClient,
     deadline: Instant,
@@ -136,7 +142,8 @@ fn read_rows(
     frame: &TerminalTextFrame,
     range: SampleRange,
     ansi: bool,
-) -> Result<Sample, Failure> {
+    sequence: NonZeroU64,
+) -> Result<Result<Sample, ViewerRowsRejectedReason>, Failure> {
     let request = TerminalViewerRequest::new(
         obcs_request_id()?,
         TerminalViewerAction::ReadRows {
@@ -150,7 +157,7 @@ fn read_rows(
             row_count: range.count,
             revision: frame.route.revision,
             generation: frame.route.generation,
-            request_sequence: std::num::NonZeroU64::MIN,
+            request_sequence: sequence,
             maximum_bytes: orchbee_client_server_protocol::MAXIMUM_READ_ROWS_BYTES,
         },
     );
@@ -158,7 +165,9 @@ fn read_rows(
         .submit_terminal_viewer_before(request, deadline)
         .map_err(classify_viewer)?;
     match result.outcome() {
-        TerminalViewerOutcome::Record(record) if ansi => Ok(Sample::Render(record.clone())),
+        TerminalViewerOutcome::Record(record) if ansi => {
+            Ok(Ok(Sample::Render(record.clone(), sequence)))
+        }
         TerminalViewerOutcome::Record(record) => decode_history_window(
             record.clone(),
             frame.route.attachment_id,
@@ -166,12 +175,10 @@ fn read_rows(
             frame,
             range.start,
             u64::from(range.count),
-            std::num::NonZeroU64::MIN,
+            sequence,
         )
-        .map(|window| Sample::Text(terminal_output::window_rows(&window))),
-        TerminalViewerOutcome::RowsRejected { reason } => {
-            Err(classify_rows_rejected(*reason, "read-history"))
-        }
+        .map(|window| Ok(Sample::Text(terminal_output::window_rows(&window)))),
+        TerminalViewerOutcome::RowsRejected { reason } => aged_pin(*reason),
         TerminalViewerOutcome::Rejected { reason } => Err(classify_viewer_rejected(*reason)),
         TerminalViewerOutcome::Unavailable { .. } => Err(viewer_unavailable()),
         _ => Err(viewer_protocol_invalid()),
@@ -183,6 +190,7 @@ fn decode_render<'a>(
     record: &'a [u8],
     frame: &TerminalTextFrame,
     range: SampleRange,
+    sequence: NonZeroU64,
 ) -> Result<orchbee_terminal_protocol::TerminalRenderRowWindow<'a>, Failure> {
     use orchbee_terminal_protocol::{
         CURRENT_PROTOCOL_VERSION, MessageRole, PayloadEncoding, decode_terminal_render_row_window,
@@ -203,7 +211,7 @@ fn decode_render<'a>(
     let route = window.route();
     if route.attachment_id != frame.route.attachment_id
         || route.host_epoch != frame.route.host_epoch
-        || route.sequence != std::num::NonZeroU64::MIN
+        || route.sequence != sequence
         || route.revision != frame.route.revision
         || route.generation != frame.route.generation
         || route.columns != frame.geometry.columns

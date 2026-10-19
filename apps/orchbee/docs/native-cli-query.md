@@ -1330,8 +1330,10 @@ min(n, scrollback, 262144/columns)` and `startRow = scrollback - rowCount`, so t
   answers (`history-evicted`, `stale-revision`, `stale-generation`, `missing-resource`,
   `resource-exhausted`, `invalid-phase`) are `service-unavailable` (4) with
   `{stage:"viewer",operation:"read-history",reason}`; reasons the fixed request shape cannot
-  produce are `protocol-invalid`. There is no retry, and no `RowsApplied`/feedback anchor is
-  ever sent for the read.
+  produce are `protocol-invalid`. `history-evicted`, `stale-revision` and `stale-generation`
+  mean the pin aged: the read acknowledges that frame, polls the next applied frame and repeats
+  the window request with the next `request_sequence` inside the same deadline, reporting the
+  last aged reason only after the deadline. No `RowsApplied` anchor is ever sent for the read.
 
 `terminal read --unwrap`/`--lines` are presentation transforms applied to the already
 materialized emitted rows — they change neither the fetched window nor the read bound:
@@ -2531,7 +2533,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`session-capacity`/unchanged structure                                                    | `tests/local_startup_process`                                       |
 | Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence                                        | `tests/cli_query.rs`                                                |
 | Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures                                             | `tests/cli_query.rs`                                                |
-| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, window mismatch, oversized record, no retry                                           | `terminal read --history` success + typed failures                                                | `tests/cli_query.rs`                                                |
+| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, aged-pin re-pin, window mismatch, oversized                                           | `terminal read --history` success + typed failures                                                | `tests/cli_query.rs`                                                |
 | Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry             | `terminal send` exit 0/3/4/5/8 with the two-axis result fields                                    | `tests/cli_send.rs`                                                 |
 | Send source grammar: four-source exclusivity, fixed-order conflict naming, `--enter` scoping, flag scope                                                                                                          | exact parse/`invalid-usage` before any runtime access                                             | `src/invocation` tests                                              |
 | File/stdin materialization: nonblocking open + `fstat` type gate, regular-file shared offset, private FIFO reopen, cap+1, opaque bytes, empty/non-regular/unsupported rejections                                  | bounded record or typed source `invalid-usage`; zero runtime effect                               | `src/cli/source` unit tests + `tests/cli_send.rs`                   |

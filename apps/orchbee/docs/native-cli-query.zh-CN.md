@@ -1093,7 +1093,9 @@ Windows 托管安装由 [Windows 集成契约](windows-agent-integrations.zh-CN.
   （`history-evicted`、`stale-revision`、`stale-generation`、`missing-resource`、
   `resource-exhausted`、`invalid-phase`）为 `service-unavailable`（4），details 为
   `{stage:"viewer",operation:"read-history",reason}`；固定请求形状不可能产生的 reason 为
-  `protocol-invalid`。不重试，也绝不为此读取发送 `RowsApplied`/feedback 锚点。
+  `protocol-invalid`。`history-evicted`、`stale-revision` 与 `stale-generation` 表示固定已过期：
+  读取确认该帧、轮询下一个已应用帧，并在同一 deadline 内以下一个 `request_sequence` 重发窗口请求；
+  只有 deadline 届满后才报告最后一次过期原因。绝不为此读取发送 `RowsApplied` 锚点。
 
 `terminal read --unwrap`/`--lines` 是作用于已物化发出行的呈现变换——既不改变抓取
 窗口，也不改变读取上限：
@@ -2114,7 +2116,7 @@ deadline 到期在 wire 请求尚不存在时即退出。
 | 真实 staged-cohort Server：status/list/get/api snapshot、8 个准入加第 9 个被拒加释放、活跃 TUI                                                                           | 成功/`session-capacity`/结构不变                                                 | `tests/local_startup_process`                                     |
 | 脚本化 OBLC/OBWP peer：denied、unavailable、畸形、错误 correlation、超时、断连                                                                                           | 按矩阵 typed kind；绝不冒称真实 Server 证据                                      | `tests/cli_query.rs`                                              |
 | 脚本化 OBCS viewer peer：attach-binding 字段、`Empty`→`record` 轮询、detach 释放、reject/unavailable/畸形/correlation/断连                                               | `terminal read` 成功 + typed viewer-stage 失败                                   | `tests/cli_query.rs`                                              |
-| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、窗口失配、超大 record、无重试                                                | `terminal read --history` 成功 + typed 失败                                      | `tests/cli_query.rs`                                              |
+| 脚本化 OBCS viewer peer + 手工 OBRW record：滚动定价、容量/滚动钳制、typed `rows-rejected`、过期重钉、窗口失配、超大 record                                              | `terminal read --history` 成功 + typed 失败                                      | `tests/cli_query.rs`                                              |
 | 脚本化 OBCS send peer：UTF-8 文本与可选折叠回车、语义键均以一条请求到达，target/请求身份，accepted/rejected/unavailable/unknown 应答、停滞应答、无重试                   | `terminal send` 退出 0/3/4/5/8 且两轴结果字段齐全                                | `tests/cli_send.rs`                                               |
 | send 源语法：四源互斥、固定次序冲突命名、`--enter` 适用范围、flag 范围                                                                                                   | 任何运行时访问前的精确 parse/`invalid-usage`                                     | `src/invocation` 测试                                             |
 | 文件/stdin 物化：非阻塞 open + `fstat` 类型闸、regular 文件共享 offset、私有 FIFO 重开、cap+1、不透明字节、空/非 regular/不支持类型的拒绝                                | 有界记录或类型化源 `invalid-usage`；零运行时副作用                               | `src/cli/source` 单元测试 + `tests/cli_send.rs`                   |

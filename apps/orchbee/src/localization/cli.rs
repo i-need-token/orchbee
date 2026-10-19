@@ -1511,32 +1511,15 @@ impl Locale {
                 "The local session could not produce a snapshot right now.\n".to_owned()
             }
             (Self::ZhCn, "snapshot") => "本地会话当前无法产出快照。\n".to_owned(),
-            (Self::EnUs, "viewer") => {
-                let reason = failure
-                    .details
-                    .as_ref()
-                    .and_then(|details| details.get("reason"))
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("");
-                if reason.is_empty() {
-                    "The terminal could not be observed for reading right now.\n".to_owned()
-                } else {
-                    format!("The terminal history could not be read right now ({reason}).\n")
-                }
-            }
-            (Self::ZhCn, "viewer") => {
-                let reason = failure
-                    .details
-                    .as_ref()
-                    .and_then(|details| details.get("reason"))
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("");
-                if reason.is_empty() {
-                    "该终端当前无法进行读取观察。\n".to_owned()
-                } else {
-                    format!("该终端的历史当前无法读取（{reason}）。\n")
-                }
-            }
+            (_, "viewer") => self
+                .cli_viewer_unavailable(
+                    failure
+                        .details
+                        .as_ref()
+                        .and_then(|details| details.get("reason"))
+                        .and_then(|value| value.as_str()),
+                )
+                .to_owned(),
             (Self::EnUs, "command") => {
                 "The local session could not execute the command right now; nothing was applied.\n"
                     .to_owned()
@@ -1546,6 +1529,33 @@ impl Locale {
                 "The local session could not admit this query connection.\n".to_owned()
             }
             (Self::ZhCn, _) => "本地会话无法接纳本次查询连接。\n".to_owned(),
+        }
+    }
+
+    /// Viewer-stage unavailability: the typed Host reason stays in the JSON
+    /// details; text names the cause in words and one next step.
+    fn cli_viewer_unavailable(self, reason: Option<&str>) -> &'static str {
+        match (self, reason) {
+            (Self::EnUs, None) => {
+                "The terminal could not be observed for reading right now. Retry the command shortly.\n"
+            }
+            (Self::ZhCn, None) => "该终端当前无法进行读取观察。请稍后重试该命令。\n",
+            (Self::EnUs, Some("stale-revision" | "stale-generation")) => {
+                "The terminal output kept changing, so no consistent copy could be read before the deadline. Retry the read once the output settles.\n"
+            }
+            (Self::ZhCn, Some("stale-revision" | "stale-generation")) => {
+                "终端输出持续变化，截止时间前未能读取一致的内容。请在输出稳定后重试读取。\n"
+            }
+            (Self::EnUs, Some("history-evicted")) => {
+                "The requested terminal history was discarded while it was being read. Retry the read with fewer lines.\n"
+            }
+            (Self::ZhCn, Some("history-evicted")) => {
+                "所请求的终端历史在读取过程中已被丢弃。请减少行数后重试读取。\n"
+            }
+            (Self::EnUs, Some(_)) => {
+                "The terminal history could not be read right now. Retry the read shortly.\n"
+            }
+            (Self::ZhCn, Some(_)) => "该终端的历史当前无法读取。请稍后重试读取。\n",
         }
     }
 

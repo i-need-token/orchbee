@@ -1246,3 +1246,37 @@ fn popup_resize_recovery_is_localized_plain_guidance_without_a_keyboard_claim() 
         assert!(!label.contains("Ctrl"));
     }
 }
+
+#[test]
+fn viewer_read_failures_explain_the_cause_without_internal_reason_codes() {
+    use crate::cli::{Failure, FailureKind};
+
+    for reason in [
+        "stale-revision",
+        "stale-generation",
+        "history-evicted",
+        "missing-resource",
+    ] {
+        let failure =
+            Failure::new(FailureKind::ServiceUnavailable).details(serde_json::Map::from_iter([
+                ("stage".to_owned(), serde_json::json!("viewer")),
+                ("operation".to_owned(), serde_json::json!("read-history")),
+                ("reason".to_owned(), serde_json::json!(reason)),
+            ]));
+        for (locale, hint) in [(Locale::EnUs, "Retry the read"), (Locale::ZhCn, "重试读取")] {
+            let text = locale.cli_service_unavailable_for_selection(&failure, None);
+            assert!(!text.contains(reason), "{reason}: {text}");
+            assert!(text.contains(hint), "{reason}: {text}");
+        }
+    }
+    assert_eq!(
+        Locale::EnUs.cli_service_unavailable_for_selection(
+            &Failure::new(FailureKind::ServiceUnavailable).details(serde_json::Map::from_iter([
+                ("stage".to_owned(), serde_json::json!("viewer")),
+                ("reason".to_owned(), serde_json::json!("stale-revision")),
+            ])),
+            None,
+        ),
+        "The terminal output kept changing, so no consistent copy could be read before the deadline. Retry the read once the output settles.\n"
+    );
+}

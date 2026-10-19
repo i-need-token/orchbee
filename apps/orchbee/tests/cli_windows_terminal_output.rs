@@ -306,39 +306,93 @@ fn windows_source_read_pins_merged_range_and_reports_exact_text() {
 }
 
 #[test]
-fn windows_source_read_stale_or_mismatched_rows_detach_without_retry() {
-    for malformed in [false, true] {
+fn windows_source_read_mismatched_rows_detach_without_retry() {
+    let fixture = Fixture::new();
+    let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+    let handler = peer(&fixture, listener, move |mut stream| {
+        bound_snapshot_reply(&mut stream);
+        let viewer = observed_frame(&mut stream);
+        let req = request(&mut stream);
+        assert!(matches!(
+            req.action(),
+            Action::ReadRows {
+                start_row: 14,
+                row_count: 2,
+                ..
+            }
+        ));
+        let route = inspect_terminal_frame_route(OBTF).unwrap();
+        let outcome = Outcome::Record(history_record(&obrw_window(
+            13,
+            16,
+            8,
+            1,
+            route.revision,
+            route.generation.get(),
+            &[(0, "x"), (0, "y")],
+        )));
+        reply(&mut stream, &req, outcome);
+        detached(&mut stream, &viewer);
+    });
+    let output = fixture.run(&[
+        "terminal",
+        "read",
+        ID,
+        "--source=recent",
+        "--lines=2",
+        "--format=json",
+    ]);
+    handler.join().unwrap();
+    assert_eq!(output.status.code(), Some(5));
+    let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+    validate(
+        &doc,
+        include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
+    );
+    assert_eq!(doc["failure"]["kind"], "protocol-invalid");
+}
+
+/// A frame that ages between pin and read is abandoned for the next applied
+/// frame inside the read's deadline; the retried `ReadRows` carries the new
+/// revision and `request_sequence` 2, and the read succeeds.
+#[test]
+fn windows_source_read_aged_rows_repin_and_retry() {
+    for reason in [
+        obcs::ViewerRowsRejectedReason::StaleRevision,
+        obcs::ViewerRowsRejectedReason::StaleGeneration,
+        obcs::ViewerRowsRejectedReason::HistoryEvicted,
+    ] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             bound_snapshot_reply(&mut stream);
             let viewer = observed_frame(&mut stream);
+            let route = inspect_terminal_frame_route(OBTF).unwrap();
             let req = request(&mut stream);
-            assert!(matches!(
-                req.action(),
-                Action::ReadRows {
-                    start_row: 14,
-                    row_count: 2,
-                    ..
-                }
-            ));
-            let outcome = if malformed {
-                let route = inspect_terminal_frame_route(OBTF).unwrap();
-                Outcome::Record(history_record(&obrw_window(
-                    13,
-                    16,
-                    8,
-                    1,
-                    route.revision,
-                    route.generation.get(),
-                    &[(0, "x"), (0, "y")],
-                )))
-            } else {
-                Outcome::RowsRejected {
-                    reason: obcs::ViewerRowsRejectedReason::StaleRevision,
-                }
-            };
-            reply(&mut stream, &req, outcome);
+            assert!(
+                matches!(req.action(), Action::ReadRows { request_sequence, revision, .. } if request_sequence.get() == 1 && *revision == route.revision)
+            );
+            reply(&mut stream, &req, Outcome::RowsRejected { reason });
+            next_frame(
+                &mut stream,
+                &viewer,
+                route.sequence.get() + 1,
+                route.revision + 1,
+            );
+            let req = request(&mut stream);
+            assert!(
+                matches!(req.action(), Action::ReadRows { start_row: 14, row_count: 2, request_sequence, revision, .. } if request_sequence.get() == 2 && *revision == route.revision + 1)
+            );
+            let window = obrw_window(
+                14,
+                16,
+                8,
+                2,
+                route.revision + 1,
+                route.generation.get(),
+                &[(0, "HEAD"), (0, "TAIL")],
+            );
+            reply(&mut stream, &req, Outcome::Record(history_record(&window)));
             detached(&mut stream, &viewer);
         });
         let output = fixture.run(&[
@@ -350,19 +404,18 @@ fn windows_source_read_stale_or_mismatched_rows_detach_without_retry() {
             "--format=json",
         ]);
         handler.join().unwrap();
-        assert_eq!(output.status.code(), Some(if malformed { 5 } else { 4 }));
-        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-        validate(
-            &doc,
-            include_str!("../src/cli/schemas/orchbee.cli.failure.json"),
-        );
         assert_eq!(
-            doc["failure"]["kind"],
-            if malformed {
-                "protocol-invalid"
-            } else {
-                "service-unavailable"
-            }
+            output.status.code(),
+            Some(0),
+            "{reason:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            doc["result"]["content"]["text"],
+            "HEAD
+TAIL
+"
         );
     }
 }

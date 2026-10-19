@@ -142,8 +142,8 @@ fn ansi_recent_and_unwrapped_json_match_the_actual_native_stdout_pipe() {
 }
 
 #[test]
-fn ansi_malformed_or_stale_render_never_retries_or_leaks_partial_text() {
-    for fault in ["detail", "outer", "nested", "graphics", "stale", "limit"] {
+fn ansi_malformed_or_rejected_render_never_retries_or_leaks_partial_text() {
+    for fault in ["detail", "outer", "nested", "graphics", "limit"] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
@@ -152,9 +152,6 @@ fn ansi_malformed_or_stale_render_never_retries_or_leaks_partial_text() {
             let req = render_request(&mut stream, &viewer);
             let mut window = render_window();
             let outcome = match fault {
-                "stale" => Outcome::RowsRejected {
-                    reason: obcs::ViewerRowsRejectedReason::StaleRevision,
-                },
                 "limit" => Outcome::RowsRejected {
                     reason: obcs::ViewerRowsRejectedReason::LimitExceeded,
                 },

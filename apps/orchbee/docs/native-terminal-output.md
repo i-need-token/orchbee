@@ -40,7 +40,9 @@ The CLI owns `admit → snapshot → resolve → attach → frame → rows → d
 Agent resolution precedes attachment on the same session. A visible or empty selection needs no
 row request. Other selections use one buffer `ReadRows` at the frame's exact revision and generation;
 transport, route, extent and decoded rows must all agree. A stale revision, generation or evicted
-history returns a typed failure, never a stitched snapshot or hidden retry. Frame feedback is
+history abandons that pin: the read polls the next applied frame and repeats the row request with
+the next `request_sequence`, never stitching windows from different revisions. Only when the
+deadline passes does the last stale reason become the typed failure. Frame feedback is
 acknowledged; buffer reads do not send `RowsApplied`.
 
 The existing read network deadline bounds all session work. Best-effort detach runs after every
