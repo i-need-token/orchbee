@@ -16,7 +16,13 @@ pub(super) fn selected_reply(stream: &mut LocalStream, busy: bool) -> Value {
     client["view"].clone()
 }
 
-fn attention_reply(stream: &mut LocalStream, view: Value, state: Value, outer: Value) {
+fn attention_reply(
+    stream: &mut LocalStream,
+    view: Value,
+    state: Value,
+    outer: Value,
+    allowed: bool,
+) {
     let request = view_request(stream);
     let ClientViewAction::Submit { command } = &request.action else {
         panic!("attention read")
@@ -32,6 +38,7 @@ fn attention_reply(stream: &mut LocalStream, view: Value, state: Value, outer: V
         &request,
         json!({"kind":"operation","operation":{"command":command,"status":{"kind":"attention-read","attention":observed,"view":view}}}),
     );
+    attention::authenticate(stream, allowed);
 }
 
 pub(super) fn completed() -> Value {
@@ -111,7 +118,7 @@ fn selected_client_get_joins_only_current_versions_and_keeps_canonical_outcome()
             let projection = AgentProjectionFixture::canonical(snapshot(12), 3, &[completed()]);
             projection.read(&mut stream, true);
             let view = selected_reply(&mut stream, busy);
-            attention_reply(&mut stream, view, state, outer);
+            attention_reply(&mut stream, view, state, outer, true);
             read_reply(
                 &mut stream,
                 "get",
@@ -174,33 +181,31 @@ fn selected_client_get_checks_intervening_changes_and_refuses_foreign_boot() {
                 view,
                 json!({"generation":3,"sequence":11,"stateChangeRevision":3,"seen":true}),
                 json!(true),
+                case != "foreign-boot",
             );
-            let mut current = completed();
-            if case == "same-session" {
-                current["snapshot"]["observation"]["freshness"] = json!("stale");
-            }
-            read_reply(
-                &mut stream,
-                "get",
-                json!({"kind":"found","revision":4,"session":current}),
-            );
-            metadata_peer::sample(&mut stream, "observed", "codex.exe");
-            read_reply(
-                &mut stream,
-                "get",
-                json!({"kind":"found","revision":4,"session":current}),
-            );
-            snapshot_reply(&mut stream);
-            peer_support::management_reply(&mut stream, 4, json!({"phase":"unmanaged"}));
-            let AgentRequest::Changes(request) = read_agent_request(&mut stream).unwrap() else {
-                panic!("join continuity proof")
-            };
-            assert_eq!(json!(request)["cursor"], attention::token());
-            if case == "foreign-boot" {
-                write_agent_result(&mut stream,&AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":{
-                    "kind":"rejected","reason":"cursor-invalid"
-                }}})).unwrap())).unwrap();
-            } else {
+            if case != "foreign-boot" {
+                let mut current = completed();
+                if case == "same-session" {
+                    current["snapshot"]["observation"]["freshness"] = json!("stale");
+                }
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":4,"session":current}),
+                );
+                metadata_peer::sample(&mut stream, "observed", "codex.exe");
+                read_reply(
+                    &mut stream,
+                    "get",
+                    json!({"kind":"found","revision":4,"session":current}),
+                );
+                snapshot_reply(&mut stream);
+                peer_support::management_reply(&mut stream, 4, json!({"phase":"unmanaged"}));
+                let AgentRequest::Changes(request) = read_agent_request(&mut stream).unwrap()
+                else {
+                    panic!("join continuity proof")
+                };
+                assert_eq!(json!(request)["cursor"], attention::token());
                 let session = if case == "same-session" {
                     "sess-alpha"
                 } else {

@@ -44,14 +44,19 @@ fn snapshot(revision: u64) -> Snapshot {
     serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),"navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"two","pinned":false,"groupId":null,"root":{"kind":"split","splitId":id(50),"orientation":"horizontal","children":[{"slotId":id(51),"node":panel(6)},{"slotId":id(52),"node":panel(8)}]}}]}]})).unwrap()
 }
 fn snapshot_at(stream: &mut LocalStream, revision: u64) {
-    let snapshot = snapshot(revision);
-    let request = peer_support::snapshot_after_metadata(stream, &snapshot);
+    let admitted = snapshot(12);
+    let request = peer_support::snapshot_after_metadata(stream, &admitted);
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available { snapshot },
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: Snapshot {
+                    revision: WorkbenchRevision::new(revision),
+                    ..admitted
+                },
+            },
         }),
     )
     .unwrap();
@@ -383,6 +388,10 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
                 selected["view"]["phase"] = json!("busy");
             }
             list_reply(&mut stream, vec![selected, record(9, 6)]);
+            if pinned {
+                AgentProjectionFixture::canonical(snapshot(12), 1, &[detail(&[106, 108])])
+                    .read(&mut stream, false);
+            }
             if !direct {
                 resolved(&mut stream);
             }
@@ -424,6 +433,8 @@ fn absent_ended_child_only_stale_and_ambiguous_bindings_never_submit() {
             list_reply(&mut stream, vec![record(7, 6)]);
             if case == "absent" {
                 resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
+                AgentProjectionFixture::summaries(snapshot(12), 1, Vec::new())
+                    .read(&mut stream, false);
             } else {
                 resolved(&mut stream);
                 let mut session = detail(match case {
@@ -451,7 +462,7 @@ fn absent_ended_child_only_stale_and_ambiguous_bindings_never_submit() {
         validate(
             &document,
             if case == "absent" {
-                include_str!("../src/cli/schemas/orchbee.cli.failure.agent-names.json")
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent-projection.json")
             } else {
                 include_str!("../src/cli/schemas/orchbee.cli.failure.json")
             },

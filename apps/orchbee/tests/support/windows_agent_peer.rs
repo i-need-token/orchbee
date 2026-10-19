@@ -648,6 +648,10 @@ impl AgentProjectionFixture {
     }
 }
 
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
 pub(super) fn terminal_agent_state(
     presentation_id: &str,
     generation: &str,

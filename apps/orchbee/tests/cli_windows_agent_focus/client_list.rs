@@ -47,21 +47,21 @@ fn batch(stream: &mut LocalStream, changed: Option<&str>, allowed: bool) {
             "kind":"attention-read","view":view,"attention":{"revision":3,"cursor":attention::token(),"outerFocused":true,"entries":entries}
         }}}),
     );
+    attention::authenticate(stream, allowed);
+    if !allowed {
+        return;
+    }
     if let Some(changed) = changed {
         let AgentRequest::Changes(request) = read_agent_request(stream).unwrap() else {
             panic!("one canonical continuity read")
         };
         assert_eq!(json!(request)["cursor"], attention::token());
         assert_eq!(json!(request)["limit"], 100);
-        let outcome = if allowed {
-            json!({"kind":"changes","cursor":attention::token(),"observedThroughRevision":4,
-            "runtimeRevision":4,"hasMore":false,"changes":[{
-                "revision":4,"transition":"presentation-visibility-changed",
-                "session":summary(changed)
-            }]})
-        } else {
-            json!({"kind":"rejected","reason":"cursor-invalid"})
-        };
+        let outcome = json!({"kind":"changes","cursor":attention::token(),"observedThroughRevision":4,
+        "runtimeRevision":4,"hasMore":false,"changes":[{
+            "revision":4,"transition":"presentation-visibility-changed",
+            "session":summary(changed)
+        }]});
         write_agent_result(stream,&AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
     }
 }

@@ -944,17 +944,7 @@ fn session_target_reply(
 }
 
 fn panel_projection(revision: u64, details: &[Value]) -> AgentProjectionFixture {
-    AgentProjectionFixture::canonical(bound_snapshot(9), revision, details).with_state(
-        "11111111111111111111111111111111",
-        Some(terminal_agent_state(
-            "11111111111111111111111111111111",
-            "gen-2",
-            "66666666666666666666666666666666",
-            "77777777777777777777777777777777",
-            None,
-            "unknown",
-        )),
-    )
+    AgentProjectionFixture::canonical(bound_snapshot(9), revision, details)
 }
 
 #[test]
