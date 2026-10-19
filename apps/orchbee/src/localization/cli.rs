@@ -23,6 +23,7 @@ mod panel_metadata;
 mod panel_relocation;
 #[cfg(windows)]
 mod panel_terminal_creation;
+mod receipt;
 mod runtime_status;
 #[cfg(windows)]
 mod schema_export;
@@ -4923,6 +4924,13 @@ impl super::Locale {
         match self {
             Self::EnUs => "Current presentation",
             Self::ZhCn => "当前终端成员",
+        }
+    }
+
+    pub(crate) const fn cli_current_panel_label(self) -> &'static str {
+        match self {
+            Self::EnUs => "Current panel",
+            Self::ZhCn => "当前面板",
         }
     }
 }

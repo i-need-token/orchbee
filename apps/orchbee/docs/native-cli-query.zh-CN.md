@@ -1702,7 +1702,12 @@ profileId?,name?}`，
   `resumed` 带 `closeRequestId`+`attemptGeneration`，
   `tab create`/`panel split` 带 `terminal:{outcome,reason?,geometry?}`。launch-profile
   动作在两份收据上都追加 `catalogRevision` 与 `profileId`，`launch-profile.create`
-  另带 `name`；envelope 为 `version:4`。
+  另带 `name`；envelope 为 `version:4`。该收据及 Windows Workspace 与终端创建收据的文本输出共用
+  一种本地化形状：先用一句话说明发生了什么，再以对齐行列出每个被创建或受影响的 Project、
+  Workspace、Tab、Panel 与启动配置 ID，以及 label、目录和终端结果。修订、请求 ID，以及
+  上下文、目录、split、slot 与 presentation ID 只出现在 JSON 中。终端已启动或正在启动的收据
+  以针对新 Panel 的 `terminal list --panel` 提示结尾，因为拉起结果不携带终端 ID。`panel current`
+  文本首行为当前 Panel ID。
 - `orchbee.cli.failure.close` → `{schema:"orchbee.cli.failure.close",version:1,
 failure:{kind,details?},source?}`：`workspace close-status` 与 `workspace close-resume`
   越过 admitted session 后一切失败的专用 envelope（边界前的语法、前导失败与

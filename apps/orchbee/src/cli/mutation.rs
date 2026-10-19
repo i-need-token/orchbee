@@ -243,106 +243,6 @@ impl Receipt {
         self
     }
 
-    /// Ordered `(JSON name, text value)` rows for the text rendering; the
-    /// text output names the same fields as the JSON envelope.
-    pub(super) fn text_fields(&self, locale: Locale) -> Vec<(&'static str, String)> {
-        let mut rows = vec![
-            ("action", self.action.to_owned()),
-            ("outcome", self.outcome.to_owned()),
-        ];
-        if let Some(revision) = self.revision {
-            rows.push(("revision", revision.to_string()));
-        }
-        if let Some(revision) = self.accepted_revision {
-            rows.push(("acceptedRevision", revision.to_string()));
-        }
-        rows.push(("requestId", self.request_id.clone()));
-        if let Some(close_request_id) = &self.close_request_id {
-            rows.push(("closeRequestId", close_request_id.clone()));
-        }
-        if let Some(attempt_generation) = &self.attempt_generation {
-            rows.push(("attemptGeneration", attempt_generation.clone()));
-        }
-        for (key, id) in &self.ids {
-            rows.push((
-                key,
-                id.clone()
-                    .unwrap_or_else(|| locale.cli_ungrouped().to_owned()),
-            ));
-        }
-        if let Some(index) = self.insert_index {
-            rows.push(("insertIndex", index.value().to_string()));
-        }
-        if let Some(index) = self.workspace_insert_index {
-            rows.push(("insertIndex", index.value().to_string()));
-        }
-        if let Some(order) = &self.workspace_order {
-            rows.push((
-                "workspaceOrder",
-                order
-                    .ids()
-                    .iter()
-                    .map(|id| id.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            ));
-        }
-        if let Some(sources) = &self.workspace_sources {
-            rows.push((
-                "workspaceIds",
-                sources
-                    .ids()
-                    .iter()
-                    .map(|id| id.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            ));
-        }
-        if let Some(transfer) = &self.panel_transfer {
-            rows.push((
-                "targetTerminalContextId",
-                transfer.target_terminal_context_id.as_str().to_owned(),
-            ));
-            rows.push(("closedSourceTab", transfer.closed_source_tab.to_string()));
-            if let Some(workspace) = &transfer.closed_source_workspace_id {
-                rows.push(("closedSourceWorkspaceId", workspace.as_str().to_owned()));
-            }
-            if let Some(workspace) = &transfer.created_workspace_id {
-                rows.push(("createdWorkspaceId", workspace.as_str().to_owned()));
-            }
-        }
-        if let Some(direction) = self.direction {
-            rows.push(("direction", direction.to_owned()));
-        }
-        if let Some(terminal) = &self.terminal {
-            rows.push(("terminal", terminal.text()));
-        }
-        if let Some(label) = &self.label {
-            rows.push(("label", label.clone()));
-        }
-        if let Some(label) = &self.custom_label {
-            rows.push((
-                "customLabel",
-                label
-                    .custom_label()
-                    .map_or_else(|| "null".to_owned(), |value| value.as_str().to_owned()),
-            ));
-        }
-        if let Some(policy) = self.right_click {
-            rows.push(("rightClick", policy.as_str().to_owned()));
-        }
-        if let Some(path) = &self.path {
-            rows.push(("path", path.clone()));
-        }
-        if let Some(catalog_revision) = self.catalog_revision {
-            rows.push(("catalogRevision", catalog_revision.to_string()));
-        }
-        if let Some(name) = &self.name {
-            rows.push(("name", name.clone()));
-        }
-        rows
-    }
-
     pub(super) fn target_hint(&self, locale: Locale) -> Option<&'static str> {
         if self.action.starts_with("project.")
             || self.action.starts_with("workspace.")
@@ -383,21 +283,6 @@ impl TerminalFact {
             );
         }
         Value::Object(object)
-    }
-
-    /// Compact single-line form for the receipt's `terminal` field.
-    fn text(&self) -> String {
-        match (self.outcome, self.reason, self.geometry) {
-            ("started", _, Some(geometry)) => format!(
-                "started ({}x{}, {}x{}px)",
-                geometry.columns(),
-                geometry.rows(),
-                geometry.cell_pixel_width(),
-                geometry.cell_pixel_height()
-            ),
-            (outcome, Some(reason), _) => format!("{outcome} ({reason})"),
-            (outcome, ..) => outcome.to_owned(),
-        }
     }
 }
 

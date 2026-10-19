@@ -1335,8 +1335,8 @@ fn status(out: &mut Bounded, doc: &StatusDoc, text: &CliLabels) -> Result<(), To
 }
 
 fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), TooLarge> {
-    field(out, text.right_click, doc.row.right_click.as_str())?;
     field(out, text.id, &doc.row.panel_id)?;
+    field(out, text.right_click, doc.row.right_click.as_str())?;
     field(out, text.tab_id, &doc.row.tab_id)?;
     out.write(format_args!(
         "{:<14}{} {}\n",
@@ -1453,30 +1453,14 @@ fn detail(out: &mut Bounded, value: &Value) -> Result<(), TooLarge> {
     }
 }
 
-/// A mutation receipt renders as one `name  value` block using the JSON
-/// field names verbatim so text and JSON name identical fields; the label
-/// value is the only user-controlled text and is escaped through `quoted`.
+/// A mutation receipt renders through the shared localized receipt: one
+/// sentence, then the affected resources; internal identities stay in JSON.
 pub(super) fn receipt(
     out: &mut Bounded,
     receipt: &super::mutation::Receipt,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    let rows = receipt.text_fields(locale);
-    let width = rows
-        .iter()
-        .map(|(name, _)| display_width(name))
-        .max()
-        .unwrap_or(0);
-    for (name, value) in &rows {
-        out.push(name)?;
-        out.push(&" ".repeat(width.saturating_sub(display_width(name)) + 2))?;
-        if *name == "label" {
-            out.push(&quoted(value))?;
-        } else {
-            out.push(value)?;
-        }
-        out.push("\n")?;
-    }
+    out.push(&locale.cli_receipt(&receipt.document()["result"]))?;
     if let Some(hint) = receipt.target_hint(locale) {
         out.push(hint)?;
     }

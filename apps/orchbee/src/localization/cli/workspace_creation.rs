@@ -33,62 +33,25 @@ impl Locale {
     }
 
     pub(crate) fn cli_workspace_creation(self, document: &Value) -> String {
-        let mut text = match self {
-            Self::EnUs => "Workspace creation\n",
-            Self::ZhCn => "创建工作区\n",
-        }
-        .to_owned();
-        for key in ["workspace"] {
-            if document[key].is_null() {
-                continue;
-            }
-            let fields = match self {
-                Self::EnUs => [
-                    ("projectId", "Project"),
-                    ("workspaceId", "Workspace"),
-                    ("label", "Label"),
-                    ("revision", "Revision"),
-                ],
-                Self::ZhCn => [
-                    ("projectId", "项目"),
-                    ("workspaceId", "工作区"),
-                    ("label", "名称"),
-                    ("revision", "修订"),
-                ],
-            };
-            for (field, label) in fields {
-                if field == "projectId"
-                    && document[key]["result"]
-                        .get(field)
-                        .is_some_and(Value::is_null)
-                {
-                    text.push_str(&format!("{label}: {}\n", self.cli_ungrouped()));
-                    continue;
-                }
-                if let Some(value) = document[key]["result"][field].as_str() {
-                    text.push_str(&format!("{label}: {}\n", crate::cli::escape::escape(value)));
-                }
-            }
-            if let Some(value) = document[key]["result"]["terminal"]["outcome"].as_str() {
-                let label = match self {
-                    Self::EnUs => "Terminal",
-                    Self::ZhCn => "终端",
-                };
-                text.push_str(&format!("{label}: {}\n", crate::cli::escape::escape(value)));
-            }
-        }
-        let value = |key| crate::cli::escape::escape(document[key].as_str().unwrap_or("—"));
-        if let Some(hint) = document["workspace"]["result"]["label"]
+        let result = &document["workspace"]["result"];
+        let complete = document["outcome"] == "completed";
+        let mut text = if result.is_object() {
+            self.cli_receipt(result)
+        } else {
+            String::new()
+        };
+        if let Some(hint) = result["label"]
             .as_str()
             .and_then(|label| self.cli_label_target_hint(label))
         {
             text.push_str(hint);
         }
-        let stage = value("stage");
-        let outcome = value("outcome");
-        match self {
-            Self::EnUs => text.push_str(&format!("Stage: {stage}; outcome: {outcome}\n")),
-            Self::ZhCn => text.push_str(&format!("阶段：{stage}；结果：{outcome}\n")),
+        if !complete {
+            let stage = crate::cli::escape::escape(document["stage"].as_str().unwrap_or("—"));
+            text.push_str(&match self {
+                Self::EnUs => format!("Workspace creation incomplete at stage {stage}.\n"),
+                Self::ZhCn => format!("工作区创建未完成，停在阶段 {stage}。\n"),
+            });
         }
         if !document["focus"].is_null() {
             text.push_str(&self.cli_client_control(&document["focus"]));

@@ -2063,7 +2063,14 @@ profileId?,name?}` per
   `closeRequestId`+`attemptGeneration` on `resumed`,
   and `terminal:{outcome,reason?,geometry?}` on `tab create`/`panel split`. The
   launch-profile actions add `catalogRevision` plus `profileId` on both receipts and
-  `name` on `launch-profile.create`; the envelope is `version:4`.
+  `name` on `launch-profile.create`; the envelope is `version:4`. Text output of this receipt and
+  of the Windows Workspace and terminal creation receipts shares one localized shape: a sentence
+  naming what happened, then aligned rows for each created or affected Project, Workspace, Tab,
+  Panel and launch profile ID, with label, directory and terminal outcome. Revisions, request IDs,
+  and context, directory, split, slot and presentation IDs appear only in JSON. A receipt whose
+  terminal started or is starting ends with a `terminal list --panel` hint for the new Panel,
+  because the spawn outcome does not carry the terminal ID. `panel current` text starts with the
+  current Panel ID.
 - `orchbee.cli.failure.close` → `{schema:"orchbee.cli.failure.close",version:1,
 failure:{kind,details?},source?}`: the dedicated failure envelope for every
   `workspace close-status` and `workspace close-resume` failure past the admitted session

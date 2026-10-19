@@ -631,6 +631,11 @@ impl Document {
             return table.render(out, locale);
         }
         if let Some(member) = &self.current_member {
+            out.write(format_args!(
+                "{}: {}\n",
+                locale.cli_current_panel_label(),
+                member.panel_id
+            ))?;
             member.render(out, locale)?;
         }
         if let Some(agents) = &self.agents {
