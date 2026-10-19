@@ -275,7 +275,7 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 人类文本中的 `project list`、`workspace list` 与 `tab list` 输出 `HANDLE` 列：在快照中
 该类所有成员间唯一的最短 `@<kind>:<suffix>` 选择器，因此筛选后的列表输出的句柄仍可被
 对应 `get` 解析。没有不超过 31 位的唯一后缀时，句柄为裸完整 ID；列表绝不输出
-`@<kind>:<32 位>`。`workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
+后缀为完整 32 位的选择器。`workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
 `PROJECT`（项目）列；`tab list` 使用 `HANDLE`（句柄）、`NAME`（名称）、`PANELS`（面板）、
 `WORKSPACE`（工作区）列。目标歧义时，文本诊断以这些句柄加带引号的标签列出至多八个候选
 及真实总数；JSON 保留标识符形式的 `candidates` 与 `totalCount` 详情。项目和工作区所属列显示规范名称；独立 Tab

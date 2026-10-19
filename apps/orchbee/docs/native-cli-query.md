@@ -344,8 +344,8 @@ child presentations and terminal bindings never increase its count.
 Human `project list`, `workspace list` and `tab list` print a `HANDLE` column: the
 shortest `@<kind>:<suffix>` selector that is unique among every member of that kind in the
 snapshot, so a filtered list still prints handles its `get` resolves. When no suffix of at
-most 31 digits is unique, the handle is the bare full ID; a list never prints
-`@<kind>:<32 digits>`. `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT`
+most 31 digits is unique, the handle is the bare full ID; a list never prints a selector
+with a complete 32-digit suffix. `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT`
 columns; `tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. An ambiguous target's
 text diagnostic lists up to eight candidates as these handles with their quoted labels,
 plus the true total; JSON keeps the identifier `candidates` and `totalCount` details.
