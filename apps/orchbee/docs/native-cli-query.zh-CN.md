@@ -786,8 +786,9 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   `invalid-usage`。
 - `--cursor <c>`：带值 flag，单次使用，仅 `agent list` 受理。Windows 使用不超过
   1024 个字符的结构化 `u1.<base64url>` 游标，绑定 Site、来源修订、筛选条件、Client
-  选择和页位置／指纹。旧游标或过期游标会在读取实时来源前返回 `cursor-restart`。
-  其他平台保留规范 Server 游标契约。
+  选择和页位置／指纹。解析器识别出的旧格式游标会在读取实时来源前返回
+  `cursor-restart`。判断 `u1` 游标是否过期需要读取当前来源，因此只能在这些读取后
+  拒绝过期的结构化游标。其他平台保留规范 Server 游标契约。
 - `--until <condition>`：可重复带值 flag，由 `agent wait` 和 `agent prompt --wait` 受理；每次出现取
   十四名条件词表中的一个：`blocked`、`done`、`needs-attention`、`failed`、`succeeded`、
   `canceled`、`interrupted`、`working`、`idle`、`unknown`、`ended`、`fresh`、
@@ -2409,15 +2410,15 @@ Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent
 
 ## Windows 统一 Agent 投影
 
-Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orchbee.agent.list` v2。`source.kind` 为 `agent-projection`；source 携带 `siteId`（32 位小写十六进制）、十进制字符串 `workbenchRevision` 和 `reportRevision`，以及安全整数 `canonicalRevision`。`result` 为 `{kind:"listed",revision,nextCursor,items,clientId?}`；`nextCursor` 为 null 或 `u1` 游标。每行包含一基 `ordinal`（1–4096）、`provider`、语义 `status`（`unknown`、`idle`、`working`、`blocked`、`done`、`error`、`ended`）、身份 `source`（`canonical`、`terminal`、`both`）、既有且可为空的 canonical `AgentSessionSummary`，以及包含既有 launch binding、非空 provider、`PanelAgentState` 和十进制字符串 sequence 的可空物理终端记录。`source` 控制分面是否存在。物理行和 `both` 行始终有 `placement`，其中 Panel、Presentation、Terminal、Terminal Context 和 Tab ID 为 32 位十六进制；`workspaceId` 可为空。仅 canonical 行的 placement 为 null。`cwd` 为可空字符串。
+Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orchbee.agent.list` v2。`source.kind` 为 `agent-projection`；source 携带 `siteId`（32 位小写十六进制）、十进制字符串 `workbenchRevision` 和 `reportRevision`，以及安全整数 `canonicalRevision`。`result` 为 `{kind:"listed",revision,nextCursor,items,clientId?}`；`nextCursor` 为 null 或 `u1` 游标。每行包含一基 `ordinal`（1–4096）、`provider`、语义 `status`（`unknown`、`idle`、`working`、`blocked`、`done`、`error`、`ended`）、身份 `source`（`canonical`、`terminal`、`both`）、既有且可为空的 canonical `AgentSessionSummary`，以及包含既有 launch binding、非空 provider、`PanelAgentState` 和十进制字符串 sequence 的可空物理终端记录。`source` 控制分面是否存在。物理行和 `both` 行始终有 `placement`，其中 Panel、Presentation、Terminal、Terminal Context 和 Tab ID 为 32 位十六进制；`workspaceId` 可为空。canonical 行也可能有 placement，表示对应终端 incarnation 当前观测为没有 Agent。`cwd` 为可空字符串。
 
 使用 `--client` 时，封套要求 `clientId`，每行也要求 `client`；canonical 和 terminal Client 分面保持独立。Client 未读状态不会提供 Agent 语义状态。每页最多为 64 行添加可选 cwd 信息；不可用时为 null。每页 1–100 行，默认 50 行；合并输出上限为 4096 行和 8 MiB。来源准入可能更早失败：canonical 来源限制为 512 个会话／六页各 100 行，物理来源注册上限为 1024 条。因此不能据 4096 行输出上限承诺同等数量的物理来源。
 
-Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码成 base64url 的规范 JSON。游标绑定 Site、来源修订、`includeEnded`／Client 筛选、页偏移和指纹；不保留文件。旧游标或过期游标会在读取实时来源前返回 `cursor-restart`，调用方必须从第一页重新开始。
+Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码成 base64url 的规范 JSON。游标绑定 Site、来源修订、`includeEnded`／Client 筛选、页偏移和指纹；不保留文件。解析器识别出的旧格式游标会在读取实时来源前返回 `cursor-restart`。CLI 必须读取当前来源才能确定 `u1` 游标是否过期，因此只能在这些读取完成后拒绝过期的 `u1` 游标；调用方应从第一页重新开始。
 
 Windows `agent get` 无论是否提供 `--client` 都输出 `orchbee.agent.get` v19，并使用相同的投影 `source`。`result` 为 `{kind:"projected",agent,inspection}`。`agent` 包含投影行中的 provider、status、source、canonical／terminal 分面、placement 和 cwd，但不包含 `ordinal` 或 `client`；`inspection` 是当前既有的 canonical 或 terminal inspection。详细进程、终端元数据、管理状态和 Client 证据仍保留在各自分面 inspection 中。
 
-Windows Get、Read、Prompt、Send Keys、Wait 和 Focus 共用一个解析器。只有完整当前投影证明唯一时，`@agent:<kind>` 才选择提供方。`@agent:<n>` 选择完整列表顺序中的一基序号，不是页内序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。部分读取不能证明提供方匹配唯一。修改效果保留完整物理绑定并在执行后复核。
+Windows Get、Read、Prompt、Send Keys、Wait 和 Focus 共用一个解析器。只有完整当前投影证明唯一时，`@agent:<kind>` 才选择提供方。`@agent:<n>` 选择完整列表顺序中的一基序号，不是页内序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。部分读取不能证明提供方匹配唯一。修改效果保留完整物理绑定，并在实际写入前立即复核该绑定。
 
 投影失败使用 `orchbee.cli.failure.agent-projection` v1。封闭的 `failure.details` 包含 `stage:"agent-projection"`、`unavailable`、`denied`、`changed`、`invalid`、`too-large`、`timeout`、`cancelled`、`cursor-restart`、`target-not-found` 或 `target-ambiguous` 之一作为 reason，并可包含 `selector`／`candidates`。Candidate 项携带 `selector:"@agent:<n>"`、可空 `sessionId`、可空 `panelId` 和可空 `AgentLaunchBinding`；最多返回 16 个候选。可选 envelope `source` 使用 Agent list/get 的同一类型化投影来源；失败时没有 `result`。
 

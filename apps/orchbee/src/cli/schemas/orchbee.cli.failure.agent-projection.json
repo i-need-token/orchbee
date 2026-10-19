@@ -99,7 +99,7 @@
 					"$ref": "#/$defs/hexId"
 				},
 				"generation": {
-					"$ref": "#/$defs/hexId"
+					"$ref": "#/$defs/opaqueId"
 				},
 				"hostEpoch": {
 					"$ref": "#/$defs/hexId"

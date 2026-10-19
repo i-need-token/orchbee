@@ -160,6 +160,25 @@ fn placement_then_physical_then_session_order_is_deterministic() {
     assert_eq!(rows[4].canonical().unwrap().session_id.as_str(), "z-last");
 }
 #[test]
+fn including_ended_sessions_does_not_renumber_live_targets() {
+    let mut historical = summary("a-ended", 12, "codex");
+    historical.lifecycle = AgentLifecycle::Ended;
+    let mut live = summary("z-live", 99, "codex");
+    live.presentation_attachments.clear();
+    let current = rows(vec![live.clone()], vec![state(12, Some("grok"))]);
+    let extended = rows(vec![historical, live], vec![state(12, Some("grok"))]);
+    assert_eq!(current.len(), 2);
+    assert_eq!(extended.len(), 3);
+    assert_eq!(
+        current.iter().map(Row::target).collect::<Vec<_>>(),
+        extended[..2].iter().map(Row::target).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        extended[2].canonical().unwrap().session_id.as_str(),
+        "a-ended"
+    );
+}
+#[test]
 fn cursor_requires_matching_sources_filters_and_complete_order() {
     let snapshot = machine_agents::tests::fixture();
     let mut checkpoint = read::Checkpoint {

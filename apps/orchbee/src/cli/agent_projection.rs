@@ -338,11 +338,10 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
                         }) {
                             return Err(classify(Error::Changed));
                         }
-                        item.cwd = metadata
-                            .frame
-                            .current_directory
-                            .as_deref()
-                            .map(str::to_owned);
+                        let fields =
+                            super::terminal_observation::Observation::Observed(Box::new(metadata))
+                                .fields();
+                        item.cwd = fields["cwd"].as_str().map(str::to_owned);
                     }
                     Err(error) if error.kind == FailureKind::ServiceUnavailable => {}
                     Err(error) => return Err(error),

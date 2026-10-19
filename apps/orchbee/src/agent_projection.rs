@@ -301,6 +301,16 @@ pub(crate) fn project(
             .map(|p| p.order)
             .unwrap_or(usize::MAX)
             .cmp(&b.placement.as_ref().map(|p| p.order).unwrap_or(usize::MAX))
+            // Optional historical rows must never renumber the live targets used
+            // by @agent:<n>. Ended sessions have no current placement or effects.
+            .then_with(|| {
+                a.canonical()
+                    .is_some_and(|c| c.lifecycle == AgentLifecycle::Ended)
+                    .cmp(
+                        &b.canonical()
+                            .is_some_and(|c| c.lifecycle == AgentLifecycle::Ended),
+                    )
+            })
             .then_with(|| a.terminal().is_none().cmp(&b.terminal().is_none()))
             .then_with(|| {
                 a.canonical()

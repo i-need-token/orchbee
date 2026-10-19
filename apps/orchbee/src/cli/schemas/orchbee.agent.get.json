@@ -877,11 +877,7 @@
 					}
 				},
 				"generation": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
+					"$ref": "#/$defs/opaqueId"
 				},
 				"hostEpoch": {
 					"type": "string",
@@ -2075,11 +2071,7 @@
 					}
 				},
 				"generation": {
-					"type": "string",
-					"pattern": "^[0-9a-f]{32}$",
-					"not": {
-						"const": "00000000000000000000000000000000"
-					}
+					"$ref": "#/$defs/opaqueId"
 				},
 				"hostEpoch": {
 					"type": "string",
@@ -2519,7 +2511,7 @@
 					"$ref": "#/$defs/physical_identity"
 				},
 				"generation": {
-					"$ref": "#/$defs/physical_identity"
+					"$ref": "#/$defs/opaqueId"
 				},
 				"hostEpoch": {
 					"$ref": "#/$defs/physical_identity"
@@ -3143,9 +3135,6 @@
 								"$ref": "#/$defs/projectionCanonicalSummary"
 							},
 							"terminal": {
-								"type": "null"
-							},
-							"placement": {
 								"type": "null"
 							}
 						}

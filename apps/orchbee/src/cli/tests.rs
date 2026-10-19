@@ -3,6 +3,8 @@
 //! without an invalid wire-sized snapshot.
 
 mod list_output;
+#[cfg(windows)]
+mod projection_schemas;
 
 use serde_json::{Value, json};
 

@@ -288,17 +288,17 @@ pub(crate) fn read_at(
     deadline: Instant,
     cancel: &AtomicU8,
 ) -> Result<Arc<Checkpoint>, ()> {
-    let initial_view = source_view(client, &snapshot, deadline, cancel)?;
+    let initial_view = source_view(client, snapshot, deadline, cancel)?;
     let StateCheckpoint {
         placements,
         mut observed,
         revision: head,
         mut bytes,
     } = read_states_at(client, snapshot, deadline, cancel)?;
-    let mut titles = titles::read(client, &snapshot, &observed, deadline, cancel, &mut bytes)?;
+    let mut titles = titles::read(client, snapshot, &observed, deadline, cancel, &mut bytes)?;
     let mut metadata = metadata::read(
         client,
-        &snapshot,
+        snapshot,
         &placements,
         deadline,
         cancel,
@@ -306,7 +306,7 @@ pub(crate) fn read_at(
         Some(head),
     )?;
     confirm(client, snapshot, head, deadline, cancel)?;
-    if source_view(client, &snapshot, deadline, cancel)? != initial_view {
+    if source_view(client, snapshot, deadline, cancel)? != initial_view {
         return Err(());
     }
     check(deadline, cancel)?;
@@ -391,13 +391,13 @@ pub(crate) fn read_states_at(
     deadline: Instant,
     cancel: &AtomicU8,
 ) -> Result<StateCheckpoint, ()> {
-    let placements = placements(&snapshot)?;
+    let placements = placements(snapshot)?;
     let ids: Vec<_> = placements.iter().map(|p| p.member.clone()).collect();
     let mut revision = None;
     let mut observed = std::collections::BTreeMap::new();
     let mut bytes = 0usize;
     for chunk in ids.chunks(MAXIMUM_TERMINAL_AGENT_STATE_ROWS) {
-        let (head, rows) = states(client, &snapshot, chunk, deadline, cancel)?;
+        let (head, rows) = states(client, snapshot, chunk, deadline, cancel)?;
         if revision.is_some_and(|old| old != head) {
             return Err(());
         }
