@@ -1354,6 +1354,16 @@
 				}
 			]
 		},
+		"windowsProjectedAgentTerminal": {
+			"allOf": [
+				{
+					"$ref": "#/$defs/agentTerminal"
+				},
+				{
+					"required": ["metadata", "reportedAgent"]
+				}
+			]
+		},
 		"metadataIdentity": {
 			"type": "string",
 			"pattern": "^[0-9a-f]{32}$",
@@ -2383,7 +2393,19 @@
 					"$ref": "#/$defs/canonicalInspection"
 				},
 				{
-					"required": ["runtime", "terminal", "management"]
+					"required": ["runtime", "terminal", "management"],
+					"properties": {
+						"terminal": {
+							"anyOf": [
+								{
+									"type": "null"
+								},
+								{
+									"$ref": "#/$defs/windowsProjectedAgentTerminal"
+								}
+							]
+						}
+					}
 				}
 			]
 		},
@@ -3221,12 +3243,6 @@
 							"required": ["client"]
 						}
 					]
-				},
-				{
-					"$ref": "#/$defs/terminalInspection"
-				},
-				{
-					"$ref": "#/$defs/managedTerminalInspection"
 				},
 				{
 					"$ref": "#/$defs/semanticTerminalInspection"

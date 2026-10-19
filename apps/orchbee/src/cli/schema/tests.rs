@@ -152,6 +152,7 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
         crate::localization::Locale::EnUs,
     );
     let published: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(published["version"], 148, "runtime catalog emitter version");
     let validator = jsonschema::validator_for(&catalog).unwrap();
     validator.validate(&published).unwrap();
     let mut stale = published;
@@ -310,6 +311,36 @@ fn canonical_agent_inspection(with_client: bool) -> Box<crate::cli::results::Age
     })
 }
 
+#[cfg(windows)]
+fn current_canonical_terminal() -> Value {
+    use serde_json::json;
+
+    let id = "11111111111111111111111111111111";
+    json!({
+        "terminalId": id,
+        "source": {"kind":"workbench-snapshot","siteId":id,"revision":"7"},
+        "cwd": null,
+        "cwdSource": null,
+        "foregroundCwd": null,
+        "terminalTitle": null,
+        "terminalTitleStripped": null,
+        "terminalObservation": {"state":"unavailable","reason":"terminal-unavailable"},
+        "metadata": {
+            "source":{"siteId":id,"workbenchRevision":"7","metadataRevision":"2","requestIds":["22222222222222222222222222222222","33333333333333333333333333333333"]},
+            "binding":null,
+            "tokens":{},
+            "presentations":[],
+            "context":{"agent":null,"authoritySource":null},
+            "presentation":{"title":null,"displayAgent":null,"stateLabels":{}}
+        },
+        "reportedAgent": {
+            "source":{"siteId":id,"workbenchRevision":"7","reportRevision":"8","requestIds":["44444444444444444444444444444444","55555555555555555555555555555555"]},
+            "binding":null,
+            "view":null
+        }
+    })
+}
+
 #[test]
 fn canonical_agent_get_schema_preserves_emitted_versions() {
     use crate::cli::results::Projection;
@@ -387,6 +418,32 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
         );
     }
 
+    let mut inspection = canonical_agent_inspection(false);
+    inspection.terminal = Some(current_canonical_terminal());
+    let with_terminal = Projection::UnifiedAgentInspection(Box::new(Inspection {
+        row: checkpoint.rows[0].clone(),
+        detail: Box::new(Projection::AgentInspection(inspection)),
+    }))
+    .result();
+    let with_terminal = json!({
+        "schema":"orchbee.agent.get",
+        "version":19,
+        "source":source.clone(),
+        "result":with_terminal
+    });
+    validator.validate(&with_terminal).unwrap();
+    for field in ["metadata", "reportedAgent"] {
+        let mut invalid_terminal = with_terminal.clone();
+        invalid_terminal["result"]["inspection"]["terminal"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(
+            !validator.is_valid(&invalid_terminal),
+            "non-null Windows canonical terminal requires {field}"
+        );
+    }
+
     let document = document(false);
     let mut invalid = document.clone();
     invalid["version"] = 13.into();
@@ -428,6 +485,105 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
     assert!(
         !validator.is_valid(&invalid),
         "projection source has no legacy revision"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn unified_agent_get_physical_inspection_requires_current_management_and_semantics() {
+    use crate::{
+        agent_projection::{
+            read::Checkpoint,
+            tests::{rows, state},
+        },
+        cli::{agent_projection::Inspection, results::Projection},
+    };
+    use orchbee_agent_observation_protocol::{
+        AgentLaunchBinding, AgentSafeInteger, AgentTerminalManagement,
+    };
+    use orchbee_workbench_protocol::{TerminalAgentObservation, WorkbenchRevision};
+    use serde_json::json;
+
+    let definition: Value =
+        serde_json::from_str(super::document("orchbee.agent.get").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&definition).unwrap();
+    let checkpoint = Checkpoint {
+        canonical_revision: AgentSafeInteger::new(2),
+        report_revision: WorkbenchRevision::new(7),
+        rows: rows(Vec::new(), vec![state(12, Some("codex"))]),
+    };
+    let snapshot = crate::machine_agents::tests::fixture();
+    let source = crate::cli::agent_projection::source(&snapshot, &checkpoint);
+    let row = checkpoint.rows[0].clone();
+    let row_document = row.document(1, None);
+    let binding: AgentLaunchBinding =
+        serde_json::from_value(row_document["terminal"]["binding"].clone()).unwrap();
+    let placement = &row_document["placement"];
+    let id = "11111111111111111111111111111111";
+    let terminal = json!({
+        "terminalId": placement["terminalId"],
+        "presentationId": placement["presentationId"],
+        "panelId": placement["panelId"],
+        "source": crate::cli::results::snapshot_source(&snapshot),
+        "cwd": null,
+        "cwdSource": null,
+        "foregroundCwd": null,
+        "terminalTitle": null,
+        "terminalTitleStripped": null,
+        "terminalObservation": {"state":"unavailable","reason":"terminal-unavailable"}
+    });
+    let observation: TerminalAgentObservation = serde_json::from_value(json!({
+        "binding": binding.clone(),
+        "sequence":"4",
+        "changes":[],
+        "view":{"agent":"codex","state":"idle","authoritySource":null,"message":null,"session":null}
+    }))
+    .unwrap();
+    let document = Projection::UnifiedAgentInspection(Box::new(Inspection {
+        row,
+        detail: Box::new(Projection::AgentTerminalInspection {
+            client_view: None,
+            binding,
+            terminal,
+            management: crate::cli::results::TerminalManagementDoc {
+                source: json!({"kind":"agent-read","requestId":id}),
+                state: AgentTerminalManagement::Unmanaged {},
+            },
+            semantic: crate::cli::query::terminal_agent::TerminalAgentRead {
+                source: json!({"siteId":id,"workbenchRevision":"12","reportRevision":"7","requestId":"22222222222222222222222222222222"}),
+                report_revision: WorkbenchRevision::new(7),
+                observation: Box::new(observation),
+            },
+        }),
+    }))
+    .result();
+    let document = json!({
+        "schema":"orchbee.agent.get",
+        "version":19,
+        "source":source,
+        "result":document
+    });
+    validator.validate(&document).unwrap();
+    for field in ["semantic", "management"] {
+        let mut invalid = document.clone();
+        invalid["result"]["inspection"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert!(
+            !validator.is_valid(&invalid),
+            "current physical Get inspection requires {field}"
+        );
+    }
+    let mut obsolete = document;
+    obsolete["result"]["inspection"]
+        .as_object_mut()
+        .unwrap()
+        .remove("semantic");
+    obsolete["result"]["inspection"]["management"] = json!({"phase":"unmanaged"});
+    assert!(
+        !validator.is_valid(&obsolete),
+        "the legacy physical inspection without semantic detail is not projected in v19"
     );
 }
 
