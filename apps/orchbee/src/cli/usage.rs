@@ -19,9 +19,32 @@ pub(crate) fn children(context: UsageContext) -> Vec<(&'static str, HelpTopic)> 
     children
 }
 
-/// At most three close static spellings from this failure's grammar scope.
+/// Common verbs this grammar spells differently, offered only as advice.
+const SYNONYMS: [(&str, &str); 10] = [
+    ("delete", "close"),
+    ("remove", "close"),
+    ("rm", "close"),
+    ("kill", "close"),
+    ("destroy", "close"),
+    ("new", "create"),
+    ("add", "create"),
+    ("ls", "list"),
+    ("show", "get"),
+    ("info", "get"),
+];
+
+/// At most three close spellings from this failure's grammar scope, a known
+/// synonym first, or the `--label` form of a stray label word.
 /// Oversized and non-ASCII input produces no advice and cannot grow the work budget.
-pub(crate) fn suggestions(reason: &UsageReason) -> Vec<&'static str> {
+pub(crate) fn suggestions(reason: &UsageReason) -> Vec<String> {
+    if let UsageReason::UnexpectedArgument { context, value } = reason {
+        let takes_label = super::completion::usage_option_candidates(*context).contains(&"--label");
+        return if takes_label && !value.starts_with('-') && value.len() <= 128 {
+            vec![format!("--label {}", crate::cli::escape::escape(value))]
+        } else {
+            Vec::new()
+        };
+    }
     let word = match reason {
         UsageReason::UnknownCommand { word, .. } => word.as_str(),
         UsageReason::UnknownOption { option, .. } => option.split('=').next().unwrap_or(option),
@@ -43,6 +66,15 @@ pub(crate) fn suggestions(reason: &UsageReason) -> Vec<&'static str> {
         }
         _ => unreachable!("reason was checked above"),
     };
+    let synonym = matches!(reason, UsageReason::UnknownCommand { .. })
+        .then(|| {
+            SYNONYMS
+                .iter()
+                .find(|(spelling, _)| spelling.eq_ignore_ascii_case(word))
+                .map(|(_, verb)| *verb)
+                .filter(|verb| candidates.contains(verb))
+        })
+        .flatten();
     let threshold = if word.len() <= 3 { 1 } else { 2 };
     let mut ranked = candidates
         .into_iter()
@@ -51,10 +83,16 @@ pub(crate) fn suggestions(reason: &UsageReason) -> Vec<&'static str> {
         .collect::<Vec<_>>();
     ranked.sort_unstable();
     ranked.dedup();
-    ranked
+    synonym
         .into_iter()
+        .chain(
+            ranked
+                .into_iter()
+                .map(|(_, candidate)| candidate)
+                .filter(|candidate| Some(*candidate) != synonym),
+        )
         .take(3)
-        .map(|(_, candidate)| candidate)
+        .map(str::to_owned)
         .collect()
 }
 

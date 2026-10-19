@@ -41,7 +41,7 @@ reference is a defect, and so is the reverse.
 
 | Rule           | Contract                                                                                                                                                                                                        |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spelling       | Long options only, `--kebab-case`; the single short forms are `-h` for help and `-V` for version when the executable offers them.                                                                               |
+| Spelling       | Long options only, `--kebab-case`; the only short forms are `-h` for help and `-v` or `-V` for version when the executable offers them.                                                                         |
 | Values         | `--name value` and `--name=value` are equivalent. The next token is consumed as the value even when it begins with a dash; a bare `--` is never consumed and yields a usage failure.                            |
 | Booleans       | A boolean option takes no value and has no `--no-` counterpart unless the grammar authority declares one.                                                                                                       |
 | Multiplicity   | Every option is single-use unless the grammar authority declares it repeatable; a repeated single-use option is a usage failure.                                                                                |
@@ -100,9 +100,11 @@ reference is a defect, and so is the reverse.
   custom headings or explanatory layouts for individual command families.
 - Commands that accept `--format` show both a default text example and an explicit JSON example.
 - A missing child on a family path lists its direct commands. A usage diagnostic may add at most
-  three close spelling candidates from the grammar scope at the failure point: direct children
-  for an unknown command, or admitted options for the root, selected family, or exact command path.
-  Advice never changes parsing, validity, or effects.
+  three candidates from the grammar scope at the failure point: direct children for an unknown
+  command, chosen by close spelling or a declared common synonym, or admitted options for the root,
+  selected family, or exact command path. A stray word on a command that admits `--label` may be
+  offered as `--label <word>`. Diagnostics raised before the grammar runs point at the help of the
+  command path the leading words spell. Advice never changes parsing, validity, or effects.
 - `--version` is legal only as the sole argument and prints one line naming the executable and its
   version.
 - `completion <shell>` prints a static projection of the grammar for a declared closed set of

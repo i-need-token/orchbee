@@ -243,3 +243,71 @@ fn example_continuations_preserve_whole_quoted_operands() {
         }
     }
 }
+
+/// Every command's option table and usage name the same options with the
+/// same placeholders, and every positional argument appears in its usage.
+#[test]
+fn option_tables_and_usage_lines_agree_for_every_command() {
+    use crate::invocation::{HelpTopic, help_paths};
+    let usage_flags = |usage: &str| {
+        usage
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+            .filter(|word| word.starts_with("--") && word.len() > 2)
+            .map(str::to_owned)
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let mut mismatches = Vec::new();
+    for help in help_paths() {
+        let HelpTopic::Command(path) = help.topic() else {
+            continue;
+        };
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            let usage = locale.cli_command_help(path).usage;
+            let table = super::help_options(path)
+                .into_iter()
+                .filter(|flag| !matches!(*flag, "--help" | "--session"))
+                .map(str::to_owned)
+                .collect::<std::collections::BTreeSet<_>>();
+            let spelled = usage_flags(usage)
+                .into_iter()
+                .filter(|flag| flag != "--help" && flag != "--session")
+                .collect::<std::collections::BTreeSet<_>>();
+            if table != spelled {
+                mismatches.push(format!(
+                    "{} [{locale:?}] table-only {:?} usage-only {:?}",
+                    path.as_str(),
+                    table.difference(&spelled).collect::<Vec<_>>(),
+                    spelled.difference(&table).collect::<Vec<_>>(),
+                ));
+            }
+            for (label, _) in locale.cli_help_arguments(path) {
+                let label = label.trim_start_matches("-- ");
+                let core = label
+                    .trim_start_matches('[')
+                    .split(['>', ']'])
+                    .next()
+                    .unwrap_or(label);
+                if !usage.contains(core) {
+                    mismatches.push(format!("{} [{locale:?}] argument {label}", path.as_str()));
+                }
+            }
+        }
+    }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}
+
+#[test]
+fn option_values_follow_the_usage_line() {
+    let usage = "orchbee x [--cwd <abs|follow|home>] [--tab-label <text>] [--tab <t>] [--format text|json] [--plain|--ansi]";
+    assert_eq!(
+        super::usage_value(usage, "--cwd").as_deref(),
+        Some("<abs|follow|home>")
+    );
+    assert_eq!(super::usage_value(usage, "--tab").as_deref(), Some("<t>"));
+    assert_eq!(
+        super::usage_value(usage, "--format").as_deref(),
+        Some("<text|json>")
+    );
+    assert_eq!(super::usage_value(usage, "--plain"), None);
+    assert!(!super::help_options(crate::invocation::CommandPath::ApiSchema).contains(&"--session"));
+}

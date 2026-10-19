@@ -1938,6 +1938,8 @@ pub(crate) enum ExpectedValue {
     LaunchArguments,
     LaunchEnvironment,
     AgentSessionId,
+    /// A positional Agent target: session ID or name, Panel ID or selector.
+    AgentTarget,
     AgentName,
     AgentListLimit,
     AgentCursor,
@@ -2498,6 +2500,37 @@ pub(crate) fn parse_request(
 /// the next token even when it resembles a selector, so this walk applies the
 /// same left-to-right ownership as the option scan below; a bare `--` is never
 /// consumed as a value.
+/// The longest command or family path spelled by the leading words, for
+/// diagnostics raised before the grammar runs. Option values are skipped.
+fn command_context(tokens: &[String]) -> UsageContext {
+    let mut words = Vec::new();
+    let mut index = 0;
+    while let Some(token) = tokens.get(index) {
+        let token = token.as_str();
+        if token == "--" {
+            break;
+        }
+        index += if token == "--format" || VALUE_FLAGS.contains(&token) {
+            2
+        } else {
+            if !token.starts_with('-') {
+                words.push(token);
+            }
+            1
+        };
+    }
+    help_paths()
+        .iter()
+        .filter(|path| words.starts_with(path.words()))
+        .max_by_key(|path| path.words().len())
+        .map_or(UsageContext::Root, |path| {
+            UsageContext::Path(match path.topic() {
+                HelpTopic::Command(command) => command.as_str(),
+                HelpTopic::Family(family) => family.as_str(),
+            })
+        })
+}
+
 fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailure> {
     let missing = || {
         usage_with(
@@ -2508,7 +2541,7 @@ fn format_envelope(tokens: &[String]) -> Result<Option<OutputFormat>, ParseFailu
     let invalid = |value: &str| {
         usage_with(
             UsageReason::InvalidValue {
-                context: UsageContext::Root,
+                context: command_context(tokens),
                 option: "--format",
                 value: value.to_owned(),
                 expected: ExpectedValue::Format,
@@ -8045,7 +8078,17 @@ fn agent_selector(
             });
         }
         return Ok(AgentTarget::Auto {
-            target: agent_session_id(value, context, envelope)?,
+            target: AgentSessionId::parse(value).map_err(|_| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "<target>",
+                        value: (*value).to_owned(),
+                        expected: ExpectedValue::AgentTarget,
+                    },
+                    envelope,
+                )
+            })?,
         });
     }
     if let Some(value) = &options.session {

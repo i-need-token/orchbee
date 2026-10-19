@@ -639,7 +639,7 @@ fn site_start_admits_only_format() {
             kind: ParseFailureKind::InvalidUsage,
             envelope: FailureEnvelope::Silent,
             usage: Some(UsageReason::InvalidValue {
-                context: UsageContext::Root,
+                context: UsageContext::Path("server start"),
                 option: "--format",
                 value: "yaml".to_owned(),
                 expected: ExpectedValue::Format,
@@ -3785,7 +3785,7 @@ fn usage_failures_carry_their_concrete_reason() {
         (
             &["status", "--format", "yaml"],
             UsageReason::InvalidValue {
-                context: UsageContext::Root,
+                context: path("status"),
                 option: "--format",
                 value: "yaml".to_owned(),
                 expected: ExpectedValue::Format,
@@ -3794,7 +3794,7 @@ fn usage_failures_carry_their_concrete_reason() {
         (
             &["status", "--format="],
             UsageReason::InvalidValue {
-                context: UsageContext::Root,
+                context: path("status"),
                 option: "--format",
                 value: String::new(),
                 expected: ExpectedValue::Format,
@@ -8026,4 +8026,37 @@ fn closes_wait_by_default_and_admit_detach_timeout_and_dry_run() {
         );
         assert!(close(&[family, "close", "x", "--dry-run", "--detach"]).is_err());
     }
+}
+
+#[test]
+fn format_and_agent_target_diagnostics_point_at_the_invoked_command() {
+    let reason = |args: &[&str]| parse(args).unwrap_err().usage.unwrap();
+    assert_eq!(
+        reason(&["tab", "list", "--format", "yaml"]),
+        UsageReason::InvalidValue {
+            context: UsageContext::Path("tab list"),
+            option: "--format",
+            value: "yaml".to_owned(),
+            expected: ExpectedValue::Format,
+        }
+    );
+    // Option values are not mistaken for command words.
+    assert_eq!(
+        reason(&["--format", "yaml", "tab", "rename", "x", "--label", "list"]),
+        UsageReason::InvalidValue {
+            context: UsageContext::Path("tab rename"),
+            option: "--format",
+            value: "yaml".to_owned(),
+            expected: ExpectedValue::Format,
+        }
+    );
+    assert_eq!(
+        reason(&["agent", "explain", "@terminal:91"]),
+        UsageReason::InvalidValue {
+            context: UsageContext::Path("agent explain"),
+            option: "<target>",
+            value: "@terminal:91".to_owned(),
+            expected: ExpectedValue::AgentTarget,
+        }
+    );
 }

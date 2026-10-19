@@ -28,10 +28,10 @@ impl Locale {
     pub(super) fn cli_client_selection_failure(self, reason: &str) -> Option<&'static str> {
         Some(match (self, reason) {
             (Self::EnUs, "client-not-found") => {
-                "No current TUI Client matches the selection. Start `orchbee tui`, inspect `orchbee client list`, or pass --client <id>.\n"
+                "No current TUI Client matches the selection, so there is no current Panel or Tab to use. Without a TUI, pass an explicit target such as a Panel from `orchbee panel list` (`@panel:<suffix>`).\n"
             }
             (Self::ZhCn, "client-not-found") => {
-                "没有与选择匹配的当前 TUI 客户端。请启动 `orchbee tui`，用 `orchbee client list` 查看，或传入 --client <id>。\n"
+                "没有与选择匹配的当前 TUI 客户端，因此没有可用的当前面板或标签页。没有 TUI 时，请传入显式目标，例如 `orchbee panel list` 中的面板（`@panel:<suffix>`）。\n"
             }
             (Self::EnUs, "client-ambiguous") => {
                 "More than one current TUI Client matches the selection. Use `orchbee client list` and pass --client <id>.\n"

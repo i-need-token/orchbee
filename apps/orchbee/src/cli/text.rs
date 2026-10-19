@@ -28,13 +28,12 @@ fn command(path: CommandPath, locale: Locale) -> Document {
         lines: details.usage.lines().map(str::to_owned).collect(),
     }];
     if path == CommandPath::Status {
+        // Only the command list; this page renders its own option table.
+        let options = locale.cli_help_text(HelpText::Options);
         let children = directory(HelpTopic::Command(path), locale);
-        sections.extend(
-            children
-                .sections
-                .into_iter()
-                .filter(|section| matches!(section, Section::Rows { .. })),
-        );
+        sections.extend(children.sections.into_iter().filter(
+            |section| matches!(section, Section::Rows { heading, .. } if heading != options),
+        ));
     }
     let arguments = locale.cli_help_arguments(path);
     if !arguments.is_empty() {
@@ -51,10 +50,11 @@ fn command(path: CommandPath, locale: Locale) -> Document {
     }
     sections.push(Section::Rows {
         heading: locale.cli_help_text(HelpText::Options).into(),
-        rows: super::completion::help_flags(path)
+        rows: help_options(path)
             .into_iter()
             .map(|flag| {
                 let (value, description) = locale.cli_help_option(path, flag);
+                let value = usage_value(details.usage, flag).unwrap_or_else(|| value.to_owned());
                 Row {
                     label: if flag == "--help" {
                         "-h, --help".into()
@@ -92,6 +92,46 @@ fn command(path: CommandPath, locale: Locale) -> Document {
         sections,
         footer: vec![locale.cli_help_text(HelpText::Reference).into()],
     }
+}
+
+/// The admitted options a command's help lists. Offline commands never
+/// open a session, so the session selector is not offered there.
+pub(super) fn help_options(path: CommandPath) -> Vec<&'static str> {
+    super::completion::help_flags(path)
+        .into_iter()
+        .filter(|flag| !(*flag == "--session" && path == CommandPath::ApiSchema))
+        .collect()
+}
+
+/// The value placeholder the usage line spells after `flag`, so the option
+/// table and the usage never disagree. Bare closed sets such as
+/// `text|json` are shown as `<text|json>`.
+pub(super) fn usage_value(usage: &str, flag: &str) -> Option<String> {
+    let mut offset = 0;
+    while let Some(found) = usage[offset..].find(flag) {
+        let start = offset + found;
+        let end = start + flag.len();
+        offset = end;
+        let joined = |text: &str| text.ends_with(|c: char| c.is_ascii_alphanumeric() || c == '-');
+        if joined(&usage[..start])
+            || usage[end..].starts_with(|c: char| c.is_ascii_alphanumeric() || c == '-')
+        {
+            continue;
+        }
+        let Some(rest) = usage[end..].strip_prefix(' ') else {
+            return None;
+        };
+        if rest.starts_with('<') {
+            return rest.find('>').map(|close| rest[..=close].to_owned());
+        }
+        let token: String = rest
+            .chars()
+            .take_while(|c| !matches!(c, ' ' | ']' | ')' | '\n'))
+            .collect();
+        return (!token.is_empty() && !token.starts_with(['-', '[', '(', '.']))
+            .then(|| format!("<{token}>"));
+    }
+    None
 }
 
 fn example(path: CommandPath) -> String {

@@ -68,6 +68,71 @@ impl Locale {
                 "Success always emits JSON; select json for JSON errors too.",
                 "成功时始终输出 JSON；选择 json 也以 JSON 输出错误。",
             ),
+            (
+                CommandPath::WorkspaceCreate
+                | CommandPath::PanelSplit
+                | CommandPath::TabCreate
+                | CommandPath::WorktreeCreate
+                | CommandPath::WorktreeOpen,
+                "--rows",
+            ) => (
+                "<n>",
+                "Terminal height in rows; give it with --cols, --cell-width and --cell-height.",
+                "终端行数；须与 --cols、--cell-width 和 --cell-height 一起提供。",
+            ),
+            (CommandPath::TerminalRead | CommandPath::AgentRead, "--rows") => (
+                "<n>",
+                "Number of history rows to read with --history.",
+                "配合 --history 读取的历史行数。",
+            ),
+            (CommandPath::TerminalWaitOutput, "--rows") => (
+                "<n>",
+                "Number of recent rows to search.",
+                "要搜索的最近行数。",
+            ),
+            (CommandPath::PanelSplit, "--direction") => (
+                "<direction>",
+                "Side of the selected panel where the new panel opens.",
+                "新面板在所选面板哪一侧打开。",
+            ),
+            (CommandPath::PanelMove, "--direction") => (
+                "<direction>",
+                "Side of the destination panel to place the panel on.",
+                "将面板放到目标面板的哪一侧。",
+            ),
+            (CommandPath::TabMove, "--direction") => (
+                "<direction>",
+                "Where to move the tab among its neighbors.",
+                "将标签页移动到相邻标签页中的哪个位置。",
+            ),
+            (CommandPath::PanelFocus | CommandPath::PanelNeighbor, "--direction") => (
+                "<direction>",
+                "Direction of the neighboring panel.",
+                "相邻面板所在的方向。",
+            ),
+            (CommandPath::PanelResize, "--direction") => {
+                ("<direction>", "Divider edge to move.", "要移动的分隔边。")
+            }
+            (CommandPath::PanelSwap, "--direction") => (
+                "<direction>",
+                "Direction of the neighboring panel to swap with.",
+                "要交换的相邻面板所在方向。",
+            ),
+            (CommandPath::AgentList | CommandPath::AgentChanges, "--cursor") => (
+                "<cursor>",
+                "Continue from the cursor a previous page returned.",
+                "从上一页返回的游标继续。",
+            ),
+            (
+                CommandPath::TabList
+                | CommandPath::TabCreate
+                | CommandPath::PanelList
+                | CommandPath::TerminalList
+                | CommandPath::PanelMove
+                | CommandPath::WorkspaceCloseStatus
+                | CommandPath::WorkspaceCloseResume,
+                "--workspace",
+            ) => ("<target>", "Select a workspace.", "选择工作区。"),
             (CommandPath::LaunchProfileCreate, "--name") => (
                 "<name>",
                 "Name of the saved launch profile.",
@@ -574,8 +639,8 @@ impl Locale {
                 ),
                 "--standalone" => (
                     "",
-                    "Create a panel outside project/workspace grouping.",
-                    "在项目和工作区分组之外创建面板。",
+                    "Use the standalone tabs outside any workspace.",
+                    "使用不属于任何工作区的独立标签页。",
                 ),
                 "--state" => ("<state>", "Agent state to report.", "要报告的 Agent 状态。"),
                 "--state-label" => (
@@ -668,11 +733,7 @@ impl Locale {
                     "Output format; default: text.",
                     "输出格式；默认 text。",
                 ),
-                "--help" => (
-                    "",
-                    "Show this help and exit without running the command.",
-                    "显示本帮助后退出，不执行命令。",
-                ),
+                "--help" => ("", "Show this help and exit.", "显示本帮助后退出。"),
                 _ => unreachable!("admitted help option lacks localized copy: {flag}"),
             },
         };

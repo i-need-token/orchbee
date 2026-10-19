@@ -424,8 +424,8 @@ impl Locale {
             HelpTopic::Command(CommandPath::TabRename) => ("Rename a tab.", "重命名标签页。"),
             HelpTopic::Command(CommandPath::PanelRename) => ("Rename a panel.", "重命名面板。"),
             HelpTopic::Command(CommandPath::PanelInput) => (
-                "Send input to a panel's terminal.",
-                "向面板中的终端发送输入。",
+                "Choose where right clicks in a panel go.",
+                "选择面板中右键点击的去向。",
             ),
             HelpTopic::Command(CommandPath::PanelSwap) => {
                 ("Exchange two panels' positions.", "交换两个面板的位置。")
@@ -586,7 +586,7 @@ impl Locale {
             }
             #[cfg(windows)]
             HelpTopic::Command(CommandPath::ConfigImportHerdr) => {
-                ("Import settings from H+DR.", "从 H+DR 导入设置。")
+                ("Import settings from Herdr.", "从 Herdr 导入设置。")
             }
             HelpTopic::Command(CommandPath::SiteStart) => (
                 "Ensure a local terminal session is running.",
@@ -859,7 +859,7 @@ impl Locale {
                 "创建工作区及其首个终端。",
             ),
             HelpText::ListAgents => ("See your active Agents.", "查看正在运行的 Agent。"),
-            HelpText::ShowHelp => ("Show help for the current command.", "显示当前命令的帮助。"),
+            HelpText::ShowHelp => ("Show this help and exit.", "显示本帮助后退出。"),
             HelpText::ShowVersion => ("Print the installed version.", "显示已安装的版本。"),
             HelpText::ShowSkill => (
                 "Print the offline Agent guide.",

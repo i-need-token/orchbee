@@ -1108,6 +1108,12 @@ impl Locale {
             (Self::ZhCn, ExpectedValue::AgentSessionId) => {
                 "一个 Agent 会话身份（1–128 个 ASCII 字母、数字、'.'、'_'、':'、'-'）"
             }
+            (Self::EnUs, ExpectedValue::AgentTarget) => {
+                "an Agent session ID or name, a Panel ID, or @panel:<suffix>; for a terminal, pass the Panel that shows it"
+            }
+            (Self::ZhCn, ExpectedValue::AgentTarget) => {
+                "Agent 会话 ID 或名称、Panel ID 或 @panel:<suffix>；如要指定终端，请传入显示它的 Panel"
+            }
             (Self::EnUs, ExpectedValue::AgentListLimit) => "a decimal integer from 1 to 100",
             (Self::ZhCn, ExpectedValue::AgentListLimit) => "1–100 的十进制整数",
             (Self::EnUs, ExpectedValue::AgentCursor) => {
@@ -1276,8 +1282,8 @@ impl Locale {
             ),
             UsageReason::CallerContextUnavailable => (
                 match self {
-                    Self::EnUs => "Calling terminal context is missing or invalid. Run inside a newly launched Orchbee terminal, or use 'panel current --panel <panel-id>'.".to_owned(),
-                    Self::ZhCn => "调用终端的上下文缺失或无效。请在新启动的 Orchbee 终端内运行，或使用 'panel current --panel <panel-id>'。".to_owned(),
+                    Self::EnUs => "Calling terminal context is missing or invalid. Run inside a newly launched Orchbee terminal, or use 'panel current --panel <panel>'.".to_owned(),
+                    Self::ZhCn => "调用终端的上下文缺失或无效。请在新启动的 Orchbee 终端内运行，或使用 'panel current --panel <panel>'。".to_owned(),
                 },
                 hint(UsageContext::Path("panel current")),
             ),
@@ -3027,11 +3033,11 @@ impl Locale {
             (Self::EnUs, CommandPath::AgentList) => HELP_AGENT_LIST_EN,
             (Self::ZhCn, CommandPath::AgentList) => HELP_AGENT_LIST_ZH,
             (Self::EnUs, CommandPath::AgentStart) => crate::localization::HelpDetails::new(
-                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]",
+                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
                 "Windows: start an interactive Agent in an idle terminal, then bind its name after verified readiness.\nThe default target is the caller Panel. Timeout: 3001–300000 ms, default 30000.\nUse --arg=<value> repeatedly as an alternative to trailing arguments. Input is submitted once.\nCancellation or timeout releases the name when confirmed; it never kills the Agent.\nProvider hooks must report readiness. Use agent integration and agent doctor to check setup.\nFor Antigravity, use --kind antigravity here and --provider antigravity-cli in integration/doctor.",
             ),
             (Self::ZhCn, CommandPath::AgentStart) => crate::localization::HelpDetails::new(
-                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]",
+                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
                 "Windows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止 Agent。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nAntigravity 在此使用 --kind antigravity，在 integration/doctor 中使用 --provider antigravity-cli。",
             ),
             (Self::EnUs, CommandPath::AgentPrompt) if cfg!(windows) => HELP_AGENT_PROMPT_WINDOWS_EN,
@@ -3563,12 +3569,12 @@ const HELP_TAB_CREATE_ZH: crate::localization::HelpDetails = crate::localization
 
 const HELP_PANEL_RENAME_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel rename <panel-id> (--label <text> | --clear) [--format text|json]",
+        "orchbee panel rename <panel> (--label <text> | --clear) [--format text|json]",
         "Set a shared custom Panel title by exact ID or @panel:<suffix>. Empty or\nwhitespace-only text clears the title and restores its creation label. Input\nis limited to 512 Unicode characters before trimming. No focus change.\nrenamed reports a committed revision; unchanged means the override matched.",
     );
 const HELP_PANEL_RENAME_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel rename <panel-id> (--label <text> | --clear) [--format text|json]",
+        "orchbee panel rename <panel> (--label <text> | --clear) [--format text|json]",
         "用精确 ID 或 @panel:<suffix> 设置共享的窗格自定义标题。空文本或纯空白文本会清除标题，恢复创建时的标签。裁剪前最多 512 个 Unicode 字符。不会切换焦点。\nrenamed 表示已提交新修订；unchanged 表示自定义标题未变。",
     );
 const HELP_TAB_RENAME_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3608,29 +3614,29 @@ const HELP_PANEL_LIST_ZH: crate::localization::HelpDetails = crate::localization
 );
 
 const HELP_PANEL_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel get <panel-id> [--client <id>] [--format text|json]",
+    "orchbee panel get <panel> [--client <id>] [--format text|json]",
     "Show one Panel by complete typed ID or @panel:<suffix>: owning tab,\ncontext, slot path, and its primary and child Presentations.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\nWindows also observes primary terminal title, directory and process facts.\nUnavailable observations are explicit; the query never controls or resizes terminals.",
 );
 const HELP_PANEL_GET_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel get <panel-id> [--client <id>] [--format text|json]",
+    "orchbee panel get <panel> [--client <id>] [--format text|json]",
     "按完整类型化 ID 或 @panel:<suffix> 显示一个 Panel：所属 Tab、上下文、slot 路径及其主与子 Presentation。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
 );
 
 const HELP_PANEL_SPLIT_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel split [<panel-id> | --panel <panel-id> | --current] --direction <above|below|left|right> [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--right-click orchbee|panel] [--ratio <number>] [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
+    "orchbee panel split [<panel> | --panel <panel> | --current] --direction <above|below|left|right> [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--right-click orchbee|panel] [--ratio <number>] [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
     "Split one Panel, creating a sibling panel on the selected side. The\nfour geometry flags are an all-or-none group: with all four absent the\ncommand requests an 80x24 logical grid with unknown cell pixels (0,0) —\na request policy, not a measured display fact; supplying any of the\nfour requires all four. The result carries the committed revision,\nthe new panel, split, slot, and presentation ids, and the terminal spawn\noutcome. '--exec' selects the launched program by absolute path and each\n'--arg' appends one verbatim argument; omitting both launches the\ndefault shell. '--profile' instead selects a stored Launch Profile by\nexact ID or singly-matching name, resolved by the Server — it cannot\ncombine with '--exec' or '--arg'.\nWindows --cwd defaults to follow: sample the resolved source Panel root process cwd.\nAn absolute path overrides it; home/current use the CLI home/current directory;\nworkspace keeps Server Workspace/Worker-home defaults. Known absent cwd keeps\nthose defaults; read failures stop before creation. Explicit headless Tab context\ndoes not select a Client just to find cwd. Other platforms keep absolute paths. '--env NAME=VALUE' repeats to overlay inherited variables;\nvalues are literal, including empty values. These options also work with\n'--profile' and the default shell. Names: ASCII letters/digits/underscore,\n1..128 bytes, no leading digit; case-insensitive duplicates, ORCHBEE_*,\nTERM, COLORTERM and TERM_PROGRAM are rejected. Limit: 32 entries, 1,024\nUTF-8 name/value bytes total, no NUL. A bad directory fails the launch.\n\nWindows: omitted targets use validated caller context or one current Client selection. Invalid caller metadata never falls back; --client ignores caller environment. Unnamed Tabs display their current one-based position; --label fixes the name, including numeric names. Split labels default to the preflight Panel count plus one. No focus by default; --focus waits for the original Client to focus the new Panel after creation. Explicit targets without Client effects work headlessly. Total timeout: 30000ms (1..3600000). orchbee.creation.result v3 records directory policy/source/path and preserves creation and subsequent phase facts; later failure never undoes creation. Do not blindly repeat. --ratio is the first child share, clamped from a finite number to 0.1..0.9; it is shared across windows, saved for restart and does not imply focus. --right-click sets only the new Panel policy atomically with creation (default orchbee); panel permits unmodified right clicks inside a mouse-reporting terminal.",
 );
 const HELP_PANEL_SPLIT_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel split [<panel-id> | --panel <panel-id> | --current] --direction <above|below|left|right> [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--right-click orchbee|panel] [--ratio <number>] [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
+    "orchbee panel split [<panel> | --panel <panel> | --current] --direction <above|below|left|right> [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--right-click orchbee|panel] [--ratio <number>] [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
     "分裂一个 Panel，在所选侧创建相邻 Panel。四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素为未知 (0,0)——这是请求策略而非实测显示事实；提供其中任何一个就必须提供全部四个。结果携带已提交修订、新的 panel、split、slot、presentation ID 及终端拉起结果。'--exec' 以绝对路径选择启动程序，每个 '--arg' 逐字追加一个参数；两者均省略时启动默认 shell。'--profile' 改为按精确 ID 或唯一匹配的名称选择已存储的启动配置，由 Server 解析——不能与 '--exec'\n或 '--arg' 组合。\nWindows --cwd 默认为 follow：采样已解析来源 Panel 的根进程目录。绝对路径直接覆盖；\nhome/current 使用 CLI 的主目录／当前目录；workspace 保留 Server Workspace／Worker 主目录默认值。明确缺失 cwd 时保留默认值；读取失败则在创建前停止。显式无界面 Tab 上下文不会为查目录选择 Client。其他平台仍只使用绝对路径。\n'--env NAME=VALUE' 可重复使用，覆盖继承的变量；值逐字保留，允许空值。这些选项也可配合 '--profile' 或默认 shell 使用。名称只允许 ASCII 字母、数字和下划线，1..128 字节且不能以数字开头；拒绝忽略大小写后重复的名称、\nORCHBEE_*、TERM、COLORTERM 和 TERM_PROGRAM。至多 32 项，名称和值合计不超过 1,024 UTF-8 字节，不能含 NUL。目录不可用时启动失败。\n\nWindows：省略目标时使用经校验的调用者上下文，或唯一 current Client 的选择。无效调用者信息不回退；显式 --client 忽略调用者环境。未命名 Tab 显示当前从一开始的位置序号；--label 固定名称，包括数字名称。分屏标签默认为创建前 Panel 数加一。默认不聚焦；--focus 在创建后等待原 Client 聚焦新 Panel。显式目标且无需 Client 操作时可无 TUI 运行。总超时默认 30000ms（1..3600000）。orchbee.creation.result v3 记录目录策略／来源／路径，并保留已创建身份及后续步骤结果；后续失败不会撤销创建，勿盲目重试。 --ratio 是第一子节点的份额，有限数值限制到 0.1..0.9；跨窗口共享并保存在重启存档中，不隐含聚焦。 --right-click 随创建原子设置新 Panel 的策略（默认 orchbee）；panel 允许无修饰键的右键在启用鼠标上报的终端内容内透传。",
 );
 
 const HELP_PANEL_CLOSE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel close <panel-id> --confirm [--format text|json]",
+    "orchbee panel close <panel> --confirm [--format text|json]",
     "Close one Panel selected by complete typed ID or @panel:<suffix>.\n'--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the session finishes the close asynchronously.",
 );
 const HELP_PANEL_CLOSE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel close <panel-id> --confirm [--format text|json]",
+    "orchbee panel close <panel> --confirm [--format text|json]",
     "关闭一个由完整类型化 ID 或 @panel:<suffix> 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
 );
 
@@ -3658,59 +3664,59 @@ const HELP_TERMINAL_LIST_ZH: crate::localization::HelpDetails =
 
 const HELP_TERMINAL_GET_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal get <terminal-id> [--format text|json]",
+        "orchbee terminal get <terminal> [--format text|json]",
         "Show one bound terminal by complete typed ID or @terminal:<suffix>:\nworker id and its single boundTo location (presentation, panel, tab,\ncontext).",
     );
 const HELP_TERMINAL_GET_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal get <terminal-id> [--format text|json]",
+        "orchbee terminal get <terminal> [--format text|json]",
         "按完整类型化 ID 或 @terminal:<suffix> 显示一个已绑定终端：worker id 及其唯一 boundTo 位置（presentation、panel、tab、context）。",
     );
 
 #[cfg(not(windows))]
 const HELP_TERMINAL_READ_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
+        "orchbee terminal read <terminal> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
         "Read the current visible content of one bound terminal. The terminal is\nresolved from the Workbench snapshot, then observed once through a short-\nlived read-only viewer on the same session; nothing is created, activated,\nor mutated. Text output prints the grid rows; '--format json' emits the\norchbee.terminal.read envelope with frame metadata and row content.\n\nWith '--history --rows <n>' (both flags required together, 1..=1000), read\nup to n retained rows that have scrolled off the active screen instead of\nthe visible frame; '--format json' emits the orchbee.terminal.history\nenvelope with scrollback metadata and row content.\n\n'--unwrap' is a read-only presentation transform: verified soft-wrapped\nphysical rows join into logical lines (hard breaks and empty lines are\npreserved; a window edge inside a wrapped line reports startsMidLine/\nendsMidLine instead of claiming a complete line). '--lines <n>' (1..=65535)\nshows only the last n emitted entries — logical lines under '--unwrap',\nphysical rows otherwise — and never widens the fetched window.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v2 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.",
     );
 #[cfg(not(windows))]
 const HELP_TERMINAL_READ_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal read <terminal-id> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
+        "orchbee terminal read <terminal> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
         "读取一个已绑定终端的当前可见内容。终端经 Workbench 快照解析后，通过同一会话上短暂存活的只读 viewer 观察一次；不创建、不激活、不修改任何状态。文本输出逐行打印网格内容；'--format json' 输出带帧元数据与行内容的 orchbee.terminal.read 封套。\n\n加 '--history --rows <n>'（两个 flag 必须成对，1..=1000）时，读取已滚出当前活动屏幕的至多 n 行保留历史，而非可见帧；'--format json' 输出带历史元数据与行内容的 orchbee.terminal.history 封套。\n\n'--unwrap' 是只读的呈现变换：经验证的软换行物理行拼接为逻辑行（保留硬换行与空行；窗口边缘落在换行行内部时以 startsMidLine/endsMidLine\n如实标记，而非声称完整行）。'--lines <n>'（1..=65535）只显示最后 n\n条已发出的条目——'--unwrap' 下为逻辑行，否则为物理行——且不会扩大抓取窗口。\n\n显式来源：--source visible|recent|recent-unwrapped|detection。\nrecent 合并历史与实时屏幕，默认 80 个物理行；detection 读取光标附近一个屏幕高度，不是 Agent 状态。来源模式 --lines 接受 0..4294967295，钳制到 1000。visible 是当前查看器的实时屏幕。\n--plain 直接输出 UTF-8 文本，默认 recent；与 --format json 冲突。来源/plain 不能与 --history、--rows 或 --unwrap 混用。\nJSON 使用 orchbee.terminal.output；样本过期时失败，不隐藏重试。\n\n--ansi 直接导出带样式文本（默认 recent）；配合 --format json 时改用\norchbee.terminal.output v2，encoding 为 ansi。它与 --plain、--history、\n--rows 和 --unwrap 冲突。保留带样式空格；recent-unwrapped 拼接软换行。\ndetection 仍输出纯文本。这是包含 SGR 的样式快照，不是原始 PTY 字节或图形重放。",
     );
 
 #[cfg(not(windows))]
 const HELP_TERMINAL_WAIT_OUTPUT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal wait-output <terminal-id> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]",
+        "orchbee terminal wait-output <terminal> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]",
         "Wait until the pattern appears in one bound terminal's retained output —\nexactly one of '--match' or '--regex' is required. '--match' is a literal,\ncase-sensitive substring (1..=4096 bytes); '--regex' is a nonempty UTF-8\nregular expression of at most 1024 bytes, compiled once before any\nconnection (invalid or oversized programs are usage failures). Matching\nchecks the most recent --rows retained rows (1..=1000, default 1000)\nspanning the visible screen and scrollback as one window, joining\nsoft-wrapped rows into logical lines first; a regex match reports its\nbyte length and fragment-edge flags, and '^'/'$' anchor at the observed\nfragment edges. '--timeout' bounds the total wait in milliseconds\n(1..=3600000, default 30000); the command exits 0 on match, 7 on timeout,\nand 130 when cancelled by HUP/INT/QUIT/TERM. Nothing is typed into the\nterminal and nothing is created or mutated. Text output prints the\nmatching line; '--format json' emits the orchbee.terminal.wait-output\nenvelope with match and observation metadata.\n\nSource mode: --source visible|recent|recent-unwrapped|detection, --lines N,\nor --forever. It defaults to recent (80 physical rows), excludes --rows,\nand uses orchbee.terminal.wait-output v3. --lines allows zero and clamps to\n1000. Recent sources join soft wraps; visible/detection match physical lines.\n--forever removes the total deadline, conflicts with --timeout, and retains\nfive-second I/O limits and Ctrl+C cleanup. Zero lines never match.",
     );
 #[cfg(not(windows))]
 const HELP_TERMINAL_WAIT_OUTPUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal wait-output <terminal-id> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]",
+        "orchbee terminal wait-output <terminal> (--match <text> | --regex <pattern>) [--rows <n>] [--timeout <ms>] [--format text|json]",
         "等待一个已绑定终端的保留输出中出现指定模式——'--match' 与 '--regex'\n必须且只能提供一个。'--match' 为字面、区分大小写的子串（1..=4096 字节）；'--regex' 为至多 1024 字节的非空 UTF-8 正则表达式，在任何连接建立前编译一次（非法或超限程序报用法错误）。搜索范围为最近 --rows\n行保留行（1..=1000，默认 1000），可见屏与回滚历史作为一个窗口，并先把软换行行拼接为逻辑行；正则命中会报告字节长度与片段边缘标记，\n'^'/'$' 仅锚定观测到的片段边界。'--timeout' 以毫秒限定总等待预算（1..=3600000，默认 30000）；匹配成功退出 0，超时退出 7，被\nHUP/INT/QUIT/TERM 取消时退出 130。不向终端写入任何输入，不创建、不修改任何状态。文本输出打印匹配行；'--format json' 输出带匹配与观测元数据的 orchbee.terminal.wait-output 封套。\n\n来源模式：--source visible|recent|recent-unwrapped|detection、--lines N\n或 --forever。默认 recent（80 个物理行），与 --rows 互斥，使用\norchbee.terminal.wait-output v3。--lines 允许零，钳制到 1000。\nrecent 来源拼接软换行；visible/detection 匹配物理行。\n--forever 移除总期限，与 --timeout 互斥，仍保留五秒 I/O 上限和\nCtrl+C 清理。零行从不匹配。",
     );
 const HELP_TERMINAL_RUN_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal run <target> <command> [--format text|json]",
+        "orchbee terminal run <terminal> <command> [--format text|json]",
         "Submit one quoted command string to an existing Terminal as one paste record followed\nby Enter in one request. Target: exact ID or @terminal:<suffix>.\nThe current program interprets the content; there is no Shell-readiness check, process\nlaunch, or command completion/exit-status promise. Whitespace and newlines are preserved.\nUse -- before operands resembling CLI options; put --format before that separator.\nEmpty commands and extra command operands are rejected. Total argv is at most 64 KiB;\nthe paste limit is 256 KiB. The existing five-second input deadline applies.\nThe orchbee.terminal.send receipt reports input and cleanup independently. Partial or\nunknown delivery must not be replayed. No controller, resize or focus is acquired.",
     );
 const HELP_TERMINAL_RUN_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal run <target> <command> [--format text|json]",
+        "orchbee terminal run <terminal> <command> [--format text|json]",
         "把一个引号内命令字符串以 paste 后接 Enter 的形式，在一个请求中提交到既有 Terminal。目标支持精确 ID 或 @terminal:<suffix>。当前程序解释内容；不检查 Shell 就绪、不启动进程，也不承诺命令完成或退出状态。空白和换行原样保留。操作数像 CLI 选项时，先写 --；--format 放在分隔符之前。拒绝空命令及多余命令操作数。完整 argv 上限 64 KiB，paste 上限 256 KiB，遵循既有五秒输入期限。\norchbee.terminal.send 回执分别报告输入与清理结果。部分或未知提交不得重放。不获取 controller、resize 或焦点权限。",
     );
 
 const HELP_TERMINAL_SEND_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name>... | --file <path> [--paste] [--enter] | --stdin [--paste] [--enter]) [--format text|json]",
+        "orchbee terminal send <terminal> (--text <utf8> [--enter] | --key <name>... | --file <path> [--paste] [--enter] | --stdin [--paste] [--enter]) [--format text|json]",
         "Submit one bounded input sequence to one bound terminal. Choose exactly one\nsource family. --text accepts up to 4096 UTF-8 bytes including an optional\ncarriage return. Repeat --key for up to 64 semantic keys; named keys include\nenter, escape, tab, backspace, delete, up, down, left, right, home, end,\npage-up, page-down, ctrl-c, ctrl-d, insert, space and f1..f25. A single\nprintable Unicode character or punctuation name (plus, semicolon, etc.)\nis also accepted. Combine ctrl/control, alt/option, shift and super/cmd/command\nwith +, for example ctrl+shift+a or super+c. Quote shell punctuation.\nThe Host encodes keys for the terminal's current keyboard mode.\n\n--file reads a regular file. --stdin accepts a redirected regular file or\npipe, including Windows pipes, and refuses interactive terminals/devices.\nFile/stdin preserves raw bytes, including non-UTF-8 data, up to 1 MiB\nincluding an optional --enter carriage return. Empty input is refused.\n--paste is valid only with --file or --stdin, limits content to 256 KiB,\nand sends bracketed paste under the terminal's mode. With --paste, --enter\nadds a separate trailing Enter record. Nothing is sent until the complete\nsource is acquired and validated under the shared five-second deadline.\nWindows pipe cancellation terminates and reaps its owned reader process.\n\nThe temporary input-only attachment never takes the TUI's controller,\nviewer or resize ownership. Inspect inputStatus and cleanupStatus in the\norchbee.terminal.send JSON result independently. Partial acceptance is not\ncomplete success. When the outcome is unknown (exit 8), inspect the terminal\nbefore another action: blindly resending may type twice. No request is\nautomatically replayed.",
     );
 const HELP_TERMINAL_SEND_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal send <terminal-id> (--text <utf8> [--enter] | --key <name>... | --file <path> [--paste] [--enter] | --stdin [--paste] [--enter]) [--format text|json]",
+        "orchbee terminal send <terminal> (--text <utf8> [--enter] | --key <name>... | --file <path> [--paste] [--enter] | --stdin [--paste] [--enter]) [--format text|json]",
         "向一个已绑定终端提交一组有界输入。必须恰好选择一种来源。\n--text 接受不超过 4096 字节的 UTF-8 文字，含可选附加回车。重复 --key 可发送最多 64 个语义按键；具名按键包括 enter、escape、tab、\nbackspace、delete、up、down、left、right、home、end、page-up、\npage-down、ctrl-c、ctrl-d、insert、space 和 f1..f25。也接受单个可打印 Unicode 字符或 plus、semicolon 等标点名称。用 + 组合\nctrl/control、alt/option、shift、super/cmd/command，例如 ctrl+shift+a\n或 super+c；Shell 标点请加引号。由 Host 按终端当前键盘模式编码。\n\n--file 读取普通文件。--stdin 接受重定向普通文件或管道，包括 Windows\n管道，拒绝交互终端和设备。文件/stdin 原样保留字节，含非 UTF-8 数据，连同 --enter 的可选回车上限为 1 MiB。空输入被拒绝。\n--paste 仅用于 --file 或 --stdin，内容上限 256 KiB，按终端模式发送\nbracketed paste。此时 --enter 附加独立的尾随 Enter 记录。来源在共用五秒期限内完整读取并校验后才发送任何内容。\nWindows 管道取消时会终止并回收所属读取进程。\n\n临时仅输入附属通道不获取 TUI 的 controller、viewer 或 resize 所有权。分别检查 orchbee.terminal.send JSON 结果的 inputStatus 与 cleanupStatus。部分接受不等于全部成功。结果未知（退出码 8）时，采取下一步操作前先检查终端：盲目重发可能输入两次。请求不会自动重放。",
     );
 
@@ -4154,12 +4160,12 @@ impl Locale {
 
 const HELP_PANEL_CURRENT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel current [--panel <panel-id> | --current] [--client <id>] [--format text|json]",
+        "orchbee panel current [--panel <panel> | --current] [--client <id>] [--format text|json]",
         "Read a Panel, Tab and Workspace from a running Windows session.\nAn explicit Panel ID or @panel:<suffix> ignores caller environment and needs no TUI.\nOtherwise use validated ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID. If both are absent,\nuse the only current TUI Client; multiple Clients require --client. --client ignores\ncaller environment and cannot combine with --panel. Partial, invalid or stale caller\nmetadata never falls back. The Client must be ready or busy with a valid selected Panel.\nIncludes primary Agent status, terminal title/cwd and process observation.\nA selected Client supplies focus and scroll; changes during the read are rejected.\nFive-second total deadline; Ctrl+C cancels. No focus changes or session activation.",
     );
 const HELP_PANEL_CURRENT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel current [--panel <panel-id> | --current] [--client <id>] [--format text|json]",
+        "orchbee panel current [--panel <panel> | --current] [--client <id>] [--format text|json]",
         "从运行中的 Windows 会话读取 Panel、Tab 和 Workspace。显式 Panel ID 或 @panel:<suffix> 忽略调用者环境，无需 TUI。否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，使用唯一 current TUI Client，多个 Client 必须用 --client 指定。--client 忽略调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须处于就绪或忙碌状态，且所选 Panel 仍有效。补齐主 Agent 状态、终端标题/cwd 和进程观察。选定 Client 时包含焦点和滚动信息；读取中途变化则拒绝。总期限五秒；Ctrl+C 取消。不改变焦点，不激活会话。",
     );
 
@@ -4229,12 +4235,12 @@ impl Locale {
 
 const HELP_PANEL_PROCESS_INFO_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel process-info [<panel-id> | --panel <panel-id> | --current] [--client <id>] [--format text|json]",
+        "orchbee panel process-info [<panel> | --panel <panel> | --current] [--client <id>] [--format text|json]",
         "Read the primary Terminal's Windows Job process information. Complete Panel IDs\nand @panel:<suffix> are accepted. Explicit Panel selectors are exclusive and conflict\nwith --client. Otherwise use validated caller context; only when both caller variables\nare absent, select the only current TUI Client. --client selects a Client and ignores\ncaller environment. Partial, invalid or stale caller metadata never falls back.\nThe Client must be ready or busy with a valid selected Panel. Each sample reports owned\nprocesses with PID, creation time, image, command line and cwd; unavailable optional\nfields are null. Five-second total deadline; Ctrl+C cancels. No focus or input changes.",
     );
 const HELP_PANEL_PROCESS_INFO_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel process-info [<panel-id> | --panel <panel-id> | --current] [--client <id>] [--format text|json]",
+        "orchbee panel process-info [<panel> | --panel <panel> | --current] [--client <id>] [--format text|json]",
         "读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:<suffix>。显式 Panel 选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；仅当两个调用者变量均缺失时，选择唯一 current TUI Client。--client 指定 Client\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。Client 必须已就绪且所选 Panel 仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。",
     );
 
@@ -4544,11 +4550,11 @@ const HELP_PANEL_SWAP_ZH: crate::localization::HelpDetails = crate::localization
 );
 
 const HELP_PANEL_INPUT_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel input (<panel-id> | --panel <panel-id> | --current) --right-click orchbee|panel [--format text|json]",
+    "orchbee panel input (<panel> | --panel <panel> | --current) --right-click orchbee|panel [--format text|json]",
     "Windows: set the shared Panel right-button policy without changing focus.\n--current uses validated calling Terminal/Worker context; explicit targets\nbypass that context. orchbee reserves right-click to the Client; panel permits\nunmodified right clicks inside a reporting terminal. Existing controller and\nreadiness gates still apply. A policy change applies to the next gesture.\nconfigured or unchanged acknowledges canonical state, not every Client draw.\nAn unknown outcome is never automatically retried.",
 );
 const HELP_PANEL_INPUT_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel input (<panel-id> | --panel <panel-id> | --current) --right-click orchbee|panel [--format text|json]",
+    "orchbee panel input (<panel> | --panel <panel> | --current) --right-click orchbee|panel [--format text|json]",
     "Windows：设置共享 Panel 右键策略，不改变焦点。--current 校验调用者\nTerminal/Worker 上下文；显式目标绕过该上下文。orchbee 将右键保留给\nClient；panel 允许无修饰键的右键在启用鼠标上报的终端内容中透传。现有控制权及就绪约束仍适用，策略改变作用于下一个手势。\nconfigured 或 unchanged 确认规范状态，不确认所有 Client 已绘制。未知结果不会自动重试。",
 );
 
@@ -4853,13 +4859,13 @@ impl Locale {
 #[cfg(windows)]
 const HELP_TERMINAL_READ_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal read <terminal-id> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
+        "orchbee terminal read <terminal> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
         "Read recent output by default: up to 80 physical rows from history and the live\nscreen. --source visible selects only the live screen; detection selects one\nscreen height near recent output. --lines permits zero and clamps to 1000.\n--unwrap without an explicit source selects recent-unwrapped (joins soft wraps).\n--plain exports UTF-8 text and conflicts with JSON; --ansi exports styled text\nor an ANSI JSON member. Detection stays plain. This is a snapshot, not PTY replay.\n\nJSON uses orchbee.terminal.output v1 (text) or v2 (ANSI), including the selected\nsource and observed range. Explicit --history --rows <1..1000> retains the\nlegacy history-only document and may use --unwrap/--lines. Do not combine\nhistory with --source, --plain or --ansi; explicit source/plain/ANSI excludes\n--unwrap. Use --source visible to request the previous default screen scope.\nSamples remain revision-fenced, read-only and bounded by a five-second deadline.",
     );
 #[cfg(windows)]
 const HELP_TERMINAL_READ_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal read <terminal-id> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
+        "orchbee terminal read <terminal> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
         "默认读取最近输出：历史与实时屏幕中最多 80 个物理行。--source visible 仅选择实时屏幕；detection 选择最近输出附近一个屏幕高度。--lines 允许零并钳制到 1000。未显式指定来源时，--unwrap 选择 recent-unwrapped（拼接软换行）。\n--plain 导出 UTF-8 文本，与 JSON 冲突；--ansi 导出样式文本或 ANSI JSON 字段。\ndetection 保持纯文本。这是快照，不是 PTY 重放。\n\nJSON 使用 orchbee.terminal.output v1（文本）或 v2（ANSI），含来源和观测范围。显式 --history --rows <1..1000> 保留旧的纯历史文档，可组合 --unwrap/--lines。\nhistory 不能与 --source、--plain、--ansi 混用；显式来源/plain/ANSI 排除 --unwrap。用 --source visible 请求原默认屏幕范围。读取仍固定修订、无输入副作用，总期限五秒。",
     );
 const HELP_AGENT_OUTPUT_EN: crate::localization::HelpDetails =
@@ -4875,13 +4881,13 @@ const HELP_AGENT_OUTPUT_ZH: crate::localization::HelpDetails =
 #[cfg(windows)]
 const HELP_TERMINAL_WAIT_OUTPUT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal wait-output <terminal-id> (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--timeout <ms>|--forever] [--format text|json]",
+        "orchbee terminal wait-output <terminal> (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--timeout <ms>|--forever] [--format text|json]",
         "Wait for output, defaulting to recent (80 physical rows) without a total deadline.\n--timeout sets 1..3600000 milliseconds; --forever explicitly selects no total\nceiling and conflicts with --timeout. Every I/O step remains bounded to five\nseconds, and Ctrl+C stops the wait and releases its read-only viewer.\n--lines permits zero (never matches) and clamps to 1000. --rows <1..1000> is a\nrecent-line alias, excluding --source/--lines. Recent sources join soft wraps;\nvisible/detection match physical lines. Existing output can match immediately.\n--match is literal, case sensitive, 1..4096 UTF-8 bytes. --regex is at most 1024\nbytes and compiles before any connection. No input, resize or focus change.\nExit 0 on match, 7 on timeout, 130 on cancellation. JSON uses\norchbee.terminal.wait-output v3 with nullable timeoutMs. To retain a finite\n30-second wait over 1000 recent rows, use --lines 1000 --timeout 30000.",
     );
 #[cfg(windows)]
 const HELP_TERMINAL_WAIT_OUTPUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal wait-output <terminal-id> (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--timeout <ms>|--forever] [--format text|json]",
+        "orchbee terminal wait-output <terminal> (--match <text>|--regex <pattern>) [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--timeout <ms>|--forever] [--format text|json]",
         "等待输出，默认 recent（80 个物理行），不设总期限。\n--timeout 指定 1..3600000 毫秒；--forever 显式选择无总期限，与 --timeout 互斥。每次 I/O 仍限制五秒，Ctrl+C 停止等待并释放只读 viewer。\n--lines 允许零（从不匹配）并钳制到 1000。--rows <1..1000> 是 recent 行数别名，与 --source/--lines 互斥。recent 来源拼接软换行，visible/detection 匹配物理行。既有输出可立即匹配。--match 是区分大小写的字面值，1..4096 UTF-8 字节；\n--regex 至多 1024 字节，在建立任何连接前编译。不输入、不 resize、不改变焦点。匹配退出 0，超时退出 7，取消退出 130。JSON 使用 orchbee.terminal.wait-output v3，\ntimeoutMs 可为 null。需要 30 秒期限和 1000 个最近行时，用 --lines 1000 --timeout 30000。",
     );
 
