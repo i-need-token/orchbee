@@ -47,7 +47,7 @@ pub(super) fn request(
         command: Command {
             input_file: operand("--input-file", &options.import_input_file)?,
             output_file: operand("--output-file", &options.import_output_file)?,
-            dry_run: options.import_dry_run,
+            dry_run: options.dry_run,
         },
         format: options.format.unwrap_or(OutputFormat::Text),
     })

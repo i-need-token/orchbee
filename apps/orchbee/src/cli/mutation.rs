@@ -55,6 +55,18 @@ pub(super) struct Receipt {
     /// The profile name a `launch-profile create` stored — the catalog's
     /// `name`, distinct from a Workbench `label`.
     name: Option<String>,
+    /// Text-only facts of a Tab or Workspace close, read from the snapshot
+    /// the command resolved against; the machine document never carries it.
+    closing: Option<Closing>,
+}
+
+/// What a close ends: the member's display label and its bound terminals,
+/// and whether the CLI observed the member gone before answering.
+#[derive(Clone, Debug)]
+pub(super) struct Closing {
+    pub(super) label: String,
+    pub(super) terminals: usize,
+    pub(super) finished: bool,
 }
 
 impl Receipt {
@@ -243,6 +255,17 @@ impl Receipt {
         self
     }
 
+    /// The localized first line for a finished close, if this is one.
+    pub(super) fn closed_summary(&self, locale: Locale) -> Option<String> {
+        let closing = self.closing.as_ref().filter(|closing| closing.finished)?;
+        let resource = if self.action == "workspace.close" {
+            "workspace"
+        } else {
+            "tab"
+        };
+        Some(locale.cli_close_finished(resource, &closing.label, closing.terminals))
+    }
+
     pub(super) fn target_hint(&self, locale: Locale) -> Option<&'static str> {
         if self.action.starts_with("project.")
             || self.action.starts_with("workspace.")
@@ -331,7 +354,7 @@ mod linux {
     };
     use serde_json::{Map, json};
 
-    use super::super::query::{request_id, snapshot_session};
+    use super::super::query::{request_id, snapshot_session, snapshot_session_until};
     use super::super::schema::{
         CLOSE_FAILURE_ID, LAUNCH_PROFILE_FAILURE_ID, MUTATION_RESULT_ID, PROJECT_RENAME_RESULT_ID,
     };
@@ -339,9 +362,10 @@ mod linux {
         Failure, FailureKind, Output, failure_output, output, present, results, stage_details,
         stage_reason_details,
     };
-    use super::{Receipt, TerminalFact, command_source};
+    use super::{Closing, Receipt, TerminalFact, command_source};
     use crate::invocation::{
-        MutationCommand, OutputFormat, PanelMoveDestination, Resource, TabContext, Target,
+        CloseWait, MutationCommand, OutputFormat, PanelMoveDestination, Resource, TabContext,
+        Target, TerminalListFilter,
     };
     use crate::local_client::LocalClient;
     use crate::local_client::workbench::label_rename::{
@@ -543,7 +567,26 @@ mod linux {
     }
 
     pub(super) fn run(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
-        match execute(command) {
+        let started = Instant::now();
+        let wait = match command {
+            MutationCommand::TabClose { wait, .. }
+            | MutationCommand::WorkspaceClose { wait, .. } => Some(*wait),
+            _ => None,
+        };
+        if wait == Some(CloseWait::DryRun) {
+            return close_preview(command, format, locale);
+        }
+        let mut hint = None;
+        let result = execute(command).and_then(|receipt| match wait {
+            Some(CloseWait::Wait { timeout_ms }) => {
+                settle_close(receipt, started, timeout_ms, locale).map_err(|(failure, text)| {
+                    hint = Some(text);
+                    failure
+                })
+            }
+            _ => Ok(receipt),
+        });
+        match result {
             Err(failure) => {
                 let failure = if matches!(
                     command,
@@ -566,7 +609,11 @@ mod linux {
                 } else {
                     failure
                 };
-                failure_output(failure, Some(format), locale)
+                let mut output = failure_output(failure, Some(format), locale);
+                if let Some(hint) = hint {
+                    output.stderr.push_str(&hint);
+                }
+                output
             }
             Ok(receipt) => success_output(&receipt, format, locale),
         }
@@ -620,12 +667,155 @@ mod linux {
             resolved.request_id.as_str(),
             resolved.expected_revision,
         );
+        let closing = closing(&resolved.action, &snapshot);
         let submission = submit(&mut client, deadline, resolved);
         // The Client Session is fully dropped before the outcome is mapped or
         // any output is prepared; an ambiguous submission already retired the
         // connection inside the transport, and nothing is replayed.
         drop(client);
-        submission.map_err(|failure| failure.source(source))
+        submission
+            .map(|receipt| Receipt { closing, ..receipt })
+            .map_err(|failure| failure.source(source))
+    }
+
+    /// The label and bound-terminal count a Tab or Workspace close ends.
+    fn closing(action: &WorkbenchAction, snapshot: &Snapshot) -> Option<Closing> {
+        let rows = results::terminal_rows(snapshot);
+        match action {
+            WorkbenchAction::TabClose { tab_id, .. } => {
+                let label = snapshot.terminal_contexts.iter().find_map(|context| {
+                    context
+                        .tabs
+                        .iter()
+                        .enumerate()
+                        .find(|(_, tab)| &tab.tab_id == tab_id)
+                        .map(|(position, tab)| tab.display_label(position).into_owned())
+                })?;
+                Some(Closing {
+                    label,
+                    terminals: rows
+                        .iter()
+                        .filter(|row| row.tab_id == tab_id.as_str())
+                        .count(),
+                    finished: false,
+                })
+            }
+            WorkbenchAction::WorkspaceClose { workspace_id } => {
+                let workspace = snapshot
+                    .navigation
+                    .workspaces
+                    .iter()
+                    .find(|workspace| &workspace.workspace_id == workspace_id)?;
+                Some(Closing {
+                    label: workspace.label.clone(),
+                    terminals: rows
+                        .iter()
+                        .filter(|row| {
+                            row.terminal_context_id == workspace.terminal_context_id.as_str()
+                        })
+                        .count(),
+                    finished: false,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// Observe fresh snapshots until the accepted close removed its Tab or
+    /// Workspace, within the command's total budget. Expiry is a typed
+    /// timeout; the close itself continues in the session.
+    fn settle_close(
+        receipt: Receipt,
+        started: Instant,
+        timeout_ms: u32,
+        locale: Locale,
+    ) -> Result<Receipt, (Failure, String)> {
+        const INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+        let deadline = started + std::time::Duration::from_millis(u64::from(timeout_ms));
+        let (key, workspace) = if receipt.action == "workspace.close" {
+            ("workspaceId", true)
+        } else {
+            ("tabId", false)
+        };
+        let id = receipt
+            .ids
+            .iter()
+            .find(|(name, _)| *name == key)
+            .and_then(|(_, id)| id.clone())
+            .unwrap_or_default();
+        let hint = locale.cli_close_wait_hint(workspace, &id, timeout_ms);
+        let mut observations = 0_u64;
+        loop {
+            let present = match snapshot_session_until(deadline) {
+                Ok((client, _, snapshot)) => {
+                    drop(client);
+                    observations += 1;
+                    if workspace {
+                        snapshot
+                            .navigation
+                            .workspaces
+                            .iter()
+                            .any(|candidate| candidate.workspace_id.as_str() == id)
+                    } else {
+                        snapshot
+                            .terminal_contexts
+                            .iter()
+                            .any(|context| context.tabs.iter().any(|tab| tab.tab_id.as_str() == id))
+                    }
+                }
+                Err(failure) if failure.kind == FailureKind::Timeout => true,
+                Err(failure) => return Err((failure.source(receipt.source()), hint)),
+            };
+            if !present {
+                let closing = receipt.closing.clone().map(|closing| Closing {
+                    finished: true,
+                    ..closing
+                });
+                return Ok(Receipt { closing, ..receipt });
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                let failure = Failure::new(FailureKind::Timeout)
+                    .details(Map::from_iter([
+                        ("stage".to_owned(), json!("wait")),
+                        ("timeoutMs".to_owned(), json!(timeout_ms)),
+                        (
+                            "observed".to_owned(),
+                            json!({"completedObservations": observations}),
+                        ),
+                    ]))
+                    .source(receipt.source());
+                return Err((failure, hint));
+            }
+            std::thread::sleep((deadline - now).min(INTERVAL));
+        }
+    }
+
+    /// `--dry-run`: the terminal list of the member a close would end,
+    /// opened in text with what confirming would do. Nothing is submitted.
+    fn close_preview(command: &MutationCommand, format: OutputFormat, locale: Locale) -> Output {
+        let (filter, resource) = match command {
+            MutationCommand::TabClose { target, .. } => {
+                (TerminalListFilter::Tab(target.clone()), "tab")
+            }
+            MutationCommand::WorkspaceClose { target, .. } => {
+                (TerminalListFilter::Workspace(target.clone()), "workspace")
+            }
+            _ => unreachable!("only closes preview"),
+        };
+        let mut output = super::super::query(
+            crate::invocation::QueryCommand::TerminalList {
+                filter: Some(filter),
+            },
+            format,
+            locale,
+        );
+        if output.status == 0 && format == OutputFormat::Text {
+            let mut text = locale.cli_close_preview(resource).into_bytes();
+            text.append(&mut output.stdout);
+            output.stdout = text;
+        }
+        output
     }
 
     fn resolve(command: &MutationCommand, snapshot: &Snapshot) -> Result<Resolved, Failure> {
@@ -761,7 +951,7 @@ mod linux {
                     path: path.clone(),
                 })
             }
-            MutationCommand::WorkspaceClose { target } => {
+            MutationCommand::WorkspaceClose { target, .. } => {
                 let (_, workspace) = resolve_workspace(snapshot, target)?;
                 Ok(WorkbenchAction::WorkspaceClose {
                     workspace_id: workspace.workspace_id.clone(),
@@ -852,7 +1042,7 @@ mod linux {
                     direction: *direction,
                 })
             }
-            MutationCommand::TabClose { target } => {
+            MutationCommand::TabClose { target, .. } => {
                 let (context, tab) = resolve_tab(snapshot, target)?;
                 Ok(WorkbenchAction::TabClose {
                     terminal_context_id: context.terminal_context_id.clone(),
@@ -2005,6 +2195,7 @@ mod linux {
                 terminal: None,
                 catalog_revision: None,
                 name: None,
+                closing: None,
             }),
             WorkbenchWorkspaceCloseResumeSubmission::Returned(
                 WorkbenchWorkspaceCloseResumeOutcome::Stale { attempt_generation },
@@ -2095,6 +2286,7 @@ mod linux {
             terminal: None,
             catalog_revision: None,
             name: None,
+            closing: None,
         }
     }
 

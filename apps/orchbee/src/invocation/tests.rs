@@ -1,4 +1,4 @@
-use super::PanelQueryTarget;
+use super::{CloseWait, PanelQueryTarget};
 use super::{CreationCommand, CreationKind, SiteStopCommand};
 use super::{CreationDirectory, ManifestCommand};
 use crate::localization::Locale;
@@ -1881,6 +1881,7 @@ fn accepts_every_mutation_path() {
             &["tab", "close", ID, "--confirm"],
             MutationCommand::TabClose {
                 target: Target::Id(ID.into()),
+                wait: CloseWait::Wait { timeout_ms: 30_000 },
             },
         ),
         (
@@ -3554,6 +3555,7 @@ fn mutation_targets_follow_each_resource_rule() {
         Ok(mutation(
             MutationCommand::TabClose {
                 target: Target::Label("not-a-panel".into()),
+                wait: CloseWait::Wait { timeout_ms: 30_000 },
             },
             OutputFormat::Text
         ))
@@ -3757,6 +3759,7 @@ fn mutation_failures_follow_the_format_envelope() {
         Ok(mutation(
             MutationCommand::TabClose {
                 target: Target::Id(ID.into()),
+                wait: CloseWait::Wait { timeout_ms: 30_000 },
             },
             OutputFormat::Json
         ))
@@ -6320,7 +6323,10 @@ fn workspace_close_parses_targets_and_requires_confirm() {
         assert_eq!(
             parse(&["workspace", "close", target, "--confirm"]),
             Ok(mutation(
-                MutationCommand::WorkspaceClose { target: expected },
+                MutationCommand::WorkspaceClose {
+                    target: expected,
+                    wait: CloseWait::Wait { timeout_ms: 30_000 },
+                },
                 OutputFormat::Text
             )),
             "target {target}"
@@ -7974,4 +7980,50 @@ fn notification_defaults_and_joined_flags_normalize_before_any_effect() {
     assert_eq!(message.position, Some(NotificationPosition::TopLeft));
     assert_eq!(message.sound, NotificationSound::Request);
     assert_eq!(format, OutputFormat::Json);
+}
+
+#[test]
+fn closes_wait_by_default_and_admit_detach_timeout_and_dry_run() {
+    let close = |args: &[&str]| match parse(args) {
+        Ok(Request::Mutation {
+            command:
+                MutationCommand::TabClose { wait, .. } | MutationCommand::WorkspaceClose { wait, .. },
+            ..
+        }) => Ok(wait),
+        Ok(other) => panic!("{other:?}"),
+        Err(failure) => Err(failure),
+    };
+    for family in ["tab", "workspace"] {
+        assert_eq!(
+            close(&[family, "close", "x", "--confirm"]),
+            Ok(CloseWait::Wait { timeout_ms: 30_000 })
+        );
+        assert_eq!(
+            close(&[family, "close", "x", "--confirm", "--timeout", "500"]),
+            Ok(CloseWait::Wait { timeout_ms: 500 })
+        );
+        assert_eq!(
+            close(&[family, "close", "x", "--confirm", "--detach"]),
+            Ok(CloseWait::Detach)
+        );
+        // A preview discards nothing, so it needs no confirmation.
+        assert_eq!(
+            close(&[family, "close", "x", "--dry-run"]),
+            Ok(CloseWait::DryRun)
+        );
+        assert!(close(&[family, "close", "x"]).is_err());
+        assert!(
+            close(&[
+                family,
+                "close",
+                "x",
+                "--confirm",
+                "--detach",
+                "--timeout",
+                "5"
+            ])
+            .is_err()
+        );
+        assert!(close(&[family, "close", "x", "--dry-run", "--detach"]).is_err());
+    }
 }

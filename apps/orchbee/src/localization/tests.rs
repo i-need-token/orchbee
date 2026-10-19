@@ -1392,3 +1392,35 @@ fn mutation_receipts_share_one_localized_shape() {
         }
     }
 }
+
+#[test]
+fn close_waits_name_the_closed_member_and_the_status_command() {
+    assert_eq!(
+        Locale::EnUs.cli_close_finished("tab", "build", 1),
+        "Closed tab \"build\" (1 terminal).\n"
+    );
+    assert_eq!(
+        Locale::EnUs.cli_close_finished("workspace", "api", 3),
+        "Closed workspace \"api\" (3 terminals).\n"
+    );
+    assert_eq!(
+        Locale::ZhCn.cli_close_finished("tab", "build", 2),
+        "已关闭标签页 \"build\"（2 个终端）。\n"
+    );
+    let id = "a".repeat(32);
+    assert!(
+        Locale::EnUs
+            .cli_close_wait_hint(true, &id, 500)
+            .ends_with(&format!(
+                "Check with: orchbee workspace close-status --workspace {id}\n"
+            ))
+    );
+    assert!(
+        Locale::ZhCn
+            .cli_close_wait_hint(false, &id, 500)
+            .ends_with("查看进度：orchbee tab list\n")
+    );
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        assert!(locale.cli_close_preview("tab").contains("--confirm"));
+    }
+}

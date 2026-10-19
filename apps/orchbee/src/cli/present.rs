@@ -1487,7 +1487,10 @@ pub(super) fn receipt(
     receipt: &super::mutation::Receipt,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    out.push(&locale.cli_receipt(&receipt.document()["result"]))?;
+    out.push(&locale.cli_receipt_with(
+        &receipt.document()["result"],
+        receipt.closed_summary(locale),
+    ))?;
     if let Some(hint) = receipt.target_hint(locale) {
         out.push(hint)?;
     }

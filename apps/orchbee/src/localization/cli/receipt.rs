@@ -32,7 +32,13 @@ const FIELDS: [&str; 18] = [
 impl Locale {
     /// Render one mutation `result` object.
     pub(crate) fn cli_receipt(self, result: &Value) -> String {
-        let mut text = self.cli_receipt_summary(result);
+        self.cli_receipt_with(result, None)
+    }
+
+    /// Render one mutation `result` object, optionally replacing the first
+    /// line with a fact the CLI observed beyond the receipt.
+    pub(crate) fn cli_receipt_with(self, result: &Value, summary: Option<String>) -> String {
+        let mut text = summary.unwrap_or_else(|| self.cli_receipt_summary(result));
         let mut rows: Vec<(&'static str, String)> = Vec::new();
         for key in FIELDS {
             let Some(value) = result.get(key) else {
@@ -96,6 +102,67 @@ impl Locale {
             });
         }
         text
+    }
+
+    /// A close the CLI waited for until the member disappeared.
+    pub(crate) fn cli_close_finished(
+        self,
+        resource: &str,
+        label: &str,
+        terminals: usize,
+    ) -> String {
+        let label = quoted(label);
+        match (self, resource) {
+            (Self::EnUs, resource) => format!(
+                "Closed {resource} {label} ({terminals} {}).\n",
+                if terminals == 1 {
+                    "terminal"
+                } else {
+                    "terminals"
+                }
+            ),
+            (Self::ZhCn, "workspace") => format!("已关闭工作区 {label}（{terminals} 个终端）。\n"),
+            (Self::ZhCn, _) => format!("已关闭标签页 {label}（{terminals} 个终端）。\n"),
+        }
+    }
+
+    /// What to run when a close outlived the command's wait.
+    pub(crate) fn cli_close_wait_hint(self, workspace: bool, id: &str, timeout_ms: u32) -> String {
+        let check = if workspace {
+            format!(
+                "orchbee workspace close-status --workspace {}",
+                unquoted(id)
+            )
+        } else {
+            "orchbee tab list".to_owned()
+        };
+        match self {
+            Self::EnUs => format!(
+                "The close was accepted but had not finished after {timeout_ms} ms; it continues in the background. Check with: {check}\n"
+            ),
+            Self::ZhCn => {
+                format!(
+                    "关闭已被接纳，但 {timeout_ms} 毫秒内尚未完成；它会在后台继续。查看进度：{check}\n"
+                )
+            }
+        }
+    }
+
+    /// The opening line of a close `--dry-run`.
+    pub(crate) fn cli_close_preview(self, resource: &str) -> String {
+        match (self, resource) {
+            (Self::EnUs, resource) => format!(
+                "Dry run: closing this {resource} with --confirm would end these terminals and the processes and Agents running in them.\n"
+            ),
+            (Self::ZhCn, "workspace") => {
+                "试运行：使用 --confirm 关闭该工作区将结束以下终端及其中运行的进程和 Agent。\n"
+                    .to_owned()
+            }
+            (Self::ZhCn, _) => {
+                "试运行：使用 --confirm 关闭该标签页将结束以下终端及其中运行的进程和 Agent。\n"
+                    .to_owned()
+            }
+        }
     }
 
     /// The first receipt line: what happened, to which kind of resource.

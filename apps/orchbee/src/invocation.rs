@@ -888,6 +888,16 @@ pub(crate) enum PanelQueryTarget {
     Client(WorkbenchClientId),
 }
 
+/// How `tab close` and `workspace close` settle: wait for the close to
+/// finish within the deadline, return once accepted, or only preview the
+/// terminals that would end.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CloseWait {
+    Wait { timeout_ms: u32 },
+    Detach,
+    DryRun,
+}
+
 /// `terminal list` placement filter; the parser admits at most one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TerminalListFilter {
@@ -1304,6 +1314,7 @@ pub(crate) enum MutationCommand {
     /// The Project, checkout, branch and directories survive the close.
     WorkspaceClose {
         target: Target,
+        wait: CloseWait,
     },
     /// `workspace close-resume --project <id> --workspace <id> --request
     /// <close-id> --generation <n> --confirm`: one fresh attempt window for
@@ -1347,6 +1358,7 @@ pub(crate) enum MutationCommand {
     },
     TabClose {
         target: Target,
+        wait: CloseWait,
     },
     PanelSplit {
         target: Target,
@@ -2097,8 +2109,7 @@ struct Options {
     import_input_file: Option<String>,
     #[cfg(windows)]
     import_output_file: Option<String>,
-    #[cfg(windows)]
-    import_dry_run: bool,
+    dry_run: bool,
     #[cfg(windows)]
     events: events::Options,
     link_offset: Option<String>,
@@ -2579,9 +2590,8 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             continue;
         }
         match token.as_str() {
-            #[cfg(windows)]
             "--dry-run" => {
-                if options.import_dry_run {
+                if options.dry_run {
                     return Err(usage_with(
                         UsageReason::DuplicateOption {
                             option: "--dry-run",
@@ -2589,7 +2599,7 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                         envelope,
                     ));
                 }
-                options.import_dry_run = true;
+                options.dry_run = true;
                 index += 1;
             }
             #[cfg(windows)]
@@ -4040,22 +4050,11 @@ fn resolve_words(
             workspace_group_close::retained(verb, options, envelope)
         }
         ["workspace", "close", value] => {
-            check_scope(
-                options,
-                CONFIRM_SCOPE,
-                UsageContext::Path("workspace close"),
-                envelope,
-            )?;
-            if !options.confirm {
-                return Err(missing_required(
-                    UsageContext::Path("workspace close"),
-                    "'--confirm'",
-                    envelope,
-                ));
-            }
+            let wait = close_wait(options, UsageContext::Path("workspace close"), envelope)?;
             Ok(mutation(
                 MutationCommand::WorkspaceClose {
                     target: target((*value).to_owned(), Resource::Workspace, envelope)?,
+                    wait,
                 },
                 options,
             ))
@@ -4215,22 +4214,11 @@ fn resolve_words(
             ))
         }
         ["tab", "close", value] => {
-            check_scope(
-                options,
-                CONFIRM_SCOPE,
-                UsageContext::Path("tab close"),
-                envelope,
-            )?;
-            if !options.confirm {
-                return Err(missing_required(
-                    UsageContext::Path("tab close"),
-                    "'--confirm'",
-                    envelope,
-                ));
-            }
+            let wait = close_wait(options, UsageContext::Path("tab close"), envelope)?;
             Ok(mutation(
                 MutationCommand::TabClose {
                     target: target((*value).to_owned(), Resource::Tab, envelope)?,
+                    wait,
                 },
                 options,
             ))
@@ -5630,6 +5618,7 @@ struct Scope {
     trust_repository: bool,
     request_id: bool,
     detach: bool,
+    dry_run: bool,
     retry: bool,
     project: bool,
     /// `worktree list --directory <id>`: admits the strict directory-ID
@@ -5781,6 +5770,7 @@ const NO_OPTIONS: Scope = Scope {
     trust_repository: false,
     request_id: false,
     detach: false,
+    dry_run: false,
     retry: false,
     project: false,
     directory: false,
@@ -6204,9 +6194,13 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
         if options.import_output_file.is_some() {
             return Some("--output-file");
         }
-        if options.import_dry_run {
-            return Some("--dry-run");
-        }
+    }
+    #[cfg(windows)]
+    let import = scope.config_import;
+    #[cfg(not(windows))]
+    let import = false;
+    if options.dry_run && !scope.dry_run && !import {
+        return Some("--dry-run");
     }
     if options.link_offset.is_some() && !scope.link_offset {
         return Some("--offset-from-bottom");
@@ -8071,6 +8065,59 @@ fn agent_selector(
         },
         envelope,
     ))
+}
+
+/// `tab close` / `workspace close` settlement. A dry run discards nothing,
+/// so it needs no `--confirm`; every real close does. Waiting is the
+/// default; `--detach` returns at acceptance and conflicts with `--timeout`.
+fn close_wait(
+    options: &Options,
+    context: UsageContext,
+    envelope: FailureEnvelope,
+) -> Result<CloseWait, ParseFailure> {
+    check_scope(
+        options,
+        Scope {
+            confirm: true,
+            detach: true,
+            dry_run: true,
+            timeout: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    let conflict = |first, second| {
+        usage_with(
+            UsageReason::ConflictingOptions {
+                context,
+                first,
+                second,
+            },
+            envelope,
+        )
+    };
+    if options.dry_run {
+        if options.detach {
+            return Err(conflict("--dry-run", "--detach"));
+        }
+        if options.timeout.is_some() {
+            return Err(conflict("--dry-run", "--timeout"));
+        }
+        return Ok(CloseWait::DryRun);
+    }
+    if !options.confirm {
+        return Err(missing_required(context, "'--confirm'", envelope));
+    }
+    if options.detach {
+        if options.timeout.is_some() {
+            return Err(conflict("--detach", "--timeout"));
+        }
+        return Ok(CloseWait::Detach);
+    }
+    Ok(CloseWait::Wait {
+        timeout_ms: wait_timeout_option(options, context, envelope)?,
+    })
 }
 
 fn stop_command(

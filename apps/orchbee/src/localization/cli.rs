@@ -3503,13 +3503,13 @@ const HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH: crate::localization::HelpDetails =
 
 const HELP_WORKSPACE_CLOSE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee workspace close <target> --confirm [--format text|json]",
-        "Close only the selected Workspace and all its terminals for every Client.\nTargets resolve globally by exact ID, @workspace:<suffix>, or exact label.\n--confirm is required. Checkout directories and branches remain; other Workspaces\nsharing its repository or Project remain open. The accepted receipt carries the\nclose request ID and stable Workspace/context IDs. Observe with workspace close-status;\nonly an explicit workspace close-resume resumes an eligible retained attempt.\nFor all members of a Project use project close-all --confirm.",
+        "orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
+        "Close only the selected Workspace and all its terminals for every Client.\nTargets resolve globally by exact ID, @workspace:<suffix>, or exact label.\n--confirm is required. Checkout directories and branches remain; other Workspaces\nsharing its repository or Project remain open. By default the command waits until\nthe Workspace is gone (--timeout, default 30000 ms; timeout exits 7 and the close\ncontinues). --detach returns the accepted receipt with the close request ID and\nstable Workspace/context IDs. --dry-run lists the terminals, titles and Agents that\nwould end, without --confirm. Observe with workspace close-status;\nonly an explicit workspace close-resume resumes an eligible retained attempt.\nFor all members of a Project use project close-all --confirm.",
     );
 const HELP_WORKSPACE_CLOSE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee workspace close <target> --confirm [--format text|json]",
-        "仅为所有客户端关闭选定 Workspace 及其所有终端。目标按精确 ID、@workspace:<suffix> 或精确名称全局解析。必须指定 --confirm。checkout 目录与分支保留；同仓库或 Project 的其他 Workspace\n继续运行。已接纳回执包含关闭请求 ID 与稳定的 Workspace/context ID。用 workspace close-status 观测；只有显式 workspace close-resume 才恢复符合条件的保留尝试。关闭 Project 全部成员使用 project close-all --confirm。",
+        "orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
+        "仅为所有客户端关闭选定 Workspace 及其所有终端。目标按精确 ID、@workspace:<suffix> 或精确名称全局解析。必须指定 --confirm。checkout 目录与分支保留；同仓库或 Project 的其他 Workspace\n继续运行。默认等待 Workspace 消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 返回已接纳回执，包含关闭请求 ID 与稳定的 Workspace/context ID。--dry-run 无需 --confirm，列出将结束的终端、标题与 Agent。用 workspace close-status 观测；只有显式 workspace close-resume 才恢复符合条件的保留尝试。关闭 Project 全部成员使用 project close-all --confirm。",
     );
 
 const HELP_WORKSPACE_CLOSE_STATUS_EN: crate::localization::HelpDetails =
@@ -3590,12 +3590,12 @@ const HELP_TAB_MOVE_ZH: crate::localization::HelpDetails = crate::localization::
 );
 
 const HELP_TAB_CLOSE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee tab close <target> --confirm [--format text|json]",
-    "Close one Tab selected by exact ID, @tab:<suffix>, or exact label.\n'--confirm' is\nrequired. An accepted result carries the accepted revision and the close\nrequest id; the session finishes the close asynchronously.",
+    "orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
+    "Close one Tab selected by exact ID, @tab:<suffix>, or exact label.\n'--confirm' is\nrequired. By default the command waits until the Tab is gone (--timeout, default\n30000 ms; timeout exits 7 and the close continues). --detach returns once accepted,\nwith the accepted revision and close request id. --dry-run lists the terminals,\ntitles and Agents that would end, without --confirm.",
 );
 const HELP_TAB_CLOSE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee tab close <target> --confirm [--format text|json]",
-    "关闭一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。'--confirm' 为必填。\naccepted 结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
+    "orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
+    "关闭一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。'--confirm' 为必填。\n默认等待 Tab 消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 在接纳后立即返回，携带已接受修订与关闭请求 ID。--dry-run 无需 --confirm，列出将结束的终端、标题与 Agent。",
 );
 
 const HELP_PANEL_LIST_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(

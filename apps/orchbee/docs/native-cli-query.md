@@ -921,7 +921,8 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   `invalid-usage` before any runtime access.
 - `--confirm`: valueless boolean, required on `tab close`, `panel close`,
   `workspace close`, and `workspace close-resume`; absent there or
-  present on any other command is `invalid-usage`.
+  present on any other command is `invalid-usage`. A `tab close` or `workspace close` with
+  `--dry-run` needs no `--confirm`.
 - `--match <text>`: single-use value flag on `terminal wait-output`, one of the two search
   inputs — exactly one of `--match` or `--regex` is required. A nonempty UTF-8 literal up to
   4096 bytes, matched case-sensitively. A missing, empty, non-UTF-8, or oversized value —
@@ -1041,7 +1042,7 @@ orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
-orchbee workspace close <target> --confirm
+orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
 orchbee workspace close-status --workspace <id>
 orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm
 orchbee worktree list --directory <directory-id>
@@ -1049,7 +1050,7 @@ orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> (--direction previous|next|first|last | --insert-index N)
-orchbee tab close <target> --confirm
+orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
 orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
 orchbee panel rename <target> (--label <text> | --clear)
 orchbee panel split [<target> | --panel <target> | --current] --direction above|below|left|right [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
@@ -2212,6 +2213,15 @@ Safety contract:
   destructive; the parser requires the explicit `--confirm` flag so a noninteractive
   invocation can never close by default. `workspace close-resume` owes the same flag:
   opening a fresh attempt window on a retained close is itself an effect.
+- **Close waiting.** `tab close` and `workspace close` by default read fresh snapshots after
+  acceptance until the Tab or Workspace is gone, within a total `--timeout` (1..3600000 ms,
+  default 30000). The text receipt then reports the closed name and terminal count. Expiry exits
+  with a `timeout` failure (`details:{stage:"wait",timeoutMs,observed}`) while the close
+  continues in the session; the text diagnostic names the `tab list` or `workspace close-status`
+  command. `--detach` keeps the `accepted` receipt returned at acceptance and conflicts with
+  `--timeout`. `--dry-run` submits nothing and returns the `terminal list` result filtered to that
+  Tab or Workspace, with text opened by one dry-run sentence; it conflicts with `--detach` and
+  `--timeout`. The JSON receipt shape is unchanged.
 
 Outcomes: `committed` reports the new `revision` (base + 1); `unchanged` — a rename or move
 that changed nothing — reports the current revision; `accepted` — the closes — reports

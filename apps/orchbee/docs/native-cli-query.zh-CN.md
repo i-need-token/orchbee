@@ -739,7 +739,8 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
   之前均为 `invalid-usage`。
 - `--confirm`：无值布尔 flag，`tab close`、`panel close`、`workspace close` 与
   `workspace close-resume` 上必填；该处缺失或出现在任何
-  其他命令上均为 `invalid-usage`。
+  其他命令上均为 `invalid-usage`。带 `--dry-run` 的 `tab close` 或 `workspace close`
+  无需 `--confirm`。
 - `--match <text>`：带值 flag，单次使用，`terminal wait-output` 的两个搜索输入之一
   ——`--match` 与 `--regex` 必须且只能提供一个。非空 UTF-8 字面量，最长 4096 字节，
   匹配时区分大小写。缺失、空、非 UTF-8 或超长值——或两个搜索 flag 同时出现——均为
@@ -841,7 +842,7 @@ orchbee workspace list [--project <target>] | workspace get <target>
 orchbee workspace create --project <target> --label <label>
 orchbee workspace rename <target> --label <label>
 orchbee workspace accept-directory <target> --path <path>
-orchbee workspace close <target> --confirm
+orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
 orchbee workspace close-status --workspace <id>
 orchbee workspace close-resume --workspace <id> --request <close-id> --generation <n> --confirm
 orchbee worktree list --directory <directory-id>
@@ -849,7 +850,7 @@ orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> (--direction previous|next|first|last | --insert-index N)
-orchbee tab close <target> --confirm
+orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
 orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
 orchbee panel rename <target> (--label <text> | --clear)
 orchbee panel split [<target> | --panel <target> | --current] --direction above|below|left|right [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
@@ -1831,6 +1832,13 @@ revision 比对，不符即拒绝且不应用任何效果，故"读取一次并�
 - **关闭确认。** `tab close`、`panel close` 与 `workspace close` 是破坏性操作；解析器
   要求显式 `--confirm` flag，故非交互调用绝不会默认执行关闭。`workspace close-resume`
   同样要求该 flag：为保留的 close 开启新的尝试窗口本身也是 effect。
+- **关闭等待。** `tab close` 与 `workspace close` 默认在接纳后读取新快照，直到该 Tab 或
+  Workspace 消失，总期限为 `--timeout`（1..3600000 毫秒，默认 30000）。文本收据随后报告已关闭的
+  名称和终端数。超时以 `timeout` 失败（`details:{stage:"wait",timeoutMs,observed}`）退出，
+  关闭在会话中继续；文本诊断给出 `tab list` 或 `workspace close-status` 命令。`--detach`
+  保持接纳即返回的 `accepted` 收据，与 `--timeout` 冲突。`--dry-run` 不提交任何内容，返回
+  按该 Tab 或 Workspace 筛选的 `terminal list` 结果，文本以一句试运行说明开头；它与
+  `--detach`、`--timeout` 冲突。JSON 收据形状不变。
 
 结果：`committed` 报告新 `revision`（base + 1）；`unchanged`——未造成变化的 rename 或
 move——报告当前 revision；`accepted`——各条 close——报告 `acceptedRevision` 及 Server 为

@@ -338,7 +338,6 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--input-file",
     #[cfg(windows)]
     "--output-file",
-    #[cfg(windows)]
     "--dry-run",
     #[cfg(windows)]
     "--event",
@@ -1001,7 +1000,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     ("workspace:move", &["--insert-index"]),
     ("workspace:move-block", &["--before"]),
-    ("workspace:close", &["--confirm"]),
+    (
+        "workspace:close",
+        &["--confirm", "--dry-run", "--detach", "--timeout"],
+    ),
     ("workspace:close-status", &["--workspace"]),
     (
         "workspace:close-resume",
@@ -1123,7 +1125,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         ],
     ),
     ("tab:move", &["--direction", "--insert-index"]),
-    ("tab:close", &["--confirm"]),
+    (
+        "tab:close",
+        &["--confirm", "--dry-run", "--detach", "--timeout"],
+    ),
     ("panel:current", &["--panel", "--current", "--client"]),
     ("panel:process-info", &["--panel", "--current", "--client"]),
     #[cfg(not(windows))]
@@ -1875,7 +1880,6 @@ fn flag_bit(flag: &str) -> &'static str {
         "--input-file" => "seen_import_input",
         #[cfg(windows)]
         "--output-file" => "seen_import_output",
-        #[cfg(windows)]
         "--dry-run" => "seen_import_dry_run",
         "--remote-session" => "seen_remote_session",
         "--json" => "seen_json",
