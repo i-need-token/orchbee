@@ -251,85 +251,184 @@ fn terminal_name_schemas_accept_new_receipts_without_widening_legacy_versions() 
     assert!(!validator.is_valid(&invalid));
 }
 
-#[test]
-fn terminal_agent_inspection_schema_has_closed_target_and_preserves_canonical_versions() {
+fn canonical_agent_inspection(with_client: bool) -> Box<crate::cli::results::AgentInspectionDoc> {
+    use crate::cli::results::{
+        AgentClientVersionMatch, AgentClientViewDoc, AgentInspectionDoc, AgentManagementDoc,
+        AgentRuntimeDoc,
+    };
+    use orchbee_agent_observation_protocol::{
+        AgentManagement, AgentSafeInteger, AgentSessionDetail,
+    };
+    use orchbee_workbench_protocol::{ClientViewPhase, WorkbenchClientId, WorkbenchRequestId};
     use serde_json::json;
+
     let id = "11111111111111111111111111111111";
-    let source = json!({"kind":"workbench-snapshot","siteId":id,"revision":"1"});
-    let binding = json!({"presentationId":id,"generation":id,"hostEpoch":id,"hostTerminalId":id});
+    let session: AgentSessionDetail = serde_json::from_value(json!({
+        "snapshot": {
+            "activityHint": null,
+            "capabilities": ["sessionLifecycle"],
+            "executionLocation": {"executionLocationId": "local"},
+            "lastOutcome": null,
+            "lifecycle": "live",
+            "observation": {"fidelity":"rich","freshness":"fresh","generation":1,"sequence":2,"source":"native"},
+            "parentSessionId": null,
+            "pendingRequests": [],
+            "presentationAttachments": [{"generation":"00000000000000000000000000000001","navigable":true,"presentationId":"0000000000000000000000000000000c","visibility":"visible"}],
+            "providerId": "codex",
+            "sessionId": "session-schema",
+            "turn": {"kind":"idle"}
+        },
+        "status": {"kind":"idle"}
+    }))
+    .expect("current Agent session detail fixture");
+    let client = with_client.then(|| {
+        Box::new(AgentClientViewDoc {
+            client_id: WorkbenchClientId::parse(id).unwrap(),
+            operation_id: WorkbenchRequestId::parse("22222222222222222222222222222222").unwrap(),
+            phase: ClientViewPhase::Ready,
+            outer_focused: Some(true),
+            focused: true,
+            attention_revision: AgentSafeInteger::new(3),
+            state: AgentClientVersionMatch::Current,
+            state_change_revision: Some(AgentSafeInteger::new(2)),
+            seen: Some(true),
+            status: Some("idle"),
+        })
+    });
+    Box::new(AgentInspectionDoc {
+        revision: AgentSafeInteger::new(2),
+        session: Box::new(session),
+        client,
+        runtime: AgentRuntimeDoc::Unavailable("unbound"),
+        #[cfg(windows)]
+        terminal: None,
+        management: AgentManagementDoc {
+            source: json!({"kind":"agent-read","requestId":id}),
+            revision: AgentSafeInteger::new(2),
+            management: AgentManagement::Unmanaged {},
+        },
+    })
+}
+
+#[test]
+fn canonical_agent_get_schema_preserves_emitted_versions() {
+    use crate::cli::results::Projection;
+    use serde_json::json;
+
     let definition: Value =
         serde_json::from_str(super::document("orchbee.agent.get").unwrap()).unwrap();
     let validator = jsonschema::validator_for(&definition).unwrap();
-    let document = json!({"schema":"orchbee.agent.get","version":13,"source":source,"result":{
-        "kind":"terminal-found","target":{"kind":"terminal","binding":binding},"management":{"phase":"unmanaged"},
-        "terminal":{"terminalId":id,"presentationId":id,"panelId":id,"source":source,"cwd":null,"cwdSource":null,"foregroundCwd":null,"terminalTitle":null,"terminalTitleStripped":null,
-            "terminalObservation":{"state":"observed","frame":{"hostEpoch":id,"attachmentId":id,"sequence":"1","generation":"1","revision":"1","columns":80,"rows":24,"alternateScreen":false,"scrollbackRows":"0","title":null,"currentDirectory":null},"processes":{"state":"unavailable","reason":"process-unavailable"}}}
-    }});
-    validator.validate(&document).unwrap();
-    for state in [
-        json!({"phase":"unmanaged"}),
-        json!({"phase":"active","providerId":"codex"}),
-    ] {
-        let mut current = document.clone();
-        current["version"] = 14.into();
-        current["result"]["management"] =
-            json!({"source":{"kind":"agent-read","requestId":id},"state":state});
-        validator.validate(&current).unwrap();
-        let mut observed = current.clone();
-        observed["version"] = 15.into();
-        observed["result"]["semantic"] = json!({"source":{"siteId":id,"workbenchRevision":"1","reportRevision":"2","requestId":id},
-            "observation":{"binding":binding,"sequence":"0","changes":[],"view":{"agent":null,"state":"unknown","authoritySource":null,"message":null,"session":null}}});
-        validator.validate(&observed).unwrap();
-        let mut client = observed.clone();
-        client["version"] = 16.into();
-        client["result"]["clientView"] = json!({"clientId":id,"operationId":id,
-            "view":{"workbenchRevision":"1","phase":"starting","selection":null},
-            "reportRevision":"2","sequence":"0","seen":false,"status":"unknown","outerFocused":null});
-        validator.validate(&client).unwrap();
-        for state in ["done", "error"] {
-            let mut explicit = client.clone();
-            explicit["result"]["semantic"]["observation"]["view"]["agent"] = "Fixture".into();
-            explicit["result"]["semantic"]["observation"]["view"]["state"] = state.into();
-            explicit["result"]["clientView"]["status"] = state.into();
-            assert!(!validator.is_valid(&explicit), "v16 must remain closed");
-            explicit["version"] = 20.into();
-            validator.validate(&explicit).unwrap();
-            explicit["result"]["clientView"]["seen"] = true.into();
-            validator.validate(&explicit).unwrap();
-            explicit["result"]
-                .as_object_mut()
-                .unwrap()
-                .remove("clientView");
-            explicit["version"] = 19.into();
-            validator.validate(&explicit).unwrap();
-            explicit["version"] = 15.into();
-            assert!(!validator.is_valid(&explicit), "v15 must remain closed");
+    for (version, client) in [(1, false), (2, true)] {
+        let result = Projection::AgentInspection(canonical_agent_inspection(client)).result();
+        let document = json!({
+            "schema":"orchbee.agent.get",
+            "version":version,
+            "source":{"kind":"agent-read","requestId":"11111111111111111111111111111111"},
+            "result":result
+        });
+        validator.validate(&document).unwrap();
+        let mut minimal = document;
+        for field in ["runtime", "terminal", "management"] {
+            minimal["result"].as_object_mut().unwrap().remove(field);
         }
-        client["version"] = 15.into();
-        assert!(!validator.is_valid(&client));
-        client["version"] = 16.into();
-        client["result"]["clientView"]
+        validator.validate(&minimal).unwrap();
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
+    use crate::{
+        agent_projection::{
+            read::Checkpoint,
+            tests::{rows, state, summary},
+        },
+        cli::{agent_projection::Inspection, results::Projection},
+    };
+    use orchbee_agent_observation_protocol::{AgentSafeInteger, AgentSemanticStatus};
+    use orchbee_workbench_protocol::WorkbenchRevision;
+    use serde_json::json;
+
+    let definition: Value =
+        serde_json::from_str(super::document("orchbee.agent.get").unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&definition).unwrap();
+    let mut canonical = summary("session-schema", 12, "codex");
+    canonical.status = AgentSemanticStatus::Idle {};
+    let checkpoint = Checkpoint {
+        canonical_revision: AgentSafeInteger::new(2),
+        report_revision: WorkbenchRevision::new(7),
+        rows: rows(vec![canonical], vec![state(12, None)]),
+    };
+    let snapshot = crate::machine_agents::tests::fixture();
+    let source = crate::cli::agent_projection::source(&snapshot, &checkpoint);
+    let document = |with_client| {
+        let result = Projection::UnifiedAgentInspection(Box::new(Inspection {
+            row: checkpoint.rows[0].clone(),
+            detail: Box::new(Projection::AgentInspection(canonical_agent_inspection(
+                with_client,
+            ))),
+        }))
+        .result();
+        json!({
+            "schema":"orchbee.agent.get",
+            "version":19,
+            "source":source.clone(),
+            "result":result
+        })
+    };
+    for with_client in [false, true] {
+        let current = document(with_client);
+        validator.validate(&current).unwrap();
+        assert_eq!(current["result"]["agent"]["source"], "canonical");
+        assert!(!current["result"]["agent"]["placement"].is_null());
+        assert_eq!(
+            current["result"]["inspection"].get("client").is_some(),
+            with_client
+        );
+    }
+
+    let document = document(false);
+    let mut invalid = document.clone();
+    invalid["version"] = 13.into();
+    assert!(
+        !validator.is_valid(&invalid),
+        "dropped Windows versions stay closed"
+    );
+    invalid = document.clone();
+    invalid["result"]["agent"]["ordinal"] = 1.into();
+    assert!(
+        !validator.is_valid(&invalid),
+        "the Get row omits list ordinal"
+    );
+    invalid = document.clone();
+    invalid["result"]["target"] = json!({"kind":"terminal"});
+    assert!(
+        !validator.is_valid(&invalid),
+        "the projection wrapper has no legacy target"
+    );
+    invalid = document.clone();
+    invalid["result"]["inspection"]["extra"] = true.into();
+    assert!(
+        !validator.is_valid(&invalid),
+        "current inspection stays closed"
+    );
+    for field in ["runtime", "terminal", "management"] {
+        invalid = document.clone();
+        invalid["result"]["inspection"]
             .as_object_mut()
             .unwrap()
-            .remove("seen");
-        assert!(!validator.is_valid(&client));
-        observed["version"] = 14.into();
-        assert!(!validator.is_valid(&observed));
-        current["result"]["management"]["state"]["reservationId"] = id.into();
-        assert!(!validator.is_valid(&current));
+            .remove(field);
+        assert!(
+            !validator.is_valid(&invalid),
+            "Windows projected canonical inspection requires {field}"
+        );
     }
-    let mut invalid = document.clone();
-    invalid["version"] = 12.into();
-    assert!(!validator.is_valid(&invalid));
-    let mut invalid = document.clone();
-    invalid["result"]["session"] = json!({});
-    assert!(!validator.is_valid(&invalid));
-    let mut invalid = document;
-    invalid["result"]["target"]["binding"]
-        .as_object_mut()
-        .unwrap()
-        .remove("generation");
-    assert!(!validator.is_valid(&invalid));
+    invalid = document;
+    invalid["source"]["revision"] = "1".into();
+    assert!(
+        !validator.is_valid(&invalid),
+        "projection source has no legacy revision"
+    );
 }
 
 #[test]
@@ -347,17 +446,13 @@ fn configuration_v4_requires_update_policy_without_widening_v3() {
         .remove("additionalProperties");
     reduced.as_object_mut().unwrap().remove("allOf");
     let check = json!({"name":"user-config","status":"pass","details":{"path":null,"exists":false,"newCwd":"follow","worktreeDirectory":null,"resumeAgentsOnRestore":true,"resumeAgentsOnRestoreSource":"default","manifestCheck":true,"manifestCheckSource":"default"}});
-    assert!(
-        jsonschema::validator_for(&reduced)
-            .unwrap()
-            .is_valid(&check)
-    );
+    assert!(jsonschema::validator_for(&reduced)
+        .unwrap()
+        .is_valid(&check));
     reduced["$ref"] = json!("#/$defs/userConfigCheckV3");
-    assert!(
-        !jsonschema::validator_for(&reduced)
-            .unwrap()
-            .is_valid(&check)
-    );
+    assert!(!jsonschema::validator_for(&reduced)
+        .unwrap()
+        .is_valid(&check));
 }
 
 #[test]

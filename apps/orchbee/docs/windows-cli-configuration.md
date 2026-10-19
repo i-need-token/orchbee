@@ -125,7 +125,7 @@ destination. Nothing edits the source or an existing configuration. There is no 
 Try the candidate through `ORCHBEE_CONFIG_FILE`; return to the original selection to roll back.
 The caller owns the delivered candidate and any explicitly reported recovery residue.
 
-The embedded schema catalog v141 includes this command.
+The embedded schema catalog v148 includes this command.
 The closed `orchbee.config.import-herdr` v1 receipt distinguishes `preview`, `created` and
 `failed`, carries source/destination, field report, candidate size, creation/recovery facts and
 typed failure stage/reason. Exit 0 means preview or synchronized creation, exit 1 is a known

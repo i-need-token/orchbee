@@ -8,7 +8,12 @@ use std::{
 #[test]
 fn real_powershell_completes_scoped_grammar_without_runtime() {
     let mut cases = super::super::tests::cases::CASES.to_vec();
+    cases.retain(|(line, _, _)| *line != "orchbee agent get @agent:c");
     cases.extend([
+        ("orchbee agent get @agent:c", "'@agent:codex'", false),
+        ("orchbee agent get '@agent:c", "'@agent:codex'", true),
+        ("orchbee agent get \"@agent:c", "'@agent:codex'", true),
+        ("orchbee agent get ", "'@agent:codex'", true),
         ("orchbee config import-herdr --se", "--session", false),
         ("orchbee --session work config im", "import-herdr", false),
         ("orchbee --machine work config im", "import-herdr", false),

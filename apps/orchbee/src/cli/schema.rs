@@ -2,9 +2,9 @@
 //! dictionary reads never touch the filesystem, the network, or a Site.
 //! Explicit file publication belongs to the separate schema exporter.
 
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 
-use super::{Failure, FailureKind, Output, failure_output, output, target_details};
+use super::{failure_output, output, target_details, Failure, FailureKind, Output};
 use crate::invocation::{OutputFormat, Resource};
 use crate::localization::Locale;
 
@@ -590,8 +590,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Status-client v3 includes bounded local-cohort I/O diagnostics.
-        "version": 147,
+        // Catalog version 148 includes the current Agent projection schemas.
+        "version": 148,
         "source": embedded_source(),
         "result": result,
     });

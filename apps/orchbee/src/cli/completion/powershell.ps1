@@ -5,9 +5,13 @@ Register-ArgumentCompleter -Native -CommandName orchbee, orchbee.exe -ScriptBloc
 __ORCHBEE_GRAMMAR__
 '@
     $words = [System.Collections.Generic.List[string]]::new()
+    $currentElement = $null
     foreach ($element in @($commandAst.CommandElements | Select-Object -Skip 1)) {
         if ($element.Extent.StartOffset -ge $cursorPosition) { break }
-        if ($element.Extent.EndOffset -ge $cursorPosition -and $wordToComplete.Length -gt 0) { break }
+        if ($element.Extent.EndOffset -ge $cursorPosition -and $wordToComplete.Length -gt 0) {
+            $currentElement = $element
+            break
+        }
         if ($element -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
             $words.Add($element.Value)
         } elseif ($element -is [System.Management.Automation.Language.ConstantExpressionAst] -and $element.Extent.Text -cmatch '^[0-9]+$') {
@@ -19,6 +23,16 @@ __ORCHBEE_GRAMMAR__
             # Variable expansion, subexpressions and scriptblocks are never executed.
             return
         }
+    }
+    # PowerShell parses an unquoted @agent:... token as a variable/splat AST
+    # and does not invoke native completion for it. Keep that host boundary.
+    if ($currentElement -is [System.Management.Automation.Language.VariableExpressionAst]) { return }
+    $completionPrefix = $wordToComplete
+    if ($currentElement -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+        # Native completion receives the extent including its quotes. Match
+        # decoded text, then replace the whole token with a safe single-quoted
+        # target so @ is never interpreted as splatting.
+        $completionPrefix = $currentElement.Value
     }
     $machine = $false
     if ($words.Count -gt 0 -and $grammar.prefixFlags -ccontains '--machine') {
@@ -216,8 +230,10 @@ __ORCHBEE_GRAMMAR__
     }
     if (-not $machine -and $words.Count -eq 0) { $candidates.AddRange([string[]]$grammar.prefixFlags) }
     $candidates | Sort-Object -Unique -CaseSensitive | Where-Object {
-        $_.StartsWith($wordToComplete, [System.StringComparison]::Ordinal)
+        $_.StartsWith($completionPrefix, [System.StringComparison]::Ordinal)
     } | ForEach-Object {
-        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        $completionText = $_
+        if ($grammar.agentTargets -ccontains $_) { $completionText = "'" + $_.Replace("'", "''") + "'" }
+        [System.Management.Automation.CompletionResult]::new($completionText, $completionText, 'ParameterValue', $completionText)
     }
 }

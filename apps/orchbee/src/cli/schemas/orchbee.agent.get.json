@@ -2377,6 +2377,16 @@
 				}
 			}
 		},
+		"windowsProjectedCanonicalInspection": {
+			"allOf": [
+				{
+					"$ref": "#/$defs/canonicalInspection"
+				},
+				{
+					"required": ["runtime", "terminal", "management"]
+				}
+			]
+		},
 		"terminalInspection": {
 			"type": "object",
 			"additionalProperties": false,
@@ -3193,7 +3203,7 @@
 				{
 					"allOf": [
 						{
-							"$ref": "#/$defs/canonicalInspection"
+							"$ref": "#/$defs/windowsProjectedCanonicalInspection"
 						},
 						{
 							"not": {
@@ -3205,7 +3215,7 @@
 				{
 					"allOf": [
 						{
-							"$ref": "#/$defs/canonicalInspection"
+							"$ref": "#/$defs/windowsProjectedCanonicalInspection"
 						},
 						{
 							"required": ["client"]

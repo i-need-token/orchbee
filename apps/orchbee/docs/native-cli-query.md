@@ -51,7 +51,7 @@ Current outputs separate actual Agent status from Client read acknowledgement. W
 
 ## Current CLI discovery and platform contracts
 
-Completion keeps local `--session` selection separate from Agent session selectors. On Windows, get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. Windows POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
+Completion keeps local `--session` selection separate from Agent session selectors. On Windows, get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. In PowerShell, start an alias with a quote (for example, `'@agent:c`); completion inserts the full target as a safely single-quoted handle because an unquoted `@agent` token is parsed as splatting syntax. Windows POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
 
 Snapshot v7 and Tab Get v7 admit the canonical optional split `ratio` (0.1–0.9); omitted means 0.5. Snapshot v6 and Tab Get v5/v6 retain their closed trees. Windows Agent Doctor v4 covers all 20 providers; v1–v3 retain the 14-row bound.
 
@@ -327,8 +327,9 @@ reply/release traces. Final deployed Host/emulator acceptance remains separate.
 ## Workbench status
 
 Bare `status` reads one Workbench snapshot and reports reachability and resource counts. Text
-includes the selected Session name when `--session` was explicit and the executing Client's
-package version. On Windows, `status server` reports the Server's actual build metadata.
+includes the selected Session name only when `--session` was explicit. It always includes the
+executing Client's package version. On Windows, `status server` reports the Server's actual
+build metadata.
 
 ## Workbench topology queries
 
@@ -555,7 +556,7 @@ Deletion checks Ctrl+C before each filesystem phase and exits 130 on interruptio
 List emits `orchbee.session.list` v2; v1 remains closed to its original states. `recoverable` means
 a guarded observation found complete v2/v3 registration, all exact identities gone and idle resources;
 it carries `running=false` and `pid=null`, and does not promise a later start. Delete retains
-`orchbee.session.delete` v1. The embedded schema catalog is v141.
+`orchbee.session.delete` v1. The embedded schema catalog is v148.
 
 The durable catalog preserves exact default/named identities and stopped receipts in LocalAppData.
 With the same admitted runtime base, `session list` still discovers a stopped session after its
@@ -2858,7 +2859,7 @@ For canonical session targets, Windows `agent prompt <target> <text> --wait --cl
 
 ## Windows unified Agent projection
 
-Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v2. Its `source.kind` is `agent-projection`; the source carries `siteId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId?}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string.
+Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v2. Its `source.kind` is `agent-projection`; the source carries `siteId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId?}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows may also carry placement when a current terminal incarnation is observed with no Agent. `workspaceId` within placement is nullable. `cwd` is a nullable string. When `--include-ended` is used, ended sessions sort after all current live rows, keeping live ordinals stable; ended rows follow canonical ID order and can be inspected by exact `--agent-session`.
 
 With `--client`, the envelope requires `clientId` and every row requires `client`, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 
@@ -2866,7 +2867,7 @@ Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payloa
 
 Windows `agent get` emits `orchbee.agent.get` v19 with and without `--client`, using the same projection `source`. `result` is `{kind:"projected",agent,inspection}`. `agent` has the projection row's provider, status, source, canonical/terminal facets, placement and cwd, without `ordinal` or `client`; `inspection` is the existing current canonical or terminal inspection. Detailed process, terminal metadata, management and Client evidence stay in their facet-specific inspection shape.
 
-Windows Get, Read, Prompt, Send Keys, Wait and Focus share one resolver. `@agent:<kind>` selects a provider only when the complete current projection proves it unique. `@agent:<n>` selects a one-based ordinal in the complete list order, never a page-relative position. Bare names preserve Server alias precedence before provider fallback. Partial reads cannot establish provider uniqueness. Mutating effects retain the complete physical binding and revalidate it immediately before the write.
+Windows Get, Read, Prompt, Send Keys, Wait and Focus share one resolver. `@agent:<kind>` selects a provider only when the complete current projection proves it unique. `@agent:<n>` selects a one-based ordinal in the complete list order, never a page-relative position; the resolver accepts live rows only, so use exact `--agent-session` for ended sessions. Bare names preserve Server alias precedence before provider fallback. Partial reads cannot establish provider uniqueness. Mutating effects retain the complete physical binding and revalidate it immediately before the write.
 
 Projection failures use `orchbee.cli.failure.agent-projection` v1. The closed `failure.details` has `stage:"agent-projection"`, a reason from `unavailable`, `denied`, `changed`, `invalid`, `too-large`, `timeout`, `cancelled`, `cursor-restart`, `target-not-found` or `target-ambiguous`, and optional `selector`/`candidates`. Candidate entries carry `selector:"@agent:<n>"`, nullable `sessionId`, nullable `panelId` and nullable `AgentLaunchBinding`; at most 16 candidates are returned. The optional envelope `source` has the same typed projection shape used by Agent list/get, and failure envelopes have no `result`.
 
@@ -2888,7 +2889,7 @@ Hermes adds Windows plugin activation and content-free session observation. Its 
 
 [Windows CLI configuration](windows-cli-configuration.md) owns the bounded TOML reader, `ORCHBEE_CONFIG_FILE`, `[terminal] new_cwd`, `[worktrees] directory`, and precedence before any creation effect. Windows `config check` v2 preserves five runtime checks and adds `user-config`; v1 remains five checks. `orchbee.cli.failure.configuration` v1 reports bounded preparation errors. Catalog v69 contains 78 schemas and 94 command paths.
 
-The current Windows `config check` v13 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count do not widen v1-v12. `server config`/`server reload-config` v8 carry the same admitted warning record in each successful snapshot while v1-v7 remain closed. The embedded schema catalog is v141.
+The current Windows `config check` v13 keeps fatal file and environment admission as `fail`/exit 1 and reports admitted field fallbacks as `warning` with `ok:true`/exit 0. Its bounded `diagnostics` and exact `diagnosticsOmitted` count do not widen v1-v12. `server config`/`server reload-config` v8 carry the same admitted warning record in each successful snapshot while v1-v7 remain closed. The embedded schema catalog is v148.
 
 ## Windows terminal observation stream
 

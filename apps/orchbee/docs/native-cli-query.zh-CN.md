@@ -48,7 +48,7 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 
 ## 当前 CLI 发现与平台契约
 
-补全将本地 `--session` 选择与 Agent 会话选择器分开。Windows 上，get/read/prompt/send-keys/wait/focus 在目标前提供静态 `@agent:<kind>` 提供方别名；不会查询运行时状态，也不会编造序号候选项。Windows POSIX Shell 适配器使用与 PowerShell、Elvish 相同的静态语法筛选远端 `--machine` 路径，覆盖嵌套命令族和根级数据命令。输入已知选项与操作数后，仍可发现后缀 `--help`；不支持的路由、重复选项及已终止的选项不会重新获得候选项。
+补全将本地 `--session` 选择与 Agent 会话选择器分开。Windows 上，get/read/prompt/send-keys/wait/focus 在目标前提供静态 `@agent:<kind>` 提供方别名；不会查询运行时状态，也不会编造序号候选项。在 PowerShell 中，提供方别名应从引号开始（例如 `'@agent:c`）；补全会插入完整且安全地用单引号括起的句柄，因为未加引号的 `@agent` 会被解析为 splatting 语法。Windows POSIX Shell 适配器使用与 PowerShell、Elvish 相同的静态语法筛选远端 `--machine` 路径，覆盖嵌套命令族和根级数据命令。输入已知选项与操作数后，仍可发现后缀 `--help`；不支持的路由、重复选项及已终止的选项不会重新获得候选项。
 
 Snapshot v7 与 Tab Get v7 接纳规范的可选分隔比例 `ratio`（0.1–0.9）；省略表示 0.5。Snapshot v6 与 Tab Get v5/v6 保留原来的封闭树。Windows Agent Doctor v4 覆盖全部 20 个提供方；v1–v3 保留 14 行上限。
 
@@ -261,7 +261,7 @@ Host／几何及 viewer 释放所有者。移动可选 `--content-revision`，�
 ## Workbench 状态
 
 裸 `status` 读取一份 Workbench 快照并报告可达性和资源计数。只有显式提供 `--session` 时，
-Text 才显示所选 Session 名称，并显示当前 Client 的包版本。Windows `status server` 报告 Server 的实际构建元数据。
+Text 才显示所选 Session 名称。当前 Client 的包版本始终显示。Windows `status server` 报告 Server 的实际构建元数据。
 
 ## Workbench 拓扑查询
 
@@ -445,7 +445,7 @@ scope 传给子终端，使内部 CLI 命令保持所属 Session，即使 Server
 
 列表输出 `orchbee.session.list` v2；v1 保持原有封闭状态集合。`recoverable` 表示受门保护的当次观察
 确认 v2/v3 登记完整、所有确切身份消失且资源空闲；其 `running=false`、`pid=null`，不承诺稍后的启动。
-删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v141。
+删除仍使用 `orchbee.session.delete` v1；内嵌 schema 清单为 v148。
 
 持久清单在 LocalAppData 保留精确的默认/命名身份和停止回执。使用相同的已准入运行时基目录时，
 即使运行时叶目录被移除，`session list` 仍能发现已停止会话；`session attach`/`server start` 会重建
@@ -2410,7 +2410,7 @@ Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent
 
 ## Windows 统一 Agent 投影
 
-Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orchbee.agent.list` v2。`source.kind` 为 `agent-projection`；source 携带 `siteId`（32 位小写十六进制）、十进制字符串 `workbenchRevision` 和 `reportRevision`，以及安全整数 `canonicalRevision`。`result` 为 `{kind:"listed",revision,nextCursor,items,clientId?}`；`nextCursor` 为 null 或 `u1` 游标。每行包含一基 `ordinal`（1–4096）、`provider`、语义 `status`（`unknown`、`idle`、`working`、`blocked`、`done`、`error`、`ended`）、身份 `source`（`canonical`、`terminal`、`both`）、既有且可为空的 canonical `AgentSessionSummary`，以及包含既有 launch binding、非空 provider、`PanelAgentState` 和十进制字符串 sequence 的可空物理终端记录。`source` 控制分面是否存在。物理行和 `both` 行始终有 `placement`，其中 Panel、Presentation、Terminal、Terminal Context 和 Tab ID 为 32 位十六进制；`workspaceId` 可为空。canonical 行也可能有 placement，表示对应终端 incarnation 当前观测为没有 Agent。`cwd` 为可空字符串。
+Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orchbee.agent.list` v2。`source.kind` 为 `agent-projection`；source 携带 `siteId`（32 位小写十六进制）、十进制字符串 `workbenchRevision` 和 `reportRevision`，以及安全整数 `canonicalRevision`。`result` 为 `{kind:"listed",revision,nextCursor,items,clientId?}`；`nextCursor` 为 null 或 `u1` 游标。每行包含一基 `ordinal`（1–4096）、`provider`、语义 `status`（`unknown`、`idle`、`working`、`blocked`、`done`、`error`、`ended`）、身份 `source`（`canonical`、`terminal`、`both`）、既有且可为空的 canonical `AgentSessionSummary`，以及包含既有 launch binding、非空 provider、`PanelAgentState` 和十进制字符串 sequence 的可空物理终端记录。`source` 控制分面是否存在。物理行和 `both` 行始终有 `placement`，其中 Panel、Presentation、Terminal、Terminal Context 和 Tab ID 为 32 位十六进制；`workspaceId` 可为空。canonical 行也可能有 placement，表示对应终端 incarnation 当前观测为没有 Agent。`cwd` 为可空字符串。使用 `--include-ended` 时，已结束会话排在所有当前 live 行之后，因此 live 序号保持稳定；ended 行按 canonical ID 排序，并可通过精确的 `--agent-session` 检查。
 
 使用 `--client` 时，封套要求 `clientId`，每行也要求 `client`；canonical 和 terminal Client 分面保持独立。Client 未读状态不会提供 Agent 语义状态。每页最多为 64 行添加可选 cwd 信息；不可用时为 null。每页 1–100 行，默认 50 行；合并输出上限为 4096 行和 8 MiB。来源准入可能更早失败：canonical 来源限制为 512 个会话／六页各 100 行，物理来源注册上限为 1024 条。因此不能据 4096 行输出上限承诺同等数量的物理来源。
 
@@ -2418,7 +2418,7 @@ Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码�
 
 Windows `agent get` 无论是否提供 `--client` 都输出 `orchbee.agent.get` v19，并使用相同的投影 `source`。`result` 为 `{kind:"projected",agent,inspection}`。`agent` 包含投影行中的 provider、status、source、canonical／terminal 分面、placement 和 cwd，但不包含 `ordinal` 或 `client`；`inspection` 是当前既有的 canonical 或 terminal inspection。详细进程、终端元数据、管理状态和 Client 证据仍保留在各自分面 inspection 中。
 
-Windows Get、Read、Prompt、Send Keys、Wait 和 Focus 共用一个解析器。只有完整当前投影证明唯一时，`@agent:<kind>` 才选择提供方。`@agent:<n>` 选择完整列表顺序中的一基序号，不是页内序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。部分读取不能证明提供方匹配唯一。修改效果保留完整物理绑定，并在实际写入前立即复核该绑定。
+Windows Get、Read、Prompt、Send Keys、Wait 和 Focus 共用一个解析器。只有完整当前投影证明唯一时，`@agent:<kind>` 才选择提供方。`@agent:<n>` 选择完整列表顺序中的一基序号，不是页内序号；解析器只接受 live 行，因此检查 ended 会话时应使用精确的 `--agent-session`。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。部分读取不能证明提供方匹配唯一。修改效果保留完整物理绑定，并在实际写入前立即复核该绑定。
 
 投影失败使用 `orchbee.cli.failure.agent-projection` v1。封闭的 `failure.details` 包含 `stage:"agent-projection"`、`unavailable`、`denied`、`changed`、`invalid`、`too-large`、`timeout`、`cancelled`、`cursor-restart`、`target-not-found` 或 `target-ambiguous` 之一作为 reason，并可包含 `selector`／`candidates`。Candidate 项携带 `selector:"@agent:<n>"`、可空 `sessionId`、可空 `panelId` 和可空 `AgentLaunchBinding`；最多返回 16 个候选。可选 envelope `source` 使用 Agent list/get 的同一类型化投影来源；失败时没有 `result`。
 
@@ -2440,7 +2440,7 @@ Hermes 新增 Windows 插件激活及不含内容的会话观察。其离线 doc
 
 [Windows CLI 配置](windows-cli-configuration.zh-CN.md) 拥有有界 TOML 读取器、`ORCHBEE_CONFIG_FILE`、`[terminal] new_cwd`、`[worktrees] directory` 及创建副作用前的优先级。Windows `config check` v2 保留五项运行时检查并增加 `user-config`；v1 仍是五项检查。`orchbee.cli.failure.configuration` v1 报告有界准备错误。目录 v69 包含 78 个 schema 和 94 条命令路径。
 
-当前 Windows `config check` v13 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量不会放宽 v1-v12。`server config`／`server reload-config` v8 在每个成功快照中携带同一份已接纳警告记录，v1-v7 保持封闭。内嵌 schema 目录为 v141。
+当前 Windows `config check` v13 仍把致命文件和环境接纳错误报告为 `fail`／退出 1，并把已接纳的字段回退报告为 `warning`，同时保持 `ok:true`／退出 0。有界 `diagnostics` 与精确的 `diagnosticsOmitted` 数量不会放宽 v1-v12。`server config`／`server reload-config` v8 在每个成功快照中携带同一份已接纳警告记录，v1-v7 保持封闭。内嵌 schema 目录为 v148。
 
 ## Windows 终端观察流
 
