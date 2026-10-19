@@ -297,9 +297,7 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
             if mode == "changed-workbench" {
                 validate(
                     &doc,
-                    include_str!(
-                        "../src/cli/schemas/orchbee.cli.failure.agent-projection.json"
-                    ),
+                    include_str!("../src/cli/schemas/orchbee.cli.failure.agent-projection.json"),
                 );
                 assert_eq!(doc["schema"], "orchbee.cli.failure.agent-projection");
                 assert_eq!(doc["failure"]["details"]["reason"], "changed");

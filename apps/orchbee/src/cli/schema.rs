@@ -2,9 +2,9 @@
 //! dictionary reads never touch the filesystem, the network, or a Site.
 //! Explicit file publication belongs to the separate schema exporter.
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
-use super::{failure_output, output, target_details, Failure, FailureKind, Output};
+use super::{Failure, FailureKind, Output, failure_output, output, target_details};
 use crate::invocation::{OutputFormat, Resource};
 use crate::localization::Locale;
 
