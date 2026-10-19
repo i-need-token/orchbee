@@ -108,7 +108,13 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
             "tabs",
         ),
         (QueryCommand::TabGet(Target::Id(id(5))), "tab"),
-        (QueryCommand::PanelList { tab: None }, "panels"),
+        (
+            QueryCommand::PanelList {
+                tab: None,
+                workspace: None,
+            },
+            "panels",
+        ),
         (QueryCommand::PanelGet(Target::Id(id(6))), "panel"),
     ] {
         let published = crate::cli::schema::answer(
@@ -339,7 +345,13 @@ fn six_query_shapes_join_agents_with_optional_client_provenance() {
             "tabs",
         ),
         (QueryCommand::TabGet(Target::Id(id(5))), "tab"),
-        (QueryCommand::PanelList { tab: None }, "panels"),
+        (
+            QueryCommand::PanelList {
+                tab: None,
+                workspace: None,
+            },
+            "panels",
+        ),
         (QueryCommand::PanelGet(Target::Id(id(6))), "panel"),
     ] {
         let schema = crate::cli::schema::answer(

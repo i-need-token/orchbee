@@ -258,8 +258,13 @@ pub(crate) fn agent_focus_target(
             Target::Id(row.panel_id)
         }
     };
-    let Projection::PanelList(rows) =
-        results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
+    let Projection::PanelList(rows) = results::project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
+        snapshot,
+    )?
     else {
         return Err(Failure::new(FailureKind::InternalFailure));
     };
@@ -291,8 +296,13 @@ fn select_primary_panel(
     session: &AgentSessionDetail,
     presentation: Option<&str>,
 ) -> Result<Target, Failure> {
-    let Projection::PanelList(rows) =
-        results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
+    let Projection::PanelList(rows) = results::project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
+        snapshot,
+    )?
     else {
         return Err(Failure::new(FailureKind::InternalFailure));
     };

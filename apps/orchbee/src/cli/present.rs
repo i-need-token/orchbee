@@ -217,72 +217,47 @@ fn terminal_cells(row: &TerminalRow) -> Vec<String> {
     ]
 }
 
+/// The human terminal table: location handles and the path are never cut;
+/// only the title, Agent and state labels shrink toward an 80-cell line.
 fn terminal_table(
-    out: &mut Bounded,
-    text: &CliLabels,
-    rows: &[TerminalRow],
-    locale: Locale,
-) -> Result<(), TooLarge> {
-    terminal_table_rows(out, &text.terminal_list_headers, rows, None, locale)
-}
-
-fn terminal_table_human(
     out: &mut Bounded,
     text: &CliLabels,
     doc: &super::results::TerminalListDocument,
     locale: Locale,
 ) -> Result<(), TooLarge> {
-    terminal_table_rows(
-        out,
-        &text.terminal_list_headers,
-        &doc.rows,
-        Some(&doc.details),
-        locale,
-    )
-}
-
-fn terminal_table_rows(
-    out: &mut Bounded,
-    headers: &[&str],
-    rows: &[TerminalRow],
-    details: Option<&[super::results::TerminalListDetails]>,
-    locale: Locale,
-) -> Result<(), TooLarge> {
     const MAXIMUM_WIDTH: usize = 80;
-    const COLUMN_LIMITS: [usize; 6] = [5, 41, 24, 14, 12, MAXIMUM_WIDTH];
-
-    let mut widths: Vec<usize> = headers
-        .iter()
-        .zip(COLUMN_LIMITS)
-        .map(|(header, limit)| display_width(header).min(limit))
-        .collect();
-    let handles = terminal_handles(rows);
-    for (index, handle) in handles.iter().enumerate() {
-        for (column, cell) in terminal_list_cells(
-            index + 1,
-            handle,
-            details.and_then(|details| details.get(index)),
-            locale,
-        )
+    const LABEL_LIMITS: [(usize, usize); 3] = [(1, 24), (2, 14), (3, 12)];
+    const CWD: usize = 6;
+    let headers = &text.terminal_list_headers;
+    let fallback = terminal_handles(&doc.rows);
+    let rows: Vec<Vec<String>> = doc
+        .rows
         .iter()
         .enumerate()
-        {
-            widths[column] =
-                widths[column].max(terminal_cell_width(cell).min(COLUMN_LIMITS[column]));
+        .map(|(index, _row)| {
+            terminal_list_cells(&fallback[index], doc.details.get(index), text, locale)
+        })
+        .collect();
+    let mut widths: Vec<usize> = headers.iter().map(|header| display_width(header)).collect();
+    for cells in &rows {
+        for (column, cell) in cells.iter().enumerate() {
+            let limit = LABEL_LIMITS
+                .iter()
+                .find(|(label, _)| *label == column)
+                .map_or(usize::MAX, |(_, limit)| *limit);
+            widths[column] = widths[column].max(terminal_cell_width(cell).min(limit));
         }
     }
-
-    let mut minimums: Vec<_> = headers.iter().map(|header| display_width(header)).collect();
-    // A handle is a selector; never cut it to fit the display. Other cells
-    // absorb any required width reduction before the selector does.
-    minimums[1] = widths[1];
-    let mut total = widths.iter().sum::<usize>() + headers.len().saturating_sub(1) * 2;
-    for column in [5, 2, 3, 4, 0] {
+    // The path is the last column and is never truncated; it only counts
+    // toward the label budget up to a short visible prefix.
+    let fixed = widths[CWD].min(24);
+    let mut total = widths[..CWD].iter().sum::<usize>() + fixed + (headers.len() - 1) * 2;
+    for (column, _) in LABEL_LIMITS {
         if total <= MAXIMUM_WIDTH {
             break;
         }
         let reduction = widths[column]
-            .saturating_sub(minimums[column])
+            .saturating_sub(display_width(headers[column]))
             .min(total - MAXIMUM_WIDTH);
         widths[column] -= reduction;
         total -= reduction;
@@ -293,7 +268,11 @@ fn terminal_table_rows(
             if index > 0 {
                 out.push("  ")?;
             }
-            let cell = truncate_terminal_cell(cell, *width);
+            let cell = if LABEL_LIMITS.iter().any(|(label, _)| *label == index) {
+                truncate_terminal_cell(cell, *width)
+            } else {
+                unquoted(cell)
+            };
             out.push(&cell)?;
             if index + 1 < cells.len() {
                 out.push(&" ".repeat(width.saturating_sub(display_width(&cell))))?;
@@ -309,24 +288,16 @@ fn terminal_table_rows(
             .collect::<Vec<_>>(),
         out,
     )?;
-    for (index, handle) in handles.iter().enumerate() {
-        render_row(
-            &terminal_list_cells(
-                index + 1,
-                handle,
-                details.and_then(|details| details.get(index)),
-                locale,
-            ),
-            out,
-        )?;
+    for cells in &rows {
+        render_row(cells, out)?;
     }
     Ok(())
 }
 
 fn terminal_list_cells(
-    number: usize,
-    handle: &str,
+    fallback_handle: &str,
     details: Option<&super::results::TerminalListDetails>,
+    text: &CliLabels,
     locale: Locale,
 ) -> Vec<String> {
     let empty = super::results::TerminalListDetails::default();
@@ -335,18 +306,51 @@ fn terminal_list_cells(
         .state
         .map(|state| locale.cli_terminal_list_state(state))
         .unwrap_or("-");
+    let placement = details.placement.as_ref();
     vec![
-        number.to_string(),
-        handle.to_owned(),
-        details.title.clone().unwrap_or_else(|| "-".to_owned()),
+        placement.map_or_else(|| fallback_handle.to_owned(), |p| p.handle.clone()),
+        details
+            .title
+            .as_deref()
+            .map_or_else(|| "-".to_owned(), terminal_title),
         details.agent.clone().unwrap_or_else(|| "-".to_owned()),
         state.to_owned(),
+        placement.map_or_else(
+            || "-".to_owned(),
+            |p| {
+                p.workspace
+                    .clone()
+                    .unwrap_or_else(|| text.standalone.to_owned())
+            },
+        ),
+        placement.map_or_else(|| "-".to_owned(), |p| p.panel.clone()),
         details.cwd.clone().unwrap_or_else(|| "-".to_owned()),
     ]
 }
 
-/// Choose the shortest selector suffix that resolves exactly within this
-/// snapshot. If two IDs share the maximum selector suffix, show the typed ID.
+/// A title that is only the launched program's absolute path shows the
+/// program name; every other title is kept as the terminal set it.
+fn terminal_title(title: &str) -> String {
+    let absolute = title.starts_with('/')
+        || title.starts_with("\\\\")
+        || matches!(title.as_bytes(), [drive, b':', b'\\' | b'/', ..] if drive.is_ascii_alphabetic());
+    let name = title.rsplit(['\\', '/']).next().unwrap_or(title);
+    match name.rsplit_once('.') {
+        Some((stem, extension))
+            if absolute
+                && !stem.is_empty()
+                && ["exe", "com", "cmd", "bat", "ps1"]
+                    .iter()
+                    .any(|known| extension.eq_ignore_ascii_case(known)) =>
+        {
+            stem.to_owned()
+        }
+        _ => title.to_owned(),
+    }
+}
+
+/// Choose the shortest selector suffix that resolves exactly within these
+/// rows when no snapshot placement was attached.
 fn terminal_handles(rows: &[TerminalRow]) -> Vec<String> {
     super::handles::short(
         "terminal",
@@ -715,8 +719,9 @@ pub(crate) fn render(
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
         Projection::PanelProcessInfo(doc) => panel_process(out, doc, text, locale),
-        Projection::TerminalList(rows) => terminal_table(out, text, rows, locale),
-        Projection::TerminalListHuman(doc) => terminal_table_human(out, text, doc, locale),
+        Projection::TerminalList(doc) | Projection::TerminalListHuman(doc) => {
+            terminal_table(out, text, doc, locale)
+        }
         // `terminal read` emits the observed content itself: one output line
         // per emitted grid row — or, under `--unwrap`, per joined logical
         // line — preserving printable text and escaping controls, followed by

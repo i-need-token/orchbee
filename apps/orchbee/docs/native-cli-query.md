@@ -1050,12 +1050,12 @@ orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geo
 orchbee tab rename <target> --label <label>
 orchbee tab move <target> (--direction previous|next|first|last | --insert-index N)
 orchbee tab close <target> --confirm
-orchbee panel list [--tab <target>] | panel get <target>
+orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
 orchbee panel rename <target> (--label <text> | --clear)
 orchbee panel split [<target> | --panel <target> | --current] --direction above|below|left|right [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee panel close <target> --confirm
 orchbee panel move <target> --target-panel <target> --direction above|below|left|right
-orchbee terminal list | terminal get <target> | terminal read <target> [--history --rows <1-1000>] [--unwrap] [--lines <1-65535>]
+orchbee terminal list [--workspace <target> | --tab <target> | --panel <target>] | terminal get <target> | terminal read <target> [--history --rows <1-1000>] [--unwrap] [--lines <1-65535>]
 orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--rows <1-1000>] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
 orchbee launch-profile list | launch-profile get <selector>
@@ -1891,14 +1891,20 @@ primaryPresentation,childPresentations}}` with `slotPath` the `PanelSlot` IDs fr
 binding:{terminalId,workerId}|null}`.
 - `orchbee.terminal.list` → `{terminals:[{terminalId,workerId,boundTo:{presentationId,panelId,
 tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecycle, process, or
-  Agent members. Windows text output is an aligned `#`, `HANDLE`, `TITLE`, `AGENT`, `STATE`, `CWD`
-  table. Other platforms keep the same identity table and render unavailable runtime columns as
-  `-`. `HANDLE` is the shortest unique `@terminal:<suffix>` selector against this snapshot; when
-  the IDs share the maximum 31-hex suffix, it shows the full ID instead. `#` is the row position,
-  not a selector. The text-only enrichment shares one five-second deadline and cancellation watch
+  Agent members. At most one of `--workspace`, `--tab` and `--panel` keeps only the terminals
+  bound inside that resolved member, with the standard filter rules: an absent member is
+  not-found and an existing member without terminals is an empty list. Windows text output is an
+  aligned `HANDLE`, `TITLE`, `AGENT`, `STATE`, `WORKSPACE`, `PANEL`, `CWD` table. Other platforms
+  keep the same identity table and render unavailable runtime columns as `-`. `HANDLE`,
+  `WORKSPACE` and `PANEL` are the shortest `@<kind>:<suffix>` selectors unique over every member
+  of their kind in this snapshot, so filtered rows stay resolvable; when IDs share the maximum
+  31-hex suffix, the full ID is shown instead. A standalone terminal shows the localized
+  standalone label under `WORKSPACE`. The text-only enrichment shares one five-second deadline and cancellation watch
   across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
-  reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title. `CWD` is
-  the validated terminal-frame directory, falling back to the observed root process directory;
+  reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title; a title
+  that is only an absolute path to an `.exe`, `.com`, `.cmd`, `.bat` or `.ps1` program shows that
+  program's name. `TITLE`, `AGENT` and `STATE` are the only cells shortened to fit 80 cells;
+  handles and `CWD` are never cut. `CWD` is the validated terminal-frame directory, falling back to the observed root process directory;
   it never substitutes the Workbench Workspace path. `AGENT` uses the exact presentation report,
   then bounded foreground-process detection; `STATE` preserves a known presentation report state.
   An identified Agent with no known report state displays `unknown`. Otherwise, when a Host frame

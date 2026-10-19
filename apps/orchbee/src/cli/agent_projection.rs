@@ -287,8 +287,13 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
             .transpose()?
             .unwrap_or(0);
         let end = (offset + *limit as usize).min(checkpoint.rows.len());
-        let Projection::PanelList(panels) =
-            results::project(&QueryCommand::PanelList { tab: None }, &snapshot)?
+        let Projection::PanelList(panels) = results::project(
+            &QueryCommand::PanelList {
+                tab: None,
+                workspace: None,
+            },
+            &snapshot,
+        )?
         else {
             return Err(classify(Error::Invalid));
         };

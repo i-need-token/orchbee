@@ -542,12 +542,21 @@ fn accepts_every_query_path_with_default_text() {
             &["tab", "get", ID],
             QueryCommand::TabGet(Target::Id(ID.into())),
         ),
-        (&["panel", "list"], QueryCommand::PanelList { tab: None }),
+        (
+            &["panel", "list"],
+            QueryCommand::PanelList {
+                tab: None,
+                workspace: None,
+            },
+        ),
         (
             &["panel", "get", ID],
             QueryCommand::PanelGet(Target::Id(ID.into())),
         ),
-        (&["terminal", "list"], QueryCommand::TerminalList),
+        (
+            &["terminal", "list"],
+            QueryCommand::TerminalList { filter: None },
+        ),
         (
             &["terminal", "get", ID],
             QueryCommand::TerminalGet(Target::Id(ID.into())),
@@ -1057,6 +1066,7 @@ fn filters_have_declared_scope_single_use_and_values() {
         Ok(query(
             QueryCommand::PanelList {
                 tab: Some(Target::Id(ID.into())),
+                workspace: None,
             },
             OutputFormat::Text
         ))

@@ -142,8 +142,13 @@ fn membership(
     };
     let mut rows: BTreeMap<_, BTreeSet<_>> =
         ids.into_iter().map(|id| (id, BTreeSet::new())).collect();
-    let Projection::PanelList(panels) =
-        results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
+    let Projection::PanelList(panels) = results::project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
+        snapshot,
+    )?
     else {
         return Err(failure("agent-page-invalid"));
     };

@@ -113,13 +113,20 @@ fn panel_lists_preserve_primary_labels_and_workspace_identity() {
     primary_presentation.label = "shell\u{1b}[31m\n中文".into();
     primary_presentation.custom_label =
         Some(orchbee_workbench_protocol::PanelCustomLabel::parse("名称").unwrap());
-    let all = project(&QueryCommand::PanelList { tab: None }, &state)
-        .unwrap()
-        .result();
+    let all = project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
+        &state,
+    )
+    .unwrap()
+    .result();
     assert!(all["panels"][0]["workspaceId"].is_null());
     let filtered = project(
         &QueryCommand::PanelList {
             tab: Some(Target::Id(hex(0x52))),
+            workspace: None,
         },
         &state,
     )
@@ -159,7 +166,10 @@ fn topology_documents_validate_and_text_escapes_labels_in_both_locales() {
             standalone: false,
         },
         QueryCommand::TabGet(Target::Id(hex(DUP_TABS[0]))),
-        QueryCommand::PanelList { tab: None },
+        QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
     ] {
         let published =
             crate::cli::schema::answer(Some(schema_id(&command)), OutputFormat::Json, Locale::EnUs);

@@ -34,8 +34,13 @@ pub(super) fn read(
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Document, Failure> {
-    let Projection::PanelList(all) =
-        results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
+    let Projection::PanelList(all) = results::project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
+        snapshot,
+    )?
     else {
         return Err(Failure::new(FailureKind::InternalFailure));
     };

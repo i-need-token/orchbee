@@ -19,8 +19,13 @@ pub(super) fn read(
     if initial.session.snapshot.lifecycle != AgentLifecycle::Live {
         return Ok((initial, AgentRuntimeDoc::Unavailable("session-ended"), None));
     }
-    let results::Projection::PanelList(panels) =
-        results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
+    let results::Projection::PanelList(panels) = results::project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
+        snapshot,
+    )?
     else {
         return Err(view_failure(FailureKind::InternalFailure));
     };

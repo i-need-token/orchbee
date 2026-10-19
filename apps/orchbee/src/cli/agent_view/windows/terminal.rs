@@ -34,8 +34,13 @@ pub(super) fn read(
     fields["source"] = results::snapshot_source(snapshot);
     // Panel reports describe the primary presentation only. Never publish the
     // parent's report as a child's provider identity.
-    let results::Projection::PanelList(panels) =
-        results::project(&QueryCommand::PanelList { tab: None }, snapshot)?
+    let results::Projection::PanelList(panels) = results::project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: None,
+        },
+        snapshot,
+    )?
     else {
         return Err(view_failure(FailureKind::InternalFailure));
     };

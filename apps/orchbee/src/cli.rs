@@ -710,8 +710,8 @@ pub(crate) fn agent_integration(
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
     #[cfg(windows)]
-    if matches!(command, QueryCommand::TerminalList) {
-        return terminal_list::run(format, locale);
+    if matches!(command, QueryCommand::TerminalList { .. }) {
+        return terminal_list::run(command, format, locale);
     }
     #[cfg(windows)]
     if matches!(

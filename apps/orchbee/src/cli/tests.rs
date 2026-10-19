@@ -348,9 +348,9 @@ fn terminal_lists_use_localized_headers_and_copyable_snapshot_handles() {
             })
             .collect();
         let output = super::success_output(
-            Projection::TerminalList(rows),
+            Projection::TerminalList(TerminalListDocument::bare(rows)),
             json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
-            &QueryCommand::TerminalList,
+            &QueryCommand::TerminalList { filter: None },
             OutputFormat::Text,
             locale,
         );
@@ -379,28 +379,24 @@ fn terminal_handles_expand_to_unique_suffixes_without_truncation() {
         terminal_context_id: "5".repeat(32),
     });
     let output = super::success_output(
-        Projection::TerminalList(rows.into()),
+        Projection::TerminalList(TerminalListDocument::bare(rows.into())),
         json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
-        &QueryCommand::TerminalList,
+        &QueryCommand::TerminalList { filter: None },
         OutputFormat::Text,
         Locale::EnUs,
     );
     let text = String::from_utf8(output.stdout).unwrap();
     assert!(text.contains(&format!("@terminal:b{suffix}")), "{text}");
     assert!(text.contains(&format!("@terminal:c{suffix}")), "{text}");
-    assert!(
-        text.lines()
-            .all(|line| super::escape::display_width(line) <= 80)
-    );
 }
 
 #[test]
 fn empty_terminal_lists_keep_the_localized_header() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let output = super::success_output(
-            Projection::TerminalList(vec![]),
+            Projection::TerminalList(TerminalListDocument::bare(vec![])),
             json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
-            &QueryCommand::TerminalList,
+            &QueryCommand::TerminalList { filter: None },
             OutputFormat::Text,
             locale,
         );
@@ -433,12 +429,13 @@ fn terminal_list_agent_states_are_localized() {
                 Projection::TerminalListHuman(TerminalListDocument {
                     rows: vec![row.clone()],
                     details: vec![TerminalListDetails {
+                        placement: None,
                         state: Some(state),
                         ..TerminalListDetails::default()
                     }],
                 }),
                 json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
-                &QueryCommand::TerminalList,
+                &QueryCommand::TerminalList { filter: None },
                 OutputFormat::Text,
                 locale,
             );
@@ -449,7 +446,7 @@ fn terminal_list_agent_states_are_localized() {
 }
 
 #[test]
-fn terminal_list_truncates_long_paths_and_escapes_terminal_controls() {
+fn terminal_list_keeps_full_paths_and_escapes_terminal_controls() {
     let row = TerminalRow {
         terminal_id: ID.into(),
         worker_id: "1".repeat(32),
@@ -462,6 +459,7 @@ fn terminal_list_truncates_long_paths_and_escapes_terminal_controls() {
         Projection::TerminalListHuman(TerminalListDocument {
             rows: vec![row],
             details: vec![TerminalListDetails {
+                placement: None,
                 title: Some("pwsh\n\u{001b}[31m".into()),
                 agent: Some("grok".into()),
                 state: Some(TerminalListState::Agent(
@@ -471,7 +469,7 @@ fn terminal_list_truncates_long_paths_and_escapes_terminal_controls() {
             }],
         }),
         json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
-        &QueryCommand::TerminalList,
+        &QueryCommand::TerminalList { filter: None },
         OutputFormat::Text,
         Locale::EnUs,
     );
@@ -481,18 +479,57 @@ fn terminal_list_truncates_long_paths_and_escapes_terminal_controls() {
         2,
         "controls must not add lines: {text:?}"
     );
-    assert!(
-        text.lines()
-            .all(|line| super::escape::display_width(line) <= 80)
-    );
     assert!(text.contains("@terminal:f"));
     assert!(text.contains("pwsh"));
     assert!(text.contains("grok"));
-    assert!(text.contains("C:\\work\\"));
-    assert!(text.contains('…'));
-    assert!(text.contains("\\n"));
+    // A path is copyable as a whole: never clipped, controls still escaped.
+    assert!(text.contains(&"nested\\".repeat(32)));
     assert!(text.contains("\\u{001b}"));
+    assert!(text.contains("\\n"));
     assert!(!text.contains('\u{001b}'));
+}
+
+#[test]
+fn terminal_list_shows_location_handles_and_program_names() {
+    let row = TerminalRow {
+        terminal_id: ID.into(),
+        worker_id: "1".repeat(32),
+        presentation_id: "2".repeat(32),
+        panel_id: "3".repeat(32),
+        tab_id: "4".repeat(32),
+        terminal_context_id: "5".repeat(32),
+    };
+    let placement = |workspace: Option<&str>| TerminalListDetails {
+        placement: Some(super::results::TerminalPlacement {
+            handle: "@terminal:f".into(),
+            workspace: workspace.map(str::to_owned),
+            panel: "@panel:3".into(),
+        }),
+        title: Some(r"C:\Program Files\PowerShell\7\pwsh.exe".into()),
+        ..TerminalListDetails::default()
+    };
+    for (locale, workspace) in [(Locale::EnUs, Some("@workspace:9")), (Locale::ZhCn, None)] {
+        let output = super::success_output(
+            Projection::TerminalListHuman(TerminalListDocument {
+                rows: vec![row.clone()],
+                details: vec![placement(workspace)],
+            }),
+            json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"}),
+            &QueryCommand::TerminalList { filter: None },
+            OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        let line = text.lines().nth(1).unwrap();
+        let cells: Vec<_> = line.split_whitespace().collect();
+        assert_eq!(cells[0], "@terminal:f", "{text}");
+        assert_eq!(cells[1], "pwsh", "{text}");
+        assert!(line.contains("@panel:3"), "{text}");
+        assert!(
+            line.contains(workspace.unwrap_or(locale.cli_labels().standalone)),
+            "{text}"
+        );
+    }
 }
 
 #[test]
@@ -506,9 +543,9 @@ fn terminal_list_human_enrichment_does_not_change_json_bytes() {
         terminal_context_id: "5".repeat(32),
     }];
     let source = json!({"kind":"workbench-snapshot","siteId":ID,"revision":"1"});
-    let command = QueryCommand::TerminalList;
+    let command = QueryCommand::TerminalList { filter: None };
     let plain = super::success_output(
-        Projection::TerminalList(rows.clone()),
+        Projection::TerminalList(TerminalListDocument::bare(rows.clone())),
         source.clone(),
         &command,
         OutputFormat::Json,
@@ -518,6 +555,7 @@ fn terminal_list_human_enrichment_does_not_change_json_bytes() {
         Projection::TerminalListHuman(TerminalListDocument {
             rows,
             details: vec![TerminalListDetails {
+                placement: None,
                 title: Some("pwsh".into()),
                 agent: Some("grok".into()),
                 state: Some(TerminalListState::Observed),
@@ -543,7 +581,9 @@ fn oversized_terminals() -> Projection {
         tab_id: ID.to_owned(),
         terminal_context_id: ID.to_owned(),
     };
-    Projection::TerminalList((0..42_000).map(|_| row()).collect())
+    Projection::TerminalList(TerminalListDocument::bare(
+        (0..42_000).map(|_| row()).collect(),
+    ))
 }
 
 fn oversized_snapshot() -> Projection {
@@ -630,7 +670,7 @@ fn oversized_json_result_emits_the_selected_envelope() {
     let output = super::success_output(
         oversized_terminals(),
         json!({"kind": "workbench-snapshot", "siteId": ID, "revision": "7"}),
-        &QueryCommand::TerminalList,
+        &QueryCommand::TerminalList { filter: None },
         OutputFormat::Json,
         Locale::EnUs,
     );

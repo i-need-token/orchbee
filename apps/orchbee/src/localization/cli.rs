@@ -3596,12 +3596,12 @@ const HELP_TAB_CLOSE_ZH: crate::localization::HelpDetails = crate::localization:
 );
 
 const HELP_PANEL_LIST_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel list [--tab <t>] [--client <id>] [--format text|json]",
-    "List Panels, optionally inside the Tab selected by --tab (exact ID,\n@tab:<suffix>, or label). Panels carry no label; presentation labels are\nnot panel names.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\nWindows also observes primary terminal title, directory and process facts.\nUnavailable observations are explicit; the query never controls or resizes terminals.",
+    "orchbee panel list [--tab <t> | --workspace <t>] [--client <id>] [--format text|json]",
+    "List Panels, optionally inside the Tab selected by --tab or the Workspace\nselected by --workspace (exact ID, selector, or label). Panels carry no label; presentation labels are\nnot panel names.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\nWindows also observes primary terminal title, directory and process facts.\nUnavailable observations are explicit; the query never controls or resizes terminals.",
 );
 const HELP_PANEL_LIST_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
-    "orchbee panel list [--tab <t>] [--client <id>] [--format text|json]",
-    "列出 Panel，或仅列 --tab（精确 ID、@tab:<suffix> 或 label）所选 Tab 内的。Panel 无\nlabel；Presentation 的 label 不是 Panel 名。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
+    "orchbee panel list [--tab <t> | --workspace <t>] [--client <id>] [--format text|json]",
+    "列出 Panel，或仅列 --tab 所选 Tab 或 --workspace 所选 Workspace（精确 ID、选择器或 label）内的。Panel 无\nlabel；Presentation 的 label 不是 Panel 名。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
 );
 
 const HELP_PANEL_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3644,13 +3644,13 @@ const HELP_PANEL_MOVE_ZH: crate::localization::HelpDetails = crate::localization
 
 const HELP_TERMINAL_LIST_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal list [--format text|json]",
-        "List every terminal bound by a Presentation. Unbound terminals are not\nvisible; a binding is structural evidence, not proof a process is alive.",
+        "orchbee terminal list [--workspace <t> | --tab <t> | --panel <t>] [--format text|json]",
+        "List every terminal bound by a Presentation, optionally only those inside\none Workspace, Tab or Panel (exact ID, selector, or label where the resource\nhas one). Unbound terminals are not visible; a binding is structural\nevidence, not proof a process is alive. Text shows each terminal's\nWorkspace and Panel handles and its full working directory.",
     );
 const HELP_TERMINAL_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee terminal list [--format text|json]",
-        "列出所有被 Presentation 绑定的终端。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。",
+        "orchbee terminal list [--workspace <t> | --tab <t> | --panel <t>] [--format text|json]",
+        "列出所有被 Presentation 绑定的终端，或仅列出某个 Workspace、Tab 或 Panel 内的终端（精确 ID、选择器，或资源支持时的 label）。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。文本显示每个终端所在的 Workspace 与 Panel 句柄及完整工作目录。",
     );
 
 const HELP_TERMINAL_GET_EN: crate::localization::HelpDetails =
@@ -3854,7 +3854,7 @@ pub(crate) struct CliLabels {
     pub(crate) panel_headers: [&'static str; 9],
     pub(crate) presentation_headers: [&'static str; 4],
     pub(crate) terminal_headers: [&'static str; 6],
-    pub(crate) terminal_list_headers: [&'static str; 6],
+    pub(crate) terminal_list_headers: [&'static str; 7],
     // Agent read field labels and column headers.
     pub(crate) agent_session: &'static str,
     pub(crate) agent_provider: &'static str,
@@ -3963,7 +3963,15 @@ const EN_US_LABELS: CliLabels = CliLabels {
     ],
     presentation_headers: ["ID", "LABEL", "TERMINAL", "WORKER"],
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "CONTEXT"],
-    terminal_list_headers: ["#", "HANDLE", "TITLE", "AGENT", "STATE", "CWD"],
+    terminal_list_headers: [
+        "HANDLE",
+        "TITLE",
+        "AGENT",
+        "STATE",
+        "WORKSPACE",
+        "PANEL",
+        "CWD",
+    ],
     agent_session: "Session",
     agent_provider: "Provider",
     agent_lifecycle: "Lifecycle",
@@ -4066,7 +4074,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     ],
     presentation_headers: ["ID", "LABEL", "终端", "WORKER"],
     terminal_headers: ["ID", "WORKER", "PRESENTATION", "PANEL", "TAB", "上下文"],
-    terminal_list_headers: ["序号", "句柄", "标题", "Agent", "状态", "目录"],
+    terminal_list_headers: ["句柄", "标题", "Agent", "状态", "工作区", "面板", "目录"],
     agent_session: "会话",
     agent_provider: "提供方",
     agent_lifecycle: "生命周期",

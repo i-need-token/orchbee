@@ -1127,9 +1127,10 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("panel:current", &["--panel", "--current", "--client"]),
     ("panel:process-info", &["--panel", "--current", "--client"]),
     #[cfg(not(windows))]
-    ("panel:list", &["--tab"]),
+    ("panel:list", &["--tab", "--workspace"]),
     #[cfg(windows)]
-    ("panel:list", &["--tab", "--client"]),
+    ("panel:list", &["--tab", "--workspace", "--client"]),
+    ("terminal:list", &["--workspace", "--tab", "--panel"]),
     #[cfg(windows)]
     ("panel:get", &["--client"]),
     (

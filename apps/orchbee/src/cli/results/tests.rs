@@ -394,6 +394,7 @@ fn tab_filter_hit_miss_and_ambiguity() {
     let projection = project(
         &QueryCommand::PanelList {
             tab: Some(Target::Id(hex(0x52))),
+            workspace: None,
         },
         &snapshot(),
     )
@@ -413,6 +414,7 @@ fn tab_filter_hit_miss_and_ambiguity() {
     // Ambiguous: "main" names a tab in each workspace context.
     let ambiguous = failure(&QueryCommand::PanelList {
         tab: Some(Target::Label("main".into())),
+        workspace: None,
     });
     assert_eq!(ambiguous.kind, FailureKind::Ambiguous);
     assert_eq!(details(&ambiguous)["resource"], json!("tab"));
@@ -421,6 +423,7 @@ fn tab_filter_hit_miss_and_ambiguity() {
     // Miss.
     let missed = failure(&QueryCommand::PanelList {
         tab: Some(Target::Label("ghost".into())),
+        workspace: None,
     });
     assert_eq!(missed.kind, FailureKind::NotFound);
     assert_eq!(details(&missed)["resource"], json!("tab"));
@@ -802,6 +805,7 @@ fn selector_filters_share_operand_semantics() {
     let projection = project(
         &QueryCommand::PanelList {
             tab: Some(Target::Selector("@tab:e1".into())),
+            workspace: None,
         },
         &snapshot,
     )
@@ -1972,4 +1976,74 @@ fn ambiguity_text_lists_candidate_handles_with_labels() {
         "{chinese}"
     );
     assert!(chinese.contains("共有 2 个"), "{chinese}");
+}
+
+/// `terminal list` filters resolve their member like the matching `get`:
+/// an absent member is not-found, an existing one may yield an empty list,
+/// and every row keeps location handles unique over the whole snapshot.
+#[test]
+fn terminal_list_filters_by_workspace_tab_and_panel() {
+    use crate::invocation::TerminalListFilter;
+    let snapshot = selector_snapshot();
+    let list = |filter| match project(&QueryCommand::TerminalList { filter }, &snapshot) {
+        Ok(Projection::TerminalList(doc)) => Ok(doc),
+        Ok(_) => panic!("terminal list"),
+        Err(failure) => Err(failure.kind),
+    };
+    let all = list(None).unwrap();
+    assert_eq!(all.rows.len(), all.details.len());
+    let standalone_tab = list(Some(TerminalListFilter::Tab(Target::Id(tid(0, 0xee))))).unwrap();
+    assert_eq!(
+        standalone_tab
+            .rows
+            .iter()
+            .map(|row| row.terminal_id.as_str())
+            .collect::<Vec<_>>(),
+        [tid(0, 0x210), tid(1, 0x1210)]
+    );
+    for details in &standalone_tab.details {
+        let placement = details.placement.as_ref().unwrap();
+        assert_eq!(placement.workspace, None);
+        assert!(placement.handle.starts_with("@terminal:"));
+        assert!(placement.panel.starts_with("@panel:"));
+    }
+    let panel = list(Some(TerminalListFilter::Panel(Target::Id(tid(1, 0xff))))).unwrap();
+    assert_eq!(panel.rows.len(), 1);
+    assert_eq!(panel.rows[0].terminal_id, tid(1, 0x1210));
+    // An existing Workspace without bound terminals is an empty success.
+    let empty = list(Some(TerminalListFilter::Workspace(Target::Id(tid(
+        0, 0xdd,
+    )))))
+    .unwrap();
+    assert!(empty.rows.is_empty());
+    assert_eq!(
+        list(Some(TerminalListFilter::Workspace(Target::Id(tid(
+            7, 0x77
+        )))))
+        .unwrap_err(),
+        FailureKind::NotFound
+    );
+    let Projection::PanelList(panels) = project(
+        &QueryCommand::PanelList {
+            tab: None,
+            workspace: Some(Target::Id(tid(0, 0xdd))),
+        },
+        &snapshot,
+    )
+    .unwrap() else {
+        panic!("panel list");
+    };
+    let workspace_context = snapshot
+        .navigation
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.workspace_id.as_str() == tid(0, 0xdd))
+        .unwrap()
+        .terminal_context_id
+        .clone();
+    assert!(
+        panels
+            .iter()
+            .all(|row| row.terminal_context_id == workspace_context.as_str())
+    );
 }

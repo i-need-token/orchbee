@@ -34,8 +34,7 @@ fn sampled_rows(rows: &[results::TerminalRow]) -> &[results::TerminalRow] {
     &rows[..rows.len().min(MAXIMUM_ENRICHED_TERMINALS)]
 }
 
-pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
-    let command = QueryCommand::TerminalList;
+pub(crate) fn run(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
     if format == OutputFormat::Json {
         // Keep the established machine path byte-for-byte and avoid optional
         // observations for callers that asked for identity JSON only.
@@ -53,7 +52,7 @@ pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
             );
         }
     };
-    let result = execute(deadline, &mut signals);
+    let result = execute(&command, deadline, &mut signals);
     let mut finalization = None;
     let result = match signals.finish() {
         Ok(Finish::Clear) => result,
@@ -74,16 +73,19 @@ pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
 }
 
 fn execute(
+    command: &QueryCommand,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<(serde_json::Value, Projection), Failure> {
     let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
     signals.check_before(deadline)?;
-    let Projection::TerminalList(rows) = results::project(&QueryCommand::TerminalList, &snapshot)?
+    let Projection::TerminalList(results::TerminalListDocument { rows, details }) =
+        results::project(command, &snapshot)
+            .map_err(|failure| failure.source(results::snapshot_source(&snapshot)))?
     else {
         return Err(Failure::new(FailureKind::InternalFailure));
     };
-    let details = observe_rows(&mut client, &snapshot, &rows, deadline, signals)?;
+    let details = observe_rows(&mut client, &snapshot, &rows, details, deadline, signals)?;
     let refreshed = query::refresh_snapshot(
         &mut client,
         &snapshot.site_id,
@@ -105,12 +107,13 @@ fn observe_rows(
     client: &mut LocalClient,
     snapshot: &Snapshot,
     rows: &[results::TerminalRow],
+    mut details: Vec<TerminalListDetails>,
     deadline: Instant,
     signals: &mut ArmedSignals,
 ) -> Result<Vec<TerminalListDetails>, Failure> {
     let sampled = sampled_rows(rows);
     let reports = read_reports(client, snapshot, sampled, deadline, signals)?;
-    let mut details = vec![TerminalListDetails::default(); rows.len()];
+    details.resize_with(rows.len(), TerminalListDetails::default);
 
     for (index, row) in sampled.iter().enumerate() {
         signals.check_before(deadline)?;

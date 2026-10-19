@@ -888,6 +888,14 @@ pub(crate) enum PanelQueryTarget {
     Client(WorkbenchClientId),
 }
 
+/// `terminal list` placement filter; the parser admits at most one.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum TerminalListFilter {
+    Workspace(Target),
+    Tab(Target),
+    Panel(Target),
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum QueryCommand {
     Status,
@@ -957,11 +965,14 @@ pub(crate) enum QueryCommand {
     TabGet(Target),
     PanelList {
         tab: Option<Target>,
+        workspace: Option<Target>,
     },
     PanelCurrent(PanelQueryTarget),
     PanelGet(Target),
     PanelProcessInfo(PanelQueryTarget),
-    TerminalList,
+    TerminalList {
+        filter: Option<TerminalListFilter>,
+    },
     TerminalGet(Target),
     TerminalRead {
         target: Target,
@@ -4231,13 +4242,28 @@ fn resolve_words(
                 UsageContext::Path("panel list"),
                 envelope,
             )?;
+            if options.tab.is_some() && options.workspace.is_some() {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context: UsageContext::Path("panel list"),
+                        first: "--tab",
+                        second: "--workspace",
+                    },
+                    envelope,
+                ));
+            }
             let tab = options
                 .tab
                 .clone()
                 .map(|value| target(value, Resource::Tab, envelope))
                 .transpose()?;
+            let workspace = options
+                .workspace
+                .clone()
+                .map(|value| target(value, Resource::Workspace, envelope))
+                .transpose()?;
             client_query(
-                QueryCommand::PanelList { tab },
+                QueryCommand::PanelList { tab, workspace },
                 options,
                 UsageContext::Path("panel list"),
                 envelope,
@@ -4367,8 +4393,41 @@ fn resolve_words(
             ))
         }
         ["terminal", "list"] => {
-            reject_filters(options, UsageContext::Path("terminal list"), envelope)?;
-            Ok(query(QueryCommand::TerminalList, options))
+            let context = UsageContext::Path("terminal list");
+            check_scope(options, TERMINAL_LIST_SCOPE, context, envelope)?;
+            let filters = [
+                (
+                    "--workspace",
+                    options.workspace.clone(),
+                    Resource::Workspace,
+                ),
+                ("--tab", options.tab.clone(), Resource::Tab),
+                ("--panel", options.panel.clone(), Resource::Panel),
+            ];
+            let mut given = filters.into_iter().filter_map(|(option, value, resource)| {
+                value.map(|value| (option, value, resource))
+            });
+            let filter = given.next();
+            if let (Some((first, ..)), Some((second, ..))) = (&filter, given.next()) {
+                return Err(usage_with(
+                    UsageReason::ConflictingOptions {
+                        context,
+                        first,
+                        second,
+                    },
+                    envelope,
+                ));
+            }
+            let filter = filter
+                .map(|(_option, value, resource)| {
+                    target(value, resource, envelope).map(|target| match resource {
+                        Resource::Workspace => TerminalListFilter::Workspace(target),
+                        Resource::Tab => TerminalListFilter::Tab(target),
+                        _ => TerminalListFilter::Panel(target),
+                    })
+                })
+                .transpose()?;
+            Ok(query(QueryCommand::TerminalList { filter }, options))
         }
         ["terminal", "get", value] => {
             reject_filters(options, UsageContext::Path("terminal get"), envelope)?;
@@ -5860,6 +5919,14 @@ const PANEL_CURRENT_SCOPE: Scope = Scope {
 const PANEL_LIST_SCOPE: Scope = Scope {
     client: cfg!(windows),
     tab: true,
+    workspace: true,
+    ..NO_OPTIONS
+};
+
+const TERMINAL_LIST_SCOPE: Scope = Scope {
+    workspace: true,
+    tab: true,
+    panel: true,
     ..NO_OPTIONS
 };
 

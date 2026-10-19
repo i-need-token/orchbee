@@ -19,7 +19,9 @@ use orchbee_workbench_protocol::{
 use serde_json::{Map, Value, json};
 
 use super::{Failure, FailureKind, target_details};
-use crate::invocation::{AgentWaitCondition, PanelQueryTarget, QueryCommand, Resource, Target};
+use crate::invocation::{
+    AgentWaitCondition, PanelQueryTarget, QueryCommand, Resource, Target, TerminalListFilter,
+};
 
 pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
     match command {
@@ -41,7 +43,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::PanelCurrent(_) => "orchbee.panel.current",
         QueryCommand::PanelGet(_) => "orchbee.panel.get",
         QueryCommand::PanelProcessInfo(_) => "orchbee.panel.process-info",
-        QueryCommand::TerminalList => "orchbee.terminal.list",
+        QueryCommand::TerminalList { .. } => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
         QueryCommand::TerminalRead { history, .. } | QueryCommand::AgentRead { history, .. } => {
             if history.is_some() {
@@ -320,10 +322,21 @@ pub(crate) struct TerminalRow {
 /// outside `TerminalRow`, whose identity fields define the stable JSON shape.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TerminalListDetails {
+    pub(crate) placement: Option<TerminalPlacement>,
     pub(crate) title: Option<String>,
     pub(crate) agent: Option<String>,
     pub(crate) state: Option<TerminalListState>,
     pub(crate) cwd: Option<String>,
+}
+
+/// Snapshot-derived location handles, each unique over every member of its
+/// kind so a filtered list still prints resolvable selectors.
+#[derive(Clone, Debug)]
+pub(crate) struct TerminalPlacement {
+    pub(crate) handle: String,
+    /// `None` for the standalone terminal context.
+    pub(crate) workspace: Option<String>,
+    pub(crate) panel: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -337,6 +350,17 @@ pub(crate) struct TerminalListDocument {
     pub(crate) rows: Vec<TerminalRow>,
     /// Aligned with `rows`; missing entries are rendered as unknown values.
     pub(crate) details: Vec<TerminalListDetails>,
+}
+
+impl TerminalListDocument {
+    /// Rows without placement or observation; text derives handles from them.
+    #[cfg(test)]
+    pub(crate) const fn bare(rows: Vec<TerminalRow>) -> Self {
+        Self {
+            rows,
+            details: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1141,7 +1165,7 @@ pub(crate) enum Projection {
     PanelList(Vec<PanelRow>),
     PanelGet(PanelDoc),
     PanelProcessInfo(PanelProcessInfoDoc),
-    TerminalList(Vec<TerminalRow>),
+    TerminalList(TerminalListDocument),
     /// Same identity document as `TerminalList`; the extra facts belong only
     /// to human text and never alter the machine result.
     TerminalListHuman(TerminalListDocument),
@@ -1547,10 +1571,7 @@ impl Projection {
                         .collect::<Vec<_>>(),
                 },
             }),
-            Self::TerminalList(rows) => json!({
-                "terminals": rows.iter().map(terminal_row_json).collect::<Vec<_>>(),
-            }),
-            Self::TerminalListHuman(doc) => json!({
+            Self::TerminalList(doc) | Self::TerminalListHuman(doc) => json!({
                 "terminals": doc.rows.iter().map(terminal_row_json).collect::<Vec<_>>(),
             }),
             Self::TerminalGet(doc) => {
@@ -2323,9 +2344,20 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                     .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
             }))
         }
-        QueryCommand::PanelList { tab } => {
-            let tabs: Vec<(&TerminalContext, &Tab)> = match tab {
-                Some(target) => {
+        QueryCommand::PanelList { tab, workspace } => {
+            let tabs: Vec<(&TerminalContext, &Tab)> = match (tab, workspace) {
+                (_, Some(target)) => {
+                    let context = resolve_workspace(snapshot, target)?
+                        .terminal_context_id
+                        .clone();
+                    snapshot
+                        .terminal_contexts
+                        .iter()
+                        .filter(|candidate| candidate.terminal_context_id == context)
+                        .flat_map(|context| context.tabs.iter().map(move |tab| (context, tab)))
+                        .collect()
+                }
+                (Some(target), None) => {
                     let resolved = resolve_or_fail(
                         snapshot.terminal_contexts.iter().flat_map(|context| {
                             context.tabs.iter().enumerate().map(move |(position, tab)| {
@@ -2341,7 +2373,7 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                     )?;
                     vec![resolved]
                 }
-                None => snapshot
+                (None, None) => snapshot
                     .terminal_contexts
                     .iter()
                     .flat_map(|context| context.tabs.iter().map(move |tab| (context, tab)))
@@ -2406,7 +2438,9 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
                 child_presentations: children,
             }))
         }
-        QueryCommand::TerminalList => Ok(Projection::TerminalList(terminal_rows(snapshot))),
+        QueryCommand::TerminalList { filter } => {
+            terminal_list(snapshot, &index, filter.as_ref()).map(Projection::TerminalList)
+        }
         QueryCommand::ApiSnapshot => Ok(Projection::ApiSnapshot(
             serde_json::to_value(WorkbenchProtocolDocument::Snapshot(snapshot.clone()))
                 .map_err(|_| Failure::new(FailureKind::InternalFailure))?,
@@ -2731,6 +2765,84 @@ fn panel_presentations(
 
 /// Every bound terminal exactly once, in canonical traversal order. Validation
 /// already guarantees bound terminal ids never repeat across the snapshot.
+/// Bound terminals, optionally inside one resolved Workspace, Tab or Panel,
+/// each with its location handles. A filter naming an absent member is
+/// not-found; an existing member without terminals is an empty list.
+fn terminal_list(
+    snapshot: &Snapshot,
+    index: &ContextIndex<'_>,
+    filter: Option<&TerminalListFilter>,
+) -> Result<TerminalListDocument, Failure> {
+    let all = terminal_rows(snapshot);
+    let panels = panel_entries(snapshot);
+    let keep: Box<dyn Fn(&TerminalRow) -> bool> = match filter {
+        None => Box::new(|_| true),
+        Some(TerminalListFilter::Workspace(target)) => {
+            let context = resolve_workspace(snapshot, target)?
+                .terminal_context_id
+                .as_str()
+                .to_owned();
+            Box::new(move |row| row.terminal_context_id == context)
+        }
+        Some(TerminalListFilter::Tab(target)) => {
+            let tab = resolve_or_fail(
+                snapshot.terminal_contexts.iter().flat_map(|context| {
+                    context.tabs.iter().enumerate().map(|(position, tab)| {
+                        (tab.tab_id.as_str(), tab.display_label(position), tab)
+                    })
+                }),
+                target,
+                Resource::Tab,
+            )?
+            .tab_id
+            .as_str()
+            .to_owned();
+            Box::new(move |row| row.tab_id == tab)
+        }
+        Some(TerminalListFilter::Panel(target)) => {
+            let panel = resolve_or_fail(
+                panels
+                    .iter()
+                    .map(|(id, _context, _tab)| (id.as_str(), "", id)),
+                target,
+                Resource::Panel,
+            )?
+            .as_str()
+            .to_owned();
+            Box::new(move |row| row.panel_id == panel)
+        }
+    };
+    let terminals = list_handles(
+        Resource::Terminal,
+        all.iter().map(|row| row.terminal_id.as_str()),
+    );
+    let workspaces = list_handles(
+        Resource::Workspace,
+        snapshot
+            .navigation
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.workspace_id.as_str()),
+    );
+    let panel_handles = list_handles(Resource::Panel, panels.iter().map(|(id, ..)| id.as_str()));
+    let rows: Vec<_> = all.iter().filter(|row| keep(row)).cloned().collect();
+    let details = rows
+        .iter()
+        .map(|row| TerminalListDetails {
+            placement: Some(TerminalPlacement {
+                handle: terminals[row.terminal_id.as_str()].clone(),
+                workspace: index
+                    .owners
+                    .get(row.terminal_context_id.as_str())
+                    .map(|(id, _label)| workspaces[id].clone()),
+                panel: panel_handles[row.panel_id.as_str()].clone(),
+            }),
+            ..TerminalListDetails::default()
+        })
+        .collect();
+    Ok(TerminalListDocument { rows, details })
+}
+
 pub(super) fn terminal_rows(snapshot: &Snapshot) -> Vec<TerminalRow> {
     let mut rows = Vec::new();
     for context in &snapshot.terminal_contexts {
