@@ -13,6 +13,15 @@ orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format jso
 可执行文件别名不成为额外 kind。目标是 Panel 的主终端。省略 `--panel` 或使用 `--current`
 要求有效调用者上下文。`--panel` 与 `--current` 冲突。重复的 `--arg=<value>` 可替代尾随参数，
 两种形式混用会被拒绝。保留空参数，拒绝控制字符，编码后命令不能超过 8000 个 ASCII 字符。
+帮助与无效值诊断列出完整的 `--kind` 取值集合。
+
+准入前，CLI 在启动期限内（至多 10000 毫秒）检查本机该 kind 的托管集成。缺少可执行文件时以
+`provider-not-found` 拒绝；集成为 `not-installed`、`disabled` 或 `update-required`，或适配器
+capsule 未发布时，以 `integration-not-enabled` 拒绝；`conflict` 或 `stale-side` 以
+`integration-blocked` 拒绝。这些均为 `check-failed`（退出码 1），不预留名称也不发送输入，
+诊断指出 `agent integration enable` 或 `agent integration explain`。预检绝不启用集成，因为那会
+修改提供方自己的配置。没有托管集成的 kind、仅手动管理、`unknown` 状态以及因预算截断的检查，
+继续交由 canonical 就绪判定。成功时，文本结果给出下一步 `agent prompt --name <name>`。
 
 完整读取为空后，[Agent 看板](agent-board.zh-CN.md)会运行固定 System32 `where.exe`，查询
 `agent_provider::executable()` 映射的命令。helper 不持有输出管道。固定本机进程创建与 suspended

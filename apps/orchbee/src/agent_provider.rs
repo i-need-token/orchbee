@@ -48,5 +48,15 @@ pub(crate) fn executable(canonical: &str) -> Option<&'static str> {
     })
 }
 
+/// The `agent integration --provider` identity that manages a canonical
+/// interactive identity, when a managed integration exists for it.
+pub(crate) fn integration_id(canonical: &str) -> Option<&'static str> {
+    let id = match canonical {
+        "antigravity" => "antigravity-cli",
+        other => other,
+    };
+    crate::agent_integrations::IntegrationId::parse(id).map(|id| id.as_str())
+}
+
 #[cfg(test)]
 mod tests;

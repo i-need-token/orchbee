@@ -1007,10 +1007,10 @@ impl Locale {
             }
             (Self::ZhCn, ExpectedValue::AgentStartTimeout) => "3001–300000 的十进制整数",
             (Self::EnUs, ExpectedValue::AgentStartProvider) => {
-                "a canonical interactive Agent provider id (for example codex or claude-code)"
+                "one of pi, claude-code, codex, gemini, cursor, devin, antigravity, cline, omp, mastracode, opencode, github-copilot, kimi, kiro, droid, amp, grok, hermes, kilo, qodercli, qwen-code, letta, maki, muse"
             }
             (Self::ZhCn, ExpectedValue::AgentStartProvider) => {
-                "交互式 Agent 的规范提供方 ID（如 codex 或 claude-code）"
+                "以下之一：pi、claude-code、codex、gemini、cursor、devin、antigravity、cline、omp、mastracode、opencode、github-copilot、kimi、kiro、droid、amp、grok、hermes、kilo、qodercli、qwen-code、letta、maki、muse"
             }
             (Self::EnUs, ExpectedValue::AgentStartArgument) => {
                 "an argument without control characters"
@@ -1750,6 +1750,35 @@ impl Locale {
             ),
         }
     }
+    /// One closing conclusion for provider readiness listings, plus the one
+    /// `agent integration` command that moves the first unready provider on.
+    pub(crate) fn cli_integration_summary(
+        self,
+        counts: [usize; 4],
+        next: Option<(&str, &str)>,
+    ) -> String {
+        let [ready, setup, attention, missing] = counts;
+        let mut out = match self {
+            Self::EnUs => format!(
+                "Summary: {ready} ready, {setup} need setup, {attention} need attention, {missing} not installed.\n"
+            ),
+            Self::ZhCn => format!(
+                "汇总：{ready} 个就绪，{setup} 个待设置，{attention} 个需处理，{missing} 个未安装。\n"
+            ),
+        };
+        if let Some((verb, provider)) = next {
+            out.push_str(&match self {
+                Self::EnUs => {
+                    format!("Next: orchbee agent integration {verb} --provider {provider}\n")
+                }
+                Self::ZhCn => {
+                    format!("下一步：orchbee agent integration {verb} --provider {provider}\n")
+                }
+            });
+        }
+        out
+    }
+
     pub(crate) fn cli_integration_capsule_line(self, summary: &str) -> String {
         match self {
             Self::EnUs => format!("Adapter capsule: {summary}\n"),
@@ -4280,9 +4309,41 @@ impl Locale {
     #[cfg(windows)]
     pub(crate) fn cli_agent_started(self, name: &str, session: &str) -> String {
         match self {
-            Self::EnUs => format!("Agent {name} is ready ({session}).\n"),
-            Self::ZhCn => format!("Agent {name} 已就绪（{session}）。\n"),
+            Self::EnUs => format!(
+                "Agent {name} is ready ({session}).\nNext: orchbee agent prompt --name {name} <text>\n"
+            ),
+            Self::ZhCn => format!(
+                "Agent {name} 已就绪（{session}）。\n下一步：orchbee agent prompt --name {name} <text>\n"
+            ),
         }
+    }
+
+    /// Local integration preflight refusals: nothing was reserved or sent, so
+    /// the copy is the cause plus the one command that resolves it.
+    fn cli_agent_start_preflight(self, reason: &str, provider: &str) -> Option<String> {
+        let integration = crate::agent_provider::integration_id(provider).unwrap_or(provider);
+        let executable = crate::agent_provider::executable(provider).unwrap_or(provider);
+        Some(match (self, reason) {
+            (Self::EnUs, "provider-not-found") => format!(
+                "The {executable} command for the {provider} Agent was not found on PATH; nothing was started. Install it, then retry.\n"
+            ),
+            (Self::ZhCn, "provider-not-found") => format!(
+                "PATH 中找不到 {provider} Agent 的命令 {executable}；未启动任何内容。请先安装再重试。\n"
+            ),
+            (Self::EnUs, "integration-not-enabled") => format!(
+                "The {integration} integration is not enabled, so Orchbee cannot confirm the Agent is ready; nothing was started. Run: orchbee agent integration enable --provider {integration}\n"
+            ),
+            (Self::ZhCn, "integration-not-enabled") => format!(
+                "{integration} 集成尚未启用，Orchbee 无法确认 Agent 就绪；未启动任何内容。请运行：orchbee agent integration enable --provider {integration}\n"
+            ),
+            (Self::EnUs, "integration-blocked") => format!(
+                "The {integration} integration cannot be managed in its current state; nothing was started. Inspect it with: orchbee agent integration explain --provider {integration}\n"
+            ),
+            (Self::ZhCn, "integration-blocked") => format!(
+                "{integration} 集成当前状态无法管理；未启动任何内容。请运行以下命令查看：orchbee agent integration explain --provider {integration}\n"
+            ),
+            _ => return None,
+        })
     }
 
     fn cli_agent_start_failure(self, failure: &Failure) -> String {
@@ -4314,6 +4375,10 @@ impl Locale {
                 Self::EnUs => "The target panel was not found. Run `orchbee panel list`, then pass an existing panel ID to --panel.\n",
                 Self::ZhCn => "未找到目标 Panel。请运行 `orchbee panel list`，再将现有 Panel ID 传给 --panel。\n",
             }.to_owned();
+        }
+        if let Some(message) = self.cli_agent_start_preflight(field("reason"), field("providerId"))
+        {
+            return message;
         }
         let message = match (self, field("reason")) {
             (Self::EnUs, "terminal-not-idle") => {
@@ -4371,10 +4436,10 @@ impl Locale {
         };
         let reservation = match (self, field("reservationState")) {
             (Self::EnUs, "pending" | "unknown") => {
-                " The name reservation may remain until expiry; `agent names` shows pending reservations."
+                " The name reservation may remain until it expires; if `orchbee agent names` lists it as pending, wait for it to expire before reusing the name."
             }
             (Self::ZhCn, "pending" | "unknown") => {
-                " 名称预留可能保留到到期；`agent names` 可查看尚未完成的预留。"
+                " 名称预留可能保留至到期；若 `orchbee agent names` 将其列为待定，请等其到期后再复用该名称。"
             }
             (Self::EnUs, "released") => " The name reservation was released.",
             (Self::ZhCn, "released") => " 名称预留已释放。",

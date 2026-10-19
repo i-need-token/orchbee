@@ -211,7 +211,17 @@ mod imp {
         override_path: Option<&Path>,
         cancel: Option<std::sync::Arc<dyn crate::termination_signal::TerminationSource>>,
     ) -> Result<IntegrationContext, ContextError> {
-        let deadline = Instant::now() + TOTAL_BUDGET;
+        context_before(override_path, cancel, Instant::now() + TOTAL_BUDGET)
+    }
+
+    /// `context` under a caller's earlier ceiling: a read-only consumer that
+    /// owns a shorter budget never inherits the full integration budget.
+    pub(crate) fn context_before(
+        override_path: Option<&Path>,
+        cancel: Option<std::sync::Arc<dyn crate::termination_signal::TerminationSource>>,
+        ceiling: Instant,
+    ) -> Result<IntegrationContext, ContextError> {
+        let deadline = ceiling.min(Instant::now() + TOTAL_BUDGET);
         let home = std::env::home_dir().ok_or(ContextError::NoHome)?;
         #[cfg(windows)]
         if !super::files::path_admitted(&home) {
@@ -338,6 +348,8 @@ mod imp {
 
 #[cfg(any(unix, windows))]
 pub(crate) use capsule::PAYLOAD_VERSION;
+#[cfg(windows)]
+pub(crate) use imp::context_before;
 #[cfg(any(unix, windows))]
 pub(crate) use imp::{
     AttemptedStep, CapsuleStatus, Direction, FailureCode, InspectionDetail, MutationReport,

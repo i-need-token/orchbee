@@ -371,8 +371,8 @@ impl Locale {
                 ),
                 "--kind" => (
                     "<provider>",
-                    "Agent provider to start.",
-                    "要启动的 Agent 提供方。",
+                    "Agent provider to start: pi, claude-code, codex, gemini, cursor, devin, antigravity, cline, omp, mastracode, opencode, github-copilot, kimi, kiro, droid, amp, grok, hermes, kilo, qodercli, qwen-code, letta, maki, muse.",
+                    "要启动的 Agent 提供方：pi、claude-code、codex、gemini、cursor、devin、antigravity、cline、omp、mastracode、opencode、github-copilot、kimi、kiro、droid、amp、grok、hermes、kilo、qodercli、qwen-code、letta、maki、muse。",
                 ),
                 "--label" => (
                     "<text>",

@@ -41,7 +41,7 @@ fn reserve(stream: &mut LocalStream) -> Value {
         panic!("reserve");
     };
     assert_eq!(name.as_str(), "alpha");
-    assert_eq!(provider_id.as_str(), "codex");
+    assert_eq!(provider_id.as_str(), "amp");
     assert!((3000..=30000).contains(&ttl_ms.value()));
     let reservation = json!({"reservationId":request.request_id(),"name":name,"providerId":provider_id,"binding":{"presentationId":presentation_id,"generation":GENERATION,"hostEpoch":host_epoch,"hostTerminalId":host_terminal_id},"remainingMs":ttl_ms,"settleRemainingMs":3000});
     respond(
@@ -129,7 +129,7 @@ fn run_with_timeout(
         "agent",
         "start",
         "alpha",
-        "--kind=codex",
+        "--kind=amp",
         "--panel",
         PANEL,
         "--format=json",
@@ -174,7 +174,7 @@ fn startup_observation_deadline_keeps_accepted_input_and_pending_reservation() {
             &mut stream,
             vec![
                 process(10, None, "cmd.exe"),
-                process(11, Some(10), "codex.exe"),
+                process(11, Some(10), "amp.exe"),
             ],
         );
         assert!(matches!(
@@ -198,7 +198,7 @@ fn startup_busy_terminal_and_name_conflict_never_type_input() {
         let (output, document) = run(move |mut stream| {
             bound_snapshot_reply(&mut stream);
             if busy {
-                process_reply(&mut stream, vec![process(10, None, "codex.exe")]);
+                process_reply(&mut stream, vec![process(10, None, "amp.exe")]);
             } else {
                 shell(&mut stream);
                 let request = request(&mut stream);
@@ -369,11 +369,11 @@ fn startup_binds_only_ready_matching_agent_and_keeps_unknown_commit_distinct() {
                 &mut stream,
                 vec![
                     process(10, None, "cmd.exe"),
-                    process(11, Some(10), "codex.exe"),
+                    process(11, Some(10), "amp.exe"),
                 ],
             );
             let mut detail = session_detail("sess-alpha");
-            detail["snapshot"]["providerId"] = json!("codex");
+            detail["snapshot"]["providerId"] = json!("amp");
             detail["snapshot"]["turn"] = json!({"kind":"idle"});
             detail["snapshot"]["pendingRequests"] = json!([]);
             detail["status"] = json!({"kind":"idle"});
@@ -415,5 +415,62 @@ fn startup_binds_only_ready_matching_agent_and_keeps_unknown_commit_distinct() {
         } else {
             assert_eq!(document["result"]["sessionId"], "sess-alpha");
         }
+    }
+}
+
+/// A managed provider whose executable is absent, or whose integration is not
+/// enabled, refuses locally before any Session contact: nothing is reserved or
+/// typed, and the diagnostic names the one command that resolves it.
+#[test]
+fn startup_preflight_refuses_unready_integration_before_any_session_contact() {
+    for (installed, reason, hint) in [
+        (false, "provider-not-found", "was not found on PATH"),
+        (
+            true,
+            "integration-not-enabled",
+            "orchbee agent integration enable --provider codex",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        let bin = fixture.0.join("bin");
+        let home = fixture.0.join("home");
+        let codex_home = home.join(".codex");
+        for directory in [&bin, &codex_home] {
+            std::fs::create_dir_all(directory).unwrap();
+        }
+        if installed {
+            std::fs::write(bin.join("codex.cmd"), b"@exit /b 1\r\n").unwrap();
+        }
+        let output = fixture.run_with_env(
+            &[
+                "agent",
+                "start",
+                "alpha",
+                "--kind=codex",
+                "--panel",
+                PANEL,
+                "--format=json",
+            ],
+            None,
+            None,
+            &[
+                ("PATH", bin.as_os_str()),
+                ("USERPROFILE", home.as_os_str()),
+                ("CODEX_HOME", codex_home.as_os_str()),
+            ],
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(1), "{reason}: {stderr}");
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        validate(
+            &document,
+            include_str!("../../src/cli/schemas/orchbee.cli.failure.agent-start.json"),
+        );
+        let details = &document["failure"]["details"];
+        assert_eq!(document["failure"]["kind"], "check-failed");
+        assert_eq!(details["reason"], reason);
+        assert_eq!(details["reservationState"], "none");
+        assert!(details["submission"].is_null());
+        assert!(stderr.contains(hint), "{reason}: {stderr}");
     }
 }

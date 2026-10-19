@@ -411,10 +411,7 @@ fn windows_source_read_aged_rows_repin_and_retry() {
             String::from_utf8_lossy(&output.stderr)
         );
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(
-            doc["result"]["content"]["text"],
-            "HEAD\nTAIL\n"
-        );
+        assert_eq!(doc["result"]["content"]["text"], "HEAD\nTAIL\n");
     }
 }
 

@@ -230,6 +230,17 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
             "{provider}"
         );
     }
+    // The invalid-value diagnostic and the option help both enumerate the
+    // complete closed `--kind` set from the provider registry.
+    let failure = parse(&["agent", "start", "alpha", "--kind=claude"]).unwrap_err();
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let stderr = crate::cli::parse_failure(failure.clone(), locale).stderr;
+        let (_, help) = locale.cli_help_option(super::CommandPath::AgentStart, "--kind");
+        for provider in crate::agent_provider::CANONICAL_IDS {
+            assert!(stderr.contains(provider), "{provider}: {stderr}");
+            assert!(help.contains(provider), "{provider}: {help}");
+        }
+    }
 }
 
 use orchbee_workbench_protocol::{

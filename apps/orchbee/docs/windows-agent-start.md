@@ -15,7 +15,19 @@ runtime recognition registry; executable aliases do not become additional kinds.
 is the Panel's primary terminal. Omitting `--panel`, or using `--current`, requires valid
 caller context. `--panel` and `--current` conflict. Repeated `--arg=<value>` is an alternative
 to trailing arguments; mixing both forms is refused. Empty arguments are retained, control
-characters are refused, and the encoded command must fit 8000 ASCII characters.
+characters are refused, and the encoded command must fit 8000 ASCII characters. Help and the
+invalid-value diagnostic list the complete `--kind` set.
+
+Before admission, the CLI inspects this machine's managed integration for the kind, bounded by
+the start deadline and at most 10000 ms. A missing executable refuses with `provider-not-found`;
+a `not-installed`, `disabled` or `update-required` integration, or an unpublished adapter capsule,
+refuses with `integration-not-enabled`; `conflict` or `stale-side` refuses with
+`integration-blocked`. These are `check-failed` (exit 1) with no reservation or input, and the
+diagnostic names `agent integration enable` or `agent integration explain`. The preflight never
+enables an integration, because that edits the provider's own configuration. Kinds without a
+managed integration, manual-only management, an `unknown` state and an inspection cut short by its
+budget proceed to canonical readiness. On success the text result names the
+`agent prompt --name <name>` next step.
 
 After a complete empty read, the [Agent board](agent-board.md) runs fixed System32 `where.exe`
 queries for the commands mapped by `agent_provider::executable()`. The helper owns no output pipe.

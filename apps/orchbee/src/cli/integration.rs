@@ -205,6 +205,9 @@ impl Prepared {
                     },
                 });
                 let mut text = list_text(&items, &capsule, locale);
+                if !outdated_only {
+                    text.push_str(&list_summary(&items, &capsule, locale));
+                }
                 if outdated_only {
                     document["result"]["outdatedOnly"] = json!(true);
                     document["result"]["inspectedCount"] = json!(inspected);
@@ -551,6 +554,37 @@ fn list_text(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale) ->
     let rows: Vec<Vec<String>> = items.iter().map(item_row).collect();
     out.push_str(&bounded_table(&labels.integration_headers, &rows));
     out
+}
+
+/// Classify each row once — ready, needs `enable`, needs `explain`, or not on
+/// PATH — and name the first provider an `enable` or `explain` would move on.
+/// Enabling also publishes an unready capsule.
+#[cfg(any(unix, windows))]
+fn list_summary(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale) -> String {
+    use crate::agent_integrations::model::Availability;
+    let mut counts = [0; 4];
+    let mut enable = None;
+    let mut explain = None;
+    for item in items {
+        let id = item.integration_id.as_str();
+        let slot = match (item.availability, item.state) {
+            (Availability::NotFound, _) => 3,
+            (_, State::Enabled) if capsule.ready => 0,
+            (_, State::Enabled | State::NotInstalled | State::Disabled | State::UpdateRequired) => {
+                enable.get_or_insert(id);
+                1
+            }
+            (_, State::Conflict | State::StaleSide | State::Unknown) => {
+                explain.get_or_insert(id);
+                2
+            }
+        };
+        counts[slot] += 1;
+    }
+    let next = enable
+        .map(|id| ("enable", id))
+        .or_else(|| explain.map(|id| ("explain", id)));
+    locale.cli_integration_summary(counts, next)
 }
 
 #[cfg(any(unix, windows))]

@@ -87,7 +87,10 @@
 								"already-named",
 								"not-ready",
 								"read-denied",
-								"manage-denied"
+								"manage-denied",
+								"provider-not-found",
+								"integration-not-enabled",
+								"integration-blocked"
 							]
 						},
 						"name": {

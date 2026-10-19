@@ -1,7 +1,6 @@
 //! Agent startup composes a name reservation, one terminal submission and
 //! canonical readiness. Every failure retains the independently known effects.
 
-#[cfg(any(not(windows), test))]
 use super::Failure;
 #[cfg(windows)]
 use super::output;
@@ -68,6 +67,18 @@ fn run_windows(command: &AgentStartCommand, format: OutputFormat, locale: Locale
             None,
         );
     }
+    let deadline = started + Duration::from_millis(u64::from(command.timeout_ms));
+    if let Some(failure) = integration_preflight(
+        request.provider.as_str(),
+        deadline.min(Instant::now() + PREFLIGHT_BUDGET),
+    ) {
+        return project(
+            Report::preflight(request, started, failure),
+            format,
+            locale,
+            None,
+        );
+    }
     let armed = match ArmedSignals::arm_interrupts() {
         Ok(armed) => armed,
         Err(_) => {
@@ -86,7 +97,6 @@ fn run_windows(command: &AgentStartCommand, format: OutputFormat, locale: Locale
             );
         }
     };
-    let deadline = started + Duration::from_millis(u64::from(command.timeout_ms));
     let mut report = match PanelTarget::prepare(command.panel.as_ref(), |name| {
         std::env::var_os(name)
     }) {
@@ -123,6 +133,45 @@ fn run_windows(command: &AgentStartCommand, format: OutputFormat, locale: Locale
     // boundary and keep the workflow's own settlement time.
     report.elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
     project(report, format, locale, finalization)
+}
+
+/// The local inspection never consumes more than this share of the start
+/// budget; an inspection it cuts short is inconclusive, not a refusal.
+#[cfg(windows)]
+const PREFLIGHT_BUDGET: Duration = Duration::from_secs(10);
+
+/// Refuse before any reservation or input when this machine's managed
+/// integration cannot report readiness for the provider: its executable is
+/// absent, its hooks are not enabled, or the adapter capsule is not published.
+/// An unmanaged provider, a manual-only platform or an inconclusive inspection
+/// leaves the decision to canonical readiness. Nothing here enables anything:
+/// enabling edits the provider's own configuration.
+#[cfg(windows)]
+fn integration_preflight(provider: &str, ceiling: Instant) -> Option<Failure> {
+    use crate::agent_integrations::{
+        IntegrationId, State,
+        model::{Availability, ManagementMode},
+    };
+    let id = IntegrationId::parse(crate::agent_provider::integration_id(provider)?)?;
+    let context = crate::agent_integrations::context_before(None, None, ceiling).ok()?;
+    let (items, capsule) = crate::agent_integrations::list(&context, Some(id));
+    let item = items.first()?;
+    if item.timed_out || item.management_mode != ManagementMode::ManagedLocal {
+        return None;
+    }
+    let reason = match (item.availability, item.state) {
+        (Availability::NotFound, _) => "provider-not-found",
+        (_, State::Conflict | State::StaleSide) => "integration-blocked",
+        (_, State::NotInstalled | State::Disabled | State::UpdateRequired) => {
+            "integration-not-enabled"
+        }
+        (_, State::Enabled) if !capsule.ready => "integration-not-enabled",
+        _ => return None,
+    };
+    Some(crate::agent_start::failure(
+        FailureKind::CheckFailed,
+        reason,
+    ))
 }
 
 #[cfg(windows)]

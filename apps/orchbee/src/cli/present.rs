@@ -1596,7 +1596,40 @@ pub(crate) fn agent_doctor(
             out.push("\n")?;
         }
     }
-    Ok(())
+    out.push(&doctor_summary(result, locale))
+}
+
+/// The closing conclusion: a provider is ready with both its executable and
+/// hook present; an installed provider whose hook is absent, disabled or
+/// outdated needs `enable`; any other hook state needs `explain`.
+#[cfg(any(target_os = "linux", windows))]
+fn doctor_summary(result: &Value, locale: Locale) -> String {
+    let mut counts = [0; 4];
+    let mut enable = None;
+    let mut explain = None;
+    for provider in result["providers"].as_array().into_iter().flatten() {
+        let id = provider["id"].as_str().unwrap_or_default();
+        let slot = match (
+            provider["executable"]["state"].as_str(),
+            provider["hook"]["state"].as_str(),
+        ) {
+            (Some("present"), Some("present")) => 0,
+            (Some("present"), Some("absent" | "disabled" | "update-required")) => {
+                enable.get_or_insert(id);
+                1
+            }
+            (Some("present"), _) => {
+                explain.get_or_insert(id);
+                2
+            }
+            _ => 3,
+        };
+        counts[slot] += 1;
+    }
+    let next = enable
+        .map(|id| ("enable", id))
+        .or_else(|| explain.map(|id| ("explain", id)));
+    locale.cli_integration_summary(counts, next)
 }
 
 /// Re-derives a hint's subject list from its `evidence` rows for localized
@@ -1742,5 +1775,36 @@ mod terminal_list_tests {
             truncate_terminal_cell("1234567\u{001b}x", 16),
             "1234567\\u{001b}x"
         );
+    }
+}
+
+#[cfg(all(test, any(target_os = "linux", windows)))]
+mod doctor_summary_tests {
+    use super::doctor_summary;
+    use crate::localization::Locale;
+    use serde_json::json;
+
+    #[test]
+    fn summary_counts_providers_and_names_the_first_enable_step() {
+        let row = |id: &str, executable: &str, hook: &str| {
+            json!({"id": id, "executable": {"state": executable}, "hook": {"state": hook}})
+        };
+        let result = json!({"providers": [
+            row("claude-code", "present", "present"),
+            row("codex", "present", "absent"),
+            row("grok", "present", "conflict"),
+            row("kilo", "absent", "absent"),
+        ]});
+        assert_eq!(
+            doctor_summary(&result, Locale::EnUs),
+            "Summary: 1 ready, 1 need setup, 1 need attention, 1 not installed.\nNext: orchbee agent integration enable --provider codex\n"
+        );
+        let result = json!({"providers": [row("grok", "present", "unknown")]});
+        assert!(
+            doctor_summary(&result, Locale::ZhCn)
+                .ends_with("下一步：orchbee agent integration explain --provider grok\n")
+        );
+        let result = json!({"providers": [row("codex", "present", "present")]});
+        assert!(!doctor_summary(&result, Locale::EnUs).contains("Next:"));
     }
 }
