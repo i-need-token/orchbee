@@ -828,3 +828,40 @@ fn popup_receipts_and_client_control_v9_keep_older_versions_closed() {
 }
 
 mod organization;
+
+/// Plain `api schema` lists the catalog; an ID, `--format json` or export still
+/// answers the machine documents.
+#[test]
+fn text_catalog_lists_every_schema_and_explicit_requests_keep_documents() {
+    use crate::{invocation::OutputFormat, localization::Locale};
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let output = super::read(None, OutputFormat::Text, locale);
+        assert_eq!(output.status, 0);
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(text.lines().count(), DOCUMENTS.len() + 2, "{text}");
+        assert!(text.starts_with(locale.cli_schema_catalog_headers()[0]));
+        assert!(text.ends_with(locale.cli_schema_catalog_footer()));
+        for (id, _) in DOCUMENTS {
+            assert!(
+                text.lines()
+                    .any(|line| line.split_whitespace().next() == Some(*id)),
+                "{id}"
+            );
+        }
+        assert!(
+            text.lines()
+                .any(|line| line.starts_with("orchbee.worktree.list ") && line.contains(" 2 ")),
+            "{text}"
+        );
+    }
+    let single = super::answer(
+        Some("orchbee.worktree.list"),
+        OutputFormat::Text,
+        Locale::EnUs,
+    );
+    let single: Value = serde_json::from_slice(&single.stdout).unwrap();
+    assert_eq!(
+        single["result"]["schema"]["schemaId"],
+        "orchbee.worktree.list"
+    );
+}

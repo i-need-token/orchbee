@@ -6,7 +6,7 @@ This guide describes user workflows for the Windows native CLI. Discover exact s
 
 Start with `orchbee --help`, then `orchbee <family> --help` and `orchbee <family> <command> --help`. A single help flag before `--` also works with already supplied operands and options, without executing them. Unknown options, missing values and duplicates still fail. `help <path>` accepts an exact help path. A bare `orchbee` starts the TUI.
 
-`--version`, `--skill`, `completion <shell>`, `api schema`, and Windows `--default-config` work offline. Completion supports Bash, Zsh, Fish, PowerShell and Elvish. Use `api schema <schema-id>` for the same build's machine contract, or add `--output <path>` to export it. Read the emitted `schema` and `version`; this guide does not pin catalog counts or historical versions.
+`--version`, `--skill`, `completion <shell>`, `api schema`, and Windows `--default-config` work offline. Completion supports Bash, Zsh, Fish, PowerShell and Elvish. `api schema` lists the schema IDs; use `api schema <schema-id>` for the same build's machine contract, or add `--output <path>` to export it. Read the emitted `schema` and `version`; this guide does not pin catalog counts or historical versions.
 
 For PowerShell, `orchbee completion powershell` prints the completion script.
 

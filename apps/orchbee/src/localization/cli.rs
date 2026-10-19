@@ -3797,11 +3797,11 @@ const HELP_API_SNAPSHOT_ZH: crate::localization::HelpDetails =
 
 const HELP_API_SCHEMA_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee api schema [<schema-id>] [--output <path>] [--format text|json]",
-    "Emit the embedded JSON Schema dictionary for every implemented command, or\nthe single schema for <schema-id>. Successful output is always JSON; unknown\nIDs are not-found, and failure envelopes require '--format json'.\nOn Windows, --output writes identical JSON to a literal file path, replacing\nan existing regular file only after complete preparation. Parent directories\nmust exist. The command stays offline and also emits the JSON on stdout.",
+    "Without <schema-id>, list every embedded schema ID with its versions and title.\nWith <schema-id>, emit that JSON Schema; --format json or --output emits the\ncomplete dictionary. Schema documents are always JSON; unknown IDs are\nnot-found, and failure envelopes require '--format json'.\nOn Windows, --output writes identical JSON to a literal file path, replacing\nan existing regular file only after complete preparation. Parent directories\nmust exist. The command stays offline and also emits the JSON on stdout.",
 );
 const HELP_API_SCHEMA_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee api schema [<schema-id>] [--output <path>] [--format text|json]",
-    "输出所有已实现命令的内嵌 JSON Schema 字典，或 <schema-id> 的单个 schema。成功输出始终为 JSON；未知 ID 为 not-found，失败封套需显式 '--format json'。\nWindows 的 --output 将相同 JSON 写入字面文件路径，完整准备后才替换已有普通文件。父目录必须存在；全程离线，stdout 同时输出该 JSON。",
+    "不带 <schema-id> 时列出每个内嵌 schema 的 ID、版本和标题；带 <schema-id> 时输出该 JSON Schema；--format json 或 --output 输出完整字典。schema 文档始终为 JSON；未知 ID 为 not-found，失败封套需显式 '--format json'。\nWindows 的 --output 将相同 JSON 写入字面文件路径，完整准备后才替换已有普通文件。父目录必须存在；全程离线，stdout 同时输出该 JSON。",
 );
 
 const HELP_CONFIG_CHECK_EN: crate::localization::HelpDetails =

@@ -6,7 +6,7 @@
 
 从 `orchbee --help` 开始，再查看 `orchbee <family> --help` 和 `orchbee <family> <command> --help`。`--` 前任意位置的单个帮助开关，也支持已填写的操作数和选项，且不会执行它们。未知选项、缺值和重复选项仍会失败。`help <path>` 接受精确帮助路径。裸 `orchbee` 会启动 TUI。
 
-`--version`、`--skill`、`completion <shell>`、`api schema` 和 Windows `--default-config` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
+`--version`、`--skill`、`completion <shell>`、`api schema` 和 Windows `--default-config` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
 
 PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 

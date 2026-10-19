@@ -2809,7 +2809,7 @@ Windows `project close-all <target> --confirm` explicitly closes captured member
 
 ## Windows offline schema export
 
-`api schema [<schema-id>] --output <path>` explicitly publishes the same complete JSON document that the command writes to stdout. It accepts `--format text|json` for failure presentation; successful stdout and file bytes remain identical JSON with a final newline. Omitting `--output` retains the existing read-only behavior.
+Text `api schema` without an ID lists the catalog: one row per schema ID with its versions and title, then how to read one schema or every document. `api schema <schema-id>`, `api schema --format json` and file export answer the JSON document. `api schema [<schema-id>] --output <path>` explicitly publishes the same complete JSON document that `api schema [<schema-id>] --format json` writes to stdout. It accepts `--format text|json` for failure presentation; successful stdout and file bytes remain identical JSON with a final newline. Omitting `--output` retains the existing read-only behavior.
 
 The parser admits a nonempty literal file path of at most 4,096 UTF-8 bytes, validates all arguments before effects, and never expands variables or a leading tilde. Relative paths resolve against the invoking process directory. Windows device names, alternate data streams and ambiguous drive-relative paths are refused. This does not select or start a Session, inspect runtime configuration, or use the network to obtain schemas. New Mac/Linux file-export runtimes are not included.
 

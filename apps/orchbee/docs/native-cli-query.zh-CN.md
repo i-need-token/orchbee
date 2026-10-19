@@ -2360,7 +2360,7 @@ Windows `project close-all <target> --confirm` 显式关闭一个 Project 捕获
 
 ## Windows 离线 schema 导出
 
-`api schema [<schema-id>] --output <path>` 显式发布与 stdout 完全相同的完整 JSON 文档。`--format text|json` 控制失败呈现；成功时 stdout 与文件字节均为带末尾换行的相同 JSON。省略 `--output` 时保留现有只读行为。
+不带 ID 的文本 `api schema` 列出目录：每个 schema ID 一行，含其版本和标题，再说明如何读取单个 schema 或全部文档。`api schema <schema-id>`、`api schema --format json` 和文件导出输出 JSON 文档。`api schema [<schema-id>] --output <path>` 显式发布与 `api schema [<schema-id>] --format json` 写入 stdout 完全相同的完整 JSON 文档。`--format text|json` 控制失败呈现；成功时 stdout 与文件字节均为带末尾换行的相同 JSON。省略 `--output` 时保留现有只读行为。
 
 解析器接受非空、不超过 4,096 UTF-8 字节的字面文件路径，在副作用前校验全部参数，不展开变量或前导波浪号。相对路径以调用进程目录为基准。拒绝 Windows 设备名、备用数据流和含糊的盘符相对路径。此命令不选择或启动 Session，不读取运行时配置，也不从网络获取 schema。本次不新增 Mac/Linux 文件导出运行时。
 

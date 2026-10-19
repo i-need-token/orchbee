@@ -116,6 +116,24 @@ impl Locale {
         }
     }
 
+    pub(crate) const fn cli_schema_catalog_headers(self) -> [&'static str; 3] {
+        match self {
+            Self::EnUs => ["SCHEMA", "VERSIONS", "DESCRIPTION"],
+            Self::ZhCn => ["SCHEMA", "版本", "说明"],
+        }
+    }
+
+    pub(crate) const fn cli_schema_catalog_footer(self) -> &'static str {
+        match self {
+            Self::EnUs => {
+                "One schema: orchbee api schema <schema-id>. Every document: orchbee api schema --format json.\n"
+            }
+            Self::ZhCn => {
+                "单个 schema：orchbee api schema <schema-id>。全部文档：orchbee api schema --format json。\n"
+            }
+        }
+    }
+
     /// The `workspace close-status` conclusion, keyed by the scope status.
     pub(crate) const fn cli_close_status_verdict(self, status: &str) -> &'static str {
         match (self, status.as_bytes()) {

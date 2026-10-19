@@ -536,9 +536,82 @@ fn document(schema_id: &str) -> Option<&'static str> {
         .map(|(_id, document)| *document)
 }
 
-/// `api schema` always answers a machine document on success, in either
-/// format. Its failures keep the caller's selected format like every other
-/// command: text/default keeps stdout empty, json emits the failure envelope.
+/// The versions one schema admits: `properties.version` as a constant or an
+/// enumeration, else the union of its top-level variants' constants.
+fn versions(document: &Value) -> Vec<u64> {
+    let own = |schema: &Value| -> Vec<u64> {
+        let version = &schema["properties"]["version"];
+        version["const"]
+            .as_u64()
+            .map(|version| vec![version])
+            .or_else(|| {
+                version["enum"]
+                    .as_array()
+                    .map(|values| values.iter().filter_map(Value::as_u64).collect())
+            })
+            .unwrap_or_default()
+    };
+    let mut versions = own(document);
+    for key in ["oneOf", "allOf"] {
+        for variant in document[key].as_array().into_iter().flatten() {
+            versions.extend(own(variant));
+        }
+    }
+    versions.sort_unstable();
+    versions.dedup();
+    versions
+}
+
+/// Text `api schema` without an ID: one row per schema with its versions and
+/// title, then where the documents themselves are.
+fn catalog(locale: Locale) -> Result<String, Failure> {
+    let mut rows = Vec::with_capacity(DOCUMENTS.len());
+    for (schema_id, document) in DOCUMENTS {
+        let document = serde_json::from_str::<Value>(document)
+            .map_err(|_| Failure::new(FailureKind::InternalFailure))?;
+        let versions = versions(&document);
+        rows.push(vec![
+            (*schema_id).to_owned(),
+            if versions.is_empty() {
+                "-".to_owned()
+            } else {
+                versions
+                    .iter()
+                    .map(u64::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            },
+            document["title"].as_str().unwrap_or("-").to_owned(),
+        ]);
+    }
+    let mut text = super::present::columns(&locale.cli_schema_catalog_headers(), &rows);
+    text.push_str(locale.cli_schema_catalog_footer());
+    Ok(text)
+}
+
+/// The `api schema` read: text without an ID lists the catalog instead of
+/// printing every document; anything else is the machine document.
+pub(crate) fn read(schema_id: Option<&str>, format: OutputFormat, locale: Locale) -> Output {
+    if schema_id.is_some() || format == OutputFormat::Json {
+        return answer(schema_id, format, locale);
+    }
+    match catalog(locale).and_then(|text| {
+        output::encode_text(&text).map_err(|_| Failure::new(FailureKind::OutputTooLarge))
+    }) {
+        Ok(stdout) => Output {
+            status: 0,
+            stdout,
+            stderr: String::new(),
+            finalization: None,
+        },
+        Err(failure) => failure_output(failure.source(embedded_source()), Some(format), locale),
+    }
+}
+
+/// The machine document, in either format: every schema, or the one named.
+/// File export always uses it. Failures keep the caller's selected format
+/// like every other command: text/default keeps stdout empty, json emits the
+/// failure envelope.
 pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Locale) -> Output {
     let caller = Some(format);
     let result = match schema_id {

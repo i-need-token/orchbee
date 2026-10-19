@@ -726,9 +726,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
         return workbench_query::run(&command, None, format, locale);
     }
     match &command {
-        QueryCommand::ApiSchema { schema_id } => {
-            schema::answer(schema_id.as_deref(), format, locale)
-        }
+        QueryCommand::ApiSchema { schema_id } => schema::read(schema_id.as_deref(), format, locale),
         QueryCommand::ConfigCheck => config::check(format, locale),
         // `agent doctor` is fully offline: it answers bounded filesystem
         // facts itself and never opens a session or touches the network
