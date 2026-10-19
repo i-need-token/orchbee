@@ -122,7 +122,7 @@ impl Picker {
                     row,
                 })
             });
-        let mut urgent = None;
+        let mut urgent: Option<Entry<'_>> = None;
         for candidate in crate::machine_agents::view::View::default().project_source(
             candidates,
             &self.current,

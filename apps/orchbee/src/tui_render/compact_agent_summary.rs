@@ -2,7 +2,8 @@
 use super::{Frame, Locale, Paragraph, Rect, Role, Span, Theme, display_width, truncate_display};
 use crate::machine_picker::{AgentSourceCoverage, CompactAgentSummary};
 
-const MIN_TAB_STRIP_CELLS: u16 = 7;
+// Four cells for creation, with eleven left for a readable active compact-tab token.
+const MIN_TAB_STRIP_CELLS: u16 = 15;
 const MAX_SUMMARY_CELLS: usize = 48;
 
 pub(super) fn render(
@@ -82,13 +83,13 @@ fn summary_text(
                 AgentSourceCoverage::Unavailable => Some(text("agent-summary-source-unavailable")),
             };
             if let Some(detail) = detail {
-                let full = format!("{full} · {detail}");
-                let short = format!("{short} · {detail}");
-                if display_width(&full) <= width {
-                    return append_detail(&full, row.title(), width, theme);
+                let full_with_detail = format!("{full} · {detail}");
+                let short_with_detail = format!("{short} · {detail}");
+                if display_width(&full_with_detail) <= width {
+                    return append_detail(&full_with_detail, row.title(), width, theme);
                 }
-                if display_width(&short) <= width {
-                    return append_detail(&short, row.title(), width, theme);
+                if display_width(&short_with_detail) <= width {
+                    return append_detail(&short_with_detail, row.title(), width, theme);
                 }
                 let marker = match coverage {
                     AgentSourceCoverage::Loading => "~",

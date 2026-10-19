@@ -23,28 +23,37 @@ fn paint(width: u16, summary: CompactAgentSummary<'_>, locale: Locale) -> (Strin
 }
 
 #[test]
-fn compact_widths_keep_the_status_distinct_and_leave_unused_cells_for_tabs() {
+fn compact_widths_preserve_status_and_readable_tab_space() {
     let mut row = crate::machine_agents::tests::row(61);
     row.state = PanelAgentState::Blocked;
-    for (width, expected) in [
-        (23, "Agent: Blocked!"),
-        (43, "source unavailable"),
-        (62, "Observed Agent: Blocked"),
+    for (width, expected, coverage) in [
+        (23, "Blocked!", AgentSourceCoverage::Unavailable),
+        (23, "Blocked~", AgentSourceCoverage::Loading),
+        (37, "Agent: Blocked · build", AgentSourceCoverage::Complete),
+        (53, "source unavailable", AgentSourceCoverage::Unavailable),
+        (
+            62,
+            "Observed Agent: Blocked",
+            AgentSourceCoverage::Unavailable,
+        ),
     ] {
         let (text, tabs) = paint(
             width,
             CompactAgentSummary::Observed {
                 row: &row,
-                coverage: AgentSourceCoverage::Unavailable,
+                coverage,
             },
             Locale::EnUs,
         );
         assert!(text.contains(expected), "{width}: {text:?}");
         assert!(tabs.width >= MIN_TAB_STRIP_CELLS, "{width}: {tabs:?}");
+        if width == 37 {
+            assert_eq!(tabs.width, MIN_TAB_STRIP_CELLS, "{width}: {tabs:?}");
+        }
     }
 
     let (text, tabs) = paint(23, CompactAgentSummary::Empty, Locale::EnUs);
-    assert_eq!(text, "Agent: None");
+    assert_eq!(text, "None");
     assert_eq!(usize::from(tabs.width) + display_width(&text), 23);
 }
 
@@ -124,7 +133,7 @@ fn narrow_summary_keeps_a_drawn_active_tab_target_after_create_space_is_reserved
                 tab: super::super::tabs::TabDisplay {
                     position: 1,
                     active: true,
-                    label: Cow::Borrowed("active tab"),
+                    label: Cow::Borrowed("Tab 1"),
                 },
                 group: None,
                 collapsed: false,
@@ -152,13 +161,16 @@ fn narrow_summary_keeps_a_drawn_active_tab_target_after_create_space_is_reserved
             );
         })
         .unwrap();
-    assert!(tabs_area.width >= MIN_TAB_STRIP_CELLS);
+    assert_eq!(tabs_area.width, MIN_TAB_STRIP_CELLS);
     assert_eq!(painted.len(), 1);
     assert!(!painted[0].is_empty());
     let buffer = terminal.backend().buffer();
+    let active_label = (painted[0].x..painted[0].right())
+        .map(|x| buffer[(x, painted[0].y)].symbol())
+        .collect::<String>();
+    assert!(active_label.contains("Tab 1"), "{active_label:?}");
     assert!((painted[0].x..painted[0].right()).any(|x| {
-        buffer
-            .get(x, painted[0].y)
+        buffer[(x, painted[0].y)]
             .style()
             .add_modifier
             .contains(Modifier::BOLD)
