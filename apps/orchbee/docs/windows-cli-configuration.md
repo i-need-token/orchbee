@@ -52,11 +52,13 @@ Catalog v142 publishes these extensions without adding schemas or command paths.
 
 ## Herdr configuration import
 
-Windows `orchbee config import-herdr --input-file <source> --output-file <destination>
-[--dry-run] [--format text|json]` converts only an explicitly named Herdr file into a new
-Orchbee candidate. It does not discover either application's configuration, connect to a Session,
-execute commands, or reload running Clients. `--machine` and `--session` are rejected. Both file
-operands are required, single-use, and never mean stdin; `-` is refused. Relative operands use
+Windows `orchbee config import-herdr [--input-file <source>] [--output-file <destination>]
+[--dry-run] [--format text|json]` converts one Herdr file into a new Orchbee candidate. An omitted
+`--input-file` selects `%APPDATA%\herdr\config.toml`; an omitted `--output-file` selects the file
+Orchbee reads, `ORCHBEE_CONFIG_FILE` or else `%APPDATA%\Orchbee\config.toml`, which must not exist
+yet. It does not connect to a Session, execute commands, or reload running Clients. `--machine` and
+`--session` are rejected. File operands are single-use and never mean stdin; `-` is refused.
+Relative operands use
 one captured caller directory, and tilde uses the existing Windows home adapter. The resolved
 ordinary local Windows paths reject UNC/device paths, alternate streams, device names, dot
 components, trailing dots/spaces and empty leaves. Source-relative settings use the resolved
@@ -65,9 +67,9 @@ source operand's parent, independently of the destination.
 The shared Windows settings owner admits one regular, non-reparse, single-link source handle
 with write/delete sharing disabled. It caps acquisition before decoding at 64 KiB and parses
 strict UTF-8 TOML. An unreadable, oversized, non-UTF-8 or syntactically invalid source is fatal.
-No `APPDATA`, `ORCHBEE_CONFIG_FILE` or `ORCHBEE_RESUME_AGENTS_ON_RESTORE` selection influences
-the import. Only the explicitly declared file operands and tilde expansion can use directory
-context or Windows home variables.
+`APPDATA` and `ORCHBEE_CONFIG_FILE` only select an omitted operand's default, and
+`ORCHBEE_RESUME_AGENTS_ON_RESTORE` never influences the import. Only the declared file operands
+and tilde expansion can use directory context or Windows home variables.
 
 ### Conversion model
 
@@ -159,7 +161,7 @@ The creation settings govern Windows CLI creation. The legacy explicit empty-Wor
 
 ## Check and correctness
 
-Windows `config check` version 13 extends the `user-config` check with the admitted warning list and omitted count. A warning result reports status `warning`, keeps the overall document successful and exits 0. Fatal file or environment admission reports status `fail` and exits 1. Versions 1 through 12 remain closed. The check reports the selected file, presence and normalized effective settings; fatal creation configuration continues to use the separate `orchbee.cli.failure.configuration` envelope. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
+Windows `config check` version 13 extends the `user-config` check with the admitted warning list and omitted count. A warning result reports status `warning`, keeps the overall document successful and exits 0. Fatal file or environment admission reports status `fail` and exits 1. Versions 1 through 12 remain closed. The check reports the selected file, presence and normalized effective settings, and text output ends with a `Config file:` line naming that file as a copyable path; fatal creation configuration continues to use the separate `orchbee.cli.failure.configuration` envelope. Failed source discovery stops configured-path creation before first-Project setup; no mutation is retried.
 
 The shared Windows settings reader owns bounded file inspection, deterministic field admission and normalization; the creation workflows own precedence and existing effect receipts. Reads have no writer or cached mutable state; the explicit reset operation below owns configuration repair. Core evidence covers malformed and duplicate TOML, field-local fallback, stable bounded warnings, relative/tilde paths, override precedence and pinned Herdr slug vectors. Windows public IPC traces cover effective launch cwd, configured checkout intent, failed discovery with no mutation, explicit path without discovery and unchanged no-file behavior. Full application acceptance remains a separate gate. Reference behavior: Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34`, `TerminalConfig`, `WorktreesConfig` and `default_checkout_path`.
 

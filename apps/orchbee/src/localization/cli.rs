@@ -4899,6 +4899,14 @@ impl super::Locale {
         }
     }
 
+    /// The configuration file `config check` read, as a copyable path.
+    pub(crate) fn cli_config_file_line(self, path: &str) -> String {
+        match self {
+            Self::EnUs => format!("Config file: {path}\n"),
+            Self::ZhCn => format!("配置文件：{path}\n"),
+        }
+    }
+
     pub(crate) const fn cli_current_panel_label(self) -> &'static str {
         match self {
             Self::EnUs => "Current panel",
@@ -4934,15 +4942,15 @@ const HELP_TERMINAL_SELECTION_ZH: crate::localization::HelpDetails =
 #[cfg(windows)]
 const HELP_CONFIG_IMPORT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]",
-        "Convert supported explicit Herdr settings into a new Orchbee file (Windows).\nBoth file operands are required. Relative paths use the caller directory;\n~ uses the current home. Directories inside the source use its parent.\nRead one regular UTF-8 TOML source, at most 64 KiB. Skip unsupported fields\nand report invalid fields without displaying their values. Existing targets\nare never overwritten. Creation requires an existing private local parent.\n--dry-run opens no destination; JSON preview alone includes candidateToml.\nA failed write retains the newly created file and reports recoveryRequired.\nInspect it before recovery; no deletion or retry is performed. A crash can\nleave a new file without a receipt. Select the new file with ORCHBEE_CONFIG_FILE\nfor a new Client; select the old file to roll back. No session discovery, launch,\nor reload; --session and --machine are rejected. Exit 0 on preview/creation,\n1 on failure, 2 on usage error.",
+        "orchbee config import-herdr [--input-file <path>] [--output-file <path>] [--dry-run] [--format text|json]",
+        "Convert supported explicit Herdr settings into a new Orchbee file (Windows).\n--input-file defaults to %APPDATA%\\herdr\\config.toml and --output-file to the\nfile Orchbee reads (ORCHBEE_CONFIG_FILE, else %APPDATA%\\Orchbee\\config.toml),\nwhich must not exist yet. Relative paths use the caller directory;\n~ uses the current home. Directories inside the source use its parent.\nRead one regular UTF-8 TOML source, at most 64 KiB. Skip unsupported fields\nand report invalid fields without displaying their values. Existing targets\nare never overwritten. Creation requires an existing private local parent.\n--dry-run opens no destination; JSON preview alone includes candidateToml.\nA failed write retains the newly created file and reports recoveryRequired.\nInspect it before recovery; no deletion or retry is performed. A crash can\nleave a new file without a receipt. Select the new file with ORCHBEE_CONFIG_FILE\nfor a new Client; select the old file to roll back. No session discovery, launch,\nor reload; --session and --machine are rejected. Exit 0 on preview/creation,\n1 on failure, 2 on usage error.",
     );
 
 #[cfg(windows)]
 const HELP_CONFIG_IMPORT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee config import-herdr --input-file SOURCE --output-file DEST [--dry-run] [--format text|json]",
-        "将 herdr 支持的显式设置转换为 Orchbee 新文件（Windows）。两个文件参数必填。相对路径以调用目录为基准；~ 使用当前用户主目录。来源中的目录以来源父目录为基准。仅读取一份普通 UTF-8 TOML 来源，最多 64 KiB。跳过不支持的字段；报告无效字段，不显示其值。绝不覆盖已有目标。创建要求已有的私有本地父目录。\n--dry-run 不打开目标；只有 JSON 预览包含 candidateToml。写入失败会保留本次新建的文件并报告 recoveryRequired。恢复前检查该文件；不删除或重试。崩溃可能留下没有回执的新文件。用 ORCHBEE_CONFIG_FILE 为新 Client 选择新文件；选择旧文件即可回退。不查找、启动或重载会话；拒绝 --session 和 --machine。预览或创建成功退出 0，失败退出 1，用法错误退出 2。",
+        "orchbee config import-herdr [--input-file <path>] [--output-file <path>] [--dry-run] [--format text|json]",
+        "将 herdr 支持的显式设置转换为 Orchbee 新文件（Windows）。--input-file 默认为 %APPDATA%\\herdr\\config.toml，--output-file 默认为 Orchbee 读取的文件（ORCHBEE_CONFIG_FILE，否则为 %APPDATA%\\Orchbee\\config.toml），该文件必须尚不存在。相对路径以调用目录为基准；~ 使用当前用户主目录。来源中的目录以来源父目录为基准。仅读取一份普通 UTF-8 TOML 来源，最多 64 KiB。跳过不支持的字段；报告无效字段，不显示其值。绝不覆盖已有目标。创建要求已有的私有本地父目录。\n--dry-run 不打开目标；只有 JSON 预览包含 candidateToml。写入失败会保留本次新建的文件并报告 recoveryRequired。恢复前检查该文件；不删除或重试。崩溃可能留下没有回执的新文件。用 ORCHBEE_CONFIG_FILE 为新 Client 选择新文件；选择旧文件即可回退。不查找、启动或重载会话；拒绝 --session 和 --machine。预览或创建成功退出 0，失败退出 1，用法错误退出 2。",
     );
 
 const HELP_WORKSPACE_MOVE_BLOCK_EN: crate::localization::HelpDetails =

@@ -116,6 +116,7 @@ pub(crate) fn root(locale: Locale) -> String {
         footer: vec![
             locale.cli_help_text(HelpText::Descend).into(),
             locale.cli_help_text(HelpText::FormatScope).into(),
+            locale.cli_help_text(HelpText::ConfigLocation).into(),
         ],
     })
 }

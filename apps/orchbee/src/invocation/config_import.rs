@@ -1,14 +1,16 @@
-//! Explicit offline import grammar; validation performs no file, environment or runtime reads.
+//! Offline import grammar; validation performs no file, environment or runtime reads.
+//! Omitted operands select the standard Herdr and Orchbee paths at run time.
 use super::{
     ExpectedValue, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
-    Scope, UsageContext, UsageReason, check_scope, missing_required, usage_with,
+    Scope, UsageContext, UsageReason, check_scope, usage_with,
 };
 
-/// Explicit source/destination operands after pure ordinary-file syntax admission.
+/// Source/destination operands after pure ordinary-file syntax admission;
+/// `None` selects the standard location.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Command {
-    pub(crate) input_file: String,
-    pub(crate) output_file: String,
+    pub(crate) input_file: Option<String>,
+    pub(crate) output_file: Option<String>,
     pub(crate) dry_run: bool,
 }
 
@@ -27,9 +29,9 @@ pub(super) fn request(
         envelope,
     )?;
     let operand = |name, value: &Option<String>| {
-        let raw = value
-            .as_ref()
-            .ok_or_else(|| missing_required(context, name, envelope))?;
+        let Some(raw) = value.as_ref() else {
+            return Ok(None);
+        };
         if !orchbee_local_site_runtime::valid_windows_herdr_file_operand(raw) {
             return Err(usage_with(
                 UsageReason::InvalidValue {
@@ -41,7 +43,7 @@ pub(super) fn request(
                 envelope,
             ));
         }
-        Ok(raw.clone())
+        Ok(Some(raw.clone()))
     };
     Ok(Request::ConfigImport {
         command: Command {

@@ -1404,7 +1404,7 @@ fn panel_doc(out: &mut Bounded, doc: &PanelDoc, text: &CliLabels) -> Result<(), 
 pub(crate) fn config_checks(
     out: &mut Bounded,
     checks: &[CheckReport],
-    _locale: Locale,
+    locale: Locale,
 ) -> Result<(), TooLarge> {
     for check in checks {
         out.write(format_args!("{:<18}{}", check.name, check.status))?;
@@ -1413,6 +1413,14 @@ pub(crate) fn config_checks(
             detail(out, value)?;
         }
         out.push("\n")?;
+    }
+    if let Some(path) = checks
+        .iter()
+        .find(|check| check.name == "user-config")
+        .and_then(|check| check.details.get("path"))
+        .and_then(Value::as_str)
+    {
+        out.push(&locale.cli_config_file_line(&unquoted(path)))?;
     }
     Ok(())
 }

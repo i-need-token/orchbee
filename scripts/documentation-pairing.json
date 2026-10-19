@@ -338,8 +338,8 @@
 			"zhCnSha256": "1e81fd7e66cf3fbabad57497dc5ebbd3712c673f9225aed2333c357c6115f3ae"
 		},
 		"apps/orchbee/docs/windows-cli-configuration.md": {
-			"englishSha256": "cdea8f5e9bf2c98a9ae064c8ce5cc3727b998371c5c17ab52ac5a84897f0caec",
-			"zhCnSha256": "8e3cf2b2a1e8f93de2656a52bbb284d5b31d1da0e1ee7cd46878b7ce3388a5a4"
+			"englishSha256": "b0c147901f5eba341365b40d44a3c47abfa98a47fbfd656c4bff9fc3c879101c",
+			"zhCnSha256": "d98022eaa6a71b1ae8039fb545581cde09c1b263b02e32f88d3249a0ef8ad35b"
 		},
 		"apps/orchbee/docs/windows-client-control.md": {
 			"englishSha256": "d8b380fa28eb40a9181a8d776e3a3edb292b0a6a8ae7e803db0bcacb5ef0c031",

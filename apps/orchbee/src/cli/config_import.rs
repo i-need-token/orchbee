@@ -21,8 +21,27 @@ pub(crate) struct Receipt<'a> {
     pub(crate) error: Option<(&'static str, &'static str)>,
 }
 
+/// Herdr's standard settings file under the roaming application data root.
+fn default_source() -> Option<String> {
+    let root = std::env::var_os("APPDATA")?;
+    let root = root.to_str()?;
+    Some(format!(
+        "{}\\herdr\\config.toml",
+        root.trim_end_matches(['\\', '/'])
+    ))
+}
+
+/// The file Orchbee itself reads: ORCHBEE_CONFIG_FILE, else the standard path.
+fn default_destination() -> Option<String> {
+    orchbee_local_site_runtime::windows_user_settings_path(|name| std::env::var_os(name))
+        .ok()
+        .flatten()
+        .and_then(|path| path.to_str().map(str::to_owned))
+}
+
 pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Output {
-    // Capture one caller context, never consult Site/config-selection variables.
+    // Capture one caller context. Only an omitted operand consults the
+    // standard Herdr and Orchbee locations; no Site is discovered.
     let cwd = std::cell::OnceCell::new();
     let directory = || {
         cwd.get_or_init(|| std::env::current_dir().ok())
@@ -46,7 +65,15 @@ pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Ou
         created: false,
         error: None,
     };
-    let source = match normalize_windows_herdr_file_operand(&command.input_file, &env, directory) {
+    let Some(input) = command.input_file.clone().or_else(default_source) else {
+        receipt.error = Some(("source", "invalid-path"));
+        return emit(&receipt, format, locale);
+    };
+    let Some(output) = command.output_file.clone().or_else(default_destination) else {
+        receipt.error = Some(("destination", "invalid-path"));
+        return emit(&receipt, format, locale);
+    };
+    let source = match normalize_windows_herdr_file_operand(&input, &env, directory) {
         Ok(path) => path,
         Err(error) => {
             receipt.error = Some(("source", error.reason));
@@ -54,14 +81,13 @@ pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Ou
         }
     };
     receipt.source = Some(&source);
-    let destination =
-        match normalize_windows_herdr_file_operand(&command.output_file, &env, directory) {
-            Ok(path) => path,
-            Err(error) => {
-                receipt.error = Some(("destination", error.reason));
-                return emit(&receipt, format, locale);
-            }
-        };
+    let destination = match normalize_windows_herdr_file_operand(&output, &env, directory) {
+        Ok(path) => path,
+        Err(error) => {
+            receipt.error = Some(("destination", error.reason));
+            return emit(&receipt, format, locale);
+        }
+    };
     receipt.destination = Some(&destination);
     let text = match read_windows_herdr_source(Path::new(&source)) {
         Ok(text) => text,

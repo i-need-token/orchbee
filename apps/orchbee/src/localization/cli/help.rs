@@ -810,6 +810,7 @@ pub(crate) enum HelpText {
     DefaultConfig,
     Descend,
     FormatScope,
+    ConfigLocation,
     Reference,
     Completion,
     CompletionExample,
@@ -881,6 +882,21 @@ impl Locale {
             HelpText::FormatScope => (
                 "Use --format text|json where supported; see each command for its output form.",
                 "支持时可使用 --format text|json；输出形式见具体命令帮助。",
+            ),
+            #[cfg(windows)]
+            HelpText::ConfigLocation => (
+                "Config: %APPDATA%\\Orchbee\\config.toml; ORCHBEE_CONFIG_FILE overrides it. `orchbee config check` shows the file in use. Orchbee writes no log file; `orchbee server diagnose` reports runtime facts.",
+                "配置：%APPDATA%\\Orchbee\\config.toml；ORCHBEE_CONFIG_FILE 可覆盖。`orchbee config check` 显示正在使用的文件。Orchbee 不写日志文件；`orchbee server diagnose` 报告运行时事实。",
+            ),
+            #[cfg(target_os = "macos")]
+            HelpText::ConfigLocation => (
+                "Config: ~/Library/Application Support/Orchbee/config.toml; ORCHBEE_CONFIG_FILE overrides it. `orchbee config check` shows the file in use. Orchbee writes no log file; `orchbee server diagnose` reports runtime facts.",
+                "配置：~/Library/Application Support/Orchbee/config.toml；ORCHBEE_CONFIG_FILE 可覆盖。`orchbee config check` 显示正在使用的文件。Orchbee 不写日志文件；`orchbee server diagnose` 报告运行时事实。",
+            ),
+            #[cfg(not(any(windows, target_os = "macos")))]
+            HelpText::ConfigLocation => (
+                "Config: $XDG_CONFIG_HOME/Orchbee/config.toml (default ~/.config); ORCHBEE_CONFIG_FILE overrides it. `orchbee config check` shows the file in use. Orchbee writes no log file; `orchbee server diagnose` reports runtime facts.",
+                "配置：$XDG_CONFIG_HOME/Orchbee/config.toml（默认 ~/.config）；ORCHBEE_CONFIG_FILE 可覆盖。`orchbee config check` 显示正在使用的文件。Orchbee 不写日志文件；`orchbee server diagnose` 报告运行时事实。",
             ),
             HelpText::Reference => (
                 "Offline guide: orchbee --skill. Command help: orchbee help <command>.",

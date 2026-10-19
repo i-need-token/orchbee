@@ -6,11 +6,34 @@ fn parse(args: &[&str]) -> Result<Request, ParseFailure> {
 }
 
 #[test]
-fn import_requires_both_explicit_files_and_rejects_runtime_or_extra_options() {
+fn import_defaults_omitted_files_and_rejects_runtime_or_extra_options() {
+    for (args, input, output) in [
+        (vec!["config", "import-herdr"], None, None),
+        (
+            vec!["config", "import-herdr", "--input-file", "source.toml"],
+            Some("source.toml"),
+            None,
+        ),
+        (
+            vec!["config", "import-herdr", "--output-file", "new.toml"],
+            None,
+            Some("new.toml"),
+        ),
+    ] {
+        assert_eq!(
+            parse(&args).unwrap(),
+            Request::ConfigImport {
+                command: Command {
+                    input_file: input.map(str::to_owned),
+                    output_file: output.map(str::to_owned),
+                    dry_run: false,
+                },
+                format: OutputFormat::Text,
+            },
+            "{args:?}"
+        );
+    }
     for invalid in [
-        vec!["config", "import-herdr"],
-        vec!["config", "import-herdr", "--input-file", "source.toml"],
-        vec!["config", "import-herdr", "--output-file", "new.toml"],
         vec![
             "config",
             "import-herdr",
@@ -84,8 +107,8 @@ fn import_requires_both_explicit_files_and_rejects_runtime_or_extra_options() {
         .unwrap(),
         Request::ConfigImport {
             command: Command {
-                input_file: "source.toml".into(),
-                output_file: "new.toml".into(),
+                input_file: Some("source.toml".into()),
+                output_file: Some("new.toml".into()),
                 dry_run: true
             },
             format: OutputFormat::Json,

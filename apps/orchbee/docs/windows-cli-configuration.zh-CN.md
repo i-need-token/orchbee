@@ -47,18 +47,20 @@ manifest_check = true
 
 ## Herdr 配置导入
 
-Windows `orchbee config import-herdr --input-file <source> --output-file <destination>
-[--dry-run] [--format text|json]` 只把显式指定的 Herdr 文件转换为新的 Orchbee 候选配置。
-它不发现任一应用的配置、不连接 Session、不执行命令、不重载运行中的 Client。拒绝
-`--machine` 和 `--session`。两个文件参数均为必填、单次使用，绝不代表 stdin，拒绝 `-`。
+Windows `orchbee config import-herdr [--input-file <source>] [--output-file <destination>]
+[--dry-run] [--format text|json]` 把一个 Herdr 文件转换为新的 Orchbee 候选配置。省略
+`--input-file` 时选择 `%APPDATA%\herdr\config.toml`；省略 `--output-file` 时选择 Orchbee
+读取的文件，即 `ORCHBEE_CONFIG_FILE`，否则为 `%APPDATA%\Orchbee\config.toml`，该文件必须尚不存在。
+它不连接 Session、不执行命令、不重载运行中的 Client。拒绝 `--machine` 和 `--session`。
+文件参数单次使用，绝不代表 stdin，拒绝 `-`。
 相对参数使用一次捕获的调用者目录，波浪线使用现有 Windows 主目录适配器。解析后的普通
 本地 Windows 路径拒绝 UNC/设备路径、备用数据流、设备名、点路径段、尾点/空格及空叶名。
 源相对设置使用已解析源参数的父目录，与目标位置无关。
 
 共享 Windows 设置 owner 用一个普通、非 reparse、单硬链接的源文件句柄接纳快照，读取期间
 不共享写入/删除。解码前限制为 64 KiB，再严格解析 UTF-8 TOML。源不可读、过大、非 UTF-8
-或语法错误均致命。导入不受 `APPDATA`、`ORCHBEE_CONFIG_FILE` 或
-`ORCHBEE_RESUME_AGENTS_ON_RESTORE` 的选择影响。只有明确记录的文件参数和波浪线展开
+或语法错误均致命。`APPDATA` 和 `ORCHBEE_CONFIG_FILE` 只用于选择省略参数的默认值，
+`ORCHBEE_RESUME_AGENTS_ON_RESTORE` 绝不影响导入。只有声明的文件参数和波浪线展开
 能够使用目录上下文或 Windows 主目录变量。
 
 ### 转换模型
@@ -141,7 +143,7 @@ profile 省略并报告；非法已知动作写为空绑定数组，仅禁用该
 
 ## 检查与正确性
 
-Windows `config check` 版本 13 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。版本 1 至 12 保持封闭。检查报告选定文件、存在状态和规范化有效配置；致命的创建配置继续使用独立的 `orchbee.cli.failure.configuration` 信封。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
+Windows `config check` 版本 13 为 `user-config` 检查增加已接纳的警告列表和省略数量。带警告的结果使用 `warning` 状态，整体文档仍成功并以 0 退出。致命文件或环境接纳错误使用 `fail` 状态并以 1 退出。版本 1 至 12 保持封闭。检查报告选定文件、存在状态和规范化有效配置，文本输出以一行 `Config file:` 结尾，以可复制路径给出该文件；致命的创建配置继续使用独立的 `orchbee.cli.failure.configuration` 信封。来源发现失败会在首个 Project 创建前停止配置路径创建，不重试修改。
 
 共享 Windows 设置读取器拥有有界文件检查、确定性的逐字段接纳和规范化；创建流程拥有优先级及已有副作用回执。读取没有写入器或可变缓存状态；下述显式恢复操作负责配置修复。核心证据覆盖格式错误和重复 TOML、字段局部回退、稳定且有界的警告、相对及波浪线路径、覆盖优先级和固定 Herdr 的目录名向量。Windows 公开 IPC 轨迹覆盖有效启动 cwd、配置检出意图、发现失败后无修改、显式路径不查询及无文件时行为不变。完整应用验收为独立关卡。参考行为：Herdr `e0507237ad8d41f60aece10d00ef29ce2339ca34` 的 `TerminalConfig`、`WorktreesConfig` 和 `default_checkout_path`。
 
