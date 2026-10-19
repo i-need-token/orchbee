@@ -65,7 +65,11 @@ Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，�
 
 `agent start review --kind codex --panel <panel-id>` 在已观察到空闲的 cmd、PowerShell 或 pwsh 终端启动，并等待验证后的就绪。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并用 `agent names` 查看待完成预留。
 
-`agent list/get/explain` 检查规范事实。`agent rename <target> <name>` 分配运行时别名；`agent resolve` 与 `agent names` 检查绑定，`agent rename <target> --clear` 释放别名。别名随会话结束而失效。之后复用别名不会改变已开始等待的原始目标。
+`agent list/get/explain` 检查当前 Agent 状态。Windows 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows JSON 使用 `orchbee.agent.list` v2 和 `orchbee.agent.get` v19。Windows 列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 Site、来源修订、筛选条件和 Client 选择。旧游标或过期游标需要重新开始列表。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
+
+Windows 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；不完整投影不能证明提供方匹配唯一。v19 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
+
+`agent rename <target> <name>` 分配运行时别名；`agent resolve` 与 `agent names` 检查绑定，`agent rename <target> --clear` 释放别名。别名随会话结束而失效。之后复用别名不会改变已开始等待的原始目标。
 
 `agent prompt <target> <text> --wait` 提交字面输入，并在检查条件前观察活动。`agent wait` 只观察。Windows 默认没有总时限，条件为 idle/done/blocked；自动化应指定有限时限。新鲜度、待处理关注和已有工作影响准入。匹配状态不证明某条 prompt 的专属回合已完成。取消等待不会撤销已接受的输入，也不会停止 Agent。
 

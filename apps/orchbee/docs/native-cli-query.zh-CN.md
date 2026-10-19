@@ -30,13 +30,13 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 
 ## 独立 Agent 状态的 Schema 版本
 
-当前输出将实际 Agent 状态与 Client 已读确认分开。显式终端 `done`／`error`、`error` 投影状态及元数据状态标签使用下列新版本；目录版本为 147。既有文档版本保留原来的封闭词汇，不接纳新增状态。未列出的平台或变体保持其既有版本。下表规定当前输出版本，后文保留各字段引入时的背景。
+当前输出将实际 Agent 状态与 Client 已读确认分开。Windows Agent List 和 Get 现使用合并 Agent 投影；内嵌目录版本为 148。其他平台保留当前规范 Agent 文档。后文可能介绍历史形状的引入；下表规定当前输出版本。
 
 | 命令                                        | 版本        | 适用变体                                       |
 | ------------------------------------------- | ----------- | ---------------------------------------------- |
 | `agent explain`                             | 4/5         | 物理观测／清单诊断                             |
-| `agent get`                                 | 17/18/19/20 | 规范／带 Client 的规范／终端／带 Client 的终端 |
-| `agent list`                                | 3           | 所选 Client 投影                               |
+| `agent get`                                 | Windows 19；其他平台 1/2 | 统一投影／规范文档 |
+| `agent list`                                | Windows 2；其他平台 1   | 合并投影／规范文档 |
 | `agent wait; agent prompt`                  | 7/8/9/10    | 规范／带 Client 的规范／终端／带 Client 的终端 |
 | `agent view`                                | 2           | 来源所有的过滤回执                             |
 | `events stream; events wait`                | 3           | 物理 Agent 事件词汇                            |
@@ -48,7 +48,7 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 
 ## 当前 CLI 发现与平台契约
 
-补全将本地 `--session` 选择与 Agent 会话选择器分开。Windows POSIX Shell 适配器使用与 PowerShell、Elvish 相同的静态语法筛选远端 `--machine` 路径，覆盖嵌套命令族和根级数据命令。输入已知选项与操作数后，仍可发现后缀 `--help`；不支持的路由、重复选项及已终止的选项不会重新获得候选项。
+补全将本地 `--session` 选择与 Agent 会话选择器分开。Windows 上，get/read/prompt/send-keys/wait/focus 在目标前提供静态 `@agent:<kind>` 提供方别名；不会查询运行时状态，也不会编造序号候选项。Windows POSIX Shell 适配器使用与 PowerShell、Elvish 相同的静态语法筛选远端 `--machine` 路径，覆盖嵌套命令族和根级数据命令。输入已知选项与操作数后，仍可发现后缀 `--help`；不支持的路由、重复选项及已终止的选项不会重新获得候选项。
 
 Snapshot v7 与 Tab Get v7 接纳规范的可选分隔比例 `ratio`（0.1–0.9）；省略表示 0.5。Snapshot v6 与 Tab Get v5/v6 保留原来的封闭树。Windows Agent Doctor v4 覆盖全部 20 个提供方；v1–v3 保留 14 行上限。
 
@@ -478,10 +478,10 @@ Windows 终端名称要求真实的上报、进程识别或保留 provider 身�
 后续 Hook 到达不会悄悄把终端别名转为 canonical 会话别名。
 
 终端目标 resolve/list 使用 version 3，rename/clear 使用 version 2，混合目标重名失败使用
-version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Windows `agent get` 不带
-`--client` 时返回 version 15 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
+version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。统一投影之前，Windows `agent get` 不带
+`--client` 时曾返回 version 15 `terminal-found`，包含精确目标、实际帧／进程／主 Panel 报告
 字段及独立的 management 来源／状态读取。状态为 unmanaged 或带恢复 provider 的 active，
-不代表当前就绪；仍保留闭合的 version 13／14 schema。不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
+不代表当前就绪；当前这些终端详情保留在 v19 `inspection` 中。不伪造会话 ID。子终端读取不会借用主 Panel 的报告。按名 `read`、
 `send-keys`、`attach` 经精确物理绑定交给既有终端所有者。物理 `explain` 返回 v2 新鲜屏幕诊断或携带生效规则来源的 v3；
 语义 `wait`／`prompt`、focus 和 `get --client` 使用各自的物理观察／Client 契约，不伪造规范会话；启用 provider 恢复后，已完成托管名称绑定到新物理终端。
 普通手工名称和待完成预留不在冷启动恢复。同 provider 换引用或改名保留恢复后的托管身份；
@@ -508,8 +508,8 @@ version 4 的 `conflictTarget`；既有 canonical 回执保持原版本。Window
 Windows 进程证据覆盖真实管道接纳、名称解析后读取、固定目标轮询、共享五秒截止、
 显式 ID 直读、schema 合规失败、丢失或不匹配的修改回复，以及效果前解析。
 
-Windows 物理 Agent Get 输出 v15，在封闭 v14 形状上包含 `semantic: {source, observation}`。
-来源记录 Session、Workbench／报告修订和请求 ID；观察包含精确绑定、有效报告视图、终端局部
+历史 Windows 物理 Agent Get v15 在封闭 v14 形状上加入 `semantic: {source, observation}`。
+其来源记录 Session、Workbench／报告修订和请求 ID；观察包含精确绑定、有效报告视图、终端局部
 序号及空变化列表。主展示与子展示读取各自报告资源；主面板元数据／报告投影须与语义报告
 修订一致。文本按所选语言呈现有效报告。带 `--client` 时，v16 还要求 `clientView`：所选
 Client／操作／视图、报告修订、可空 sequence／seen／status 和外层焦点。只有完整绑定和
@@ -550,6 +550,10 @@ Wait v5 返回 `terminal-matched`、物理观察、可空匹配变化、条件�
 读取支持 `--history --rows <n>`、`--unwrap` 和 `--lines <n>`，边界和含义与
 `terminal read` 相同。发送最多接受 64 个语义按键或修饰键组合，产生任何效果前验证整个序列。
 
+Windows 上，这些命令使用[Windows 统一 Agent 投影](#windows-统一-agent-投影)中描述的共享解析器，
+也接受 `@agent:<kind>` 和完整列表中的 `@agent:<n>`。裸名称仍优先匹配 Server 别名；
+物理目标在整个操作中保留并复核完整绑定。下方规范会话流程描述该类目标路径及其他平台。
+
 CLI 组合既有责任方：在一个仅连接既有 Session 的 Client Session 中读取 Workbench
 快照，按需解析别名，再读取权威 Agent 会话。只有活动会话中可导航且存活的 presentation
 附件才能选中终端。关联时比较快照中已绑定终端的完整 presentation ID；不会将 Panel ID
@@ -579,7 +583,8 @@ Server 仍验证终端当前绑定。
 ## Agent 提示提交
 
 `agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
-与其他 Agent 命令使用相同 ID/名称选择器。文字为非空 UTF-8，受 256 KiB paste 上限和
+与其他 Agent 命令使用相同 ID/名称选择器。Windows 也通过上述共享投影解析器接受
+`@agent:<kind>` 和完整列表中的 `@agent:<n>`。文字为非空 UTF-8，受 256 KiB paste 上限和
 命令 64 KiB argv 封套限制。`--until` 和 `--timeout` 要求 `--wait`；Windows 默认 idle/done/blocked 且无总超时，
 显式有限超时最长一小时。不等待时总预算为五秒。
 
@@ -779,9 +784,10 @@ Windows wait 版本 3 新增可空的 `matchedChange`。空表示当前样本命
 - `--limit <n>`：带值 flag，单次使用，仅 `agent list` 受理；页大小为一个
   `1..=100` 的十进制 `u64`，默认取 wire 契约的 50。重复、非数值或越界值均为
   `invalid-usage`。
-- `--cursor <c>`：带值 flag，单次使用，仅 `agent list` 受理；铸造的
-  `v1.<59>.<43>` 续页 token，逐字携带——真实性由 Server 侧校验，CLI 绝不验证。
-  畸形 token 在任何运行时访问之前即 `invalid-usage`。
+- `--cursor <c>`：带值 flag，单次使用，仅 `agent list` 受理。Windows 使用不超过
+  1024 个字符的结构化 `u1.<base64url>` 游标，绑定 Site、来源修订、筛选条件、Client
+  选择和页位置／指纹。旧游标或过期游标会在读取实时来源前返回 `cursor-restart`。
+  其他平台保留规范 Server 游标契约。
 - `--until <condition>`：可重复带值 flag，由 `agent wait` 和 `agent prompt --wait` 受理；每次出现取
   十四名条件词表中的一个：`blocked`、`done`、`needs-attention`、`failed`、`succeeded`、
   `canceled`、`interrupted`、`working`、`idle`、`unknown`、`ended`、`fresh`、
@@ -851,7 +857,7 @@ orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--ente
 orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
-orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
+orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <c>]
 orchbee agent get <target> | agent explain <target>
 orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
 orchbee agent send-keys <target> <key>...
@@ -1616,12 +1622,12 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` 为 text、key、byte
   `cleanupStatus` 独立报告清理结果。`reason` 为类型化拒绝/不可用原因。可选 `target` 是 Server
   实际准入的物理实例（`workerGeneration`、`hostEpoch`、`hostTerminalId`）。回执及诊断绝不回显
   提交内容。旧 `key` 和 `acceptedBytes` 字段不是当前序列回执的一部分。
-- `orchbee.agent.list` → 逐字的 `listed` outcome：
+- 在非 Windows 规范路由上，`orchbee.agent.list` v1 逐字返回 `listed` outcome：
   `{kind:"listed",items:[<session summary>…],nextCursor|null,revision}`，每个 summary
   即 wire `AgentSessionSummary`（session/provider/lifecycle/语义状态/freshness/观察
   计数/执行位置/pending 请求计数 ≤128/presentation 附件），`nextCursor` 为 Server
   铸造的续页 token，供 `--cursor` 使用。
-- `orchbee.agent.get` → 逐字的 `found` outcome：
+- 在非 Windows 规范路由上，`orchbee.agent.get` 逐字返回 `found` outcome：
   `{kind:"found",revision,session}`，`session` 即 wire `AgentSessionDetail`——
   在 summary 字段之外增加 `capabilities`（≤10 个去重 token）、`lastOutcome` 与
   `pendingRequests`。
@@ -2397,21 +2403,25 @@ Windows `agent focus <target> [--client <id>]` 将规范 Session 或终端 Agent
 
 `orchbee.agent.changes` version-1 信封包含 canonical changes/current/reset-required 结果及关联 Agent source。Reset-required 明确表示连续性丢失，必须重建基线。无效/其他启动实例 cursor、禁止读取与运行时不可用使用现有 Agent 失败家族，operation 为 changes。返回页不得超过请求 limit。JSON 保留类型化事实与游标；本地化文本展示状态、revision 与续读信息。Server 拥有保留范围、认证及一致历史；CLI grammar/help/completion/schema/Skill 公开此边界。其他平台运行时暂不支持此新增命令。
 
-Windows `agent get <target> --client <id>` 在 `orchbee.agent.get` v10 中附加所选 Client 投影；普通 Windows Get 为带终端/运行时信息的 v9。[Client attention 契约](native-client-attention.md) 归属版本合并、聚焦及独立的状态／seen 投影。读取共用五秒总预算，不确认已看见、不导航。缺失／过期观测的 seen 为空；规范状态保持独立。
-
 对于规范会话目标，Windows `agent prompt --wait` 在运行时预检后、单次提交输入前为保留的 Agent 变更日志建立检查点；检查点失败则不提交，其修订必须覆盖预检修订。每个完整验证的后续页保留短暂活动；fresh 且更新的 provider 版本必须显示 working/blocked 或 turn-finished 跃迁，才能打开活动门槛。只有 working/blocked 条件可匹配这个门槛事件；稳定状态条件必须匹配当前样本，因此短暂完成后又 working 时继续等待。单纯元数据或新鲜度变化不构成活动。保留五秒活动门槛、原始总／读取期限、固定身份和取消归属。当前规范样本须覆盖日志头。Windows v3 将可空 `matchedChange` 及其来源与当前观察分开；Linux 保持 v2。历史丢失或跨启动周期游标明确失败，并保留已接受的输入回执。这证明检查点后的已观察活动，不证明所提交回合的因果关系或独占归属。
 
 对于规范会话目标，Windows `agent prompt <target> <text> --wait --client <id>` 在发送前预检一个精确 Client，之后每次采样读取其 attention。规范活动门槛仍适用。Idle/done 只匹配其当前经核实的静止状态投影；缺失／过期版本继续等待。Client 丢失或读取失败时停止等待，保留已接受的输入回执。Client 读取组合最多两秒，并受既有五秒评估及原始总期限限制。读取不确认已看见、不聚焦、不重发。所选 Client 成功封套为 v4，要求 `client`；普通 Windows prompt 保持 v3，Linux 为 v2。`--client` 要求 `--wait`，不新增 Mac/Linux 实现。
 
-Windows `agent get` 输出 v9；`--client` 输出 v10。必需但可为 null 的 `terminal` 观察包含 `terminalId`、规范快照 `source`、`cwd`、`cwdSource`、`foregroundCwd`、`terminalTitle`、`terminalTitleStripped` 和 `terminalObservation`，与 Panel 查询共用投影。准入、目标解析、规范 Get、同一个只读 Viewer 的终端帧和 Windows Job 样本、第二次规范 Get、Workbench 修订复核、管理信息及可选 Client 证明共用可取消的五秒总预算。帧 cwd 优先于根进程 cwd；foregroundCwd 使用已公开的进程选择规则，不代表 OS 前台。原始标题与展示标题分开。帧和进程分别标明来源，不宣称原子快照。
+## Windows 统一 Agent 投影
 
-唯一活动主 Terminal 绑定和 provider 必须保持一致。已结束、未绑定、绑定歧义或绑定变化时返回 null terminal 及明确的不可用运行时；任何 Workbench 修订变化都会保守丢弃样本。Host 不可用时，帧字段为 null，但保留 Server 所有的 `terminal.metadata`，`terminalObservation.state` 为 unavailable，运行时原因是 `terminal-unavailable`。仅进程样本不可用时保留帧元数据，进程来源明确不可用，运行时原因是 `process-unavailable`。畸形数据、拒绝、传输、取消和截止时间错误使整个命令失败，不输出部分结果。所有 Viewer 附着都会关闭；查询不聚焦、确认已看见、调整大小或发送输入。`runtime` 保留真实进程查询来源、Windows Job DTO 及有边界的 `promptReady` 预检。就绪要求新鲜、已知、未阻塞的 Agent 事实与识别到的 provider 进程链匹配，且没有待处理启动；它不是输入租约或交互 UI 就绪证明。非 Windows Get 保持 v1；嵌入 schema 严格保留 v1-v8，目录 v97 含 91 份 schema。上报的展示字段及 token 通过 `terminal.metadata` 提供；真实 Agent／来源守卫上下文、可恢复 agentSession 及完整 session snapshot 仍是独立待办。
+Windows `agent list` 将规范 Server 会话和物理终端 Agent 合并为 `orchbee.agent.list` v2。`source.kind` 为 `agent-projection`；source 携带 `siteId`（32 位小写十六进制）、十进制字符串 `workbenchRevision` 和 `reportRevision`，以及安全整数 `canonicalRevision`。`result` 为 `{kind:"listed",revision,nextCursor,items,clientId?}`；`nextCursor` 为 null 或 `u1` 游标。每行包含一基 `ordinal`（1–4096）、`provider`、语义 `status`（`unknown`、`idle`、`working`、`blocked`、`done`、`error`、`ended`）、身份 `source`（`canonical`、`terminal`、`both`）、既有且可为空的 canonical `AgentSessionSummary`，以及包含既有 launch binding、非空 provider、`PanelAgentState` 和十进制字符串 sequence 的可空物理终端记录。`source` 控制分面是否存在。物理行和 `both` 行始终有 `placement`，其中 Panel、Presentation、Terminal、Terminal Context 和 Tab ID 为 32 位十六进制；`workspaceId` 可为空。仅 canonical 行的 placement 为 null。`cwd` 为可空字符串。
 
-Windows `agent list --client <id>` 在 v2 列表封套中加入所选 TUI 的状态。它对有界页批量读取，重读原始游标并检查保留变更后才暴露已读／未读。空页仍验证精确 Client；无此参数的列表保持 v1。[Client 提示状态契约](native-client-attention.zh-CN.md) 拥有一致性与期限规则。
+使用 `--client` 时，封套要求 `clientId`，每行也要求 `client`；canonical 和 terminal Client 分面保持独立。Client 未读状态不会提供 Agent 语义状态。每页最多为 64 行添加可选 cwd 信息；不可用时为 null。每页 1–100 行，默认 50 行；合并输出上限为 4096 行和 8 MiB。来源准入可能更早失败：canonical 来源限制为 512 个会话／六页各 100 行，物理来源注册上限为 1024 条。因此不能据 4096 行输出上限承诺同等数量的物理来源。
 
-Windows Agent Get 现在输出 v9（使用 `--client` 时为 v10），增加独立的 `management` 观察，包含来源、修订及 Server 所有的启动状态。Active 记录只来自已完成的启动；手动命名会话仍为非托管。Pending 启动使 promptReady 为 false，`agent prompt` 在输入前拒绝。Status 有界读取共用命令原期限，失败可使用 Agent 读取失败 v3（`operation: management`）；它不重试、不完成启动。`agent start` v2 在现有成功完成后显式报告 interactiveReady。[启动契约](windows-agent-start.zh-CN.md) 拥有生命周期和限制。
+Windows 游标使用 `u1.<base64url>`，最多 1024 个字符。载荷为编码成 base64url 的规范 JSON。游标绑定 Site、来源修订、`includeEnded`／Client 筛选、页偏移和指纹；不保留文件。旧游标或过期游标会在读取实时来源前返回 `cursor-restart`，调用方必须从第一页重新开始。
 
-原生 provider 注册表现有 20 项，包含 Windows Cursor、Qoder 和 Antigravity JSON Hook 接入和离线诊断。API 目录版本为 62，schema 与命令路径数量不变。
+Windows `agent get` 无论是否提供 `--client` 都输出 `orchbee.agent.get` v19，并使用相同的投影 `source`。`result` 为 `{kind:"projected",agent,inspection}`。`agent` 包含投影行中的 provider、status、source、canonical／terminal 分面、placement 和 cwd，但不包含 `ordinal` 或 `client`；`inspection` 是当前既有的 canonical 或 terminal inspection。详细进程、终端元数据、管理状态和 Client 证据仍保留在各自分面 inspection 中。
+
+Windows Get、Read、Prompt、Send Keys、Wait 和 Focus 共用一个解析器。只有完整当前投影证明唯一时，`@agent:<kind>` 才选择提供方。`@agent:<n>` 选择完整列表顺序中的一基序号，不是页内序号。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。部分读取不能证明提供方匹配唯一。修改效果保留完整物理绑定并在执行后复核。
+
+投影失败使用 `orchbee.cli.failure.agent-projection` v1。封闭的 `failure.details` 包含 `stage:"agent-projection"`、`unavailable`、`denied`、`changed`、`invalid`、`too-large`、`timeout`、`cancelled`、`cursor-restart`、`target-not-found` 或 `target-ambiguous` 之一作为 reason，并可包含 `selector`／`candidates`。Candidate 项携带 `selector:"@agent:<n>"`、可空 `sessionId`、可空 `panelId` 和可空 `AgentLaunchBinding`；最多返回 16 个候选。可选 envelope `source` 使用 Agent list/get 的同一类型化投影来源；失败时没有 `result`。
+
+原生 provider 注册表现有 20 项，包含 Windows Cursor、Qoder 和 Antigravity JSON Hook 接入和离线诊断。Agent 投影文档已注册在 API 目录版本 148 中。
 
 Mastracode 新增 Windows 扁平 Hook 接入、不完整安装修复、离线诊断及带运行标识的生命周期观察。
 
@@ -2489,7 +2499,7 @@ Windows `layout export` 输出带比例、手工标签、观测目录及冻结�
 
 ## Windows Panel 元数据查询
 
-[Panel 元数据契约](windows-panel-metadata.zh-CN.md#查询观察模型)负责分批读取主项及两类最终修订号校验。[当前 Panel](native-current-panel.zh-CN.md#当前成员信息增强)则校验精确解析成员的 ID、Panel 与绑定。Panel list/get v9、current v8 与 Agent Get v11/v12 暴露 metadata 及带来源的 reportedAgent。实际 Agent／权威上下文选择带守卫展示，同时保留原始来源记录与全局 tokens。规范 OSC 标题、名称、状态及就绪性仍独立；旧版本保留原有闭合形状。
+[Panel 元数据契约](windows-panel-metadata.zh-CN.md#查询观察模型)负责分批读取主项及两类最终修订号校验。[当前 Panel](native-current-panel.zh-CN.md#当前成员信息增强)则校验精确解析成员的 ID、Panel 与绑定。Panel list/get v9 和 current v8 直接暴露其元数据；Windows Agent Get v19 在 terminal `inspection` 中保留元数据及带来源的 `reportedAgent`。实际 Agent／权威上下文选择带守卫展示，同时保留原始来源记录与全局 tokens。规范 OSC 标题、名称、状态及就绪性仍独立。
 
 启动选择另将最坏 JSON 字符串内容限制为 30 KiB：ASCII 控制字符计六字节，引号和反斜杠计两字节，其他 UTF-8 字节计一字节。原有 2 KiB 输入域全部保留，同时约束更大的恢复命令。扩大上限后必须使用匹配 cohort。
 

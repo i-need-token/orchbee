@@ -15,6 +15,7 @@ mod routing;
 mod scope;
 
 use crate::invocation::CompletionShell;
+use orchbee_agent_observation_protocol::AgentReportProvider;
 
 /// Runtime selectors are distinct from command-scoped Agent targets.
 const GLOBAL_FLAGS: &[&str] = &[
@@ -1399,6 +1400,26 @@ const PROVIDER_VALUES: &[&str] = &[
     "omp",
     "qwen-code",
 ];
+
+const AGENT_TARGET_PATHS: &[&str] = &[
+    "agent:get",
+    "agent:focus",
+    "agent:read",
+    "agent:send-keys",
+    "agent:prompt",
+    "agent:wait",
+];
+
+fn agent_target_values() -> Vec<String> {
+    if cfg!(windows) {
+        AgentReportProvider::ALL
+            .into_iter()
+            .map(|provider| format!("@agent:{}", provider.native_provider_id()))
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
@@ -3089,6 +3110,7 @@ fn bash() -> String {
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
+            "        if [[ $state == after && \" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait \" == *\" $family:$sub \"* ]] && ((!seen_name && !seen_session && !seen_panel)); then candidates=\"$candidates {agent_targets}\"; fi\n",
             "        # Suffix `--help` is legal on every command path — including the\n",
             "        # operand-owed `get`/`api schema`/mutation paths — after legal\n",
             "        # options and operands as well.\n",
@@ -3163,6 +3185,7 @@ fn bash() -> String {
         verb_cases = verb_cases_bash(),
         narrow_lines = narrow_lines_bash(),
         extras_cases = extras_cases_bash(),
+        agent_targets = agent_target_values().join(" "),
         direction_cases = direction_cases_bash(),
         no_options = no_options_bash(),
         help_cases = HELP_CHILDREN
@@ -3475,6 +3498,7 @@ fn zsh() -> String {
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
+            "        if [[ $state == after && \" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait \" == *\" $family:$sub \"* ]] && ((!seen_name && !seen_session && !seen_panel)); then candidates=\"$candidates {agent_targets}\"; fi\n",
             "        if [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
             "            candidates=\"$candidates --help\"\n",
             "        fi\n",
@@ -3545,6 +3569,7 @@ fn zsh() -> String {
         verb_cases = verb_cases_bash(),
         narrow_lines = narrow_lines_bash(),
         extras_cases = extras_cases_bash(),
+        agent_targets = agent_target_values().join(" "),
         direction_cases = direction_cases_bash(),
         no_options = no_options_bash(),
         help_cases = HELP_CHILDREN
@@ -4333,6 +4358,7 @@ fn fish() -> String {
             "        switch \"$family:$sub\"\n",
             "{extras_cases}\n",
             "        end\n",
+            "        if test \"$state\" = after; and contains -- \"$family:$sub\" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait; and test (math \"$seen_name + $seen_session + $seen_panel\") -eq 0; set -a candidates {agent_targets}; end\n",
             "        if contains -- \"$state\" after operand operand2\n",
             "            set -a candidates --help\n",
             "        end\n",
@@ -4407,6 +4433,7 @@ fn fish() -> String {
         verb_cases = verb_cases_fish(),
         narrow_lines = narrow_lines_fish(),
         extras_cases = extras_cases_fish(),
+        agent_targets = agent_target_values().join(" "),
         direction_cases = direction_cases_fish(),
         no_options = format!("test {}", no_options_fish()),
         help_cases = HELP_CHILDREN

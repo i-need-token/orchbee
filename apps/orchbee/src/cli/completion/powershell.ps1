@@ -136,6 +136,9 @@ __ORCHBEE_GRAMMAR__
         $offeredFlags = [System.Collections.Generic.List[string]]::new()
         foreach ($command in $viable) {
             if ($positionals.Count -lt $command.words.Count) { $candidates.Add($command.words[$positionals.Count]) }
+            if ($command.agentTarget -and $positionals.Count -eq $command.words.Count -and -not ($seen -ccontains '--agent-session' -or $seen -ccontains '--name' -or $seen -ccontains '--panel')) {
+                foreach ($target in $grammar.agentTargets) { $candidates.Add($target) }
+            }
             if (($command.words -join ':') -ceq 'agent:send-keys') {
                 $targetWords = [int](-not ($seen -ccontains '--agent-session' -or $seen -ccontains '--name' -or $seen -ccontains '--panel'))
                 $keyCount = $positionals.Count - $command.words.Count - $targetWords

@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.list",
 	"title": "orchbee agent list envelope",
-	"$comment": "Earlier envelope versions retain their closed Agent state vocabulary. The unprefixed definitions describe current inputs and outputs.",
+	"$comment": "Version 1 preserves the non-Windows canonical list. Windows version 2 is the bounded joined Agent projection; client facets stay separate from semantic status.",
 	"oneOf": [
 		{
 			"type": "object",
@@ -13,7 +13,7 @@
 					"const": "orchbee.agent.list"
 				},
 				"version": {
-					"enum": [1, 2]
+					"const": 1
 				},
 				"source": {
 					"$ref": "#/$defs/agentReadSource"
@@ -33,7 +33,16 @@
 							"type": "array",
 							"maxItems": 100,
 							"items": {
-								"$ref": "#/$defs/legacyAgentState_sessionSummary"
+								"allOf": [
+									{
+										"$ref": "#/$defs/legacyAgentState_sessionSummary"
+									},
+									{
+										"not": {
+											"required": ["client"]
+										}
+									}
+								]
 							}
 						},
 						"nextCursor": {
@@ -45,56 +54,10 @@
 									"type": "null"
 								}
 							]
-						},
-						"clientId": {
-							"$ref": "#/$defs/hexId"
 						}
 					}
 				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"version": {
-								"const": 2
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"result": {
-								"required": ["clientId"],
-								"properties": {
-									"items": {
-										"items": {
-											"required": ["client"]
-										}
-									}
-								}
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"result": {
-								"not": {
-									"required": ["clientId"]
-								},
-								"properties": {
-									"items": {
-										"items": {
-											"not": {
-												"required": ["client"]
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			]
+			}
 		},
 		{
 			"type": "object",
@@ -105,10 +68,10 @@
 					"const": "orchbee.agent.list"
 				},
 				"version": {
-					"enum": [3]
+					"const": 2
 				},
 				"source": {
-					"$ref": "#/$defs/agentReadSource"
+					"$ref": "#/$defs/agentProjectionSource"
 				},
 				"result": {
 					"type": "object",
@@ -125,13 +88,13 @@
 							"type": "array",
 							"maxItems": 100,
 							"items": {
-								"$ref": "#/$defs/sessionSummary"
+								"$ref": "#/$defs/agentProjectionRow"
 							}
 						},
 						"nextCursor": {
 							"oneOf": [
 								{
-									"$ref": "#/$defs/cursor"
+									"$ref": "#/$defs/projectionCursor"
 								},
 								{
 									"type": "null"
@@ -148,15 +111,14 @@
 				{
 					"if": {
 						"properties": {
-							"version": {
-								"const": 3
+							"result": {
+								"required": ["clientId"]
 							}
 						}
 					},
 					"then": {
 						"properties": {
 							"result": {
-								"required": ["clientId"],
 								"properties": {
 									"items": {
 										"items": {
@@ -732,6 +694,425 @@
 					"$ref": "#/$defs/legacyAgentState_clientView"
 				}
 			}
+		},
+		"agentProjectionSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "workbenchRevision", "reportRevision", "canonicalRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "agent-projection"
+				},
+				"siteId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"workbenchRevision": {
+					"$ref": "#/$defs/decimalU64String"
+				},
+				"reportRevision": {
+					"$ref": "#/$defs/decimalU64String"
+				},
+				"canonicalRevision": {
+					"$ref": "#/$defs/safeInteger"
+				}
+			}
+		},
+		"decimalU64String": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"format": "orchbee-uint64"
+		},
+		"projectionCursor": {
+			"type": "string",
+			"maxLength": 1024,
+			"pattern": "^u1\\.[A-Za-z0-9_-]+$"
+		},
+		"projectionCanonicalSummary": {
+			"allOf": [
+				{
+					"$ref": "#/$defs/sessionSummary"
+				},
+				{
+					"not": {
+						"required": ["client"]
+					}
+				}
+			]
+		},
+		"agentProjectionTerminal": {
+			"type": "object",
+			"required": ["binding", "provider", "state", "sequence"],
+			"additionalProperties": false,
+			"properties": {
+				"binding": {
+					"$ref": "#/$defs/agentLaunchBinding"
+				},
+				"provider": {
+					"type": "string",
+					"minLength": 1
+				},
+				"state": {
+					"$ref": "#/$defs/panelAgentState"
+				},
+				"sequence": {
+					"$ref": "#/$defs/decimalU64String"
+				}
+			}
+		},
+		"agentLaunchBinding": {
+			"type": "object",
+			"required": ["presentationId", "generation", "hostEpoch", "hostTerminalId"],
+			"additionalProperties": false,
+			"properties": {
+				"presentationId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"generation": {
+					"$ref": "#/$defs/hexId"
+				},
+				"hostEpoch": {
+					"$ref": "#/$defs/hexId"
+				},
+				"hostTerminalId": {
+					"$ref": "#/$defs/hexId"
+				}
+			}
+		},
+		"panelAgentState": {
+			"enum": ["done", "error", "idle", "blocked", "working", "unknown"]
+		},
+		"agentProjectionPlacement": {
+			"type": "object",
+			"required": [
+				"panelId",
+				"presentationId",
+				"terminalId",
+				"terminalContextId",
+				"workspaceId",
+				"tabId"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"panelId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"presentationId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"terminalId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"workspaceId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/hexId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tabId": {
+					"$ref": "#/$defs/hexId"
+				}
+			}
+		},
+		"terminalClientRevision": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"format": "orchbee-uint64"
+		},
+		"terminalClientPhase": {
+			"enum": ["starting", "ready", "busy", "unavailable"]
+		},
+		"terminalClientSelection": {
+			"type": "object",
+			"required": ["terminalContextId", "tabId", "panelId", "zoomed", "panelCount"],
+			"additionalProperties": false,
+			"properties": {
+				"terminalContextId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"tabId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/hexId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"panelId": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/hexId"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"zoomed": {
+					"type": "boolean"
+				},
+				"panelCount": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 65535
+				}
+			}
+		},
+		"terminalClientView": {
+			"type": "object",
+			"required": ["workbenchRevision", "phase", "selection"],
+			"additionalProperties": false,
+			"properties": {
+				"workbenchRevision": {
+					"$ref": "#/$defs/terminalClientRevision"
+				},
+				"phase": {
+					"$ref": "#/$defs/terminalClientPhase"
+				},
+				"selection": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/terminalClientSelection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"splitRevision": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/terminalClientRevision"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"terminalClientProjection": {
+			"type": "object",
+			"required": [
+				"clientId",
+				"operationId",
+				"view",
+				"reportRevision",
+				"sequence",
+				"seen",
+				"status",
+				"outerFocused"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"clientId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"operationId": {
+					"$ref": "#/$defs/hexId"
+				},
+				"view": {
+					"$ref": "#/$defs/terminalClientView"
+				},
+				"reportRevision": {
+					"$ref": "#/$defs/terminalClientRevision"
+				},
+				"sequence": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/terminalClientRevision"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"seen": {
+					"type": ["boolean", "null"]
+				},
+				"status": {
+					"enum": [null, "idle", "done", "error", "working", "blocked", "unknown"]
+				},
+				"outerFocused": {
+					"type": ["boolean", "null"]
+				}
+			}
+		},
+		"agentProjectionClient": {
+			"type": "object",
+			"required": ["canonical", "terminal"],
+			"additionalProperties": false,
+			"properties": {
+				"canonical": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/clientView"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"terminal": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/terminalClientProjection"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		},
+		"agentProjectionRow": {
+			"type": "object",
+			"required": [
+				"ordinal",
+				"provider",
+				"status",
+				"source",
+				"canonical",
+				"terminal",
+				"placement",
+				"cwd"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"ordinal": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 4096
+				},
+				"provider": {
+					"type": "string",
+					"minLength": 1
+				},
+				"status": {
+					"enum": ["unknown", "idle", "working", "blocked", "done", "error", "ended"]
+				},
+				"source": {
+					"enum": ["canonical", "terminal", "both"]
+				},
+				"canonical": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/projectionCanonicalSummary"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"terminal": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/agentProjectionTerminal"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"placement": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/agentProjectionPlacement"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"cwd": {
+					"type": ["string", "null"]
+				},
+				"client": {
+					"$ref": "#/$defs/agentProjectionClient"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "canonical"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"canonical": {
+								"$ref": "#/$defs/projectionCanonicalSummary"
+							},
+							"terminal": {
+								"type": "null"
+							},
+							"placement": {
+								"type": "null"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "terminal"
+							}
+						}
+					},
+					"then": {
+						"required": ["placement"],
+						"properties": {
+							"canonical": {
+								"type": "null"
+							},
+							"terminal": {
+								"$ref": "#/$defs/agentProjectionTerminal"
+							},
+							"placement": {
+								"$ref": "#/$defs/agentProjectionPlacement"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"source": {
+								"const": "both"
+							}
+						}
+					},
+					"then": {
+						"required": ["placement"],
+						"properties": {
+							"canonical": {
+								"$ref": "#/$defs/projectionCanonicalSummary"
+							},
+							"terminal": {
+								"$ref": "#/$defs/agentProjectionTerminal"
+							},
+							"placement": {
+								"$ref": "#/$defs/agentProjectionPlacement"
+							}
+						}
+					}
+				}
+			]
 		}
 	}
 }

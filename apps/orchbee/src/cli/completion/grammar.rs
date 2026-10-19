@@ -23,6 +23,7 @@ pub(super) fn build() -> serde_json::Value {
                 "conflicts": command_flags(&path).iter().map(|flag| json!({"flag":flag,"with":command_flag_conflicts(&path,flag)})).collect::<Vec<_>>(),
                 "operand": if path == "workspace:move-block" { 1023 } else if path == "agent:start" { 65536 } else if path == "agent:send-keys" { 65 } else if matches!(path.as_str(), "agent:rename" | "agent:prompt" | "terminal:run") { 2 } else { usize::from(OPERAND_PATHS.contains(&path.as_str())) },
                 "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[]),
+                "agentTarget": cfg!(windows) && super::AGENT_TARGET_PATHS.contains(&path.as_str()),
             }));
         }
     }
@@ -30,18 +31,18 @@ pub(super) fn build() -> serde_json::Value {
         for verb in *verbs {
             let path = format!("{parent}:{verb}");
             let words = path.split(':').collect::<Vec<_>>();
-            commands.push(json!({"words": words, "flags": command_flags(&path), "conflicts": [], "operand": usize::from(OPERAND_PATHS.contains(&path.as_str())), "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[])}));
+            commands.push(json!({"words": words, "flags": command_flags(&path), "conflicts": [], "operand": usize::from(OPERAND_PATHS.contains(&path.as_str())), "directions": DIRECTION_VALUES.iter().find(|(key, _)| *key == path).map(|(_, values)| *values).unwrap_or(&[]), "agentTarget": cfg!(windows) && super::AGENT_TARGET_PATHS.contains(&path.as_str())}));
         }
     }
     #[cfg(windows)]
     commands.push(
-        json!({"words": ["update"], "flags": [], "conflicts": [], "operand": 0, "directions": []}),
+        json!({"words": ["update"], "flags": [], "conflicts": [], "operand": 0, "directions": [], "agentTarget": false}),
     );
     commands.push(
-        json!({"words": ["status"], "flags": [], "conflicts": [], "operand": 0, "directions": []}),
+        json!({"words": ["status"], "flags": [], "conflicts": [], "operand": 0, "directions": [], "agentTarget": false}),
     );
     commands
-        .push(json!({"words": ["tui"], "flags": ["--mouse"], "conflicts": [], "operand": 0, "directions": []}));
+        .push(json!({"words": ["tui"], "flags": ["--mouse"], "conflicts": [], "operand": 0, "directions": [], "agentTarget": false}));
     for command in &mut commands {
         let words = command["words"].clone();
         command["machine"] = json!(match words
@@ -107,6 +108,7 @@ pub(super) fn build() -> serde_json::Value {
         "notificationSounds": ["none", "done", "request"],
         "outputSources": super::OUTPUT_SOURCES,
         "agentKinds": crate::agent_provider::CANONICAL_IDS,
+        "agentTargets": super::agent_target_values(),
         "helpTopics": HELP_TOPICS,
         "helpChildren": HELP_CHILDREN,
         "helpLevel3": HELP_LEVEL3,

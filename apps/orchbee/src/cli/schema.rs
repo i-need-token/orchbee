@@ -355,6 +355,10 @@ const DOCUMENTS: &[(&str, &str)] = &[
         include_str!("schemas/orchbee.cli.failure.agent-names.json"),
     ),
     (
+        "orchbee.cli.failure.agent-projection",
+        include_str!("schemas/orchbee.cli.failure.agent-projection.json"),
+    ),
+    (
         "orchbee.agent.wait",
         include_str!("schemas/orchbee.agent.wait.json"),
     ),

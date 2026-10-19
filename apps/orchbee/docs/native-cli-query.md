@@ -33,13 +33,13 @@ does not make the Electron Desktop runtime a consumer of the native Session serv
 
 ## Schema versions for independent Agent status
 
-Current outputs separate actual Agent status from Client read acknowledgement. Explicit terminal `done`/`error`, projected `error`, and metadata state labels use the new versions below; the catalog is version 147. Earlier document versions retain their closed vocabulary and reject the new states. Unlisted platforms or variants retain their existing versions. This table governs current emission; later sections retain the introduction history of individual fields.
+Current outputs separate actual Agent status from Client read acknowledgement. Windows Agent List and Get now use the joined Agent projection; the embedded catalog is version 148. Other platforms retain their current canonical Agent documents. Earlier sections may describe historical shape introductions; this table governs current emission.
 
 | Command                                     | Version     | Variant                                                             |
 | ------------------------------------------- | ----------- | ------------------------------------------------------------------- |
 | `agent explain`                             | 4/5         | Physical observation / manifest diagnostics                         |
-| `agent get`                                 | 17/18/19/20 | Canonical / canonical with Client / terminal / terminal with Client |
-| `agent list`                                | 3           | Selected Client projection                                          |
+| `agent get`                                 | 19 Windows; 1/2 other platforms | Unified projection / canonical |
+| `agent list`                                | 2 Windows; 1 other platforms   | Joined projection / canonical    |
 | `agent wait; agent prompt`                  | 7/8/9/10    | Canonical / canonical with Client / terminal / terminal with Client |
 | `agent view`                                | 2           | Source-owned filter receipt                                         |
 | `events stream; events wait`                | 3           | Physical Agent event vocabulary                                     |
@@ -51,7 +51,7 @@ Current outputs separate actual Agent status from Client read acknowledgement. E
 
 ## Current CLI discovery and platform contracts
 
-Completion keeps local `--session` selection separate from Agent session selectors. Windows POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
+Completion keeps local `--session` selection separate from Agent session selectors. On Windows, get/read/prompt/send-keys/wait/focus offer static `@agent:<kind>` provider aliases before a target; they never query runtime state or invent ordinal suggestions. Windows POSIX-shell adapters filter remote `--machine` paths using the same static grammar as PowerShell and Elvish, including nested families and root data commands. Known options and operands keep suffix `--help` discoverable; unsupported routing, duplicates and terminated options do not regain candidates.
 
 Snapshot v7 and Tab Get v7 admit the canonical optional split `ratio` (0.1–0.9); omitted means 0.5. Snapshot v6 and Tab Get v5/v6 retain their closed trees. Windows Agent Doctor v4 covers all 20 providers; v1–v3 retain the 14-row bound.
 
@@ -599,8 +599,8 @@ canonical session alias.
 
 Terminal-target resolve/list use versions 3, rename/clear use version 2, and mixed-target name
 collisions use failure version 4 with `conflictTarget`. Existing canonical receipts keep their
-versions. Windows `agent get` without `--client` returns version 15 `terminal-found` with its exact
-target, actual frame/process/primary-panel report fields and a separate management source/state read.
+versions. Historically, pre-projection Windows `agent get` v15 without `--client` returned
+`terminal-found` with its exact target, actual frame/process/primary-panel report fields and a separate management source/state read; this terminal detail now remains under v19 `inspection`.
 Management is unmanaged or active with the restored provider; it does not assert current readiness.
 The closed version 13 and 14 schemas remain available. It contains no invented
 session ID. Child terminal reads never borrow the primary panel's report. Named `read`, `send-keys` and
@@ -640,8 +640,8 @@ Windows process evidence covers real pipe admission, resolved reads, pinned poll
 the shared five-second deadline, explicit-ID reads, schema-valid failures,
 lost/mismatched mutation replies and parse-before-effect.
 
-Windows physical Agent Get emits v15, with `semantic: {source, observation}` on the closed v14
-inspection shape. The source records Session, Workbench/report revisions and request ID; the observation
+Historical Windows physical Agent Get v15 added `semantic: {source, observation}` to the closed v14
+inspection shape. Its source recorded Session, Workbench/report revisions and request ID; the observation
 contains the exact binding, effective report view, terminal-local sequence and an empty change list.
 Primary and child presentations read their own report resources; primary metadata/report projections
 agree with the semantic report revision. Text renders the effective report in the selected locale.
@@ -693,6 +693,12 @@ Session ID, runtime name or Panel selectors as `agent get`, including explicit `
 with the same bounds and meaning as `terminal read`. Send admits at most 64 semantic
 keys or modifier combinations and validates the entire sequence before any effects.
 
+On Windows, these commands use the shared projection resolver described in
+[Windows unified Agent projection](#windows-unified-agent-projection). It also
+accepts `@agent:<kind>` and complete-list `@agent:<n>` selectors. Bare names keep
+Server alias precedence; physical targets retain and revalidate their full binding.
+The canonical-session flow below describes that target path and other platforms.
+
 The CLI composes existing owners: one existing-only Client Session reads a Workbench
 snapshot, optionally resolves an alias, and gets the canonical Agent session. Only
 an active session's navigable, live presentation attachments may select a terminal.
@@ -726,7 +732,9 @@ These repair stale schema projections; wire and receipt versions remain unchange
 ## Agent prompt submission
 
 `agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>]`
-uses the same Session/name/Panel selectors as other Agent commands. Text is non-empty UTF-8,
+uses the same Session/name/Panel selectors as other Agent commands. Windows also accepts
+`@agent:<kind>` and complete-list `@agent:<n>` through the shared projection resolver above.
+Text is non-empty UTF-8,
 bounded by the 256 KiB paste limit and the command's 64 KiB argv envelope. `--until`
 and `--timeout` require `--wait`; Windows wait defaults to idle/done/blocked without a total
 timeout, and explicit finite timeouts are at most one hour. Without waiting, the budget is five seconds.
@@ -967,10 +975,11 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
 - `--limit <n>`: single-use value flag, admitted only on `agent list`; the page size as
   one decimal `u64` in `1..=100`, defaulting to the wire contract's 50. A repeated,
   non-numeric, or out-of-range value is `invalid-usage`.
-- `--cursor <c>`: single-use value flag, admitted only on `agent list`; the minted
-  `v1.<59>.<43>` continuation token, carried verbatim — authenticity is verified
-  Server-side, never at the CLI. A malformed token is `invalid-usage` before any
-  runtime access.
+- `--cursor <c>`: single-use value flag, admitted only on `agent list`. Windows uses
+  a structured `u1.<base64url>` cursor capped at 1024 characters and bound to the Site,
+  source revisions, filters, Client choice and page position/fingerprint. An old or
+  stale cursor returns `cursor-restart` before live source reads. Other platforms retain
+  their canonical Server cursor contract.
 - `--until <condition>`: repeatable value flag, admitted on `agent wait` and `agent prompt --wait`; one
   condition name per occurrence drawn from the fourteen-name vocabulary
   `blocked`, `done`, `needs-attention`, `failed`, `succeeded`, `canceled`, `interrupted`, `working`,
@@ -1045,7 +1054,7 @@ orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--ente
 orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
-orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <v1.…>]
+orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <c>]
 orchbee agent get <target> | agent explain <target>
 orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
 orchbee agent send-keys <target> <key>...
@@ -1961,12 +1970,12 @@ inputStatus,cleanupStatus,reason?,target?}`. `payloadKind` is text, key, bytes, 
   (`workerGeneration`, `hostEpoch`, `hostTerminalId`). Submitted content is never echoed in
   receipts or diagnostics. The obsolete `key` and `acceptedBytes` fields are not part of the
   current sequence receipt.
-- `orchbee.agent.list` → the `listed` outcome verbatim:
+- On the canonical non-Windows route, `orchbee.agent.list` v1 returns the `listed` outcome verbatim:
   `{kind:"listed",items:[<session summary>…],nextCursor|null,revision}` where each summary
   is the wire `AgentSessionSummary` (session/provider/lifecycle/semantic status/freshness/
   observation counters/execution location/pending-request count ≤128/presentation
   attachments) and `nextCursor` is the Server-minted continuation token for `--cursor`.
-- `orchbee.agent.get` → the `found` outcome verbatim:
+- On the canonical non-Windows route, `orchbee.agent.get` returns the `found` outcome verbatim:
   `{kind:"found",revision,session}` where `session` is the wire `AgentSessionDetail` —
   the summary fields plus `capabilities` (≤10 unique tokens), `lastOutcome`, and
   `pendingRequests`.
@@ -2841,21 +2850,25 @@ Windows `agent focus <target> [--client <id>]` resolves a canonical Session or t
 
 The `orchbee.agent.changes` version-1 envelope contains the canonical changes/current/reset-required outcome and the correlated Agent source. Reset-required is a visible loss-of-continuity result; rebuild the baseline. Invalid/foreign-boot cursor, read denial and runtime unavailability use the existing Agent failure family with operation changes. A page cannot exceed the requested limit. JSON retains typed facts and cursors; localized text shows status, revision and continuation. The Server owns retention, authentication and coherent history; CLI grammar/help/completion/schema/Skill expose this boundary. Other platform runtimes remain unavailable for this new command.
 
-Windows `agent get <target> --client <id>` adds a selected-Client projection in `orchbee.agent.get` v10; ordinary Windows Get is v9 with terminal/runtime information. The [Client attention contract](native-client-attention.md) owns version joining, focus and independent status/seen projection. It uses one five-second total and never acknowledges or navigates. Missing/stale observations expose null seen; canonical status remains separate.
-
 For canonical session targets, Windows `agent prompt --wait` checkpoints the retained Agent change journal after runtime preflight and before submitting input once. A failed checkpoint prevents submission. The checkpoint must cover the preflight revision. Each later fully validated page preserves transient activity; a fresh newer provider version must show working/blocked or a turn-finished transition to open the activity gate. Only working/blocked conditions can match that gate event; settled conditions must match a current sample, so a transient completion followed by working keeps waiting. Metadata and freshness changes alone do not establish activity. The five-second activity gate, original total/read deadlines, pinned identity and cancellation owner remain. A current canonical sample must cover the journal head. Windows v3 separates nullable `matchedChange` and its source from the current observation; Linux remains v2. History loss or a foreign cursor fails explicitly and preserves the accepted input receipt. This proves observed activity after the checkpoint, not causality or exclusive ownership of the submitted turn.
 
 For canonical session targets, Windows `agent prompt <target> <text> --wait --client <id>` preflights one exact Client before sending and reads its attention on each later sample. The canonical activity gate still applies. Idle/done match only its current corroborated resting projection; missing/stale versions keep waiting. A lost Client or read failure stops the wait with the accepted input receipt retained. The Client read bundle is bounded to two seconds inside the existing five-second evaluation and original total deadline. No read acknowledges, focuses or resubmits. Selected-Client success is v4 with required `client`; ordinary Windows prompt remains v3 and Linux v2. `--client` requires `--wait` and has no Mac/Linux implementation.
 
-Windows `agent get` emits v9; `--client` emits v10. The required nullable `terminal` observation adds `terminalId`, canonical snapshot `source`, `cwd`, `cwdSource`, `foregroundCwd`, `terminalTitle`, `terminalTitleStripped` and `terminalObservation`, using the same projection as Panel queries. One cancellable five-second total covers admission, target resolution, canonical Get, one read-only Viewer for a terminal frame and Windows Job sample, a second canonical Get, a Workbench revision fence, management and optional Client proof. Frame cwd takes precedence over sampled root-process cwd; foregroundCwd uses the disclosed process-selection policy, not OS foreground. Raw and presentation titles remain separate. Frame and process observations are individually sourced, not an atomic snapshot.
+## Windows unified Agent projection
 
-The unique live primary Terminal binding and provider must remain unchanged. Ended, unbound, ambiguous or changed bindings return null terminal and an explicit unavailable runtime; any Workbench revision change discards the sampled data conservatively. An unavailable Host returns null frame fields but preserves Server-owned `terminal.metadata`, with `terminalObservation.state` unavailable and runtime reason `terminal-unavailable`. When only the process sample is unavailable, frame metadata survives, process provenance reports unavailable, and runtime reason is `process-unavailable`. Malformed, denied, transport, cancellation and deadline failures fail the command without a partial result. All Viewer attachments close; queries never focus, acknowledge, resize or send input. `runtime` retains its actual process-query source, Windows Job DTO and bounded `promptReady` preflight. Readiness requires fresh known nonblocked Agent facts matching a recognized provider process chain and no pending startup; it is not an input lease or interactive UI readiness. Non-Windows Get remains v1; the embedded schema strictly retains v1-v8 and catalog v97 contains 91 schemas. Reported presentation fields and tokens are exposed through `terminal.metadata`; actual Agent/source guard context, resumable agentSession, and complete session snapshot remain separate requirements.
+Windows `agent list` joins canonical Server sessions and physical terminal Agents into `orchbee.agent.list` v2. Its `source.kind` is `agent-projection`; the source carries `siteId` (32 lowercase hex), decimal-string `workbenchRevision` and `reportRevision`, and safe-integer `canonicalRevision`. Its `result` is `{kind:"listed",revision,nextCursor,items,clientId?}`; `nextCursor` is null or a `u1` cursor. Each row has a one-based `ordinal` (1–4096), `provider`, semantic `status` (`unknown`, `idle`, `working`, `blocked`, `done`, `error`, `ended`), identity `source` (`canonical`, `terminal`, `both`), the existing nullable canonical `AgentSessionSummary`, and a nullable physical terminal record with its existing launch binding, nonempty provider, `PanelAgentState` and decimal-string sequence. `source` controls which facets are present. Physical and `both` rows always carry `placement` with 32-hex Panel, Presentation, Terminal, Terminal Context and Tab IDs; canonical-only rows have null placement. `workspaceId` within placement is nullable. `cwd` is a nullable string.
 
-Windows `agent list --client <id>` joins the selected TUI status in the v2 list envelope. It batches one bounded page, rereads its original cursor and checks retained changes before exposing seen/unseen. Empty pages still validate the exact Client. No-flag list retains v1. The [Client attention contract](native-client-attention.md) owns consistency and deadlines.
+With `--client`, the envelope requires `clientId` and every row requires `client`, with canonical and terminal Client facets kept separate. Client unread state never supplies semantic Agent status. Optional cwd enrichment covers at most 64 rows per page and returns null when unavailable. Pages contain 1–100 rows (default 50); the joined output ceiling is 4096 rows and 8 MiB. Source admission can fail earlier: the canonical source is bounded to 512 sessions/six pages of 100, and physical source registration is bounded to 1024 entries. The 4096-row output ceiling does not promise that many physical sources.
 
-Windows Agent Get now emits v9 (v10 with `--client`), adding a separate `management` observation with source, revision and Server-owned startup state. Active records come only from completed startup; manually named sessions remain unmanaged. Pending startup makes promptReady false and `agent prompt` refuses before input. The bounded Status read shares the original command deadline and can fail with Agent read failure v3 (`operation: management`); it never retries or completes a launch. `agent start` v2 explicitly reports interactiveReady after its existing successful completion. The [startup contract](windows-agent-start.md) owns lifecycle and limits.
+Windows cursors use `u1.<base64url>` and are at most 1024 characters. The payload is canonical JSON encoded as base64url. Cursors bind to Site, source revisions, `includeEnded`/Client filters, page offset and fingerprint; they require no retained files. An old or stale cursor returns `cursor-restart` before live source reads, so the caller must restart at the first page.
 
-The native provider registry now has 20 entries, including Windows Cursor, Qoder and Antigravity JSON hook onboarding and offline diagnosis. The API catalogue is version 62; schema and command-path counts remain unchanged.
+Windows `agent get` emits `orchbee.agent.get` v19 with and without `--client`, using the same projection `source`. `result` is `{kind:"projected",agent,inspection}`. `agent` has the projection row's provider, status, source, canonical/terminal facets, placement and cwd, without `ordinal` or `client`; `inspection` is the existing current canonical or terminal inspection. Detailed process, terminal metadata, management and Client evidence stay in their facet-specific inspection shape.
+
+Windows Get, Read, Prompt, Send Keys, Wait and Focus share one resolver. `@agent:<kind>` selects a provider only when the complete current projection proves it unique. `@agent:<n>` selects a one-based ordinal in the complete list order, never a page-relative position. Bare names preserve Server alias precedence before provider fallback. Partial reads cannot establish provider uniqueness. Mutating effects retain and revalidate the complete physical binding after resolution.
+
+Projection failures use `orchbee.cli.failure.agent-projection` v1. The closed `failure.details` has `stage:"agent-projection"`, a reason from `unavailable`, `denied`, `changed`, `invalid`, `too-large`, `timeout`, `cancelled`, `cursor-restart`, `target-not-found` or `target-ambiguous`, and optional `selector`/`candidates`. Candidate entries carry `selector:"@agent:<n>"`, nullable `sessionId`, nullable `panelId` and nullable `AgentLaunchBinding`; at most 16 candidates are returned. The optional envelope `source` has the same typed projection shape used by Agent list/get, and failure envelopes have no `result`.
+
+The native provider registry now has 20 entries, including Windows Cursor, Qoder and Antigravity JSON hook onboarding and offline diagnosis. The Agent projection documents are registered in API catalog version 148.
 
 Mastracode adds Windows flat hook onboarding, partial-install repair, offline diagnosis and keyed lifecycle observations.
 
@@ -2941,7 +2954,7 @@ The same-author regressions cover parser refusal, independent wire goldens, malf
 
 ## Windows Panel metadata query
 
-The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched primary reads and both final revision fences. [Current Panel](native-current-panel.md#current-member-enrichment) instead checks the exact resolved member's ID, Panel and binding. Panel list/get v9, current v8 and Agent Get v11/v12 expose metadata and source-attributed reportedAgent. Actual report Agent/authority context selects guarded presentation while preserving raw source records and global tokens. Canonical OSC title, names, status and readiness remain distinct. Legacy versions retain their closed previous shapes.
+The [Panel metadata contract](windows-panel-metadata.md#query-observation-model) owns batched primary reads and both final revision fences. [Current Panel](native-current-panel.md#current-member-enrichment) instead checks the exact resolved member's ID, Panel and binding. Panel list/get v9 and current v8 expose their metadata directly; Windows Agent Get v19 retains metadata and source-attributed `reportedAgent` in its terminal `inspection`. Actual report Agent/authority context selects guarded presentation while preserving raw source records and global tokens. Canonical OSC title, names, status and readiness remain distinct.
 
 Launch selections additionally cap worst-case JSON string-content bytes at 30 KiB: ASCII controls count as six, quotes and backslashes as two, and other UTF-8 bytes as one. This preserves the previous 2 KiB input domain while bounding the larger resume commands. Matching cohorts are required for the enlarged limits.
 

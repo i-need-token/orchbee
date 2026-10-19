@@ -1108,10 +1108,18 @@ impl Locale {
             (Self::EnUs, ExpectedValue::AgentListLimit) => "a decimal integer from 1 to 100",
             (Self::ZhCn, ExpectedValue::AgentListLimit) => "1–100 的十进制整数",
             (Self::EnUs, ExpectedValue::AgentCursor) => {
-                "a 'v1.<payload>.<tag>' list cursor from a previous page"
+                if cfg!(windows) {
+                    "a Windows 'u1.<base64url>' Agent list cursor (at most 1024 characters)"
+                } else {
+                    "a 'v1.<payload>.<tag>' list cursor from a previous page"
+                }
             }
             (Self::ZhCn, ExpectedValue::AgentCursor) => {
-                "上一页返回的 'v1.<payload>.<tag>' 列表游标"
+                if cfg!(windows) {
+                    "Windows Agent 列表游标 'u1.<base64url>'（最多 1024 个字符）"
+                } else {
+                    "上一页返回的 'v1.<payload>.<tag>' 列表游标"
+                }
             }
             (Self::EnUs, ExpectedValue::AgentViewSpec) => "a bounded Agent view JSON specification",
             (Self::ZhCn, ExpectedValue::AgentViewSpec) => "有界的 Agent 视图 JSON 规格",
@@ -2953,6 +2961,8 @@ impl Locale {
                 "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [-- <args>...]",
                 "Windows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止 Agent。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nAntigravity 在此使用 --kind antigravity，在 integration/doctor 中使用 --provider antigravity-cli。",
             ),
+            (Self::EnUs, CommandPath::AgentPrompt) if cfg!(windows) => HELP_AGENT_PROMPT_WINDOWS_EN,
+            (Self::ZhCn, CommandPath::AgentPrompt) if cfg!(windows) => HELP_AGENT_PROMPT_WINDOWS_ZH,
             (Self::EnUs, CommandPath::AgentPrompt) => crate::localization::HelpDetails::new(
                 "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
                 "Send a prompt to one running Agent. Use --wait to observe its next state.\nFind targets with orchbee agent list; use --panel to select an Agent by its Panel.\n--until, --timeout and --forever require --wait. Inspect the terminal before retrying uncertain input.",
@@ -2971,6 +2981,12 @@ impl Locale {
                 "orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
                 "读取一个存活 Agent 绑定的终端。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。未指定 Panel 时必须有且仅有一个可导航绑定。复用终端 read/history 封套；历史不含可见行。\n\n显式来源：--source visible|recent|recent-unwrapped|detection。\nrecent 合并历史与实时屏幕，默认 80 个物理行；detection 读取光标附近一个屏幕高度，不是 Agent 状态。来源模式 --lines 接受 0..4294967295，钳制到 1000。visible 是当前查看器的实时屏幕。\n--plain 直接输出 UTF-8 文本，默认 recent；与 --format json 冲突。来源/plain 不能与 --history、--rows 或 --unwrap 混用。\nJSON 使用 orchbee.terminal.output；样本过期时失败，不隐藏重试。\n\n--ansi 直接导出带样式文本（默认 recent）；配合 --format json 时改用\norchbee.terminal.output v2，encoding 为 ansi。它与 --plain、--history、\n--rows 和 --unwrap 冲突。保留带样式空格；recent-unwrapped 拼接软换行。\ndetection 仍输出纯文本。这是包含 SGR 的样式快照，不是原始 PTY 字节或图形重放。",
             ),
+            (Self::EnUs, CommandPath::AgentSendKeys) if cfg!(windows) => {
+                HELP_AGENT_SEND_KEYS_WINDOWS_EN
+            }
+            (Self::ZhCn, CommandPath::AgentSendKeys) if cfg!(windows) => {
+                HELP_AGENT_SEND_KEYS_WINDOWS_ZH
+            }
             (Self::EnUs, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
                 "orchbee agent send-keys <target> <key>... [--format text|json]",
                 "Send 1..64 semantic keys or combinations (enter, ctrl-c, alt+left, ctrl+shift+a)\nto one live Agent terminal. Target: Session ID/name/Panel ID, --agent-session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Panel selects its primary terminal.\nUses orchbee.terminal.send receipts. Never replays uncertain input.",
@@ -3196,21 +3212,42 @@ const HELP_SITE_START_ZH: crate::localization::HelpDetails = crate::localization
 
 const HELP_AGENT_LIST_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--client <id>] [--format text|json]",
-    "List Agent sessions observed by the running local session. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50);\n'--cursor' continues from a previous page's server-minted nextCursor.\n'--format json' emits the orchbee.agent.list envelope.\nWindows --client joins that exact TUI's observed status without focusing it.",
+    "List Agent sessions observed by the running local session. '--include-ended'\nadds ended sessions; '--limit' selects 1-100 rows per page (default 50).\nWindows joins canonical sessions with physical terminal Agents; each row keeps\nits source facets, reconciled status and placement. '--client' adds separate\nClient observations without changing semantic status. Windows JSON uses\norchbee.agent.list v2. Its 'u1.<base64url>' cursor is at most 1024 characters;\nold or stale cursors require restarting the list. Other platforms emit v1.",
 );
 const HELP_AGENT_LIST_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent list [--include-ended] [--limit <n>] [--cursor <c>] [--client <id>] [--format text|json]",
-    "列出运行中的本地会话观察到的 Agent 会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）；'--cursor' 从上一页服务端铸造的 nextCursor 继续。'--format json' 输出 orchbee.agent.list 封套。\nWindows --client 加入指定 TUI 观察到的状态，不移动焦点。",
+    "列出运行中的本地会话观察到的 Agent 会话。'--include-ended' 包含已结束会话；'--limit' 每页 1-100 条（默认 50）。Windows 会合并规范会话与物理终端 Agent；每行保留来源分面、协调后的状态和位置。'--client' 添加独立的 Client 观察，不改变语义状态。Windows JSON 使用 orchbee.agent.list v2。其 'u1.<base64url>' 游标最多 1024 个字符；旧游标或过期游标需要重新开始列表。其他平台输出 v1。",
 );
 
 const HELP_AGENT_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent get <target> [--client <id>] [--format text|json]",
-    "Show one Agent session by its opaque session identity: lifecycle, semantic\nstatus, observation freshness, location, capabilities, pending requests,\nand presentation attachments. '--format json' emits the\norchbee.agent.get envelope.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.\n\nWindows --client adds that exact Client's focused/seen and idle/done projection\nwith version 8. Canonical session status stays unchanged. A missing or lagging\nClient observation has null seen; no read acknowledges or changes focus.\nThe same five-second total includes cursor authentication and version joining.\nWindows Get without --client uses version 7. Runtime includes the primary\nTerminal process sample and promptReady submission preflight; cwd/argv remain\nnullable. Binding changes discard the sample. This is not interactive UI\nreadiness or an input lease. Process reads share the original total deadline.\nWindows terminal adds raw/stripped title, cwd/cwdSource and foregroundCwd,\nwith frame/process provenance from one read-only attachment. An unavailable\nprocess sample preserves frame metadata without claiming prompt readiness.\nAgent binding and Workbench revision changes discard sampled metadata.",
+    "Show one Agent session. Windows resolves canonical and physical terminal\nAgents through the same projection as agent list. Windows JSON uses\norchbee.agent.get v19: 'agent' carries provider, semantic status, source,\nplacement and cwd; 'inspection' carries facet-specific detail. '--client' adds\nClient observations without replacing semantic status. Other platforms emit\ntheir canonical v1/v2 documents.\n\nWindows targets accept the shared Agent selectors: '@agent:<kind>' selects a\nunique provider, and '@agent:<n>' selects the one-based complete-list ordinal\n(not a page-relative number). Bare names preserve Server alias precedence,\nthen fall back to provider matching. Get, read, prompt, send-keys, wait and\nfocus use this resolver; ambiguous matches are rejected.",
 );
 const HELP_AGENT_GET_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent get <target> [--client <id>] [--format text|json]",
-    "按会话 ID 或运行时名称显示一个 Agent 会话：生命周期、语义状态、观察新鲜度、位置、能力、待处理请求与 Presentation 附着。'--format json' 输出\norchbee.agent.get 封套。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。\n\nWindows --client 以版本 8 附加指定 Client 的聚焦、已看见及 idle/done 投影。规范 session 状态保持不变。Client 观测缺失或滞后时 seen 为空；读取不确认已看见、不改变焦点。游标认证与版本合并共用五秒总预算。\nWindows 不带 --client 的 Get 使用版本 7；runtime 包含主 Terminal 的进程样本及 promptReady 提交预检，cwd/argv 可为空。绑定变化时丢弃样本。这不表示交互 UI 就绪或输入租约；进程读取共用原始总期限。\nWindows terminal 增加原始／整理标题、cwd/cwdSource、foregroundCwd，以及同一次只读附着的帧／进程来源。进程样本不可用时仍保留帧元数据，但不宣称提示就绪；Agent 绑定或 Workbench 修订变化时丢弃样本。",
+    "显示一个 Agent 会话。Windows 会通过与 agent list 相同的投影解析规范会话和物理终端 Agent。Windows JSON 使用 orchbee.agent.get v19：'agent' 携带提供方、语义状态、来源、位置和 cwd；'inspection' 携带分面详情。'--client' 添加 Client 观察，不替换语义状态。其他平台输出规范 v1/v2 文档。\n\nWindows 目标使用共享 Agent selector：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；有歧义时拒绝。",
 );
+
+const HELP_AGENT_PROMPT_WINDOWS_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
+        "Send a prompt to one running Agent. Use --wait to observe its next state.\nWindows accepts '@agent:<kind>' for a unique provider or '@agent:<n>' for a\none-based ordinal in the complete Agent list, not the current page. Bare names\nkeep Server alias precedence before provider matching. Get, read, prompt,\nsend-keys, wait and focus share this resolver.\n--until, --timeout and --forever require --wait. Inspect the terminal before retrying uncertain input.",
+    );
+const HELP_AGENT_PROMPT_WINDOWS_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms> | --forever] [--format text|json]",
+        "向正在运行的 Agent 发送提示。使用 --wait 观察其后续状态。\nWindows 可用 '@agent:<kind>' 选择唯一提供方，或用 '@agent:<n>' 选择完整 Agent 列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器。\n--until、--timeout 和 --forever 要求 --wait。投递结果不确定时，重试前先检查终端。",
+    );
+const HELP_AGENT_SEND_KEYS_WINDOWS_EN: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent send-keys <target> <key>... [--format text|json]",
+        "Send 1..64 semantic keys or combinations (enter, ctrl-c, alt+left, ctrl+shift+a)\nto one live Agent terminal. Windows accepts '@agent:<kind>' for a unique\nprovider or '@agent:<n>' for a one-based ordinal in the complete Agent list,\nnot the current page. Bare names keep Server alias precedence before provider\nmatching. Get, read, prompt, send-keys, wait and focus share this resolver.\nUses orchbee.terminal.send receipts. Never replays uncertain input.",
+    );
+const HELP_AGENT_SEND_KEYS_WINDOWS_ZH: crate::localization::HelpDetails =
+    crate::localization::HelpDetails::new(
+        "orchbee agent send-keys <target> <key>... [--format text|json]",
+        "向一个存活 Agent 终端发送 1..64 个语义按键或组合（enter、ctrl-c、alt+left、ctrl+shift+a）。Windows 可用 '@agent:<kind>' 选择唯一提供方，或用 '@agent:<n>' 选择完整 Agent 列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器。\n使用 orchbee.terminal.send 回执。不重放不确定输入。",
+    );
 
 const HELP_AGENT_EXPLAIN_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
@@ -4462,13 +4499,13 @@ impl Locale {
 const HELP_AGENT_WAIT_WINDOWS_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent wait <target> [--client <id>] [--until <condition>]... [--after-revision <n>] [--timeout <ms> | --forever] [--format text|json]",
-        "Wait on one pinned Agent, using current samples and retained change pages.\nWindows defaults to idle, done, blocked with no total timeout. --timeout\nsets 1-3600000 ms for the entire operation; --forever is an explicit synonym\nfor no total timeout and conflicts with --timeout. Each read is bounded to\nfive seconds. Ctrl+C ends the wait; no read failure reconnects.\nConditions: blocked, done, needs-attention, failed, succeeded, canceled,\ninterrupted, working, idle, unknown, ended, fresh, stale, disconnected.\nStatus conditions require fresh observations. blocked means needs-attention;\ndone means succeeded/failed/canceled/interrupted, without Client unseen state.\n--after-revision is a global fence, not a turn identity.\nTransient matching changes remain evidence even if the latest state differs.\nVersion 3 JSON separates matchedChange from the current session/revision;\nnull matchedChange means the current sample matched. Lost history or a\nforeign cursor fails explicitly. An ended session without a match is rejected.\n--client pins one exact TUI. Its current seen resting state means idle;\nunseen resting state means done. Missing/stale versions keep waiting.\nThese Client states are sampled; canonical idle/done events cannot prove\npast acknowledgements. Version 4 adds the Client projection.\nTarget: Session ID/name/Panel ID, --agent-session <id>, --name <alias>, or\n--panel <id|@panel:suffix>. Resolution occurs once, before waiting.",
+        "Wait on one pinned Agent, using current samples and retained change pages.\nWindows defaults to idle, done, blocked with no total timeout. --timeout\nsets 1-3600000 ms for the entire operation; --forever is an explicit synonym\nfor no total timeout and conflicts with --timeout. Each read is bounded to\nfive seconds. Ctrl+C ends the wait; no read failure reconnects.\nConditions: blocked, done, needs-attention, failed, succeeded, canceled,\ninterrupted, working, idle, unknown, ended, fresh, stale, disconnected.\nStatus conditions require fresh observations. blocked means needs-attention;\ndone means succeeded/failed/canceled/interrupted, without Client unseen state.\n--after-revision is a global fence, not a turn identity.\nTransient matching changes remain evidence even if the latest state differs.\nWindows JSON v7 separates nullable matchedChange from the current\nsession/revision; --client adds the separate Client projection in v8. Lost\nhistory or a foreign cursor fails explicitly. An ended session without a match\nis rejected. Client unseen state is sampled and never changes canonical status.\nTarget: '@agent:<kind>' selects a unique provider; '@agent:<n>' selects a\none-based ordinal in the complete Agent list, not the current page. Bare names\nkeep Server alias precedence before provider matching. Get, read, prompt,\nsend-keys, wait and focus share this resolver. A partial projection cannot\nestablish a unique provider match. Resolution occurs once before waiting;\neffects remain bound to and revalidate the resolved physical Agent.",
     );
 
 const HELP_AGENT_WAIT_WINDOWS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent wait <target> [--client <id>] [--until <条件>]... [--after-revision <n>] [--timeout <毫秒> | --forever] [--format text|json]",
-        "固定一个 Agent，结合当前样本和保留变更页等待。\nWindows 默认 idle、done、blocked，无总超时。--timeout 设置整个操作的\n1-3600000 毫秒期限；--forever 是无总超时的显式同义选项，与 --timeout 互斥。每次读取最多五秒；Ctrl+C 结束等待，读取失败不重新连接。条件：blocked、done、needs-attention、failed、succeeded、canceled、\ninterrupted、working、idle、unknown、ended、fresh、stale、disconnected。状态条件要求 fresh；blocked 表示 needs-attention；done 表示\nsucceeded/failed/canceled/interrupted，尚不合并 Client 未看见状态。\n--after-revision 是全局修订门槛，不代表回合身份。即使最新状态不同，短暂命中的变更仍作为证据返回。版本 3 JSON\n将 matchedChange 与当前 session/revision 分开；空 matchedChange 表示当前样本命中。历史丢失或游标跨启动周期时明确失败。会话已结束且没有条件命中时拒绝。\n--client 固定一个 TUI；其当前已看见的静止状态为 idle，未看见为 done。缺失或过期版本继续等待。Client 状态仅采样，规范 idle/done 事件不能证明过去的已读确认。版本 4 增加 Client 投影。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias> 或\n--panel <id|@panel:suffix>。等待前只解析一次。",
+        "固定一个 Agent，结合当前样本和保留变更页等待。\nWindows 默认 idle、done、blocked，无总超时。--timeout 设置整个操作的\n1-3600000 毫秒期限；--forever 是无总超时的显式同义选项，与 --timeout 互斥。每次读取最多五秒；Ctrl+C 结束等待，读取失败不重新连接。条件：blocked、done、needs-attention、failed、succeeded、canceled、\ninterrupted、working、idle、unknown、ended、fresh、stale、disconnected。状态条件要求 fresh；blocked 表示 needs-attention；done 表示\nsucceeded/failed/canceled/interrupted，不合并 Client 未看见状态。\n--after-revision 是全局修订门槛，不代表回合身份。即使最新状态不同，短暂命中的变更仍作为证据返回。Windows JSON v7 将可空 matchedChange 与当前 session/revision 分开；使用 --client 时在 v8 增加独立 Client 投影。历史丢失或外部游标明确失败；会话已结束且没有条件命中时拒绝。Client 未看见状态仅为采样，不改变规范状态。目标：'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整 Agent 列表中的一基序号（不是当前页序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明提供方匹配唯一。等待前只解析一次；效果绑定并复核已解析的物理 Agent。",
     );
 
 const HELP_TERMINAL_CONTROL_EN: crate::localization::HelpDetails =
@@ -4747,12 +4784,12 @@ const HELP_TERMINAL_READ_ZH: crate::localization::HelpDetails =
 const HELP_AGENT_OUTPUT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-        "Read one live Agent's terminal, defaulting to recent output (80 physical rows).\nTargets: Session ID/name/Panel ID, --agent-session <id>, --name <alias>, or --panel <id>.\nA Panel selects its primary terminal; otherwise require one navigable binding.\n--lines permits zero and clamps to 1000. Bare --unwrap selects recent-unwrapped.\n--source visible selects the live screen; detection reads screen-height output,\nnot Agent state. --plain exports UTF-8 and excludes JSON. --ansi exports style.\nJSON uses orchbee.terminal.output v1 (text) or v2 (ANSI).\nExplicit --history --rows preserves the history-only document; it excludes\nsource/plain/ANSI. See terminal read help for bounds, conflicts and cleanup.",
+        "Read one live Agent's terminal, defaulting to recent output (80 physical rows).\nTargets: Session ID/name/Panel ID, --agent-session <id>, --name <alias>, or --panel <id>.\nWindows also accepts '@agent:<kind>' for a unique provider and '@agent:<n>'\nfor a one-based ordinal in the complete Agent list, never a page-relative number.\nBare names keep Server alias precedence before provider matching. Get, read,\nprompt, send-keys, wait and focus share this resolver. A partial projection\ncannot establish a unique provider match. A Panel selects its primary terminal;\notherwise require one navigable binding.\n--lines permits zero and clamps to 1000. Bare --unwrap selects recent-unwrapped.\n--source visible selects the live screen; detection reads screen-height output,\nnot Agent state. --plain exports UTF-8 and excludes JSON. --ansi exports style.\nJSON uses orchbee.terminal.output v1 (text) or v2 (ANSI).\nExplicit --history --rows preserves the history-only document; it excludes\nsource/plain/ANSI. See terminal read help for bounds, conflicts and cleanup.",
     );
 const HELP_AGENT_OUTPUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>] [--plain|--ansi] [--format text|json]",
-        "读取一个存活 Agent 的终端，默认最近输出（80 个物理行）。目标可用 Session ID、名称、\nPanel ID、--agent-session <id>、--name <alias> 或 --panel <id>。Panel 选择主终端；其他选择要求唯一可导航绑定。--lines 允许零并钳制到 1000。裸 --unwrap 选择 recent-unwrapped。\n--source visible 选择实时屏幕；detection 读取一个屏幕高度的输出，不是 Agent 状态。\n--plain 导出 UTF-8，与 JSON 互斥；--ansi 导出样式。\nJSON 使用 orchbee.terminal.output v1（文本）或 v2（ANSI）。显式 --history --rows 保留纯历史文档，与 source/plain/ANSI 互斥。边界、冲突和清理规则见 terminal read 帮助。",
+        "读取一个存活 Agent 的终端，默认最近输出（80 个物理行）。目标可用 Session ID、名称、\nPanel ID、--agent-session <id>、--name <alias> 或 --panel <id>。Windows 还接受 '@agent:<kind>' 选择唯一提供方，或 '@agent:<n>' 选择完整 Agent 列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明提供方匹配唯一。Panel 选择主终端；其他选择要求唯一可导航绑定。--lines 允许零并钳制到 1000。裸 --unwrap 选择 recent-unwrapped。\n--source visible 选择实时屏幕；detection 读取一个屏幕高度的输出，不是 Agent 状态。\n--plain 导出 UTF-8，与 JSON 互斥；--ansi 导出样式。\nJSON 使用 orchbee.terminal.output v1（文本）或 v2（ANSI）。显式 --history --rows 保留纯历史文档，与 source/plain/ANSI 互斥。边界、冲突和清理规则见 terminal read 帮助。",
     );
 #[cfg(windows)]
 const HELP_TERMINAL_WAIT_OUTPUT_EN: crate::localization::HelpDetails =

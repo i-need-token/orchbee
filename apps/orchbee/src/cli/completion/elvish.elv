@@ -130,6 +130,9 @@
         var width = (count $command[words])
         var path = (str:join : $command[words])
         if (< $n $width) { set candidates = [$@candidates $command[words][$n]] }
+        if (and $command[agentTarget] (== $n $width) (not (any $seen [--agent-session --name --panel]))) {
+          set candidates = [$@candidates $@grammar[agentTargets]]
+        }
         if (eq $path agent:send-keys) {
           var target = 1
           if (any $seen [--agent-session --name --panel]) { set target = 0 }

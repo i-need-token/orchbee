@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 147
+			"const": 148
 		},
 		"source": {
 			"type": "object",
@@ -77,6 +77,7 @@
 						"orchbee.cli.failure",
 						"orchbee.cli.failure.agent",
 						"orchbee.cli.failure.agent-names",
+						"orchbee.cli.failure.agent-projection",
 						"orchbee.cli.failure.agent-prompt",
 						"orchbee.cli.failure.agent-runtime",
 						"orchbee.cli.failure.agent-start",
@@ -133,6 +134,7 @@
 						"orchbee.plugin.registry",
 						"orchbee.plugin.runtime",
 						"orchbee.popup.result",
+						"orchbee.project.close-all",
 						"orchbee.project.get",
 						"orchbee.project.list",
 						"orchbee.project.rename",
@@ -170,7 +172,6 @@
 						"orchbee.workspace.close-status",
 						"orchbee.workspace.creation",
 						"orchbee.workspace.get",
-						"orchbee.project.close-all",
 						"orchbee.workspace.list",
 						"orchbee.workspace.metadata",
 						"orchbee.workspace.move",
@@ -212,6 +213,7 @@
 				"orchbee.cli.failure",
 				"orchbee.cli.failure.agent",
 				"orchbee.cli.failure.agent-names",
+				"orchbee.cli.failure.agent-projection",
 				"orchbee.cli.failure.agent-prompt",
 				"orchbee.cli.failure.agent-runtime",
 				"orchbee.cli.failure.agent-start",
@@ -268,6 +270,7 @@
 				"orchbee.plugin.registry",
 				"orchbee.plugin.runtime",
 				"orchbee.popup.result",
+				"orchbee.project.close-all",
 				"orchbee.project.get",
 				"orchbee.project.list",
 				"orchbee.project.rename",
@@ -305,7 +308,6 @@
 				"orchbee.workspace.close-status",
 				"orchbee.workspace.creation",
 				"orchbee.workspace.get",
-				"orchbee.project.close-all",
 				"orchbee.workspace.list",
 				"orchbee.workspace.metadata",
 				"orchbee.workspace.move",

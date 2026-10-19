@@ -1362,6 +1362,10 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     ("orchbee tab move tab-1 --direction ", "left", false),
     ("orchbee tab move tab-1 --direction ", "next", true),
     ("orchbee agent get --n", "--name", true),
+    #[cfg(windows)]
+    ("orchbee agent get @agent:c", "@agent:codex", true),
+    #[cfg(windows)]
+    ("orchbee agent get --name alpha ", "@agent:codex", false),
     ("orchbee agent get alpha --cl", "--client", true),
     (
         "orchbee agent get --client 11111111111111111111111111111111 --ag",
