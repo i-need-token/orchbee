@@ -22,8 +22,11 @@ fn projected_agent_reply(
     revision: u64,
 ) -> AgentProjectionFixture {
     bound_snapshot_reply(stream);
-    let projection =
-        AgentProjectionFixture::canonical(bound_snapshot(9), revision, &[detail.clone()]);
+    let projection = AgentProjectionFixture::canonical(
+        bound_snapshot(9),
+        revision,
+        std::slice::from_ref(&detail),
+    );
     projection.read(stream, true);
     resolve_reply(
         stream,

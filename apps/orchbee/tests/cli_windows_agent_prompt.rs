@@ -576,7 +576,7 @@ fn panel_prompt_submits_to_the_primary_binding() {
         AgentProjectionFixture::canonical_with_current_incarnation(
             bound_snapshot(9),
             1,
-            &[detail.clone()],
+            std::slice::from_ref(&detail),
             "11111111111111111111111111111111",
             "33333333333333333333333333333333",
             "66666666666666666666666666666666",

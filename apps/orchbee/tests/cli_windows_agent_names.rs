@@ -974,11 +974,13 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             let detail = panel_detail("sess-alpha");
-            let outer = (!wait).then(|| begin_get_projection(&mut stream, 2, &[detail.clone()]));
+            let outer = (!wait)
+                .then(|| begin_get_projection(&mut stream, 2, std::slice::from_ref(&detail)));
             if wait {
                 bound_snapshot_reply(&mut stream);
             }
-            let selected = panel_projection(if wait { 1 } else { 2 }, &[detail.clone()]);
+            let selected =
+                panel_projection(if wait { 1 } else { 2 }, std::slice::from_ref(&detail));
             selected.read(&mut stream, false);
             session_target_reply(
                 &mut stream,
@@ -1172,7 +1174,7 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
             .as_array_mut()
             .unwrap()
             .push(json!({"generation":"child-generation","navigable":true,"presentationId":"44444444444444444444444444444444","visibility":"hidden"}));
-        let selected = panel_projection(1, &[detail.clone()]);
+        let selected = panel_projection(1, std::slice::from_ref(&detail));
         selected.read(&mut stream, false);
         session_target_reply(
             &mut stream,
@@ -1360,7 +1362,7 @@ fn a_panel_get_refuses_a_reply_for_another_session() {
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         let detail = panel_detail("sess-alpha");
-        begin_get_projection(&mut stream, 1, &[detail.clone()]);
+        begin_get_projection(&mut stream, 1, std::slice::from_ref(&detail));
         let selected = panel_projection(1, &[detail]);
         selected.read(&mut stream, false);
         session_target_reply(

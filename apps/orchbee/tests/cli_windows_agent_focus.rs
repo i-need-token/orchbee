@@ -397,7 +397,7 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
                 AgentProjectionFixture::canonical_with_current_incarnation(
                     snapshot(12),
                     1,
-                    &[session.clone()],
+                    std::slice::from_ref(&session),
                     &id(108),
                     &id(1),
                     &id(2),
