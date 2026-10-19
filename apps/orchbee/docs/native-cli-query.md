@@ -35,19 +35,19 @@ does not make the Electron Desktop runtime a consumer of the native Session serv
 
 Current outputs separate actual Agent status from Client read acknowledgement. Windows Agent List and Get now use the joined Agent projection; the embedded catalog is version 148. Other platforms retain their current canonical Agent documents. Earlier sections may describe historical shape introductions; this table governs current emission.
 
-| Command                                     | Version     | Variant                                                             |
-| ------------------------------------------- | ----------- | ------------------------------------------------------------------- |
-| `agent explain`                             | 4/5         | Physical observation / manifest diagnostics                         |
-| `agent get`                                 | 19 Windows; 1/2 other platforms | Unified projection / canonical |
-| `agent list`                                | 2 Windows; 1 other platforms   | Joined projection / canonical    |
-| `agent wait; agent prompt`                  | 7/8/9/10    | Canonical / canonical with Client / terminal / terminal with Client |
-| `agent view`                                | 2           | Source-owned filter receipt                                         |
-| `events stream; events wait`                | 3           | Physical Agent event vocabulary                                     |
-| `panel report-agent; panel report-metadata` | 3/4         | Primary / explicit member                                           |
-| `panel current`                             | 9           | Windows current member                                              |
-| `panel get; panel list`                     | 10/11       | Linux / Windows                                                     |
-| `tab get; tab list`                         | 7/5         | Get / List                                                          |
-| `workspace get; workspace list`             | 8           | Canonical Agent aggregate                                           |
+| Command                                     | Version                         | Variant                                                             |
+| ------------------------------------------- | ------------------------------- | ------------------------------------------------------------------- |
+| `agent explain`                             | 4/5                             | Physical observation / manifest diagnostics                         |
+| `agent get`                                 | 19 Windows; 1/2 other platforms | Unified projection / canonical                                      |
+| `agent list`                                | 2 Windows; 1 other platforms    | Joined projection / canonical                                       |
+| `agent wait; agent prompt`                  | 7/8/9/10                        | Canonical / canonical with Client / terminal / terminal with Client |
+| `agent view`                                | 2                               | Source-owned filter receipt                                         |
+| `events stream; events wait`                | 3                               | Physical Agent event vocabulary                                     |
+| `panel report-agent; panel report-metadata` | 3/4                             | Primary / explicit member                                           |
+| `panel current`                             | 9                               | Windows current member                                              |
+| `panel get; panel list`                     | 10/11                           | Linux / Windows                                                     |
+| `tab get; tab list`                         | 7/5                             | Get / List                                                          |
+| `workspace get; workspace list`             | 8                               | Canonical Agent aggregate                                           |
 
 ## Current CLI discovery and platform contracts
 

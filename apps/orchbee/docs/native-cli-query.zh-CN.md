@@ -32,19 +32,19 @@ CLI 只接受规范拼写。`ORCHBEE_SITE` 保留为低于 `ORCHBEE_SESSION` 的
 
 当前输出将实际 Agent 状态与 Client 已读确认分开。Windows Agent List 和 Get 现使用合并 Agent 投影；内嵌目录版本为 148。其他平台保留当前规范 Agent 文档。后文可能介绍历史形状的引入；下表规定当前输出版本。
 
-| 命令                                        | 版本        | 适用变体                                       |
-| ------------------------------------------- | ----------- | ---------------------------------------------- |
-| `agent explain`                             | 4/5         | 物理观测／清单诊断                             |
-| `agent get`                                 | Windows 19；其他平台 1/2 | 统一投影／规范文档 |
-| `agent list`                                | Windows 2；其他平台 1   | 合并投影／规范文档 |
-| `agent wait; agent prompt`                  | 7/8/9/10    | 规范／带 Client 的规范／终端／带 Client 的终端 |
-| `agent view`                                | 2           | 来源所有的过滤回执                             |
-| `events stream; events wait`                | 3           | 物理 Agent 事件词汇                            |
-| `panel report-agent; panel report-metadata` | 3/4         | 主项／显式成员                                 |
-| `panel current`                             | 9           | Windows 当前成员                               |
-| `panel get; panel list`                     | 10/11       | Linux／Windows                                 |
-| `tab get; tab list`                         | 7/5         | Get／List                                      |
-| `workspace get; workspace list`             | 8           | 规范 Agent 聚合                                |
+| 命令                                        | 版本                     | 适用变体                                       |
+| ------------------------------------------- | ------------------------ | ---------------------------------------------- |
+| `agent explain`                             | 4/5                      | 物理观测／清单诊断                             |
+| `agent get`                                 | Windows 19；其他平台 1/2 | 统一投影／规范文档                             |
+| `agent list`                                | Windows 2；其他平台 1    | 合并投影／规范文档                             |
+| `agent wait; agent prompt`                  | 7/8/9/10                 | 规范／带 Client 的规范／终端／带 Client 的终端 |
+| `agent view`                                | 2                        | 来源所有的过滤回执                             |
+| `events stream; events wait`                | 3                        | 物理 Agent 事件词汇                            |
+| `panel report-agent; panel report-metadata` | 3/4                      | 主项／显式成员                                 |
+| `panel current`                             | 9                        | Windows 当前成员                               |
+| `panel get; panel list`                     | 10/11                    | Linux／Windows                                 |
+| `tab get; tab list`                         | 7/5                      | Get／List                                      |
+| `workspace get; workspace list`             | 8                        | 规范 Agent 聚合                                |
 
 ## 当前 CLI 发现与平台契约
 
