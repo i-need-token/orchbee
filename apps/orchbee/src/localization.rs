@@ -41,7 +41,7 @@ mod events;
 mod pane_graphics;
 #[cfg(windows)]
 mod panel_reports;
-pub(crate) use cli::CliLabels;
+pub(crate) use cli::{CliLabels, DetailLabel};
 #[cfg(any(unix, windows))]
 mod location_labels;
 #[cfg(any(unix, windows))]

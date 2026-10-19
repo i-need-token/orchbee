@@ -630,6 +630,12 @@ impl Document {
         if let Some(table) = &self.panel_table {
             return table.render(out, locale);
         }
+        // A Workspace detail opens with the Workspace itself; its Agent and
+        // worktree supplements follow.
+        let lead = matches!(*self.projection, Projection::WorkspaceGet(_));
+        if lead {
+            super::present::render(out, &self.projection, command, locale)?;
+        }
         if let Some(member) = &self.current_member {
             out.write(format_args!(
                 "{}: {}\n",
@@ -657,7 +663,11 @@ impl Document {
             viewports.render(out, locale)?;
         }
         let Some(client) = &self.client else {
-            return super::present::render(out, &self.projection, command, locale);
+            return if lead {
+                Ok(())
+            } else {
+                super::present::render(out, &self.projection, command, locale)
+            };
         };
         let labels = locale.cli_query_client_labels();
         out.write(format_args!("{}: {}\n", labels[0], client.client_id))?;
@@ -677,6 +687,9 @@ impl Document {
                 context.terminal_context_id,
                 context.active_tab_id.as_ref().map_or("-", |id| id.as_str())
             ))?;
+        }
+        if lead {
+            return Ok(());
         }
         super::present::render(out, &self.projection, command, locale)
     }

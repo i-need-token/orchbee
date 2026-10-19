@@ -181,6 +181,22 @@ fn tab_list(
     })
 }
 
+/// Label/value rows aligned on the widest label.
+fn aligned(out: &mut Bounded, rows: &[(&str, String)]) -> Result<(), TooLarge> {
+    let width = rows
+        .iter()
+        .map(|(label, _)| display_width(label))
+        .max()
+        .unwrap_or(0);
+    for (label, value) in rows {
+        out.write(format_args!(
+            "{label}{}{value}\n",
+            " ".repeat(width - display_width(label) + 2)
+        ))?;
+    }
+    Ok(())
+}
+
 fn field(out: &mut Bounded, name: &str, value: &str) -> Result<(), TooLarge> {
     let padding = 14_usize.saturating_sub(display_width(name)).max(2);
     out.write(format_args!("{name}{}{value}\n", " ".repeat(padding)))
@@ -203,17 +219,6 @@ fn presentation_cells(row: &PresentationRow) -> Vec<String> {
         table_label(&row.display_label),
         row.terminal_id.clone().unwrap_or_else(|| "-".to_owned()),
         row.worker_id.clone().unwrap_or_else(|| "-".to_owned()),
-    ]
-}
-
-fn terminal_cells(row: &TerminalRow) -> Vec<String> {
-    vec![
-        row.terminal_id.clone(),
-        row.worker_id.clone(),
-        row.presentation_id.clone(),
-        row.panel_id.clone(),
-        row.tab_id.clone(),
-        row.terminal_context_id.clone(),
     ]
 }
 
@@ -654,26 +659,39 @@ pub(crate) fn render(
         }
         Projection::WorkspaceList(rows) => workspace_list(out, rows, text, locale),
         Projection::WorkspaceGet(doc) => {
-            field(out, text.workspace, &quoted(&doc.row.label))?;
-            field(out, text.number, &doc.row.number.to_string())?;
-            field(out, text.tabs, &doc.row.tab_count.to_string())?;
-            field(out, text.panels_word, &doc.row.panel_count.to_string())?;
-            field(out, text.id, &doc.row.workspace_id)?;
-            field(
+            use crate::localization::DetailLabel;
+            let row = &doc.row;
+            out.push(&locale.cli_workspace_summary(
+                &quoted(&row.label),
+                row.number,
+                row.tab_count,
+                row.panel_count,
+            ))?;
+            let project = match (&row.project_id, &row.project_label) {
+                (Some(id), Some(label)) => format!("{} ({id})", quoted(label)),
+                (Some(id), None) => id.clone(),
+                (None, _) => locale.cli_ungrouped().to_owned(),
+            };
+            aligned(
                 out,
-                text.project_id,
-                doc.row
-                    .project_id
-                    .as_deref()
-                    .unwrap_or(locale.cli_ungrouped()),
+                &[
+                    (
+                        locale.cli_detail_label(DetailLabel::Id),
+                        row.workspace_id.clone(),
+                    ),
+                    (locale.cli_detail_label(DetailLabel::Project), project),
+                    (
+                        locale.cli_detail_label(DetailLabel::Directory),
+                        doc.primary_directory_path
+                            .as_deref()
+                            .map_or_else(|| "-".to_owned(), unquoted),
+                    ),
+                ],
             )?;
-            field(
-                out,
-                text.primary_directory,
-                doc.row.primary_directory_id.as_deref().unwrap_or("null"),
-            )?;
-            field(out, text.terminal_context, &doc.row.terminal_context_id)?;
-            out.write(format_args!("{}\n", text.tabs))?;
+            out.write(format_args!(
+                "{}\n",
+                locale.cli_detail_label(DetailLabel::Tabs)
+            ))?;
             table(out, &text.tab_ref_headers, &doc.tabs, |tab| {
                 vec![tab.tab_id.clone(), table_label(&tab.label)]
             })
@@ -718,7 +736,7 @@ pub(crate) fn render(
             ]
         }),
         Projection::PanelGet(doc) => panel_doc(out, doc, text),
-        Projection::PanelProcessInfo(doc) => panel_process(out, doc, text, locale),
+        Projection::PanelProcessInfo(doc) => panel_process(out, doc, locale),
         Projection::TerminalList(doc) | Projection::TerminalListHuman(doc) => {
             terminal_table(out, text, doc, locale)
         }
@@ -812,36 +830,45 @@ pub(crate) fn render(
             Ok(())
         }
         Projection::TerminalGet(doc) => {
+            use crate::localization::DetailLabel;
             let row = &doc.terminal;
-            field(out, text.terminal, &row.terminal_id)?;
-            field(out, text.worker, &row.worker_id)?;
-            out.write(format_args!("{}\n", text.bound_to))?;
-            table(
-                out,
-                &text.terminal_headers,
-                std::slice::from_ref(row),
-                terminal_cells,
-            )?;
-            out.write(format_args!("{}\n", text.launch))?;
-            // The launch fact renders as its own `name  value` block — the
-            // same validated projection the machine document carries.
-            name_value_block(out, &super::results::launch_fact_json(&doc.launch))?;
+            out.push(&locale.cli_terminal_summary(&row.panel_id))?;
+            let launch = super::results::launch_fact_json(&doc.launch);
+            let state = locale.cli_launch_state(launch["state"].as_str().unwrap_or_default());
+            let launch = match (
+                launch["geometry"]["columns"].as_u64(),
+                launch["geometry"]["rows"].as_u64(),
+            ) {
+                (Some(columns), Some(rows)) => format!("{state} ({columns}x{rows})"),
+                _ => state.to_owned(),
+            };
+            let mut rows = vec![
+                (
+                    locale.cli_detail_label(DetailLabel::Id),
+                    row.terminal_id.clone(),
+                ),
+                (
+                    locale.cli_detail_label(DetailLabel::Panel),
+                    row.panel_id.clone(),
+                ),
+                (
+                    locale.cli_detail_label(DetailLabel::Tab),
+                    row.tab_id.clone(),
+                ),
+                (locale.cli_detail_label(DetailLabel::Launch), launch),
+            ];
             if let Some(selection) = &doc.launch_selection {
-                field(out, text.launch_program, &quoted(selection.executable()))?;
-                let arguments = serde_json::json!(selection.arguments()).to_string();
-                field(out, text.launch_arguments, &arguments)?;
+                rows.push((text.launch_program, unquoted(selection.executable())));
+                rows.push((
+                    text.launch_arguments,
+                    serde_json::json!(selection.arguments()).to_string(),
+                ));
             }
-            // A profile-launched terminal carries its provenance under the
-            // launch block — present exactly when the Server resolved one.
+            // A profile-launched terminal names the profile it came from.
             if let Some(provenance) = &doc.launch_profile {
-                field(out, text.launch_profile, provenance.profile_id())?;
-                field(
-                    out,
-                    text.catalog_revision,
-                    &provenance.catalog_revision().to_string(),
-                )?;
+                rows.push((text.launch_profile, provenance.profile_id().to_owned()));
             }
-            Ok(())
+            aligned(out, &rows)
         }
         // `workspace close-status` prints the retained operation's identity
         // block, its aggregate counts, then one row per captured member —
@@ -952,7 +979,7 @@ pub(crate) fn render(
                     ..
                 } => {
                     out.push(&locale.cli_agent_runtime(Some(*prompt_ready), None))?;
-                    panel_process(out, processes, text, locale)
+                    panel_process(out, processes, locale)
                 }
             }
         }
@@ -1714,41 +1741,60 @@ fn agent_changes(
 fn panel_process(
     out: &mut Bounded,
     doc: &super::results::PanelProcessInfoDoc,
-    text: &CliLabels,
     locale: Locale,
 ) -> Result<(), TooLarge> {
+    use super::processes::{filetime_utc, program_name, readable_command};
+    use crate::localization::DetailLabel;
     let view = super::processes::interpret(&doc.info);
-    field(out, text.terminal, &doc.terminal.terminal_id)?;
-    field(
-        out,
-        locale.cli_process_root(),
-        &doc.info.root_pid.to_string(),
-    )?;
-    field(
-        out,
-        locale.cli_process_foreground(),
-        &format!(
-            "{} · {} · {}",
-            view.foreground.selection.as_str(),
-            view.foreground
-                .pid
-                .map_or_else(|| "null".into(), |pid| pid.to_string()),
-            view.foreground.provider.unwrap_or("null")
-        ),
-    )?;
+    let label = |label| locale.cli_detail_label(label);
+    out.push(&locale.cli_process_summary(view.foreground.selection, view.foreground.provider))?;
+    let mut rows = vec![(
+        label(DetailLabel::Terminal),
+        doc.terminal.terminal_id.clone(),
+    )];
+    if let Some(process) = view
+        .foreground
+        .pid
+        .and_then(|pid| view.processes.iter().find(|row| row.facts.pid == pid))
+    {
+        let facts = process.facts;
+        rows.extend([
+            (label(DetailLabel::Process), unquoted(&program_name(facts))),
+            (label(DetailLabel::Pid), facts.pid.to_string()),
+            (
+                label(DetailLabel::Started),
+                filetime_utc(facts.creation_time),
+            ),
+            (
+                label(DetailLabel::Directory),
+                facts
+                    .current_directory
+                    .as_deref()
+                    .map_or_else(|| "-".to_owned(), unquoted),
+            ),
+            (
+                label(DetailLabel::Command),
+                readable_command(process)
+                    .map_or_else(|| "-".to_owned(), |command| unquoted(&command)),
+            ),
+        ]);
+        if let Some(provider) = process.provider {
+            rows.push((label(DetailLabel::Agent), provider.to_owned()));
+        }
+    }
+    aligned(out, &rows)?;
+    out.write(format_args!("{}\n", label(DetailLabel::Processes)))?;
     table(out, &locale.cli_process_headers(), &view.processes, |row| {
         let process = row.facts;
         vec![
             process.pid.to_string(),
             process
                 .parent_pid
-                .map_or_else(|| "null".to_owned(), |pid| pid.to_string()),
-            process.creation_time.to_string(),
-            escape(process.image.as_deref().unwrap_or("null")),
-            escape(process.command_line.as_deref().unwrap_or("null")),
-            unquoted(process.current_directory.as_deref().unwrap_or("null")),
-            escape(&serde_json::json!(row.argv).to_string()),
-            row.provider.unwrap_or("null").to_owned(),
+                .map_or_else(|| "-".to_owned(), |pid| pid.to_string()),
+            unquoted(&program_name(process)),
+            row.provider.unwrap_or("-").to_owned(),
+            filetime_utc(process.creation_time),
+            unquoted(process.current_directory.as_deref().unwrap_or("-")),
         ]
     })
 }

@@ -187,3 +187,56 @@ fn runtime_entrypoints_exclude_eval_flags_prompt_mentions_and_forged_argv0() {
         None
     );
 }
+
+#[test]
+fn filetime_renders_as_utc_and_keeps_pre_epoch_values_raw() {
+    assert_eq!(
+        filetime_utc(116_444_736_000_000_000),
+        "1970-01-01 00:00:00 UTC"
+    );
+    assert_eq!(
+        filetime_utc(134_368_638_784_289_377),
+        "2026-10-19 06:11:18 UTC"
+    );
+    assert_eq!(filetime_utc(5), "5");
+}
+
+#[test]
+fn readable_commands_drop_the_injected_shell_initialization() {
+    let script = orchbee_local_site_runtime::windows_interactive_powershell_initialization();
+    let shell = process(
+        10,
+        None,
+        r"C:\Program Files\PowerShell\pwsh.exe",
+        "pwsh.exe",
+    );
+    let wrapped = Process {
+        facts: &shell,
+        argv: Some(vec![
+            r"C:\Program Files\PowerShell\pwsh.exe".into(),
+            "-NoLogo".into(),
+            "-NoExit".into(),
+            "-Command".into(),
+            script,
+        ]),
+        provider: None,
+    };
+    assert_eq!(
+        readable_command(&wrapped).unwrap(),
+        "pwsh.exe -NoLogo -NoExit"
+    );
+    let explicit = Process {
+        facts: &shell,
+        argv: Some(vec![
+            "pwsh.exe".into(),
+            "-Command".into(),
+            "Get-Date; exit".into(),
+        ]),
+        provider: None,
+    };
+    assert_eq!(
+        readable_command(&explicit).unwrap(),
+        "pwsh.exe -Command \"Get-Date; exit\""
+    );
+    assert_eq!(program_name(&shell), "pwsh.exe");
+}

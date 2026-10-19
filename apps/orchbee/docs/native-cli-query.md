@@ -2070,7 +2070,13 @@ profileId?,name?}` per
   and context, directory, split, slot and presentation IDs appear only in JSON. A receipt whose
   terminal started or is starting ends with a `terminal list --panel` hint for the new Panel,
   because the spawn outcome does not carry the terminal ID. `panel current` text starts with the
-  current Panel ID.
+  current Panel ID. `workspace get`, `terminal get` and `panel process-info` text likewise opens
+  with one sentence followed by aligned labels: the Workspace view shows its Project and primary
+  directory path before any Agent or worktree supplement; the terminal view shows its Panel, Tab
+  and launch state; the process view names the foreground process with its PID, UTC start time,
+  directory and command, omitting the shell initialization Orchbee appends to interactive
+  PowerShell, then lists every sampled process. Worker, context, presentation and directory IDs,
+  raw launch structures and FILETIME values remain JSON-only.
 - `orchbee.cli.failure.close` → `{schema:"orchbee.cli.failure.close",version:1,
 failure:{kind,details?},source?}`: the dedicated failure envelope for every
   `workspace close-status` and `workspace close-resume` failure past the admitted session

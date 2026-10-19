@@ -82,7 +82,7 @@ pub(crate) mod output;
 #[cfg(windows)]
 pub(crate) mod panel_relocation;
 pub(crate) mod present;
-mod processes;
+pub(crate) mod processes;
 mod query;
 pub(crate) mod results;
 pub(crate) mod runtime_status;

@@ -1707,7 +1707,12 @@ profileId?,name?}`，
   Workspace、Tab、Panel 与启动配置 ID，以及 label、目录和终端结果。修订、请求 ID，以及
   上下文、目录、split、slot 与 presentation ID 只出现在 JSON 中。终端已启动或正在启动的收据
   以针对新 Panel 的 `terminal list --panel` 提示结尾，因为拉起结果不携带终端 ID。`panel current`
-  文本首行为当前 Panel ID。
+  文本首行为当前 Panel ID。`workspace get`、`terminal get` 与 `panel process-info` 的文本同样
+  先用一句话开头，再列出对齐的标签：Workspace 视图在任何 Agent 或 worktree 补充信息之前显示其
+  Project 和主目录路径；终端视图显示所在 Panel、Tab 与启动状态；进程视图给出前台进程及其 PID、
+  UTC 启动时间、目录和命令，并省略 Orchbee 为交互式 PowerShell 追加的 shell 初始化，随后列出
+  所有采样进程。Worker、上下文、presentation 与目录 ID、原始启动结构以及 FILETIME 值仅出现在
+  JSON 中。
 - `orchbee.cli.failure.close` → `{schema:"orchbee.cli.failure.close",version:1,
 failure:{kind,details?},source?}`：`workspace close-status` 与 `workspace close-resume`
   越过 admitted session 后一切失败的专用 envelope（边界前的语法、前导失败与

@@ -2047,3 +2047,47 @@ fn terminal_list_filters_by_workspace_tab_and_panel() {
             .all(|row| row.terminal_context_id == workspace_context.as_str())
     );
 }
+
+/// `workspace get` text names the Workspace first and shows the primary
+/// directory path rather than its identity.
+#[test]
+fn workspace_get_text_leads_with_the_workspace_and_its_directory_path() {
+    let snapshot = selector_snapshot();
+    let command = QueryCommand::WorkspaceGet(Target::Selector("@workspace:dd".into()));
+    for locale in [
+        crate::localization::Locale::EnUs,
+        crate::localization::Locale::ZhCn,
+    ] {
+        let projection = project(&command, &snapshot).unwrap();
+        let Projection::WorkspaceGet(doc) = &projection else {
+            panic!("workspace get projection");
+        };
+        let summary = locale.cli_workspace_summary(
+            &crate::cli::escape::quoted(&doc.row.label),
+            doc.row.number,
+            doc.row.tab_count,
+            doc.row.panel_count,
+        );
+        let path = doc.primary_directory_path.clone();
+        let directory_id = doc.row.primary_directory_id.clone();
+        let output = crate::cli::success_output(
+            projection,
+            serde_json::json!({"kind":"workbench-snapshot","siteId":tid(0, 1),"revision":"1"}),
+            &command,
+            crate::invocation::OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(text.starts_with(&summary), "{text}");
+        if let Some(path) = path {
+            assert!(text.contains(&path), "{text}");
+        }
+        if let Some(directory_id) = directory_id {
+            assert!(!text.contains(&directory_id), "{text}");
+        }
+        assert!(
+            text.contains(locale.cli_ungrouped()) || text.contains("("),
+            "{text}"
+        );
+    }
+}

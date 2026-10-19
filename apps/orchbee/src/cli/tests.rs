@@ -1730,3 +1730,51 @@ fn changes_text_localizes_reset_and_keeps_recovery_cursor() {
         assert!(rendered.contains(&token));
     }
 }
+
+/// Detail views open with one sentence and keep worker, context and
+/// presentation identities, and raw launch structures, out of text.
+#[test]
+fn terminal_get_text_is_a_sentence_and_aligned_labels() {
+    use orchbee_client_server_protocol::{TerminalLaunchFact, TerminalLaunchState};
+    let worker = "9".repeat(32);
+    let context = "8".repeat(32);
+    let panel = "7".repeat(32);
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let projection = Projection::TerminalGet(super::results::TerminalGetDoc {
+            terminal: TerminalRow {
+                terminal_id: ID.into(),
+                worker_id: worker.clone(),
+                presentation_id: "6".repeat(32),
+                panel_id: panel.clone(),
+                tab_id: "5".repeat(32),
+                terminal_context_id: context.clone(),
+            },
+            launch: TerminalLaunchFact::new(
+                TerminalLaunchState::Creating,
+                std::num::NonZeroU64::new(1),
+                None,
+                None,
+            )
+            .unwrap(),
+            launch_profile: None,
+            launch_selection: None,
+        });
+        let output = super::success_output(
+            projection,
+            super::results::launch_read_source(ID, 1),
+            &QueryCommand::TerminalGet(Target::Id(ID.to_owned())),
+            OutputFormat::Text,
+            locale,
+        );
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            text.starts_with(&locale.cli_terminal_summary(&panel)),
+            "{text}"
+        );
+        assert!(text.contains(locale.cli_launch_state("creating")), "{text}");
+        for internal in [&worker, &context, &"6".repeat(32)] {
+            assert!(!text.contains(internal.as_str()), "{text}");
+        }
+        assert!(!text.contains("createOutcome"), "{text}");
+    }
+}

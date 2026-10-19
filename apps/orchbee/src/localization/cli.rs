@@ -12,6 +12,7 @@ pub(crate) use help::{HelpDetails, HelpText};
 mod config_import;
 #[cfg(windows)]
 mod config_reset;
+mod details;
 #[cfg(windows)]
 mod layouts;
 #[cfg(windows)]
@@ -24,6 +25,7 @@ mod panel_relocation;
 #[cfg(windows)]
 mod panel_terminal_creation;
 mod receipt;
+pub(crate) use details::DetailLabel;
 mod runtime_status;
 #[cfg(windows)]
 mod schema_export;
@@ -4237,42 +4239,6 @@ const HELP_PANEL_PROCESS_INFO_ZH: crate::localization::HelpDetails =
     );
 
 impl Locale {
-    pub(crate) const fn cli_process_headers(self) -> [&'static str; 8] {
-        match self {
-            Self::EnUs => [
-                "PID",
-                "Parent PID",
-                "Created",
-                "Image",
-                "Command line",
-                "Directory",
-                "Arguments",
-                "Provider",
-            ],
-            Self::ZhCn => [
-                "PID",
-                "父 PID",
-                "创建时间",
-                "映像",
-                "命令行",
-                "目录",
-                "参数",
-                "Provider",
-            ],
-        }
-    }
-    pub(crate) const fn cli_process_root(self) -> &'static str {
-        match self {
-            Self::EnUs => "Root PID",
-            Self::ZhCn => "根 PID",
-        }
-    }
-    pub(crate) const fn cli_process_foreground(self) -> &'static str {
-        match self {
-            Self::EnUs => "Foreground estimate (kind · PID · provider)",
-            Self::ZhCn => "前台估计（类型 · PID · provider）",
-        }
-    }
     pub(crate) fn cli_agent_runtime_hint(self, reason: &str) -> Option<&'static str> {
         match (self, reason) {
             (Self::EnUs, "agent-provider-unsupported") => Some(

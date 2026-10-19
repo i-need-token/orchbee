@@ -243,6 +243,8 @@ pub(crate) struct TabRef {
 pub(crate) struct WorkspaceDoc {
     pub(crate) row: WorkspaceRow,
     pub(crate) tabs: Vec<TabRef>,
+    /// The primary directory's path for human output; JSON keeps the ID.
+    pub(crate) primary_directory_path: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -2619,7 +2621,16 @@ fn workspace_doc(snapshot: &Snapshot, workspace: &Workspace) -> Result<Workspace
         .iter()
         .find(|context| context.terminal_context_id.as_str() == context_id)
         .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    let primary_directory_path = workspace.primary_directory_id.as_ref().and_then(|id| {
+        snapshot
+            .navigation
+            .directories
+            .iter()
+            .find(|directory| &directory.directory_id == id)
+            .map(|directory| directory.path.as_str().to_owned())
+    });
     Ok(WorkspaceDoc {
+        primary_directory_path,
         row: workspace_row(
             snapshot,
             workspace,
