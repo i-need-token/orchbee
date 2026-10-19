@@ -1842,3 +1842,22 @@ fn usage_advice_offers_synonyms_and_the_label_form() {
     );
     assert!(stray(UsageContext::Path("terminal list"), "x").is_empty());
 }
+
+#[test]
+fn git_paths_render_with_native_separators() {
+    let rendered = super::escape::native_path("C:/Users/me/code/orchbee");
+    if cfg!(windows) {
+        assert_eq!(rendered, r"C:\Users\me\code\orchbee");
+    } else {
+        assert_eq!(rendered, "C:/Users/me/code/orchbee");
+    }
+    assert_eq!(super::escape::native_path("relative/path"), "relative/path");
+    assert_eq!(
+        super::escape::native_path("C:/x\u{1b}"),
+        if cfg!(windows) {
+            r"C:\x\u{001b}"
+        } else {
+            r"C:/x\u{001b}"
+        }
+    );
+}

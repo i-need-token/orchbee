@@ -73,7 +73,36 @@ fn resolution_acquires_only_the_context_declared_by_the_operand() {
         )
         .unwrap();
     assert_eq!(cwd_reads, 1);
-    assert_eq!(resolved, r"E:\caller\..\remote");
+    assert_eq!(resolved, r"E:\remote");
+}
+
+#[test]
+fn resolved_relative_and_home_operands_are_normalized_lexically() {
+    let cwd = || Ok(PathBuf::from(r"C:\work\proj-b"));
+    let relative = |raw: &str| {
+        WindowsUserPathOperand::parse(raw)
+            .unwrap()
+            .resolve(|_| panic!("no environment"), cwd)
+            .unwrap()
+    };
+    assert_eq!(relative("."), r"C:\work\proj-b");
+    assert_eq!(relative(r"proj-a\"), r"C:\work\proj-b\proj-a");
+    assert_eq!(relative(r"..\proj-a\."), r"C:\work\proj-a");
+    assert_eq!(relative("a/./b//"), r"C:\work\proj-b\a\b");
+    assert_eq!(relative(r"..\..\..\.."), r"C:\");
+    let home = WindowsUserPathOperand::parse(r"~\code\..\notes\")
+        .unwrap()
+        .resolve(|_| Some(OsString::from(r"D:\home")), || panic!("no cwd"))
+        .unwrap();
+    assert_eq!(home, r"D:\home\notes");
+    // Absolute literals are never rewritten.
+    let literal = WindowsUserPathOperand::parse(r"C:\work\.\x\").unwrap();
+    assert_eq!(
+        literal
+            .resolve(|_| panic!("no environment"), || panic!("no cwd"))
+            .unwrap(),
+        r"C:\work\.\x\"
+    );
 }
 
 #[test]

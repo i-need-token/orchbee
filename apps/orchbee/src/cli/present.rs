@@ -398,6 +398,13 @@ fn terminal_cell_width(value: &str) -> usize {
 
 /// Non-UTF-8 values render as `hex:`-prefixed lowercase hex; UTF-8 paths and
 /// refs pass through the same escaping as every other user-controlled value.
+fn worktree_path(value: &WorktreeEntryText) -> String {
+    match value {
+        WorktreeEntryText::Utf8(text) => super::escape::native_path(text),
+        WorktreeEntryText::Bytes(bytes) => format!("hex:{}", hex_encode(bytes)),
+    }
+}
+
 fn worktree_text(value: &WorktreeEntryText) -> String {
     match value {
         WorktreeEntryText::Utf8(text) => quoted(text),
@@ -443,7 +450,7 @@ fn launch_profile_cells(entry: &LaunchProfileEntry) -> Vec<String> {
 
 fn worktree_cells(entry: &WorktreeEntry) -> Vec<String> {
     vec![
-        worktree_text(&entry.path),
+        worktree_path(&entry.path),
         entry.head.clone().unwrap_or_else(|| "-".to_owned()),
         entry
             .branch
@@ -880,7 +887,7 @@ pub(crate) fn render(
         // reported it), the verbatim branch ref, and the flag column.
         Projection::WorktreeList(doc) => {
             field(out, text.directory_id, &doc.directory_id)?;
-            field(out, text.path, &quoted(&doc.path))?;
+            field(out, text.path, &super::escape::native_path(&doc.path))?;
             table(out, &text.worktree_headers, &doc.entries, worktree_cells)
         }
         // `launch-profile list` prints the catalog revision line, then one

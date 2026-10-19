@@ -429,7 +429,7 @@ reader 准入要求标准 PSReadLine 模块／导出身份和已识别的定义�
 
 同一读取器拥有 `WindowsUpdateChannel`（`stable`/`preview`，默认 stable）及 default/file 来源。文件值非法时仅让该叶字段回退并进入警告记录；已记录的环境边界仍为致命错误。原生 `channel show` 离线读取有效偏好，不推断已安装的发布身份，也不执行更新器。
 
-共享有界设置读取器和纯 Windows 用户路径适配器服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责致命文件／路径／环境准入、逐字段回退到已有安全默认值、恢复策略解析及确定性警告记录；应用负责协议投影、激活提交和私有子进程参数。读取结果把有效设置与诊断保存在一起。诊断在显示截短前去重，按字段和原因排序，最多 128 条并携带精确省略数量，且绝不保留来源值或命令。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。读取器不依赖 Workbench。
+共享有界设置读取器和纯 Windows 用户路径适配器（对解析后的相对与波浪号操作数做词法规范化，绝对字面量保持原样）服务于 CLI 配置、公共 Client 激活和直接托管 Server 启动，负责致命文件／路径／环境准入、逐字段回退到已有安全默认值、恢复策略解析及确定性警告记录；应用负责协议投影、激活提交和私有子进程参数。读取结果把有效设置与诊断保存在一起。诊断在显示截短前去重，按字段和原因排序，最多 128 条并携带精确省略数量，且绝不保留来源值或命令。参见[配置与优先级](../../apps/orchbee/docs/windows-cli-configuration.zh-CN.md)。仅 Windows 的固定版本 `toml` 依赖在此文件边界解析。读取器不依赖 Workbench。
 
 纯函数 `windows_user_settings_path` 为伴随资源暴露相同配置文件位置，不打开文件或应用设置。它保留显式 `ORCHBEE_CONFIG_FILE` 优先于 `%APPDATA%/Orchbee/config.toml` 的规则；缺少根目录时仍返回缺失。Server 使用其父目录定位检测规则输入。
 

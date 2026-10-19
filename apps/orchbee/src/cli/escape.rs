@@ -53,6 +53,19 @@ pub(crate) fn unquoted(value: &str) -> String {
     rendered
 }
 
+/// A path as the platform spells it: on Windows, a drive-absolute or UNC path
+/// reported with forward slashes uses backslashes. Controls stay escaped and
+/// the result remains copyable.
+pub(crate) fn native_path(value: &str) -> String {
+    let drive =
+        matches!(value.as_bytes(), [drive, b':', b'/' | b'\\', ..] if drive.is_ascii_alphabetic());
+    if cfg!(windows) && (drive || value.starts_with("//")) {
+        unquoted(&value.replace('/', "\\"))
+    } else {
+        unquoted(value)
+    }
+}
+
 /// `value` as a quoted, escaped text value.
 pub(crate) fn quoted(value: &str) -> String {
     let mut quoted = String::with_capacity(value.len() + 2);

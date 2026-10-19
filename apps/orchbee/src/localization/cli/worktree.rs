@@ -1,4 +1,8 @@
-use crate::{cli::escape::escape, invocation::CommandPath, localization::Locale};
+use crate::{
+    cli::escape::{escape, native_path},
+    invocation::CommandPath,
+    localization::Locale,
+};
 use serde_json::Value;
 
 impl Locale {
@@ -260,9 +264,9 @@ impl Locale {
                 let mut text = format!(
                     "{}: {}\n{}: {}\n",
                     word("Repository", "仓库"),
-                    escape(source.repository_root.as_str()),
+                    native_path(source.repository_root.as_str()),
                     word("Source checkout", "来源检出"),
-                    escape(source.checkout_path.as_str())
+                    native_path(source.checkout_path.as_str())
                 );
                 for entry in entries {
                     let checkout = &entry.checkout;
@@ -281,7 +285,7 @@ impl Locale {
                     };
                     text.push_str(&format!(
                         "\n{}  [{}]  {}\n",
-                        escape(path),
+                        native_path(path),
                         kind,
                         escape(branch)
                     ));
@@ -324,9 +328,16 @@ impl Locale {
                         "Worker or query slot unavailable",
                         "Worker 或查询槽位不可用",
                     ),
+                    F::GitFailed {
+                        stage: orchbee_workbench_protocol::WorktreeListStage::Probe,
+                        ..
+                    } => word(
+                        "Not a Git repository, or Git does not trust its owner; run `git status` in that directory to see which",
+                        "不是 Git 仓库，或 Git 不信任其所有者；在该目录运行 `git status` 查看原因",
+                    ),
                     F::GitFailed { .. } => word(
-                        "Git query failed; check the repository and its ownership",
-                        "Git 查询失败，请检查仓库及其所有权",
+                        "Git could not list the repository's worktrees",
+                        "Git 无法列出该仓库的 worktree",
                     ),
                     F::SpawnUnavailable { .. } => {
                         word("Git process owner unavailable", "Git 进程所有者不可用")

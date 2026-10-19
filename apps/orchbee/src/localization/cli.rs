@@ -1658,6 +1658,14 @@ impl Locale {
                 "The local session runtime directory failed its safety checks.\n".to_owned()
             }
             (Self::ZhCn, "runtime-directory") => "本地会话运行时目录未通过安全检查。\n".to_owned(),
+            (Self::EnUs, "probe") => {
+                "The directory is not a Git repository, or Git does not trust its owner. Run `git status` in that directory to see which.\n".to_owned()
+            }
+            (Self::ZhCn, "probe") => {
+                "该目录不是 Git 仓库，或 Git 不信任其所有者。请在该目录运行 `git status` 查看原因。\n".to_owned()
+            }
+            (Self::EnUs, "list") => "Git could not list the repository's worktrees.\n".to_owned(),
+            (Self::ZhCn, "list") => "Git 无法列出该仓库的 worktree。\n".to_owned(),
             (Self::EnUs, _) => "The runtime base is missing, invalid, or unsafe.\n".to_owned(),
             (Self::ZhCn, _) => "运行时基座缺失、无效或不安全。\n".to_owned(),
         }

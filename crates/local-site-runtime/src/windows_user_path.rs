@@ -67,6 +67,9 @@ impl WindowsUserPathOperand {
     }
 
     /// Preserves absolute literals and resolves home or cwd only through the supplied execution context.
+    /// A resolved home or cwd operand is normalized lexically, as Windows itself does: `.` is
+    /// dropped, `..` removes one earlier component but never the root, and no trailing separator
+    /// remains.
     ///
     /// # Errors
     /// Returns `Context` for a missing or malformed required process value, or `Input` when
@@ -96,7 +99,11 @@ impl WindowsUserPathOperand {
                 current.join(&self.value)
             }
         };
-        checked_value(absolute.to_str().ok_or(WindowsUserPathError::Input)?)
+        checked_value(
+            lexical(&absolute)
+                .to_str()
+                .ok_or(WindowsUserPathError::Input)?,
+        )
     }
 }
 
@@ -169,6 +176,30 @@ fn home(
             Ok(home)
         }
     }
+}
+
+/// Resolve `.` and `..` without touching the filesystem; the prefix and root
+/// are kept, so `..` can never climb above the drive root.
+fn lexical(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    let mut depth = 0_usize;
+    for component in path.components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir => normalized.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if depth > 0 {
+                    normalized.pop();
+                    depth -= 1;
+                }
+            }
+            Component::Normal(part) => {
+                normalized.push(part);
+                depth += 1;
+            }
+        }
+    }
+    normalized
 }
 
 fn checked_value(value: &str) -> Result<String, WindowsUserPathError> {
