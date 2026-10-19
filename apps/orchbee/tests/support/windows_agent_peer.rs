@@ -414,6 +414,28 @@ pub(super) fn session_detail(session_id: &str) -> serde_json::Value {
     })
 }
 
+pub(super) fn with_attachment_generation(
+    mut detail: Value,
+    presentation_id: &str,
+    generation: &str,
+) -> Value {
+    let attachments = detail["snapshot"]["presentationAttachments"]
+        .as_array_mut()
+        .expect("canonical fixture attachments");
+    let mut matched = 0;
+    for attachment in attachments {
+        if attachment["presentationId"].as_str() == Some(presentation_id) {
+            attachment["generation"] = json!(generation);
+            matched += 1;
+        }
+    }
+    assert_eq!(
+        matched, 1,
+        "generation fixture needs one canonical attachment"
+    );
+    detail
+}
+
 pub(super) fn session_summary(detail: &Value) -> Value {
     let snapshot = &detail["snapshot"];
     let mut summary = json!({});
@@ -493,15 +515,18 @@ impl AgentProjectionFixture {
         host_epoch: &str,
         host_terminal_id: &str,
     ) -> Self {
-        let mut current = details.to_vec();
         let mut matched = 0;
-        for detail in &mut current {
+        for detail in details {
             let attachments = detail["snapshot"]["presentationAttachments"]
-                .as_array_mut()
+                .as_array()
                 .expect("canonical fixture attachments");
             for attachment in attachments {
                 if attachment["presentationId"].as_str() == Some(presentation_id) {
-                    attachment["generation"] = json!(generation);
+                    assert_eq!(
+                        attachment["generation"].as_str(),
+                        Some(generation),
+                        "current incarnation must match the canonical attachment"
+                    );
                     matched += 1;
                 }
             }
@@ -510,7 +535,7 @@ impl AgentProjectionFixture {
             matched, 1,
             "current-incarnation fixture needs one canonical attachment"
         );
-        Self::canonical(snapshot, canonical_revision, &current).with_state(
+        Self::canonical(snapshot, canonical_revision, details).with_state(
             presentation_id,
             Some(terminal_agent_state(
                 presentation_id,

@@ -388,11 +388,16 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
                 selected["view"]["phase"] = json!("busy");
             }
             list_reply(&mut stream, vec![selected, record(9, 6)]);
+            let session = if pinned {
+                peer_support::with_attachment_generation(detail(&[106, 108]), &id(108), &id(1))
+            } else {
+                detail(&[108])
+            };
             if pinned {
                 AgentProjectionFixture::canonical_with_current_incarnation(
                     snapshot(12),
                     1,
-                    &[detail(&[106, 108])],
+                    &[session.clone()],
                     &id(108),
                     &id(1),
                     &id(2),
@@ -403,10 +408,7 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
             if !direct {
                 resolved(&mut stream);
             }
-            get_reply(
-                &mut stream,
-                detail(if pinned { &[106, 108] } else { &[108] }),
-            );
+            get_reply(&mut stream, session);
             let (request, command) = submitted(&mut stream);
             settled(&mut stream, &request, &command);
             assert_closed(&mut stream);

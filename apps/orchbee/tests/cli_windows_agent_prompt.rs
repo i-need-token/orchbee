@@ -568,10 +568,15 @@ fn panel_prompt_submits_to_the_primary_binding() {
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
+        let detail = with_attachment_generation(
+            idle(),
+            "11111111111111111111111111111111",
+            "33333333333333333333333333333333",
+        );
         AgentProjectionFixture::canonical_with_current_incarnation(
             bound_snapshot(9),
             1,
-            &[idle()],
+            &[detail.clone()],
             "11111111111111111111111111111111",
             "33333333333333333333333333333333",
             "66666666666666666666666666666666",
@@ -585,9 +590,9 @@ fn panel_prompt_submits_to_the_primary_binding() {
         read_reply(
             &mut stream,
             "get",
-            json!({"kind":"found","revision":1,"session":idle()}),
+            json!({"kind":"found","revision":1,"session":detail}),
         );
-        prompt_preflight(&mut stream, idle());
+        prompt_preflight(&mut stream, detail);
         accept_prompt(&mut stream, "panel prompt");
         assert_closed(&mut stream);
     });

@@ -943,13 +943,24 @@ fn session_target_reply(
     request_id
 }
 
+const PANEL_PRESENTATION: &str = "11111111111111111111111111111111";
+const PANEL_GENERATION: &str = "33333333333333333333333333333333";
+
+fn panel_detail(session_id: &str) -> Value {
+    with_attachment_generation(
+        session_detail(session_id),
+        PANEL_PRESENTATION,
+        PANEL_GENERATION,
+    )
+}
+
 fn panel_projection(revision: u64, details: &[Value]) -> AgentProjectionFixture {
     AgentProjectionFixture::canonical_with_current_incarnation(
         bound_snapshot(9),
         revision,
         details,
-        "11111111111111111111111111111111",
-        "33333333333333333333333333333333",
+        PANEL_PRESENTATION,
+        PANEL_GENERATION,
         "66666666666666666666666666666666",
         "77777777777777777777777777777777",
     )
@@ -962,7 +973,7 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
     for wait in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
-            let detail = session_detail("sess-alpha");
+            let detail = panel_detail("sess-alpha");
             let outer = (!wait).then(|| begin_get_projection(&mut stream, 2, &[detail.clone()]));
             if wait {
                 bound_snapshot_reply(&mut stream);
@@ -1110,7 +1121,7 @@ fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() 
                 return;
             }
             bound_snapshot_reply(&mut stream);
-            let selected = panel_projection(1, &[session_detail("sess-alpha")]);
+            let selected = panel_projection(1, &[panel_detail("sess-alpha")]);
             selected.read(&mut stream, false);
             session_target_reply(
                 &mut stream,
@@ -1156,15 +1167,18 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
-        let selected = panel_projection(1, &[session_detail("sess-alpha")]);
+        let mut detail = panel_detail("sess-alpha");
+        detail["snapshot"]["presentationAttachments"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"generation":"child-generation","navigable":true,"presentationId":"44444444444444444444444444444444","visibility":"hidden"}));
+        let selected = panel_projection(1, &[detail.clone()]);
         selected.read(&mut stream, false);
         session_target_reply(
             &mut stream,
             "resolve",
             json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"session-id"}),
         );
-        let mut detail = session_detail("sess-alpha");
-        detail["snapshot"]["presentationAttachments"].as_array_mut().unwrap().push(json!({"generation":"gen-2","navigable":true,"presentationId":"44444444444444444444444444444444","visibility":"hidden"}));
         read_reply(
             &mut stream,
             "get",
@@ -1345,7 +1359,7 @@ fn a_panel_get_refuses_a_reply_for_another_session() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
-        let detail = session_detail("sess-alpha");
+        let detail = panel_detail("sess-alpha");
         begin_get_projection(&mut stream, 1, &[detail.clone()]);
         let selected = panel_projection(1, &[detail]);
         selected.read(&mut stream, false);
@@ -1357,7 +1371,7 @@ fn a_panel_get_refuses_a_reply_for_another_session() {
         read_reply(
             &mut stream,
             "get",
-            json!({"kind":"found","revision":1,"session":session_detail("other-session")}),
+            json!({"kind":"found","revision":1,"session":panel_detail("other-session")}),
         );
         assert_closed(&mut stream);
     });
