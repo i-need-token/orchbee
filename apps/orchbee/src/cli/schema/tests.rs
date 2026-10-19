@@ -374,7 +374,10 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
             read::Checkpoint,
             tests::{rows, state, summary},
         },
-        cli::{agent_projection::Inspection, results::Projection},
+        cli::{
+            agent_projection::Inspection,
+            results::{AgentRuntimeDoc, Projection},
+        },
     };
     use orchbee_agent_observation_protocol::{AgentSafeInteger, AgentSemanticStatus};
     use orchbee_workbench_protocol::WorkbenchRevision;
@@ -419,6 +422,7 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
     }
 
     let mut inspection = canonical_agent_inspection(false);
+    inspection.runtime = AgentRuntimeDoc::Unavailable("terminal-unavailable");
     inspection.terminal = Some(current_canonical_terminal());
     let with_terminal = Projection::UnifiedAgentInspection(Box::new(Inspection {
         row: checkpoint.rows[0].clone(),
@@ -443,6 +447,34 @@ fn unified_agent_get_schema_is_closed_around_real_projection_and_inspection() {
             "non-null Windows canonical terminal requires {field}"
         );
     }
+
+    for reason in [
+        "session-ended",
+        "unbound",
+        "ambiguous-primary",
+        "binding-changed",
+    ] {
+        let mut null_terminal = document(false);
+        null_terminal["result"]["inspection"]["runtime"]["reason"] = reason.into();
+        assert!(
+            validator.is_valid(&null_terminal),
+            "a null Windows canonical terminal is valid for {reason}"
+        );
+    }
+    for reason in ["terminal-unavailable", "process-unavailable"] {
+        let mut null_terminal = document(false);
+        null_terminal["result"]["inspection"]["runtime"]["reason"] = reason.into();
+        assert!(
+            !validator.is_valid(&null_terminal),
+            "a null Windows canonical terminal is invalid for {reason}"
+        );
+    }
+    let mut placed_terminal = with_terminal.clone();
+    placed_terminal["result"]["inspection"]["runtime"]["reason"] = "unbound".into();
+    assert!(
+        !validator.is_valid(&placed_terminal),
+        "a non-null Windows canonical terminal is invalid for an early unavailable reason"
+    );
 
     let document = document(false);
     let mut invalid = document.clone();
@@ -602,13 +634,17 @@ fn configuration_v4_requires_update_policy_without_widening_v3() {
         .remove("additionalProperties");
     reduced.as_object_mut().unwrap().remove("allOf");
     let check = json!({"name":"user-config","status":"pass","details":{"path":null,"exists":false,"newCwd":"follow","worktreeDirectory":null,"resumeAgentsOnRestore":true,"resumeAgentsOnRestoreSource":"default","manifestCheck":true,"manifestCheckSource":"default"}});
-    assert!(jsonschema::validator_for(&reduced)
-        .unwrap()
-        .is_valid(&check));
+    assert!(
+        jsonschema::validator_for(&reduced)
+            .unwrap()
+            .is_valid(&check)
+    );
     reduced["$ref"] = json!("#/$defs/userConfigCheckV3");
-    assert!(!jsonschema::validator_for(&reduced)
-        .unwrap()
-        .is_valid(&check));
+    assert!(
+        !jsonschema::validator_for(&reduced)
+            .unwrap()
+            .is_valid(&check)
+    );
 }
 
 #[test]

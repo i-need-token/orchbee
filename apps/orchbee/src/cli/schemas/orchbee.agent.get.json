@@ -2394,18 +2394,51 @@
 				},
 				{
 					"required": ["runtime", "terminal", "management"],
-					"properties": {
-						"terminal": {
-							"anyOf": [
-								{
-									"type": "null"
+					"oneOf": [
+						{
+							"properties": {
+								"runtime": {
+									"required": ["kind", "reason"],
+									"properties": {
+										"kind": { "const": "unavailable" },
+										"reason": {
+											"enum": ["session-ended", "unbound", "ambiguous-primary", "binding-changed"]
+										}
+									}
 								},
-								{
+								"terminal": { "type": "null" }
+							}
+						},
+						{
+							"properties": {
+								"runtime": {
+									"required": ["kind", "reason"],
+									"properties": {
+										"kind": { "const": "unavailable" },
+										"reason": {
+											"enum": ["terminal-unavailable", "process-unavailable"]
+										}
+									}
+								},
+								"terminal": {
 									"$ref": "#/$defs/windowsProjectedAgentTerminal"
 								}
-							]
+							}
+						},
+						{
+							"properties": {
+								"runtime": {
+									"required": ["kind"],
+									"properties": {
+										"kind": { "const": "observed" }
+									}
+								},
+								"terminal": {
+									"$ref": "#/$defs/windowsProjectedAgentTerminal"
+								}
+							}
 						}
-					}
+					]
 				}
 			]
 		},
