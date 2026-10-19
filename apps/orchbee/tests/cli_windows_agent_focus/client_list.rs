@@ -22,6 +22,13 @@ fn summary(id: &str) -> Value {
     summary["status"] = detail["status"].clone();
     summary
 }
+fn change_summary(id: &str) -> Value {
+    let mut changed = summary(id);
+    let fields = changed.as_object_mut().unwrap();
+    fields.remove("executionLocation");
+    fields.remove("presentationAttachments");
+    changed
+}
 fn batch(stream: &mut LocalStream, changed: Option<&str>, allowed: bool) {
     let view = client_get::selected_reply(stream, false);
     let request = view_request(stream);
@@ -60,7 +67,7 @@ fn batch(stream: &mut LocalStream, changed: Option<&str>, allowed: bool) {
         let outcome = json!({"kind":"changes","cursor":attention::token(),"observedThroughRevision":4,
         "runtimeRevision":4,"hasMore":false,"changes":[{
             "revision":4,"transition":"presentation-visibility-changed",
-            "session":summary(changed)
+            "session":change_summary(changed)
         }]});
         write_agent_result(stream,&AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
     }

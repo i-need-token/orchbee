@@ -482,6 +482,47 @@ impl AgentProjectionFixture {
         }
     }
 
+    /// Give one canonical attachment a current terminal incarnation without
+    /// claiming that the terminal report currently identifies an Agent.
+    pub(super) fn canonical_with_current_incarnation(
+        snapshot: orchbee_workbench_protocol::Snapshot,
+        canonical_revision: u64,
+        details: &[Value],
+        presentation_id: &str,
+        generation: &str,
+        host_epoch: &str,
+        host_terminal_id: &str,
+    ) -> Self {
+        let mut current = details.to_vec();
+        let mut matched = 0;
+        for detail in &mut current {
+            let attachments = detail["snapshot"]["presentationAttachments"]
+                .as_array_mut()
+                .expect("canonical fixture attachments");
+            for attachment in attachments {
+                if attachment["presentationId"].as_str() == Some(presentation_id) {
+                    attachment["generation"] = json!(generation);
+                    matched += 1;
+                }
+            }
+        }
+        assert_eq!(
+            matched, 1,
+            "current-incarnation fixture needs one canonical attachment"
+        );
+        Self::canonical(snapshot, canonical_revision, &current).with_state(
+            presentation_id,
+            Some(terminal_agent_state(
+                presentation_id,
+                generation,
+                host_epoch,
+                host_terminal_id,
+                None,
+                "unknown",
+            )),
+        )
+    }
+
     pub(super) fn with_state(mut self, presentation_id: &str, state: Option<Value>) -> Self {
         assert!(
             self.states

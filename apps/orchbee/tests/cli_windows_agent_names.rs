@@ -944,7 +944,15 @@ fn session_target_reply(
 }
 
 fn panel_projection(revision: u64, details: &[Value]) -> AgentProjectionFixture {
-    AgentProjectionFixture::canonical(bound_snapshot(9), revision, details)
+    AgentProjectionFixture::canonical_with_current_incarnation(
+        bound_snapshot(9),
+        revision,
+        details,
+        "11111111111111111111111111111111",
+        "33333333333333333333333333333333",
+        "66666666666666666666666666666666",
+        "77777777777777777777777777777777",
+    )
 }
 
 #[test]

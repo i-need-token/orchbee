@@ -568,7 +568,16 @@ fn panel_prompt_submits_to_the_primary_binding() {
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
-        AgentProjectionFixture::canonical(bound_snapshot(9), 1, &[idle()]).read(&mut stream, false);
+        AgentProjectionFixture::canonical_with_current_incarnation(
+            bound_snapshot(9),
+            1,
+            &[idle()],
+            "11111111111111111111111111111111",
+            "33333333333333333333333333333333",
+            "66666666666666666666666666666666",
+            "77777777777777777777777777777777",
+        )
+        .read(&mut stream, false);
         resolve_reply(
             &mut stream,
             json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"session-id"}),

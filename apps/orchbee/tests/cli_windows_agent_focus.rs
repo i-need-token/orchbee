@@ -389,8 +389,16 @@ fn names_sessions_and_explicit_panels_select_one_primary_without_touching_other_
             }
             list_reply(&mut stream, vec![selected, record(9, 6)]);
             if pinned {
-                AgentProjectionFixture::canonical(snapshot(12), 1, &[detail(&[106, 108])])
-                    .read(&mut stream, false);
+                AgentProjectionFixture::canonical_with_current_incarnation(
+                    snapshot(12),
+                    1,
+                    &[detail(&[106, 108])],
+                    &id(108),
+                    &id(1),
+                    &id(2),
+                    &id(208),
+                )
+                .read(&mut stream, false);
             }
             if !direct {
                 resolved(&mut stream);
