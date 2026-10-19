@@ -187,6 +187,17 @@ fn explanation() -> serde_json::Value {
     })
 }
 
+fn begin_get_projection(
+    stream: &mut orchbee_local_ipc::LocalStream,
+    revision: u64,
+    details: &[Value],
+) -> AgentProjectionFixture {
+    bound_snapshot_reply(stream);
+    let projection = AgentProjectionFixture::canonical(bound_snapshot(9), revision, details);
+    projection.read(stream, true);
+    projection
+}
+
 #[test]
 fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() {
     let fixture = Fixture::new();
@@ -194,9 +205,8 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
     for verb in ["get", "explain"] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
-            if verb == "get" {
-                bound_snapshot_reply(&mut stream);
-            }
+            let projection = (verb == "get")
+                .then(|| begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]));
             let resolution = resolve_reply(
                 &mut stream,
                 json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"name"}),
@@ -217,6 +227,7 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
                 );
                 bound_snapshot_reply(&mut stream);
                 management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
+                projection.unwrap().confirm(&mut stream, true);
             }
             assert_closed(&mut stream);
         });
@@ -228,11 +239,20 @@ fn named_get_and_explain_share_one_admission_and_publish_only_the_read_source() 
             String::from_utf8_lossy(&output.stderr)
         );
         let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(document["source"]["kind"], "agent-read");
         assert_eq!(
-            document["result"]["session"]["snapshot"]["sessionId"],
-            "sess-alpha"
+            document["source"]["kind"],
+            if verb == "get" {
+                "agent-projection"
+            } else {
+                "agent-read"
+            }
         );
+        let result = if verb == "get" {
+            &document["result"]["inspection"]
+        } else {
+            &document["result"]
+        };
+        assert_eq!(result["session"]["snapshot"]["sessionId"], "sess-alpha");
         validate(
             &document,
             if verb == "get" {
@@ -310,7 +330,7 @@ fn unresolved_name_publishes_its_own_failure_without_get_or_wait_poll() {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
             if verb == "get" {
-                bound_snapshot_reply(&mut stream);
+                begin_get_projection(&mut stream, 7, &[]);
             }
             resolve_reply(&mut stream, json!({"kind":"rejected","reason":"not-found"}));
             assert_closed(&mut stream);
@@ -334,7 +354,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
-        bound_snapshot_reply(&mut stream);
+        let projection = begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]);
         read_reply(
             &mut stream,
             "get",
@@ -348,6 +368,7 @@ fn explicit_session_bypasses_name_resolution_even_for_a_valid_alias_spelling() {
         );
         bound_snapshot_reply(&mut stream);
         management_reply(&mut stream, 7, json!({"phase":"unmanaged"}));
+        projection.confirm(&mut stream, true);
         assert_closed(&mut stream);
     });
     let output = fixture.run(&[
@@ -368,7 +389,7 @@ fn named_get_resolution_and_read_share_the_original_five_second_deadline() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
-        bound_snapshot_reply(&mut stream);
+        begin_get_projection(&mut stream, 7, &[session_detail("sess-alpha")]);
         // Spending most of the command budget on resolution must leave only
         // the remainder for Get; renewing another five seconds would fail.
         let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
@@ -891,6 +912,51 @@ fn presentation_reply(
     request_id
 }
 
+fn session_target_reply(
+    stream: &mut orchbee_local_ipc::LocalStream,
+    operation: &str,
+    outcome: Value,
+) -> String {
+    let AgentRequest::Names(request) = read_agent_request(stream).unwrap() else {
+        panic!("names request")
+    };
+    assert_eq!(
+        json!(request)["kind"],
+        format!("agent.session.{operation}.request")
+    );
+    assert_eq!(
+        json!(request)["target"],
+        json!({"kind":"session","sessionId":"sess-alpha"})
+    );
+    let request_id = request.request_id().as_str().to_owned();
+    write_agent_result(
+        stream,
+        &AgentResult::Names(
+            serde_json::from_value(json!({
+                "kind":format!("agent.session.{operation}.result"), "requestId":request_id,
+                "result":{"outcome":outcome}
+            }))
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    request_id
+}
+
+fn panel_projection(revision: u64, details: &[Value]) -> AgentProjectionFixture {
+    AgentProjectionFixture::canonical(bound_snapshot(9), revision, details).with_state(
+        "11111111111111111111111111111111",
+        Some(terminal_agent_state(
+            "11111111111111111111111111111111",
+            "gen-2",
+            "66666666666666666666666666666666",
+            "77777777777777777777777777777777",
+            None,
+            "unknown",
+        )),
+    )
+}
+
 #[test]
 fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session() {
     let fixture = Fixture::new();
@@ -898,20 +964,26 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
     for wait in [false, true] {
         let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
-            bound_snapshot_reply(&mut stream);
-            presentation_reply(
+            let detail = session_detail("sess-alpha");
+            let outer = (!wait).then(|| begin_get_projection(&mut stream, 2, &[detail.clone()]));
+            if wait {
+                bound_snapshot_reply(&mut stream);
+            }
+            let selected = panel_projection(if wait { 1 } else { 2 }, &[detail.clone()]);
+            selected.read(&mut stream, false);
+            session_target_reply(
                 &mut stream,
                 "resolve",
-                json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+                json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"session-id"}),
             );
-            let mut detail = session_detail("sess-alpha");
+            let mut detail = detail;
             if wait {
                 wait::checkpoint(&mut stream, 1);
             }
             read_reply(
                 &mut stream,
                 "get",
-                json!({"kind":"found","revision":1,"session":detail}),
+                json!({"kind":"found","revision":if wait { 1 } else { 2 },"session":detail}),
             );
             if wait {
                 detail["snapshot"]["turn"] = json!({"kind":"idle"});
@@ -936,6 +1008,7 @@ fn panel_get_and_wait_share_admission_and_pin_the_primary_presentations_session(
                 );
                 bound_snapshot_reply(&mut stream);
                 management_reply(&mut stream, 2, json!({"phase":"unmanaged"}));
+                outer.unwrap().confirm(&mut stream, true);
             }
             assert_closed(&mut stream);
         });
@@ -1039,7 +1112,9 @@ fn panel_rename_distinguishes_ambiguous_refusal_from_a_pre_mutation_read_loss() 
                 return;
             }
             bound_snapshot_reply(&mut stream);
-            presentation_reply(
+            let selected = panel_projection(1, &[session_detail("sess-alpha")]);
+            selected.read(&mut stream, false);
+            session_target_reply(
                 &mut stream,
                 "name.assign",
                 json!({"kind":"rejected","reason":"ambiguous-target","conflictSessionId":null}),
@@ -1083,10 +1158,12 @@ fn panel_send_keeps_primary_presentation_when_the_agent_also_owns_a_child() {
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
         bound_snapshot_reply(&mut stream);
-        presentation_reply(
+        let selected = panel_projection(1, &[session_detail("sess-alpha")]);
+        selected.read(&mut stream, false);
+        session_target_reply(
             &mut stream,
             "resolve",
-            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"session-id"}),
         );
         let mut detail = session_detail("sess-alpha");
         detail["snapshot"]["presentationAttachments"].as_array_mut().unwrap().push(json!({"generation":"gen-2","navigable":true,"presentationId":"44444444444444444444444444444444","visibility":"hidden"}));
@@ -1270,11 +1347,14 @@ fn a_panel_get_refuses_a_reply_for_another_session() {
     let rendezvous = fixture.rendezvous();
     let listener = LocalListener::bind(rendezvous.client_socket_path()).unwrap();
     let handler = peer(&fixture, listener, move |mut stream| {
-        bound_snapshot_reply(&mut stream);
-        presentation_reply(
+        let detail = session_detail("sess-alpha");
+        begin_get_projection(&mut stream, 1, &[detail.clone()]);
+        let selected = panel_projection(1, &[detail]);
+        selected.read(&mut stream, false);
+        session_target_reply(
             &mut stream,
             "resolve",
-            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"presentation"}),
+            json!({"kind":"resolved","sessionId":"sess-alpha","resolvedBy":"session-id"}),
         );
         read_reply(
             &mut stream,

@@ -1,6 +1,8 @@
-//! Batch joins preserve independent seen states across canonical page races.
+//! Batch joins preserve independent seen states across canonical continuity changes.
 use super::*;
-use orchbee_agent_observation_protocol::{AgentResult, write_agent_result};
+use orchbee_agent_observation_protocol::{
+    AgentRequest, AgentResult, read_agent_request, write_agent_result,
+};
 
 fn summary(id: &str) -> Value {
     let detail = client_get::completed();
@@ -20,24 +22,7 @@ fn summary(id: &str) -> Value {
     summary["status"] = detail["status"].clone();
     summary
 }
-fn listed_reply(stream: &mut LocalStream, outcome: Value) {
-    let AgentRequest::Read(request) = read_agent_request(stream).unwrap() else {
-        panic!("list read")
-    };
-    assert_eq!(json!(request)["kind"], "agent.session.list.request");
-    assert_eq!(json!(request)["limit"], 2);
-    assert_eq!(json!(request)["includeEnded"], false);
-    assert!(json!(request)["cursor"].is_null());
-    write_agent_result(stream,&AgentResult::Read(serde_json::from_value(json!({"kind":"agent.session.list.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
-}
-fn page(stream: &mut LocalStream, revision: u64, names: &[&str]) {
-    listed_reply(
-        stream,
-        json!({"kind":"listed","revision":revision,"nextCursor":null,
-        "items":names.iter().map(|id|summary(id)).collect::<Vec<_>>()}),
-    );
-}
-fn batch(stream: &mut LocalStream, allowed: bool) {
+fn batch(stream: &mut LocalStream, changed: Option<&str>, allowed: bool) {
     let view = client_get::selected_reply(stream, false);
     let request = view_request(stream);
     let ClientViewAction::Submit { command } = &request.action else {
@@ -62,68 +47,59 @@ fn batch(stream: &mut LocalStream, allowed: bool) {
             "kind":"attention-read","view":view,"attention":{"revision":3,"cursor":attention::token(),"outerFocused":true,"entries":entries}
         }}}),
     );
-    attention::authenticate(stream, allowed);
+    if let Some(changed) = changed {
+        let AgentRequest::Changes(request) = read_agent_request(stream).unwrap() else {
+            panic!("one canonical continuity read")
+        };
+        assert_eq!(json!(request)["cursor"], attention::token());
+        assert_eq!(json!(request)["limit"], 100);
+        let outcome = if allowed {
+            json!({"kind":"changes","cursor":attention::token(),"observedThroughRevision":4,
+            "runtimeRevision":4,"hasMore":false,"changes":[{
+                "revision":4,"transition":"presentation-visibility-changed",
+                "session":summary(changed)
+            }]})
+        } else {
+            json!({"kind":"rejected","reason":"cursor-invalid"})
+        };
+        write_agent_result(stream,&AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":outcome}})).unwrap())).unwrap();
+    }
 }
 #[test]
-fn selected_client_lists_batch_once_and_preserves_truth_across_page_changes() {
-    for case in [
-        "stable",
-        "changed",
-        "membership",
-        "emptied",
-        "empty",
-        "foreign",
-        "stale-cursor",
-    ] {
+fn selected_client_lists_batch_once_and_preserves_truth_across_canonical_changes() {
+    for case in ["stable", "changed", "other-change", "empty", "foreign"] {
         let fixture = FocusFixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let server = peer(&fixture, listener, move |mut stream| {
             snapshot_reply(&mut stream);
-            page(
-                &mut stream,
-                3,
-                if case == "empty" {
-                    &[]
-                } else {
-                    &["sess-alpha", "sess-beta"]
-                },
-            );
+            let revision = if matches!(case, "changed" | "other-change" | "foreign") {
+                4
+            } else {
+                3
+            };
+            let summaries = if case == "empty" {
+                Vec::new()
+            } else {
+                vec![summary("sess-alpha"), summary("sess-beta")]
+            };
+            let projection = AgentProjectionFixture::summaries(snapshot(12), revision, summaries);
+            projection.read(&mut stream, false);
+            client_get::selected_reply(&mut stream, false);
             if case == "empty" {
                 client_get::selected_reply(&mut stream, false);
             } else {
-                batch(&mut stream, case != "foreign");
-                if case == "stale-cursor" {
-                    listed_reply(
-                        &mut stream,
-                        json!({"kind":"rejected","reason":"cursor-stale"}),
-                    );
-                } else if case != "foreign" {
-                    let newer = matches!(case, "changed" | "membership");
-                    let names: &[&str] = match case {
-                        "membership" => &["sess-alpha", "sess-new"],
-                        "emptied" => &[],
-                        _ => &["sess-alpha", "sess-beta"],
-                    };
-                    page(&mut stream, if newer { 4 } else { 3 }, names);
-                    if newer {
-                        let AgentRequest::Changes(request) =
-                            read_agent_request(&mut stream).unwrap()
-                        else {
-                            panic!("one shared continuity read")
-                        };
-                        let target = if case == "changed" {
-                            "sess-alpha"
-                        } else {
-                            "sess-new"
-                        };
-                        let change = json!({"revision":4,"transition":"presentation-visibility-changed","session":{
-                            "sessionId":target,"providerId":"claude-code","parentSessionId":null,"pendingRequestCount":0,"lifecycle":"live",
-                            "observation":{"generation":3,"sequence":11,"freshness":"fresh","fidelity":"rich","source":"native"},"status":{"kind":"succeeded"}}});
-                        write_agent_result(&mut stream,&AgentResult::Changes(serde_json::from_value(json!({"kind":"agent.session.changes.result","requestId":request.request_id(),"result":{"outcome":{
-                            "kind":"changes","cursor":attention::token(),"observedThroughRevision":4,"runtimeRevision":4,"hasMore":false,"changes":[change]
-                        }}})).unwrap())).unwrap();
-                    }
+                let changed = match case {
+                    "changed" => Some("sess-alpha"),
+                    "other-change" | "foreign" => Some("sess-new"),
+                    _ => None,
+                };
+                batch(&mut stream, changed, case != "foreign");
+                if case != "foreign" {
+                    client_get::selected_reply(&mut stream, false);
                 }
+            }
+            if case != "foreign" {
+                projection.confirm(&mut stream, false);
             }
             assert_closed(&mut stream);
         });
@@ -138,7 +114,7 @@ fn selected_client_lists_batch_once_and_preserves_truth_across_page_changes() {
         ]);
         server.join().unwrap();
         let doc = document(&output);
-        if matches!(case, "foreign" | "stale-cursor") {
+        if case == "foreign" {
             assert!(!output.status.success(), "{output:?}");
             validate(
                 &doc,
@@ -152,17 +128,21 @@ fn selected_client_lists_batch_once_and_preserves_truth_across_page_changes() {
             &doc,
             include_str!("../../src/cli/schemas/orchbee.agent.list.json"),
         );
-        assert_eq!(doc["version"], 3);
+        assert_eq!(doc["version"], 2);
+        assert_eq!(doc["source"]["kind"], "agent-projection");
         assert_eq!(doc["result"]["clientId"], id(7));
         let items = doc["result"]["items"].as_array().unwrap();
-        if matches!(case, "empty" | "emptied") {
+        if case == "empty" {
             assert!(items.is_empty());
             continue;
         }
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0]["status"]["kind"], "succeeded");
+        assert_eq!(items[0]["ordinal"], 1);
+        assert_eq!(items[0]["status"], "done");
+        assert_eq!(items[0]["source"], "canonical");
+        assert!(items[0]["client"]["terminal"].is_null());
         assert_eq!(
-            items[0]["client"]["seen"],
+            items[0]["client"]["canonical"]["seen"],
             if case == "changed" {
                 Value::Null
             } else {
@@ -170,28 +150,74 @@ fn selected_client_lists_batch_once_and_preserves_truth_across_page_changes() {
             }
         );
         assert_eq!(
-            items[0]["client"]["state"],
+            items[0]["client"]["canonical"]["state"],
             if case == "changed" {
                 "stale"
             } else {
                 "current"
             }
         );
-        assert_eq!(
-            items[1]["client"]["seen"],
-            if case == "membership" {
-                Value::Null
-            } else {
-                json!(false)
-            }
-        );
-        assert_eq!(
-            items[1]["client"]["state"],
-            if case == "membership" {
-                "missing"
-            } else {
-                "current"
-            }
-        );
+        assert_eq!(items[1]["client"]["canonical"]["seen"], json!(false));
+        assert_eq!(items[1]["client"]["canonical"]["state"], "current");
     }
+}
+
+#[test]
+fn unified_list_keeps_matched_aliases_and_physical_only_agents_as_distinct_rows() {
+    let fixture = FocusFixture::new();
+    let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+    let server = peer(&fixture, listener, move |mut stream| {
+        snapshot_reply(&mut stream);
+        let mut canonical = completed();
+        canonical["snapshot"]["providerId"] = json!("grok");
+        canonical["snapshot"]["presentationAttachments"] = json!([{
+            "generation":id(1),"navigable":true,"presentationId":id(106),"visibility":"visible"
+        }]);
+        let projection = AgentProjectionFixture::canonical(snapshot(12), 5, &[canonical])
+            .with_state(
+                &id(106),
+                Some(peer_support::terminal_agent_state(
+                    &id(106),
+                    &id(1),
+                    &id(2),
+                    &id(206),
+                    Some("grok-build"),
+                    "idle",
+                )),
+            )
+            .with_state(
+                &id(108),
+                Some(peer_support::terminal_agent_state(
+                    &id(108),
+                    &id(1),
+                    &id(2),
+                    &id(208),
+                    Some("pi"),
+                    "working",
+                )),
+            );
+        projection.read(&mut stream, false);
+        crate::metadata_peer::unavailable(&mut stream);
+        crate::metadata_peer::unavailable(&mut stream);
+        projection.confirm(&mut stream, false);
+        assert_closed(&mut stream);
+    });
+    let output = fixture.run(&["agent", "list", "--format=json"]);
+    server.join().unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let doc = document(&output);
+    validate(
+        &doc,
+        include_str!("../../src/cli/schemas/orchbee.agent.list.json"),
+    );
+    assert_eq!(doc["version"], 2);
+    assert_eq!(doc["result"]["items"][0]["ordinal"], 1);
+    assert_eq!(doc["result"]["items"][0]["provider"], "grok");
+    assert_eq!(doc["result"]["items"][0]["source"], "both");
+    assert_eq!(doc["result"]["items"][0]["status"], "done");
+    assert!(doc["result"]["items"][0]["cwd"].is_null());
+    assert_eq!(doc["result"]["items"][1]["ordinal"], 2);
+    assert_eq!(doc["result"]["items"][1]["provider"], "pi");
+    assert_eq!(doc["result"]["items"][1]["source"], "terminal");
+    assert!(doc["result"]["items"][1]["canonical"].is_null());
 }

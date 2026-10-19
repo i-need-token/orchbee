@@ -414,6 +414,261 @@ pub(super) fn session_detail(session_id: &str) -> serde_json::Value {
     })
 }
 
+pub(super) fn session_summary(detail: &Value) -> Value {
+    let snapshot = &detail["snapshot"];
+    let mut summary = json!({});
+    for key in [
+        "executionLocation",
+        "lifecycle",
+        "observation",
+        "parentSessionId",
+        "presentationAttachments",
+        "providerId",
+        "sessionId",
+    ] {
+        summary[key] = snapshot[key].clone();
+    }
+    summary["pendingRequestCount"] =
+        json!(snapshot["pendingRequests"].as_array().map_or(0, Vec::len));
+    summary["status"] = detail["status"].clone();
+    summary
+}
+
+/// A strict unified-Agent source script. Every call consumes exactly the
+/// canonical list, physical state, and fence requests owned by one read span.
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture methods are consumed by separate test crate owners."
+)]
+#[derive(Clone)]
+pub(super) struct AgentProjectionFixture {
+    snapshot: orchbee_workbench_protocol::Snapshot,
+    canonical_revision: u64,
+    report_revision: u64,
+    summaries: Vec<Value>,
+    states: HashMap<String, Option<Value>>,
+}
+
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture methods are consumed by separate test crate owners."
+)]
+impl AgentProjectionFixture {
+    pub(super) fn canonical(
+        snapshot: orchbee_workbench_protocol::Snapshot,
+        canonical_revision: u64,
+        details: &[Value],
+    ) -> Self {
+        Self {
+            snapshot,
+            canonical_revision,
+            report_revision: 7,
+            summaries: details.iter().map(session_summary).collect(),
+            states: HashMap::new(),
+        }
+    }
+
+    pub(super) fn summaries(
+        snapshot: orchbee_workbench_protocol::Snapshot,
+        canonical_revision: u64,
+        summaries: Vec<Value>,
+    ) -> Self {
+        Self {
+            snapshot,
+            canonical_revision,
+            report_revision: 7,
+            summaries,
+            states: HashMap::new(),
+        }
+    }
+
+    pub(super) fn with_state(mut self, presentation_id: &str, state: Option<Value>) -> Self {
+        assert!(
+            self.states
+                .insert(presentation_id.to_owned(), state)
+                .is_none()
+        );
+        self
+    }
+
+    pub(super) fn read(&self, stream: &mut LocalStream, include_ended: bool) {
+        self.list(stream, include_ended);
+        self.states(stream, false);
+        self.list(stream, include_ended);
+        self.states(stream, true);
+        self.snapshot(stream);
+    }
+
+    pub(super) fn confirm(&self, stream: &mut LocalStream, include_ended: bool) {
+        self.list(stream, include_ended);
+        self.states(stream, true);
+        self.snapshot(stream);
+    }
+
+    pub(super) fn canonical_drift(
+        &self,
+        stream: &mut LocalStream,
+        include_ended: bool,
+        revision: u64,
+        details: &[Value],
+    ) {
+        let changed = Self::canonical(self.snapshot.clone(), revision, details);
+        changed.list(stream, include_ended);
+    }
+
+    pub(super) fn workbench_drift(
+        &self,
+        stream: &mut LocalStream,
+        include_ended: bool,
+        revision: u64,
+    ) {
+        self.list(stream, include_ended);
+        self.states(stream, true);
+        let changed = Self {
+            snapshot: orchbee_workbench_protocol::Snapshot {
+                revision: orchbee_workbench_protocol::WorkbenchRevision::new(revision),
+                ..self.snapshot.clone()
+            },
+            ..self.clone()
+        };
+        changed.snapshot(stream);
+    }
+
+    fn list(&self, stream: &mut LocalStream, include_ended: bool) {
+        let AgentRequest::Read(request) = read_agent_request(stream).unwrap() else {
+            panic!("unified projection canonical list")
+        };
+        assert_eq!(json!(request)["kind"], "agent.session.list.request");
+        assert_eq!(json!(request)["includeEnded"], include_ended);
+        assert_eq!(json!(request)["limit"], 100);
+        assert!(json!(request)["cursor"].is_null());
+        write_agent_result(
+            stream,
+            &AgentResult::Read(
+                serde_json::from_value(json!({
+                    "kind":"agent.session.list.result",
+                    "requestId":request.request_id(),
+                    "result":{"outcome":{"kind":"listed",
+                        "revision":self.canonical_revision,
+                        "nextCursor":null,
+                        "items":self.summaries}}
+                }))
+                .unwrap(),
+            ),
+        )
+        .unwrap();
+    }
+
+    fn states(&self, stream: &mut LocalStream, fence: bool) {
+        use orchbee_workbench_protocol::*;
+        let WorkbenchRequest::PanelAgent(request) = read_workbench_request(stream).unwrap() else {
+            panic!("unified projection physical states")
+        };
+        let PanelAgentAction::States { presentation_ids } = request.action else {
+            panic!("unified projection never performs a Panel Agent effect")
+        };
+        assert_eq!(presentation_ids.is_empty(), fence);
+        if !fence {
+            fn collect(node: &PanelNode, result: &mut Vec<TerminalPresentationId>) {
+                match node {
+                    PanelNode::Panel {
+                        primary_presentation,
+                        child_presentations,
+                        ..
+                    } => result.extend(
+                        std::iter::once(primary_presentation)
+                            .chain(child_presentations)
+                            .map(|member| member.presentation_id.clone()),
+                    ),
+                    PanelNode::Split { children, .. } => {
+                        for child in children.iter() {
+                            collect(&child.node, result);
+                        }
+                    }
+                }
+            }
+            let mut expected = Vec::new();
+            for tab in self
+                .snapshot
+                .terminal_contexts
+                .iter()
+                .flat_map(|context| &context.tabs)
+            {
+                collect(&tab.root, &mut expected);
+            }
+            assert_eq!(presentation_ids, expected);
+        }
+        let presentations = presentation_ids
+            .into_iter()
+            .map(|presentation_id| TerminalAgentStateRow {
+                snapshot: self
+                    .states
+                    .get(presentation_id.as_str())
+                    .cloned()
+                    .flatten()
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .unwrap(),
+                presentation_id,
+            })
+            .collect();
+        write_workbench_response(
+            stream,
+            &WorkbenchResponse::PanelAgent(PanelAgentResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                site_id: request.site_id,
+                outcome: PanelAgentOutcome::States {
+                    workbench_revision: self.snapshot.revision,
+                    report_revision: WorkbenchRevision::new(self.report_revision),
+                    presentations,
+                },
+            }),
+        )
+        .unwrap();
+    }
+
+    fn snapshot(&self, stream: &mut LocalStream) {
+        use orchbee_workbench_protocol::*;
+        let WorkbenchRequest::SnapshotRead(request) = read_workbench_request(stream).unwrap()
+        else {
+            panic!("unified projection final Workbench fence")
+        };
+        write_workbench_response(
+            stream,
+            &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id,
+                outcome: WorkbenchSnapshotOutcome::Available {
+                    snapshot: self.snapshot.clone(),
+                },
+            }),
+        )
+        .unwrap();
+    }
+}
+
+pub(super) fn terminal_agent_state(
+    presentation_id: &str,
+    generation: &str,
+    host_epoch: &str,
+    host_terminal_id: &str,
+    provider: Option<&str>,
+    state: &str,
+) -> Value {
+    json!({
+        "binding": {
+            "presentationId": presentation_id,
+            "generation": generation,
+            "hostEpoch": host_epoch,
+            "hostTerminalId": host_terminal_id,
+        },
+        "sequence": "4",
+        "agent": provider,
+        "state": state,
+    })
+}
+
 pub(super) fn resolve_reply(stream: &mut LocalStream, outcome: Value) -> String {
     let AgentRequest::Names(request) = read_agent_request(stream).unwrap() else {
         panic!("resolve first");
@@ -455,8 +710,8 @@ pub(super) fn assert_closed_for(stream: &mut LocalStream, context: &str) {
 pub(super) fn bound_snapshot_reply(stream: &mut LocalStream) {
     bound_snapshot_at(stream, 9);
 }
-pub(super) fn bound_snapshot_at(stream: &mut LocalStream, revision: u64) {
-    use orchbee_workbench_protocol::*;
+pub(super) fn bound_snapshot(revision: u64) -> orchbee_workbench_protocol::Snapshot {
+    use orchbee_workbench_protocol::parse_snapshot;
     let document = json!({
         "kind":"workbench.snapshot", "protocolVersion":1, "revision":revision.to_string(), "siteId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "navigation":{"projects":[], "standaloneTerminalContextId":"00000000000000000000000000000001", "directories":[], "workspaces":[]},
@@ -470,14 +725,12 @@ pub(super) fn bound_snapshot_at(stream: &mut LocalStream, revision: u64) {
             }
         }]}]
     });
-    let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();
-    let intent = snapshot_after_metadata(
-        stream,
-        &Snapshot {
-            revision: WorkbenchRevision::new(9),
-            ..snapshot.clone()
-        },
-    );
+    parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap()
+}
+pub(super) fn bound_snapshot_at(stream: &mut LocalStream, revision: u64) {
+    use orchbee_workbench_protocol::*;
+    let snapshot = bound_snapshot(revision);
+    let intent = snapshot_after_metadata(stream, &bound_snapshot(9));
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {

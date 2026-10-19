@@ -16,6 +16,26 @@ fn ready() -> Value {
     detail["status"] = json!({"kind":"idle"});
     detail
 }
+fn projected_agent_reply(
+    stream: &mut orchbee_local_ipc::LocalStream,
+    detail: Value,
+    revision: u64,
+) -> AgentProjectionFixture {
+    bound_snapshot_reply(stream);
+    let projection =
+        AgentProjectionFixture::canonical(bound_snapshot(9), revision, &[detail.clone()]);
+    projection.read(stream, true);
+    resolve_reply(
+        stream,
+        json!({"kind":"resolved", "sessionId":"sess-alpha", "resolvedBy":"name"}),
+    );
+    read_reply(
+        stream,
+        "get",
+        json!({"kind":"found", "revision":revision, "session":detail}),
+    );
+    projection
+}
 #[test]
 fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
     for case in [
@@ -36,7 +56,17 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             if case == "unbound" {
                 initial["snapshot"]["presentationAttachments"] = json!([]);
             }
-            bound_agent_reply(&mut stream, initial);
+            if case == "stale" {
+                initial["snapshot"]["observation"]["freshness"] = json!("stale");
+            }
+            if case == "blocked" {
+                initial = session_detail("sess-alpha");
+            }
+            let projection = projected_agent_reply(
+                &mut stream,
+                initial.clone(),
+                if case == "binding-change" { 1 } else { 2 },
+            );
             if case != "unbound" {
                 metadata_peer::sample(
                     &mut stream,
@@ -47,13 +77,7 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                         _ => "claude-code.exe",
                     },
                 );
-                let mut current = ready();
-                if case == "stale" {
-                    current["snapshot"]["observation"]["freshness"] = json!("stale");
-                }
-                if case == "blocked" {
-                    current = session_detail("sess-alpha");
-                }
+                let mut current = initial;
                 if case == "binding-change" {
                     current["snapshot"]["presentationAttachments"][0]["generation"] =
                         json!("gen-new");
@@ -78,18 +102,38 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                 _ => json!({"phase":"unmanaged"}),
             };
             management_reply(&mut stream, 2, management);
+            if case == "binding-change" {
+                let mut changed = ready();
+                changed["snapshot"]["presentationAttachments"][0]["generation"] = json!("gen-new");
+                projection.canonical_drift(&mut stream, true, 2, &[changed]);
+            } else {
+                projection.confirm(&mut stream, true);
+            }
             assert_closed(&mut stream);
         });
         let output = fixture.run(&["agent", "get", "alpha", "--format=json"]);
         handler.join().unwrap();
-        assert!(output.status.success(), "{case}: {output:?}");
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        if case == "binding-change" {
+            assert_eq!(output.status.code(), Some(3), "{doc}");
+            validate(
+                &doc,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent-projection.json"),
+            );
+            assert_eq!(doc["schema"], "orchbee.cli.failure.agent-projection");
+            assert_eq!(doc["failure"]["details"]["reason"], "changed");
+            continue;
+        }
+        assert!(output.status.success(), "{case}: {output:?}");
         validate(
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.get.json"),
         );
-        assert_eq!(doc["version"], 17);
-        assert!(doc["result"].get("client").is_none());
+        assert_eq!(doc["version"], 19);
+        assert_eq!(doc["source"]["kind"], "agent-projection");
+        assert_eq!(doc["result"]["kind"], "projected");
+        assert_eq!(doc["result"]["agent"]["source"], "canonical");
+        assert!(doc["result"]["inspection"].get("client").is_none());
         if case == "ready" {
             let schema: Value =
                 serde_json::from_str(include_str!("../src/cli/schemas/orchbee.agent.get.json"))
@@ -109,9 +153,12 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
             ] {
                 let mut bad = doc.clone();
                 if field == "terminal" {
-                    bad["result"].as_object_mut().unwrap().remove(field);
+                    bad["result"]["inspection"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(field);
                 } else {
-                    bad["result"]["terminal"]
+                    bad["result"]["inspection"]["terminal"]
                         .as_object_mut()
                         .unwrap()
                         .remove(field);
@@ -119,68 +166,31 @@ fn agent_get_returns_process_facts_and_bounded_prompt_readiness() {
                 assert!(!validator.is_valid(&bad), "missing {field}");
             }
             let mut bad = doc.clone();
-            bad["result"]["terminal"] = Value::Null;
+            bad["result"]["inspection"]["terminal"] = Value::Null;
             assert!(!validator.is_valid(&bad));
             let mut bad = doc.clone();
-            bad["result"]["terminal"]["invented"] = json!(true);
+            bad["result"]["agent"]["invented"] = json!(true);
             assert!(!validator.is_valid(&bad));
-            for version in [7, 9] {
-                let mut legacy = doc.clone();
-                legacy["version"] = json!(version);
-                assert!(!validator.is_valid(&legacy));
-                legacy["result"]["terminal"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("reportedAgent");
-                if version == 7 {
-                    legacy["result"]["terminal"]
-                        .as_object_mut()
-                        .unwrap()
-                        .remove("metadata");
-                }
-                assert!(validator.is_valid(&legacy), "legacy {version}");
-            }
-            for version in [1, 3, 5] {
-                let mut legacy = doc.clone();
-                legacy["version"] = json!(version);
-                legacy["result"].as_object_mut().unwrap().remove("terminal");
-                if version < 5 {
-                    legacy["result"]
-                        .as_object_mut()
-                        .unwrap()
-                        .remove("management");
-                }
-                if version < 3 {
-                    legacy["result"].as_object_mut().unwrap().remove("runtime");
-                }
-                assert!(validator.is_valid(&legacy), "legacy {version}");
-                legacy["result"]["terminal"] = doc["result"]["terminal"].clone();
-                assert!(!validator.is_valid(&legacy));
-            }
+            let mut obsolete = doc.clone();
+            obsolete["version"] = json!(18);
+            assert!(!validator.is_valid(&obsolete));
         }
 
         assert_eq!(
-            doc["result"]["management"]["state"]["phase"],
+            doc["result"]["inspection"]["management"]["state"]["phase"],
             match case {
                 "pending" => "pending",
                 "active" => "active",
                 _ => "unmanaged",
             }
         );
-        let runtime = &doc["result"]["runtime"];
-        if matches!(case, "unbound" | "binding-change") {
-            assert!(doc["result"]["terminal"].is_null());
+        let runtime = &doc["result"]["inspection"]["runtime"];
+        if case == "unbound" {
+            assert!(doc["result"]["inspection"]["terminal"].is_null());
             assert_eq!(runtime["kind"], "unavailable");
-            assert_eq!(
-                runtime["reason"],
-                if case == "unbound" {
-                    "unbound"
-                } else {
-                    "binding-changed"
-                }
-            );
+            assert_eq!(runtime["reason"], "unbound");
         } else {
-            let terminal = &doc["result"]["terminal"];
+            let terminal = &doc["result"]["inspection"]["terminal"];
             assert_eq!(terminal["terminalTitle"], "Orchbee 🐝");
             assert_eq!(terminal["terminalTitleStripped"], "Orchbee 🐝");
             assert_eq!(terminal["cwd"], r"C:\frame 项目");
@@ -241,7 +251,7 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
         let handler = peer(&fixture, listener, move |mut stream| {
-            bound_agent_reply(&mut stream, ready());
+            let projection = projected_agent_reply(&mut stream, ready(), 2);
             if mode == "terminal-unavailable" {
                 metadata_peer::unavailable(&mut stream);
             } else {
@@ -258,6 +268,11 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
                     if mode == "changed-workbench" { 10 } else { 9 },
                 );
                 management_reply(&mut stream, 2, json!({"phase":"unmanaged"}));
+                if mode == "changed-workbench" {
+                    projection.workbench_drift(&mut stream, true, 10);
+                } else {
+                    projection.confirm(&mut stream, true);
+                }
             }
             assert_closed(&mut stream);
         });
@@ -265,15 +280,29 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
         let output = fixture.run(&["agent", "get", "alpha", "--format=json"]);
         handler.join().unwrap();
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
-        if matches!(mode, "wrong-epoch" | "deadline") {
+        if matches!(mode, "wrong-epoch" | "deadline" | "changed-workbench") {
             assert_eq!(
                 output.status.code(),
-                Some(if mode == "deadline" { 7 } else { 5 }),
+                Some(match mode {
+                    "deadline" => 7,
+                    "changed-workbench" => 3,
+                    _ => 5,
+                }),
                 "{doc}"
             );
             assert!(doc.get("result").is_none());
             if mode == "deadline" {
                 assert!(started.elapsed() < std::time::Duration::from_secs(8));
+            }
+            if mode == "changed-workbench" {
+                validate(
+                    &doc,
+                    include_str!(
+                        "../src/cli/schemas/orchbee.cli.failure.agent-projection.json"
+                    ),
+                );
+                assert_eq!(doc["schema"], "orchbee.cli.failure.agent-projection");
+                assert_eq!(doc["failure"]["details"]["reason"], "changed");
             }
             continue;
         }
@@ -282,21 +311,12 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
             &doc,
             include_str!("../src/cli/schemas/orchbee.agent.get.json"),
         );
-        let result = &doc["result"];
+        let result = &doc["result"]["inspection"];
         assert_eq!(result["runtime"]["kind"], "unavailable");
         assert!(result["runtime"].get("promptReady").is_none());
-        assert_eq!(
-            result["runtime"]["reason"],
-            if mode == "changed-workbench" {
-                "binding-changed"
-            } else {
-                mode
-            }
-        );
+        assert_eq!(result["runtime"]["reason"], mode);
         let terminal = &result["terminal"];
-        if mode == "changed-workbench" {
-            assert!(terminal.is_null());
-        } else if mode == "terminal-unavailable" {
+        if mode == "terminal-unavailable" {
             assert!(terminal["terminalTitle"].is_null());
             assert_eq!(terminal["terminalObservation"]["state"], "unavailable");
         } else {
@@ -313,16 +333,10 @@ fn agent_terminal_observation_preserves_partial_availability_and_rejects_stale_o
                 .unwrap();
         let validator = jsonschema::validator_for(&schema).unwrap();
         let mut invalid = doc.clone();
-        invalid["result"]["runtime"]["promptReady"] = json!(true);
+        invalid["result"]["inspection"]["runtime"]["promptReady"] = json!(true);
         assert!(!validator.is_valid(&invalid));
         let mut invalid = doc.clone();
-        invalid["version"] = json!(5);
-        invalid["result"]
-            .as_object_mut()
-            .unwrap()
-            .remove("terminal");
-        if mode != "changed-workbench" {
-            assert!(!validator.is_valid(&invalid));
-        }
+        invalid["version"] = json!(18);
+        assert!(!validator.is_valid(&invalid));
     }
 }

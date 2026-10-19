@@ -233,3 +233,72 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
         );
     }
 }
+
+#[test]
+fn human_panel_list_uses_unique_handles_and_the_unified_agent_projection() {
+    for (locale, headers, state) in [
+        ("en_US.UTF-8", "HANDLE", "Done"),
+        ("zh_CN.UTF-8", "句柄", "完成"),
+    ] {
+        let fixture = FocusFixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let server = peer(&fixture, listener, move |mut stream| {
+            snapshot_reply(&mut stream);
+            let mut canonical = client_get::completed();
+            canonical["snapshot"]["providerId"] = json!("codex");
+            canonical["snapshot"]["presentationAttachments"] = json!([
+                {"generation":id(1),"navigable":true,"presentationId":id(106),"visibility":"visible"},
+                {"generation":id(1),"navigable":true,"presentationId":id(306),"visibility":"visible"}
+            ]);
+            let projection = AgentProjectionFixture::canonical(snapshot(12), 5, &[canonical])
+                .with_state(
+                    &id(106),
+                    Some(peer_support::terminal_agent_state(
+                        &id(106),
+                        &id(1),
+                        &id(2),
+                        &id(206),
+                        None,
+                        "unknown",
+                    )),
+                )
+                .with_state(
+                    &id(306),
+                    Some(peer_support::terminal_agent_state(
+                        &id(306),
+                        &id(1),
+                        &id(2),
+                        &id(406),
+                        None,
+                        "unknown",
+                    )),
+                );
+            projection.read(&mut stream, false);
+            crate::metadata_peer::unavailable(&mut stream);
+            crate::metadata_peer::unavailable(&mut stream);
+            projection.confirm(&mut stream, false);
+            assert_closed(&mut stream);
+        });
+        let output = fixture.run_with_env(
+            &["panel", "list"],
+            None,
+            None,
+            &[("LC_ALL", std::ffi::OsStr::new(locale))],
+        );
+        server.join().unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8(output.stdout).unwrap();
+        let lines = text.lines().collect::<Vec<_>>();
+        assert_eq!(lines.len(), 3, "{text}");
+        assert!(lines[0].contains(headers), "{text}");
+        assert!(text.contains("@panel:6"), "{text}");
+        assert!(text.contains("@panel:8"), "{text}");
+        assert!(text.contains("codex"), "{text}");
+        assert!(text.contains(state), "{text}");
+        assert!(
+            lines.iter().all(|line| line.chars().count() <= 80),
+            "{text}"
+        );
+    }
+}

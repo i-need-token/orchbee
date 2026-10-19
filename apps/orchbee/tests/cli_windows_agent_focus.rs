@@ -9,10 +9,13 @@ mod metadata_peer;
 #[path = "support/windows_agent_peer.rs"]
 mod peer_support;
 use cohort_fixture::CohortFixture as FocusFixture;
-use orchbee_agent_observation_protocol::{AgentRequest, read_agent_request};
+use orchbee_agent_observation_protocol::{AgentRequest, read_agent_request, write_agent_result};
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
-use peer_support::{assert_closed, peer, read_reply, resolve_reply, session_detail, validate};
+use peer_support::{
+    AgentProjectionFixture, assert_closed, peer, read_reply, resolve_reply, session_detail,
+    validate,
+};
 use serde_json::{Value, json};
 use std::{
     io::Write,
@@ -37,20 +40,18 @@ fn panel(n: u64) -> Value {
 fn snapshot_reply(stream: &mut LocalStream) {
     snapshot_at(stream, 12);
 }
+fn snapshot(revision: u64) -> Snapshot {
+    serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":revision.to_string(),"navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"two","pinned":false,"groupId":null,"root":{"kind":"split","splitId":id(50),"orientation":"horizontal","children":[{"slotId":id(51),"node":panel(6)},{"slotId":id(52),"node":panel(8)}]}}]}]})).unwrap()
+}
 fn snapshot_at(stream: &mut LocalStream, revision: u64) {
-    let snapshot:Snapshot=serde_json::from_value(json!({"protocolVersion":1,"siteId":id(2),"revision":"12","navigation":{"projects":[], "standaloneTerminalContextId":id(4), "directories":[], "workspaces":[]},"terminalContexts":[{"terminalContextId":id(4),"groups":[],"tabs":[{"tabId":id(5),"label":"two","pinned":false,"groupId":null,"root":{"kind":"split","splitId":id(50),"orientation":"horizontal","children":[{"slotId":id(51),"node":panel(6)},{"slotId":id(52),"node":panel(8)}]}}]}]})).unwrap();
+    let snapshot = snapshot(revision);
     let request = peer_support::snapshot_after_metadata(stream, &snapshot);
     write_workbench_response(
         stream,
         &WorkbenchResponse::Snapshot(WorkbenchSnapshotResult {
             protocol_version: ProtocolVersion,
             request_id: request.request_id,
-            outcome: WorkbenchSnapshotOutcome::Available {
-                snapshot: Snapshot {
-                    revision: WorkbenchRevision::new(revision),
-                    ..snapshot
-                },
-            },
+            outcome: WorkbenchSnapshotOutcome::Available { snapshot },
         }),
     )
     .unwrap();
@@ -193,6 +194,171 @@ fn physical_agent_focus_pins_the_full_binding_and_never_substitutes_a_childs_par
             assert_eq!(document["version"], 5);
             receipt(&document);
         }
+    }
+}
+
+#[test]
+fn unified_agent_selectors_complete_before_resolving_or_submitting_focus() {
+    for case in [
+        "physical-only",
+        "matched-alias",
+        "matched-ordinal",
+        "ambiguous",
+        "not-found",
+    ] {
+        let fixture = FocusFixture::new();
+        let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
+        let server = peer(&fixture, listener, move |mut stream| {
+            snapshot_reply(&mut stream);
+            list_reply(&mut stream, vec![record(7, 6)]);
+            let mut canonical = client_get::completed();
+            canonical["snapshot"]["providerId"] = json!("grok");
+            canonical["snapshot"]["presentationAttachments"] = json!([{
+                "generation":id(1),"navigable":true,"presentationId":id(106),"visibility":"visible"
+            }]);
+            let details = if matches!(case, "matched-alias" | "matched-ordinal") {
+                vec![canonical]
+            } else {
+                Vec::new()
+            };
+            let mut projection = AgentProjectionFixture::canonical(snapshot(12), 5, &details);
+            if matches!(case, "physical-only" | "matched-alias" | "matched-ordinal") {
+                projection = projection.with_state(
+                    &id(106),
+                    Some(peer_support::terminal_agent_state(
+                        &id(106),
+                        &id(1),
+                        &id(2),
+                        &id(206),
+                        Some(if case == "physical-only" {
+                            "pi"
+                        } else {
+                            "grok-build"
+                        }),
+                        "idle",
+                    )),
+                );
+            } else if case == "ambiguous" {
+                for presentation in [106, 108] {
+                    projection = projection.with_state(
+                        &id(presentation),
+                        Some(peer_support::terminal_agent_state(
+                            &id(presentation),
+                            &id(1),
+                            &id(2),
+                            &id(presentation + 100),
+                            Some("codex"),
+                            "idle",
+                        )),
+                    );
+                }
+            }
+            projection.read(&mut stream, false);
+            if matches!(case, "ambiguous" | "not-found") {
+                assert_closed(&mut stream);
+                return;
+            }
+            let binding = json!({
+                "presentationId":id(106),"generation":id(1),
+                "hostEpoch":id(2),"hostTerminalId":id(206)
+            });
+            let AgentRequest::Names(request) = read_agent_request(&mut stream).unwrap() else {
+                panic!("selector resolves its exact projected target")
+            };
+            assert_eq!(
+                json!(request)["target"],
+                json!({"kind":"terminal","binding":binding})
+            );
+            write_agent_result(&mut stream,&orchbee_agent_observation_protocol::AgentResult::Names(serde_json::from_value(json!({
+                "kind":"agent.session.resolve.result","requestId":request.request_id(),"result":{"outcome":{
+                    "kind":"resolved-target","resolvedBy":"presentation","target":{"kind":"terminal","binding":binding}
+                }}
+            })).unwrap())).unwrap();
+            let WorkbenchRequest::PanelAgent(request) =
+                read_workbench_request(&mut stream).unwrap()
+            else {
+                panic!("physical selector observation")
+            };
+            assert_eq!(
+                json!(request.action),
+                json!({"kind":"observe","binding":binding,"afterSequence":null})
+            );
+            write_workbench_response(
+                &mut stream,
+                &WorkbenchResponse::PanelAgent(PanelAgentResult {
+                    protocol_version: ProtocolVersion,
+                    request_id: request.request_id,
+                    site_id: request.site_id,
+                    outcome: PanelAgentOutcome::Observed {
+                        workbench_revision: WorkbenchRevision::new(12),
+                        report_revision: WorkbenchRevision::new(7),
+                        observation: Box::new(
+                            serde_json::from_value(
+                                json!({"binding":binding,"sequence":"4","changes":[],
+                        "view":{"agent":if case == "physical-only" { "pi" } else { "grok-build" },
+                            "state":"idle","authoritySource":null,"message":null,"session":null}}),
+                            )
+                            .unwrap(),
+                        ),
+                    },
+                }),
+            )
+            .unwrap();
+            let request = view_request(&mut stream);
+            let ClientViewAction::Submit { command } = &request.action else {
+                panic!("one focus submission after complete selection")
+            };
+            assert_eq!(
+                json!(command.intent),
+                json!({"kind":"agent-focus","terminalContextId":id(4),"tabId":id(5),
+                    "panelId":id(6),"presentationId":id(106),
+                    "target":{"kind":"terminal","binding":binding}})
+            );
+            view_reply(
+                &mut stream,
+                &request,
+                json!({"kind":"operation","operation":{"command":command,"status":{
+                    "kind":"applied","view":record(7,6)["view"]
+                }}}),
+            );
+            assert_closed(&mut stream);
+        });
+        let client = id(7);
+        let selector = match case {
+            "physical-only" => "@agent:pi",
+            "matched-alias" => "@agent:grok",
+            "matched-ordinal" => "@agent:1",
+            "ambiguous" => "@agent:codex",
+            _ => "@agent:qwen",
+        };
+        let output = fixture.run(&[
+            "agent",
+            "focus",
+            selector,
+            "--client",
+            &client,
+            "--format=json",
+        ]);
+        server.join().unwrap();
+        let document = document(&output);
+        if matches!(case, "ambiguous" | "not-found") {
+            assert_eq!(output.status.code(), Some(3), "{document}");
+            validate(
+                &document,
+                include_str!("../src/cli/schemas/orchbee.cli.failure.agent-projection.json"),
+            );
+            assert_eq!(
+                document["failure"]["kind"],
+                if case == "ambiguous" {
+                    "ambiguous"
+                } else {
+                    "not-found"
+                }
+            );
+            continue;
+        }
+        assert!(output.status.success(), "{document}");
+        receipt(&document);
     }
 }
 
