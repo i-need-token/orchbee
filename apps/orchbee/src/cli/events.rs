@@ -19,6 +19,7 @@ use orchbee_workbench_protocol::{
 use serde_json::json;
 use std::time::{Duration, Instant};
 mod filters;
+mod text;
 
 pub(crate) fn run(command: &Command, format: OutputFormat, locale: Locale) -> Output {
     let signal = match ControlInterrupt::arm() {
@@ -101,7 +102,7 @@ fn execute(
         probe_sequence: WorkbenchRevision::new(0),
     };
     if let Some(relay) = relay.as_mut() {
-        emit(relay, "opened", &opened, &snapshot, format, signal)?;
+        emit(relay, "opened", locale, &opened, &snapshot, format, signal)?;
     }
     let deadline = command
         .timeout_ms
@@ -146,7 +147,7 @@ fn execute(
                         break Err(Failure::new(FailureKind::ProtocolInvalid));
                     }
                     if let Some(relay) = relay.as_mut() {
-                        emit(relay, "event", &reply, &snapshot, format, signal)?;
+                        emit(relay, "event", locale, &reply, &snapshot, format, signal)?;
                     } else {
                         break Ok(reply);
                     }
@@ -154,7 +155,7 @@ fn execute(
                 Outcome::Gap { .. } if command.wait => break Ok(reply),
                 Outcome::Gap { .. } => {
                     if let Some(relay) = relay.as_mut() {
-                        emit(relay, "gap", &reply, &snapshot, format, signal)?;
+                        emit(relay, "gap", locale, &reply, &snapshot, format, signal)?;
                     }
                 }
                 Outcome::TimedOut { .. } => {
@@ -198,7 +199,11 @@ fn execute(
             let bytes = if format == OutputFormat::Json {
                 output::encode_record(&record)
             } else {
-                output::encode_text(&format!("closed\t{reason}\t{cleanup}\n"))
+                output::encode_text(&text::closed(
+                    reason,
+                    cleanup,
+                    &text::clock(std::time::SystemTime::now()),
+                ))
             }
             .map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
             relay
@@ -211,7 +216,7 @@ fn execute(
             stderr: if status == 0 {
                 String::new()
             } else {
-                locale.events_status(status).into()
+                locale.events_subscribe_status(status).into()
             },
             finalization: None,
         });
@@ -308,13 +313,14 @@ fn exchange(
 fn emit(
     relay: &mut Relay,
     kind: &str,
+    locale: Locale,
     reply: &SemanticEventsResult,
     snapshot: &Snapshot,
     format: OutputFormat,
     signal: &ControlInterrupt,
 ) -> Result<(), Failure> {
     let bytes = if format == OutputFormat::Json { output::encode_record(&json!({"schema":"orchbee.events.stream","version":3,"kind":kind,"source":source(snapshot),"result":reply})) }
-    else { output::encode_text(&format!("{kind}\t{}\n", super::escape::escape(&serde_json::to_string(&reply.outcome).map_err(|_| Failure::new(FailureKind::InternalFailure))?))) }.map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
+    else { output::encode_text(&text::record(kind, &reply.outcome, &text::clock(std::time::SystemTime::now()), locale)) }.map_err(|_| Failure::new(FailureKind::OutputTooLarge))?;
     relay
         .record(&bytes, Instant::now() + Duration::from_secs(3), &|| {
             signal.requested()

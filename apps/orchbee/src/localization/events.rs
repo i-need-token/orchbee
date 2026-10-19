@@ -8,8 +8,8 @@ impl Locale {
         let (usage, english, chinese) = match path {
             C::EventsSubscribe => (
                 "orchbee events subscribe [--event <name> ... | --filter <json> ...] [--workspace <target> | --tab <target> | --panel <target>] [--client <id>] [--after-cursor <json>] [--until idle|working|blocked|done|error|unknown] [--match <text> | --regex <pattern>] [--source recent|recent-unwrapped|visible|detection] [--lines <1..4096>] [--plain|--ansi] [--timeout <ms>] [--format text|json]",
-                "Stream NDJSON events from an existing session. Event names use workspace.*, tab.*, pane.*, worktree.* and layout.updated; panel events use the pane prefix. Without filters, observe all supported event kinds. There is no overall deadline unless --timeout is supplied.\n\nA cursor contains epoch and a decimal-string sequence; history loss is reported explicitly. Inspect the typed input with orchbee api schema orchbee.events.stream ($defs/filter). A typed --filter owns its scopes and conditions and cannot be combined with shorthand selectors. It also supports retained history and child terminal surfaces. Ctrl+C releases the subscription without changing terminal input or scrolling.",
-                "从已运行的会话持续读取 NDJSON 事件。事件名称使用 workspace.*、tab.*、pane.*、worktree.* 和 layout.updated；面板事件使用 pane 前缀。不设置筛选时观察所有受支持的事件类型；只有显式传入 --timeout 才设置总时限。\n\n游标包含 epoch 和十进制字符串序号；历史丢失会明确报告。使用 orchbee api schema orchbee.events.stream 查看结构化输入（$defs/filter）。结构化 --filter 独占作用域和条件，不可与简写选择器混用，也支持保留历史和子终端画面。Ctrl+C 释放订阅，不改变终端输入或滚动。",
+                "Stream events from an existing session: one line per event in text, NDJSON records with --format json. Without filters, observe all supported event kinds. There is no overall deadline unless --timeout is supplied.\n\nEvent names (--event): workspace.created, workspace.updated, workspace.metadata_updated, workspace.renamed, workspace.moved, workspace.reordered, workspace.closed, workspace.focused, worktree.created, worktree.opened, worktree.removed, tab.created, tab.closed, tab.focused, tab.renamed, tab.moved, pane.created, pane.closed, pane.updated, pane.focused, pane.moved, pane.exited, pane.agent_detected, pane.agent_status_changed, pane.output_changed, pane.output_matched, pane.scroll_changed, layout.updated. Panel events use the pane prefix.\n\nA cursor contains epoch and a decimal-string sequence; history loss is reported explicitly. Inspect the typed input with orchbee api schema orchbee.events.stream ($defs/filter). A typed --filter owns its scopes and conditions and cannot be combined with shorthand selectors. It also supports retained history and child terminal surfaces. Ctrl+C releases the subscription without changing terminal input or scrolling.",
+                "从已运行的会话持续读取事件：文本格式每个事件一行，--format json 输出 NDJSON 记录。不设置筛选时观察所有受支持的事件类型；只有显式传入 --timeout 才设置总时限。\n\n事件名称（--event）：workspace.created、workspace.updated、workspace.metadata_updated、workspace.renamed、workspace.moved、workspace.reordered、workspace.closed、workspace.focused、worktree.created、worktree.opened、worktree.removed、tab.created、tab.closed、tab.focused、tab.renamed、tab.moved、pane.created、pane.closed、pane.updated、pane.focused、pane.moved、pane.exited、pane.agent_detected、pane.agent_status_changed、pane.output_changed、pane.output_matched、pane.scroll_changed、layout.updated。面板事件使用 pane 前缀。\n\n游标包含 epoch 和十进制字符串序号；历史丢失会明确报告。使用 orchbee api schema orchbee.events.stream 查看结构化输入（$defs/filter）。结构化 --filter 独占作用域和条件，不可与简写选择器混用，也支持保留历史和子终端画面。Ctrl+C 释放订阅，不改变终端输入或滚动。",
             ),
             C::EventsWait => (
                 "orchbee events wait (--event <name> | --filter <json>) [--workspace <target> | --tab <target> | --panel <target>] [--client <id>] [--after-cursor <json>] [--until idle|working|blocked|done|error|unknown] [--match <text> | --regex <pattern>] [--source recent|recent-unwrapped|visible|detection] [--lines <1..4096>] [--plain|--ansi] [--timeout <0..3600000>] [--format text|json]",
@@ -26,6 +26,30 @@ impl Locale {
             },
         )
     }
+    /// `events subscribe` ends normally at its own --timeout; that is not a
+    /// failed wait.
+    pub(crate) fn events_subscribe_status(self, status: u8) -> &'static str {
+        match (self, status) {
+            (Self::EnUs, 7) => "Subscription ended: --timeout elapsed.\n",
+            (Self::ZhCn, 7) => "订阅已结束：已到达 --timeout。\n",
+            _ => self.events_status(status),
+        }
+    }
+
+    pub(crate) const fn events_listening(self) -> &'static str {
+        match self {
+            Self::EnUs => "Listening for events. Press Ctrl+C to stop.",
+            Self::ZhCn => "正在监听事件。按 Ctrl+C 停止。",
+        }
+    }
+
+    pub(crate) fn events_gap(self, after: u64, through: u64) -> String {
+        match self {
+            Self::EnUs => format!("gap  events after {after} through {through} were lost"),
+            Self::ZhCn => format!("gap  序号 {after} 之后至 {through} 的事件已丢失"),
+        }
+    }
+
     pub(crate) fn events_status(self, status: u8) -> &'static str {
         match (self, status) {
             (Self::EnUs, 0) => "Event matched.\n",

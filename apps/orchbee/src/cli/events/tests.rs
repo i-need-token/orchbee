@@ -144,3 +144,54 @@ fn semantic_events_retained_tracker_rejects_duplicate_probe_or_history_after_sca
     tracker.observe(&reply).unwrap();
     assert!(tracker.observe(&reply).is_err());
 }
+
+/// Every event shape in the conformance corpus renders as one text line led
+/// by the receipt time and the event name; the help names the closed set.
+#[test]
+fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-events-conformance-v1.json"
+    ))
+    .unwrap();
+    let mut rendered = Vec::new();
+    for case in corpus["valid"].as_array().unwrap() {
+        let mut value = case["document"].clone();
+        value.as_object_mut().unwrap().remove("kind");
+        let Ok(reply) = serde_json::from_value::<SemanticEventsResult>(value) else {
+            continue;
+        };
+        if let Outcome::Matched { event, .. } = &reply.outcome {
+            for locale in [Locale::EnUs, Locale::ZhCn] {
+                let line = text::record("event", &reply.outcome, "23:14:02Z", locale);
+                assert!(
+                    line.starts_with(&format!("23:14:02Z  {}  ", event.event.as_str())),
+                    "{line}"
+                );
+                assert_eq!(line.lines().count(), 1, "{line}");
+            }
+            rendered.push(text::record(
+                "event",
+                &reply.outcome,
+                "23:14:02Z",
+                Locale::EnUs,
+            ));
+        }
+    }
+    assert!(
+        rendered.iter().any(|line| line.contains("tab.renamed")),
+        "{rendered:?}"
+    );
+    assert_eq!(
+        text::clock(std::time::UNIX_EPOCH + Duration::from_secs(86_400 + 3_661)),
+        "01:01:01Z"
+    );
+    for locale in [Locale::EnUs, Locale::ZhCn] {
+        let help = locale
+            .events_help(crate::invocation::CommandPath::EventsSubscribe)
+            .notes;
+        for kind in Kind::ALL {
+            assert!(help.contains(kind.as_str()), "{}", kind.as_str());
+        }
+        assert_ne!(locale.events_subscribe_status(7), locale.events_status(7));
+    }
+}

@@ -82,7 +82,7 @@ Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受
 
 ## 事件与终端流
 
-`events subscribe --event workspace.created --timeout 30000` 持续输出 NDJSON。`events wait` 等待一个筛选条件，默认 30000 毫秒；timeout `0` 检查一次已接纳基线。保留游标包含 epoch 和十进制字符串序号；出现缺口时必须重建基线。
+`events subscribe --event workspace.created --timeout 30000` 每个事件输出一行；加 `--format json` 输出 NDJSON 记录。`orchbee help events subscribe` 列出全部事件名称。`events wait` 等待一个筛选条件，默认 30000 毫秒；timeout `0` 检查一次已接纳基线。保留游标包含 epoch 和十进制字符串序号；出现缺口时必须重建基线。
 
 结构化筛选输入见 `api schema orchbee.events.stream` 的 `$defs/filter`。最小有效输入为：
 
