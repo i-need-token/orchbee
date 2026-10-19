@@ -414,6 +414,10 @@ pub(super) fn session_detail(session_id: &str) -> serde_json::Value {
     })
 }
 
+#[allow(
+    dead_code,
+    reason = "Shared integration fixture helpers are consumed by separate test crate owners."
+)]
 pub(super) fn with_attachment_generation(
     mut detail: Value,
     presentation_id: &str,
