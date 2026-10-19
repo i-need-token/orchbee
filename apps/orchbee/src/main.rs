@@ -18,6 +18,8 @@ mod action_projection;
 mod agent_configuration_windows;
 mod agent_doctor;
 mod agent_integrations;
+#[cfg(windows)]
+mod agent_projection;
 mod agent_provider;
 #[cfg(windows)]
 mod agent_start;

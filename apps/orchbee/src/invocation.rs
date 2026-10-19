@@ -91,9 +91,13 @@ pub(crate) use worktree::{ParsedWorktreeCommand, ParsedWorktreeQueryCommand, Wor
 #[cfg(any(windows, test))]
 pub(crate) use worktree::{WorktreeOpenSelector, WorktreeStartCommand, WorktreeStartKind};
 
+#[cfg(windows)]
+use crate::agent_projection::cursor::Cursor as AgentListCursor;
+#[cfg(not(windows))]
+use orchbee_agent_observation_protocol::AgentListCursor;
 use orchbee_agent_observation_protocol::{
-    AgentListCursor, AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT,
-    MAXIMUM_LIST_LIMIT, MAXIMUM_SAFE_INTEGER,
+    AgentName, AgentSafeInteger, AgentSessionId, DEFAULT_LIST_LIMIT, MAXIMUM_LIST_LIMIT,
+    MAXIMUM_SAFE_INTEGER,
 };
 use orchbee_workbench_protocol::{
     LaunchEnvironment, LaunchOptions, LaunchProfileName, LaunchProfileSelector, LaunchSelection,
@@ -154,10 +158,38 @@ impl Target {
 /// Parsed Agent targets keep Workbench Panel selectors out of OBAP DTOs.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentTarget {
-    Session { session_id: AgentSessionId },
-    Name { name: AgentName },
-    Auto { target: AgentSessionId },
-    Panel { target: Target },
+    Session {
+        session_id: AgentSessionId,
+    },
+    Name {
+        name: AgentName,
+    },
+    Auto {
+        target: AgentSessionId,
+    },
+    Panel {
+        target: Target,
+    },
+    #[cfg(windows)]
+    Projection {
+        selector: AgentSelector,
+    },
+}
+
+#[cfg(windows)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum AgentSelector {
+    Kind(String),
+    Ordinal(usize),
+}
+#[cfg(windows)]
+impl AgentSelector {
+    pub(crate) fn token(&self) -> String {
+        match self {
+            Self::Kind(kind) => format!("@agent:{kind}"),
+            Self::Ordinal(n) => format!("@agent:{n}"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -7920,6 +7952,32 @@ fn agent_selector(
         });
     }
     if let Some(value) = words.first() {
+        #[cfg(windows)]
+        if let Some(value) = value.strip_prefix("@agent:") {
+            let selector = if value.bytes().all(|b| b.is_ascii_digit()) {
+                value
+                    .parse::<usize>()
+                    .ok()
+                    .filter(|n| *n > 0 && *n <= 4096 && n.to_string() == value)
+                    .map(AgentSelector::Ordinal)
+            } else {
+                orchbee_agent_observation_protocol::AgentProviderId::parse(value)
+                    .ok()
+                    .map(|kind| AgentSelector::Kind(kind.to_string()))
+            }
+            .ok_or_else(|| {
+                usage_with(
+                    UsageReason::InvalidValue {
+                        context,
+                        option: "<target>",
+                        value: format!("@agent:{value}"),
+                        expected: ExpectedValue::AgentName,
+                    },
+                    envelope,
+                )
+            })?;
+            return Ok(AgentTarget::Projection { selector });
+        }
         if value.starts_with("@panel:") {
             return Ok(AgentTarget::Panel {
                 target: target((*value).to_owned(), Resource::Panel, envelope)?,

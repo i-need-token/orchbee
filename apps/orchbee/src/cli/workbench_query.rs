@@ -37,6 +37,7 @@ pub(crate) struct Document {
     panel_metadata: Option<super::panel_metadata_query::Document>,
     operations: Vec<WorkbenchRequestId>,
     contexts: Vec<ClientContextSelection>,
+    panel_table: Option<super::panel_list::Document>,
 }
 
 impl Document {
@@ -53,6 +54,7 @@ impl Document {
             panel_metadata: None,
             operations: vec![],
             contexts: vec![],
+            panel_table: None,
         }
     }
 }
@@ -222,6 +224,32 @@ fn execute(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = admitted?;
     let projection = results::project(command, &snapshot)?;
+    if format == OutputFormat::Text
+        && let Projection::PanelList(rows) = &projection
+    {
+        let initial = selected
+            .map(|id| current(&mut client, &snapshot, id, deadline, signals, true))
+            .transpose()?;
+        let table = super::panel_list::read(&mut client, &snapshot, rows, deadline, signals)?;
+        if let Some(initial) = initial {
+            let final_client = current(
+                &mut client,
+                &snapshot,
+                &initial.client_id,
+                deadline,
+                signals,
+                true,
+            )?;
+            if initial.view_revision != final_client.view_revision
+                || initial.view != final_client.view
+            {
+                return Err(super::workbench_agents::failure("client-changed"));
+            }
+        }
+        let mut document = Document::new(projection);
+        document.panel_table = Some(table);
+        return Ok((results::snapshot_source(&snapshot), document));
+    }
     if snapshot_only_list_text(command, format) {
         if let Some(selected) = selected {
             let client = current(&mut client, &snapshot, selected, deadline, signals, false)?;
@@ -599,6 +627,9 @@ impl Document {
         command: &QueryCommand,
         locale: Locale,
     ) -> Result<(), TooLarge> {
+        if let Some(table) = &self.panel_table {
+            return table.render(out, locale);
+        }
         if let Some(member) = &self.current_member {
             member.render(out, locale)?;
         }

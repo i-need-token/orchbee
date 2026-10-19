@@ -30,9 +30,14 @@ pub(crate) mod pane_graphics;
 mod windows_stdin;
 pub(crate) use client_control::run as run_client_control;
 pub(crate) mod agent_names;
+#[cfg(windows)]
+mod agent_projection;
 mod agent_prompt;
 mod agent_start;
 mod agent_view;
+mod handles;
+#[cfg(windows)]
+mod panel_list;
 pub(crate) use agent_start::run as run_agent_start;
 mod caller_context;
 mod creation;
@@ -743,9 +748,13 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             format,
             locale,
         ),
+        #[cfg(not(windows))]
         QueryCommand::AgentList {
             client: Some(_), ..
         } => agent_view::list(&command, format, locale),
+        #[cfg(windows)]
+        QueryCommand::AgentList { .. } => agent_projection::run(&command, format, locale),
+        #[cfg(not(windows))]
         QueryCommand::AgentList {
             include_ended,
             limit,

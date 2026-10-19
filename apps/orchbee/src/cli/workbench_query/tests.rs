@@ -61,6 +61,7 @@ fn snapshot() -> Snapshot {
 }
 fn document(command: &QueryCommand, state: &Snapshot) -> Document {
     Document {
+        panel_table: None,
         current_member: None,
         projection: Box::new(results::project(command, state).unwrap()),
         client: Some(record()),

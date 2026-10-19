@@ -174,6 +174,10 @@ impl Locale {
         if failure.failure_schema == Some(crate::cli::schema::AGENT_FAILURE_ID) {
             return self.cli_agent_failure(failure);
         }
+        #[cfg(windows)]
+        if failure.failure_schema == Some("orchbee.cli.failure.agent-projection") {
+            return self.cli_projection_failure(failure);
+        }
         // Launch-profile catalog reads and profile resolutions answer under
         // their dedicated envelope the same way.
         if failure.failure_schema == Some(crate::cli::schema::LAUNCH_PROFILE_FAILURE_ID) {
@@ -1920,6 +1924,7 @@ impl Locale {
     // ---- agent read rendering ------------------------------------------------
 
     /// The notice printed instead of an empty agent table.
+    #[cfg(not(windows))]
     pub(crate) const fn cli_agent_empty(self) -> &'static str {
         match self {
             Self::EnUs => "No agent sessions.\n",
@@ -1975,12 +1980,6 @@ impl Locale {
         }
     }
 
-    pub(crate) fn cli_agent_list_client_headers(self) -> [&'static str; 2] {
-        match self {
-            Self::EnUs => ["CLIENT STATUS", "SEEN"],
-            Self::ZhCn => ["CLIENT 状态", "已看见"],
-        }
-    }
     pub(crate) fn cli_agent_seen(self, seen: Option<bool>) -> &'static str {
         match (self, seen) {
             (Self::EnUs, Some(true)) => "seen",
@@ -3770,6 +3769,7 @@ pub(crate) struct CliLabels {
     pub(crate) agent_fidelity: &'static str,
     pub(crate) agent_navigate_only: &'static str,
     pub(crate) agent_none: &'static str,
+    #[cfg(not(windows))]
     pub(crate) agent_headers: [&'static str; 5],
     pub(crate) agent_request_headers: [&'static str; 3],
     pub(crate) agent_attachment_headers: [&'static str; 4],
@@ -3877,6 +3877,7 @@ const EN_US_LABELS: CliLabels = CliLabels {
     agent_fidelity: "Fidelity",
     agent_navigate_only: "Facts",
     agent_none: "none",
+    #[cfg(not(windows))]
     agent_headers: ["SESSION", "PROVIDER", "STATUS", "FRESHNESS", "LOCATION"],
     agent_request_headers: ["KIND", "REQUEST", "TURN"],
     agent_attachment_headers: ["PRESENTATION", "GENERATION", "NAVIGABLE", "VISIBILITY"],
@@ -3979,6 +3980,7 @@ const ZH_CN_LABELS: CliLabels = CliLabels {
     agent_fidelity: "保真度",
     agent_navigate_only: "事实",
     agent_none: "无",
+    #[cfg(not(windows))]
     agent_headers: ["会话", "提供方", "状态", "新鲜度", "位置"],
     agent_request_headers: ["类型", "请求", "轮次"],
     agent_attachment_headers: ["PRESENTATION", "代次", "可导航", "可见性"],

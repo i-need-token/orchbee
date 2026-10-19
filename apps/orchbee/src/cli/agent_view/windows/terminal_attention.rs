@@ -69,6 +69,9 @@ pub(in crate::cli) fn read(
 }
 
 impl Read {
+    pub(in crate::cli) fn matches_view(&self, view: &ClientViewObservation) -> bool {
+        &self.view == view
+    }
     pub(in crate::cli) fn corroborate(self, report: &TerminalAgentRead) -> Projection {
         let version = self
             .attention

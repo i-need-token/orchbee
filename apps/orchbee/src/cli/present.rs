@@ -7,9 +7,10 @@ use serde_json::Value;
 #[cfg(windows)]
 mod agent_screen;
 
+#[cfg(not(windows))]
+use orchbee_agent_observation_protocol::AgentListOutcome;
 use orchbee_agent_observation_protocol::{
-    AgentExplainOutcome, AgentGetOutcome, AgentListOutcome, AgentSessionDetail,
-    AgentSessionExplanation,
+    AgentExplainOutcome, AgentGetOutcome, AgentSessionDetail, AgentSessionExplanation,
 };
 use orchbee_workbench_protocol::{
     LaunchProfileEntry, WorkbenchTabCloseBlockedReason, WorkbenchTabClosePhase,
@@ -87,7 +88,7 @@ fn table<Row>(
 
 /// Render a compact, localized list table. Callers reserve the full width of
 /// selector cells and bound all display labels before they reach this sink.
-fn compact_table<Row>(
+pub(super) fn compact_table<Row>(
     out: &mut Bounded,
     headers: &[&str],
     widths: &[usize],
@@ -347,56 +348,16 @@ fn terminal_list_cells(
 /// Choose the shortest selector suffix that resolves exactly within this
 /// snapshot. If two IDs share the maximum selector suffix, show the typed ID.
 fn terminal_handles(rows: &[TerminalRow]) -> Vec<String> {
-    let mut order: Vec<_> = (0..rows.len()).collect();
-    order.sort_by(|left, right| {
-        rows[*left]
-            .terminal_id
-            .as_bytes()
+    super::handles::short(
+        "terminal",
+        &rows
             .iter()
-            .rev()
-            .cmp(rows[*right].terminal_id.as_bytes().iter().rev())
-    });
-
-    let mut shared_suffix = vec![0; rows.len()];
-    for position in 0..order.len() {
-        let index = order[position];
-        if position > 0 {
-            let previous = &rows[order[position - 1]].terminal_id;
-            shared_suffix[index] =
-                shared_suffix[index].max(common_suffix(previous, &rows[index].terminal_id));
-        }
-        if position + 1 < order.len() {
-            let next = &rows[order[position + 1]].terminal_id;
-            shared_suffix[index] =
-                shared_suffix[index].max(common_suffix(next, &rows[index].terminal_id));
-        }
-    }
-    rows.iter()
-        .enumerate()
-        .map(|(index, row)| {
-            let suffix_len = shared_suffix[index] + 1;
-            if suffix_len <= 31 {
-                format!(
-                    "@terminal:{}",
-                    &row.terminal_id[row.terminal_id.len() - suffix_len..]
-                )
-            } else {
-                row.terminal_id.clone()
-            }
-        })
-        .collect()
+            .map(|r| r.terminal_id.as_str())
+            .collect::<Vec<_>>(),
+    )
 }
 
-fn common_suffix(left: &str, right: &str) -> usize {
-    left.as_bytes()
-        .iter()
-        .rev()
-        .zip(right.as_bytes().iter().rev())
-        .take_while(|(left, right)| left == right)
-        .count()
-}
-
-fn truncate_terminal_cell(value: &str, width: usize) -> String {
+pub(super) fn truncate_terminal_cell(value: &str, width: usize) -> String {
     if terminal_cell_width(value) <= width {
         return unquoted(value);
     }
@@ -918,28 +879,13 @@ pub(crate) fn render(
         }
         // Agent text renders only ever see the success outcome — refusals
         // leave the query layer as failures before projection.
+        #[cfg(not(windows))]
         Projection::AgentList(outcome) => agent_list(out, outcome, text, locale),
-        Projection::AgentClientList(doc) => {
-            if doc.items.is_empty() {
-                return out.push(locale.cli_agent_empty());
-            }
-            let mut headers = text.agent_headers.to_vec();
-            headers.extend(locale.cli_agent_list_client_headers());
-            table(out, &headers, &doc.items, |(row, client)| {
-                vec![
-                    row.session_id.to_string(),
-                    row.provider_id.to_string(),
-                    locale.cli_agent_status(&row.status),
-                    locale.cli_agent_freshness(row.observation.freshness).into(),
-                    row.execution_location.execution_location_id.to_string(),
-                    locale.cli_agent_client_status(client.status).into(),
-                    locale.cli_agent_seen(client.seen).into(),
-                ]
-            })?;
-            if let Some(cursor) = &doc.next_cursor {
-                out.push(&locale.cli_agent_next_cursor(cursor.as_str()))?;
-            }
-            Ok(())
+        #[cfg(windows)]
+        Projection::UnifiedAgentList(doc) => super::agent_projection::render_list(out, doc, locale),
+        #[cfg(windows)]
+        Projection::UnifiedAgentInspection(doc) => {
+            super::agent_projection::render_inspection(out, doc, command, locale)
         }
         Projection::AgentChanges(outcome) => agent_changes(out, outcome, locale),
         #[cfg(not(windows))]
@@ -1064,6 +1010,7 @@ fn agent_wait(out: &mut Bounded, doc: &AgentWaitDoc, locale: Locale) -> Result<(
 /// `agent list`: the SESSION/PROVIDER/STATUS/FRESHNESS/LOCATION table, an
 /// empty notice instead of an empty table, and a pagination hint whenever the
 /// page is not the last one.
+#[cfg(not(windows))]
 fn agent_list(
     out: &mut Bounded,
     outcome: &AgentListOutcome,

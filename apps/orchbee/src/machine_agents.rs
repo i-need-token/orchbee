@@ -148,18 +148,19 @@ fn states(
         _ => Err(()),
     }
 }
-struct Placement {
-    order: PlacementOrder,
-    context: NativeContextTarget,
-    tab: WorkbenchTabId,
-    panel: WorkbenchPanelId,
-    member: TerminalPresentationId,
-    terminal: PresentationBinding,
+#[derive(Clone, Debug)]
+pub(crate) struct Placement {
+    pub(crate) order: PlacementOrder,
+    pub(crate) context: NativeContextTarget,
+    pub(crate) tab: WorkbenchTabId,
+    pub(crate) panel: WorkbenchPanelId,
+    pub(crate) member: TerminalPresentationId,
+    pub(crate) terminal: PresentationBinding,
     label: String,
     workspace: String,
     tab_label: Option<String>,
 }
-fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
+pub(crate) fn placements(snapshot: &Snapshot) -> Result<Vec<Placement>, ()> {
     let mut locations = vec![(
         NativeContextLocation::Standalone(
             snapshot.navigation.standalone_terminal_context_id.clone(),
@@ -277,28 +278,23 @@ pub(crate) fn read(
     cancel: &AtomicU8,
 ) -> Result<Arc<Checkpoint>, ()> {
     let snapshot = snapshot(client, deadline, cancel)?;
+    read_at(client, &snapshot, deadline, cancel)
+}
+
+/// Reuse the physical checkpoint owner inside a caller's already-admitted snapshot span.
+pub(crate) fn read_at(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    cancel: &AtomicU8,
+) -> Result<Arc<Checkpoint>, ()> {
     let initial_view = source_view(client, &snapshot, deadline, cancel)?;
-    let placements = placements(&snapshot)?;
-    let ids: Vec<_> = placements.iter().map(|p| p.member.clone()).collect();
-    let mut revision = None;
-    let mut observed = std::collections::BTreeMap::new();
-    let mut bytes = 0usize;
-    for chunk in ids.chunks(MAXIMUM_TERMINAL_AGENT_STATE_ROWS) {
-        let (head, rows) = states(client, &snapshot, chunk, deadline, cancel)?;
-        if revision.is_some_and(|old| old != head) {
-            return Err(());
-        }
-        revision = Some(head);
-        for row in rows {
-            bytes = bytes
-                .checked_add(serde_json::to_vec(&row).map_err(|_| ())?.len())
-                .ok_or(())?;
-            if bytes > MAXIMUM_BYTES || observed.insert(row.presentation_id, row.snapshot).is_some()
-            {
-                return Err(());
-            }
-        }
-    }
+    let StateCheckpoint {
+        placements,
+        mut observed,
+        revision: head,
+        mut bytes,
+    } = read_states_at(client, snapshot, deadline, cancel)?;
     let mut titles = titles::read(client, &snapshot, &observed, deadline, cancel, &mut bytes)?;
     let mut metadata = metadata::read(
         client,
@@ -307,12 +303,9 @@ pub(crate) fn read(
         deadline,
         cancel,
         &mut bytes,
-        revision,
+        Some(head),
     )?;
-    let (head, fence) = states(client, &snapshot, &[], deadline, cancel)?;
-    if !fence.is_empty() || revision.is_some_and(|old| old != head) {
-        return Err(());
-    }
+    confirm(client, snapshot, head, deadline, cancel)?;
     if source_view(client, &snapshot, deadline, cancel)? != initial_view {
         return Err(());
     }
@@ -376,11 +369,80 @@ pub(crate) fn read(
     );
     Ok(Arc::new(Checkpoint {
         contexts: contexts.into(),
-        site_id: snapshot.site_id,
+        site_id: snapshot.site_id.clone(),
         report_revision: head,
         view: initial_view,
         rows: rows.into(),
     }))
+}
+
+/// Undecorated complete physical states preserve no-Agent incarnation witnesses.
+/// The caller must confirm the revision after its other source reads.
+pub(crate) struct StateCheckpoint {
+    pub(crate) placements: Vec<Placement>,
+    pub(crate) observed:
+        std::collections::BTreeMap<TerminalPresentationId, Option<TerminalAgentStateSnapshot>>,
+    pub(crate) revision: WorkbenchRevision,
+    bytes: usize,
+}
+pub(crate) fn read_states_at(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    cancel: &AtomicU8,
+) -> Result<StateCheckpoint, ()> {
+    let placements = placements(&snapshot)?;
+    let ids: Vec<_> = placements.iter().map(|p| p.member.clone()).collect();
+    let mut revision = None;
+    let mut observed = std::collections::BTreeMap::new();
+    let mut bytes = 0usize;
+    for chunk in ids.chunks(MAXIMUM_TERMINAL_AGENT_STATE_ROWS) {
+        let (head, rows) = states(client, &snapshot, chunk, deadline, cancel)?;
+        if revision.is_some_and(|old| old != head) {
+            return Err(());
+        }
+        revision = Some(head);
+        for row in rows {
+            bytes = bytes
+                .checked_add(serde_json::to_vec(&row).map_err(|_| ())?.len())
+                .ok_or(())?;
+            if bytes > MAXIMUM_BYTES || observed.insert(row.presentation_id, row.snapshot).is_some()
+            {
+                return Err(());
+            }
+        }
+    }
+    let revision = match revision {
+        Some(revision) => revision,
+        None => {
+            let (head, rows) = states(client, snapshot, &[], deadline, cancel)?;
+            if !rows.is_empty() {
+                return Err(());
+            }
+            head
+        }
+    };
+    Ok(StateCheckpoint {
+        placements,
+        observed,
+        revision,
+        bytes,
+    })
+}
+
+/// A final report fence lets a composite read prove overlap with another source.
+pub(crate) fn confirm(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    revision: WorkbenchRevision,
+    deadline: Instant,
+    cancel: &AtomicU8,
+) -> Result<(), ()> {
+    let (head, rows) = states(client, snapshot, &[], deadline, cancel)?;
+    if head != revision || !rows.is_empty() {
+        return Err(());
+    }
+    check(deadline, cancel)
 }
 pub(crate) fn verify(
     client: &mut LocalClient,

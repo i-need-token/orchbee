@@ -2566,7 +2566,7 @@ fn classify_attempt<Response>(
 /// session is dropped before any output work. The `listed` outcome is the
 /// only success path; every semantic refusal maps to its fixed failure kind
 /// and carries the correlated request identity as the honest source.
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(target_os = "linux")]
 pub(crate) fn agent_list(
     include_ended: bool,
     limit: u64,

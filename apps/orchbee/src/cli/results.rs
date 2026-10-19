@@ -3,11 +3,11 @@
 //! verified; no fabricated fields appear where no authoritative source exists.
 
 #[cfg(not(windows))]
-use orchbee_agent_observation_protocol::AgentGetOutcome;
+use orchbee_agent_observation_protocol::{AgentGetOutcome, AgentListOutcome};
 use std::collections::HashMap;
 
 use orchbee_agent_observation_protocol::{
-    AgentExplainOutcome, AgentListOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
+    AgentExplainOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
 };
 use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact};
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
@@ -78,14 +78,12 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
             client: Some(_), ..
         } => 8,
         #[cfg(windows)]
-        QueryCommand::AgentList {
-            client: Some(_), ..
-        } => 3,
+        QueryCommand::AgentList { .. } => 2,
         #[cfg(windows)]
-        QueryCommand::AgentGet(_) => 17,
+        QueryCommand::AgentGet(_) => 19,
         QueryCommand::AgentClientGet { .. } => {
             if cfg!(windows) {
-                18
+                19
             } else {
                 2
             }
@@ -1094,8 +1092,12 @@ pub(crate) enum Projection {
     WorkbenchQuery(Box<super::workbench_query::Document>),
     Status(StatusDoc),
     /// The typed `listed` outcome, verbatim from the wire.
+    #[cfg(not(windows))]
     AgentList(AgentListOutcome),
-    AgentClientList(Box<AgentClientListDoc>),
+    #[cfg(windows)]
+    UnifiedAgentList(Box<super::agent_projection::List>),
+    #[cfg(windows)]
+    UnifiedAgentInspection(Box<super::agent_projection::Inspection>),
     AgentChanges(orchbee_agent_observation_protocol::AgentChangesOutcome),
     /// The typed `found` outcome, verbatim from the wire.
     #[cfg(not(windows))]
@@ -1169,17 +1171,6 @@ pub(crate) struct AgentWaitDoc {
     pub(crate) timeout_ms: Option<u32>,
     pub(crate) observations: u64,
     pub(crate) elapsed_ms: u64,
-}
-
-#[derive(Debug)]
-pub(crate) struct AgentClientListDoc {
-    pub(crate) client_id: orchbee_workbench_protocol::WorkbenchClientId,
-    pub(crate) revision: AgentSafeInteger,
-    pub(crate) next_cursor: Option<orchbee_agent_observation_protocol::AgentListCursor>,
-    pub(crate) items: Vec<(
-        orchbee_agent_observation_protocol::AgentSessionSummary,
-        AgentClientViewDoc,
-    )>,
 }
 
 #[derive(Debug)]
@@ -1332,11 +1323,12 @@ impl Projection {
             Self::WorkbenchQuery(doc) => doc.result(),
             // Agent projections serialize the exact wire outcome object —
             // the typed enum is the single serialization truth.
+            #[cfg(not(windows))]
             Self::AgentList(outcome) => json!(outcome),
-            Self::AgentClientList(doc) => {
-                json!({"kind":"listed","clientId":doc.client_id,"revision":doc.revision,"nextCursor":doc.next_cursor,
-                "items":doc.items.iter().map(|(summary,client)| { let mut row=json!(summary);row["client"]=client.document();row }).collect::<Vec<_>>() })
-            }
+            #[cfg(windows)]
+            Self::UnifiedAgentList(doc) => doc.document(),
+            #[cfg(windows)]
+            Self::UnifiedAgentInspection(doc) => doc.document(),
             Self::AgentChanges(outcome) => json!(outcome),
             #[cfg(not(windows))]
             Self::AgentGet(outcome) => json!(outcome),

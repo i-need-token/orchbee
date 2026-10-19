@@ -5238,7 +5238,8 @@ const AGENT_CURSOR: &str = "v1.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW
 /// and the opaque session identity operand.
 #[test]
 fn agent_read_grammar() {
-    use orchbee_agent_observation_protocol::{AgentListCursor, AgentSessionId};
+    use super::AgentListCursor;
+    use orchbee_agent_observation_protocol::AgentSessionId;
     let session = || AgentSessionId::parse("sess-alpha").expect("valid session id");
     let cursor = || AgentListCursor::parse(AGENT_CURSOR).expect("valid cursor");
 
@@ -6848,6 +6849,87 @@ fn agent_read_targets_accept_exactly_one_auto_session_or_name_selector() {
             assert!(parse(&[vec!["agent", verb], args].concat()).is_err());
         }
     }
+}
+
+#[cfg(windows)]
+#[test]
+fn projection_selectors_share_one_grammar_across_agent_operations() {
+    use super::{
+        AgentSelector,
+        client_control::{ClientCommand, ClientNavigationTarget},
+    };
+    for (token, expected) in [
+        ("@agent:codex", AgentSelector::Kind("codex".into())),
+        (
+            "@agent:grok-build",
+            AgentSelector::Kind("grok-build".into()),
+        ),
+        ("@agent:1", AgentSelector::Ordinal(1)),
+        ("@agent:4096", AgentSelector::Ordinal(4096)),
+    ] {
+        for (verb, tail) in [
+            ("get", None),
+            ("explain", None),
+            ("read", None),
+            ("wait", None),
+            ("focus", None),
+            ("prompt", Some("literal prompt")),
+            ("send-keys", Some("enter")),
+        ] {
+            let mut words = vec!["agent", verb, token];
+            words.extend(tail);
+            let parsed = parse(&words).unwrap();
+            let target = match parsed {
+                Request::Query {
+                    command:
+                        QueryCommand::AgentGet(target)
+                        | QueryCommand::AgentExplain(target)
+                        | QueryCommand::AgentRead { target, .. }
+                        | QueryCommand::TerminalOutput {
+                            target: super::OutputTarget::Agent(target),
+                            ..
+                        }
+                        | QueryCommand::AgentWait {
+                            session: target, ..
+                        },
+                    ..
+                }
+                | Request::Mutation {
+                    command:
+                        MutationCommand::AgentPrompt { target, .. }
+                        | MutationCommand::AgentSendKeys { target, .. },
+                    ..
+                }
+                | Request::Client {
+                    command:
+                        ClientCommand::Navigate {
+                            target: ClientNavigationTarget::Agent(target),
+                            ..
+                        },
+                    ..
+                } => target,
+                _ => panic!("Agent operation must preserve its selector: {words:?}"),
+            };
+            assert_eq!(
+                target,
+                AgentTarget::Projection {
+                    selector: expected.clone()
+                },
+                "{words:?}"
+            );
+        }
+    }
+    for token in [
+        "@agent:",
+        "@agent:0",
+        "@agent:01",
+        "@agent:4097",
+        "@agent:Codex",
+        "@agent:bad/name",
+    ] {
+        assert!(parse(&["agent", "get", token]).is_err(), "{token}");
+    }
+    assert!(parse(&["agent", "prompt", "@agent:1", "text", "--name", "alias"]).is_err());
 }
 
 #[test]

@@ -15,6 +15,26 @@ fn id(n: u64) -> String {
     format!("{n:032x}")
 }
 
+pub(crate) fn state_checkpoint(states: Vec<TerminalAgentStateSnapshot>) -> StateCheckpoint {
+    let placements = placements(&fixture()).unwrap();
+    let mut observed = placements
+        .iter()
+        .map(|p| (p.member.clone(), None))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for state in states {
+        observed.insert(
+            TerminalPresentationId::parse(state.binding.presentation_id.as_str()).unwrap(),
+            Some(state),
+        );
+    }
+    StateCheckpoint {
+        placements,
+        observed,
+        revision: WorkbenchRevision::new(7),
+        bytes: 0,
+    }
+}
+
 #[test]
 fn regrouping_changes_placement_labels_without_changing_agent_terminal_targets() {
     let mut snapshot = fixture();

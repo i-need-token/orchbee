@@ -1,4 +1,3 @@
-pub(super) mod list;
 mod runtime;
 mod terminal;
 pub(in crate::cli) mod terminal_attention;
@@ -45,6 +44,13 @@ pub(super) fn run(
         let admitted = query::stream_snapshot(deadline, signals.poll_fd());
         check(deadline, &mut signals)?;
         let (mut client, snapshot) = admitted?;
+        let projected = crate::cli::agent_projection::read(
+            &mut client,
+            &snapshot,
+            true,
+            deadline,
+            signals.poll_fd(),
+        )?;
         let resolved = query::named_terminal::resolve_named(
             &mut client,
             target,
@@ -52,19 +58,38 @@ pub(super) fn run(
             deadline,
             signals.poll_fd(),
         )?;
+        let projected_row =
+            crate::cli::agent_projection::inspection_row(&projected, &resolved.target)?;
         let id = match resolved.target {
             orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
                 session_id
             }
             orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding } => {
-                return terminal::read(
+                let (_, detail) = terminal::read(
                     &mut client,
                     &snapshot,
                     binding,
                     selected,
                     deadline,
                     &mut signals,
-                );
+                )?;
+                crate::cli::agent_projection::confirm(
+                    &mut client,
+                    &snapshot,
+                    &projected,
+                    true,
+                    deadline,
+                    signals.poll_fd(),
+                )?;
+                return Ok((
+                    crate::cli::agent_projection::source(&snapshot, &projected),
+                    results::Projection::UnifiedAgentInspection(Box::new(
+                        crate::cli::agent_projection::Inspection {
+                            row: projected_row,
+                            detail: Box::new(detail),
+                        },
+                    )),
+                ));
             }
         };
         let attention = selected
@@ -104,16 +129,31 @@ pub(super) fn run(
             })
             .transpose()?;
         check(deadline, &mut signals)?;
+        crate::cli::agent_projection::confirm(
+            &mut client,
+            &snapshot,
+            &projected,
+            true,
+            deadline,
+            signals.poll_fd(),
+        )?;
         Ok((
-            results::agent_source(&canonical.request_id),
-            results::Projection::AgentInspection(Box::new(results::AgentInspectionDoc {
-                revision: canonical.revision,
-                session: canonical.session,
-                client: view,
-                runtime,
-                terminal,
-                management,
-            })),
+            crate::cli::agent_projection::source(&snapshot, &projected),
+            results::Projection::UnifiedAgentInspection(Box::new(
+                crate::cli::agent_projection::Inspection {
+                    row: projected_row,
+                    detail: Box::new(results::Projection::AgentInspection(Box::new(
+                        results::AgentInspectionDoc {
+                            revision: canonical.revision,
+                            session: canonical.session,
+                            client: view,
+                            runtime,
+                            terminal,
+                            management,
+                        },
+                    ))),
+                },
+            )),
         ))
     })();
     let mut finalization = None;
@@ -159,7 +199,7 @@ pub(in crate::cli) fn read(
         signals,
     )
 }
-fn current_client(
+pub(in crate::cli) fn current_client(
     client: &mut crate::local_client::LocalClient,
     snapshot: &Snapshot,
     selected: &WorkbenchClientId,

@@ -33,11 +33,8 @@ pub(super) fn run(
     }
 }
 
+#[cfg(not(windows))]
 pub(super) fn list(command: &QueryCommand, format: OutputFormat, locale: Locale) -> Output {
-    #[cfg(windows)]
-    {
-        windows::list::run(command, format, locale)
-    }
     #[cfg(not(windows))]
     {
         let _ = command;

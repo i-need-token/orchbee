@@ -54,7 +54,54 @@ pub(super) fn prepare(
         AgentTarget::Name { name } => {
             return Ok(plain(AgentSessionSelector::Name { name: name.clone() }));
         }
-        AgentTarget::Panel { target } => target.clone(),
+        #[cfg(windows)]
+        AgentTarget::Projection { selector } => {
+            let owned;
+            let snapshot = match snapshot {
+                Some(s) => s,
+                None => {
+                    owned = read_snapshot(client, total, wake)?;
+                    &owned
+                }
+            };
+            let target =
+                crate::cli::agent_projection::resolve(client, snapshot, selector, total, wake)?;
+            return Ok(plain(match target {
+                AgentNameTarget::Session { session_id } => {
+                    AgentSessionSelector::Session { session_id }
+                }
+                AgentNameTarget::Terminal { binding } => AgentSessionSelector::Terminal { binding },
+            }));
+        }
+        AgentTarget::Panel { target } => {
+            #[cfg(windows)]
+            {
+                let owned;
+                let snapshot = match snapshot {
+                    Some(s) => s,
+                    None => {
+                        owned = read_snapshot(client, total, wake)?;
+                        &owned
+                    }
+                };
+                let selected =
+                    crate::cli::agent_projection::panel(client, snapshot, target, total, wake)?;
+                return Ok(PreparedTarget {
+                    selector: match selected {
+                        AgentNameTarget::Session { session_id } => {
+                            AgentSessionSelector::Session { session_id }
+                        }
+                        AgentNameTarget::Terminal { binding } => {
+                            AgentSessionSelector::Terminal { binding }
+                        }
+                    },
+                    presentation: Some(primary_presentation(snapshot, target)?),
+                    resolved: None,
+                });
+            }
+            #[cfg(not(windows))]
+            target.clone()
+        }
         AgentTarget::Auto { target } => {
             let selector = AgentSessionSelector::Auto {
                 target: target.clone(),
@@ -162,8 +209,34 @@ pub(in crate::cli) fn resolve_named(
         Some(answer) => answer,
         None => resolve(client, prepared.selector, total, wake)?,
     };
+    let resolved = resolved_target(&answer);
+    #[cfg(windows)]
+    let resolved = match resolved {
+        Err(failure) if failure.kind == FailureKind::NotFound => {
+            if let AgentTarget::Auto { target } = target {
+                let owned;
+                let snapshot = match snapshot {
+                    Some(s) => s,
+                    None => {
+                        owned = read_snapshot(client, total, wake)?;
+                        &owned
+                    }
+                };
+                crate::cli::agent_projection::resolve(
+                    client,
+                    snapshot,
+                    &crate::invocation::AgentSelector::Kind(target.to_string()),
+                    total,
+                    wake,
+                )
+            } else {
+                Err(failure)
+            }
+        }
+        other => other,
+    };
     Ok(NamedTarget {
-        target: resolved_target(&answer)?,
+        target: resolved?,
         presentation: prepared.presentation,
     })
 }
