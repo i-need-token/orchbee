@@ -298,6 +298,7 @@ pub(crate) struct Theme {
     pub corners: BorderType,
     pub glyphs: GlyphSet,
     color_level: ColorLevel,
+    no_color: bool,
     terminal_colors: Option<(Color, Color)>,
     terminal_uses_host_colors: bool,
     terminal_defaults_known: bool,
@@ -418,6 +419,7 @@ impl Theme {
             terminal_colors: None,
             terminal_uses_host_colors: false,
             terminal_defaults_known: true,
+            no_color: false,
             styles: RoleStyles {
                 text_primary: reset,
                 text_secondary: dim,
@@ -470,6 +472,7 @@ impl Theme {
             terminal_colors: None,
             terminal_uses_host_colors: false,
             terminal_defaults_known: true,
+            no_color: false,
             styles: RoleStyles {
                 text_primary: Style::new().fg(Color::Rgb(211, 218, 232)),
                 text_secondary: Style::new().fg(Color::Rgb(133, 146, 171)),
@@ -515,6 +518,16 @@ impl Theme {
     #[must_use]
     pub(crate) fn style(&self, role: Role) -> Style {
         self.styles.style(role)
+    }
+
+    /// The Shell supplies the observed reason; monochrome alone does not imply NO_COLOR.
+    pub(crate) const fn with_no_color(mut self, no_color: bool) -> Self {
+        self.no_color = no_color;
+        self
+    }
+
+    pub(crate) const fn no_color(&self) -> bool {
+        self.no_color
     }
 
     /// Mixed-role controls keep one displayed background despite different content foregrounds.
@@ -967,11 +980,21 @@ impl Theme {
             }
         }
         if level == ColorLevel::Monochrome {
-            styles.frame_focused = styles.frame_focused.add_modifier(Modifier::BOLD);
-            styles.accent_focus = styles.accent_focus.add_modifier(Modifier::BOLD);
-            styles.surface_selection = styles.surface_selection.add_modifier(Modifier::BOLD);
-            styles.surface_current = styles.surface_current.add_modifier(Modifier::BOLD);
-            styles.accent_selection = styles.accent_selection.add_modifier(Modifier::BOLD);
+            styles.frame_focused = styles
+                .frame_focused
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED);
+            styles.accent_focus = styles
+                .accent_focus
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+            styles.surface_selection = styles
+                .surface_selection
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED);
+            styles.surface_current = styles
+                .surface_current
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+            styles.accent_selection = styles
+                .accent_selection
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED);
         }
         Self {
             styles,

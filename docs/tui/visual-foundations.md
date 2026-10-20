@@ -75,6 +75,10 @@ Theme rules:
   action's primary label, provisional selection retains its `accent-selection` marker, and current
   context retains its current marker or `BOLD`. Individual components apply the semantic state but
   never branch on the palette.
+- Monochrome gives current context an underline, provisional selection a bold reverse band, and
+  focused frames a bold reverse outline. Independent current, navigation and checked markers remain
+  visible; focus and value choices never rely on bold text alone. Renderers retain the complete role
+  style, including its modifiers.
 - `accent-destructive` identifies an explicitly destructive action intent, independently of action
   hierarchy, focus, current context, hover, and press. It has its own palette value and never borrows
   `status-error`. Disabled intent uses `text-disabled`. The theme resolver retains the destructive

@@ -365,3 +365,7 @@ response budget or a different writer/scheduler architecture.
 ## Outer title restoration
 
 [Windows title publication](windows-terminal-title.md) has its own lifecycle lease. The first title write captures the inherited title; restoration repays this lease after ending synchronized output and before disabling bracketed paste. Capture or write failure reports a localized status notice and keeps the TUI usable; any already-owed restoration remains registered. No title writes occur after restoration starts. Before an effective configured or explicit title is delivered, no title capture or write occurs.
+
+## Explicit detach feedback
+
+After a successful user detach (including the configured d/q exit aliases), the shell restores terminal modes, cursor and alternate screen before writing one localized human line to stderr. The line explains that detaching keeps terminal programs running and gives the return command; a remote machine includes its stable profile selector. It uses the final effective saved locale. Signal exits and runtime/restoration failures do not print a successful detach message. Standard output and machine documents receive no added text.

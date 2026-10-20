@@ -270,8 +270,8 @@
 			"zhCnSha256": "ac484a1a91abf32c64bcae2aa89297436dd9612ec7e9f8f2756a59a4eefcef82"
 		},
 		"apps/orchbee/docs/native-settings.md": {
-			"englishSha256": "3e2eec243b9fb7a2848cdc2ea18d4815b219d9b00eefa2f06ebeb0bc25a020da",
-			"zhCnSha256": "917001c6f89387387ce347c072c2c45ff8d2f816d3e7c9fe83392de9b6509c23"
+			"englishSha256": "a1375ed35eb835e1b2bafe8e67c84e55125150cef344063a5738dfc3a377eba8",
+			"zhCnSha256": "9581b360a335934125f18bebe077dd79da844a86aa5151c45cd39b684d94b2c2"
 		},
 		"apps/orchbee/docs/native-startup-wait.md": {
 			"englishSha256": "cd5e20b27ded385c357e969058811c13f5a57bd10fbdac0960717613e7d17b46",
@@ -298,8 +298,8 @@
 			"zhCnSha256": "27912ce534a3d53212583f799f64e9c6aa203ca7e86fb52dee83bfecf438eccd"
 		},
 		"apps/orchbee/docs/native-terminal-environment.md": {
-			"englishSha256": "c177910b0053ce4f3141391697267ce7f763ab712d48531270a90713c3988145",
-			"zhCnSha256": "6dd27afa8c22b313a57f5defbe69c3633f0af55baae6921db97d6d3da0e126f0"
+			"englishSha256": "9668d5a115fed85da29cbbfaeb7aca23e982895e81b1b33e97a800e7dad6c280",
+			"zhCnSha256": "9fc09556efbdeec4578a18bacb3e31ddfd31b95f2b1b4c92a7e9d7dbebbff3e4"
 		},
 		"apps/orchbee/docs/native-terminal-output.md": {
 			"englishSha256": "221c85716bf83bd592c8e2284cd7541a588b7792ef3d1dadc9e0fd120c31de36",
@@ -318,8 +318,8 @@
 			"zhCnSha256": "8d456479a7277fd0d65f79f0b3c5bdbcd6ef7880c5c6c9d23db3e2f2e89abe6e"
 		},
 		"apps/orchbee/docs/native-themes.md": {
-			"englishSha256": "49c44db4a34e4e5dfd7280c921d996b1bf9cd4450abd0e3e9d8683bdc63af55f",
-			"zhCnSha256": "08a3cff91982b0a3c1a512026a7a7b791e69c462a48257f54cb6a3f58dd7c945"
+			"englishSha256": "e6563e5bffbcffe78b626c827737820e4165d79bc89431c35560742ad628ba46",
+			"zhCnSha256": "d82aec9916bb0f64082b6a0d9de5e33fc84d7770c2bece943f3e2a844083c5ee"
 		},
 		"apps/orchbee/docs/native-workspace-close.md": {
 			"englishSha256": "ccc750ead2d559c69ab9291a745b2518dbe8bb9ee5de3b28d3337598ddf12ffd",
@@ -682,8 +682,8 @@
 			"zhCnSha256": "5e84f03fabd2b7a2d1ec6eb1ebbf54b7e9e911edf73db48632187ef21b3daba0"
 		},
 		"docs/tui/visual-foundations.md": {
-			"englishSha256": "662394d77fb948a651ac981cb026db74b274da9c2ab4f20eba2dc0bb81489c38",
-			"zhCnSha256": "3a12a733ca9d71b472583e1144e79bcf7c2c877480b3756391242649f16293ad"
+			"englishSha256": "9bae7900f2775b74d78db3b274ac231a46f1525e705f868f373d12d6750a1cb4",
+			"zhCnSha256": "5027756025f9be4bb5f0e77f2385f316b245eb7a252757217b7e3edbb3c3134e"
 		},
 		"packages/actions/README.md": {
 			"englishSha256": "13af0b08a355e2dc809d9bb23b9c81ea789b3c6afc63935209c146e719d4cdee",

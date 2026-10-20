@@ -405,6 +405,7 @@ pub(crate) struct ClientView {
     host_appearance: crate::terminal_host_appearance::HostAppearance,
     host_colors: crate::terminal_host_appearance::HostColors,
     color_level: crate::tui_theme::ColorLevel,
+    no_color: bool,
     pub(crate) notifications: crate::notifications::State,
     #[cfg(windows)]
     pub(crate) window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
@@ -455,6 +456,7 @@ impl ClientView {
             host_appearance: crate::terminal_host_appearance::HostAppearance::Unknown,
             host_colors: crate::terminal_host_appearance::HostColors::default(),
             color_level: crate::tui_theme::ColorLevel::Ansi16,
+            no_color: false,
             notifications: crate::notifications::State::default(),
             #[cfg(windows)]
             window_title: None,
@@ -503,6 +505,15 @@ impl ClientView {
             return Some(Notice::ConfigurationWarning);
         }
         None
+    }
+
+    /// Host capabilities are sampled by the Shell, never by a render consumer.
+    pub(crate) fn configure_no_color(&mut self, no_color: bool) {
+        self.no_color = no_color;
+    }
+
+    pub(crate) const fn no_color(&self) -> bool {
+        self.no_color
     }
 
     /// Host capabilities are sampled by the Shell, never by a render consumer.

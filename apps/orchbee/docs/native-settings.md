@@ -335,3 +335,7 @@ Cargo/TypeScript checks. The affected root gate remains required.
 ## History units and host-color display
 
 History capacity displays and edits decimal MB (1 MB = 1,000,000 bytes), from 0 to 1000 MB. Up to six fractional digits preserve individual bytes; storage and small/large steps retain their existing byte domain. Disabled color fields show known effective RGB defaults; an unresolved host default shows its localized choice label instead of fallback palette values. Agent blank-space trimming uses plain-language copy. These are presentation and draft-conversion changes; Save and new-terminal effect boundaries stay with the existing owners.
+
+## Color-disabled guidance
+
+The Shell retains whether a nonempty `NO_COLOR` disabled colors at startup and carries that reason through committed and preview themes. Application/terminal theme and editable color descriptions explain the suppression in both languages. Validation, confirmation and unknown-save recovery messages take precedence. The hint never infers `NO_COLOR` from monochrome alone, reads the environment while rendering, or changes the saved theme choice.

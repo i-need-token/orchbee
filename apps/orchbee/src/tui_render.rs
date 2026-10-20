@@ -2799,9 +2799,7 @@ fn emphasize_pane_boundary(frame: &mut Frame<'_>, leaf: Rect, panel: Rect, theme
     if outline.is_empty() {
         return;
     }
-    let style = Style::default()
-        .fg(theme.color(Role::FrameFocused))
-        .add_modifier(Modifier::BOLD);
+    let style = theme.style(Role::FrameFocused).add_modifier(Modifier::BOLD);
     for edge in [
         Rect::new(outline.x, outline.y, outline.width, 1),
         Rect::new(outline.x, outline.bottom() - 1, outline.width, 1),

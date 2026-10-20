@@ -968,12 +968,7 @@ fn render_draft(
     }
     render_divider(frame, regions.separator, theme);
     if let Some(detail) = regions.detail {
-        let text =
-            if draft.invalid || !draft.enabled(draft.selected) || draft.page == Page::Profiles {
-                locale.settings_detail(draft)
-            } else {
-                locale.settings_description(draft.selected).into()
-            };
+        let text = draft_description(draft, locale, theme);
         frame.render_widget(
             Paragraph::new(truncate_display(
                 &text,
@@ -1122,6 +1117,26 @@ fn render_search(
     hits.record_interaction(HitLayer::Overlay, area, area, target, spec);
 }
 
+fn draft_description(draft: DraftView<'_>, locale: Locale, theme: &Theme) -> String {
+    if draft.confirmation.is_some()
+        || draft.invalid
+        || !draft.enabled(draft.selected)
+        || draft.page == Page::Profiles
+        || draft.reconciliation == Some(crate::native_settings::Reconciliation::OutcomeUnknown)
+    {
+        return locale.settings_detail(draft);
+    }
+    if theme.no_color()
+        && matches!(
+            draft.selected,
+            Row::Theme | Row::TerminalTheme | Row::Foreground | Row::Background
+        )
+    {
+        return locale.settings_no_color().into();
+    }
+    locale.settings_description(draft.selected).into()
+}
+
 fn render_child(
     frame: &mut Frame<'_>,
     inner: Rect,
@@ -1138,12 +1153,7 @@ fn render_child(
         )),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
-    let description =
-        if draft.confirmation.is_some() || draft.invalid || draft.page == Page::Profiles {
-            locale.settings_detail(draft)
-        } else {
-            locale.settings_description(draft.selected).into()
-        };
+    let description = draft_description(draft, locale, theme);
     let description_area = Rect::new(
         inner.x,
         inner.y + 1,

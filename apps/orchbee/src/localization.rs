@@ -568,6 +568,17 @@ pub(crate) enum Locale {
 }
 
 impl Locale {
+    pub(crate) fn tui_detached(self, return_command: &str) -> String {
+        match self {
+            Self::EnUs => format!(
+                "Detached from Orchbee. Terminals keep running; run \"{return_command}\" to return."
+            ),
+            Self::ZhCn => {
+                format!("已离开 Orchbee，终端程序仍在后台运行；输入 {return_command} 返回。")
+            }
+        }
+    }
+
     /// Help and the action menu share the current Client's detach lifecycle wording.
     const fn client_detach_label(self) -> &'static str {
         match self {

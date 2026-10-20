@@ -46,6 +46,7 @@ fn named(palette: Palette) -> Theme {
         terminal_colors: None,
         terminal_uses_host_colors: false,
         terminal_defaults_known: true,
+        no_color: false,
         styles: RoleStyles {
             text_primary: primary,
             text_secondary: secondary,

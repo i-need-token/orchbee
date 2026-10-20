@@ -6,7 +6,7 @@ mod measurement;
 
 use std::{
     fmt,
-    io::{self, BufWriter},
+    io::{self, BufWriter, Write},
     time::{Duration, Instant},
 };
 #[cfg(unix)]
@@ -81,6 +81,13 @@ impl std::error::Error for TuiFailure {
 enum LoopExit {
     Signal,
     User,
+}
+
+#[derive(Debug)]
+struct LoopCompletion {
+    exit: LoopExit,
+    locale: Locale,
+    return_command: String,
 }
 
 #[derive(Debug)]
@@ -319,6 +326,11 @@ fn run_prepared_surface(
         // invalidate an already admitted Site; standalone startup still fails on that boundary.
         let host_colors = ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "TERM", "WT_SESSION"]
             .map(|name| std::env::var(name).ok());
+        initial_view.configure_no_color(
+            host_colors[0]
+                .as_ref()
+                .is_some_and(|value| !value.is_empty()),
+        );
         let multiplexed = ["TMUX", "ZELLIJ", "STY"]
             .iter()
             .any(|name| std::env::var_os(name).is_some());
@@ -463,6 +475,11 @@ fn run_prepared_surface(
         initial_view,
     )
     .map_err(LoopFailure::into_io_error);
+    let detach_notice = run_result
+        .as_ref()
+        .ok()
+        .filter(|completion| completion.exit == LoopExit::User)
+        .map(|completion| completion.locale.tui_detached(&completion.return_command));
     if run_result.is_err() {
         // BufWriter's drop may retry buffered bytes. Fence incomplete frame
         // output first; mode restoration still sends its own control bytes.
@@ -482,7 +499,15 @@ fn run_prepared_surface(
             },
             locale,
         )
-        .map_err(TuiFailure::Runtime)
+        .map_err(TuiFailure::Runtime)?;
+    if let Some(notice) = detach_notice {
+        // Human guidance belongs after raw/alternate-screen restoration, on stderr.
+        let mut stderr = io::stderr().lock();
+        writeln!(stderr, "{notice}")
+            .and_then(|_| stderr.flush())
+            .map_err(TuiFailure::Runtime)?;
+    }
+    Ok(())
 }
 
 /// Presentation inputs that travel together through the event loop: the
@@ -511,7 +536,7 @@ fn frame_appearance(
         }
         _ => None,
     };
-    match preview {
+    let (theme, locale) = match preview {
         Some(values) => (
             view.preview_theme(values),
             view.presentation_locale(chrome.locale, Some(values.locale)),
@@ -520,7 +545,8 @@ fn frame_appearance(
             view.configured_theme().unwrap_or(*chrome.theme),
             view.effective_locale(chrome.locale),
         ),
-    }
+    };
+    (theme.with_no_color(view.no_color()), locale)
 }
 
 #[cfg(test)]
@@ -576,6 +602,7 @@ fn run_event_loop_with_modes<B: Backend + ResizableBackend>(
         mouse,
         view,
     )
+    .map(|completion| completion.exit)
 }
 
 enum SurfaceSlot<'a> {
@@ -622,7 +649,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     mut dimensions: WindowDimensions,
     mouse: bool,
     mut view: ClientView,
-) -> Result<LoopExit, LoopFailure<B::Error>> {
+) -> Result<LoopCompletion, LoopFailure<B::Error>> {
     let mut dispatcher = InputDispatcher::default();
     let wakeup = crate::terminal_session::UiWakeup::current();
     surface.active().set_ui_wakeup(Some(wakeup.clone()));
@@ -956,7 +983,22 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
     })();
     dispatcher.cancel_pointer(surface.active());
     surface.active().set_ui_wakeup(None);
-    result
+    result.map(|exit| LoopCompletion {
+        exit,
+        locale: view.effective_locale(chrome.locale),
+        return_command: {
+            #[cfg(windows)]
+            if let crate::machine_picker::Choice::Remote(id) = &view.machines.current {
+                format!("orchbee --machine {}", id.as_str())
+            } else {
+                "orchbee".to_owned()
+            }
+            #[cfg(not(windows))]
+            {
+                "orchbee".to_owned()
+            }
+        },
+    })
 }
 
 #[cfg(windows)]

@@ -421,6 +421,13 @@ impl Locale {
                 .into(),
         }
     }
+    pub(crate) fn settings_no_color(self) -> &'static str {
+        self.setting(
+            "NO_COLOR: terminal colors disabled.",
+            "终端禁用了颜色（NO_COLOR）。",
+        )
+    }
+
     pub(crate) fn settings_detail(self, draft: DraftView<'_>) -> String {
         if draft.confirmation.is_none() {
             let field = draft.invalid_field.or_else(|| {

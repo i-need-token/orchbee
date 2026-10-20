@@ -423,42 +423,13 @@ impl StartFormLayout {
             .skip(selected)
             .take(5)
         {
-            let label = format!(
-                "{} {provider}",
-                if index == selected {
-                    theme.glyphs.active_marker
-                } else {
-                    " "
-                }
-            );
-            let kind = if index == selected {
-                super::controls::ActionKind::Primary
-            } else {
-                super::controls::ActionKind::Auxiliary
-            };
-            let action = super::controls::ActionSpec::new(
-                &label,
-                kind,
-                super::controls::ControlSurface::Overlay,
-                interaction_state(
-                    board.start_draft_editable(),
-                    false,
-                    false,
-                    super::controls::PointerPresentation::Rest,
-                ),
-            );
+            let label = (*provider).to_owned();
             let remaining = Rect::new(x, y, body.right().saturating_sub(x), 1);
-            let rect =
-                super::controls::action_rect(bounds, remaining, action, theme).or_else(|| {
-                    y += 1;
-                    x = body.x;
-                    super::controls::action_rect(
-                        bounds,
-                        Rect::new(x, y, body.width, 1),
-                        action,
-                        theme,
-                    )
-                })?;
+            let rect = provider_choice_rect(bounds, remaining, &label, theme).or_else(|| {
+                y += 1;
+                x = body.x;
+                provider_choice_rect(bounds, Rect::new(x, y, body.width, 1), &label, theme)
+            })?;
             if y > catalog.y + 2 {
                 break;
             }
@@ -473,6 +444,19 @@ impl StartFormLayout {
             providers,
         })
     }
+}
+
+#[cfg(windows)]
+fn provider_choice_rect(bounds: Rect, area: Rect, label: &str, theme: &Theme) -> Option<Rect> {
+    let width = display_width(label)
+        .checked_add(display_width(theme.glyphs.status_bullet))?
+        .checked_add(5)?;
+    let width = u16::try_from(width).ok()?;
+    if area.height == 0 || width > area.width {
+        return None;
+    }
+    let rect = Rect::new(area.x, area.y, width, 1);
+    (bounds.intersection(rect) == rect).then_some(rect)
 }
 
 #[cfg(windows)]
@@ -542,11 +526,7 @@ fn render_start_form(
     for (index, rect, label) in &layout.providers {
         let provider = board.start_providers()[*index];
         let enabled = board.start_draft_editable();
-        let kind = if board.selected_start_provider() == Some(provider) {
-            super::controls::ActionKind::Primary
-        } else {
-            super::controls::ActionKind::Auxiliary
-        };
+        let selected = board.selected_start_provider() == Some(provider);
         let target = draw.control_target(AgentBoardControl::StartProvider(*index));
         let interaction = InteractionTarget::AgentBoardControl(target);
         let spec = if enabled {
@@ -561,13 +541,9 @@ fn render_start_form(
             &interaction,
             spec,
         ));
-        let action = super::controls::ActionSpec::new(
-            label,
-            kind,
-            super::controls::ControlSurface::Overlay,
-            interaction_state(enabled, false, false, pointer),
-        );
-        let Some(painted) = super::controls::render_action(frame, *rect, action, theme) else {
+        let Some(painted) =
+            render_provider_choice(frame, *rect, label, selected, enabled, pointer, theme)
+        else {
             continue;
         };
         debug_assert_eq!(painted, *rect);
@@ -576,6 +552,73 @@ fn render_start_form(
     if let Some(name) = layout.name {
         render_start_name(frame, name, text, board, theme);
     }
+}
+
+#[cfg(windows)]
+fn render_provider_choice(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    label: &str,
+    selected: bool,
+    enabled: bool,
+    pointer: super::controls::PointerPresentation,
+    theme: &Theme,
+) -> Option<Rect> {
+    use super::controls::{
+        Availability, CheckedState, ControlSurface, CurrentState, FocusState, InteractionState,
+        NavigationState, OperationState, RowFocusCue, RowTracks, paint_row_interaction,
+    };
+    let rect = provider_choice_rect(frame.area(), area, label, theme)?;
+    let checked_width = u16::try_from(display_width(theme.glyphs.status_bullet)).ok()?;
+    let checked = Rect::new(rect.x + 2, rect.y, checked_width, 1);
+    let primary = Rect::new(
+        checked.right() + 1,
+        rect.y,
+        rect.width - checked_width - 5,
+        1,
+    );
+    let role = if !enabled {
+        Role::TextDisabled
+    } else if selected {
+        Role::AccentSelection
+    } else {
+        Role::TextPrimary
+    };
+    frame.render_widget(
+        Paragraph::new(format!(
+            "[ {} {label} ]",
+            " ".repeat(usize::from(checked_width)),
+        ))
+        .style(theme.style(role)),
+        rect,
+    );
+    paint_row_interaction(
+        frame,
+        rect,
+        RowTracks::new(RowFocusCue::EnclosingFrame, primary)
+            .with_primary_role(role)
+            .with_checked(checked, theme.glyphs.status_bullet),
+        &[],
+        ControlSurface::Overlay,
+        InteractionState::new(
+            FocusState::Unfocused,
+            pointer,
+            NavigationState::None,
+            CurrentState::NotCurrent,
+            if selected {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            if enabled {
+                Availability::Enabled
+            } else {
+                Availability::Disabled
+            },
+            OperationState::Idle,
+        ),
+        theme,
+    )
 }
 
 #[cfg(windows)]

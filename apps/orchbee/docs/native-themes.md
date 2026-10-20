@@ -182,6 +182,10 @@ disabled text at truecolor and 256 colors. Faint intensity can darken an RGB
 foreground until disabled text looks like primary text on a light surface.
 At 16 colors and monochrome, quantization retains DIM when muted and primary
 foregrounds coincide; `terminal-native` keeps its host-relative DIM.
+Monochrome current context uses bold underline plus its current marker; provisional selection and
+checked accents use bold reverse video plus their distinct markers. Focused frames retain a bold
+reverse outline, including shared split boundaries, and focus labels use bold underline. Provider
+choices use a fixed checked-glyph track and the selection role rather than primary-action styling.
 At low color levels, a host may render DIM black like ordinary black. Visible
 unavailability reasons remain necessary even when the disabled modifier is present.
 
