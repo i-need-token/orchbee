@@ -39,6 +39,14 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.panel.structure",
+        include_str!("schemas/orchbee.panel.structure.json"),
+    ),
+    (
+        "orchbee.layout.ratio",
+        include_str!("schemas/orchbee.layout.ratio.json"),
+    ),
+    (
         "orchbee.terminal.run",
         include_str!("schemas/orchbee.terminal.run.json"),
     ),
@@ -667,8 +675,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog version 149 includes correlated command observations and output cursors.
-        "version": 149,
+        // Catalog version 150 includes shared layout inspection and ratio receipts.
+        "version": 150,
         "source": embedded_source(),
         "result": result,
     });

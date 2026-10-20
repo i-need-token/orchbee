@@ -13,7 +13,7 @@ fn panel(next: &mut usize) -> PanelNode {
 fn branch(first: PanelNode, second: PanelNode, next: &mut usize) -> PanelNode {
     *next += 1;
     serde_json::from_value(
-        json!({"kind":"split","splitId":id(*next),"orientation":"horizontal",
+        json!({"kind":"split","splitId":id(*next),"orientation":"horizontal","ratio":0.3,
         "children":[{"slotId":id(*next*2),"node":first},{"slotId":id(*next*2+1),"node":second}]}),
     )
     .unwrap()

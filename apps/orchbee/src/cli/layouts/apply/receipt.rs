@@ -48,7 +48,7 @@ impl Receipt {
         locale: Locale,
     ) -> Output {
         let status = failure.as_ref().map_or(0, |value| value.kind.exit_code());
-        let document = json!({"schema":"orchbee.layout.apply","version":2,"source":self.source,
+        let document = json!({"schema":"orchbee.layout.apply","version":if self.source.as_ref().is_some_and(|source| source["clientId"].is_null()) { 3 } else { 2 },"source":self.source,
             "result":{"outcome":if failure.is_some(){"incomplete"}else{"completed"},"stage":self.stage,
                 "oldTabId":self.old_tab,"newTabId":self.new_tab,"effects":self.effects,
                 "recovery":self.recovery,"layout":self.layout,"failure":failure.as_ref().map(Failure::observation)}});

@@ -8,13 +8,20 @@
 			"const": "orchbee.panel.swap"
 		},
 		"version": {
-			"const": 1
+			"enum": [1, 2]
 		},
 		"siteId": {
 			"$ref": "#/$defs/siteId"
 		},
 		"clientId": {
-			"$ref": "#/$defs/clientId"
+			"anyOf": [
+				{
+					"$ref": "#/$defs/clientId"
+				},
+				{
+					"type": "null"
+				}
+			]
 		},
 		"baseRevision": {
 			"$ref": "#/$defs/revision"
@@ -423,6 +430,9 @@
 		},
 		"outcome": {
 			"enum": ["swapped", "incomplete", "unchanged", "unknown", "not-swapped"]
+		},
+		"scope": {
+			"const": "shared"
 		}
 	},
 	"required": [
@@ -622,5 +632,46 @@
 				"directory-unavailable"
 			]
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 1
+					}
+				}
+			},
+			"then": {
+				"not": {
+					"required": ["scope"]
+				},
+				"properties": {
+					"clientId": {
+						"$ref": "#/$defs/clientId"
+					}
+				}
+			},
+			"else": {
+				"required": ["scope"],
+				"properties": {
+					"clientId": {
+						"type": "null"
+					},
+					"focus": {
+						"type": "null"
+					},
+					"direction": {
+						"type": "null"
+					},
+					"layoutOperationId": {
+						"type": "null"
+					},
+					"layoutRevision": {
+						"type": "null"
+					}
+				}
+			}
+		}
+	]
 }

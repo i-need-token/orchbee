@@ -46,6 +46,24 @@ pub(super) fn with_ratio(
     let ClientLayoutChange::Split { split } = &adjustment.change else {
         return Err(changed());
     };
+    with_shared_ratio(
+        expected,
+        &ClientSplitIdentity {
+            split_id: split.split_id.clone(),
+            first_slot_id: split.first_slot_id.clone(),
+            second_slot_id: split.second_slot_id.clone(),
+        },
+        split.previous_ratio,
+        split.ratio,
+    )
+}
+
+pub(super) fn with_shared_ratio(
+    expected: &Tab,
+    split: &ClientSplitIdentity,
+    previous: orchbee_workbench_protocol::WorkbenchSplitRatio,
+    requested: orchbee_workbench_protocol::WorkbenchSplitRatio,
+) -> Result<Tab, Failure> {
     fn find<'a>(
         node: &'a mut PanelNode,
         id: &orchbee_workbench_protocol::WorkbenchSplitId,
@@ -69,11 +87,11 @@ pub(super) fn with_ratio(
     };
     if children[0].slot_id != split.first_slot_id
         || children[1].slot_id != split.second_slot_id
-        || *ratio != split.previous_ratio
+        || *ratio != previous
     {
         return Err(changed());
     }
-    *ratio = split.ratio;
+    *ratio = requested;
     Ok(candidate)
 }
 pub(super) fn leaf<'a>(node: &'a PanelNode, id: &WorkbenchPanelId) -> Option<&'a PanelNode> {

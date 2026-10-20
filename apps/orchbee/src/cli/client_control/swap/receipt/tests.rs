@@ -6,7 +6,7 @@ fn receipt() -> Receipt {
     let id = |n| format!("{n:032x}");
     Receipt {
         site_id: SiteId::parse(&id(2)).unwrap(),
-        client_id: WorkbenchClientId::parse(&id(7)).unwrap(),
+        client_id: Some(WorkbenchClientId::parse(&id(7)).unwrap()),
         base_revision: WorkbenchRevision::new(12),
         source: Panel {
             terminal_context_id: WorkbenchTerminalContextId::parse(&id(4)).unwrap(),
@@ -26,6 +26,26 @@ fn receipt() -> Receipt {
         reason: None,
         failure: None,
     }
+}
+
+#[test]
+fn a_shared_swap_completes_without_a_client_focus_receipt() {
+    let mut receipt = receipt();
+    receipt.client_id = None;
+    receipt.stage = "complete";
+    assert_eq!(receipt.outcome(), "swapped");
+    assert_eq!(receipt.exit_code(), 0);
+    let document = receipt.document();
+    assert_eq!(document["scope"], "shared");
+    assert!(document["clientId"].is_null());
+    assert!(document["focus"].is_null());
+    let schema: Value =
+        serde_json::from_str(include_str!("../../../schemas/orchbee.panel.swap.json")).unwrap();
+    assert!(
+        jsonschema::validator_for(&schema)
+            .unwrap()
+            .is_valid(&document)
+    );
 }
 
 #[test]

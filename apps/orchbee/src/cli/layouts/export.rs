@@ -5,10 +5,10 @@ use crate::{
         Failure, FailureKind,
         caller_context::PanelTarget,
         client_control::{selection, windows as control},
-        query, results,
+        query,
         source::{ArmedSignals, SignalWatch},
     },
-    invocation::{ClientLayoutTarget, LayoutExportCommand, Resource, Target},
+    invocation::{ClientLayoutTarget, LayoutExportCommand, Target},
     local_client::LocalClient,
 };
 use orchbee_client_server_protocol::{
@@ -16,8 +16,8 @@ use orchbee_client_server_protocol::{
 };
 use orchbee_workbench_protocol::{
     ClientPanelLayout, ClientViewAction, ClientViewControl, ClientViewControlStatus,
-    ClientViewIntent, ClientViewOutcome, ClientViewPhase, ClientViewRecord, Snapshot, Tab,
-    TerminalContext, WorkbenchDirectoryPath, WorkbenchPanelId,
+    ClientViewIntent, ClientViewOutcome, ClientViewPhase, ClientViewRecord, Snapshot,
+    WorkbenchDirectoryPath,
 };
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, time::Instant};
@@ -38,32 +38,67 @@ pub(super) fn execute(
     signals.check_before(deadline)?;
     let (mut client, snapshot) = session?;
     let caller = caller.map(|caller| caller.resolve(&snapshot)).transpose()?;
+    observe(command, &mut client, &snapshot, caller, deadline, signals)
+}
+
+pub(super) fn from_snapshot(
+    command: &LayoutExportCommand,
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Value, Failure> {
+    observe(command, client, snapshot, None, deadline, signals)
+}
+
+fn observe(
+    command: &LayoutExportCommand,
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    caller: Option<Target>,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+) -> Result<Value, Failure> {
+    let implicit = matches!(command.target, ClientLayoutTarget::Panel(None));
     signals.check_before(deadline)?;
-    let observed = control::exchange(
-        &mut client,
-        &snapshot.site_id,
-        ClientViewAction::List {},
-        deadline,
-        signals,
-    )?;
-    let clients = match observed.outcome {
-        ClientViewOutcome::Listed { clients } => clients,
-        ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
-        ClientViewOutcome::Unavailable { .. } => {
-            return Err(Failure::new(FailureKind::ServiceUnavailable));
+    let selected = if command.client.is_some() || implicit {
+        let observed = control::exchange(
+            client,
+            &snapshot.site_id,
+            ClientViewAction::List {},
+            deadline,
+            signals,
+        )?;
+        let clients = match observed.outcome {
+            ClientViewOutcome::Listed { clients } => clients,
+            ClientViewOutcome::Denied {} => return Err(Failure::new(FailureKind::Denied)),
+            ClientViewOutcome::Unavailable { .. } => {
+                return Err(Failure::new(FailureKind::ServiceUnavailable));
+            }
+            _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+        };
+        let selected = selection::select(&clients, command.client.as_ref(), caller.as_ref())?;
+        if selected.view.phase != ClientViewPhase::Ready {
+            return Err(failure(FailureKind::ServiceUnavailable, "client-not-ready"));
         }
-        _ => return Err(Failure::new(FailureKind::ProtocolInvalid)),
+        Some(selected.clone())
+    } else {
+        None
     };
-    let selected = selection::select(&clients, command.client.as_ref(), caller.as_ref())?;
-    if selected.view.phase != ClientViewPhase::Ready {
-        return Err(failure(FailureKind::ServiceUnavailable, "client-not-ready"));
-    }
-    let target = target(&snapshot, &command.target, caller.as_ref(), selected)?;
+    let target = target(
+        snapshot,
+        &command.target,
+        caller.as_ref(),
+        selected.as_ref(),
+    )?;
     let context = target.context;
     let tab = target.tab;
     let leaves =
         model::leaves(&tab.root).map_err(|reason| failure(FailureKind::CheckFailed, reason))?;
-    let layout = read_layout(&mut client, &snapshot, selected, &target, deadline, signals)?;
+    let layout = selected
+        .as_ref()
+        .map(|selected| read_layout(client, snapshot, selected, &target, deadline, signals))
+        .transpose()?;
     let mut facts = BTreeMap::new();
     for (panel_id, presentation) in leaves {
         signals.check_before(deadline)?;
@@ -109,9 +144,9 @@ pub(super) fn execute(
             return Err(failure(FailureKind::ServiceUnavailable, "launch-untracked"));
         }
         let (_, processes) = query::read_terminal_processes_cancellable(
-            &mut client,
+            client,
             deadline,
-            &snapshot,
+            snapshot,
             &Target::Id(binding.terminal_id.to_string()),
             signals.poll_fd(),
         )?;
@@ -135,10 +170,13 @@ pub(super) fn execute(
             },
         );
     }
-    let root = model::tree(&tab.root, &layout.splits, &facts)
-        .map_err(|reason| failure(FailureKind::Denied, reason))?;
+    let root = match &layout {
+        Some(layout) => model::tree(&tab.root, &layout.splits, &facts),
+        None => model::shared_tree(&tab.root, &facts),
+    }
+    .map_err(|reason| failure(FailureKind::Denied, reason))?;
     let after = query::refresh_snapshot(
-        &mut client,
+        client,
         &snapshot.site_id,
         snapshot.revision,
         deadline,
@@ -152,12 +190,15 @@ pub(super) fn execute(
         .workspaces
         .iter()
         .find(|workspace| workspace.terminal_context_id == context.terminal_context_id);
-    let document = json!({"schema":"orchbee.layout.export","version":2,
+    let mut document = json!({"schema":"orchbee.layout.export","version":if selected.is_some() { 2 } else { 3 },
         "source":{"kind":"layout-observation","siteId":snapshot.site_id,"revision":snapshot.revision,
-            "clientId":selected.client_id,"viewRevision":selected.view_revision},
+            "clientId":selected.as_ref().map(|client| &client.client_id),"viewRevision":selected.as_ref().map(|client| client.view_revision)},
         "result":{"layout":{"workspaceId":workspace.map(|workspace| &workspace.workspace_id),
             "terminalContextId":context.terminal_context_id,"tabId":tab.tab_id,
-            "zoomed":layout.zoomed,"focusedPanelId":layout.focused_panel_id,"root":root}}});
+            "zoomed":layout.as_ref().map(|layout| layout.zoomed),"focusedPanelId":layout.as_ref().and_then(|layout| layout.focused_panel_id.as_ref()),"root":root}}});
+    if selected.is_none() {
+        document["source"]["scope"] = json!("shared");
+    }
     if !crate::cli::output::encode_document(&document)
         .is_ok_and(|bytes| bytes.len() <= super::template::MAX_BYTES)
     {
@@ -166,65 +207,24 @@ pub(super) fn execute(
     Ok(document)
 }
 
-struct LayoutTarget<'a> {
-    context: &'a TerminalContext,
-    tab: &'a Tab,
-    panel: WorkbenchPanelId,
-}
+type LayoutTarget<'a> = super::structure::Resolved<'a>;
 
 fn target<'a>(
     snapshot: &'a Snapshot,
     target: &ClientLayoutTarget,
     caller: Option<&Target>,
-    selected: &ClientViewRecord,
+    selected: Option<&ClientViewRecord>,
 ) -> Result<LayoutTarget<'a>, Failure> {
-    match target {
-        ClientLayoutTarget::Tab(target) => {
-            let (context, tab) = results::resolve_or_fail(
-                snapshot.terminal_contexts.iter().flat_map(|context| {
-                    context.tabs.iter().enumerate().map(move |(index, tab)| {
-                        (
-                            tab.tab_id.as_str(),
-                            tab.display_label(index),
-                            (context, tab),
-                        )
-                    })
-                }),
-                target,
-                Resource::Tab,
-            )?;
-            let panel = results::panel_ids_in(&tab.root)
-                .first()
-                .cloned()
-                .cloned()
-                .ok_or_else(|| Failure::new(FailureKind::NotFound))?;
-            Ok(LayoutTarget {
-                context,
-                tab,
-                panel,
-            })
-        }
-        ClientLayoutTarget::Panel(explicit) => {
-            let current;
-            let target = if let Some(target) = explicit.as_ref().or(caller) {
-                target
-            } else {
-                current = selection::current_panel(selected, snapshot)?;
-                &current
-            };
-            let (id, context, tab) = results::resolve_or_fail(
-                results::panel_entries(snapshot)
-                    .into_iter()
-                    .map(|(id, context, tab)| (id.as_str(), "", (id, context, tab))),
-                target,
-                Resource::Panel,
-            )?;
-            Ok(LayoutTarget {
-                context,
-                tab,
-                panel: id.clone(),
-            })
-        }
+    if matches!(target, ClientLayoutTarget::Panel(None)) {
+        let target = caller.cloned().map(Ok).unwrap_or_else(|| {
+            selection::current_panel(
+                selected.ok_or_else(|| failure(FailureKind::NotFound, "client-not-ready"))?,
+                snapshot,
+            )
+        })?;
+        super::structure::resolve(snapshot, &ClientLayoutTarget::Panel(Some(target)))
+    } else {
+        super::structure::resolve(snapshot, target)
     }
 }
 

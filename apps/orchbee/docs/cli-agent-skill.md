@@ -141,3 +141,14 @@ Detailed behavior and maintenance contracts are indexed in [the native CLI refer
 For an idle, empty command line in a newly initialized managed PowerShell terminal, use `terminal run <target> <command> --wait --timeout 30000 --format json`. It submits once and waits for that invocation's shell markers. Inspect `submission`, `completion`, `failure` and `cleanup` separately. `powershell-success` reports Shell success (0/1), not a native process's numeric exit code. Timeout/cancellation never retracts accepted input; do not replay it.
 
 To exclude retained output, save `terminal read --format json`'s `result.cursor` and pass `--after <cursor>` to `terminal wait-output`, or use `--after now` before new work. Only later physical output rows match. The current row and prompt/input rows are excluded. Reset/eviction/window gaps reject the cursor explicitly; increase `--lines` in advance and use a finite `--timeout` for automation. See [command submission](native-terminal-run.md).
+
+## Headless layout operations
+
+Explicit targets let shared layout operations run without a TUI. Use `panel layout <panel>`,
+`layout export --tab <tab>`, `layout set-split-ratio --tab <tab> --path root --ratio 0.6`,
+and `panel swap <panel> --with <other-panel>` without `--client`. The shared receipts retain
+canonical identities and outcomes; they make no viewport or focus claim. `layout apply --file
+layout.json --standalone` also runs headlessly; explicit Workspace and confirmed Tab destinations
+are supported. Add `--client` for Client geometry/observations, or `--focus` when applying to a
+Client. Directional neighbors, resize and zoom require Client geometry. Read commands do not
+accept `--request-id` or `--detach`. Inspect unknown mutation receipts before another submission.

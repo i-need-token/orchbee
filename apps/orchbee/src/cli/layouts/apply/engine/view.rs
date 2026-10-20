@@ -4,6 +4,7 @@ use crate::cli::{
     Failure, FailureKind,
     client_control::{Answer, windows as control},
     query,
+    source::SignalWatch,
 };
 use orchbee_workbench_protocol::{
     ClientPanelLayout, ClientViewAction, ClientViewAvailability, ClientViewControl,
@@ -13,13 +14,14 @@ use orchbee_workbench_protocol::{
 
 impl Engine<'_> {
     pub(super) fn current_view(&mut self) -> Result<ClientViewRecord, Failure> {
+        let selected = self.selected.as_ref().ok_or_else(internal)?.clone();
         loop {
             self.check()?;
             let reply = control::exchange(
                 &mut self.client,
                 &self.snapshot.site_id,
                 ClientViewAction::Get {
-                    client_id: self.selected.client_id.clone(),
+                    client_id: selected.client_id.clone(),
                 },
                 self.deadline,
                 self.signals,
@@ -32,7 +34,7 @@ impl Engine<'_> {
             {
                 return Err(error(FailureKind::ServiceUnavailable, "client-unavailable"));
             }
-            let original = &self.selected.view.selection;
+            let original = &selected.view.selection;
             let current = &client.view.selection;
             let repaired =
                 original
@@ -79,7 +81,7 @@ impl Engine<'_> {
             &self.snapshot.site_id,
             ClientViewControl {
                 operation_id: query::request_id()?,
-                client_id: self.selected.client_id.clone(),
+                client_id: current.client_id.clone(),
                 expected_view_revision: current.view_revision,
                 minimum_workbench_revision: self.snapshot.revision,
                 intent,
@@ -147,6 +149,36 @@ impl Engine<'_> {
     pub(super) fn set_ratio(&mut self, index: usize) -> Result<(), Failure> {
         self.refresh(self.snapshot.revision)?;
         let split = &self.plan.splits[index];
+        if self.selected.is_none() {
+            let expected = self.expected.as_ref().ok_or_else(internal)?;
+            let (identity, previous) =
+                crate::cli::layouts::structure::split(&expected.root, &split.path)?;
+            if identity != self.splits[index] {
+                return Err(ownership::changed());
+            }
+            self.receipt.stage = "ratio";
+            let (effect, result) = crate::cli::layouts::structure::submit_ratio(
+                &mut self.client,
+                &self.snapshot,
+                &self.destination.context,
+                &expected.tab_id,
+                identity.clone(),
+                previous,
+                split.ratio,
+                None,
+                self.deadline,
+                self.signals.poll_fd(),
+            )?;
+            self.receipt.record("ratio", effect);
+            let revision = result?;
+            self.expected = Some(ownership::with_shared_ratio(
+                expected,
+                &identity,
+                previous,
+                split.ratio,
+            )?);
+            return self.refresh(revision);
+        }
         let answer = self.control(
             "ratio",
             ClientViewIntent::SetSplitRatio {
@@ -214,7 +246,7 @@ impl Engine<'_> {
                 return Err(error(FailureKind::Denied, "client-selection-changed"));
             }
             // Only an acknowledged navigation effect updates our expected selection.
-            self.selected.view = view;
+            self.selected.as_mut().ok_or_else(internal)?.view = view;
             return Ok(());
         }
         Err(error(FailureKind::Denied, "client-unavailable"))

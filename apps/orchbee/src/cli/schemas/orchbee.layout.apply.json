@@ -10,7 +10,7 @@
 			"const": "orchbee.layout.apply"
 		},
 		"version": {
-			"const": 2
+			"enum": [2, 3]
 		},
 		"source": {
 			"anyOf": [
@@ -32,7 +32,14 @@
 							"$ref": "#/$defs/revision"
 						},
 						"clientId": {
-							"$ref": "#/$defs/id"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/id"
+								},
+								{
+									"type": "null"
+								}
+							]
 						}
 					}
 				}
@@ -139,6 +146,9 @@
 									},
 									{
 										"$ref": "#/$defs/layoutEffect"
+									},
+									{
+										"$ref": "#/$defs/ratioEffect"
 									}
 								]
 							}
@@ -249,7 +259,7 @@
 					"const": "orchbee.layout.export"
 				},
 				"version": {
-					"const": 2
+					"enum": [2, 3]
 				},
 				"source": {
 					"type": "object",
@@ -266,11 +276,27 @@
 							"$ref": "#/$defs/export/$defs/decimal"
 						},
 						"clientId": {
-							"$ref": "#/$defs/export/$defs/id"
+							"anyOf": [
+								{
+									"$ref": "#/$defs/export/$defs/id"
+								},
+								{
+									"type": "null"
+								}
+							]
 						},
 						"viewRevision": {
-							"$ref": "#/$defs/export/$defs/decimal",
-							"description": "Client view revision used to fence the read request, not a later publication revision."
+							"anyOf": [
+								{
+									"$ref": "#/$defs/export/$defs/decimal"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"scope": {
+							"const": "shared"
 						}
 					}
 				},
@@ -308,7 +334,7 @@
 									"$ref": "#/$defs/export/$defs/id"
 								},
 								"zoomed": {
-									"type": "boolean"
+									"type": ["boolean", "null"]
 								},
 								"focusedPanelId": {
 									"oneOf": [
@@ -468,7 +494,75 @@
 					]
 				}
 			},
-			"$comment": "Exact primary/child observations preserve unbound start:false members. At most 24 Panels and 16 levels, with 16 children per Panel; total 1 MiB and runtime byte bounds are enforced by the CLI."
+			"$comment": "Exact primary/child observations preserve unbound start:false members. At most 24 Panels and 16 levels, with 16 children per Panel; total 1 MiB and runtime byte bounds are enforced by the CLI.",
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 2
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"source": {
+								"not": {
+									"required": ["scope"]
+								},
+								"properties": {
+									"clientId": {
+										"$ref": "#/$defs/export/$defs/id"
+									},
+									"viewRevision": {
+										"$ref": "#/$defs/export/$defs/decimal"
+									}
+								}
+							},
+							"result": {
+								"properties": {
+									"layout": {
+										"properties": {
+											"zoomed": {
+												"type": "boolean"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"source": {
+								"required": ["scope"],
+								"properties": {
+									"clientId": {
+										"type": "null"
+									},
+									"viewRevision": {
+										"type": "null"
+									}
+								}
+							},
+							"result": {
+								"properties": {
+									"layout": {
+										"properties": {
+											"zoomed": {
+												"type": "null"
+											},
+											"focusedPanelId": {
+												"type": "null"
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			]
 		},
 		"failure": {
 			"type": "object",
@@ -2593,6 +2687,177 @@
 					]
 				}
 			}
+		},
+		"ratioEffect": {
+			"type": "object",
+			"required": [
+				"action",
+				"siteId",
+				"requestId",
+				"baseRevision",
+				"terminalContextId",
+				"tabId",
+				"split",
+				"previousRatio",
+				"ratio",
+				"result"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"action": {
+					"const": "layout.set-split-ratio"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"baseRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"tabId": {
+					"$ref": "#/$defs/id"
+				},
+				"split": {
+					"type": "object",
+					"required": ["splitId", "firstSlotId", "secondSlotId"],
+					"additionalProperties": false,
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/id"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/id"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/id"
+						}
+					}
+				},
+				"previousRatio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"ratio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"result": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "revision"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"enum": ["configured", "unchanged"]
+								},
+								"revision": {
+									"$ref": "#/$defs/revision"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"enum": ["outcome-unknown", "not-committed"]
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						}
+					]
+				}
+			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"source": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"clientId": {
+										"$ref": "#/$defs/id"
+									}
+								}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"result": {
+						"properties": {
+							"layout": {
+								"anyOf": [
+									{
+										"type": "object",
+										"properties": {
+											"zoomed": {
+												"type": "boolean"
+											}
+										}
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"effects": {
+								"items": {
+									"properties": {
+										"document": {
+											"not": {
+												"type": "object",
+												"required": ["action"],
+												"properties": {
+													"action": {
+														"const": "layout.set-split-ratio"
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"source": {
+						"type": "object",
+						"properties": {
+							"clientId": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

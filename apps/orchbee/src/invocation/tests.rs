@@ -8062,3 +8062,34 @@ fn format_and_agent_target_diagnostics_point_at_the_invoked_command() {
         }
     );
 }
+
+#[test]
+fn layout_reads_reject_mutation_and_detached_options() {
+    for verb in ["layout", "neighbor", "edges"] {
+        for flag in [
+            vec!["--detach"],
+            vec!["--request-id", "00000000000000000000000000000001"],
+        ] {
+            let mut args = vec!["panel", verb, "00000000000000000000000000000006"];
+            if verb == "neighbor" {
+                args.extend(["--direction", "left"]);
+            }
+            args.extend(flag);
+            assert!(parse(&args).is_err(), "{args:?}");
+        }
+    }
+    assert!(
+        parse(&[
+            "layout",
+            "set-split-ratio",
+            "--tab",
+            "00000000000000000000000000000005",
+            "--path",
+            "root",
+            "--ratio",
+            "0.6",
+            "--detach"
+        ])
+        .is_err()
+    );
+}

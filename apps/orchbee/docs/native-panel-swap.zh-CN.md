@@ -6,14 +6,14 @@
 `panel swap [source] --direction left|right|up|down` 使用 Windows TUI 未缩放的单元格几何解析
 一个邻居。`--with` 与 `--direction` 互斥且必须提供一个。`--panel` 与 `--current` 是另一种来源
 选择形式，彼此及与位置来源互斥。Panel 操作数只接受精确 ID 或 `@panel:<suffix>`，不接受标签。
-省略来源时先使用已验证的调用者上下文，再使用所选 Client 的当前 Panel。显式 `--client` 或
+显式来源及 `--with` 且省略 `--client` 时使用无头共享路径。省略来源时先使用已验证的调用者上下文，再使用所选 Client 的当前 Panel。显式 `--client` 或
 既有唯一 Client 解析器选择 TUI；Client 不明确时在修改前拒绝。
 
 这是作用于现有 Session 的 Windows 工作流程。总超时默认 30000 ms；`--timeout` 接受
 1 至 3600000 ms。不提供分离模式或调用方指定的工作流程请求 ID。CLI 不启动 Session、不创建
 终端，也不拥有持久工作流程状态。
 
-Server 拥有 canonical 位置，TUI 拥有焦点、缩放与比例，CLI 拥有连接这些操作的有限步骤及回执。
+Server 拥有 canonical 位置及比例，TUI 拥有焦点和缩放，CLI 拥有连接这些操作的有限步骤及回执。
 `local_client/workbench/panel_placement.rs` 拥有单次结构命令传输；Server 的
 `terminal_panel_placement` 权威拥有移动／交换的共享准入。既有 Client control 协议承载布局
 读取和聚焦。不引入新的 TUI 修改 mailbox 或全局选择权威。
@@ -23,8 +23,8 @@ Server 拥有 canonical 位置，TUI 拥有焦点、缩放与比例，CLI 拥有
 `panel.swap` 携带精确 Session、预期修订、请求 ID、context、Tab 及源／目标 Panel ID。
 它在克隆的候选中交换两个完整叶子节点的既有位置。所有 Split 和 slot 身份、方向及结构保持
 精确不变。Panel 与 Presentation 身份、创建／自定义标签、子 Presentation 和终端绑定随叶子
-移动。不分配身份、不产生 Host 生命周期效果，其他 Tab 和 context 不变，因此现有 Client
-比例键保留原值。
+移动。不分配身份、不产生 Host 生命周期效果，其他 Tab 和 context 不变，因此现有共享 Split
+比例保留原值。
 
 准入沿用结构 Panel placement 的导航授权、保留命令优先级、canonical 修订、context/tree
 及 standalone registry 组合检查。真正改变位置的交换受聚合关闭 fence 约束。候选编码、投影
@@ -41,6 +41,9 @@ Server 拥有 canonical 位置，TUI 拥有焦点、缩放与比例，CLI 拥有
 
 ## CLI 工作流程
 
+显式 Panel 对且省略 `--client` 时，从快照解析目标并交换一次，不查询 Client、不控制或聚焦。
+确定提交即完成该共享流程。下表描述方向／隐式目标或显式 `--client` 使用的 Client 流程。
+
 | 阶段        | 守卫、效果与后续结果                                                                                                                        |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | 预检        | 验证全部语法、监视中断、受理一个现有会话、读取一次 canonical 快照并选择一个当前且 ready 的 Client。固定其选择和精确来源。                   |
@@ -56,13 +59,14 @@ Server 拥有 canonical 位置，TUI 拥有焦点、缩放与比例，CLI 拥有
 已知效果。每个已提交阶段有自己的关联身份。只读布局失败不能被报告为 canonical 修改未知。
 
 聚焦使用原 Client 和既有 Panel focus 操作，不改变其他 Client 的选择。同 Tab 交换保留
-缩放和各 Client 的比例；选择非活动目标使用既有 context／Tab 选择生命周期。Canonical
+本地缩放和共享比例；选择非活动目标使用既有 context／Tab 选择生命周期。Canonical
 交换与 Client 聚焦是分开的提交，不声明跨权威原子性。选择在观察点比较，无法检测两次观察
 之间的 ABA 选择变化。最终聚焦提交还使用新的 view 修订，控制受理后的输入沿用既有中断守卫。
 
 ## 回执与恢复
 
-`orchbee.panel.swap` v1 区分目标解析、canonical 提交和聚焦观察，记录已知的 Session、所选
+`orchbee.panel.swap` v2 用 `scope:shared` 以及 null 的 Client／焦点／几何字段标识无头交换，
+独立保留规范请求及结果，包括未知结果。Client 流程使用 v1，区分目标解析、canonical 提交和聚焦观察，记录已知的 Session、所选
 Client、精确 Panel 对及已提交请求 ID。Canonical 的未提交、拒绝、无变化、已提交及未知
 保持不同。Focus 尚未开始时为 null，否则为包含 operationId、observation 和 wait 的紧凑记录。
 观测保留权威聚焦状态（queued/delivered/applied/rejected/incomplete）、直接拒绝、
@@ -71,7 +75,7 @@ not-submitted 或 unknown，不重复整个控制命令。
 
 提交后非零结果需要先检查回执及当前布局，再决定下一步。重试整个命令会再次交换位置，
 绝不自动进行。既有 Client control-status 可观察已提交的聚焦身份。本流程不增加持久日志或
-重启恢复保证。Schema 目录为 v29，共 64 份文档。
+重启恢复保证。Schema 目录描述两个版本。
 
 ## 证据与兼容性
 

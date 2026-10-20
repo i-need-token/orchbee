@@ -81,7 +81,7 @@ contains `ioKind` from the closed lowercase vocabulary `not-found`, `permission-
 contains signed 32-bit `osError` or null, and the exact missing executable name only when opening
 that declared sibling returned `NotFound`. Text output omits these raw diagnostic fields.
 `orchbee.status.server` remains v1. Both use local-runtime
-provenance; the schema catalog is version 149, which also includes the Windows Agent projection contracts. Required
+provenance; the schema catalog is version 150, which also includes the Windows Agent projection contracts. Required
 discriminated metadata fields distinguish observed Server data, absence and unavailable local
 cohort information. Paths use the existing lossless Windows path representation. Human strings
 and paths are escaped through the common text renderer; JSON bytes do not depend on locale.

@@ -13,7 +13,7 @@ use crate::{
         query,
         source::{self, ArmedSignals, Finish, SignalWatch, SourceFailure},
     },
-    invocation::{LayoutApplyCommand, OutputFormat},
+    invocation::{LayoutApplyCommand, LayoutDestination, OutputFormat},
     localization::Locale,
 };
 use orchbee_workbench_protocol::{ClientViewAction, ClientViewOutcome, ClientViewPhase};
@@ -94,7 +94,10 @@ fn execute(
         .plan();
     let prepared = launch::prepare(&plan, work_deadline, signals)?;
     receipt.stage = "discovery";
-    let caller = if command.client.is_none() {
+    let needs_client = command.client.is_some()
+        || command.focus
+        || matches!(command.destination, LayoutDestination::New(None));
+    let caller = if needs_client && command.client.is_none() {
         PanelTarget::prepare_optional(|name| std::env::var_os(name))?
     } else {
         None
@@ -103,27 +106,33 @@ fn execute(
     signals.check_before(work_deadline)?;
     let (mut client, snapshot) = session?;
     let caller = caller.map(|value| value.resolve(&snapshot)).transpose()?;
-    let reply = control::exchange(
-        &mut client,
-        &snapshot.site_id,
-        ClientViewAction::List {},
-        work_deadline,
-        signals,
-    )?;
-    let clients = match reply.outcome {
-        ClientViewOutcome::Listed { clients } => clients,
-        ClientViewOutcome::Denied {} => {
-            return Err(error(FailureKind::Denied, "client-unavailable"));
+    let selected = if needs_client {
+        let reply = control::exchange(
+            &mut client,
+            &snapshot.site_id,
+            ClientViewAction::List {},
+            work_deadline,
+            signals,
+        )?;
+        let clients = match reply.outcome {
+            ClientViewOutcome::Listed { clients } => clients,
+            ClientViewOutcome::Denied {} => {
+                return Err(error(FailureKind::Denied, "client-unavailable"));
+            }
+            _ => return Err(error(FailureKind::ServiceUnavailable, "client-unavailable")),
+        };
+        let selected =
+            selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();
+        if selected.view.phase != ClientViewPhase::Ready {
+            return Err(error(FailureKind::ServiceUnavailable, "client-unavailable"));
         }
-        _ => return Err(error(FailureKind::ServiceUnavailable, "client-unavailable")),
+        Some(selected)
+    } else {
+        None
     };
-    let selected = selection::select(&clients, command.client.as_ref(), caller.as_ref())?.clone();
-    if selected.view.phase != ClientViewPhase::Ready {
-        return Err(error(FailureKind::ServiceUnavailable, "client-unavailable"));
-    }
-    let destination = targeting::resolve(command, &snapshot, &selected)?;
+    let destination = targeting::resolve(command, &snapshot, selected.as_ref())?;
     receipt.source = Some(
-        json!({"kind":"layout-application","siteId":snapshot.site_id,"baseRevision":snapshot.revision,"clientId":selected.client_id}),
+        json!({"kind":"layout-application","siteId":snapshot.site_id,"baseRevision":snapshot.revision,"clientId":selected.as_ref().map(|client| &client.client_id)}),
     );
     receipt.old_tab = destination.old.as_ref().map(|tab| tab.tab_id.clone());
     let mut engine = engine::Engine::new(

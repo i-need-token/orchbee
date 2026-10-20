@@ -143,17 +143,26 @@ pub(super) fn parse(bytes: &[u8]) -> Result<Node, &'static str> {
     let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
     let mut fields: Object = serde_json::from_slice(bytes).map_err(|_| "invalid-layout")?;
     let root = if fields.contains("schema") {
-        if fields.string("schema")? != "orchbee.layout.export"
-            || !matches!(fields.decode::<u32>("version")?, 1 | 2)
-        {
+        let version = fields.decode::<u32>("version")?;
+        if fields.string("schema")? != "orchbee.layout.export" || !matches!(version, 1..=3) {
             return Err("invalid-layout");
         }
         let mut source = Object::parse(&fields.take("source")?)?;
         if source.string("kind")? != "layout-observation" {
             return Err("invalid-layout");
         }
-        for name in ["siteId", "revision", "clientId", "viewRevision"] {
+        for name in ["siteId", "revision"] {
             source.string(name)?;
+        }
+        for name in ["clientId", "viewRevision"] {
+            if version == 3 {
+                source.decode::<Option<String>>(name)?;
+            } else {
+                source.string(name)?;
+            }
+        }
+        if version == 3 && source.string("scope")? != "shared" {
+            return Err("invalid-layout");
         }
         source.finish()?;
         let mut result = Object::parse(&fields.take("result")?)?;
@@ -183,7 +192,7 @@ fn description(mut fields: Object) -> Result<Box<RawValue>, &'static str> {
         fields.optional_string(name)?;
     }
     if fields.contains("zoomed") {
-        fields.decode::<bool>("zoomed")?;
+        fields.decode::<Option<bool>>("zoomed")?;
     }
     fields.finish()?;
     Ok(root)

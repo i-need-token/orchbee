@@ -10,7 +10,7 @@
 			"const": "orchbee.layout.export"
 		},
 		"version": {
-			"const": 2
+			"enum": [2, 3]
 		},
 		"source": {
 			"type": "object",
@@ -27,11 +27,27 @@
 					"$ref": "#/$defs/decimal"
 				},
 				"clientId": {
-					"$ref": "#/$defs/id"
+					"anyOf": [
+						{
+							"$ref": "#/$defs/id"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"viewRevision": {
-					"$ref": "#/$defs/decimal",
-					"description": "Client view revision used to fence the read request, not a later publication revision."
+					"anyOf": [
+						{
+							"$ref": "#/$defs/decimal"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"scope": {
+					"const": "shared"
 				}
 			}
 		},
@@ -69,7 +85,7 @@
 							"$ref": "#/$defs/id"
 						},
 						"zoomed": {
-							"type": "boolean"
+							"type": ["boolean", "null"]
 						},
 						"focusedPanelId": {
 							"oneOf": [
@@ -229,5 +245,73 @@
 			]
 		}
 	},
-	"$comment": "Exact primary/child observations preserve unbound start:false members. At most 24 Panels and 16 levels, with 16 children per Panel; total 1 MiB and runtime byte bounds are enforced by the CLI."
+	"$comment": "Exact primary/child observations preserve unbound start:false members. At most 24 Panels and 16 levels, with 16 children per Panel; total 1 MiB and runtime byte bounds are enforced by the CLI.",
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"const": 2
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"source": {
+						"not": {
+							"required": ["scope"]
+						},
+						"properties": {
+							"clientId": {
+								"$ref": "#/$defs/id"
+							},
+							"viewRevision": {
+								"$ref": "#/$defs/decimal"
+							}
+						}
+					},
+					"result": {
+						"properties": {
+							"layout": {
+								"properties": {
+									"zoomed": {
+										"type": "boolean"
+									}
+								}
+							}
+						}
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"source": {
+						"required": ["scope"],
+						"properties": {
+							"clientId": {
+								"type": "null"
+							},
+							"viewRevision": {
+								"type": "null"
+							}
+						}
+					},
+					"result": {
+						"properties": {
+							"layout": {
+								"properties": {
+									"zoomed": {
+										"type": "null"
+									},
+									"focusedPanelId": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
 }

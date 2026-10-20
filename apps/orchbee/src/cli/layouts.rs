@@ -3,6 +3,7 @@ mod apply;
 mod export;
 mod launch;
 mod model;
+pub(in crate::cli) mod structure;
 mod template;
 mod workflow;
 use super::{

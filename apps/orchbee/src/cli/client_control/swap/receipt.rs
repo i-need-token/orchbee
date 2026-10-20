@@ -75,7 +75,7 @@ fn focus_document(answer: &Answer) -> Value {
 
 pub(super) struct Receipt {
     pub(super) site_id: SiteId,
-    pub(super) client_id: WorkbenchClientId,
+    pub(super) client_id: Option<WorkbenchClientId>,
     pub(super) base_revision: WorkbenchRevision,
     pub(super) source: Panel,
     pub(super) target: Option<Panel>,
@@ -100,7 +100,11 @@ impl Receipt {
     }
     pub(super) fn outcome(&self) -> &'static str {
         match &self.canonical {
-            Canonical::Committed { .. } if self.focused() && self.failure.is_none() => "swapped",
+            Canonical::Committed { .. }
+                if (self.client_id.is_none() || self.focused()) && self.failure.is_none() =>
+            {
+                "swapped"
+            }
             Canonical::Committed { .. } => "incomplete",
             Canonical::Unchanged { .. } => "unchanged",
             Canonical::Unknown => "unknown",
@@ -114,7 +118,7 @@ impl Receipt {
         match &self.canonical {
             Canonical::Unchanged { .. } => 0,
             Canonical::Unknown => 8,
-            Canonical::Committed { .. } if self.focused() => 0,
+            Canonical::Committed { .. } if self.client_id.is_none() || self.focused() => 0,
             Canonical::Committed { .. } => self.focus.as_ref().map_or(3, |answer| {
                 let status = answer.exit_code();
                 if status == 0 { 3 } else { status }
@@ -124,14 +128,18 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        json!({"schema":"orchbee.panel.swap","version":1,"siteId":self.site_id,
+        let mut document = json!({"schema":"orchbee.panel.swap","version":if self.client_id.is_some() { 1 } else { 2 },"siteId":self.site_id,
             "clientId":self.client_id,"baseRevision":self.base_revision,
             "source":self.source.document(),"target":self.target.as_ref().map(Panel::document),"direction":self.direction,
             "layoutOperationId":self.layout_operation_id,"layoutRevision":self.layout_revision,
             "requestId":self.request_id,"canonical":self.canonical.document(),
             "focus":self.focus.as_ref().map(focus_document),"stage":self.stage,
             "reason":self.reason,"failure":self.failure.map(FailureKind::as_str),
-            "outcome":self.outcome()})
+            "outcome":self.outcome()});
+        if self.client_id.is_none() {
+            document["scope"] = json!("shared");
+        }
+        document
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {
         let status = self.exit_code();

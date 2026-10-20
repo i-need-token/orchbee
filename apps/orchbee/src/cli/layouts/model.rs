@@ -61,6 +61,21 @@ pub(super) fn tree(
     splits: &[ClientSplitArea],
     facts: &BTreeMap<TerminalPresentationId, Leaf>,
 ) -> Result<Value, &'static str> {
+    project(root, Some(splits), facts)
+}
+
+pub(super) fn shared_tree(
+    root: &PanelNode,
+    facts: &BTreeMap<TerminalPresentationId, Leaf>,
+) -> Result<Value, &'static str> {
+    project(root, None, facts)
+}
+
+fn project(
+    root: &PanelNode,
+    splits: Option<&[ClientSplitArea]>,
+    facts: &BTreeMap<TerminalPresentationId, Leaf>,
+) -> Result<Value, &'static str> {
     let panels = leaves(root)?;
     let panel_count = panels
         .iter()
@@ -72,7 +87,7 @@ pub(super) fn tree(
         .filter(|(_, member)| member.binding.is_some())
         .collect();
     if bound.len() != facts.len()
-        || panel_count != splits.len() + 1
+        || splits.is_some_and(|splits| panel_count != splits.len() + 1)
         || bound
             .iter()
             .any(|(_, member)| !facts.contains_key(&member.presentation_id))
@@ -82,7 +97,7 @@ pub(super) fn tree(
     let mut used = BTreeSet::new();
     fn walk(
         node: &PanelNode,
-        splits: &[ClientSplitArea],
+        splits: Option<&[ClientSplitArea]>,
         facts: &BTreeMap<TerminalPresentationId, Leaf>,
         used: &mut BTreeSet<String>,
     ) -> Result<Value, &'static str> {
@@ -129,28 +144,33 @@ pub(super) fn tree(
                 split_id,
                 orientation,
                 children,
-                ..
+                ratio,
             } => {
-                let observed = splits
-                    .iter()
-                    .find(|split| split.split_id == *split_id)
-                    .ok_or("layout-changed")?;
-                if !used.insert(split_id.to_string())
-                    || observed.orientation != *orientation
-                    || observed.first_slot_id != children[0].slot_id
-                    || observed.second_slot_id != children[1].slot_id
-                {
+                if !used.insert(split_id.to_string()) {
                     return Err("layout-changed");
+                }
+                if let Some(splits) = splits {
+                    let observed = splits
+                        .iter()
+                        .find(|split| split.split_id == *split_id)
+                        .ok_or("layout-changed")?;
+                    if observed.orientation != *orientation
+                        || observed.first_slot_id != children[0].slot_id
+                        || observed.second_slot_id != children[1].slot_id
+                        || observed.ratio != *ratio
+                    {
+                        return Err("layout-changed");
+                    }
                 }
                 Ok(json!({"type":"split","direction":match orientation {
                     PanelOrientation::Horizontal => "right", PanelOrientation::Vertical => "down",
-                },"ratio":observed.ratio,"first":walk(&children[0].node,splits,facts,used)?,
+                },"ratio":ratio,"first":walk(&children[0].node,splits,facts,used)?,
                     "second":walk(&children[1].node,splits,facts,used)?}))
             }
         }
     }
     let result = walk(root, splits, facts, &mut used)?;
-    if used.len() != splits.len() {
+    if splits.is_some_and(|splits| used.len() != splits.len()) {
         return Err("layout-changed");
     }
     Ok(result)

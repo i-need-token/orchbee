@@ -30,7 +30,9 @@ Server 在查询入队前，从 16 MiB 编码布局预算中预留 1 MiB。完�
 
 ## CLI 与证据
 
-`panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 接受位置参数 Panel，或互斥的 `--panel`／`--current`，并使用现有 Client 选择规则。连接或副作用前完成解析。机器输出保留完整布局观测，以及必填但可为 null 的 `projection`：邻居结果含方向、源可用性及可为 null 的邻居 ID；边缘结果含源可用性及四个可为 null 的物理边缘布尔值。在收到布局结果前，projection 为 null；源隐藏时边缘布尔值为 null。文本输出呈现所请求的视图，不隐瞒不可用几何。
+`panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 接受位置参数 Panel，或互斥的 `--panel`／`--current`，几何查询使用现有 Client 选择规则。显式 `panel layout <panel>` 且省略 `--client` 时，
+改为无头读取规范拓扑及比例（`orchbee.panel.structure` v1，`scope:shared`），不声明视口、焦点或缩放。
+添加 `--client` 才请求几何。三个只读命令都拒绝 `--request-id` 和 `--detach`。连接或副作用前完成解析。机器输出保留完整布局观测，以及必填但可为 null 的 `projection`：邻居结果含方向、源可用性及可为 null 的邻居 ID；边缘结果含源可用性及四个可为 null 的物理边缘布尔值。在收到布局结果前，projection 为 null；源隐藏时边缘布尔值为 null。文本输出呈现所请求的视图，不隐瞒不可用几何。
 
 证据覆盖精确的界面占用／取整／最小尺寸几何、嵌套与退化树、独立邻居排序向量、带缩减重放的生成层级不变量、非活动及未访问目标、无选择／附着／resize 副作用、双 Client 隔离、过期成员关系、Snapshot 失败、大小边界、容量、中断及退出。Rust、TypeScript 与 JSON Schema 共享一致性语料，但独立验证。受控 Windows TUI 轨迹把契约连接到真实显示。共享比例的提交／发布／绘制检查使用下文实现证据；不再保留独立的布局流程 TLA 模型。同作者检查不等于独立复核。
 
@@ -38,7 +40,10 @@ Server 在查询入队前，从 16 MiB 编码布局预算中预留 1 MiB。完�
 
 ## 分割比例调整
 
-`panel resize` 调整精确或当前源 Panel 周围最近的可用分割。必须提供四向方向；有限 amount 默认为 `0.05`，取绝对值并限制为至多 `0.5`。`layout set-split-ratio` 接受互斥的 `--tab`、`--panel` 或 `--current` 目标、二元分割路径（`root` 或点分隔的 `0`/`1`，至多 16 步），以及限制到 `0.1`–`0.9` 的有限比例。二者使用现有精确 Client 路由、操作身份及截止时间。连接或副作用前完成解析。路径缺失及 resize 源隐藏均明确失败。设置比例可以指向隐藏的分割，不编造焦点。
+`panel resize` 调整精确或当前源 Panel 周围最近的可用分割。必须提供四向方向；有限 amount 默认为 `0.05`，取绝对值并限制为至多 `0.5`。`layout set-split-ratio` 接受互斥的 `--tab`、`--panel` 或 `--current` 目标、二元分割路径（`root` 或点分隔的 `0`/`1`，至多 16 步），以及限制到 `0.1`–`0.9` 的有限比例。`panel resize` 使用现有精确 Client 路由、操作身份及截止时间。
+显式 `layout set-split-ratio --tab/--panel` 且省略 `--client` 时直接使用 Server CAS，
+返回共享范围的 `orchbee.layout.ratio` v1，保留请求及结果。无需 Client，并保留未知修改结果；
+`--request-id` 可选，拒绝 `--detach`。隐式／当前目标或显式 `--client` 仍使用 Client 路由及绘制确认。连接或副作用前完成解析。路径缺失及 resize 源隐藏均明确失败。设置比例可以指向隐藏的分割，不编造焦点。
 
 Server 在规范 Workbench 树中持有每个分割的标称比例。所有 Client 在各自视口中投影相同比例；焦点、zoom 和终端控制仍由各窗口管理。新分割默认为 `0.5`，保留的子树继续保留比例。原子修改及历史上在 checkpoint v5/catalog v4 中引入该能力的说明见[共享比例契约](../../orchbee-server/docs/shared-split-ratios.zh-CN.md)；当前写入器使用 checkpoint v6。
 

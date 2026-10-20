@@ -30,7 +30,7 @@ pub(super) struct Engine<'a> {
     destination: Destination,
     client: LocalClient,
     snapshot: Snapshot,
-    selected: ClientViewRecord,
+    selected: Option<ClientViewRecord>,
     default_directory: Option<WorkbenchDirectoryPath>,
     expected: Option<Tab>,
     panels: Vec<WorkbenchPanelId>,
@@ -49,7 +49,7 @@ impl<'a> Engine<'a> {
         destination: Destination,
         client: LocalClient,
         snapshot: Snapshot,
-        selected: ClientViewRecord,
+        selected: Option<ClientViewRecord>,
         deadline: Instant,
         total_deadline: Instant,
         signals: &'a mut ArmedSignals,
@@ -184,12 +184,18 @@ impl<'a> Engine<'a> {
             return Ok(());
         }
         let panel = if let Some(old) = self.destination.old.clone() {
-            self.read_layout(&old)?.focused_panel_id
+            if self.selected.is_some() {
+                self.read_layout(&old)?.focused_panel_id
+            } else {
+                crate::cli::results::panel_ids_in(&old.root)
+                    .first()
+                    .cloned()
+                    .cloned()
+            }
         } else {
             self.selected
-                .view
-                .selection
                 .as_ref()
+                .and_then(|client| client.view.selection.as_ref())
                 .filter(|selection| selection.terminal_context_id == self.destination.context)
                 .and_then(|selection| selection.panel_id.clone())
         };
@@ -465,13 +471,20 @@ impl workflow::Port for Engine<'_> {
     fn observe(&mut self) -> Result<(), Failure> {
         self.receipt.stage = "observation";
         self.refresh(self.snapshot.revision)?;
-        self.current_view()?;
-        let document = export::execute(
+        if self.selected.is_some() {
+            self.current_view()?;
+        }
+        let document = export::from_snapshot(
             &LayoutExportCommand {
                 target: ClientLayoutTarget::Tab(Target::Id(self.new_tab()?.to_string())),
-                client: Some(self.selected.client_id.clone()),
+                client: self
+                    .selected
+                    .as_ref()
+                    .map(|client| client.client_id.clone()),
                 timeout_ms: self.command.timeout_ms,
             },
+            &mut self.client,
+            &self.snapshot,
             self.deadline,
             self.signals,
         )?;

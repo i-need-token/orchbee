@@ -125,6 +125,12 @@ fn execute(
     output: &mut Option<Receipt>,
 ) -> Result<(), Failure> {
     check_wait(signals, deadline)?;
+    if command.client.is_none()
+        && let (Some(source), PanelSwapDestination::Pair(target)) =
+            (&command.source, &command.destination)
+    {
+        return execute_shared(source, target, deadline, signals, output);
+    }
     let caller = if command.client.is_none() {
         PanelTarget::prepare_optional(|name| std::env::var_os(name))?
     } else {
@@ -155,7 +161,7 @@ fn execute(
     let source = panel(&command.source, selected, caller.as_ref(), &snapshot)?;
     *output = Some(Receipt {
         site_id: snapshot.site_id.clone(),
-        client_id: selected.client_id.clone(),
+        client_id: Some(selected.client_id.clone()),
         base_revision: snapshot.revision,
         source,
         target: None,
@@ -222,7 +228,10 @@ fn execute(
     receipt.stage = "focus";
     let control = ClientViewControl {
         operation_id: query::request_id()?,
-        client_id: receipt.client_id.clone(),
+        client_id: receipt
+            .client_id
+            .clone()
+            .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?,
         expected_view_revision: current.view_revision,
         minimum_workbench_revision: revision,
         intent: receipt.source.intent(),
@@ -249,6 +258,65 @@ fn unchanged(receipt: &mut Receipt, reason: &'static str) -> Result<(), Failure>
     Ok(())
 }
 
+fn execute_shared(
+    source: &Target,
+    target: &Target,
+    deadline: Instant,
+    signals: &mut ArmedSignals,
+    output: &mut Option<Receipt>,
+) -> Result<(), Failure> {
+    use crate::cli::layouts::structure;
+    use crate::invocation::ClientLayoutTarget;
+    let (mut client, snapshot) = query::stream_snapshot(deadline, signals.poll_fd())?;
+    check_wait(signals, deadline)?;
+    let resolve = |target: &Target| {
+        structure::resolve(&snapshot, &ClientLayoutTarget::Panel(Some(target.clone()))).map(
+            |resolved| Panel {
+                terminal_context_id: resolved.context.terminal_context_id.clone(),
+                tab_id: resolved.tab.tab_id.clone(),
+                panel_id: resolved.panel,
+            },
+        )
+    };
+    let source = resolve(source)?;
+    let target = resolve(target)?;
+    *output = Some(Receipt {
+        site_id: snapshot.site_id.clone(),
+        client_id: None,
+        base_revision: snapshot.revision,
+        source,
+        target: Some(target),
+        direction: None,
+        layout_operation_id: None,
+        layout_revision: None,
+        request_id: None,
+        canonical: Canonical::NotSubmitted,
+        focus: None,
+        stage: "resolution",
+        reason: None,
+        failure: None,
+    });
+    let receipt = output
+        .as_mut()
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    let target = receipt
+        .target
+        .as_ref()
+        .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
+    if !receipt.source.same_tab(target) {
+        return unchanged(receipt, "cross-tab");
+    }
+    if receipt.source.panel_id == target.panel_id {
+        return unchanged(receipt, "same-panel");
+    }
+    check_wait(signals, deadline)?;
+    receipt.stage = "exchange";
+    if exchange(&mut client, receipt, deadline, signals)? {
+        receipt.stage = "complete";
+    }
+    Ok(())
+}
+
 fn resolve_neighbor(
     client: &mut LocalClient,
     selected: &ClientViewRecord,
@@ -261,7 +329,7 @@ fn resolve_neighbor(
     receipt.layout_operation_id = Some(operation_id.clone());
     let control = ClientViewControl {
         operation_id,
-        client_id: receipt.client_id.clone(),
+        client_id: selected.client_id.clone(),
         expected_view_revision: selected.view_revision,
         minimum_workbench_revision: receipt.base_revision,
         intent: ClientViewIntent::Layout {
@@ -403,7 +471,10 @@ fn observe_client(
             client,
             &receipt.site_id,
             ClientViewAction::Get {
-                client_id: receipt.client_id.clone(),
+                client_id: receipt
+                    .client_id
+                    .clone()
+                    .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?,
             },
             deadline,
             signals,

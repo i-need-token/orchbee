@@ -7,6 +7,9 @@ use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_workbench_protocol::*;
 use peer_support::{Fixture, assert_closed, peer, validate};
 use serde_json::{Value, json};
+
+#[path = "cli_windows_layout_members/headless.rs"]
+mod headless;
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }

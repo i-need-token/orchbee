@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 149
+			"const": 150
 		},
 		"source": {
 			"type": "object",
@@ -112,6 +112,7 @@
 						"orchbee.launch-profile.list",
 						"orchbee.layout.apply",
 						"orchbee.layout.export",
+						"orchbee.layout.ratio",
 						"orchbee.machine",
 						"orchbee.mutation.result",
 						"orchbee.notification.show",
@@ -127,6 +128,7 @@
 						"orchbee.panel.move",
 						"orchbee.panel.process-info",
 						"orchbee.panel.rename",
+						"orchbee.panel.structure",
 						"orchbee.panel.swap",
 						"orchbee.panel.terminal-create",
 						"orchbee.plugin.logs",
@@ -249,6 +251,7 @@
 				"orchbee.launch-profile.list",
 				"orchbee.layout.apply",
 				"orchbee.layout.export",
+				"orchbee.layout.ratio",
 				"orchbee.machine",
 				"orchbee.mutation.result",
 				"orchbee.notification.show",
@@ -264,6 +267,7 @@
 				"orchbee.panel.move",
 				"orchbee.panel.process-info",
 				"orchbee.panel.rename",
+				"orchbee.panel.structure",
 				"orchbee.panel.swap",
 				"orchbee.panel.terminal-create",
 				"orchbee.plugin.logs",

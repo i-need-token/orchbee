@@ -30,7 +30,10 @@ Server reserves 1 MiB from a 16 MiB encoded-layout budget before queuing each qu
 
 ## CLI and evidence
 
-`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` accept a positional Panel or exclusive `--panel` / `--current`, with the existing Client selection rules. Parsing finishes before connection or effects. Machine output preserves the full layout observation and a required nullable `projection`: neighbor results carry direction, source availability and a nullable neighbor ID; edges carry source availability and four nullable physical-edge booleans. Projection is null until a layout result arrives; hidden source edge booleans are null. Text output presents the requested projection without hiding unavailable geometry.
+`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` accept a positional Panel or exclusive `--panel` / `--current`, with the existing Client selection rules for geometry. Explicit `panel layout <panel>` without
+`--client` instead reads canonical topology and ratios headlessly (`orchbee.panel.structure` v1,
+`scope:shared`); it contains no viewport, focus or zoom claim. Add `--client` to request geometry.
+All three reads reject `--request-id` and `--detach`. Parsing finishes before connection or effects. Machine output preserves the full layout observation and a required nullable `projection`: neighbor results carry direction, source availability and a nullable neighbor ID; edges carry source availability and four nullable physical-edge booleans. Projection is null until a layout result arrives; hidden source edge booleans are null. Text output presents the requested projection without hiding unavailable geometry.
 
 Evidence covers exact chrome/rounding/minimum geometry, nested and degenerate trees, independent neighbor-order vectors, generated hierarchy invariants with reduced replay, inactive and unvisited targets, no selection/attachment/resize side effects, two-Client isolation, stale membership, snapshot failure, bounds, capacity, interruption and shutdown. Rust, TypeScript and JSON Schema share a conformance corpus but have independent validators. Controlled Windows TUI traces connect these contracts to a real display. Shared ratio commit/publication/draw checks use the implementation evidence below; no separate layout workflow TLA model remains. Same-author checks do not constitute independent review.
 
@@ -38,7 +41,11 @@ Directional focus uses this projection before navigation, as specified in [Clien
 
 ## Split ratio adjustment
 
-`panel resize` adjusts the nearest eligible split around an exact or current source Panel. It requires a cardinal direction; the finite amount defaults to `0.05`, becomes absolute and is capped at `0.5`. `layout set-split-ratio` accepts exclusive `--tab`, `--panel` or `--current` targeting, a binary split path (`root` or dot-separated `0`/`1`, at most 16 steps), and a finite ratio clamped to `0.1`–`0.9`. Both use the existing exact Client route, operation identity and deadline. Parsing precedes connection or effects. Missing paths and hidden resize sources fail explicitly. Setting a ratio may target a hidden split without inventing focus.
+`panel resize` adjusts the nearest eligible split around an exact or current source Panel. It requires a cardinal direction; the finite amount defaults to `0.05`, becomes absolute and is capped at `0.5`. `layout set-split-ratio` accepts exclusive `--tab`, `--panel` or `--current` targeting, a binary split path (`root` or dot-separated `0`/`1`, at most 16 steps), and a finite ratio clamped to `0.1`–`0.9`. `panel resize` uses the existing exact Client route, operation identity and deadline.
+Explicit `layout set-split-ratio --tab/--panel` without `--client` uses the Server CAS directly,
+returning `orchbee.layout.ratio` v1 with shared scope and retained request/result. It requires no
+Client and preserves unknown mutation outcomes; `--request-id` is optional, `--detach` is rejected.
+Implicit/current targets or explicit `--client` retain the Client route and draw acknowledgment. Parsing precedes connection or effects. Missing paths and hidden resize sources fail explicitly. Setting a ratio may target a hidden split without inventing focus.
 
 Server owns each split's nominal ratio in the canonical Workbench tree. Every Client projects the same ratio at its own viewport size; focus, zoom and terminal control remain local. New splits default to `0.5`; retained subtrees keep their ratios. See the [shared ratio contract](../../orchbee-server/docs/shared-split-ratios.md) for atomic mutation and the historical checkpoint v5/catalog v4 introduction; the current writer uses checkpoint v6.
 

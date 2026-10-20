@@ -1,0 +1,154 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.layout.ratio",
+	"title": "Shared split ratio mutation receipt",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.layout.ratio"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
+		"result": {
+			"type": "object",
+			"required": ["scope", "observerFailure", "effect"],
+			"additionalProperties": false,
+			"properties": {
+				"scope": {
+					"const": "shared"
+				},
+				"observerFailure": {
+					"enum": [null, "cancelled", "internal-failure"]
+				},
+				"effect": {
+					"$ref": "#/$defs/ratioEffect"
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				}
+			}
+		},
+		"ratioEffect": {
+			"type": "object",
+			"required": [
+				"action",
+				"siteId",
+				"requestId",
+				"baseRevision",
+				"terminalContextId",
+				"tabId",
+				"split",
+				"previousRatio",
+				"ratio",
+				"result"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"action": {
+					"const": "layout.set-split-ratio"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"baseRevision": {
+					"$ref": "#/$defs/revision"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"tabId": {
+					"$ref": "#/$defs/id"
+				},
+				"split": {
+					"type": "object",
+					"required": ["splitId", "firstSlotId", "secondSlotId"],
+					"additionalProperties": false,
+					"properties": {
+						"splitId": {
+							"$ref": "#/$defs/id"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/id"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/id"
+						}
+					}
+				},
+				"previousRatio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"ratio": {
+					"type": "number",
+					"minimum": 0.1,
+					"maximum": 0.9
+				},
+				"result": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": ["kind", "revision"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"enum": ["configured", "unchanged"]
+								},
+								"revision": {
+									"$ref": "#/$defs/revision"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"required": ["kind", "reason"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"enum": ["outcome-unknown", "not-committed"]
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	}
+}

@@ -65,7 +65,7 @@ cohort 一起部署或回退。新增命令与 schema 为增量能力；裸 `sta
 
 ## 公共输出与证据
 
-`orchbee.status.client` 当前输出 v3，包含封闭的安装观察和不可用 cohort 的有界 I/O 诊断；历史 v1、v2 保持封闭。`ioKind` 使用封闭的小写词表：`not-found`、`permission-denied`、`invalid-input`、`invalid-data`、`timed-out`、`unsupported`、`interrupted`、`unexpected-eof`、`would-block`、`out-of-memory` 和 `other`；未映射或未来的 I/O 类型使用 `other`。诊断还包含有符号 32 位 `osError` 或 null；只有打开声明的同级文件返回 `NotFound` 时才包含精确缺失的可执行文件名。文本输出不包含这些原始诊断字段。`orchbee.status.server` 仍为 v1。两者均使用 local-runtime 来源；schema 目录版本为 149，同时包含 Windows Agent projection 契约。必需的判别式元数据字段区分
+`orchbee.status.client` 当前输出 v3，包含封闭的安装观察和不可用 cohort 的有界 I/O 诊断；历史 v1、v2 保持封闭。`ioKind` 使用封闭的小写词表：`not-found`、`permission-denied`、`invalid-input`、`invalid-data`、`timed-out`、`unsupported`、`interrupted`、`unexpected-eof`、`would-block`、`out-of-memory` 和 `other`；未映射或未来的 I/O 类型使用 `other`。诊断还包含有符号 32 位 `osError` 或 null；只有打开声明的同级文件返回 `NotFound` 时才包含精确缺失的可执行文件名。文本输出不包含这些原始诊断字段。`orchbee.status.server` 仍为 v1。两者均使用 local-runtime 来源；schema 目录版本为 150，同时包含 Windows Agent projection 契约。必需的判别式元数据字段区分
 已观察的 Server 数据、不存在和本地 cohort 不可用。路径使用既有无损 Windows 表示。
 人工文本和路径通过公共文本呈现器转义；JSON 字节不受语言影响。无 Server 和完整诊断
 观察退出 0。既有用法、权限、兼容性、协议／传输、超时和取消失败保留现有退出码与封套；

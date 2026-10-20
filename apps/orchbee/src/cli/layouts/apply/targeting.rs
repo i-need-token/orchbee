@@ -17,9 +17,9 @@ pub(super) struct Destination {
 pub(super) fn resolve(
     command: &LayoutApplyCommand,
     snapshot: &Snapshot,
-    client: &ClientViewRecord,
+    client: Option<&ClientViewRecord>,
 ) -> Result<Destination, Failure> {
-    let selected = client.view.selection.as_ref();
+    let selected = client.and_then(|client| client.view.selection.as_ref());
     let (context, old) = match &command.destination {
         LayoutDestination::Replace(target) => {
             let (context, tab) = results::resolve_or_fail(

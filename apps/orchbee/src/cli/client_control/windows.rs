@@ -21,6 +21,23 @@ use std::{
 };
 
 pub(super) fn run(command: &ClientCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let ClientCommand::Navigate {
+        target,
+        client: None,
+        operation_id,
+        timeout_ms,
+        ..
+    } = command
+        && crate::cli::layouts::structure::explicit(target)
+    {
+        return crate::cli::layouts::structure::run(
+            target,
+            operation_id.as_ref(),
+            *timeout_ms,
+            format,
+            locale,
+        );
+    }
     if let ClientCommand::Swap(command) = command {
         return super::swap::run(command, format, locale);
     }

@@ -1,0 +1,184 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.panel.structure",
+	"title": "Shared canonical panel tree",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.panel.structure"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"$ref": "#/$defs/snapshotSource"
+		},
+		"result": {
+			"type": "object",
+			"required": [
+				"scope",
+				"observerFailure",
+				"terminalContextId",
+				"tabId",
+				"sourcePanelId",
+				"root"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"scope": {
+					"const": "shared"
+				},
+				"observerFailure": {
+					"enum": [null, "cancelled", "internal-failure"]
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/id"
+				},
+				"tabId": {
+					"$ref": "#/$defs/id"
+				},
+				"sourcePanelId": {
+					"$ref": "#/$defs/id"
+				},
+				"root": {
+					"$ref": "#/$defs/panelNodeV7"
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"$ref": "#/$defs/revision"
+				}
+			}
+		},
+		"panelNodeV7": {
+			"type": "object",
+			"required": ["kind"],
+			"oneOf": [
+				{
+					"properties": {
+						"kind": {
+							"const": "panel"
+						},
+						"rightClick": {
+							"enum": ["orchbee", "panel"]
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"primaryPresentation": {
+							"$ref": "#/$defs/presentation"
+						},
+						"childPresentations": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/presentation"
+							}
+						}
+					},
+					"required": ["panelId", "primaryPresentation", "childPresentations"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": {
+							"const": "split"
+						},
+						"splitId": {
+							"$ref": "#/$defs/id"
+						},
+						"orientation": {
+							"enum": ["horizontal", "vertical"]
+						},
+						"children": {
+							"type": "array",
+							"minItems": 2,
+							"maxItems": 2,
+							"items": {
+								"type": "object",
+								"required": ["slotId", "node"],
+								"additionalProperties": false,
+								"properties": {
+									"slotId": {
+										"$ref": "#/$defs/id"
+									},
+									"node": {
+										"$ref": "#/$defs/panelNodeV7"
+									}
+								}
+							}
+						},
+						"ratio": {
+							"type": "number",
+							"minimum": 0.1,
+							"maximum": 0.9
+						}
+					},
+					"required": ["splitId", "orientation", "children"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"presentation": {
+			"type": "object",
+			"required": ["presentationId", "label", "binding"],
+			"additionalProperties": false,
+			"properties": {
+				"customLabel": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 512,
+					"pattern": "^[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000](?:[\\s\\S]*[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])?(?![\\s\\S])"
+				},
+				"presentationId": {
+					"$ref": "#/$defs/id"
+				},
+				"label": {
+					"type": "string"
+				},
+				"binding": {
+					"anyOf": [
+						{
+							"type": "object",
+							"required": ["terminalId", "workerId"],
+							"additionalProperties": false,
+							"properties": {
+								"terminalId": {
+									"$ref": "#/$defs/id"
+								},
+								"workerId": {
+									"$ref": "#/$defs/id"
+								}
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			}
+		}
+	}
+}

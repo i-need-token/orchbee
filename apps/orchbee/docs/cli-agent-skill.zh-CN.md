@@ -141,3 +141,13 @@ orchbee workspace list --format json | ConvertFrom-Json
 在新初始化的受管 PowerShell 终端中，确认命令行空闲且为空后，使用 `terminal run <target> <command> --wait --timeout 30000 --format json`。它只提交一次，并等待本次调用的 Shell 标记。分别检查 `submission`、`completion`、`failure` 和 `cleanup`。`powershell-success` 表示 Shell 成功状态（0/1），不是原生进程的数值退出码。超时／取消不会撤回已接受输入，不要重放。
 
 要排除保留输出，保存 `terminal read --format json` 的 `result.cursor`，向 `terminal wait-output` 传入 `--after <cursor>`，或在新工作前使用 `--after now`。只匹配后续物理输出行，排除当前行和提示符／输入行。重置、淘汰和窗口间隙会明确拒绝游标；提前增大 `--lines`，自动化使用有限 `--timeout`。参见[命令提交](native-terminal-run.zh-CN.md)。
+
+## 无头布局操作
+
+显式目标使共享布局操作无需 TUI。省略 `--client`，使用 `panel layout <panel>`、
+`layout export --tab <tab>`、`layout set-split-ratio --tab <tab> --path root --ratio 0.6`
+以及 `panel swap <panel> --with <other-panel>`。共享回执保留规范身份及结果，不声明视口或焦点。
+`layout apply --file layout.json --standalone` 也可无头运行；支持显式 Workspace 和已确认的 Tab 目的地。
+添加 `--client` 可获取 Client 几何／观察，应用时添加 `--focus` 可请求 Client 聚焦。
+方向邻居、resize 和 zoom 需要 Client 几何。只读命令不接受 `--request-id` 或 `--detach`。
+修改结果未知时，先检查回执再重新提交。
