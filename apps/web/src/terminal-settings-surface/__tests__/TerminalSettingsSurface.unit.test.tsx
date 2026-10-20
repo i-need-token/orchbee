@@ -246,7 +246,7 @@ describe('TerminalSettingsSurface', () => {
 			requiredElement<HTMLSelectElement>(
 				container.querySelector("select[aria-label='Application theme']"),
 			).value,
-		).toBe('light');
+		).toBe('system');
 		await act(async () =>
 			requiredElement<HTMLButtonElement>(
 				container.querySelector("button[data-settings-category='colors']"),
