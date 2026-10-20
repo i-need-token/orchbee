@@ -22,11 +22,11 @@ fn pinned_herdr_local_operand_cases_preserve_caller_and_home_ownership() {
         ("C:/literal/../path", "C:/literal/../path"),
         (r"\\?\C:\literal", r"\\?\C:\literal"),
         ("relative", r"C:\caller\repo\relative"),
-        (r"..\trees\new", r"C:\caller\repo\..\trees\new"),
+        (r"..\trees\new", r"C:\caller\trees\new"),
         ("~", r"D:\User space"),
         (r"~\trees\新", r"D:\User space\trees\新"),
         ("~//trees///new", r"D:\User space\trees\new"),
-        ("~/../new", r"D:\User space\..\new"),
+        ("~/../new", r"D:\new"),
         ("$HOME", r"C:\caller\repo\$HOME"),
         ("%USERPROFILE%", r"C:\caller\repo\%USERPROFILE%"),
     ] {

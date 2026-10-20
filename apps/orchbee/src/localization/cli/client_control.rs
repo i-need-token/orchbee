@@ -510,25 +510,25 @@ pub(super) const HELP_CLIENT_CONTROL_STATUS_ZH: crate::localization::HelpDetails
 
 pub(super) const HELP_WORKSPACE_FOCUS_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee workspace focus <workspace> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee workspace focus <target> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
         "Select a Workspace in one Windows TUI.\n\nWithout --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.",
     );
 
 pub(super) const HELP_WORKSPACE_FOCUS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee workspace focus <workspace> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee workspace focus <target> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
         "在一个 Windows TUI 中选中工作区。\n\n省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。",
     );
 
 pub(super) const HELP_TAB_FOCUS_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee tab focus <tab> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee tab focus <target> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
         "Select a Tab in one Windows TUI, including its owning Workspace.\n\nWithout --client, validated caller Terminal/Worker metadata selects a unique focused TUI; outside a caller, exactly one current TUI is required. Partial or invalid caller metadata fails. Explicit --client ignores caller metadata. Default timeout: 30000ms (1..3600000). Success requires observed selection and a successful draw. --detach or interruption ends waiting only; query client control-status with the operation ID.",
     );
 
 pub(super) const HELP_TAB_FOCUS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee tab focus <tab> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee tab focus <target> [--client <client-id>] [--request-id <operation-id>] [--detach] [--timeout <ms>] [--format text|json]",
         "在一个 Windows TUI 中选中标签页及其所属工作区。\n\n省略 --client 时，经校验的调用者 Terminal／Worker 信息选择唯一聚焦 TUI；外部调用要求恰好一个当前有效 TUI。部分或无效调用者信息会失败；显式 --client 忽略调用者信息。默认超时 30000ms（1..3600000）。成功要求观测到目标选择且成功绘制。--detach 或中断仅结束等待；使用操作标识查询 client control-status。",
     );
 

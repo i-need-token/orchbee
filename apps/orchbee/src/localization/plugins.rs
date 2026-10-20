@@ -163,7 +163,7 @@ impl Locale {
                 "显示插件配置目录。本命令不启动会话。",
             ),
             C::PluginList => (
-                "orchbee plugin list [<plugin-id>] [--format text|json]",
+                "orchbee plugin list [<plugin-id> | --plugin <id>] [--format text|json]",
                 "List registered plugins, or inspect one plugin. This command does not start a session.",
                 "列出已注册的插件，或查看指定插件。本命令不启动会话。",
             ),
@@ -178,7 +178,7 @@ impl Locale {
                 "在已运行的会话中执行插件操作。ID 可使用本地名称或 plugin.action 完整名称。上下文来自调用者或唯一当前客户端；--client 显式选择客户端，--context 覆盖显示字段。使用 orchbee api schema orchbee.plugin.runtime 查看输入结构（$defs/context）；字段使用 camelCase，例如 selectedText。CLI 退出后，已接纳的任务继续运行；会话关闭时停止。",
             ),
             C::PluginPaneOpen => (
-                "orchbee plugin pane open --plugin <id> --entrypoint <id> [--placement tab|split|zoomed|overlay|popup] [--width <cells|percent%>] [--height <cells|percent%>] [--workspace <id>] [--target-pane <id>] [--direction right|down] [--cwd <path>] [--env NAME=VALUE] [--client <id>] [--focus|--no-focus] [--format text|json]",
+                "orchbee plugin pane open --plugin <id> --entrypoint <id> [--placement tab|split|zoomed|overlay|popup] [--width <cells|percent%>] [--height <cells|percent%>] [--workspace <id>] [--target-pane <id>] [--direction right|down] [--cwd <path>] [--env NAME=VALUE] [--client <id>] [--focus|--no-focus] [--cols <n> --rows <n> --cell-width <n> --cell-height <n>] [--timeout <ms>] [--format text|json]",
                 "Open a plugin terminal in an existing session. The default working directory is the plugin root.\n\nPopup placement opens an independent terminal in the selected current client and requires focus; --no-focus is refused. Width and height apply only to popups: use terminal cells or percentages. Defaults come from the manifest, otherwise half of the available area. Standard terminal geometry options do not apply. Escape and prefix keys reach the popup program. Click its close button or run orchbee popup close to dispose of it.",
                 "在已运行的会话中打开插件终端，工作目录默认为插件根目录。\n\nPopup 在选中的当前客户端中打开独立终端且需要焦点；拒绝 --no-focus。宽高仅适用于 popup，可使用终端单元格数量或百分比；默认取清单配置，否则占可用区域的一半。不使用普通终端尺寸选项。Esc 和前缀键会传给弹出窗口中的程序；点击关闭按钮或执行 orchbee popup close 可关闭。",
             ),

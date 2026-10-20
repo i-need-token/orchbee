@@ -201,19 +201,19 @@ impl Locale {
     pub(super) fn cli_worktree_help(self, path: CommandPath) -> crate::localization::HelpDetails {
         match (self, path) {
             (Self::EnUs, CommandPath::WorktreeCreate) => crate::localization::HelpDetails::new(
-                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <path>] [--branch <name>] [--base <ref>] [--path <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json] [--client <id>] [--focus|--no-focus]",
+                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <path>] [--branch <name>] [--base <ref>] [--path <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--cols <n> --rows <n> --cell-width <n> --cell-height <n>] [--format text|json] [--client <id>] [--focus|--no-focus]",
                 "Windows: create a Git worktree, associate a Workspace, and launch its terminal.\nSource: explicit --client overrides caller; otherwise caller, unique current ready TUI, then CLI cwd only with no caller/Clients. A Workspace source keeps its exact identity; the Server validates its primary directory.\nWorkspace sources may be ungrouped: the server atomically groups source and new Workspace, reusing an existing group. Only Directory sources accept --project; without it the new Workspace is ungrouped. JSON v5 has no Project setup stage.\nWindows paths: absolute, relative or ~ (USERPROFILE, HOMEDRIVE+HOMEPATH, HOME). The final executing CLI resolves its own cwd/home after routing; sender and relay preserve raw operands. No shell expansion.\nDefault branch: worktree/<operation-id>; default base: HEAD.\nDefault path: sibling <repository>-worktrees/<branch-slug>. Existing branches ignore --base.\n--trust-repository grants Git trust only to this operation. It does not change Git configuration.\n--focus switches an existing TUI after opening; default --no-focus. Focus rejects --detach; a focus failure retains the Worktree result (JSON v5).\nTimeout: 1–3600000 ms, default 120000. --detach returns the retained operation immediately.\nCtrl+C stops waiting; status reads the continuing operation. Do not replay an uncertain mutation.\nOptional terminal geometry: --cols <n> --rows <n> --cell-width <n> --cell-height <n> (all four).",
             ),
             (Self::ZhCn, CommandPath::WorktreeCreate) => crate::localization::HelpDetails::new(
-                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <路径>] [--branch <名称>] [--base <引用>] [--path <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json] [--client <id>] [--focus|--no-focus]",
+                "orchbee worktree create [--project <target>] [--workspace <target>|--cwd <路径>] [--branch <名称>] [--base <引用>] [--path <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--cols <n> --rows <n> --cell-width <n> --cell-height <n>] [--format text|json] [--client <id>] [--focus|--no-focus]",
                 "Windows：创建 Git worktree，关联 Workspace 并启动其终端。\n来源：显式 --client 优先于调用者；否则依次为调用者、唯一当前就绪 TUI、无调用者和 Client 时的 CLI cwd。Workspace 来源始终保留其稳定标识；主目录由服务端验证。\nWorkspace 来源可以未分组；服务端原子创建项目并将来源和新 Workspace 分组，或复用已有分组。仅目录来源可用 --project 指定已有项目；默认创建未分组 Workspace。JSON v5 无项目准备阶段。\nWindows 路径支持绝对路径、相对路径或 ~（USERPROFILE、HOMEDRIVE+HOMEPATH、HOME）。路由后由最终执行的 CLI 使用自身 cwd／主目录解析，发送端与中继保留原始操作数。不做 shell 展开。\n默认分支：worktree/<操作标识>；默认基准：HEAD。\n默认路径：同级 <仓库名>-worktrees/<分支路径名>。已有分支忽略 --base。\n--trust-repository 仅对此操作授予 Git 信任，不修改 Git 配置。\n--focus 在打开后切换已有 TUI，默认 --no-focus。聚焦不可与 --detach 混用；聚焦失败保留 Worktree 结果（JSON v5）。\n超时：1–3600000 毫秒，默认 120000。--detach 立即返回保留的操作。\nCtrl+C 停止等待；status 可查询继续执行的操作。不要重放结果不确定的变更。\n可选终端尺寸：--cols <n> --rows <n> --cell-width <n> --cell-height <n>（四项全填）。",
             ),
             (Self::EnUs, CommandPath::WorktreeOpen) => crate::localization::HelpDetails::new(
-                "orchbee worktree open (--path <path>|--branch <name>) [--project <target>] [--workspace <target>|--cwd <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json] [--client <id>] [--focus|--no-focus]",
+                "orchbee worktree open (--path <path>|--branch <name>) [--project <target>] [--workspace <target>|--cwd <path>] [--label <label>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <ms>] [--cols <n> --rows <n> --cell-width <n> --cell-height <n>] [--format text|json] [--client <id>] [--focus|--no-focus]",
                 "Windows: inspect an existing checkout and reuse or create its Workspace. No Git checkout is created.\nMain and linked checkouts are supported; ambiguous branch selection requires --path.\nSource/project defaults, absolute/relative/~ paths, terminal geometry and waiting follow worktree create.\n--focus switches an existing TUI after opening; default --no-focus. Focus cannot be detached.\n--label also renames a reused Workspace. Inspect partial launch outcomes in the result.",
             ),
             (Self::ZhCn, CommandPath::WorktreeOpen) => crate::localization::HelpDetails::new(
-                "orchbee worktree open (--path <路径>|--branch <名称>) [--project <target>] [--workspace <target>|--cwd <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--format text|json] [--client <id>] [--focus|--no-focus]",
+                "orchbee worktree open (--path <路径>|--branch <名称>) [--project <target>] [--workspace <target>|--cwd <路径>] [--label <标签>] [--trust-repository] [--request-id <id>] [--detach] [--timeout <毫秒>] [--cols <n> --rows <n> --cell-width <n> --cell-height <n>] [--format text|json] [--client <id>] [--focus|--no-focus]",
                 "Windows：检查已有检出目录，复用或创建其 Workspace；不会新建 Git 检出目录。支持主检出及关联检出；分支选择有歧义时须使用 --path。来源、项目默认值、绝对／相对／~ 路径、终端尺寸和等待方式与 worktree create 一致。\n--focus 在打开后切换已有 TUI；默认 --no-focus，聚焦不可与 --detach 混用。\n--label 同样会重命名复用的 Workspace；请检查结果中的终端启动状态。",
             ),
             (Self::EnUs, CommandPath::WorktreeRemove) => crate::localization::HelpDetails::new(
@@ -229,7 +229,7 @@ impl Locale {
                 "Read a retained operation without mutation or session activation. IDs survive CLI disconnection, not Server restart.\nThe result includes attempt, Git effects, Workspace state, shell restoration counts/failure and recovery eligibility.",
             ),
             (Self::ZhCn, CommandPath::WorktreeStatus) => crate::localization::HelpDetails::new(
-                "orchbee worktree status <操作标识> [--format text|json]",
+                "orchbee worktree status <operation-id> [--format text|json]",
                 "只读查询保留的操作，不执行变更或激活会话。记录可跨 CLI 断线保留，但不跨 Server 重启。结果包含尝试序号、Git 影响、Workspace 状态、shell 恢复计数／失败及能否恢复。",
             ),
             (Self::EnUs, _) => crate::localization::HelpDetails::new(
@@ -237,7 +237,7 @@ impl Locale {
                 "Explicitly resume a known, resumable failed operation using the attempt from status.\nA changed attempt, Worker incarnation or unproven process settlement is refused.\nGit creation is observed before recovery; Remove may close restored shells before retrying deletion. An already closed Workspace stays closed.\nConfirmation is required because the retained operation can remove user work.",
             ),
             (Self::ZhCn, _) => crate::localization::HelpDetails::new(
-                "orchbee worktree resume <操作标识> --generation <尝试序号> --confirm [--detach] [--timeout <毫秒>] [--format text|json]",
+                "orchbee worktree resume <operation-id> --generation <尝试序号> --confirm [--detach] [--timeout <毫秒>] [--format text|json]",
                 "使用 status 返回的尝试序号，显式恢复已知且可恢复的失败操作。尝试序号、Worker 实例已变化或进程收尾无法证明时拒绝恢复。恢复前先观察 Git 创建结果；Remove 重试删除前可能先关闭已恢复的 shell。已关闭的 Workspace 保持关闭。保留的操作可能删除用户工作，因此必须确认。",
             ),
         }

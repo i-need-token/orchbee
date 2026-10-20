@@ -9,7 +9,6 @@ fn group_grammar_requires_confirmation_and_keeps_retained_selectors_independent(
     for words in [
         vec!["project", "close-all", "demo"],
         vec!["workspace", "close", "demo", "--group", "--confirm"],
-        vec!["workspace", "close", "demo", "--confirm", "--detach"],
         vec!["project", "close-status"],
         vec!["project", "close-status", "--request", ID, "--project", ID],
         vec!["project", "close-status", "--request", ID, "--confirm"],

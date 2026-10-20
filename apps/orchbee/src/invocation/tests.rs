@@ -1094,9 +1094,9 @@ fn filters_have_declared_scope_single_use_and_values() {
         // `tab list` declares only --workspace/--standalone.
         &["tab", "list", "--project", "x"],
         &["tab", "list", "--tab", "x"],
-        // `panel list` declares only --tab.
+        // `panel list` declares only --tab/--workspace, one at a time.
         &["panel", "list", "--project", "x"],
-        &["panel", "list", "--workspace", "x"],
+        &["panel", "list", "--tab", "x", "--workspace", "y"],
         &["panel", "list", "--standalone"],
         // Mutual exclusion and duplication.
         &["tab", "list", "--workspace", "x", "--standalone"],
@@ -5498,9 +5498,9 @@ fn agent_read_usage_failures() {
                 } else {
                     "agent explain"
                 }),
-                option: "<session>",
+                option: "<target>",
                 value: value.to_owned(),
-                expected: ExpectedValue::AgentSessionId,
+                expected: ExpectedValue::AgentTarget,
             },
             "{verb} {value}"
         );
@@ -5800,9 +5800,9 @@ fn agent_wait_usage_failures() {
         usage_reason(&["agent", "wait", "bad id!"]),
         UsageReason::InvalidValue {
             context: path("agent wait"),
-            option: "<session>",
+            option: "<target>",
             value: "bad id!".to_owned(),
-            expected: ExpectedValue::AgentSessionId,
+            expected: ExpectedValue::AgentTarget,
         }
     );
 }

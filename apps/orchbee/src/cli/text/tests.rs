@@ -67,7 +67,7 @@ fn every_help_path_parses_and_renders_in_both_languages() {
                     );
                     assert!(!syntax.contains("[same options]"));
                 }
-                for flag in super::super::completion::help_flags(command) {
+                for flag in super::help_options(command) {
                     assert!(text.contains(flag), "{command:?} omitted {flag}");
                 }
             }

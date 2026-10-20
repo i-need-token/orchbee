@@ -82,7 +82,7 @@ fn quick_workspace_fields_normalize_relative_and_home_paths_without_mutating_raw
     fields.directory_editor().clear();
     fields.directory_editor().insert("child").unwrap();
     assert_eq!(fields.directory(), "child");
-    assert_eq!(fields.plan().unwrap().cwd.as_str(), "C:/项目 space\\child");
+    assert_eq!(fields.plan().unwrap().cwd.as_str(), "C:\\项目 space\\child");
     fields.directory_editor().clear();
     fields.directory_editor().insert("~").unwrap();
     assert!(

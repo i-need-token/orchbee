@@ -178,7 +178,9 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
         }
     }
     assert!(
-        rendered.iter().any(|line| line.contains("tab.renamed")),
+        rendered
+            .iter()
+            .any(|line| line.contains("pane.agent_status_changed")),
         "{rendered:?}"
     );
     assert_eq!(
