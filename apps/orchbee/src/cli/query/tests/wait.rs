@@ -62,9 +62,7 @@ fn fake_run<'a>(
         observations: 0,
         next_row_sequence: 1,
         poll_interval: EMPTY_POLL_INTERVAL,
-        #[cfg(windows)]
         after: None,
-        #[cfg(windows)]
         terminal_id: String::new(),
     }
 }
@@ -152,9 +150,7 @@ fn forever_retains_step_budget_backoff_and_cancellation_after_long_elapsed_time(
         observations: 0,
         next_row_sequence: 1,
         poll_interval: EMPTY_POLL_INTERVAL,
-        #[cfg(windows)]
         after: None,
-        #[cfg(windows)]
         terminal_id: String::new(),
     };
     clock.advance(Duration::from_secs(86_400));
