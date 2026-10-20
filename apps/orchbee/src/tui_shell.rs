@@ -333,6 +333,7 @@ fn run_prepared_surface(
     }
     #[cfg(windows)]
     {
+        initial_view.onboarding = crate::onboarding::State::load();
         initial_view.configure_theme(orchbee_local_site_runtime::WindowsThemeName::TerminalNative);
         let load =
             orchbee_local_site_runtime::read_windows_user_settings(|name| std::env::var_os(name));

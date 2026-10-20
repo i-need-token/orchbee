@@ -66,6 +66,8 @@ const ZH_CN_USAGE_FAILURE: &str = "调用方式无效。请运行 ‘orchbee --h
 fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
         #[cfg(windows)]
+        PrefixDesc::DismissOnboarding => "Dismiss the welcome guide",
+        #[cfg(windows)]
         PrefixDesc::ConfiguredCommand(_) => "Run configured command",
         #[cfg(windows)]
         PrefixDesc::ResizeMode => "Enter pane resize mode",
@@ -161,6 +163,8 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
 
 fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
     match desc {
+        #[cfg(windows)]
+        PrefixDesc::DismissOnboarding => "关闭首次运行引导",
         #[cfg(windows)]
         PrefixDesc::ConfiguredCommand(_) => "运行配置命令",
         #[cfg(windows)]
@@ -612,6 +616,14 @@ impl Locale {
 
     pub(crate) const fn shell_notice(self, notice: Option<Notice>) -> &'static str {
         match (self, notice) {
+            #[cfg(windows)]
+            (Self::EnUs, Some(Notice::OnboardingSaveFailed)) => {
+                "Guide closed here; saving failed, so it may return next time"
+            }
+            #[cfg(windows)]
+            (Self::ZhCn, Some(Notice::OnboardingSaveFailed)) => {
+                "本次引导已关闭；保存失败，下次可能再次显示"
+            }
             #[cfg(windows)]
             (Self::EnUs, Some(Notice::ResizeBusy)) => "Resize pending; input was not queued",
             #[cfg(windows)]
@@ -1998,5 +2010,38 @@ impl<'a> ShellText<'a> {
             result = result.replace(&format!("\u{e000}{index}\u{e001}"), &actual);
         }
         result
+    }
+}
+
+#[cfg(windows)]
+impl Locale {
+    pub(crate) fn onboarding_title(self) -> &'static str {
+        match self {
+            Self::EnUs => "Welcome to Orchbee",
+            Self::ZhCn => "欢迎使用 Orchbee",
+        }
+    }
+    pub(crate) fn onboarding_status(self, failed: bool) -> &'static str {
+        match (self, failed) {
+            (Self::EnUs, false) => "Type in your terminal; choose an action when ready.",
+            (Self::ZhCn, false) => "终端可以继续输入；需要时选择下列操作。",
+            (Self::EnUs, true) => "Guide state unavailable; existing data is preserved.",
+            (Self::ZhCn, true) => "无法读取引导状态；已保留现有数据。",
+        }
+    }
+    pub(crate) fn onboarding_label(self, action: crate::onboarding::Action) -> &'static str {
+        use crate::onboarding::Action::*;
+        match (self, action) {
+            (Self::EnUs, Workspace) => "New workspace",
+            (Self::ZhCn, Workspace) => "新建工作区",
+            (Self::EnUs, Agent) => "Choose and start an Agent",
+            (Self::ZhCn, Agent) => "选择并启动 Agent",
+            (Self::EnUs, Menu) => "Actions and commands",
+            (Self::ZhCn, Menu) => "操作与命令",
+            (Self::EnUs, Help) => "Help",
+            (Self::ZhCn, Help) => "帮助",
+            (Self::EnUs, Dismiss) => "Dismiss guide",
+            (Self::ZhCn, Dismiss) => "关闭引导",
+        }
     }
 }

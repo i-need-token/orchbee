@@ -207,6 +207,7 @@ impl InteractionTarget {
             },
             #[cfg(windows)]
             Self::GlobalChrome(action) => match action {
+                super::GlobalChromeAction::Onboarding(action) => HitTarget::Onboarding(*action),
                 super::GlobalChromeAction::OpenMenu => HitTarget::MenuButton,
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
             },

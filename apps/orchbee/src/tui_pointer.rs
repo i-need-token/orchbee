@@ -118,6 +118,10 @@ pub(crate) enum HitLayer {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum HitTarget {
     #[cfg(windows)]
+    Onboarding(crate::onboarding::Action),
+    #[cfg(windows)]
+    OnboardingSurface,
+    #[cfg(windows)]
     CopyControl {
         token: crate::terminal_copy_mode::CopyModeToken,
         control: crate::terminal_copy_mode::CopyControl,
@@ -281,6 +285,7 @@ pub(crate) enum HitTarget {
 #[cfg(windows)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum GlobalChromeAction {
+    Onboarding(crate::onboarding::Action),
     OpenMenu,
     RestoreSidebar,
 }
@@ -2879,6 +2884,8 @@ impl PointerState {
             #[cfg(windows)]
             HitResolution::Region(
                 HitTarget::CreateMenu(_)
+                | HitTarget::Onboarding(_)
+                | HitTarget::OnboardingSurface
                 | HitTarget::MenuButton
                 | HitTarget::SidebarRestoreButton
                 | HitTarget::ActionMenuRow { .. }

@@ -35,12 +35,6 @@ impl Locale {
         }
     }
 
-    pub(crate) const fn sidebar_browse_hint(self) -> &'static str {
-        match self {
-            Self::EnUs => "Browse",
-            Self::ZhCn => "浏览",
-        }
-    }
     pub(crate) const fn sidebar_back_hint(self) -> &'static str {
         match self {
             Self::EnUs => "Back",

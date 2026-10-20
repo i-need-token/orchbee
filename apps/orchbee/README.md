@@ -1060,3 +1060,5 @@ Windows `config import-herdr --input-file SOURCE --output-file DEST [--dry-run] 
 ## Native Settings
 
 Press Ctrl+B F4 in the Windows or Linux TUI to open General and Launch profiles; Windows also exposes Settings through navigation. All common preferences use the same device record as Desktop, including locale, application and terminal themes, selection, Agent tail display, notifications, sound, scrollback and launch profiles. Edits remain drafts until Save, reset requires confirmation, and stale sources or unknown results remain explicit without replay. See the [native Settings contract](docs/native-settings.md) and [shared inventory](../../crates/workbench-protocol/docs/user-preferences.md).
+
+Windows first-run guidance keeps terminal input active while exposing Workspace creation, Agent selection, actions and Help. Dismissal is remembered per native configuration profile. See [native first-run guidance](docs/native-onboarding.md).

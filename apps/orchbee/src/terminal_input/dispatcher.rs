@@ -1827,6 +1827,7 @@ impl InputDispatcher {
                                 InteractionTarget::GlobalChrome(action) => {
                                     if Self::projected_capture(view, port).is_none() {
                                         let action = match action {
+                                            crate::tui_pointer::GlobalChromeAction::Onboarding(action) => view.onboarding.visible.then(|| action.client()),
                                             crate::tui_pointer::GlobalChromeAction::OpenMenu => {
                                                 Some(ClientAction::OpenActionMenu)
                                             }
@@ -2094,6 +2095,15 @@ impl InputDispatcher {
         mode: &mut impl FnMut(ModeRequest) -> Result<(), Error>,
     ) -> Result<DispatchOutcome, Error> {
         let action = transition.action();
+        #[cfg(windows)]
+        if action == Some(ClientAction::DismissOnboarding) {
+            view.commit(transition, SessionActionDisposition::KeepNavigator);
+            if view.onboarding.dismiss().is_err() {
+                view.startup_notice(crate::client_view::Notice::OnboardingSaveFailed);
+            }
+            self.pointer.invalidate_map_with_port(port);
+            return Ok(DispatchOutcome::Continue);
+        }
         #[cfg(windows)]
         if action != Some(ClientAction::OpenActionMenu) && !transition.prefix_active() {
             // A prefix has not chosen an action yet. Preserve the active drag

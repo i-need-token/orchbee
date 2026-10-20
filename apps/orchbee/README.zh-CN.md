@@ -954,3 +954,5 @@ Windows `config import-herdr --input-file SOURCE --output-file DEST [--dry-run] 
 通知、声音、滚动历史与启动配置。编辑在保存前保持草稿，重置需要确认，
 来源过期或结果不明会明确显示且不重放。
 参见[原生设置契约](docs/native-settings.zh-CN.md)与[共享清单](../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)。
+
+Windows 首次运行引导在终端可继续输入时提供 Workspace 创建、Agent 选择、操作与帮助入口，关闭状态按原生配置档案保存。参见[原生首次运行引导](docs/native-onboarding.zh-CN.md)。

@@ -89,6 +89,8 @@ pub(crate) enum BackendAction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClientAction {
     #[cfg(windows)]
+    DismissOnboarding,
+    #[cfg(windows)]
     TabMenu {
         action: crate::action_menu::MenuAction,
         tab_id: Option<orchbee_workbench_protocol::WorkbenchTabId>,
@@ -190,6 +192,8 @@ pub(crate) enum ClientAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Notice {
+    #[cfg(windows)]
+    OnboardingSaveFailed,
     #[cfg(windows)]
     WorkspaceNavigationUnavailable,
     #[cfg(windows)]
@@ -305,7 +309,7 @@ impl ClientAction {
     pub(crate) fn backend_action(&self) -> Option<BackendAction> {
         match self {
             #[cfg(windows)]
-            Self::OpenActionMenu | Self::FocusBusinessSidebar => None,
+            Self::OpenActionMenu | Self::FocusBusinessSidebar | Self::DismissOnboarding => None,
             Self::OpenSettings => None,
             #[cfg(windows)]
             Self::EnterResizeMode
@@ -389,6 +393,8 @@ pub(crate) enum SidebarSurface {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ClientView {
+    #[cfg(windows)]
+    pub(crate) onboarding: crate::onboarding::State,
     pub(crate) user_preferences: Option<orchbee_workbench_protocol::UserPreferencesValues>,
     #[cfg(windows)]
     pub(crate) machines: crate::machine_picker::Picker,
@@ -449,6 +455,8 @@ impl ClientView {
             notifications: crate::notifications::State::default(),
             #[cfg(windows)]
             window_title: None,
+            #[cfg(windows)]
+            onboarding: crate::onboarding::State::default(),
             notice: None,
             #[cfg(windows)]
             configuration_warning: false,
@@ -1518,6 +1526,12 @@ impl ClientView {
             return (ClientAction::UnknownPrefix, ShellCommand::None);
         };
         match &member.action {
+            #[cfg(windows)]
+            PrefixAction::Client(ClientAction::DismissOnboarding)
+                if !self.onboarding.visible || self.overlay.is_some() =>
+            {
+                (ClientAction::DismissPrefix, ShellCommand::None)
+            }
             PrefixAction::Client(action) => {
                 let (action, _) = self.apply_action_decision(action.clone());
                 (action, member.shell)

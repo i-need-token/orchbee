@@ -213,13 +213,15 @@ fn render_navigation_hint(
         SidebarInput::Suppressed => return,
         SidebarInput::Terminal => view
             .bindings()
-            .action_labels_with_glyphs(
-                PrefixAction::Client(ClientAction::FocusBusinessSidebar),
-                glyphs,
-            )
+            .action_labels_with_glyphs(PrefixAction::ShowHelp, glyphs)
             .into_iter()
             .take(1)
-            .map(|key| (key, locale.sidebar_browse_hint()))
+            .map(|key| {
+                (
+                    key,
+                    locale.onboarding_label(crate::onboarding::Action::Help),
+                )
+            })
             .collect::<Vec<_>>(),
         SidebarInput::Navigation => [
             (SidebarCommand::Exit, locale.sidebar_back_hint()),

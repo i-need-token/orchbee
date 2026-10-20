@@ -59,6 +59,8 @@ mod machine_tunnel;
 mod machines;
 mod native_settings;
 mod notifications;
+#[cfg(windows)]
+mod onboarding;
 mod presentation;
 #[cfg(any(unix, windows))]
 mod startup_wait;

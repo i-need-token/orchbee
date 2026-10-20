@@ -380,6 +380,10 @@ impl Locale {
         }
 
         let title = match action {
+            #[cfg(windows)]
+            PrefixAction::Client(A::DismissOnboarding) => {
+                Some(self.onboarding_label(crate::onboarding::Action::Dismiss))
+            }
             PrefixAction::Client(A::OpenSettings) => Some(match self {
                 Self::EnUs => "Settings",
                 Self::ZhCn => "设置",

@@ -201,6 +201,10 @@ pub(crate) fn binding_metadata(action: &PrefixAction) -> Option<ActionMetadata<'
             C::Application,
             PREFERENCES,
         ),
+        #[cfg(windows)]
+        PrefixAction::Client(A::DismissOnboarding) => {
+            built_in("orchbee.native.onboarding.dismiss", C::Application, HELP)
+        }
         PrefixAction::Client(A::RequestWorkspaceCreate) => {
             built_in("workbench.workspace.create", C::Workspace, WORKSPACE)
         }

@@ -898,14 +898,14 @@ fn settings_stays_at_the_sidebar_bottom_as_an_exact_discoverable_action() {
             let browse_binding = view
                 .bindings()
                 .action_labels_with_glyphs(
-                    PrefixAction::Client(ClientAction::FocusBusinessSidebar),
+                    PrefixAction::ShowHelp,
                     key_label_glyphs(&Theme::terminal_native()),
                 )
                 .into_iter()
                 .next()
                 .unwrap();
             assert!(rows[38].contains(&browse_binding), "{:?}", rows[38]);
-            assert!(rows[38].contains(locale.sidebar_browse_hint()));
+            assert!(rows[38].contains(locale.onboarding_label(crate::onboarding::Action::Help)));
             assert!(rows[37].starts_with('─'));
             for y in [37, 38] {
                 assert!((0..28).all(|x| !matches!(
@@ -1002,7 +1002,10 @@ fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_
                 }
                 match input {
                     SidebarInput::Terminal => {
-                        assert!(hint.contains(locale.sidebar_browse_hint()), "{hint}")
+                        assert!(
+                            hint.contains(locale.onboarding_label(crate::onboarding::Action::Help)),
+                            "{hint}"
+                        )
                     }
                     SidebarInput::Navigation => {
                         assert!(hint.contains(locale.sidebar_back_hint()), "{hint}");
@@ -1012,7 +1015,7 @@ fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_
                             )),
                             "{hint}"
                         );
-                        assert!(!hint.contains(locale.sidebar_browse_hint()));
+                        assert!(!hint.contains("Ctrl+B"), "{hint}");
                     }
                     SidebarInput::Suppressed => assert!(hint.trim().is_empty(), "{hint}"),
                 }
