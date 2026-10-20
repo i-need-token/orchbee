@@ -45,7 +45,7 @@ fn copy_search_grammar_preserves_literals_orders_previous_and_requires_revision(
         "0:0",
         "--query",
         " café.*\n",
-        "--direction",
+        "--search-direction",
         "backward",
         "--content-revision",
         "0",
@@ -82,7 +82,7 @@ fn copy_search_grammar_preserves_literals_orders_previous_and_requires_revision(
             "0:0",
             "--query",
             "",
-            "--direction",
+            "--search-direction",
             "forward"
         ])
         .is_err()
@@ -96,7 +96,7 @@ fn copy_search_grammar_preserves_literals_orders_previous_and_requires_revision(
             "0:0",
             "--query",
             "",
-            "--direction",
+            "--search-direction",
             "forward",
             "--content-revision",
             "0"
@@ -130,7 +130,7 @@ fn copy_requests_reject_bad_scopes_duplicates_queries_ranges_and_numbers_before_
         vec!["--previous", "1:0"],
         vec!["--previous", "1:0--2:0"],
         vec!["--previous", "0:65536-1:0"],
-        vec!["--direction", "up"],
+        vec!["--search-direction", "up"],
         vec!["--motion", "line-end"],
         vec!["--history"],
     ] {
@@ -142,7 +142,7 @@ fn copy_requests_reject_bad_scopes_duplicates_queries_ranges_and_numbers_before_
             "0:0",
             "--query",
             "x",
-            "--direction",
+            "--search-direction",
             "forward",
             "--content-revision",
             "0",
@@ -160,7 +160,7 @@ fn copy_requests_reject_bad_scopes_duplicates_queries_ranges_and_numbers_before_
             "0:0",
             "--query",
             &long,
-            "--direction",
+            "--search-direction",
             "forward",
             "--content-revision",
             "0"

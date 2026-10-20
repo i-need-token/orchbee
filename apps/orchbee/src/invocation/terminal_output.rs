@@ -2,8 +2,8 @@
 
 use super::{
     AgentTarget, ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, QueryCommand,
-    Request, Target, UsageContext, UsageReason, history_rows_option, query, usage_with,
-    wait_matcher_option, wait_timeout_option,
+    Request, Target, UsageContext, UsageReason, query, usage_with, wait_matcher_option,
+    wait_timeout_option,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -37,42 +37,12 @@ pub(crate) enum OutputTarget {
     Agent(AgentTarget),
 }
 
-pub(super) fn implicit_read(options: &Options) -> bool {
-    cfg!(windows) && !options.history && options.rows.is_none()
-}
-
 pub(super) fn request(
     target: OutputTarget,
     options: &Options,
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    let selector = if options.output_source.is_some() {
-        "--source"
-    } else if options.ansi {
-        "--ansi"
-    } else {
-        "--plain"
-    };
-    for (present, other) in [
-        (options.history, "--history"),
-        (options.rows.is_some(), "--rows"),
-        (
-            options.unwrap && (options.output_source.is_some() || options.plain || options.ansi),
-            "--unwrap",
-        ),
-    ] {
-        if present {
-            return Err(usage_with(
-                UsageReason::ConflictingOptions {
-                    context,
-                    first: selector,
-                    second: other,
-                },
-                envelope,
-            ));
-        }
-    }
     if options.ansi && options.plain {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
@@ -109,12 +79,7 @@ pub(super) fn selection(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<OutputSelection, ParseFailure> {
-    let default = if cfg!(windows) && options.unwrap {
-        "recent-unwrapped"
-    } else {
-        "recent"
-    };
-    let source = match options.output_source.as_deref().unwrap_or(default) {
+    let source = match options.output_source.as_deref().unwrap_or("recent") {
         "visible" => OutputSource::Visible,
         "recent" => OutputSource::Recent,
         "recent-unwrapped" => OutputSource::RecentUnwrapped,
@@ -162,24 +127,6 @@ pub(super) fn wait_request(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
-    if options.rows.is_some()
-        && (!cfg!(windows) || options.output_source.is_some() || options.lines.is_some())
-    {
-        return Err(usage_with(
-            UsageReason::ConflictingOptions {
-                context,
-                first: "--rows",
-                second: if options.output_source.is_some() {
-                    "--source"
-                } else if options.lines.is_some() {
-                    "--lines"
-                } else {
-                    "--forever"
-                },
-            },
-            envelope,
-        ));
-    }
     if options.forever && options.timeout.is_some() {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
@@ -210,16 +157,9 @@ pub(super) fn wait_request(
                     })
                 })
                 .transpose()?,
-            selection: if cfg!(windows) && options.rows.is_some() {
-                OutputSelection {
-                    source: OutputSource::Recent,
-                    lines: Some(history_rows_option(options, context, envelope)?),
-                }
-            } else {
-                selection(options, context, envelope)?
-            },
+            selection: selection(options, context, envelope)?,
             matcher: wait_matcher_option(options, context, envelope)?,
-            timeout_ms: if options.forever || (cfg!(windows) && options.timeout.is_none()) {
+            timeout_ms: if options.forever {
                 None
             } else {
                 Some(wait_timeout_option(options, context, envelope)?)

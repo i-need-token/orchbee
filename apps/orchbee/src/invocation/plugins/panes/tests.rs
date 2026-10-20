@@ -119,7 +119,7 @@ fn pane_open_defaults_and_scoped_launch_overrides() {
         vec!["--exec", "C:/fake.exe"],
         vec!["--env", "ORCHBEE_PLUGIN_ID=wrong"],
         vec!["--focus", "--no-focus"],
-        vec!["--direction", "left"],
+        vec!["--direction", "above"],
         vec!["--placement", "floating"],
         vec!["unexpected"],
     ] {

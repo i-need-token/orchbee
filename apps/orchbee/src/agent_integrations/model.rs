@@ -81,6 +81,17 @@ impl IntegrationId {
         }
     }
 
+    /// Public CLI providers share the interactive registry; payload IDs remain private.
+    pub(crate) const fn provider(self) -> &'static str {
+        match self {
+            Self::AntigravityCli => "antigravity",
+            other => other.as_str(),
+        }
+    }
+    pub(crate) fn parse_provider(value: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|id| id.provider() == value)
+    }
+
     /// Exact closed-vocabulary spelling; unknown spellings are usage errors,
     /// never fuzzy matches.
     pub(crate) fn parse(value: &str) -> Option<Self> {

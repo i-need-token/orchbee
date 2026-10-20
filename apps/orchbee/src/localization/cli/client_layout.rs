@@ -162,31 +162,31 @@ impl Locale {
 
 pub(super) const HELP_LAYOUT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel layout [panel] [--panel <panel> | --current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
+        "orchbee panel layout [<panel>] [--current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
         "Read shared topology and nominal ratios headlessly when an explicit Panel is supplied without --client. JSON uses orchbee.panel.structure v1 with scope shared and no viewport geometry. Add --client to read that Windows TUI's cell geometry, focus and zoom, including inactive Tabs. An omitted target uses the caller/current Client. Reads never change selection, terminal size or control. --request-id and --detach are not read options.",
     );
 pub(super) const HELP_LAYOUT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel layout [panel] [--panel <panel> | --current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
+        "orchbee panel layout [<panel>] [--current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
         "显式指定 Panel 且省略 --client 时，无头读取共享拓扑和标称比例。JSON 使用 orchbee.panel.structure v1，scope 为 shared，不包含视口几何。添加 --client 可读取该 Windows TUI 的单元格几何、焦点及缩放，支持非活动 Tab。省略目标使用调用者／当前 Client。读取不改变选择、终端尺寸或控制权。只读命令不接受 --request-id 和 --detach。",
     );
 pub(super) const HELP_NEIGHBOR_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel neighbor [panel] [--panel <panel> | --current] --direction left|right|up|down [--client <client-id>] [--timeout <ms>] [--format text|json]",
+        "orchbee panel neighbor [<panel>] [--current] --direction left|right|up|down [--client <client-id>] [--timeout <ms>] [--format text|json]",
         "Read the adjacent Panel using the TUI's unzoomed outer rectangles. A visible source without a neighbor succeeds at an edge; a hidden source returns exit 3. JSON retains the full geometry and source availability. No focus changes occur.",
     );
 pub(super) const HELP_NEIGHBOR_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel neighbor [panel] [--panel <panel> | --current] --direction left|right|up|down [--client <client-id>] [--timeout <ms>] [--format text|json]",
+        "orchbee panel neighbor [<panel>] [--current] --direction left|right|up|down [--client <client-id>] [--timeout <ms>] [--format text|json]",
         "按 TUI 的未缩放外框矩形查询相邻面板。源可见且无邻居时成功表示边缘；源隐藏时退出码为 3。JSON 保留完整几何与源可用性。不会改变焦点。",
     );
 pub(super) const HELP_EDGES_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel edges [panel] [--panel <panel> | --current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
+        "orchbee panel edges [<panel>] [--current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
         "Read all four directional edges without changing focus. Zoom preserves unzoomed neighbors. A hidden source has no edge claim and returns exit 3. JSON retains the full layout observation.",
     );
 pub(super) const HELP_EDGES_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee panel edges [panel] [--panel <panel> | --current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
+        "orchbee panel edges [<panel>] [--current] [--client <client-id>] [--timeout <ms>] [--format text|json]",
         "读取四方向边缘，不改变焦点。缩放保留未缩放邻居。源隐藏时不作边缘判断，退出码为 3。JSON 保留完整布局观测。",
     );

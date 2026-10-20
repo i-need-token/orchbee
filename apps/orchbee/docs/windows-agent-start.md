@@ -7,16 +7,16 @@ It does not activate a Session, install providers or infer readiness from proces
 ## Invocation and prerequisites
 
 ```text
-orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format json -- <args>...
+orchbee agent start alpha --provider codex --panel <id> --timeout 30000 --format json -- <args>...
 ```
 
-The name uses `[a-z][a-z0-9_-]{0,31}`. `--kind` selects a canonical provider ID from the
+The name uses `[a-z][a-z0-9_-]{0,31}`. `--provider` selects a canonical provider ID from the
 runtime recognition registry; executable aliases do not become additional kinds. The target
 is the Panel's primary terminal. Omitting `--panel`, or using `--current`, requires valid
 caller context. `--panel` and `--current` conflict. Repeated `--arg=<value>` is an alternative
 to trailing arguments; mixing both forms is refused. Empty arguments are retained, control
 characters are refused, and the encoded command must fit 8000 ASCII characters. Help and the
-invalid-value diagnostic list the complete `--kind` set.
+invalid-value diagnostic list the complete `--provider` set.
 
 Before admission, the CLI inspects this machine's managed integration for the kind, bounded by
 the start deadline and at most 10000 ms. A missing executable refuses with `provider-not-found`;

@@ -96,7 +96,7 @@ fn integration_list_documents_cover_the_entire_provider_registry() {
         validator
             .validate(&document)
             .unwrap_or_else(|error| panic!("{document}: {error}"));
-        assert_eq!(document["version"], if outdated_only { 4 } else { 3 });
+        assert_eq!(document["version"], if outdated_only { 6 } else { 5 });
         assert_eq!(
             document["result"]["integrations"].as_array().unwrap().len(),
             IntegrationId::ALL.len()
@@ -1378,12 +1378,12 @@ fn fixed_outputs_are_far_below_the_bound() {
     // History syntax belongs to the read command; the terminal directory links it.
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let body = super::text::help(HelpTopic::Command(CommandPath::TerminalRead), locale);
-        for flag in ["--history", "--rows", "--unwrap"] {
+        for flag in ["--source", "--lines", "--plain", "--ansi"] {
             assert!(body.contains(flag), "{locale:?} terminal read lost {flag}");
         }
         assert!(
             body.contains("1000"),
-            "history row bound must remain discoverable"
+            "output line bound must remain discoverable"
         );
     }
     // The geometry-bearing command help must state the all-or-none group

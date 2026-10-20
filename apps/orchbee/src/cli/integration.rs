@@ -184,19 +184,19 @@ impl Prepared {
                 let unresolved: Vec<_> = items
                     .iter()
                     .filter(|item| item.state == State::Unknown)
-                    .map(|item| item.integration_id.as_str())
+                    .map(|item| item.integration_id.provider())
                     .collect();
                 let blocked: Vec<_> = items
                     .iter()
                     .filter(|item| matches!(item.state, State::Conflict | State::StaleSide))
-                    .map(|item| item.integration_id.as_str())
+                    .map(|item| item.integration_id.provider())
                     .collect();
                 if outdated_only {
                     items.retain(|item| item.state == State::UpdateRequired);
                 }
                 let mut document = json!({
                     "schema": INTEGRATIONS_SCHEMA,
-                    "version": if outdated_only {4} else {3},
+                    "version": if outdated_only {6} else {5},
                     "source": { "kind": "local-inspection" },
                     "result": {
                         "complete": complete,
@@ -230,10 +230,10 @@ impl Prepared {
             } => {
                 let document = json!({
                     "schema": PLAN_SCHEMA,
-                    "version": 1,
+                    "version": 2,
                     "source": { "kind": "local-inspection" },
                     "result": {
-                        "provider": item.integration_id.as_str(),
+                        "provider": item.integration_id.provider(),
                         "availability": item.availability.as_str(),
                         "managementMode": item.management_mode.as_str(),
                         "state": item.state.as_str(),
@@ -268,7 +268,7 @@ impl Prepared {
 #[cfg(any(unix, windows))]
 fn item_json(item: &SnapshotItem) -> Value {
     json!({
-        "integrationId": item.integration_id.as_str(),
+        "integrationId": item.integration_id.provider(),
         "availability": item.availability.as_str(),
         "managementMode": item.management_mode.as_str(),
         "state": item.state.as_str(),
@@ -400,7 +400,10 @@ fn mutation_document(report: &MutationReport) -> Value {
     };
     let mut result = Map::from_iter([
         ("invocationId".to_owned(), json!(invocation_id())),
-        ("provider".to_owned(), json!(report.integration_id.as_str())),
+        (
+            "provider".to_owned(),
+            json!(report.integration_id.provider()),
+        ),
         ("direction".to_owned(), json!(report.direction.as_str())),
         ("outcome".to_owned(), json!(outcome)),
         (
@@ -432,7 +435,7 @@ fn mutation_document(report: &MutationReport) -> Value {
     }
     json!({
         "schema": MUTATION_SCHEMA,
-        "version": 1,
+        "version": 2,
         "source": { "kind": "local-inspection" },
         "result": Value::Object(result),
     })
@@ -538,7 +541,7 @@ fn bounded_table(headers: &[&str], rows: &[Vec<String>]) -> String {
 #[cfg(any(unix, windows))]
 fn item_row(item: &SnapshotItem) -> Vec<String> {
     vec![
-        item.integration_id.as_str().to_owned(),
+        item.integration_id.provider().to_owned(),
         item.availability.as_str().to_owned(),
         item.management_mode.as_str().to_owned(),
         item.state.as_str().to_owned(),
@@ -566,7 +569,7 @@ fn list_summary(items: &[SnapshotItem], capsule: &CapsuleStatus, locale: Locale)
     let mut enable = None;
     let mut explain = None;
     for item in items {
-        let id = item.integration_id.as_str();
+        let id = item.integration_id.provider();
         let slot = match (item.availability, item.state) {
             (Availability::NotFound, _) => 3,
             (_, State::Enabled) if capsule.ready => 0,
@@ -613,7 +616,7 @@ fn explain_text(
 ) -> String {
     let mut out = String::new();
     out.push_str(&locale.cli_integration_explain_header(
-        item.integration_id.as_str(),
+        item.integration_id.provider(),
         item.state.as_str(),
         item.availability.as_str(),
         item.issue.map(Issue::as_str).unwrap_or("-"),
@@ -694,7 +697,7 @@ fn planned_step_text(step: &PlannedStep) -> String {
 
 #[cfg(any(unix, windows))]
 fn mutation_text(report: &MutationReport, locale: Locale) -> String {
-    let provider = report.integration_id.as_str();
+    let provider = report.integration_id.provider();
     let direction = report.direction.as_str();
     let mut out = match report.verdict {
         Verdict::Completed => locale.cli_integration_completed(direction, provider),

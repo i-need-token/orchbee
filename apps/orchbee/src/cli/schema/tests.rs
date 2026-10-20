@@ -152,7 +152,7 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
         crate::localization::Locale::EnUs,
     );
     let published: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(published["version"], 150, "runtime catalog emitter version");
+    assert_eq!(published["version"], 151, "runtime catalog emitter version");
     let validator = jsonschema::validator_for(&catalog).unwrap();
     validator.validate(&published).unwrap();
     let mut stale = published;
@@ -864,4 +864,40 @@ fn text_catalog_lists_every_schema_and_explicit_requests_keep_documents() {
         single["result"]["schema"]["schemaId"],
         "orchbee.worktree.list"
     );
+}
+
+#[test]
+fn historical_agent_read_receipt_versions_remain_inspectable() {
+    let command = crate::invocation::QueryCommand::AgentRead {
+        target: crate::invocation::AgentTarget::Panel {
+            target: crate::invocation::Target::Id("00000000000000000000000000000001".into()),
+        },
+        history: None,
+        unwrap: true,
+        lines: None,
+    };
+    assert_eq!(crate::cli::results::schema_version(&command), 2);
+}
+
+#[test]
+fn historical_output_wait_receipt_versions_keep_literal_and_regex_shapes_distinct() {
+    for (matcher, version) in [
+        (crate::invocation::WaitPattern::Literal("ready".into()), 1),
+        (
+            crate::invocation::WaitPattern::Regex(regex::Regex::new("ready.*").unwrap()),
+            2,
+        ),
+    ] {
+        let command = crate::invocation::QueryCommand::TerminalWaitOutput {
+            target: crate::invocation::Target::Id("00000000000000000000000000000001".into()),
+            matcher,
+            rows: 1000,
+            timeout_ms: 30000,
+        };
+        assert_eq!(
+            crate::cli::results::schema_id(&command),
+            "orchbee.terminal.wait-output"
+        );
+        assert_eq!(crate::cli::results::schema_version(&command), version);
+    }
 }

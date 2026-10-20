@@ -784,6 +784,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             format,
             locale,
         ),
+        #[cfg(test)]
         QueryCommand::AgentRead {
             target,
             history,
@@ -851,6 +852,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 success_output(projection, source, &command, format, locale)
             }
         },
+        #[cfg(test)]
         QueryCommand::TerminalRead {
             target,
             history,
@@ -892,6 +894,7 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 success_output(projection, source, &command, format, locale)
             }
         },
+        #[cfg(test)]
         QueryCommand::TerminalWaitOutput {
             target,
             matcher,

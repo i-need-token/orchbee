@@ -6,14 +6,14 @@
 ## 调用与前提
 
 ```text
-orchbee agent start alpha --kind codex --panel <id> --timeout 30000 --format json -- <args>...
+orchbee agent start alpha --provider codex --panel <id> --timeout 30000 --format json -- <args>...
 ```
 
-名称符合 `[a-z][a-z0-9_-]{0,31}`。`--kind` 从运行时识别注册表中选择规范提供方 ID；
+名称符合 `[a-z][a-z0-9_-]{0,31}`。`--provider` 从运行时识别注册表中选择规范提供方 ID；
 可执行文件别名不成为额外 kind。目标是 Panel 的主终端。省略 `--panel` 或使用 `--current`
 要求有效调用者上下文。`--panel` 与 `--current` 冲突。重复的 `--arg=<value>` 可替代尾随参数，
 两种形式混用会被拒绝。保留空参数，拒绝控制字符，编码后命令不能超过 8000 个 ASCII 字符。
-帮助与无效值诊断列出完整的 `--kind` 取值集合。
+帮助与无效值诊断列出完整的 `--provider` 取值集合。
 
 准入前，CLI 在启动期限内（至多 10000 毫秒）检查本机该 kind 的托管集成。缺少可执行文件时以
 `provider-not-found` 拒绝；集成为 `not-installed`、`disabled` 或 `update-required`，或适配器

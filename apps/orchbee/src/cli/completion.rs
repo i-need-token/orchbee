@@ -408,13 +408,15 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--request-id",
     "--retry",
     "--detach",
-    "--kind",
     "--project",
     "--workspace",
     "--tab",
     "--standalone",
     "--label",
     "--direction",
+    "--order",
+    "--search-direction",
+    "--terminal",
     "--insert-index",
     "--before",
     "--cols",
@@ -430,11 +432,9 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--new-tab",
     "--new-workspace",
     "--tab-label",
-    "--history",
     "--path",
     "--match",
     "--regex",
-    "--unwrap",
     "--source",
     "--plain",
     "--ansi",
@@ -618,7 +618,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &[
             "--cursor",
             "--query",
-            "--direction",
+            "--search-direction",
             "--previous",
             "--content-revision",
             "--generation",
@@ -729,6 +729,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--name",
             "--agent-session",
             "--panel",
+            "--terminal",
         ],
     ),
     ("terminal:session", CONTROL_FLAGS),
@@ -737,7 +738,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "panel:resize",
         &[
-            "--panel",
             "--current",
             "--direction",
             "--amount",
@@ -760,24 +760,12 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--timeout",
         ],
     ),
-    (
-        "panel:layout",
-        &["--client", "--timeout", "--panel", "--current"],
-    ),
+    ("panel:layout", &["--client", "--timeout", "--current"]),
     (
         "panel:neighbor",
-        &[
-            "--client",
-            "--timeout",
-            "--panel",
-            "--current",
-            "--direction",
-        ],
+        &["--client", "--timeout", "--current", "--direction"],
     ),
-    (
-        "panel:edges",
-        &["--client", "--timeout", "--panel", "--current"],
-    ),
+    ("panel:edges", &["--client", "--timeout", "--current"]),
     ("api:schema", &["--output"]),
     ("client:list", &[]),
     ("client:get", &[]),
@@ -798,7 +786,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--request-id",
             "--detach",
             "--timeout",
-            "--panel",
             "--current",
         ],
     ),
@@ -809,7 +796,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--request-id",
             "--detach",
             "--timeout",
-            "--panel",
             "--current",
             "--on",
             "--off",
@@ -830,7 +816,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     (
         "agent:start",
-        &["--kind", "--panel", "--current", "--timeout", "--arg"],
+        &["--provider", "--panel", "--current", "--timeout", "--arg"],
     ),
     (
         "agent:list",
@@ -839,7 +825,13 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ("agent:changes", &["--limit", "--cursor"]),
     (
         "agent:get",
-        &["--agent-session", "--name", "--panel", "--client"],
+        &[
+            "--agent-session",
+            "--name",
+            "--panel",
+            "--terminal",
+            "--client",
+        ],
     ),
     (
         "agent:focus",
@@ -847,6 +839,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--agent-session",
             "--name",
             "--panel",
+            "--terminal",
             "--client",
             "--request-id",
             "--detach",
@@ -859,6 +852,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--agent-session",
             "--name",
             "--panel",
+            "--terminal",
             "--client",
             "--request-id",
             "--detach",
@@ -870,22 +864,24 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &[
             "--agent-session",
             "--panel",
+            "--terminal",
             "--name",
-            "--history",
-            "--rows",
-            "--unwrap",
             "--lines",
             "--source",
             "--plain",
             "--ansi",
         ],
     ),
-    ("agent:send-keys", &["--agent-session", "--name", "--panel"]),
+    (
+        "agent:send-keys",
+        &["--agent-session", "--name", "--panel", "--terminal"],
+    ),
     (
         "agent:prompt",
         &[
             "--agent-session",
             "--panel",
+            "--terminal",
             "--name",
             "--client",
             "--wait",
@@ -894,11 +890,23 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--forever",
         ],
     ),
-    ("agent:explain", &["--agent-session", "--name", "--panel"]),
-    ("agent:resolve", &["--agent-session", "--name", "--panel"]),
+    (
+        "agent:explain",
+        &["--agent-session", "--name", "--panel", "--terminal"],
+    ),
+    (
+        "agent:resolve",
+        &["--agent-session", "--name", "--panel", "--terminal"],
+    ),
     (
         "agent:rename",
-        &["--agent-session", "--name", "--panel", "--clear"],
+        &[
+            "--agent-session",
+            "--name",
+            "--panel",
+            "--terminal",
+            "--clear",
+        ],
     ),
     ("agent:doctor", &["--provider", "--asset-root"]),
     (
@@ -907,6 +915,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--agent-session",
             "--client",
             "--panel",
+            "--terminal",
             "--name",
             "--until",
             "--after-revision",
@@ -1025,7 +1034,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     (
         "panel:create-terminal",
         &[
-            "--panel",
             "--current",
             "--client",
             "--child",
@@ -1043,7 +1051,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--timeout",
         ],
     ),
-    ("panel:input", &["--panel", "--current", "--right-click"]),
+    ("panel:input", &["--current", "--right-click"]),
     (
         "panel:report-agent",
         &[
@@ -1102,19 +1110,18 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         &[
             "--with",
             "--direction",
-            "--panel",
             "--current",
             "--client",
             "--timeout",
         ],
     ),
-    ("tab:move", &["--direction", "--insert-index"]),
+    ("tab:move", &["--order", "--insert-index"]),
     (
         "tab:close",
         &["--confirm", "--dry-run", "--detach", "--timeout"],
     ),
-    ("panel:current", &["--panel", "--current", "--client"]),
-    ("panel:process-info", &["--panel", "--current", "--client"]),
+    ("panel:current", &["--current", "--client"]),
+    ("panel:process-info", &["--current", "--client"]),
     #[cfg(not(windows))]
     ("panel:list", &["--tab", "--workspace"]),
     #[cfg(windows)]
@@ -1126,7 +1133,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         "panel:split",
         &[
             "--right-click",
-            "--panel",
             "--current",
             "--ratio",
             "--focus",
@@ -1174,15 +1180,7 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
     ),
     (
         "terminal:read",
-        &[
-            "--history",
-            "--lines",
-            "--rows",
-            "--unwrap",
-            "--source",
-            "--plain",
-            "--ansi",
-        ],
+        &["--lines", "--source", "--plain", "--ansi"],
     ),
     (
         "terminal:send",
@@ -1195,7 +1193,6 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
             "--after",
             "--match",
             "--regex",
-            "--rows",
             "--timeout",
             "--source",
             "--lines",
@@ -1280,17 +1277,17 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
 /// direction-admitting commands appear.
 const DIRECTION_VALUES: &[(&str, &[&str])] = &[
     #[cfg(windows)]
-    ("terminal:copy-search", &["forward", "backward"]),
-    #[cfg(windows)]
-    ("plugin:pane:open", &["right", "down"]),
+    ("plugin:pane:open", &["left", "right", "up", "down"]),
     ("panel:focus", &["left", "right", "up", "down"]),
     ("panel:resize", &["left", "right", "up", "down"]),
     ("panel:swap", &["left", "right", "up", "down"]),
     ("panel:neighbor", &["left", "right", "up", "down"]),
-    ("tab:move", &["first", "last", "next", "previous"]),
-    ("panel:split", &["above", "below", "left", "right"]),
-    ("panel:move", &["above", "below", "left", "right"]),
+    ("panel:split", &["left", "right", "up", "down"]),
+    ("panel:move", &["left", "right", "up", "down"]),
 ];
+
+const ORDER_VALUES: &[&str] = &["previous", "next", "first", "last"];
+const SEARCH_DIRECTION_VALUES: &[&str] = &["forward", "backward"];
 
 const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
 const OUTPUT_SOURCES: &[&str] = &["visible", "recent", "recent-unwrapped", "detection"];
@@ -1311,8 +1308,8 @@ const KEY_VALUES: &[&str] = &[
     "end",
     "page-up",
     "page-down",
-    "ctrl-c",
-    "ctrl-d",
+    "ctrl+c",
+    "ctrl+d",
     "space",
     "insert",
     "f1",
@@ -1381,7 +1378,7 @@ const PROVIDER_VALUES: &[&str] = &[
     "kilo",
     "cursor",
     "qodercli",
-    "antigravity-cli",
+    "antigravity",
     "mastracode",
     "droid",
     "kimi",
@@ -1555,6 +1552,7 @@ const OPERAND_PATHS: &[&str] = &[
     "workspace:report-metadata",
     "workspace:move",
     "workspace:move-block",
+    "panel:current",
 ];
 
 /// Help topics that lead anywhere (`help <word>`); leaf topics accept no
@@ -1828,7 +1826,7 @@ fn root_mode_fish_cases() -> String {
 }
 
 pub(crate) fn render(shell: CompletionShell) -> String {
-    match shell {
+    let script = match shell {
         CompletionShell::Bash => scope::expand(
             routing::expand(bash(), CompletionShell::Bash),
             CompletionShell::Bash,
@@ -1843,7 +1841,41 @@ pub(crate) fn render(shell: CompletionShell) -> String {
         ),
         CompletionShell::PowerShell => powershell::render(),
         CompletionShell::Elvish => elvish::render(),
-    }
+    };
+    script
+        .replace("__ORCHBEE_ORDER_VALUES__", &ORDER_VALUES.join(" "))
+        .replace(
+            "__ORCHBEE_SEARCH_DIRECTION_VALUES__",
+            &SEARCH_DIRECTION_VALUES.join(" "),
+        )
+        .replace(
+            "__ORCHBEE_START_PROVIDERS__",
+            &crate::agent_provider::CANONICAL_IDS.join(" "),
+        )
+        .replace(
+            "__ORCHBEE_JOINED_ORDER_VALUES__",
+            &ORDER_VALUES
+                .iter()
+                .map(|v| format!("--order={v}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .replace(
+            "__ORCHBEE_JOINED_SEARCH_DIRECTION_VALUES__",
+            &SEARCH_DIRECTION_VALUES
+                .iter()
+                .map(|v| format!("--search-direction={v}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .replace(
+            "__ORCHBEE_JOINED_START_PROVIDERS__",
+            &crate::agent_provider::CANONICAL_IDS
+                .iter()
+                .map(|v| format!("--provider={v}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
 }
 
 /// `flag` → the walker's one-shot seen bit for it.
@@ -1901,7 +1933,6 @@ fn flag_bit(flag: &str) -> &'static str {
         "--force" => "seen_force",
         "--takeover" => "seen_takeover",
         "--trust-repository" => "seen_trust_repository",
-        "--kind" => "seen_kind",
         "--project" => "seen_project",
         "--panel" => "seen_panel",
         "--current" => "seen_current",
@@ -1936,6 +1967,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--plain" => "seen_plain",
         "--ansi" => "seen_ansi",
         "--direction" => "seen_direction",
+        "--order" => "seen_order",
+        "--search-direction" => "seen_search_direction",
+        "--terminal" => "seen_terminal",
         "--insert-index" => "seen_insert_index",
         "--before" => "seen_before",
         "--amount" => "seen_amount",
@@ -1951,11 +1985,9 @@ fn flag_bit(flag: &str) -> &'static str {
         "--new-tab" => "seen_new_tab",
         "--new-workspace" => "seen_new_workspace",
         "--tab-label" => "seen_tab_label",
-        "--history" => "seen_history",
         "--path" => "seen_path",
         "--match" => "seen_match",
         "--regex" => "seen_regex",
-        "--unwrap" => "seen_unwrap",
         "--lines" => "seen_lines",
         "--timeout" => "seen_timeout",
         "--text" => "seen_text",
@@ -2018,14 +2050,16 @@ fn flag_value(flag: &str) -> Option<&'static str> {
         | "--plain"
         | "--ansi" => None,
         "--direction" => Some("direction"),
+        "--order" => Some("order"),
+        "--search-direction" => Some("search_direction"),
         "--motion" => Some("copy_motion"),
         "--key" => Some("key"),
         "--until" => Some("until"),
         "--provider" => Some("provider"),
-        "--standalone" | "--confirm" | "--new-tab" | "--new-workspace" | "--history"
-        | "--enter" | "--stdin" | "--outdated-only" | "--include-ended" | "--unwrap"
-        | "--paste" | "--current" | "--clear" | "--wait" | "--forever" | "--retry" | "--detach"
-        | "--force" | "--takeover" | "--trust-repository" => None,
+        "--standalone" | "--confirm" | "--new-tab" | "--new-workspace" | "--enter" | "--stdin"
+        | "--outdated-only" | "--include-ended" | "--paste" | "--current" | "--clear"
+        | "--wait" | "--forever" | "--retry" | "--detach" | "--force" | "--takeover"
+        | "--trust-repository" => None,
         _ => Some("filter"),
     }
 }
@@ -2390,8 +2424,8 @@ fn after_flag_cases_bash() -> String {
                 "--cwd" => format!("                            {patterns}) if [[ $family == worktree && $seen_workspace == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"),
                 "--path" => format!("                            {patterns}) if [[ $family:$sub == worktree:open && $seen_branch == 1 ]]; then done=1; fi ;;"),
                 "--branch" => format!("                            {patterns}) if [[ $family:$sub == worktree:open && $seen_path == 1 ]]; then done=1; fi ;;"),
-                "--panel" => format!("                            {patterns}) if ((seen_current)) || [[ ( $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split || $family:$sub == panel:create-terminal ) && $state == operand ]]; then done=1; fi ;;"),
-                "--current" => format!("                            {patterns}) if ((seen_panel)) || [[ ( $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split || $family:$sub == panel:create-terminal ) && $state == operand ]]; then done=1; fi ;;"),
+                "--panel" => format!("                            {patterns}) if ((seen_current)) || [[ ( $family:$sub == panel:current || $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split || $family:$sub == panel:create-terminal ) && $state == operand ]]; then done=1; fi ;;"),
+                "--current" => format!("                            {patterns}) if ((seen_panel)) || [[ ( $family:$sub == panel:current || $family:$sub == panel:process-info || $family:$sub == panel:focus || $family:$sub == panel:zoom || $family:$sub == panel:layout || $family:$sub == panel:neighbor || $family:$sub == panel:edges || $family:$sub == panel:resize || $family:$sub == panel:swap || $family:$sub == panel:input || $family:$sub == panel:split || $family:$sub == panel:create-terminal ) && $state == operand ]]; then done=1; fi ;;"),
                 "--workspace" => {
                     format!(
                         "                            {patterns}) if ((seen_standalone)) || [[ $family == worktree && $seen_cwd == 1 ]] || {{ [[ $family:$sub == worktree:list ]] && ((seen_project || seen_directory)); }}; then done=1; fi ;;"
@@ -2653,7 +2687,7 @@ fn extras_cases_bash() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| flag_bit(flag)).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} || {}", conflicts.join(" || ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--agent-session" | "--panel")) {
+                    if matches!(*command, "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--agent-session" | "--panel" | "--terminal")) {
                         format!("                [[ $state != operand ]] && (( !({cond}) )) && extras=\"$extras {flag}\"")
                     } else { format!("                (({cond})) || extras=\"$extras {flag}\"") }
                 })
@@ -2718,6 +2752,8 @@ fn joined_offer_cases_bash() -> String {
             "                        after|operand|operand2) [[ $family:$sub == panel:input || $family:$sub == panel:split ]] && candidates=\"{right_click}\" ;;\n",
             "                    esac\n",
             "                fi ;;\n",
+            "            --order) [[ $family:$sub == tab:move ]] && ((!seen_order && !seen_insert_index)) && candidates=\"__ORCHBEE_JOINED_ORDER_VALUES__\" ;;\n",
+            "            --search-direction) [[ $family:$sub == terminal:copy-search ]] && ((!seen_search_direction)) && candidates=\"__ORCHBEE_JOINED_SEARCH_DIRECTION_VALUES__\" ;;\n",
             "            --direction)\n",
             "                if ((!seen_direction && !seen_insert_index)); then\n",
             "                    case \"$state\" in\n",
@@ -2753,6 +2789,7 @@ fn joined_offer_cases_bash() -> String {
             "                    deep) ((!seen_provider)) && candidates=\"{provider}\" ;;\n",
             "                    after|operand|operand2)\n",
             "                        case \"$family:$sub\" in\n",
+            "                            agent:start) ((!seen_provider)) && candidates=\"__ORCHBEE_JOINED_START_PROVIDERS__\" ;;\n",
             "                            agent:doctor) candidates=\"{provider}\" ;;\n",
             "                            agent:integration:*) ((!seen_provider)) && candidates=\"{provider}\" ;;\n",
             "                        esac ;;\n",
@@ -2841,8 +2878,8 @@ fn bash() -> String {
             "        fi\n",
             "        if [[ $family == session && $state == after && $word != -* ]]; then session_target=$word; [[ $word =~ ^[A-Za-z0-9._-]{{1,64}}$ && $word != . && $word != .. ]] || done=1; fi\n",
             "        if [[ $family:$sub == agent:attach ]]; then\n",
-            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
-            "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel)); then done=1; fi\n",
+            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel || $state == operand && ${{word%%=*}} == --terminal ]]; then done=1; fi\n",
+            "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel || seen_terminal)); then done=1; fi\n",
             "        fi\n",
             "        case \"$word\" in\n",
             "__ORCHBEE_ROUTING_PARSE__",
@@ -2991,7 +3028,7 @@ fn bash() -> String {
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
-            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
+            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0 && seen_panel == 0 && seen_terminal == 0)); then state=operand2; else done=1; fi ;;\n",
             "                    leaf) if [[ $leaf == status && ( $word == client || $word == server ) ]]; then family=status; sub=$word; state=after; else done=1; fi ;;\n",
             "                    operand2|completion) done=1 ;;\n",
             "                    help)\n",
@@ -3042,6 +3079,8 @@ fn bash() -> String {
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
             "    elif [[ $value == format ]]; then candidates=\"{format_values}\"\n",
             "    elif [[ $value == mouse ]]; then candidates=\"off on\"\n",
+            "    elif [[ $value == order ]]; then candidates=\"__ORCHBEE_ORDER_VALUES__\"\n",
+            "    elif [[ $value == search_direction ]]; then candidates=\"__ORCHBEE_SEARCH_DIRECTION_VALUES__\"\n",
             "    elif [[ $value == direction ]]; then\n",
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
@@ -3051,7 +3090,7 @@ fn bash() -> String {
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
-            "    elif [[ $value == provider ]]; then candidates=\"{provider_values}\"\n",
+            "    elif [[ $value == provider ]]; then if [[ $family:$sub == agent:start ]]; then candidates=\"__ORCHBEE_START_PROVIDERS__\"; else candidates=\"{provider_values}\"; fi\n",
             "    elif [[ $value == copy_motion ]]; then [[ $family:$sub == terminal:copy-motion ]] && candidates=\"{copy_motion_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
@@ -3102,7 +3141,7 @@ fn bash() -> String {
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
-            "        if [[ $state == after && \" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait \" == *\" $family:$sub \"* ]] && ((!seen_name && !seen_session && !seen_panel)); then candidates=\"$candidates {agent_targets}\"; fi\n",
+            "        if [[ $state == after && \" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait \" == *\" $family:$sub \"* ]] && ((!seen_name && !seen_session && !seen_panel && !seen_terminal)); then candidates=\"$candidates {agent_targets}\"; fi\n",
             "        # Suffix `--help` is legal on every command path — including the\n",
             "        # operand-owed `get`/`api schema`/mutation paths — after legal\n",
             "        # options and operands as well.\n",
@@ -3237,8 +3276,8 @@ fn zsh() -> String {
             "        fi\n",
             "        if [[ $family == session && $state == after && $word != -* ]]; then session_target=$word; [[ $word =~ ^[A-Za-z0-9._-]{{1,64}}$ && $word != . && $word != .. ]] || done=1; fi\n",
             "        if [[ $family:$sub == agent:attach ]]; then\n",
-            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel ]]; then done=1; fi\n",
-            "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel)); then done=1; fi\n",
+            "            if [[ $state == operand && ${{word%%=*}} == --name || $state == operand && ${{word%%=*}} == --agent-session || $state == operand && ${{word%%=*}} == --panel || $state == operand && ${{word%%=*}} == --terminal ]]; then done=1; fi\n",
+            "            if [[ $state == after && $word != -* ]] && ((seen_name || seen_session || seen_panel || seen_terminal)); then done=1; fi\n",
             "        fi\n",
             "        case \"$word\" in\n",
             "__ORCHBEE_ROUTING_PARSE__",
@@ -3383,7 +3422,7 @@ fn zsh() -> String {
             "                            {operand_paths}) state=operand ;;\n",
             "                            *) done=1 ;;\n",
             "                        esac ;;\n",
-            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0)); then state=operand2; else done=1; fi ;;\n",
+            "                    operand) if [[ $family:$sub == agent:send-keys || $family:$sub == agent:start ]]; then state=operand; elif [[ $family:$sub == terminal:run || $family:$sub == agent:rename || $family:$sub == agent:prompt ]] && ((seen_clear == 0 && seen_name == 0 && seen_session == 0 && seen_panel == 0 && seen_terminal == 0)); then state=operand2; else done=1; fi ;;\n",
             "                    leaf) if [[ $leaf == status && ( $word == client || $word == server ) ]]; then family=status; sub=$word; state=after; else done=1; fi ;;\n",
             "                    operand2|completion) done=1 ;;\n",
             "                    help)\n",
@@ -3430,6 +3469,8 @@ fn zsh() -> String {
             "    if ((done || ended || dead || seen_zoom_on + seen_zoom_off + seen_zoom_toggle > 1)); then candidates=\"\"\n",
             "    elif [[ $value == format ]]; then candidates=\"{format_values}\"\n",
             "    elif [[ $value == mouse ]]; then candidates=\"off on\"\n",
+            "    elif [[ $value == order ]]; then candidates=\"__ORCHBEE_ORDER_VALUES__\"\n",
+            "    elif [[ $value == search_direction ]]; then candidates=\"__ORCHBEE_SEARCH_DIRECTION_VALUES__\"\n",
             "    elif [[ $value == direction ]]; then\n",
             "        case \"$family:$sub\" in\n",
             "{direction_cases}\n",
@@ -3439,7 +3480,7 @@ fn zsh() -> String {
             "    elif [[ $value == right_click ]]; then candidates=\"{right_click_values}\"\n",
             "    elif [[ $value == key ]]; then candidates=\"{key_values}\"\n",
             "    elif [[ $value == until ]]; then candidates=\"{until_values}\"\n",
-            "    elif [[ $value == provider ]]; then candidates=\"{provider_values}\"\n",
+            "    elif [[ $value == provider ]]; then if [[ $family:$sub == agent:start ]]; then candidates=\"__ORCHBEE_START_PROVIDERS__\"; else candidates=\"{provider_values}\"; fi\n",
             "    elif [[ $value == copy_motion ]]; then [[ $family:$sub == terminal:copy-motion ]] && candidates=\"{copy_motion_values}\"\n",
             "    elif [[ -n $value ]]; then candidates=\"\"\n",
             "    elif [[ $cur == --format=* ]]; then\n",
@@ -3490,7 +3531,7 @@ fn zsh() -> String {
             "        case \"$family:$sub\" in\n",
             "{extras_cases}\n",
             "        esac\n",
-            "        if [[ $state == after && \" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait \" == *\" $family:$sub \"* ]] && ((!seen_name && !seen_session && !seen_panel)); then candidates=\"$candidates {agent_targets}\"; fi\n",
+            "        if [[ $state == after && \" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait \" == *\" $family:$sub \"* ]] && ((!seen_name && !seen_session && !seen_panel && !seen_terminal)); then candidates=\"$candidates {agent_targets}\"; fi\n",
             "        if [[ $state == after || $state == operand || $state == operand2 ]]; then\n",
             "            candidates=\"$candidates --help\"\n",
             "        fi\n",
@@ -3663,8 +3704,8 @@ fn after_flag_cases_fish() -> String {
                 "--cwd" => format!("                            case {patterns}; if test $family = worktree; and test $seen_workspace -eq 1; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end"),
                 "--path" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:open; and test $seen_branch -eq 1; set done 1; end"),
                 "--branch" => format!("                            case {patterns}; if test \"$family:$sub\" = worktree:open; and test $seen_path -eq 1; set done 1; end"),
-                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; or begin; contains -- \"$family:$sub\" panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
-                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; or begin; contains -- \"$family:$sub\" panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
+                "--panel" => format!("                            case {patterns}; if test $seen_current -eq 1; or begin; contains -- \"$family:$sub\" panel:current panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
+                "--current" => format!("                            case {patterns}; if test $seen_panel -eq 1; or begin; contains -- \"$family:$sub\" panel:current panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; and test $state = operand; end; set done 1; end"),
                 "--workspace" => {
                     format!("                            case {patterns}; if test $seen_standalone -eq 1; or begin; test $family = worktree; and test $seen_cwd -eq 1; end; set done 1; end; if test \"$family:$sub\" = worktree:list; and test $seen_project -eq 1 -o $seen_directory -eq 1; set done 1; end")
                 }
@@ -3888,7 +3929,7 @@ fn extras_cases_fish() -> String {
                     };
                     let conflicts = command_flag_conflicts(command, flag).iter().map(|flag| format!("${} -eq 0", flag_bit(flag))).collect::<Vec<_>>();
                     let cond = if conflicts.is_empty() { cond } else { format!("{cond} -a {}", conflicts.join(" -a ")) };
-                    if matches!(*command, "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--agent-session" | "--panel")) {
+                    if matches!(*command, "panel:current" | "panel:process-info" | "panel:focus" | "panel:zoom" | "panel:layout" | "panel:neighbor" | "panel:edges" | "panel:resize" | "panel:swap" | "panel:input" | "panel:split" | "panel:create-terminal") && matches!(*flag, "--panel" | "--current") || (*command == "panel:process-info" && *flag == "--client") || (*command == "agent:attach" && matches!(*flag, "--name" | "--agent-session" | "--panel" | "--terminal")) {
                         format!("                if test $state != operand; and test {cond}; set -a candidates {flag}; end")
                     } else { format!("                if test {cond}; set -a candidates {flag}; end") }
                 })
@@ -3989,6 +4030,8 @@ fn joined_offer_cases_fish() -> String {
             "                        case after operand operand2; if contains -- \"$family:$sub\" panel:input panel:split panel:create-terminal; set candidates {right_click}; end\n",
             "                    end\n",
             "                end\n",
+            "            case '--order'; if test \"$family:$sub\" = tab:move; and test $seen_order -eq 0 -a $seen_insert_index -eq 0; set candidates __ORCHBEE_JOINED_ORDER_VALUES__; end\n",
+            "            case '--search-direction'; if test \"$family:$sub\" = terminal:copy-search; and test $seen_search_direction -eq 0; set candidates __ORCHBEE_JOINED_SEARCH_DIRECTION_VALUES__; end\n",
             "            case '--direction'\n",
             "                if test $seen_direction -eq 0 -a $seen_insert_index -eq 0\n",
             "                    switch \"$state\"\n",
@@ -4016,6 +4059,7 @@ fn joined_offer_cases_fish() -> String {
             "                    case deep; if test $seen_provider -eq 0; set candidates {provider}; end\n",
             "                    case after operand operand2\n",
             "                        switch \"$family:$sub\"\n",
+            "                            case 'agent:start'; if test $seen_provider -eq 0; set candidates __ORCHBEE_JOINED_START_PROVIDERS__; end\n",
             "                            case 'agent:doctor'; set candidates {provider}\n",
             "                            case 'agent:integration:*'; if test $seen_provider -eq 0; set candidates {provider}; end\n",
             "                        end\n",
@@ -4088,8 +4132,8 @@ fn fish() -> String {
             "        end\n",
             "        if test \"$family\" = session; and test \"$state\" = after; and not string match -q -- '-*' $word; set session_target $word; if not string match -rq '^[A-Za-z0-9._-]{{1,64}}$' -- $word; or contains -- $word . ..; set done 1; end; end\n",
             "        if test \"$family:$sub\" = agent:attach\n",
-            "            if test \"$state\" = operand; and contains -- (string split -m1 '=' -- $word)[1] --name --agent-session --panel; set done 1; end\n",
-            "            if test \"$state\" = after; and not string match -q -- '-*' $word; and test (math \"$seen_name + $seen_session + $seen_panel\") -gt 0; set done 1; end\n",
+            "            if test \"$state\" = operand; and contains -- (string split -m1 '=' -- $word)[1] --name --agent-session --panel --terminal; set done 1; end\n",
+            "            if test \"$state\" = after; and not string match -q -- '-*' $word; and test (math \"$seen_name + $seen_session + $seen_panel + $seen_terminal\") -gt 0; set done 1; end\n",
             "        end\n",
             "        switch \"$word\"\n",
             "__ORCHBEE_ROUTING_PARSE__",
@@ -4236,11 +4280,11 @@ fn fish() -> String {
             "                        end\n",
             "                    case after\n",
             "                        switch \"$family:$sub\"\n",
-            "                            case panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; if test $seen_panel -eq 1 -o $seen_current -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $seen_client -eq 1; end; set done 1; else; set state operand; end\n",
+            "                            case panel:current panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split panel:create-terminal; if test $seen_panel -eq 1 -o $seen_current -eq 1; or begin; test \"$family:$sub\" = panel:process-info; and test $seen_client -eq 1; end; set done 1; else; set state operand; end\n",
             "                            case {operand_paths}; set state operand\n",
             "                            case '*'; set done 1\n",
             "                        end\n",
-            "                    case operand; if contains -- \"$family:$sub\" agent:send-keys agent:start; set state operand; else if contains -- \"$family:$sub\" terminal:run agent:rename agent:prompt; and test $seen_clear -eq 0; and test $seen_name -eq 0; and test $seen_session -eq 0; set state operand2; else; set done 1; end; end\n",
+            "                    case operand; if contains -- \"$family:$sub\" agent:send-keys agent:start; set state operand; else if contains -- \"$family:$sub\" terminal:run agent:rename agent:prompt; and test $seen_clear -eq 0; and test $seen_name -eq 0; and test $seen_session -eq 0; and test $seen_panel -eq 0; and test $seen_terminal -eq 0; set state operand2; else; set done 1; end; end\n",
             "                    case leaf\n",
             "                        if test \"$leaf\" = status; and contains -- $word client server; set family status; set sub $word; set state after; else; set done 1; end\n",
             "                    case operand2 completion; set done 1\n",
@@ -4290,6 +4334,8 @@ fn fish() -> String {
             "    if test $done -eq 1 -o $ended -eq 1 -o $dead -eq 1; or test (math \"$seen_zoom_on + $seen_zoom_off + $seen_zoom_toggle\") -gt 1; set candidates\n",
             "    else if test \"$value\" = format; set candidates {format_values}\n",
             "    else if test \"$value\" = mouse; set candidates off on\n",
+            "    else if test \"$value\" = order; set candidates __ORCHBEE_ORDER_VALUES__\n",
+            "    else if test \"$value\" = search_direction; set candidates __ORCHBEE_SEARCH_DIRECTION_VALUES__\n",
             "    else if test \"$value\" = direction\n",
             "        switch \"$family:$sub\"\n",
             "{direction_cases}\n",
@@ -4299,7 +4345,7 @@ fn fish() -> String {
             "    else if test \"$value\" = right_click; set candidates {right_click_values}\n",
             "    else if test \"$value\" = key; set candidates {key_values}\n",
             "    else if test \"$value\" = until; set candidates {until_values}\n",
-            "    else if test \"$value\" = provider; set candidates {provider_values}\n",
+            "    else if test \"$value\" = provider; if test \"$family:$sub\" = agent:start; set candidates __ORCHBEE_START_PROVIDERS__; else; set candidates {provider_values}; end\n",
             "    else if test \"$value\" = copy_motion; if test \"$family:$sub\" = terminal:copy-motion; set candidates {copy_motion_values}; end\n",
             "    else if test -n \"$value\"; set candidates\n",
             "    else if string match -q -- '--format=*' $cur\n",
@@ -4350,7 +4396,7 @@ fn fish() -> String {
             "        switch \"$family:$sub\"\n",
             "{extras_cases}\n",
             "        end\n",
-            "        if test \"$state\" = after; and contains -- \"$family:$sub\" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait; and test (math \"$seen_name + $seen_session + $seen_panel\") -eq 0; set -a candidates {agent_targets}; end\n",
+            "        if test \"$state\" = after; and contains -- \"$family:$sub\" agent:get agent:focus agent:read agent:send-keys agent:prompt agent:wait; and test (math \"$seen_name + $seen_session + $seen_panel + $seen_terminal\") -eq 0; set -a candidates {agent_targets}; end\n",
             "        if contains -- \"$state\" after operand operand2\n",
             "            set -a candidates --help\n",
             "        end\n",
@@ -4469,6 +4515,15 @@ fn command_conflict_pairs(
 }
 
 fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] {
+    if command.starts_with("agent:") && command_flags(command).contains(&"--terminal") {
+        match flag {
+            "--terminal" => return &["--panel", "--name", "--agent-session"],
+            "--panel" => return &["--terminal", "--name", "--agent-session"],
+            "--name" => return &["--terminal", "--panel", "--agent-session"],
+            "--agent-session" => return &["--terminal", "--panel", "--name"],
+            _ => {}
+        }
+    }
     match (command, flag) {
         ("machine:list", "--json") => &["--format"],
         ("machine:list", "--format") => &["--json"],
@@ -4560,31 +4615,18 @@ fn command_flag_conflicts(command: &str, flag: &str) -> &'static [&'static str] 
         ("worktree:list", "--project" | "--directory") => &["--client"],
         ("panel:current" | "panel:process-info", "--panel") => &["--current", "--client"],
         ("panel:current" | "panel:process-info", "--client" | "--current") => &["--panel"],
-        ("terminal:wait-output", "--source" | "--lines") => &["--rows"],
-        ("terminal:wait-output", "--forever") if cfg!(windows) => &["--timeout"],
-        ("terminal:wait-output", "--rows") if cfg!(windows) => &["--source", "--lines"],
-        ("terminal:wait-output", "--forever") => &["--rows", "--timeout"],
+        ("terminal:wait-output", "--forever") => &["--timeout"],
         ("terminal:wait-output", "--timeout") => &["--forever"],
-        ("terminal:wait-output", "--rows") => &["--source", "--lines", "--forever"],
-
-        ("terminal:read" | "agent:read", "--source") => &["--history", "--rows", "--unwrap"],
-        ("terminal:read" | "agent:read", "--history" | "--rows" | "--unwrap") => {
-            &["--source", "--plain", "--ansi"]
-        }
-        ("terminal:read" | "agent:read", "--plain") => {
-            &["--ansi", "--history", "--rows", "--unwrap"]
-        }
-        ("terminal:read" | "agent:read", "--ansi") => {
-            &["--plain", "--history", "--rows", "--unwrap"]
-        }
+        ("terminal:read" | "agent:read", "--plain") => &["--ansi"],
+        ("terminal:read" | "agent:read", "--ansi") => &["--plain"],
         ("tab:create" | "panel:split" | "workspace:create", "--focus") => &["--no-focus"],
         ("tab:create" | "panel:split" | "workspace:create", "--no-focus") => &["--focus"],
         ("tab:create" | "panel:split", "--profile") => &["--exec", "--arg"],
         ("tab:create" | "panel:split", "--exec" | "--arg") => &["--profile"],
         ("panel:input" | "panel:split", "--panel") => &["--current"],
         ("panel:input" | "panel:split", "--current") => &["--panel"],
-        ("tab:move", "--direction") => &["--insert-index"],
-        ("tab:move", "--insert-index") => &["--direction"],
+        ("tab:move", "--order") => &["--insert-index"],
+        ("tab:move", "--insert-index") => &["--order"],
         ("panel:swap", "--with") => &["--direction"],
         ("panel:swap", "--direction") => &["--with"],
         ("panel:rename", "--label") => &["--clear"],

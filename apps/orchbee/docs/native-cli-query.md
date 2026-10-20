@@ -1,5 +1,9 @@
 # Native CLI Query
 
+## Canonical grammar boundary
+
+Panel-family commands use a positional Panel or `--current`; the former `--panel` alias is rejected. Agent targets additionally accept `--terminal` and `@terminal:` for exact child or primary terminals. Startup, integration and doctor use `--provider antigravity`; `antigravity-cli` stays a private adapter identity. CLI event names use `panel.*` in event/filter input and v4 receipts; historical v2/v3 schemas retain `pane.*`. Terminal and Agent reads use `--source`/`--lines`; retained legacy read/history receipt descriptions below describe historical schemas only. Source waits default to 30000 ms, with `--forever` as the explicit unlimited form.
+
 ## Sessions and background services
 
 An **Orchbee Session** is one independent work environment containing Workspaces, Tabs,
@@ -57,7 +61,7 @@ Snapshot v7 and Tab Get v7 admit the canonical optional split `ratio` (0.1–0.9
 
 Target help states ID/selector precedence: a display label shaped like an ID or a recognized `@kind:` selector is addressed through the resource’s real ID. Creation and rename keep the literal display label. `panel resize --amount` is a split-ratio step (default 0.05, absolute value capped at 0.5).
 
-Agent startup help maps `--kind antigravity` to integration/doctor `--provider antigravity-cli`. A missing startup Panel identifies the target failure and directs users to `orchbee panel list`. A local manifest read failure directs users to the path and read permissions configured by `ORCHBEE_UPDATE_MANIFEST`; its machine reason remains `download` at the manifest phase.
+Agent startup help maps `--provider antigravity` to integration/doctor `--provider antigravity`. A missing startup Panel identifies the target failure and directs users to `orchbee panel list`. A local manifest read failure directs users to the path and read permissions configured by `ORCHBEE_UPDATE_MANIFEST`; its machine reason remains `download` at the manifest phase.
 
 Launch Profile list/get now emit v2, admitting the wire contract's POSIX, drive-absolute
 and verbatim drive executable paths; v1 retains its POSIX-only pattern. Windows diagnosis
@@ -285,7 +289,7 @@ checking at most 999 rows, as the pinned reference does. No target returns the
 original cursor. Out-of-buffer points fail.
 
 Windows `terminal copy-search <terminal> --cursor ROW:COL --query <literal>`
-`--direction forward|backward --content-revision <u64>` searches complete retained
+`--search-direction forward|backward --content-revision <u64>` searches complete retained
 logical text. The query is preserved, admits at most 4096 UTF-8 bytes, and is
 literal with Unicode smart case: any uppercase character makes it case-sensitive.
 An empty query yields no matches after the content fence. Optional
@@ -701,7 +705,7 @@ Client attention, authenticated-provider behavior and final full acceptance rema
 
 `agent read <target>` and `agent send-keys <target> <key>...` accept the same
 Session ID, runtime name or Panel selectors as `agent get`, including explicit `--agent-session`,
-`--name` and `--panel`. Read admits `--history --rows <n>`, `--unwrap`, and `--lines <n>`
+`--name`, `--panel` and `--terminal`. Read admits `--source` and `--lines <n>`
 with the same bounds and meaning as `terminal read`. Send admits at most 64 semantic
 keys or modifier combinations and validates the entire sequence before any effects.
 
@@ -882,10 +886,9 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
 - `--path <path>`: single-use value flag. On `workspace accept-directory` it is required and accepts a `WorkbenchDirectoryPath`: a literal absolute local-platform path
   (POSIX `/` or an absolute Windows drive path) of at most 4,096 UTF-8 bytes without NUL, without `~` or variable expansion. A missing, relative, NUL-bearing or overlong value is `invalid-usage`.
   Windows Worktree Create/Open instead admit literal absolute, relative and leading-`~` operands under the [Worktree path policy](windows-worktrees.md#commands-and-defaults); the final executing CLI resolves them after complete grammar and machine routing, before configuration or runtime access. Neither form creates, repairs or probes the directory; filesystem facts remain the Server's authority after submission.
-- `--direction <word>`: single-use value flag, required unless `--insert-index` is used on `tab move`
-  (`previous|next|first|last`), `panel split`, and `panel move` (`above|below|left|right`).
-  Each word set is closed; a panel word on `tab move` or a missing/unknown word is
-  `invalid-usage`.
+- `--direction left|right|up|down` is the cardinal vocabulary. `tab move` uses
+  `--order previous|next|first|last`, exclusive with `--insert-index`. `terminal copy-search`
+  uses `--search-direction forward|backward`. Unknown values fail before runtime access.
 - `--cols <n>`, `--rows <n>`, `--cell-width <n>`, `--cell-height <n>`: the terminal
   geometry group on `tab create` and `panel split`, each taking one decimal `u16`. The
   group is all-or-none: with all four absent the command requests the documented default
@@ -939,30 +942,16 @@ close-status` and `workspace close-resume` both flags are strict stable IDs inst
   any runtime access under a 1 MiB program-size limit and a 1 MiB lazy-DFA cache limit.
   A missing, empty, oversized, or non-compiling value — or coexistence with `--match` — is
   `invalid-usage`.
-- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (Windows defaults to no total deadline; other platforms use
-  `30000`) and on `agent wait` (Windows defaults to no total timeout, Linux to `600000`); one decimal `u32` in `1..=3600000`.
+- `--timeout <ms>`: single-use value flag, optional on `terminal wait-output` (defaults to `30000` on every platform) and on `agent wait` (Windows defaults to no total timeout, Linux to `600000`); one decimal `u32` in `1..=3600000`.
   A repeated, non-numeric, or out-of-range value is `invalid-usage`.
-- `--rows <n>` on `terminal wait-output` is the searched retained-row window `1..=1000`
-  (Windows aliases recent lines, default 80; legacy default `1000`) covering the most recent visible+history rows as one range — unrelated
-  to the geometry flag of the same name.
+
 - `--target-panel <target>`: single-use value flag, required on legacy same-Tab `panel move` and optional with `--into-tab`; parsed with
   the `panel` target rule (a complete typed ID only) and resolved inside the moved panel's
   own Tab for legacy moves, or the destination Tab with `--into-tab`.
-- `--history`: valueless flag admitted only on `terminal read`, legal only paired with
-  `--rows <n>` — on `terminal read` the `--rows` spelling carries the retained-row count
-  `1..=1000` instead of its geometry meaning, which stays the contract on `tab create`
-  and `panel split`. Either flag without the other, a repeat, a non-numeric or
-  out-of-range count, or `--history` on any other command is `invalid-usage` before
-  any runtime access.
-- `--unwrap`: valueless flag admitted only on `terminal read`; a read-only presentation
-  transform that joins verified soft-wrap row chains into logical lines. Hard breaks and
-  empty lines are preserved; a window edge inside a wrapped line reports
-  `startsMidLine`/`endsMidLine` instead of claiming a complete line.
-- `--lines <n>`: single-use value flag admitted only on `terminal read`; a
-  presentation-only tail of the last `n` emitted entries `1..=65535` — logical lines under
-  `--unwrap`, physical rows otherwise. It never widens the fetched window, and its
-  `tail{requested,omitted,entries}` accounting stays separate from the byte-budget's
-  `omittedRows`. A repeated, non-numeric, zero, or out-of-range value is `invalid-usage`.
+- `--source visible|recent|recent-unwrapped|detection` and `--lines <n>` select output on
+  terminal/Agent reads and terminal waits. The default is recent, 80 physical rows; line counts
+  are unsigned 32-bit, clamp to 1000 and permit zero. Read/wait rejects legacy `--history`,
+  `--rows` and `--unwrap`. Geometry commands keep `--rows` as a dimension.
 - `--text <utf8>`, `--key <name>`, `--file <path>`, `--stdin`: the four mutually
   exclusive `terminal send` input sources, valid on no other
   command. `--text` and `--file` consume the next token as their value under the
@@ -1056,22 +1045,22 @@ orchbee worktree list --directory <directory-id>
 orchbee tab list [--workspace <target> | --standalone] | tab get <target>
 orchbee tab create [--workspace <target> | --standalone] [--label <label>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee tab rename <target> --label <label>
-orchbee tab move <target> (--direction previous|next|first|last | --insert-index N)
+orchbee tab move <target> (--order previous|next|first|last | --insert-index N)
 orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run)
 orchbee panel list [--tab <target> | --workspace <target>] | panel get <target>
 orchbee panel rename <target> (--label <text> | --clear)
-orchbee panel split [<target> | --panel <target> | --current] --direction above|below|left|right [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
+orchbee panel split [<target> | --current] --direction left|right|up|down [--label <label>] [--ratio <number>] [<geometry>] [--exec <path> [--arg <value>]... | --profile <selector>] [--focus | --no-focus] [--client <id>] [--timeout <ms>]
 orchbee panel close <target> --confirm
-orchbee panel move <target> --target-panel <target> --direction above|below|left|right
-orchbee terminal list [--workspace <target> | --tab <target> | --panel <target>] | terminal get <target> | terminal read <target> [--history --rows <1-1000>] [--unwrap] [--lines <1-65535>]
-orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--rows <1-1000>] [--timeout <1-3600000>]
+orchbee panel move <target> --target-panel <target> --direction left|right|up|down
+orchbee terminal list [--workspace <target> | --tab <target> | --panel <target>] | terminal get <target> | terminal read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
+orchbee terminal wait-output <target> (--match <text> | --regex <pattern>) [--source <source>] [--lines <n>] [--forever] [--timeout <1-3600000>]
 orchbee terminal send <target> (--text <utf8> | --file <path> | --stdin) [--enter] | --key <name>
 orchbee launch-profile list | launch-profile get <selector>
 orchbee launch-profile create --name <name> --exec <path> [--arg <value>]...
 orchbee launch-profile delete <selector>
 orchbee agent list [--include-ended] [--limit <1-100>] [--cursor <c>]
 orchbee agent get <target> | agent explain <target>
-orchbee agent read <target> [--history --rows <n>] [--unwrap] [--lines <n>]
+orchbee agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines <n>]
 orchbee agent send-keys <target> <key>...
 orchbee agent prompt <target> <text> [--wait] [--until <condition>]... [--timeout <ms>] [--forever]
 orchbee agent wait <target> [--until <condition>]... [--after-revision <0-9007199254740991>] [--timeout <1-3600000>] [--forever]
@@ -1083,8 +1072,8 @@ orchbee agent integration disable --provider <id> [--adapter-source <abs>]
 orchbee client list | client get <client-id> | client control-status <operation-id>
 orchbee workspace focus <target> [--client <id>]
 orchbee tab focus <target> [--client <id>]
-orchbee panel focus [<target>] [--panel <target> | --current] [--client <id>]
-orchbee panel zoom [<target>] [--panel <target> | --current] [--toggle | --on | --off] [--client <id>]
+orchbee panel focus [<target> | --current] [--client <id>]
+orchbee panel zoom [<target> | --current] [--toggle | --on | --off] [--client <id>]
 orchbee api snapshot
 orchbee api schema [<schema-id>] [--output <path>]
 orchbee server start
@@ -1313,121 +1302,14 @@ describes probe coverage. Windows managed installation is owned by the [Windows 
 | Effects and bounds  | No provider execution, socket connection, Session activation, lock or write. Existing 5-second cooperative budget, 64 items, 16 MiB aggregate reads and per-probe caps apply. Cancellation returns exit 130; produced complete or partial diagnostic documents return exit 0.                                                                                                                                                                    |
 | Evidence and limits | Windows isolated process tests cover localized/schema-valid output, path/configuration isolation, missing and installed declarations, corrupt assets and zero setup effects. Filesystem tests cover reparse refusal and read budgets. Doctor evidence does not prove hook delivery; no independent review is claimed; TLA execution is excluded by user instruction.                                                                             |
 
-`terminal read` shares steps 1–5 unchanged, then keeps the admitted session alive inside the
-same deadline — never a second admission — for one read-only viewer observation:
-
-1. **Resolve** — the typed terminal ID is looked up in the validated snapshot's presentation
-   bindings; absent → `not-found` (3) with `{resource:"terminal",target}` and the session drops.
-   Labels are never consulted.
-2. **Attach** — one `terminal.viewer` `AttachBinding{siteId,workerId,terminalId}` from the
-   snapshot's own facts. `Attached{attachmentId,hostEpoch}` seeds a `TerminalProjection` scoped
-   to that attachment and epoch; any other outcome class maps through the failure matrix.
-3. **Poll** — `Poll{attachmentId}` repeats inside the same deadline: an `Empty` outcome waits
-   10 ms and retries; a `record` outcome feeds the projection. A record that fails transport or
-   frame validation is `protocol-invalid` stage `viewer`; a record the projection answers with
-   `NeedSnapshot` sends that feedback once and polling continues (a `FeedbackAccepted` answer);
-   a consumed `ProjectionBlocked` is ignored. The first record the projection accepts ends the
-   observation — the applied frame is the answer; `FrameApplied` feedback is never sent for a
-   one-shot read.
-4. **Release** — a best-effort `Detach{attachmentId}` precedes the unconditional session drop;
-   both complete before any mapping, formatting, or output. The viewer attachment is never
-   retained into output, and the session drop is itself the teardown guarantee.
-
-`terminal read --history --rows <n>` keeps the same attach → poll preamble — `--history` and
-`--rows` are admitted only as a pair, and `n` is the bounded retained-row count `1..=1000`, not
-a geometry dimension — then reads the scrollback behind the applied frame:
-
-- The applied frame's retained-scrollback fact prices exactly one `ReadRows{attachmentId,
-startRow,rowCount,revision,generation,requestSequence:1,maximumBytes}`: `rowCount =
-min(n, scrollback, 262144/columns)` and `startRow = scrollback - rowCount`, so the window ends
-  at the scrollback boundary. Zero scrollback short-circuits — no `ReadRows` is sent and the
-  answer is an empty window.
-- The `record` answer must be a complete OBTP `RowsSnapshot` (kind 46) response whose OBRW text
-  window independently echoes the request: attachment, Host epoch, sequence, revision,
-  generation, columns, start row, row count, and `totalRows = scrollback + screenRows`, with the
-  payload inside `maximumBytes` (8 MiB). Any mismatch is `protocol-invalid` stage `viewer`.
-- `rows-rejected` maps to a typed vocabulary: `limit-exceeded` is `rejected` (3); Host state
-  answers (`history-evicted`, `stale-revision`, `stale-generation`, `missing-resource`,
-  `resource-exhausted`, `invalid-phase`) are `service-unavailable` (4) with
-  `{stage:"viewer",operation:"read-history",reason}`; reasons the fixed request shape cannot
-  produce are `protocol-invalid`. `history-evicted`, `stale-revision` and `stale-generation`
-  mean the pin aged: the read acknowledges that frame, polls the next applied frame and repeats
-  the window request with the next `request_sequence` inside the same deadline, reporting the
-  last aged reason only after the deadline. No `RowsApplied` anchor is ever sent for the read.
-
-`terminal read --unwrap`/`--lines` are presentation transforms applied to the already
-materialized emitted rows — they change neither the fetched window nor the read bound:
-
-- `--unwrap` joins only adjacent, verified soft-wrap-compatible rows (`wrap` and
-  `wrap_continuation` agreeing pairwise) into logical lines; the JSON `content` then emits
-  `lines[]` — `{firstRow,lastRow,text,startsMidLine,endsMidLine}` — instead of `rows[]`,
-  plus `lineCount` counted over the observed fragments only (never the retained-history
-  total). `rowCount` keeps counting physical rows. A window that opens or ends inside a
-  wrapped line yields a flagged fragment, never a claimed complete line.
-- `--lines <n>` tails the emitted entries: physical `rows[]` without `--unwrap`, logical
-  `lines[]` with it. The `tail{requested,omitted,entries}` member reports the presentation
-  drop separately from `omittedRows` (the fetch/budget omissions). Text output prints one
-  line per emitted entry and a localized “earlier rows/lines not shown” marker distinct
-  from the read-limit marker.
-- Either flag lifts the envelope to `version:2` (`orchbee.terminal.read` /
-  `orchbee.terminal.history`); flag-free output stays `version:1` byte-identical.
-
-The legacy non-Windows `terminal wait-output` path reuses snapshot admission and attachment. Windows uses the source-selected wait contract below. The legacy path keeps the
-read-only viewer alive for a bounded observation loop instead of a single frame:
-
-- **Deadline** — one absolute deadline `T0 + --timeout` is taken at command start
-  (default 30000 ms, admitted range `1..=3600000`). Cohort, discovery, connect, snapshot, and
-  every `terminal.viewer` request each run under `min(5 s local budget, remaining deadline)`;
-  the deadline is re-checked after every awaited step, so a late success is still `timeout`
-  (exit 7). The deadline is cooperative: synchronous filesystem calls cannot be interrupted
-  mid-syscall, so the worst-case overshoot is one in-flight local operation.
-- **Observe** — `Poll` repeats inside the deadline: `Empty` sleeps 10 ms, backing off to
-  100 ms on consecutive empties and resetting on any record (each sleep is capped by the
-  remaining deadline — a quiet wait never busy-loops); a `record` feeds the projection, whose
-  `FrameApplied` feedback is sent for **every** applied frame and confirmed with
-  `FeedbackAccepted` before the next poll; `NeedSnapshot` follows the original feedback rule;
-  `ProjectionBlocked` is consumed and ignored.
-- **Inspect** — each applied frame pins one `ReadRows` over the unified buffer window
-  `startRow = max(0, totalRows − K)`, `rowCount = K` where `K = min(--rows, totalRows,
-262144/columns)` and `totalRows = scrollback + screenRows`, at `.exact` revision and
-  generation of that frame, `maximumBytes` 8 MiB. `requestSequence` is strictly increasing per
-  attachment starting at 1 (`checked_add`; a retry consumes a fresh value, and
-  `transport requestId`, frame sequence, and history-event sequence are never mixed in); the
-  decoded window must echo the issued sequence plus every pinned field, otherwise
-  `protocol-invalid`. `stale-revision`/`stale-generation`/`history-evicted` discard that
-  observation and resume polling inside the same deadline — no half-window is ever matched;
-  other `rows-rejected` reasons map through the same typed vocabulary as `read-history`
-  (operation `"wait-output"`). A payload the row codec cannot encode fails as a typed
-  `rows-rejected` — it is never silently truncated.
-- **Match** — window rows join into logical lines only when `wrap` and `wrap_continuation`
-  agree pairwise; disagreement is a hard boundary and window-edge fragments stay honest
-  partials (never padded from outside the window). Each observed fragment is searched
-  independently — nothing matches across a hard boundary or an unfetched gap. The first
-  fragment containing the pattern wins: the literal, case-sensitive `--match` substring, or
-  the regex engine's leftmost match under `--regex`. `^`/`$` anchor at the observed
-  fragment's edges only, and a valid zero-length match (`^$` on an empty observed line) is
-  a hit. The returned `excerpt` is a ≤4096-byte slice of that fragment that always contains
-  a complete `--match` literal; a `--regex` match may exceed the bound, in which case the
-  excerpt leads with the match's start and the extended members carry the truth —
-  `matchLength` the complete byte length, `matched`/`matchedTruncated` the ≤4096-byte match
-  text, `startsMidLine`/`endsMidLine` the fragment-edge facts, all under
-  `patternKind:"regex"` (envelope `version:2`; a literal hit stays `version:1`). Offsets
-  (`matchOffset`, `excerptOffset`) are UTF-8 byte offsets into the joined fragment, never
-  terminal columns. A match ends the command with the physical
-  `rowStart`/`rowEnd` (observation-scoped, not a cursor), the frame `revision`/`generation`,
-  the resolved terminal/worker/site identity, and the observed `hostEpoch`/`attachmentId`;
-  `observed.completedObservations` counts only consistent window+match passes, and
-  `observed.windowTruncated` records a capacity-clamped `K`.
-- **Cancel** — HUP/INT/QUIT/TERM during the wait is a local `cancelled` failure (exit 130):
-  no match is fabricated and no input, semantic cancel, or kill is sent to the terminal.
-  Checks run between network steps and around each poll sleep, so latency is bounded by one
-  in-flight local request.
-- **Release** — on success the `Detach` outcome is confirmed before the document is emitted;
-  an unconfirmed cleanup keeps the real failure kind and reports
-  `{matchObserved:true,cleanup:"unconfirmed"}` instead of converting it. Timeout, carrier
-  failure, and cancel keep their primary failure plus the cleanup state; the session drop
-  always runs and is reported as `cleanup:"requested"` when no Detach budget remains —
-  never claimed as released.
+`terminal read`, `agent read` and `terminal wait-output` share the current source-selection
+and read-only viewer lifecycle in [native terminal output](native-terminal-output.md). The
+source defaults to recent (80 physical rows); `--lines` controls its bounded range and
+`--source recent-unwrapped` joins verified soft wraps. Legacy history/rows/unwrap flags are
+refused. Historical read/history envelopes remain schema-readable but are not current CLI
+modes. Finite waits default to 30000 ms; `--forever` explicitly removes that deadline. `--after`
+pins fresh-output boundaries and refuses reset/eviction. Interruption, known-effect retention
+and detach evidence retain the [wait contract](native-cli-wait-model.md).
 
 `terminal send` samples one absolute 5-second deadline at command entry and shares it across
 everything below — source materialization for a declared `--file`/`--stdin` (the first
@@ -1839,7 +1721,7 @@ falling back to global `navigation.workspaces` order when absent or empty. Other
 `children[1]`; terminal bindings in that panel order with `primaryPresentation` before
 `childPresentations`. No sorting is added; filtered lists and `ambiguous` candidates preserve it.
 
-Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v9 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v7 with global navigation, nullable Workspace grouping and optional split ratios. `orchbee.terminal.get` is v4 for the retained launch program/arguments. `orchbee.terminal.read/history` use v2 with `--unwrap` or `--lines`; `orchbee.terminal.wait-output` uses v2 for regex match details. Their flag-free outputs remain v1. See `api schema <id>` for each command and failure's complete version contract. The catalog version and document count are listed above: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
+Snapshot and one-effect command envelopes use `{schema, version, source, result}`; staged workflows have their own embedded schemas. Every schema defines its emitted version and strict shape. Workbench query versions are listed above; `orchbee.panel.current` is v9 on Windows (v3 elsewhere) and `orchbee.api.snapshot` is v7 with global navigation, nullable Workspace grouping and optional split ratios. `orchbee.terminal.get` is v4 for the retained launch program/arguments. Legacy `orchbee.terminal.read/history` v1/v2 schemas describe historical receipts. Current reads emit `orchbee.terminal.output` v3/v4; source waits emit v3/v4. See `api schema <id>` for each command and failure's complete version contract. The catalog version and document count are listed above: registering an ID changes the closed dictionary shape, independently of business document versions. Sources retain their owner's meaning:
 
 - `source.kind="workbench-snapshot"` with `siteId` and decimal-string `revision` from the same
   validated snapshot — present only after a complete valid read.
@@ -2580,7 +2462,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Real staged-cohort Server: status/list/get/api snapshot, 8 admitted + ninth rejected + release, live TUI                                                                                                          | success/`session-capacity`/unchanged structure                                                    | `tests/local_startup_process`                                       |
 | Scripted OBLC/OBWP peers: denied, unavailable, malformed, wrong correlation, timeout, disconnect                                                                                                                  | typed kinds per matrix; never labeled real-Server evidence                                        | `tests/cli_query.rs`                                                |
 | Scripted OBCS viewer peer: attach-binding fields, `Empty`→`record` poll, detach release, reject/unavailable/malformed/correlation/disconnect                                                                      | `terminal read` success + typed viewer-stage failures                                             | `tests/cli_query.rs`                                                |
-| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, aged-pin re-pin, window mismatch, oversized                                           | `terminal read --history` success + typed failures                                                | `tests/cli_query.rs`                                                |
+| Scripted OBCS viewer peer + hand-built OBRW records: scrollback pricing, capacity/scrollback clamps, typed `rows-rejected`, aged-pin re-pin, window mismatch, oversized                                           | retained-row projection success + typed failures                                                  | `tests/cli_query.rs`                                                |
 | Scripted OBCS send peer: UTF-8 text with optional folded CR and semantic keys arrive as one request, target/request identity, accepted/rejected/unavailable/unknown answers, stalled answer, no retry             | `terminal send` exit 0/3/4/5/8 with the two-axis result fields                                    | `tests/cli_send.rs`                                                 |
 | Send source grammar: four-source exclusivity, fixed-order conflict naming, `--enter` scoping, flag scope                                                                                                          | exact parse/`invalid-usage` before any runtime access                                             | `src/invocation` tests                                              |
 | File/stdin materialization: nonblocking open + `fstat` type gate, regular-file shared offset, private FIFO reopen, cap+1, opaque bytes, empty/non-regular/unsupported rejections                                  | bounded record or typed source `invalid-usage`; zero runtime effect                               | `src/cli/source` unit tests + `tests/cli_send.rs`                   |
@@ -2612,7 +2494,7 @@ cancellation or an expired shared deadline exits without a wire request ever exi
 | Completion scripts project the grammar (bash/zsh executed, fish structural parity)                                                                                                                                | positive and negative contexts; no runtime enumeration                                            | `tests/cli_query.rs`                                                |
 | Bilingual text/failure output                                                                                                                                                                                     | exact en-US/zh-CN strings                                                                         | `tests/process.rs` + `tests/cli_query.rs`                           |
 
-This slice adds no Server state machine, persistence or retry. `terminal read` uses the existing `terminal.viewer` attach/poll/detach lifecycle; `--history` adds a bounded `read-rows`/`rows-rejected` exchange, and `terminal wait-output` repeats poll plus one bounded `read-rows` per applied frame. The command settlement obligations—flag sampling, cleanup provenance and the late sample—use the implementation tests in [CLI wait evidence](native-cli-wait-model.md). Shared protocol changes require their affected retained cores; inventory output alone is not execution evidence.
+This slice adds no Server state machine, persistence or retry. `terminal read` uses the existing `terminal.viewer` attach/poll/detach lifecycle; source selection adds a bounded `read-rows`/`rows-rejected` exchange, and `terminal wait-output` repeats poll plus one bounded `read-rows` per applied frame. The command settlement obligations—flag sampling, cleanup provenance and the late sample—use the implementation tests in [CLI wait evidence](native-cli-wait-model.md). Shared protocol changes require their affected retained cores; inventory output alone is not execution evidence.
 
 ## Per-launch cwd and environment
 
@@ -2647,7 +2529,7 @@ Native launch commands use a dedicated 96 KiB JSON request budget so maximum esc
 
 ## Calling Panel context
 
-`panel current [--panel <panel-id-or-selector> | --current] [--client <id>]` reads a
+`panel current [<panel-id-or-selector> | --current] [--client <id>]` reads a
 Windows Panel using the [current Panel contract](native-current-panel.md), shared with
 `panel process-info`. Explicit Panel selectors ignore caller environment and need no Client.
 Explicit `--client` ignores caller environment and conflicts with explicit Panel selectors.
@@ -2777,7 +2659,7 @@ closed result schemas, real CLI/named-pipe preflight ordering and no-input refus
 and a real isolated Windows Job witness. These checks do not prove provider task
 completion, authentication, or atomic foreground ownership.
 
-`panel process-info [<panel-id>] [--panel <panel-id> | --client <id> | --current]` reads an exact Terminal's Windows Job. Positional and explicit Panel targets are exclusive; complete IDs and `@panel:<suffix>` use the existing Panel resolver and primary binding. Without an explicit selector, valid `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` retain the caller's exact primary or child Terminal; partial or stale metadata fails. With absent caller metadata, require one current Client; `--client` selects an exact current Client and ignores caller metadata. Client selection passively resolves its actual member and validates the same binding and local attachment token before publication. The [current Panel contract](native-current-panel.md) owns revision fences, deadline and cancellation. No unavailable member falls back to a primary terminal.
+`panel process-info [<panel-id> | --current] [--client <id>]` reads an exact Terminal's Windows Job. Positional and explicit Panel targets are exclusive; complete IDs and `@panel:<suffix>` use the existing Panel resolver and primary binding. Without an explicit selector, valid `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` retain the caller's exact primary or child Terminal; partial or stale metadata fails. With absent caller metadata, require one current Client; `--client` selects an exact current Client and ignores caller metadata. Client selection passively resolves its actual member and validates the same binding and local attachment token before publication. The [current Panel contract](native-current-panel.md) owns revision fences, deadline and cancellation. No unavailable member falls back to a primary terminal.
 
 One existing-only Client Session and one absolute five-second budget cover snapshot, transient read-only viewer admission, one process read, and best-effort detach. Session drop owns remaining viewer cleanup. The Server revalidates Worker generation and physical terminal binding; Worker and Host retain process authority. Success publishes the exact typed Windows Job sample with Panel/Terminal routing context and correlated read provenance. The sequential snapshot and sample do not claim an atomic cross-owner observation. Host failures remain explicit, are never empty process success, and are not retried. Strings are escaped in text output; machine creation times remain decimal strings. The response describes owned processes, not a Windows foreground process group or Agent interactive readiness.
 
@@ -2833,7 +2715,7 @@ Maintained Windows process checks cover Unicode/space and relative paths, full a
 
 ## Windows Panel layout queries
 
-`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel, `--panel` or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unzoomed neighbors, physical-edge results and the operation receipt. See the [geometry contract](windows-client-layout.md). Catalog v69 contains 76 documents; the native command inventory contains 88 paths.
+`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unzoomed neighbors, physical-edge results and the operation receipt. See the [geometry contract](windows-client-layout.md). Catalog v69 contains 76 documents; the native command inventory contains 88 paths.
 
 `panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unzoomed cell layout and preserves zoom. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
 
@@ -2847,11 +2729,11 @@ Panel swap uses the shared structural placement authority for one atomic same-Ta
 
 Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v3 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a Client-local `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v3 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v6 admit the optional canonical field. Catalog v69 has 78 schemas and the native inventory has 94 command paths.
+Windows `panel input (<panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](native-panel-input.md) for routing, pending-input rechecks and failure recovery. This does not add a context menu. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v6 admit the optional canonical field. Catalog v69 has 78 schemas and the native inventory has 94 command paths.
 
 ## Tab insertion boundary
 
-On Windows, `tab move <id|@tab:suffix|label> (--direction previous|next|first|last | --insert-index N)`
+On Windows, `tab move <id|@tab:suffix|label> (--order previous|next|first|last | --insert-index N)`
 requires exactly one placement flag. `N` is a zero-based boundary in the original context order,
 not a final ordinal: 0 means first, the Tab count means last, and the source boundary or immediately
 following boundary leaves order unchanged. Parse accepts integers 0..256; the Server rejects values
@@ -2878,17 +2760,15 @@ not evaluated or admitted by this repair.
 
 ## Source-selected terminal output
 
-Windows `terminal read` and `agent read` default to recent output (80 physical rows) and `orchbee.terminal.output` v1. `--source visible|recent|recent-unwrapped|detection` selects explicitly; bare `--unwrap` chooses recent-unwrapped. `--lines` allows zero and clamps to 1000. `--plain` exports UTF-8 directly and excludes JSON. Explicit source/plain/ANSI cannot mix with legacy history/rows/unwrap. Explicit `--history --rows` retains its history-only document. The [output contract](native-terminal-output.md) owns sample validation and migration.
+Linux/Windows reads use `--source` and `--lines`, defaulting to recent80. Plain JSON emits
+`orchbee.terminal.output` v3; ANSI emits v4. `--plain` exports UTF-8 directly and excludes JSON.
+`--ansi` preserves styled blanks and Unicode using SGR, with no PTY-byte or graphics replay.
+Legacy read flags are refused. The [output contract](native-terminal-output.md) owns source
+ranges, joining, output limits, cursor fencing and sample validation.
 
-Windows `terminal wait-output` defaults to recent80 and no total timeout, including explicit source selection. `--timeout` is finite; `--forever` explicitly requests the default and conflicts with timeout. `--rows` aliases recent lines (1..1000), excluding explicit source/lines. All Windows waits emit v3 with nullable timeoutMs and retain bounded I/O and Ctrl+C cleanup. Recent joins soft wraps; visible/detection match physical lines. Existing output can match without proving command completion. Use `--source visible` for a screen read or `--lines 1000 --timeout 30000` for a finite larger wait.
-
-Windows `terminal read` and `agent read --ansi` export styled snapshots, defaulting to recent output.
-Use `--format json` for `orchbee.terminal.output` v2 with `result.encoding: "ansi"`; text/plain reads
-retain v1. ANSI excludes `--plain` and legacy history/rows/unwrap flags. It preserves styled blanks
-and Unicode, uses only generated SGR, and joins verified soft wraps under `recent-unwrapped`.
-Detection remains plain text. It does not reproduce original PTY bytes, hyperlinks or graphics.
-The render request and prepared output each keep their existing 8 MiB bounds; oversized render
-resources fail without a fallback or retry. See the [output contract](native-terminal-output.md).
+Source waits default to 30000 ms and recent80, with `--forever` for explicit unbounded waiting.
+They emit v3, or v4 with `--after`; existing output can match without a cursor. A match alone
+is not command completion. Reads and waits never take terminal control or change Client focus.
 
 Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline and its v3 JSON includes bounded I/O diagnostics when cohort admission is unavailable. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. An absent explicitly selected Session names `orchbee --session <name> server start`; without an explicit selection the hint is `orchbee server start`. The [runtime status contract](native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Update-channel management remains unavailable.
 
@@ -2958,7 +2838,7 @@ contains 80 embedded schemas at this contract revision.
 ### Windows Panel relocation workflow
 
 ```text
-panel move <panel> --into-tab <tab> --direction above|below|left|right [--target-panel <panel>] [--ratio <number>]
+panel move <panel> --into-tab <tab> --direction left|right|up|down [--target-panel <panel>] [--ratio <number>]
 panel move <panel> --new-tab [--workspace <workspace> | --standalone] [--label <text>]
 panel move <panel> --new-workspace [--project <project>] [--label <text>] [--tab-label <text>]
 ```

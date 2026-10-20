@@ -73,6 +73,36 @@ pub(super) fn prepare(
                 AgentNameTarget::Terminal { binding } => AgentSessionSelector::Terminal { binding },
             }));
         }
+        AgentTarget::Terminal { target } => {
+            let owned;
+            let snapshot = match snapshot {
+                Some(snapshot) => snapshot,
+                None => {
+                    owned = read_snapshot(client, total, wake)?;
+                    &owned
+                }
+            };
+            let terminal = crate::cli::results::terminal_select(snapshot, target)?;
+            #[cfg(windows)]
+            let selector = match crate::cli::agent_projection::terminal(
+                client, snapshot, &terminal, total, wake,
+            )? {
+                AgentNameTarget::Session { session_id } => {
+                    AgentSessionSelector::Session { session_id }
+                }
+                AgentNameTarget::Terminal { binding } => AgentSessionSelector::Terminal { binding },
+            };
+            #[cfg(not(windows))]
+            let selector = AgentSessionSelector::Presentation {
+                presentation_id: AgentPresentationId::parse(&terminal.presentation_id)
+                    .map_err(|_| Failure::new(FailureKind::ProtocolInvalid))?,
+            };
+            return Ok(PreparedTarget {
+                selector,
+                presentation: Some(terminal.presentation_id.clone()),
+                resolved: None,
+            });
+        }
         AgentTarget::Panel { target } => {
             #[cfg(windows)]
             {

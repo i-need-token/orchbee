@@ -30,7 +30,7 @@ A Workspace has a directory and may belong to a Project. Project grouping is opt
 
 Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client` or `agent` list/get command. Reuse returned IDs. Prefer printed stable handles such as `@panel:0x1`: they preserve the exact ID with leading zeros omitted and cannot change when other resources come or go. Quote handles in PowerShell. Legacy suffix selectors still work but are momentary; never save them as identities. IDs and compact handles are scoped to the selected Session and underlying identity lifetime; rediscover runtime terminal IDs after Server restart.
 
-Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or `--panel <id>` for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback.
+Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or a positional Panel ID for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback.
 
 ## Create and arrange terminals
 
@@ -38,7 +38,7 @@ Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `pane
 orchbee workspace create --cwd . --label work
 orchbee tab create --workspace work --label shell
 orchbee panel list --format json
-orchbee panel split --panel <panel-id> --direction right
+orchbee panel split <panel-id> --direction right
 ```
 
 Inspect each creation receipt: committed layout membership does not prove a process started. Commands that need a Client refuse missing, ambiguous or unready Clients; use `client list` and an explicit `--client`.
@@ -53,9 +53,9 @@ Inspect each creation receipt: committed layout membership does not prove a proc
 
 A receipt proves accepted input records, not Shell readiness, command completion or exit status. Never replay partial or unknown delivery. Inspect the receipt and terminal before deciding what to send next.
 
-`terminal read` and `agent read` default on Windows to recent output. Select `visible`, `recent`, `recent-unwrapped` or `detection` with `--source`; `--plain` emits UTF-8 text and excludes JSON. Legacy `--history --rows` has a separate history contract. Do not mix incompatible output modes; inspect help for limits, wrapping and ANSI.
+`terminal read` and `agent read` default to recent output. Select `visible`, `recent`, `recent-unwrapped` or `detection` with `--source`; `--plain` emits UTF-8 text and excludes JSON. Use `--lines` for the window and `--source recent-unwrapped` to join soft wraps; legacy read flags are refused. Do not mix incompatible output modes; inspect help for limits, wrapping and ANSI.
 
-`terminal wait-output` can match output that already exists. Windows defaults to no total timeout; use `--timeout 30000` for bounded automation, or explicit `--forever`. `--timeout` and `--forever` conflict. A matched line alone does not prove a newly submitted command finished.
+`terminal wait-output` can match output that already exists. The default deadline is 30000 ms; override it with `--timeout` or explicitly use `--forever`. `--timeout` and `--forever` conflict. A matched line alone does not prove a newly submitted command finished.
 
 ## Install and operate Agents
 
@@ -63,7 +63,7 @@ A receipt proves accepted input records, not Shell readiness, command completion
 
 Windows Codex inspection and installation use the same configuration root: nonempty `CODEX_HOME`, otherwise the native user profile's `.codex`. Invalid overrides refuse without fallback. Provider exit alone does not prove installation; read the observed state in the mutation receipt.
 
-`agent start review --kind codex --panel <panel-id>` launches in an observed idle cmd, PowerShell or pwsh terminal and waits for verified readiness. Default timeout: 30000 ms; allowed range: 3001–300000. Literal provider arguments follow `--`, or use repeatable `--arg=<value>`. A timeout or cancellation can leave the provider running; inspect the submission and pending reservation with `agent names` before retrying.
+`agent start review --provider codex --panel <panel-id>` launches in an observed idle cmd, PowerShell or pwsh terminal and waits for verified readiness. Default timeout: 30000 ms; allowed range: 3001–300000. Literal provider arguments follow `--`, or use repeatable `--arg=<value>`. A timeout or cancellation can leave the provider running; inspect the submission and pending reservation with `agent names` before retrying.
 
 `agent list/get/explain` inspect current Agent state. On Windows, `agent list` joins canonical sessions with physical terminal Agents and reports each row's source, semantic status and placement; `--client <id>` adds separate Client observations without changing status. Pages contain 1–100 rows (default 50). Windows JSON uses `orchbee.agent.list` v2 and `orchbee.agent.get` v19. List cursors use `u1.<base64url>` with canonical JSON encoded as base64url, are at most 1024 characters, and bind to the Site, source revisions, filters and Client selection. A recognized legacy-format cursor is rejected before live source reads; determining whether a `u1` cursor is stale requires reading the current sources. Restart from the first page after `cursor-restart`. Optional cwd enrichment is limited to 64 rows per page and may be null.
 
@@ -152,3 +152,13 @@ layout.json --standalone` also runs headlessly; explicit Workspace and confirmed
 are supported. Add `--client` for Client geometry/observations, or `--focus` when applying to a
 Client. Directional neighbors, resize and zoom require Client geometry. Read commands do not
 accept `--request-id` or `--detach`. Inspect unknown mutation receipts before another submission.
+
+## Consistent command vocabulary
+
+Use positional Panel targets and `--current` in the Panel family. Use `--panel` or `--terminal`
+when targeting an Agent; a terminal can be a child. Cardinal directions are `left|right|up|down`;
+Tab order uses `--order previous|next|first|last` and copy search uses `--search-direction`.
+Create and rename display labels with `--label`. Provider selection uses `--provider`, including
+`antigravity` for start/integration/doctor. Events use `panel.*`; keys use `ctrl+c` and other
+canonical plus-separated modifiers. Close ends a live resource, delete destroys a stored record,
+remove removes membership, uninstall removes an installed plugin, and dissolve preserves grouped children.

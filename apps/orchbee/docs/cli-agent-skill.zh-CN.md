@@ -30,7 +30,7 @@ Workspace 拥有目录，可属于 Project；Project 分组是可选的。Worksp
 
 先用 `api snapshot`，再使用相关的 `project`、`workspace`、`tab`、`panel`、`terminal`、`launch-profile`、`client` 或 `agent` list/get 命令。复用返回的 ID。优先使用打印的 `@panel:0x1` 等稳定句柄：它只省略 ID 的前导零，其他资源增删不会改变其含义。PowerShell 中给句柄加引号。旧后缀选择器仍可用，但属于瞬时选择器，不要作为身份保存。ID 和紧凑句柄受所选 Session 及底层身份寿命约束；Server 重启后重新发现运行时终端 ID。
 
-在 Orchbee 终端内，调用者元数据可以选择其 Panel；在外部，`panel current` 可使用唯一当前 TUI 客户端。存在多个客户端时传入 `--client <id>`；无界面查找可使用 `--panel <id>`。`agent start` 省略 `--panel` 时明确要求有效调用者元数据。部分或过期元数据不会授权回退。
+在 Orchbee 终端内，调用者元数据可以选择其 Panel；在外部，`panel current` 可使用唯一当前 TUI 客户端。存在多个客户端时传入 `--client <id>`；无界面查找可使用位置参数 Panel ID。`agent start` 省略 `--panel` 时明确要求有效调用者元数据。部分或过期元数据不会授权回退。
 
 ## 创建和安排终端
 
@@ -38,7 +38,7 @@ Workspace 拥有目录，可属于 Project；Project 分组是可选的。Worksp
 orchbee workspace create --cwd . --label work
 orchbee tab create --workspace work --label shell
 orchbee panel list --format json
-orchbee panel split --panel <panel-id> --direction right
+orchbee panel split <panel-id> --direction right
 ```
 
 检查每份创建回执：布局成员已提交不代表进程已启动。需要客户端的命令会拒绝缺失、有歧义或尚未就绪的客户端；使用 `client list` 并显式传入 `--client`。
@@ -53,9 +53,9 @@ orchbee panel split --panel <panel-id> --direction right
 
 回执证明输入记录被接受，不证明 Shell 就绪、命令完成或退出状态。不要重放部分或结果未知的输入。检查回执与终端后，再决定下一步发送内容。
 
-Windows `terminal read` 和 `agent read` 默认读取最近输出。通过 `--source` 选择 `visible`、`recent`、`recent-unwrapped` 或 `detection`；`--plain` 直接输出 UTF-8 文本，排除 JSON。旧 `--history --rows` 使用独立历史契约。不要混用不兼容的输出模式；边界、软换行和 ANSI 规则见帮助。
+`terminal read` 和 `agent read` 默认读取最近输出。通过 `--source` 选择 `visible`、`recent`、`recent-unwrapped` 或 `detection`；`--plain` 直接输出 UTF-8 文本，排除 JSON。用 `--lines` 控制窗口、`--source recent-unwrapped` 拼接软换行；旧读取选项会被拒绝。不要混用不兼容的输出模式；边界、软换行和 ANSI 规则见帮助。
 
-`terminal wait-output` 可以匹配已经存在的输出。Windows 默认没有总时限；自动化可使用 `--timeout 30000`，或显式 `--forever`。`--timeout` 与 `--forever` 冲突。匹配到一行不能证明刚提交的命令已完成。
+`terminal wait-output` 可以匹配已经存在的输出。默认总时限为 30000 毫秒；可用 `--timeout` 覆盖，或显式使用 `--forever`。`--timeout` 与 `--forever` 冲突。匹配到一行不能证明刚提交的命令已完成。
 
 ## 安装并操作 Agent
 
@@ -63,7 +63,7 @@ Windows `terminal read` 和 `agent read` 默认读取最近输出。通过 `--so
 
 Windows Codex 的检查与安装使用同一配置根：非空 `CODEX_HOME`，否则为原生用户目录中的 `.codex`。无效覆盖值拒绝且不回退。提供方退出成功不证明安装成功；应读取修改回执中的观察状态。
 
-`agent start review --kind codex --panel <panel-id>` 在已观察到空闲的 cmd、PowerShell 或 pwsh 终端启动，并等待验证后的就绪。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并用 `agent names` 查看待完成预留。
+`agent start review --provider codex --panel <panel-id>` 在已观察到空闲的 cmd、PowerShell 或 pwsh 终端启动，并等待验证后的就绪。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并用 `agent names` 查看待完成预留。
 
 `agent list/get/explain` 检查当前 Agent 状态。Windows 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows JSON 使用 `orchbee.agent.list` v2 和 `orchbee.agent.get` v19。Windows 列表游标使用 `u1.<base64url>`，载荷为编码成 base64url 的规范 JSON，最多 1024 个字符，并绑定 Site、来源修订、筛选条件和 Client 选择。解析器识别出的旧格式游标会在读取实时来源前拒绝；判断 `u1` 游标是否过期则需要读取当前来源。收到 `cursor-restart` 后应从第一页重新开始。每页最多为 64 行添加可选 cwd 信息；无法获取时为 null。
 
@@ -151,3 +151,12 @@ orchbee workspace list --format json | ConvertFrom-Json
 添加 `--client` 可获取 Client 几何／观察，应用时添加 `--focus` 可请求 Client 聚焦。
 方向邻居、resize 和 zoom 需要 Client 几何。只读命令不接受 `--request-id` 或 `--detach`。
 修改结果未知时，先检查回执再重新提交。
+
+## 一致的命令词汇
+
+Panel 命令族使用位置目标或 `--current`；Agent 使用 `--panel` 或 `--terminal`，终端可为子终端。
+四向方向为 `left|right|up|down`，Tab 顺序使用 `--order previous|next|first|last`，
+复制搜索使用 `--search-direction`。显示标签的创建／重命名使用 `--label`。Provider 统一
+使用 `--provider`，start／integration／doctor 中均为 `antigravity`。事件使用 `panel.*`，
+按键使用 `ctrl+c` 等规范加号修饰符。close 结束活动资源，delete 销毁存储记录，remove 移除
+成员关系，uninstall 移除已安装插件，dissolve 保留分组中的子项。

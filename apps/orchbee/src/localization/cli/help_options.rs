@@ -9,6 +9,9 @@ impl Locale {
         path: CommandPath,
         flag: &str,
     ) -> (&'static str, &'static str) {
+        if path == CommandPath::AgentStart && flag == "--provider" {
+            return ("<provider>", self.cli_agent_start_provider_choices());
+        }
         let (value, english, chinese) = match (path, flag) {
             (CommandPath::TerminalRun, "--wait") => (
                 "",
@@ -115,7 +118,7 @@ impl Locale {
                 "Side of the destination panel to place the panel on.",
                 "将面板放到目标面板的哪一侧。",
             ),
-            (CommandPath::TabMove, "--direction") => (
+            (CommandPath::TabMove, "--order") => (
                 "<direction>",
                 "Where to move the tab among its neighbors.",
                 "将标签页移动到相邻标签页中的哪个位置。",
@@ -340,6 +343,21 @@ impl Locale {
                     "Return the request ID without waiting for completion.",
                     "返回请求 ID，不等待操作完成。",
                 ),
+                "--order" => (
+                    "<previous|next|first|last>",
+                    "Order within the Tab list.",
+                    "标签页列表内的顺序。",
+                ),
+                "--search-direction" => (
+                    "<forward|backward>",
+                    "Direction of text search.",
+                    "文本搜索方向。",
+                ),
+                "--terminal" => (
+                    "<terminal>",
+                    "Select an exact primary or child terminal.",
+                    "选择精确的主终端或子终端。",
+                ),
                 "--direction" => (
                     "<direction>",
                     "Direction for navigation, movement or splitting.",
@@ -448,11 +466,6 @@ impl Locale {
                     "<key>",
                     "Semantic key to send; repeatable.",
                     "要发送的语义按键；可重复。",
-                ),
-                "--kind" => (
-                    "<provider>",
-                    "Agent provider to start: pi, claude-code, codex, gemini, cursor, devin, antigravity, cline, omp, mastracode, opencode, github-copilot, kimi, kiro, droid, amp, grok, hermes, kilo, qodercli, qwen-code, letta, maki, muse.",
-                    "要启动的 Agent 提供方：pi、claude-code、codex、gemini、cursor、devin、antigravity、cline、omp、mastracode、opencode、github-copilot、kimi、kiro、droid、amp、grok、hermes、kilo、qodercli、qwen-code、letta、maki、muse。",
                 ),
                 "--label" => (
                     "<text>",

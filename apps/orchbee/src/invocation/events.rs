@@ -9,6 +9,19 @@ use orchbee_workbench_protocol::{
     SemanticOutputMatch, SemanticOutputSource, WorkbenchClientId,
 };
 
+/// The CLI vocabulary is independent of the private event protocol's historical noun.
+pub(crate) fn public_name(kind: SemanticEventKind) -> String {
+    kind.as_str()
+        .strip_prefix("pane.")
+        .map_or_else(|| kind.as_str().to_owned(), |tail| format!("panel.{tail}"))
+}
+fn public_kind(name: &str) -> Option<SemanticEventKind> {
+    SemanticEventKind::ALL
+        .iter()
+        .copied()
+        .find(|kind| public_name(*kind) == name)
+}
+
 #[derive(Default)]
 pub(super) struct Options {
     pub(super) events: Vec<String>,
@@ -119,18 +132,23 @@ pub(super) fn parse(
         if raw.len() > 16 * 1024 {
             return Err(invalid("--filter", raw));
         }
-        let filter: SemanticEventFilter =
+        let mut value: serde_json::Value =
             serde_json::from_str(raw).map_err(|_| invalid("--filter", raw))?;
+        if value["kind"] == "event" {
+            let kind = value["event"]
+                .as_str()
+                .and_then(public_kind)
+                .ok_or_else(|| invalid("--filter", raw))?;
+            value["event"] = serde_json::json!(kind.as_str());
+        }
+        let filter: SemanticEventFilter =
+            serde_json::from_value(value).map_err(|_| invalid("--filter", raw))?;
         filter.validate().map_err(|_| invalid("--filter", raw))?;
         filters.push(filter);
     }
     let mut events = Vec::new();
     for raw in &options.events.events {
-        let event = SemanticEventKind::ALL
-            .iter()
-            .find(|kind| kind.as_str() == raw)
-            .copied()
-            .ok_or_else(|| invalid("--event", raw))?;
+        let event = public_kind(raw).ok_or_else(|| invalid("--event", raw))?;
         if !events.contains(&event) {
             events.push(event);
         }

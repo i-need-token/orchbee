@@ -2,101 +2,566 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.agent.doctor",
 	"title": "orchbee agent doctor envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.agent.doctor"
-		},
-		"version": {
-			"enum": [1, 2, 3, 4]
-		},
-		"source": {
+	"description": "Historical closed provider envelopes and the current canonical public provider vocabulary.",
+	"oneOf": [
+		{
 			"type": "object",
-			"required": ["kind"],
+			"required": ["schema", "version", "source", "result"],
 			"additionalProperties": false,
 			"properties": {
-				"kind": {
-					"const": "local-runtime"
-				}
-			}
-		},
-		"result": {
-			"type": "object",
-			"required": ["complete", "providers", "endpoint", "asset", "environment", "hints"],
-			"additionalProperties": false,
-			"properties": {
-				"complete": {
-					"type": "boolean"
+				"schema": {
+					"const": "orchbee.agent.doctor"
 				},
-				"providers": {
-					"type": "array",
-					"maxItems": 20,
-					"items": {
-						"$ref": "#/$defs/providerRow"
-					}
+				"version": {
+					"enum": [1, 2, 3, 4]
 				},
-				"endpoint": {
+				"source": {
 					"type": "object",
-					"required": ["socket"],
+					"required": ["kind"],
 					"additionalProperties": false,
 					"properties": {
-						"socket": {
-							"$ref": "#/$defs/socketFact"
+						"kind": {
+							"const": "local-runtime"
 						}
 					}
 				},
-				"asset": {
+				"result": {
 					"type": "object",
-					"required": ["roots"],
+					"required": ["complete", "providers", "endpoint", "asset", "environment", "hints"],
 					"additionalProperties": false,
 					"properties": {
-						"roots": {
+						"complete": {
+							"type": "boolean"
+						},
+						"providers": {
 							"type": "array",
 							"maxItems": 20,
 							"items": {
-								"$ref": "#/$defs/rootRow"
+								"$ref": "#/$defs/providerRow"
+							}
+						},
+						"endpoint": {
+							"type": "object",
+							"required": ["socket"],
+							"additionalProperties": false,
+							"properties": {
+								"socket": {
+									"$ref": "#/$defs/socketFact"
+								}
+							}
+						},
+						"asset": {
+							"type": "object",
+							"required": ["roots"],
+							"additionalProperties": false,
+							"properties": {
+								"roots": {
+									"type": "array",
+									"maxItems": 20,
+									"items": {
+										"$ref": "#/$defs/rootRow"
+									}
+								}
+							}
+						},
+						"environment": {
+							"type": "object",
+							"required": ["observationSocketEnv"],
+							"additionalProperties": false,
+							"properties": {
+								"observationSocketEnv": {
+									"type": "object",
+									"required": ["state"],
+									"properties": {
+										"state": {
+											"enum": [
+												"unset",
+												"empty",
+												"absolute-path",
+												"non-absolute",
+												"path-too-long",
+												"unknown"
+											]
+										},
+										"reason": {
+											"const": "budget-exhausted"
+										}
+									}
+								}
+							}
+						},
+						"hints": {
+							"type": "array",
+							"maxItems": 16,
+							"items": {
+								"$ref": "#/$defs/hintRow"
 							}
 						}
 					}
-				},
-				"environment": {
-					"type": "object",
-					"required": ["observationSocketEnv"],
-					"additionalProperties": false,
-					"properties": {
-						"observationSocketEnv": {
-							"type": "object",
-							"required": ["state"],
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 1
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"endpoint": {
+										"properties": {
+											"socket": {
+												"properties": {
+													"state": {
+														"not": {
+															"const": "not-inspected"
+														}
+													},
+													"reason": {
+														"const": "budget-exhausted"
+													}
+												}
+											}
+										}
+									},
+									"hints": {
+										"items": {
+											"properties": {
+												"id": {
+													"not": {
+														"enum": [
+															"windows-hook-transport-unavailable",
+															"windows-endpoint-not-inspected"
+														]
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"if": {
 							"properties": {
-								"state": {
-									"enum": [
-										"unset",
-										"empty",
-										"absolute-path",
-										"non-absolute",
-										"path-too-long",
-										"unknown"
-									]
-								},
-								"reason": {
-									"const": "budget-exhausted"
+								"version": {
+									"const": 2
+								}
+							}
+						},
+						"then": {
+							"properties": {
+								"result": {
+									"properties": {
+										"endpoint": {
+											"properties": {
+												"socket": {
+													"oneOf": [
+														{
+															"required": ["reason"],
+															"properties": {
+																"state": {
+																	"const": "not-inspected"
+																},
+																"reason": {
+																	"const": "windows-hook-transport-unavailable"
+																}
+															}
+														},
+														{
+															"required": ["reason"],
+															"properties": {
+																"state": {
+																	"const": "unknown"
+																},
+																"reason": {
+																	"const": "budget-exhausted"
+																}
+															}
+														}
+													]
+												}
+											}
+										},
+										"hints": {
+											"items": {
+												"properties": {
+													"id": {
+														"not": {
+															"const": "windows-endpoint-not-inspected"
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						},
+						"else": {
+							"properties": {
+								"result": {
+									"properties": {
+										"endpoint": {
+											"properties": {
+												"socket": {
+													"oneOf": [
+														{
+															"required": ["reason"],
+															"properties": {
+																"state": {
+																	"const": "not-inspected"
+																},
+																"reason": {
+																	"const": "windows-endpoint-not-inspected"
+																}
+															}
+														},
+														{
+															"required": ["reason"],
+															"properties": {
+																"state": {
+																	"const": "unknown"
+																},
+																"reason": {
+																	"const": "budget-exhausted"
+																}
+															}
+														}
+													]
+												}
+											}
+										},
+										"hints": {
+											"items": {
+												"properties": {
+													"id": {
+														"not": {
+															"const": "windows-hook-transport-unavailable"
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
 					}
 				},
-				"hints": {
-					"type": "array",
-					"maxItems": 16,
-					"items": {
-						"$ref": "#/$defs/hintRow"
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [1, 2, 3]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"providers": {
+										"maxItems": 14
+									}
+								}
+							}
+						}
 					}
 				}
-			}
+			]
+		},
+		{
+			"allOf": [
+				{
+					"type": "object",
+					"required": ["schema", "version", "source", "result"],
+					"additionalProperties": false,
+					"properties": {
+						"schema": {
+							"const": "orchbee.agent.doctor"
+						},
+						"version": {
+							"enum": [5, 6]
+						},
+						"source": {
+							"type": "object",
+							"required": ["kind"],
+							"additionalProperties": false,
+							"properties": {
+								"kind": {
+									"const": "local-runtime"
+								}
+							}
+						},
+						"result": {
+							"type": "object",
+							"required": ["complete", "providers", "endpoint", "asset", "environment", "hints"],
+							"additionalProperties": false,
+							"properties": {
+								"complete": {
+									"type": "boolean"
+								},
+								"providers": {
+									"type": "array",
+									"maxItems": 20,
+									"items": {
+										"$ref": "#/$defs/publicProvider_providerRow"
+									}
+								},
+								"endpoint": {
+									"type": "object",
+									"required": ["socket"],
+									"additionalProperties": false,
+									"properties": {
+										"socket": {
+											"$ref": "#/$defs/publicProvider_socketFact"
+										}
+									}
+								},
+								"asset": {
+									"type": "object",
+									"required": ["roots"],
+									"additionalProperties": false,
+									"properties": {
+										"roots": {
+											"type": "array",
+											"maxItems": 20,
+											"items": {
+												"$ref": "#/$defs/publicProvider_rootRow"
+											}
+										}
+									}
+								},
+								"environment": {
+									"type": "object",
+									"required": ["observationSocketEnv"],
+									"additionalProperties": false,
+									"properties": {
+										"observationSocketEnv": {
+											"type": "object",
+											"required": ["state"],
+											"properties": {
+												"state": {
+													"enum": [
+														"unset",
+														"empty",
+														"absolute-path",
+														"non-absolute",
+														"path-too-long",
+														"unknown"
+													]
+												},
+												"reason": {
+													"const": "budget-exhausted"
+												}
+											}
+										}
+									}
+								},
+								"hints": {
+									"type": "array",
+									"maxItems": 16,
+									"items": {
+										"$ref": "#/$defs/publicProvider_hintRow"
+									}
+								}
+							}
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"const": 5
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"properties": {
+											"endpoint": {
+												"properties": {
+													"socket": {
+														"properties": {
+															"state": {
+																"not": {
+																	"const": "not-inspected"
+																}
+															},
+															"reason": {
+																"const": "budget-exhausted"
+															}
+														}
+													}
+												}
+											},
+											"hints": {
+												"items": {
+													"properties": {
+														"id": {
+															"not": {
+																"enum": [
+																	"windows-hook-transport-unavailable",
+																	"windows-endpoint-not-inspected"
+																]
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							},
+							"else": {
+								"if": {
+									"properties": {
+										"version": {
+											"const": 2
+										}
+									}
+								},
+								"then": {
+									"properties": {
+										"result": {
+											"properties": {
+												"endpoint": {
+													"properties": {
+														"socket": {
+															"oneOf": [
+																{
+																	"required": ["reason"],
+																	"properties": {
+																		"state": {
+																			"const": "not-inspected"
+																		},
+																		"reason": {
+																			"const": "windows-hook-transport-unavailable"
+																		}
+																	}
+																},
+																{
+																	"required": ["reason"],
+																	"properties": {
+																		"state": {
+																			"const": "unknown"
+																		},
+																		"reason": {
+																			"const": "budget-exhausted"
+																		}
+																	}
+																}
+															]
+														}
+													}
+												},
+												"hints": {
+													"items": {
+														"properties": {
+															"id": {
+																"not": {
+																	"const": "windows-endpoint-not-inspected"
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								},
+								"else": {
+									"properties": {
+										"result": {
+											"properties": {
+												"endpoint": {
+													"properties": {
+														"socket": {
+															"oneOf": [
+																{
+																	"required": ["reason"],
+																	"properties": {
+																		"state": {
+																			"const": "not-inspected"
+																		},
+																		"reason": {
+																			"const": "windows-endpoint-not-inspected"
+																		}
+																	}
+																},
+																{
+																	"required": ["reason"],
+																	"properties": {
+																		"state": {
+																			"const": "unknown"
+																		},
+																		"reason": {
+																			"const": "budget-exhausted"
+																		}
+																	}
+																}
+															]
+														}
+													}
+												},
+												"hints": {
+													"items": {
+														"properties": {
+															"id": {
+																"not": {
+																	"const": "windows-hook-transport-unavailable"
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"version": {
+										"enum": [5]
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"result": {
+										"properties": {
+											"providers": {
+												"maxItems": 14
+											}
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"properties": {
+						"version": {
+							"enum": [5, 6]
+						}
+					}
+				}
+			]
 		}
-	},
+	],
 	"$defs": {
 		"providerId": {
 			"enum": [
@@ -363,182 +828,272 @@
 					"type": "string"
 				}
 			}
-		}
-	},
-	"allOf": [
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 1
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"endpoint": {
-								"properties": {
-									"socket": {
-										"properties": {
-											"state": {
-												"not": {
-													"const": "not-inspected"
-												}
-											},
-											"reason": {
-												"const": "budget-exhausted"
-											}
-										}
-									}
-								}
-							},
-							"hints": {
-								"items": {
-									"properties": {
-										"id": {
-											"not": {
-												"enum": [
-													"windows-hook-transport-unavailable",
-													"windows-endpoint-not-inspected"
-												]
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"if": {
-					"properties": {
-						"version": {
-							"const": 2
-						}
-					}
+		},
+		"publicProvider_providerId": {
+			"enum": [
+				"claude-code",
+				"codex",
+				"gemini",
+				"github-copilot",
+				"grok",
+				"cline",
+				"opencode",
+				"kilo",
+				"cursor",
+				"qodercli",
+				"antigravity",
+				"mastracode",
+				"droid",
+				"kimi",
+				"letta",
+				"devin",
+				"hermes",
+				"pi",
+				"omp",
+				"qwen-code"
+			]
+		},
+		"publicProvider_pathField": {
+			"oneOf": [
+				{
+					"required": ["path"]
 				},
-				"then": {
-					"properties": {
-						"result": {
-							"properties": {
-								"endpoint": {
-									"properties": {
-										"socket": {
-											"oneOf": [
-												{
-													"required": ["reason"],
-													"properties": {
-														"state": {
-															"const": "not-inspected"
-														},
-														"reason": {
-															"const": "windows-hook-transport-unavailable"
-														}
-													}
-												},
-												{
-													"required": ["reason"],
-													"properties": {
-														"state": {
-															"const": "unknown"
-														},
-														"reason": {
-															"const": "budget-exhausted"
-														}
-													}
-												}
-											]
-										}
-									}
-								},
-								"hints": {
-									"items": {
-										"properties": {
-											"id": {
-												"not": {
-													"const": "windows-endpoint-not-inspected"
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
+				{
+					"required": ["pathBytesHex"]
+				}
+			],
+			"properties": {
+				"path": {
+					"type": "string"
 				},
-				"else": {
-					"properties": {
-						"result": {
-							"properties": {
-								"endpoint": {
-									"properties": {
-										"socket": {
-											"oneOf": [
-												{
-													"required": ["reason"],
-													"properties": {
-														"state": {
-															"const": "not-inspected"
-														},
-														"reason": {
-															"const": "windows-endpoint-not-inspected"
-														}
-													}
-												},
-												{
-													"required": ["reason"],
-													"properties": {
-														"state": {
-															"const": "unknown"
-														},
-														"reason": {
-															"const": "budget-exhausted"
-														}
-													}
-												}
-											]
-										}
-									}
-								},
-								"hints": {
-									"items": {
-										"properties": {
-											"id": {
-												"not": {
-													"const": "windows-hook-transport-unavailable"
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
+				"pathBytesHex": {
+					"type": "string",
+					"pattern": "^([0-9a-f]{2})+$"
 				}
 			}
 		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [1, 2, 3]
-					}
+		"publicProvider_executableFact": {
+			"type": "object",
+			"required": ["state"],
+			"properties": {
+				"state": {
+					"enum": ["present", "absent", "unknown", "not-applicable"]
+				},
+				"reason": {
+					"const": "budget-exhausted"
+				},
+				"detail": {
+					"type": "object",
+					"properties": {
+						"truncated": {
+							"const": true
+						}
+					},
+					"allOf": [
+						{
+							"$ref": "#/$defs/publicProvider_pathField"
+						}
+					]
 				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"providers": {
-								"maxItems": 14
-							}
+			}
+		},
+		"publicProvider_hookFact": {
+			"type": "object",
+			"required": ["state", "reason"],
+			"properties": {
+				"state": {
+					"enum": [
+						"present",
+						"absent",
+						"disabled",
+						"conflict",
+						"unknown",
+						"unsupported",
+						"update-required"
+					]
+				},
+				"reason": {
+					"enum": [
+						"target-missing",
+						"no-managed-install",
+						"disabled-flag",
+						"marker-consistent",
+						"bootstrap-marker-consistent",
+						"config-declares-install",
+						"foreign-content",
+						"marker-mismatch",
+						"template-mismatch",
+						"name-mismatch",
+						"duplicate-key",
+						"duplicate-section",
+						"plugin-without-marketplace",
+						"non-local-source",
+						"source-not-absolute",
+						"recorded-root-inconsistent",
+						"recorded-root-absent",
+						"recorded-root-uninspectable",
+						"provider-command-inspection-required",
+						"unreadable",
+						"malformed",
+						"unsafe-file-kind",
+						"symlink-uninspected",
+						"budget-exhausted",
+						"not-inspected",
+						"contract-version-below-supported",
+						"contract-version-unrecognized"
+					]
+				},
+				"detail": {
+					"type": "object"
+				}
+			}
+		},
+		"publicProvider_providerRow": {
+			"type": "object",
+			"required": ["id", "executable", "runtime", "hook"],
+			"additionalProperties": false,
+			"properties": {
+				"id": {
+					"$ref": "#/$defs/publicProvider_providerId"
+				},
+				"executable": {
+					"$ref": "#/$defs/publicProvider_executableFact"
+				},
+				"runtime": {
+					"type": "object",
+					"required": ["node"],
+					"additionalProperties": false,
+					"properties": {
+						"node": {
+							"$ref": "#/$defs/publicProvider_executableFact"
+						}
+					}
+				},
+				"hook": {
+					"$ref": "#/$defs/publicProvider_hookFact"
+				}
+			}
+		},
+		"publicProvider_socketFact": {
+			"type": "object",
+			"required": ["state"],
+			"properties": {
+				"state": {
+					"enum": [
+						"present",
+						"absent",
+						"not-a-socket",
+						"wrong-owner",
+						"unsafe-symlink",
+						"unreadable",
+						"path-too-long",
+						"unknown",
+						"not-inspected"
+					]
+				},
+				"reason": {
+					"enum": [
+						"budget-exhausted",
+						"windows-hook-transport-unavailable",
+						"windows-endpoint-not-inspected"
+					]
+				},
+				"detail": {
+					"type": "object",
+					"properties": {
+						"kind": {
+							"enum": ["regular", "directory", "socket", "other"]
+						},
+						"owner": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"mode": {
+							"type": "integer",
+							"minimum": 0
+						}
+					},
+					"allOf": [
+						{
+							"$ref": "#/$defs/publicProvider_pathField"
+						}
+					]
+				}
+			}
+		},
+		"publicProvider_rootRow": {
+			"type": "object",
+			"required": ["origin", "state"],
+			"properties": {
+				"origin": {
+					"type": "string",
+					"pattern": "^(supplied|recorded:[0-9a-z-]+:(source|moduleUrl))$"
+				},
+				"state": {
+					"enum": [
+						"consistent",
+						"inconsistent",
+						"unreadable",
+						"unsafe",
+						"absent",
+						"path-too-long",
+						"budget-exhausted",
+						"not-inspected"
+					]
+				},
+				"detail": {
+					"type": "object",
+					"properties": {
+						"declaredContractVersion": {
+							"type": "number"
+						},
+						"declaredPayloadVersion": {
+							"type": "string"
 						}
 					}
 				}
+			},
+			"allOf": [
+				{
+					"$ref": "#/$defs/publicProvider_pathField"
+				}
+			]
+		},
+		"publicProvider_hintRow": {
+			"type": "object",
+			"required": ["id", "evidence", "text"],
+			"additionalProperties": false,
+			"properties": {
+				"id": {
+					"enum": [
+						"hook-conflict",
+						"hook-unknown",
+						"hook-disabled",
+						"hook-update-required",
+						"hook-unsupported",
+						"hook-present-executable-absent",
+						"hook-absent-executable-present",
+						"node-absent",
+						"endpoint-absent",
+						"endpoint-anomaly",
+						"env-override-invalid",
+						"root-anomaly",
+						"root-uninspectable",
+						"partial-document",
+						"windows-hook-transport-unavailable",
+						"windows-endpoint-not-inspected"
+					]
+				},
+				"evidence": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"text": {
+					"type": "string"
+				}
 			}
 		}
-	]
+	}
 }

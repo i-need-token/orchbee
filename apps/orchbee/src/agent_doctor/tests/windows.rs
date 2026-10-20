@@ -2,14 +2,14 @@ use super::super::{Budget, fs, probes};
 use std::{ffi::OsStr, path::Path};
 
 #[test]
-fn all_windows_provider_rows_fit_v4_without_widening_v3() {
+fn all_windows_provider_rows_fit_v6_without_widening_legacy_versions() {
     use serde_json::{Value, json};
     let run = super::super::DoctorRun {
         providers: probes::PROVIDERS
             .iter()
             .map(|provider| {
                 json!({
-                    "id": provider.id, "executable":{"state":"absent"},
+                    "id": crate::agent_integrations::IntegrationId::parse(provider.id).unwrap().provider(), "executable":{"state":"absent"},
                     "runtime":{"node":{"state":"absent"}},
                     "hook":{"state":"unknown","reason":"unreadable","detail":{}}
                 })

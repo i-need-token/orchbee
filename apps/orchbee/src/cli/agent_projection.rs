@@ -221,6 +221,25 @@ pub(super) fn panel(
         &panel.row.panel_id,
     )
 }
+pub(super) fn terminal(
+    client: &mut LocalClient,
+    snapshot: &Snapshot,
+    terminal: &results::TerminalRow,
+    deadline: Instant,
+    wake: Option<orchbee_local_ipc::LocalIo<'_>>,
+) -> Result<AgentNameTarget, Failure> {
+    let checkpoint = read(client, snapshot, false, deadline, wake)?;
+    choose(
+        checkpoint
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| row.in_presentation(&terminal.presentation_id))
+            .map(|(index, row)| (index + 1, row))
+            .collect(),
+        &terminal.terminal_id,
+    )
+}
 pub(super) fn inspection_row(
     checkpoint: &Checkpoint,
     target: &AgentNameTarget,

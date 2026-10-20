@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use super::{Failure, FailureKind, output, results::TerminalRow};
 use crate::invocation::{OutputSelection, OutputSource};
 
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", windows))]
 pub(crate) mod ansi;
 
 #[derive(Clone, Debug, Default)]

@@ -262,12 +262,7 @@ fn agent_focus_grammar_requires_one_agent_target_and_reuses_navigation_receipts(
 fn panel_swap_grammar_selects_one_source_and_one_destination_with_one_budget() {
     let parse = |words: &[&str]| invocation::parse_request(words.iter().map(OsString::from));
     let id = "00000000000000000000000000000007";
-    for source in [
-        vec![],
-        vec![id],
-        vec!["--panel", "@panel:07"],
-        vec!["--current"],
-    ] {
+    for source in [vec![], vec![id], vec!["@panel:07"], vec!["--current"]] {
         for destination in [vec!["--with", "@panel:08"], vec!["--direction", "up"]] {
             let mut words = vec!["panel", "swap"];
             words.extend(source.clone());
@@ -797,14 +792,7 @@ fn directional_focus_grammar_resolves_source_and_explicit_success_variants() {
         for args in [
             vec!["panel", "focus", "--direction", word],
             vec!["panel", "focus", "--current", "--direction", word],
-            vec![
-                "--direction",
-                word,
-                "panel",
-                "focus",
-                "--panel",
-                "@panel:06",
-            ],
+            vec!["--direction", word, "panel", "focus", "@panel:06"],
         ] {
             let Request::Client {
                 command: ClientCommand::Navigate { target, .. },

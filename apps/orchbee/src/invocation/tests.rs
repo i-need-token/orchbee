@@ -17,57 +17,36 @@ fn unknown_options_point_to_the_recognized_command_help() {
     }
 }
 
-fn expected_terminal_read(
-    target: Target,
-    history: Option<u16>,
-    unwrap: bool,
-    lines: Option<u16>,
-) -> QueryCommand {
-    if cfg!(windows) && history.is_none() {
-        QueryCommand::TerminalOutput {
-            target: super::OutputTarget::Terminal(target),
-            selection: super::OutputSelection {
-                source: if unwrap {
-                    super::OutputSource::RecentUnwrapped
-                } else {
-                    super::OutputSource::Recent
-                },
-                lines: lines.map(|n| n.min(1000)),
+fn expected_terminal_read(target: Target, unwrap: bool, lines: Option<u16>) -> QueryCommand {
+    let target = match target {
+        Target::Id(id) => Target::Id(id),
+        other => other,
+    };
+    QueryCommand::TerminalOutput {
+        target: super::OutputTarget::Terminal(target),
+        selection: super::OutputSelection {
+            source: if unwrap {
+                super::OutputSource::RecentUnwrapped
+            } else {
+                super::OutputSource::Recent
             },
-            plain: false,
-            ansi: false,
-        }
-    } else {
-        QueryCommand::TerminalRead {
-            target,
-            history,
-            unwrap,
-            lines,
-        }
+            lines: lines.map(|n| n.min(1000)),
+        },
+        plain: false,
+        ansi: false,
     }
 }
 
-fn expected_output_wait(text: &str, rows: Option<u16>, timeout: Option<u32>) -> QueryCommand {
-    let target = Target::Id(ID.into());
-    let matcher = WaitPattern::Literal(text.to_owned());
-    if cfg!(windows) {
-        QueryCommand::TerminalSourceWait {
-            after: None,
-            target,
-            matcher,
-            selection: super::OutputSelection {
-                source: super::OutputSource::Recent,
-                lines: rows,
-            },
-            timeout_ms: timeout,
-        }
-    } else {
-        QueryCommand::TerminalWaitOutput {
-            target,
-            matcher,
-            rows: rows.unwrap_or(1000),
-            timeout_ms: timeout.unwrap_or(30_000),
-        }
+fn expected_output_wait(text: &str, lines: Option<u16>, timeout: Option<u32>) -> QueryCommand {
+    QueryCommand::TerminalSourceWait {
+        after: None,
+        target: Target::Id(ID.into()),
+        matcher: WaitPattern::Literal(text.to_owned()),
+        selection: super::OutputSelection {
+            source: super::OutputSource::Recent,
+            lines,
+        },
+        timeout_ms: Some(timeout.unwrap_or(30_000)),
     }
 }
 
@@ -156,7 +135,7 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
         "agent",
         "start",
         "alpha",
-        "--kind=codex",
+        "--provider=codex",
         "--timeout=3001",
         "--format=json",
         "--",
@@ -178,7 +157,7 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
         "agent",
         "start",
         "alpha",
-        "--kind=codex",
+        "--provider=codex",
         "--arg=",
         "--arg=--",
         "--current",
@@ -190,23 +169,29 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
     assert_eq!(command.args, ["", "--"]);
     for words in [
         vec!["agent", "start", "alpha"],
-        vec!["agent", "start", "INVALID", "--kind=codex"],
-        vec!["agent", "start", "alpha", "--kind=unknown"],
-        vec!["agent", "start", "alpha", "--kind=claude"],
-        vec!["agent", "start", "alpha", "--kind=codex", "--timeout=3000"],
+        vec!["agent", "start", "INVALID", "--provider=codex"],
+        vec!["agent", "start", "alpha", "--provider=unknown"],
+        vec!["agent", "start", "alpha", "--provider=claude"],
         vec![
             "agent",
             "start",
             "alpha",
-            "--kind=codex",
+            "--provider=codex",
+            "--timeout=3000",
+        ],
+        vec![
+            "agent",
+            "start",
+            "alpha",
+            "--provider=codex",
             "--timeout=300001",
         ],
-        vec!["agent", "start", "alpha", "--kind=codex", "--forever"],
+        vec!["agent", "start", "alpha", "--provider=codex", "--forever"],
         vec![
             "agent",
             "start",
             "alpha",
-            "--kind=codex",
+            "--provider=codex",
             "--current",
             "--panel=11111111111111111111111111111111",
         ],
@@ -214,29 +199,35 @@ fn agent_start_parses_literal_arguments_and_rejects_invalid_configuration_before
             "agent",
             "start",
             "alpha",
-            "--kind=codex",
+            "--provider=codex",
             "--arg=x",
             "--",
             "y",
         ],
-        vec!["agent", "start", "alpha", "--kind=codex", "--", "a\nb"],
-        vec!["agent", "start", "alpha", "--kind=codex", "--kind=pi"],
-        vec!["agent", "names", "--kind=codex"],
+        vec!["agent", "start", "alpha", "--provider=codex", "--", "a\nb"],
+        vec![
+            "agent",
+            "start",
+            "alpha",
+            "--provider=codex",
+            "--provider=pi",
+        ],
+        vec!["agent", "names", "--provider=codex"],
     ] {
         assert!(parse(&words).is_err(), "{words:?}");
     }
     for provider in crate::agent_provider::CANONICAL_IDS {
         assert!(
-            parse(&["agent", "start", "alpha", "--kind", provider]).is_ok(),
+            parse(&["agent", "start", "alpha", "--provider", provider]).is_ok(),
             "{provider}"
         );
     }
     // The invalid-value diagnostic and the option help both enumerate the
-    // complete closed `--kind` set from the provider registry.
-    let failure = parse(&["agent", "start", "alpha", "--kind=claude"]).unwrap_err();
+    // complete closed `--provider` set from the provider registry.
+    let failure = parse(&["agent", "start", "alpha", "--provider=claude"]).unwrap_err();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let stderr = crate::cli::parse_failure(failure.clone(), locale).stderr;
-        let (_, help) = locale.cli_help_option(super::CommandPath::AgentStart, "--kind");
+        let (_, help) = locale.cli_help_option(super::CommandPath::AgentStart, "--provider");
         for provider in crate::agent_provider::CANONICAL_IDS {
             assert!(stderr.contains(provider), "{provider}: {stderr}");
             assert!(help.contains(provider), "{provider}: {help}");
@@ -564,7 +555,7 @@ fn accepts_every_query_path_with_default_text() {
         ),
         (
             &["terminal", "read", ID],
-            expected_terminal_read(Target::Id(ID.into()), None, false, None),
+            expected_terminal_read(Target::Id(ID.into()), false, None),
         ),
         (&["api", "snapshot"], QueryCommand::ApiSnapshot),
         (
@@ -1486,7 +1477,7 @@ fn selector_targets_parse_for_their_own_resource() {
         ),
         (
             &["terminal", "read", "@terminal:beef"],
-            expected_terminal_read(Target::Selector("@terminal:beef".into()), None, false, None),
+            expected_terminal_read(Target::Selector("@terminal:beef".into()), false, None),
         ),
     ];
     for (arguments, command) in cases {
@@ -1872,7 +1863,7 @@ fn accepts_every_mutation_path() {
             },
         ),
         (
-            &["tab", "move", "logs", "--direction", "first"],
+            &["tab", "move", "logs", "--order", "first"],
             MutationCommand::TabMove {
                 target: Target::Label("logs".into()),
                 direction: WorkbenchTabMoveDirection::First,
@@ -2323,8 +2314,8 @@ fn joined_value_spelling_is_equivalent() {
         ),
         // Direction, name, launch selection.
         (
-            &["tab", "move", "t", "--direction", "next"][..],
-            &["tab", "move", "t", "--direction=next"][..],
+            &["tab", "move", "t", "--order", "next"][..],
+            &["tab", "move", "t", "--order=next"][..],
         ),
         (
             &[
@@ -2950,7 +2941,7 @@ fn close_commands_require_explicit_confirm() {
         // --confirm is scoped to the close commands only.
         &["tab", "rename", ID, "--label", "x", "--confirm"][..],
         &["workspace", "rename", "w", "--label", "x", "--confirm"][..],
-        &["tab", "move", ID, "--direction", "next", "--confirm"][..],
+        &["tab", "move", ID, "--order", "next", "--confirm"][..],
         &[
             "panel",
             "move",
@@ -2981,7 +2972,7 @@ fn mutation_direction_values_follow_the_command_family() {
         ("first", WorkbenchTabMoveDirection::First),
         ("last", WorkbenchTabMoveDirection::Last),
     ] {
-        let arguments = ["tab", "move", ID, "--direction", word];
+        let arguments = ["tab", "move", ID, "--order", word];
         assert_eq!(
             parse(&arguments),
             Ok(mutation(
@@ -2995,8 +2986,8 @@ fn mutation_direction_values_follow_the_command_family() {
         );
     }
     for (word, direction) in [
-        ("above", WorkbenchPanelSplitDirection::Above),
-        ("below", WorkbenchPanelSplitDirection::Below),
+        ("up", WorkbenchPanelSplitDirection::Above),
+        ("down", WorkbenchPanelSplitDirection::Below),
         ("left", WorkbenchPanelSplitDirection::Left),
         ("right", WorkbenchPanelSplitDirection::Right),
     ] {
@@ -3026,8 +3017,8 @@ fn mutation_direction_values_follow_the_command_family() {
     }
     // Cross-family direction words are usage, not a nearest match.
     for arguments in [
-        &["tab", "move", ID, "--direction", "above"][..],
-        &["tab", "move", ID, "--direction", "right"][..],
+        &["tab", "move", ID, "--order", "above"][..],
+        &["tab", "move", ID, "--order", "right"][..],
         &[
             "panel",
             "move",
@@ -3170,7 +3161,7 @@ fn mutation_options_stay_inside_their_command_scope() {
             "--standalone",
         ],
         &["tab", "rename", "t", "--label", "x", "--workspace", "w"],
-        &["tab", "move", "t", "--direction", "next", "--label", "x"],
+        &["tab", "move", "t", "--order", "next", "--label", "x"],
         &[
             "tab",
             "move",
@@ -3909,7 +3900,7 @@ fn usage_failures_carry_their_concrete_reason() {
             &["terminal", "read"],
             UsageReason::MissingRequired {
                 context: path("terminal read"),
-                requirement: "<terminal>",
+                requirement: "<target> or --panel <panel>",
             },
         ),
         (
@@ -4192,14 +4183,14 @@ fn usage_failures_carry_their_concrete_reason() {
             &["tab", "move", ID],
             UsageReason::MissingRequired {
                 context: path("tab move"),
-                requirement: "'--direction' or '--insert-index'",
+                requirement: "'--order' or '--insert-index'",
             },
         ),
         (
-            &["tab", "move", ID, "--direction", "left"],
+            &["tab", "move", ID, "--order", "left"],
             UsageReason::InvalidValue {
                 context: path("tab move"),
-                option: "--direction",
+                option: "--order",
                 value: "left".to_owned(),
                 expected: ExpectedValue::TabDirection,
             },
@@ -4291,305 +4282,97 @@ fn ownership_and_terminator_keep_their_reasons() {
 /// keeps its dimension meaning.
 #[test]
 fn terminal_read_history_grammar() {
-    let read = |history: Option<u16>| {
-        query(
-            expected_terminal_read(Target::Id(ID.into()), history, false, None),
-            OutputFormat::Text,
-        )
-    };
-    for (arguments, expected) in [
-        (
-            &["terminal", "read", ID, "--history", "--rows", "1"][..],
-            Some(1),
-        ),
-        (
-            &["terminal", "read", ID, "--history", "--rows", "1000"][..],
-            Some(1000),
-        ),
-        // Flag order is free; the pair binds at resolve time.
-        (
-            &["terminal", "read", ID, "--rows", "42", "--history"][..],
-            Some(42),
-        ),
-        // The shared unsigned-integer spelling admits a leading `+`, exactly
-        // like the geometry dimensions.
-        (
-            &["terminal", "read", ID, "--history", "--rows", "+5"][..],
-            Some(5),
-        ),
-        (&["terminal", "read", ID][..], None),
-    ] {
-        assert_eq!(parse(arguments), Ok(read(expected)), "{arguments:?}");
+    // Retired aliases cannot silently select a different output window.
+    for family in ["terminal", "agent"] {
+        let target = if family == "terminal" { ID } else { "alpha" };
+        for tail in [
+            vec!["--history"],
+            vec!["--history", "--rows", "20"],
+            vec!["--rows", "20"],
+            vec!["--unwrap"],
+            vec!["--scan", "20"],
+            vec!["--scope", "history"],
+        ] {
+            let mut args = vec![family, "read", target];
+            args.extend(tail);
+            assert!(parse(&args).is_err(), "{args:?}");
+        }
     }
-    // History mode composes with the orthogonal format selection.
-    assert_eq!(
-        parse(&[
-            "terminal",
-            "read",
-            ID,
-            "--history",
-            "--rows",
-            "7",
-            "--format",
-            "json"
-        ]),
-        Ok(Request::Query {
-            command: expected_terminal_read(Target::Id(ID.into()), Some(7), false, None),
-            format: OutputFormat::Json,
-        })
-    );
-    // Each half without the other is the missing requirement, never a
-    // default or an implied mode.
-    for (arguments, requirement) in [
-        (&["terminal", "read", ID, "--history"][..], "'--rows'"),
-        (
-            &["terminal", "read", ID, "--history", "--format", "json"][..],
-            "'--rows'",
-        ),
-        (&["terminal", "read", ID, "--rows", "5"][..], "'--history'"),
+    // Geometry retains its independent row dimension.
+    assert!(tab_create_with(&["--exec", "/bin/sh"]).is_ok());
+    for (source, expected) in [
+        ("visible", super::OutputSource::Visible),
+        ("recent", super::OutputSource::Recent),
+        ("recent-unwrapped", super::OutputSource::RecentUnwrapped),
+        ("detection", super::OutputSource::Detection),
     ] {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(
-            failure.usage.as_ref(),
-            Some(&UsageReason::MissingRequired {
-                context: UsageContext::Path("terminal read"),
-                requirement,
-            }),
-            "{arguments:?}"
-        );
-    }
-    // The history-row value shape: bounds, syntax, and no geometry spill.
-    for value in ["0", "1001", "65536", "abc", "-1", "", "5.0", " 5", "5 "] {
-        let arguments = ["terminal", "read", ID, "--history", "--rows", value];
-        let Err(failure) = parse(&arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(
-            failure.usage.as_ref(),
-            Some(&UsageReason::InvalidValue {
-                context: UsageContext::Path("terminal read"),
-                option: "--rows",
-                value: value.to_owned(),
-                expected: ExpectedValue::HistoryRows,
-            }),
-            "{arguments:?}"
-        );
-    }
-    // `--history` is out of scope everywhere else, named as the first
-    // rejected flag in declaration order.
-    for (arguments, context) in [
-        (
-            &["terminal", "get", ID, "--history"][..],
-            UsageContext::Path("terminal get"),
-        ),
-        (
-            &["terminal", "list", "--history"][..],
-            UsageContext::Path("terminal list"),
-        ),
-        (&["status", "--history"][..], UsageContext::Path("status")),
-        (
-            &["api", "snapshot", "--history"][..],
-            UsageContext::Path("api snapshot"),
-        ),
-        (
-            &[
-                "tab",
-                "create",
-                "--standalone",
-                "--label",
-                "t",
-                "--cols",
-                "80",
-                "--rows",
-                "24",
-                "--cell-width",
-                "8",
-                "--cell-height",
-                "16",
-                "--history",
-            ][..],
-            UsageContext::Path("tab create"),
-        ),
-    ] {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(
-            failure.usage.as_ref(),
-            Some(&UsageReason::UnexpectedOption {
-                context,
-                option: "--history",
-            }),
-            "{arguments:?}"
-        );
-    }
-    // `--history` repeats and `--rows` repeats stay duplicate/invalid before
-    // the pair is ever resolved.
-    for (arguments, expected) in [
-        (
-            &[
-                "terminal",
-                "read",
-                ID,
-                "--history",
-                "--history",
-                "--rows",
-                "5",
-            ][..],
-            UsageReason::DuplicateOption {
-                option: "--history",
-            },
-        ),
-        (
-            &[
-                "terminal",
-                "read",
-                ID,
-                "--history",
-                "--rows",
-                "5",
-                "--rows",
-                "6",
-            ][..],
-            UsageReason::DuplicateOption { option: "--rows" },
-        ),
-        // `--rows` still owns its next word whole, even a flag spelling.
-        (
-            &["terminal", "read", ID, "--rows", "--history"][..],
-            UsageReason::MissingRequired {
-                context: UsageContext::Path("terminal read"),
-                requirement: "'--history'",
-            },
-        ),
-    ] {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(failure.usage.as_ref(), Some(&expected), "{arguments:?}");
+        for (value, limit) in [
+            ("0", 0),
+            ("1", 1),
+            ("1000", 1000),
+            ("1001", 1000),
+            ("4294967295", 1000),
+        ] {
+            assert!(
+                matches!(parse(&["terminal", "read", ID, "--source", source, "--lines", value, "--format", "json"]),
+                Ok(Request::Query { command: QueryCommand::TerminalOutput { selection, .. }, format: OutputFormat::Json })
+                if selection == super::OutputSelection { source: expected, lines: Some(limit) })
+            );
+        }
     }
 }
 
-/// `terminal read --unwrap`/`--lines <n>`: presentation-only transforms
-/// scoped to `terminal read` alone — `--lines` admits 1..=65535, composes
-/// with history mode, and both flags stay illegal on every other command.
+/// Output sources and line limits share one grammar; retired flags stay rejected.
 #[test]
 fn terminal_read_presentation_grammar() {
-    let read = |history: Option<u16>, unwrap: bool, lines: Option<u16>| {
-        query(
-            expected_terminal_read(Target::Id(ID.into()), history, unwrap, lines),
-            OutputFormat::Text,
-        )
-    };
-    for (arguments, expected) in [
+    for (args, unwrap, lines) in [
+        (vec!["terminal", "read", ID], false, None),
         (
-            &["terminal", "read", ID, "--unwrap"][..],
-            read(None, true, None),
+            vec!["terminal", "read", ID, "--source", "recent-unwrapped"],
+            true,
+            None,
         ),
+        (vec!["terminal", "read", ID, "--lines", "5"], false, Some(5)),
+        (vec!["terminal", "read", ID, "--lines", "0"], false, Some(0)),
         (
-            &["terminal", "read", ID, "--lines", "5"][..],
-            read(None, false, Some(5)),
-        ),
-        (
-            &["terminal", "read", ID, "--lines", "1"][..],
-            read(None, false, Some(1)),
-        ),
-        (
-            &["terminal", "read", ID, "--lines", "65535"][..],
-            read(None, false, Some(65535)),
-        ),
-        // All three transforms compose; flag order is free.
-        (
-            &[
-                "terminal",
-                "read",
-                ID,
-                "--lines",
-                "10",
-                "--unwrap",
-                "--history",
-                "--rows",
-                "100",
-            ][..],
-            read(Some(100), true, Some(10)),
+            vec!["terminal", "read", ID, "--lines", "65535"],
+            false,
+            Some(1000),
         ),
     ] {
-        assert_eq!(parse(arguments), Ok(expected), "{arguments:?}");
-    }
-    // The tail value shape: 1..=65535, the shared unsigned-integer spelling.
-    for value in ["0", "65536", "abc", "-1", "5.0", "", " 5", "5 "] {
-        let arguments = [
-            "terminal",
-            "read",
-            ID,
-            "--history",
-            "--rows",
-            "20",
-            "--lines",
-            value,
-        ];
-        let Err(failure) = parse(&arguments) else {
-            panic!("{arguments:?} must fail");
-        };
         assert_eq!(
-            failure.usage.as_ref(),
-            Some(&UsageReason::InvalidValue {
+            parse(&args),
+            Ok(query(
+                expected_terminal_read(Target::Id(ID.into()), unwrap, lines),
+                OutputFormat::Text
+            )),
+            "{args:?}"
+        );
+    }
+    for value in ["4294967296", "abc", "-1", "+1", "5.0", "", " 5", "5 "] {
+        let failure = parse(&["terminal", "read", ID, "--lines", value]).unwrap_err();
+        assert_eq!(
+            failure.usage,
+            Some(UsageReason::InvalidValue {
                 context: UsageContext::Path("terminal read"),
                 option: "--lines",
-                value: value.to_owned(),
-                expected: ExpectedValue::TailLines,
-            }),
-            "{arguments:?}"
+                value: value.into(),
+                expected: ExpectedValue::OutputLines,
+            })
         );
     }
-    // `--unwrap` stays read-only; line limits require a supported read/wait.
-    for (arguments, context, option) in [
-        (
-            &["terminal", "get", ID, "--unwrap"][..],
-            UsageContext::Path("terminal get"),
-            "--unwrap",
-        ),
-        (
-            &["terminal", "wait-output", ID, "--match", "m", "--unwrap"][..],
-            UsageContext::Path("terminal wait-output"),
-            "--unwrap",
-        ),
-        (
-            &["terminal", "list", "--lines", "3"][..],
-            UsageContext::Path("terminal list"),
-            "--lines",
-        ),
-        (
-            &["status", "--unwrap"][..],
-            UsageContext::Path("status"),
-            "--unwrap",
-        ),
+    for args in [
+        vec!["terminal", "read", ID, "--source", "history"],
+        vec![
+            "terminal", "read", ID, "--source", "visible", "--source", "recent",
+        ],
+        vec!["terminal", "read", ID, "--lines", "1", "--lines", "2"],
+        vec!["terminal", "list", "--lines", "3"],
+        vec!["status", "--source", "recent"],
+        vec!["terminal", "read", ID, "--plain", "--ansi"],
+        vec!["terminal", "read", ID, "--plain", "--format", "json"],
     ] {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(
-            failure.usage.as_ref(),
-            Some(&UsageReason::UnexpectedOption { context, option }),
-            "{arguments:?}"
-        );
-    }
-    // Repeats stay duplicates before resolution.
-    for (arguments, expected) in [
-        (
-            &["terminal", "read", ID, "--unwrap", "--unwrap"][..],
-            UsageReason::DuplicateOption { option: "--unwrap" },
-        ),
-        (
-            &["terminal", "read", ID, "--lines", "1", "--lines", "2"][..],
-            UsageReason::DuplicateOption { option: "--lines" },
-        ),
-    ] {
-        let Err(failure) = parse(arguments) else {
-            panic!("{arguments:?} must fail");
-        };
-        assert_eq!(failure.usage.as_ref(), Some(&expected), "{arguments:?}");
+        assert!(parse(&args).is_err(), "{args:?}");
     }
 }
 
@@ -4613,7 +4396,7 @@ fn terminal_wait_output_grammar() {
                 ID,
                 "--match",
                 "ready",
-                "--rows",
+                "--lines",
                 "1",
             ][..],
             wait("ready", Some(1), None),
@@ -4625,7 +4408,7 @@ fn terminal_wait_output_grammar() {
                 ID,
                 "--timeout",
                 "3600000",
-                "--rows",
+                "--lines",
                 "1000",
                 "--match",
                 "ready",
@@ -4634,8 +4417,8 @@ fn terminal_wait_output_grammar() {
         ),
         // `--match` owns its next word whole — flag-looking text is a value.
         (
-            &["terminal", "wait-output", ID, "--match", "--rows"][..],
-            wait("--rows", None, None),
+            &["terminal", "wait-output", ID, "--match", "--lines"][..],
+            wait("--lines", None, None),
         ),
     ] {
         assert_eq!(parse(arguments), Ok(expected), "{arguments:?}");
@@ -4659,7 +4442,7 @@ fn terminal_wait_output_grammar() {
     // Exactly one search input is required — never a default, never both.
     for arguments in [
         &["terminal", "wait-output", ID][..],
-        &["terminal", "wait-output", ID, "--rows", "5"][..],
+        &["terminal", "wait-output", ID, "--lines", "5"][..],
         &["terminal", "wait-output", ID, "--format", "json"][..],
     ] {
         let Err(failure) = parse(arguments) else {
@@ -4702,28 +4485,19 @@ fn terminal_wait_output_grammar() {
             ID,
             "--regex",
             "re[a-z]+dy",
-            "--rows",
+            "--lines",
             "3"
         ]),
         Ok(query(
-            if cfg!(windows) {
-                QueryCommand::TerminalSourceWait {
-                    after: None,
-                    target: Target::Id(ID.into()),
-                    matcher: WaitPattern::Regex(compiled),
-                    selection: super::OutputSelection {
-                        source: super::OutputSource::Recent,
-                        lines: Some(3),
-                    },
-                    timeout_ms: None,
-                }
-            } else {
-                QueryCommand::TerminalWaitOutput {
-                    target: Target::Id(ID.into()),
-                    matcher: WaitPattern::Regex(compiled),
-                    rows: 3,
-                    timeout_ms: 30_000,
-                }
+            QueryCommand::TerminalSourceWait {
+                after: None,
+                target: Target::Id(ID.into()),
+                matcher: WaitPattern::Regex(compiled),
+                selection: super::OutputSelection {
+                    source: super::OutputSource::Recent,
+                    lines: Some(3)
+                },
+                timeout_ms: Some(30_000),
             },
             OutputFormat::Text,
         ))
@@ -4801,15 +4575,15 @@ fn terminal_wait_output_grammar() {
             "{arguments:?}"
         );
     }
-    // `--rows` under wait-output shares the 1..=1000 retained-row shape.
-    for value in ["0", "1001", "abc", "-1", "5.0"] {
+    // Output limits share the unsigned, clamped line-count grammar.
+    for value in ["4294967296", "+1", "abc", "-1", "5.0"] {
         let arguments = [
             "terminal",
             "wait-output",
             ID,
             "--match",
             "m",
-            "--rows",
+            "--lines",
             value,
         ];
         let Err(failure) = parse(&arguments) else {
@@ -4819,9 +4593,9 @@ fn terminal_wait_output_grammar() {
             failure.usage.as_ref(),
             Some(&UsageReason::InvalidValue {
                 context: UsageContext::Path("terminal wait-output"),
-                option: "--rows",
+                option: "--lines",
                 value: value.to_owned(),
-                expected: ExpectedValue::HistoryRows,
+                expected: ExpectedValue::OutputLines,
             }),
             "{arguments:?}"
         );
@@ -5416,7 +5190,7 @@ fn agent_read_usage_failures() {
         usage_reason(&["agent", "get"]),
         UsageReason::MissingRequired {
             context: path("agent get"),
-            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector>",
+            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector> or --terminal <id|selector>",
         }
     );
     assert_eq!(
@@ -5690,7 +5464,7 @@ fn agent_wait_usage_failures() {
         usage_reason(&["agent", "wait"]),
         UsageReason::MissingRequired {
             context: path("agent wait"),
-            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector>",
+            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector> or --terminal <id|selector>",
         }
     );
     assert_eq!(
@@ -6641,8 +6415,8 @@ fn current_panel_grammar_has_explicit_or_caller_modes() {
         );
     }
     for words in [
-        vec!["panel", "current", "--panel", "@panel:abc"],
-        vec!["--panel=@panel:abc", "panel", "current"],
+        vec!["panel", "current", "@panel:abc"],
+        vec!["panel", "current", "--", "@panel:abc"],
     ] {
         assert_eq!(
             parse(&words),
@@ -6670,7 +6444,7 @@ fn current_panel_grammar_has_explicit_or_caller_modes() {
         vec!["panel", "current", "--panel", "--"],
         vec!["panel", "current", "--current=true"],
         vec!["panel", "current", "--workspace", "ws"],
-        vec!["panel", "current", "@panel:abc"],
+        vec!["panel", "current", "@panel:abc", "@panel:def"],
         vec!["panel", "current", "--", "--current"],
         vec!["panel", "list", "--current"],
         vec!["status", "--panel", "@panel:abc"],
@@ -6705,7 +6479,6 @@ fn panel_process_info_grammar_rejects_conflicting_targets_before_effects() {
     }
     for words in [
         vec!["panel", "process-info", "@panel:abc"],
-        vec!["--panel=@panel:abc", "panel", "process-info"],
         vec!["panel", "process-info", "--", "@panel:abc"],
     ] {
         assert_eq!(
@@ -6979,18 +6752,18 @@ fn agent_terminal_grammar_validates_all_keys_and_exclusive_targets_before_effect
             "agent",
             "read",
             "alpha",
-            "--history",
-            "--rows",
-            "20",
-            "--unwrap",
+            "--source",
+            "recent-unwrapped",
             "--lines",
             "2"
         ]),
         Ok(Request::Query {
-            command: QueryCommand::AgentRead {
-                history: Some(20),
-                unwrap: true,
-                lines: Some(2),
+            command: QueryCommand::TerminalOutput {
+                target: super::OutputTarget::Agent(_),
+                selection: super::OutputSelection {
+                    source: super::OutputSource::RecentUnwrapped,
+                    lines: Some(2)
+                },
                 ..
             },
             ..
@@ -7029,7 +6802,7 @@ fn terminal_and_agent_send_share_extended_keys_and_reject_partial_invalid_sequen
     ] {
         let terminal = prefix[0] == "terminal";
         let mut args = prefix.clone();
-        for key in ["f1", "space", "Super+C", "中", "shift+?", "+"] {
+        for key in ["f1", "space", "super+c", "中", "shift+?", "plus"] {
             if terminal {
                 args.push("--key");
             }
@@ -7211,7 +6984,7 @@ fn creation_optional_targets_focus_and_ratios_are_validated_before_admission() {
     for args in [
         vec!["tab", "create"],
         vec!["panel", "split", "--direction=left"],
-        vec!["panel", "split", "--current", "--direction=above"],
+        vec!["panel", "split", "--current", "--direction=up"],
     ] {
         let Request::Creation { command, .. } = parse(&args).unwrap() else {
             panic!("creation");
@@ -7224,9 +6997,8 @@ fn creation_optional_targets_focus_and_ratios_are_validated_before_admission() {
         let Request::Creation { command, .. } = parse(&[
             "panel",
             "split",
-            "--panel",
             ID,
-            "--direction=below",
+            "--direction=down",
             "--ratio",
             input,
             "--focus",
@@ -7277,13 +7049,7 @@ fn panel_input_requires_one_selector_and_closed_policy_without_effect_options() 
             PanelRightClickTarget::Panel,
         ),
         (
-            vec![
-                "panel",
-                "input",
-                "--panel=@panel:06",
-                "--right-click",
-                "orchbee",
-            ],
+            vec!["panel", "input", "@panel:06", "--right-click", "orchbee"],
             true,
             PanelRightClickTarget::Orchbee,
         ),
@@ -8053,11 +7819,11 @@ fn format_and_agent_target_diagnostics_point_at_the_invoked_command() {
         }
     );
     assert_eq!(
-        reason(&["agent", "explain", "@terminal:91"]),
+        reason(&["agent", "explain", "@workspace:91"]),
         UsageReason::InvalidValue {
             context: UsageContext::Path("agent explain"),
             option: "<target>",
-            value: "@terminal:91".to_owned(),
+            value: "@workspace:91".to_owned(),
             expected: ExpectedValue::AgentTarget,
         }
     );

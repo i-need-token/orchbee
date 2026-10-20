@@ -6,9 +6,8 @@ fn parse(words: &[&str]) -> Result<Request, ParseFailure> {
     parse_request(words.iter().map(OsString::from))
 }
 
-#[cfg(windows)]
 #[test]
-fn windows_implicit_reads_and_waits_use_recent_without_a_total_wait_deadline() {
+fn implicit_reads_and_waits_use_recent_with_a_finite_default() {
     let id = "11111111111111111111111111111111";
     for words in [vec!["terminal", "read", id], vec!["agent", "read", "alpha"]] {
         assert!(matches!(
@@ -27,7 +26,7 @@ fn windows_implicit_reads_and_waits_use_recent_without_a_total_wait_deadline() {
             })
         ));
         let mut unwrapped = words.clone();
-        unwrapped.extend(["--unwrap", "--lines", "0"]);
+        unwrapped.extend(["--source", "recent-unwrapped", "--lines", "0"]);
         assert!(matches!(
             parse(&unwrapped),
             Ok(Request::Query {
@@ -43,9 +42,9 @@ fn windows_implicit_reads_and_waits_use_recent_without_a_total_wait_deadline() {
         ));
     }
     for (extra, lines, timeout) in [
-        (vec![], None, None),
-        (vec!["--rows=3"], Some(3), None),
-        (vec!["--rows=3", "--forever"], Some(3), None),
+        (vec![], None, Some(30_000)),
+        (vec!["--lines=3"], Some(3), Some(30_000)),
+        (vec!["--lines=3", "--forever"], Some(3), None),
         (vec!["--timeout=30000"], None, Some(30_000)),
     ] {
         let mut words = vec!["terminal", "wait-output", id, "--match=done"];
@@ -113,7 +112,7 @@ fn ansi_selects_recent_by_default_and_accepts_a_json_envelope() {
 }
 
 #[test]
-fn source_read_preserves_legacy_mode_and_bounds_new_physical_lines() {
+fn source_read_bounds_physical_lines() {
     let id = "11111111111111111111111111111111";
     for (argument, expected) in [("0", 0), ("17", 17), ("4294967295", 1000)] {
         let Request::Query {
@@ -148,7 +147,7 @@ fn source_read_preserves_legacy_mode_and_bounds_new_physical_lines() {
     assert!(matches!(
         parse(&["terminal", "read", id]),
         Ok(Request::Query {
-            command: QueryCommand::TerminalRead { .. },
+            command: QueryCommand::TerminalOutput { .. },
             ..
         })
     ));
@@ -203,20 +202,20 @@ fn invalid_or_mixed_source_forms_fail_before_runtime() {
 }
 
 #[test]
-fn source_wait_defaults_bounds_and_forever_preserve_legacy_grammar() {
+fn source_wait_defaults_bounds_and_forever_are_explicit() {
     let id = "11111111111111111111111111111111";
     for (extra, source, lines, timeout) in [
         (
             vec!["--source=visible"],
             OutputSource::Visible,
             None,
-            if cfg!(windows) { None } else { Some(30_000) },
+            Some(30_000),
         ),
         (
             vec!["--lines=0"],
             OutputSource::Recent,
             Some(0),
-            if cfg!(windows) { None } else { Some(30_000) },
+            Some(30_000),
         ),
         (
             vec!["--lines=4294967295", "--timeout=7"],

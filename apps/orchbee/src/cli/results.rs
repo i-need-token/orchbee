@@ -10,6 +10,7 @@ use orchbee_agent_observation_protocol::{
     AgentExplainOutcome, AgentSafeInteger, AgentSessionDetail, ObapRequestId,
 };
 use orchbee_client_server_protocol::{LaunchProfileProvenance, TerminalLaunchFact};
+#[cfg(test)]
 use orchbee_terminal_protocol::MAXIMUM_FRAME_ROWS;
 use orchbee_workbench_protocol::{
     LaunchProfileCatalogRevision, LaunchProfileEntry, PanelNode, PanelSlot, Presentation, Project,
@@ -45,6 +46,7 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
         QueryCommand::PanelProcessInfo(_) => "orchbee.panel.process-info",
         QueryCommand::TerminalList { .. } => "orchbee.terminal.list",
         QueryCommand::TerminalGet(_) => "orchbee.terminal.get",
+        #[cfg(test)]
         QueryCommand::TerminalRead { history, .. } | QueryCommand::AgentRead { history, .. } => {
             if history.is_some() {
                 "orchbee.terminal.history"
@@ -53,9 +55,9 @@ pub(crate) fn schema_id(command: &QueryCommand) -> &'static str {
             }
         }
         QueryCommand::TerminalOutput { .. } => "orchbee.terminal.output",
-        QueryCommand::TerminalWaitOutput { .. } | QueryCommand::TerminalSourceWait { .. } => {
-            "orchbee.terminal.wait-output"
-        }
+        #[cfg(test)]
+        QueryCommand::TerminalWaitOutput { .. } => "orchbee.terminal.wait-output",
+        QueryCommand::TerminalSourceWait { .. } => "orchbee.terminal.wait-output",
         QueryCommand::WorktreeList { .. } => "orchbee.worktree.list",
         QueryCommand::LaunchProfileList => "orchbee.launch-profile.list",
         QueryCommand::LaunchProfileGet(_) => "orchbee.launch-profile.get",
@@ -129,12 +131,14 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
         #[cfg(not(windows))]
         QueryCommand::AgentWait { .. } => 2,
         QueryCommand::PanelProcessInfo(_) => 2,
+        #[cfg(test)]
         QueryCommand::TerminalRead { unwrap, lines, .. }
         | QueryCommand::AgentRead { unwrap, lines, .. }
             if *unwrap || lines.is_some() =>
         {
             2
         }
+        #[cfg(test)]
         QueryCommand::TerminalWaitOutput {
             matcher: crate::invocation::WaitPattern::Regex(_),
             ..
@@ -388,6 +392,7 @@ pub(crate) struct TerminalGetDoc {
 /// Routing metadata of the applied projection, re-encoded as decimal strings
 /// so no u64 ever loses precision inside a machine document.
 #[derive(Clone, Debug)]
+#[cfg(test)]
 pub(crate) struct TerminalFrameDoc {
     pub(crate) revision: u64,
     pub(crate) generation: u64,
@@ -403,6 +408,7 @@ pub(crate) struct TerminalFrameDoc {
 /// One grid row emitted in the answer: absolute index, joined cell text, and
 /// the soft-wrap continuation flags the frame carried.
 #[derive(Clone, Debug)]
+#[cfg(test)]
 pub(crate) struct TerminalContentRow {
     pub(crate) index: u16,
     pub(crate) text: String,
@@ -415,6 +421,7 @@ pub(crate) struct TerminalContentRow {
 /// A window opening or ending inside a wrapped line yields a fragment, never
 /// a claimed complete line — `starts_mid_line`/`ends_mid_line` carry that.
 #[derive(Clone, Debug)]
+#[cfg(test)]
 pub(crate) struct LogicalLine {
     pub(crate) first_row: u64,
     pub(crate) last_row: u64,
@@ -429,6 +436,7 @@ pub(crate) struct LogicalLine {
 /// deliberately separate from `omitted_rows`, which measures rows lost to
 /// the fetch window or the encoded-text budget.
 #[derive(Clone, Debug)]
+#[cfg(test)]
 pub(crate) struct ReadTail {
     pub(crate) requested: u16,
     pub(crate) omitted: usize,
@@ -438,12 +446,14 @@ pub(crate) struct ReadTail {
 /// `--unwrap` joins verified soft-wrap chains into logical lines; `--lines`
 /// tails the emitted entries. Neither changes the fetched window.
 #[derive(Clone, Copy, Debug, Default)]
+#[cfg(test)]
 pub(crate) struct ReadPresentation {
     pub(crate) unwrap: bool,
     pub(crate) tail: Option<u16>,
 }
 
 #[derive(Clone, Debug)]
+#[cfg(test)]
 pub(crate) struct TerminalReadDoc {
     pub(crate) terminal: TerminalRow,
     pub(crate) frame: TerminalFrameDoc,
@@ -466,6 +476,7 @@ pub(crate) struct TerminalReadDoc {
 /// retained-plus-screen coordinate space, the row's text, and its soft-wrap
 /// continuation flags.
 #[derive(Clone, Debug)]
+#[cfg(test)]
 pub(crate) struct HistoryContentRow {
     pub(crate) index: u64,
     pub(crate) text: String,
@@ -478,6 +489,7 @@ pub(crate) struct HistoryContentRow {
 /// count; `omitted_rows` counts the gap between `min(requested, scrollback)`
 /// and the rows actually emitted.
 #[derive(Clone, Debug)]
+#[cfg(test)]
 pub(crate) struct TerminalHistoryDoc {
     pub(crate) terminal: TerminalRow,
     pub(crate) revision: u64,
@@ -503,6 +515,7 @@ pub(crate) struct TerminalHistoryDoc {
 /// The read bound: the summed JSON-encoded `text` member length of emitted
 /// rows never exceeds this budget, so every format stays far under the
 /// 8 MiB preparation cap even on hostile cell content.
+#[cfg(test)]
 pub(crate) const READ_TEXT_BYTES: usize = 4 * 1024 * 1024;
 
 /// Join verified soft-wrap chains into logical lines over already-emitted
@@ -512,6 +525,7 @@ pub(crate) const READ_TEXT_BYTES: usize = 4 * 1024 * 1024;
 /// always completes the open line and an empty row still forms a line of
 /// its own. Boundary flags report the window edges honestly: a line opens
 /// mid-line when its first row continues from a row outside the window.
+#[cfg(test)]
 fn join_logical_lines<'a, I>(rows: I) -> Vec<LogicalLine>
 where
     I: IntoIterator<Item = (u64, &'a str, bool, bool)>,
@@ -547,6 +561,7 @@ where
 
 /// The `--lines` tail: keep the last `requested` emitted entries and record
 /// the honestly counted leading omissions.
+#[cfg(test)]
 fn apply_tail<T>(entries: &mut Vec<T>, requested: u16) -> ReadTail {
     let omitted = entries.len().saturating_sub(usize::from(requested));
     if omitted > 0 {
@@ -562,6 +577,7 @@ fn apply_tail<T>(entries: &mut Vec<T>, requested: u16) -> ReadTail {
 /// logical lines, `--lines` keeps the tail — without touching the bound or
 /// the physical-row facts.
 #[cfg(any(unix, windows))]
+#[cfg(test)]
 pub(crate) fn terminal_read_doc(
     terminal: TerminalRow,
     frame: &orchbee_terminal_protocol::TerminalTextFrame,
@@ -647,6 +663,7 @@ pub(crate) fn terminal_read_doc(
 }
 
 /// The history read bound admitted by the `--rows` grammar: 1..=1000.
+#[cfg(test)]
 pub(crate) const MAXIMUM_HISTORY_ROWS: u16 = 1000;
 
 /// Project a validated history window into the bounded answer. `window` is
@@ -655,6 +672,7 @@ pub(crate) const MAXIMUM_HISTORY_ROWS: u16 = 1000;
 /// honestly counts `min(requested, scrollback)` minus the emitted rows —
 /// including rows the protocol window cap never reached.
 #[cfg(any(unix, windows))]
+#[cfg(test)]
 pub(crate) fn terminal_history_doc(
     terminal: TerminalRow,
     frame: &orchbee_terminal_protocol::TerminalTextFrame,
@@ -832,6 +850,7 @@ pub(crate) const MAXIMUM_EXCERPT_BYTES: usize = 4096;
 /// wrapped line marks `starts_mid_line`/`ends_mid_line` on a regex hit, and
 /// `^`/`$` anchor at the observed fragment edges only.
 #[cfg(any(unix, windows))]
+#[cfg(test)]
 pub(crate) fn match_window(
     window: &orchbee_terminal_protocol::TerminalTextRowWindow,
     matcher: &WaitMatcher<'_>,
@@ -1176,7 +1195,9 @@ pub(crate) enum Projection {
     TerminalListHuman(TerminalListDocument),
     TerminalGet(TerminalGetDoc),
     TerminalOutput(super::terminal_output::TerminalOutputDoc),
+    #[cfg(test)]
     TerminalRead(TerminalReadDoc),
+    #[cfg(test)]
     TerminalHistory(TerminalHistoryDoc),
     TerminalWaitOutput(TerminalWaitOutputDoc),
     /// The `worktree list` answer: the registered directory identity plus the
@@ -1603,6 +1624,7 @@ impl Projection {
                 json!({ "terminal": terminal })
             }
             Self::TerminalOutput(doc) => doc.result(),
+            #[cfg(test)]
             Self::TerminalRead(doc) => {
                 let mut content = Map::new();
                 // `--unwrap` emits joined `lines` in place of `rows`; both
@@ -1692,6 +1714,7 @@ impl Projection {
                     "content": Value::Object(content),
                 })
             }
+            #[cfg(test)]
             Self::TerminalHistory(doc) => {
                 let mut content = Map::new();
                 match &doc.lines {
@@ -2466,21 +2489,24 @@ pub(crate) fn project(command: &QueryCommand, snapshot: &Snapshot) -> Result<Pro
         // check` never reach a snapshot projection, and Agent reads are
         // answered by the OBAP exchange, never a snapshot projection.
         // `launch-profile list`/`get` ride their own typed catalog read.
+        #[cfg(test)]
+        QueryCommand::AgentRead { .. }
+        | QueryCommand::TerminalRead { .. }
+        | QueryCommand::TerminalWaitOutput { .. } => {
+            Err(Failure::new(FailureKind::InternalFailure))
+        }
         QueryCommand::PanelProcessInfo(_)
         | QueryCommand::PanelCurrent(PanelQueryTarget::Current | PanelQueryTarget::Client(_))
         | QueryCommand::AgentList { .. }
         | QueryCommand::AgentChanges { .. }
         | QueryCommand::AgentGet(_)
         | QueryCommand::AgentClientGet { .. }
-        | QueryCommand::AgentRead { .. }
         | QueryCommand::AgentExplain(_)
         | QueryCommand::AgentWait { .. }
         | QueryCommand::AgentDoctor { .. }
         | QueryCommand::TerminalGet(_)
         | QueryCommand::TerminalOutput { .. }
-        | QueryCommand::TerminalRead { .. }
         | QueryCommand::TerminalSourceWait { .. }
-        | QueryCommand::TerminalWaitOutput { .. }
         | QueryCommand::WorktreeList { .. }
         | QueryCommand::LaunchProfileList
         | QueryCommand::LaunchProfileGet(_)

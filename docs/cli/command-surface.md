@@ -30,12 +30,25 @@ reference is a defect, and so is the reverse.
 | Root        | The bare executable and its root-level modes such as launching an interface, `--version`, and `--help` are enumerated by the grammar authority like any command.                                                                                                                                                                              |
 | Offline set | `help`, `--help`, `--version`, `completion`, the machine schema listing, and Windows `--default-config` are offline: they read no user configuration, discover no runtime, and open no endpoint. Build-owned default configuration output is locale-neutral and is selected before any environment read.                                      |
 
-| Verb class | Verbs                                                            | Effect                                                                                                                                                    |
-| ---------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read       | `list`, `get`, `read`, `status`, `describe`, `explain`, `check`  | Observe existing state; create nothing that survives the invocation                                                                                       |
-| Mutate     | `create`, `rename`, `move`, `split`, `close`, `invoke`, `cancel` | Submit exactly one effect under one request identity                                                                                                      |
-| Wait       | `wait`, `changes`                                                | Observe until a declared condition, a cursor boundary, or the deadline                                                                                    |
-| Activate   | `start`                                                          | Converge a runtime toward readiness under one invocation-owned deadline; may create persistent runtime state and is idempotent on an already-ready target |
+| Verb class | Verbs                                                                                                         | Effect                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read       | `list`, `get`, `read`, `status`, `describe`, `explain`, `check`                                               | Observe existing state; create nothing that survives the invocation                                                                                       |
+| Mutate     | `create`, `rename`, `move`, `split`, `close`, `delete`, `remove`, `uninstall`, `dissolve`, `invoke`, `cancel` | Submit exactly one effect under one request identity                                                                                                      |
+| Wait       | `wait`, `changes`                                                                                             | Observe until a declared condition, a cursor boundary, or the deadline                                                                                    |
+| Activate   | `start`                                                                                                       | Converge a runtime toward readiness under one invocation-owned deadline; may create persistent runtime state and is idempotent on an already-ready target |
+
+Deletion verbs name distinct effects: `close` ends live resource lifecycle; `delete` destroys a
+stored record; `remove` removes managed filesystem or machine membership; `uninstall` removes
+an installed package; `dissolve` removes grouping while preserving its children. These are not
+synonyms. Compound verbs such as `close-all` retain their base effect and declare their scope.
+
+Cardinal `--direction` values are `left|right|up|down`. Ordered Tab movement uses
+`--order previous|next|first|last`; text search uses `--search-direction forward|backward`.
+A Panel-family target is positional, with `--current` for contextual selection; other families
+use typed `--panel` or `--terminal` selectors. Names use `--label` for display metadata and
+`--name` for managed identity. Provider selection always uses `--provider` and canonical
+provider names; capability subsets must be documented. Key modifiers use `ctrl+`, `alt+`,
+`shift+`, `super+`, with canonical lowercase named keys and literal printable scalar input.
 
 ## Options
 

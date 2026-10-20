@@ -56,7 +56,7 @@ pub(super) fn parse(
         Scope {
             copy_query: search,
             copy_previous: search,
-            direction: search,
+            search_direction: search,
             copy_motion: !search,
             cursor: true,
             content_revision: true,
@@ -94,16 +94,16 @@ pub(super) fn parse(
             ));
         }
         let raw = options
-            .direction
+            .search_direction
             .as_deref()
-            .ok_or_else(|| missing_required(context, "--direction", envelope))?;
+            .ok_or_else(|| missing_required(context, "--search-direction", envelope))?;
         let direction = match raw {
             "forward" => CopySearchDirection::Forward,
             "backward" => CopySearchDirection::Backward,
             _ => {
                 return Err(terminal_buffer::invalid(
                     raw,
-                    "--direction",
+                    "--search-direction",
                     ExpectedValue::TerminalCopyDirection,
                     context,
                     envelope,

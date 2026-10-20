@@ -12,10 +12,8 @@ mod probes;
 #[cfg(test)]
 mod tests;
 
-/// The closed `--provider` vocabulary, in canonical row order. The grammar
-/// validates against this list on every platform — selector validity is a
-/// parse fact, never platform-dependent; `probes::PROVIDERS` carries exactly
-/// these ids in this order (the tests pin that agreement).
+/// Private adapter identities in canonical probe order. CLI provider spellings
+/// map through IntegrationId before this boundary; probes retain payload IDs.
 pub(crate) const PROVIDER_IDS: &[&str] = &[
     "claude-code",
     "codex",
@@ -404,7 +402,7 @@ fn inspect(
             json!({ "state": "not-applicable" })
         };
         provider_rows.push(json!({
-            "id": provider.id,
+            "id": crate::agent_integrations::IntegrationId::parse(provider.id).map_or(provider.id, |id| id.provider()),
             "executable": executable_facts[index],
             "runtime": { "node": node },
             "hook": hook,
@@ -1482,7 +1480,7 @@ fn emit(run: DoctorRun, format: OutputFormat, locale: Locale) -> Output {
         OutputFormat::Json => {
             let document = json!({
                 "schema": "orchbee.agent.doctor",
-                "version": if cfg!(windows) { 4 } else { 1 },
+                "version": if cfg!(windows) { 6 } else { 5 },
                 "source": local_runtime_source(),
                 "result": result,
             });

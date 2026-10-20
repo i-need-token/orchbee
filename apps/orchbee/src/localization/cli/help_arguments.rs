@@ -161,7 +161,7 @@ impl Locale {
             CommandPath::TabMove => &[Argument::Tab],
             CommandPath::TabClose => &[Argument::Tab],
             CommandPath::PanelList => &[],
-            CommandPath::PanelCurrent => &[],
+            CommandPath::PanelCurrent => &[Argument::Panel],
             CommandPath::PanelGet => &[Argument::Panel],
             CommandPath::PanelProcessInfo => &[Argument::Panel],
             #[cfg(windows)]
@@ -276,7 +276,7 @@ impl Locale {
                 Argument::Agent => ("<target>", "Agent session ID, saved name, or panel target. Choose exactly one positional target or supported selector flag.", "Agent 会话 ID、保存的名称或面板目标。位置参数和受支持的选择器选项中只能选择一种。"),
                 Argument::Command => ("<command>", "One shell command string; quote it if it contains spaces.", "一条 Shell 命令字符串；包含空格时必须加引号。"),
                 Argument::Text => ("<text>", "Prompt text as one argument; quote spaces.", "作为一个参数传入的提示词；包含空格时加引号。"),
-                Argument::Keys => ("<key> ...", "One or more semantic keys, such as enter or ctrl-c.", "一个或多个语义按键，例如 enter 或 ctrl-c。"),
+                Argument::Keys => ("<key> ...", "One or more semantic keys, such as enter or ctrl+c.", "一个或多个语义按键，例如 enter 或 ctrl+c。"),
                 Argument::NewName => ("<new-name>", "New session name; omit when using --clear.", "新的会话名称；使用 --clear 时省略。"),
                 Argument::Name => ("<name>", "Name to bind to the Agent after it is ready.", "Agent 就绪后要绑定的名称。"),
                 Argument::Args => ("-- <args> ...", "Arguments passed to the Agent; --arg can be repeated instead.", "传给 Agent 的参数；也可重复使用 --arg。"),

@@ -675,8 +675,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog version 150 includes shared layout inspection and ratio receipts.
-        "version": 150,
+        // Catalog version 151 includes canonical Panel events and provider identities.
+        "version": 151,
         "source": embedded_source(),
         "result": result,
     });

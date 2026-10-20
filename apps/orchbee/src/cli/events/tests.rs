@@ -60,7 +60,7 @@ fn semantic_events_parser_owns_repeatable_filters_zero_deadline_and_rejects_scop
         "subscribe",
         "--event=tab.renamed",
         "--event",
-        "pane.exited",
+        "panel.exited",
         "--timeout",
         "0",
     ])
@@ -78,7 +78,7 @@ fn semantic_events_parser_owns_repeatable_filters_zero_deadline_and_rejects_scop
             "--event",
             "tab.renamed",
             "--event",
-            "pane.exited"
+            "panel.exited"
         ])
         .is_err()
     );
@@ -89,7 +89,7 @@ fn semantic_events_parser_owns_repeatable_filters_zero_deadline_and_rejects_scop
             "events",
             "wait",
             "--event",
-            "pane.output_matched",
+            "panel.output_matched",
             "--panel",
             &"5".repeat(32),
             "--match",
@@ -164,7 +164,10 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
             for locale in [Locale::EnUs, Locale::ZhCn] {
                 let line = text::record("event", &reply.outcome, "23:14:02Z", locale);
                 assert!(
-                    line.starts_with(&format!("23:14:02Z  {}  ", event.event.as_str())),
+                    line.starts_with(&format!(
+                        "23:14:02Z  {}  ",
+                        crate::invocation::events::public_name(event.event)
+                    )),
                     "{line}"
                 );
                 assert_eq!(line.lines().count(), 1, "{line}");
@@ -180,7 +183,7 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
     assert!(
         rendered
             .iter()
-            .any(|line| line.contains("pane.agent_status_changed")),
+            .any(|line| line.contains("panel.agent_status_changed")),
         "{rendered:?}"
     );
     assert_eq!(
@@ -192,7 +195,11 @@ fn subscribe_text_renders_each_event_as_one_line_and_help_lists_every_name() {
             .events_help(crate::invocation::CommandPath::EventsSubscribe)
             .notes;
         for kind in Kind::ALL {
-            assert!(help.contains(kind.as_str()), "{}", kind.as_str());
+            assert!(
+                help.contains(&crate::invocation::events::public_name(*kind)),
+                "{}",
+                kind.as_str()
+            );
         }
         assert_ne!(locale.events_subscribe_status(7), locale.events_status(7));
     }

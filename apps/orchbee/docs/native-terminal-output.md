@@ -2,11 +2,17 @@
 
 ## Authority and grammar
 
-This reference owns Windows `terminal read` and `agent read`, including their default recent source (80 physical rows). `--source visible` explicitly requests the live screen. Bare `--unwrap` selects recent-unwrapped. Explicit `--history --rows` retains the legacy history-only document governed by [native CLI queries](native-cli-query.md); no Mac/Linux default is changed.
+This reference owns Linux/Windows `terminal read` and `agent read`. Both default to recent
+output (80 physical rows). `--source visible|recent|recent-unwrapped|detection` selects the
+snapshot; `--lines` accepts an unsigned 32-bit count, clamps to 1000 and permits zero. Read
+and wait commands reject `--history`, `--rows` and `--unwrap`; geometry commands retain `--rows`.
+`--plain` exports UTF-8 directly and conflicts with JSON. `--ansi` exports styled text and
+conflicts with `--plain`. All grammar resolves before effects. Agent targets can explicitly
+select `--terminal` / `@terminal:` including child terminals, or `--panel` / `@panel:` for a primary.
 
-`--source visible|recent|recent-unwrapped|detection` selects a text snapshot. `--plain` exports UTF-8 directly and conflicts with JSON. Explicit source/plain/ANSI rejects history/rows/unwrap; use recent-unwrapped for explicit joining. `--lines` accepts an unsigned 32-bit integer, clamps to 1000 and permits zero. All grammar resolves before effects. Terminal and Agent target resolution remains unchanged.
-
-Unqualified Windows reads now emit `orchbee.terminal.output` v3 instead of the legacy visible document. Scripts must select the source and consume the corresponding schema explicitly. Rollback restores the old executable; there is no persisted migration.
+Plain JSON reads emit `orchbee.terminal.output` v3 and styled reads v4. The historical
+`orchbee.terminal.read`/`history` schemas remain available for old receipts; current CLI syntax
+uses only the source model. Rollback restores the old executable without a persisted migration.
 
 ## Selection model
 
@@ -67,7 +73,11 @@ checks and model review, not an unrun model-checking claim.
 
 ## Source-selected waits
 
-Windows `terminal wait-output` always uses this source model, defaulting to recent (80 physical rows) and no total deadline. Explicit `--timeout` bounds the total wait; `--forever` is an optional no-ceiling alias and conflicts with timeout. `--rows <1..1000>` selects recent with that line count and conflicts with explicit source/lines. Windows invocations without `--after` emit v3. For a finite 30-second, 1000-row wait, use `--lines 1000 --timeout 30000`; the source range remains governed by the recent endpoint.
+Linux/Windows `terminal wait-output` uses this source model, defaulting to recent (80 physical
+rows) and a 30000 ms total deadline. `--timeout` accepts 1..3600000 ms; explicit `--forever`
+removes the total deadline and conflicts with timeout. `--lines` controls the window; legacy
+`--rows` is refused. Source waits emit v3, or v4 when `--after` is supplied. The source range
+remains governed by the recent endpoint.
 
 Every individual admission and I/O remains bounded to five seconds. Finite timeouts keep the existing
 positive range and patterns keep their existing nonempty and compiled-program bounds.

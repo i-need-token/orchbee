@@ -793,6 +793,7 @@ pub(crate) fn render(
             }
             Ok(())
         }
+        #[cfg(test)]
         Projection::TerminalRead(doc) => {
             match &doc.lines {
                 Some(lines) => {
@@ -821,6 +822,7 @@ pub(crate) fn render(
         // `terminal read --history` prints the retained rows the same way:
         // escaped text, one line per emitted row (or joined logical line
         // under `--unwrap`), then the localized markers.
+        #[cfg(test)]
         Projection::TerminalHistory(doc) => {
             match &doc.lines {
                 Some(lines) => {

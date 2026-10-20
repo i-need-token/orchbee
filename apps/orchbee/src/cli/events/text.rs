@@ -91,7 +91,10 @@ fn event_line(event: &SemanticEvent) -> String {
     } else {
         subject
     };
-    let mut line = format!("{}  {subject}", event.event.as_str());
+    let mut line = format!(
+        "{}  {subject}",
+        crate::invocation::events::public_name(event.event)
+    );
     if !detail.is_empty() {
         line.push_str("  ");
         line.push_str(&detail);

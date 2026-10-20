@@ -117,6 +117,7 @@ pub(super) fn parse(
                     session: true,
                     name: true,
                     panel: true,
+                    terminal: true,
                     client: true,
                     request_id: true,
                     detach: true,

@@ -4,19 +4,19 @@ use super::*;
 fn preserves_semantic_identity_without_encoding_terminal_bytes() {
     for (input, key, flags) in [
         ("f1", SendStrokeKey::Function(1), 0),
-        ("F25", SendStrokeKey::Function(25), 0),
+        ("f25", SendStrokeKey::Function(25), 0),
         ("space", SendStrokeKey::Character(' '), 0),
-        ("+", SendStrokeKey::Character('+'), 0),
+        ("plus", SendStrokeKey::Character('+'), 0),
         ("super+plus", SendStrokeKey::Character('+'), 8),
-        ("cmd+C", SendStrokeKey::Character('c'), 12),
+        ("super+C", SendStrokeKey::Character('c'), 12),
         (
-            "control+alt+shift+super+中",
+            "ctrl+alt+shift+super+中",
             SendStrokeKey::Character('中'),
             15,
         ),
         ("😀", SendStrokeKey::Character('😀'), 0),
         ("shift+semicolon", SendStrokeKey::Character(';'), 4),
-        ("C-c", SendStrokeKey::Character('c'), 1),
+        ("ctrl+c", SendStrokeKey::Character('c'), 1),
     ] {
         assert_eq!(parse(input), SendKeyStroke::new(key, flags).ok(), "{input}");
     }
@@ -32,6 +32,14 @@ fn preserves_semantic_identity_without_encoding_terminal_bytes() {
         "\u{0085}",
         "雪人",
         "super+ctrl-c",
+        "ctrl-c",
+        "ctrl-d",
+        "C-c",
+        "cmd+c",
+        "control+c",
+        "F25",
+        "esc",
+        " ctrl+c",
     ] {
         assert_eq!(parse(input), None, "{input:?}");
     }

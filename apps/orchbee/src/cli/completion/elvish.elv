@@ -4,13 +4,13 @@
   use re
   var grammar = (print '__ORCHBEE_GRAMMAR__' | from-json)
   var groups = [
-    [--timeout --forever] [--agent-session --name --panel] [--panel --current]
+    [--timeout --forever] [--agent-session --name --panel --terminal] [--panel --current]
     [--workspace --standalone] [--exec --profile] [--arg --profile]
     [--into-tab --new-tab] [--target-panel --new-tab]
     [--text --file --stdin --key] [--key --enter] [--key --paste]
     [--text --paste] [--match --regex]
   ]
-  var panel-targets = [panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split]
+  var panel-targets = [panel:current panel:process-info panel:focus panel:zoom panel:layout panel:neighbor panel:edges panel:resize panel:swap panel:input panel:split]
   var agent-targets = [agent:attach agent:get agent:focus agent:read agent:send-keys agent:prompt agent:explain agent:wait agent:resolve agent:rename]
   fn any {|values choices|
     for choice $choices { if (has-value $values $choice) { put $true; return } }
@@ -83,7 +83,7 @@
         for entry $grammar[helpLevel3] { if (eq $entry[0] $positionals[1]':'$positionals[2]) { set candidates = $entry[1] } }
       }
     } else {
-      for entry [[--format $grammar[formats]] [--mouse [off on]] [--until $grammar[until]] [--right-click $grammar[rightClick]]] {
+      for entry [[--format $grammar[formats]] [--mouse [off on]] [--until $grammar[until]] [--right-click $grammar[rightClick]] [--order $grammar[orders]] [--search-direction $grammar[searchDirections]]] {
         if (and (has-key $values $entry[0]) (not (has-value $entry[1] $values[$entry[0]]))) { return }
       }
       var viable = []
@@ -116,7 +116,7 @@
         if (and (eq $path panel:process-info) (has-value $seen --client)) { set limit = 0 }
         if (and (has-value $panel-targets $path) (any $seen [--panel --current])) { set limit = 0 }
         if (has-value $agent-targets $path) {
-          if (any $seen [--agent-session --name --panel]) { set limit = (- $limit 1) }
+          if (any $seen [--agent-session --name --panel --terminal]) { set limit = (- $limit 1) }
           if (has-value $seen --clear) { set limit = (- $limit 1) }
         }
         if (> $n (+ $width $limit)) { set valid = $false }
@@ -130,12 +130,12 @@
         var width = (count $command[words])
         var path = (str:join : $command[words])
         if (< $n $width) { set candidates = [$@candidates $command[words][$n]] }
-        if (and $command[agentTarget] (== $n $width) (not (any $seen [--agent-session --name --panel]))) {
+        if (and $command[agentTarget] (== $n $width) (not (any $seen [--agent-session --name --panel --terminal]))) {
           set candidates = [$@candidates $@grammar[agentTargets]]
         }
         if (eq $path agent:send-keys) {
           var target = 1
-          if (any $seen [--agent-session --name --panel]) { set target = 0 }
+          if (any $seen [--agent-session --name --panel --terminal]) { set target = 0 }
           var keys = (- $n $width $target)
           if (and (>= $keys 0) (< $keys 64)) { var names = $grammar[keys]; set candidates = [$@candidates $@names] }
         }
@@ -148,8 +148,8 @@
           if (and (has-value $panel-targets $path) (> $n $width) (has-value [--panel --current] $flag)) { continue }
           if (has-value $agent-targets $path) {
             var operands = (- $n $width)
-            if (and (> $operands 0) (has-value [--name --agent-session --panel] $flag)) { continue }
-            if (and (eq $flag --clear) (or (> $operands 1) (and (> $operands 0) (any $seen [--name --agent-session --panel])))) { continue }
+            if (and (> $operands 0) (has-value [--name --agent-session --panel --terminal] $flag)) { continue }
+            if (and (eq $flag --clear) (or (> $operands 1) (and (> $operands 0) (any $seen [--name --agent-session --panel --terminal])))) { continue }
           }
           if (and (has-value $seen $flag) (not (has-value $grammar[repeatable] $flag)) (not (and (eq $flag --provider) (eq $path agent:doctor)))) { continue }
           if (and (eq $flag --arg) (not (has-value $seen --exec)) (not-eq $path agent:start)) { continue }
@@ -168,7 +168,10 @@
         set candidates = []
         var source-values = []
         for command $viable { if (not-eq (str:join : $command[words]) workspace:report-metadata) { set source-values = $grammar[outputSources]; break } }
-        var enums = [&--motion=$grammar[copyMotions] &--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$source-values &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--kind=$grammar[agentKinds]]
+        var enums = [&--motion=$grammar[copyMotions] &--format=$grammar[formats] &--mouse=[off on] &--right-click=$grammar[rightClick] &--source=$source-values &--key=$grammar[keys] &--until=$grammar[until] &--provider=$grammar[providers] &--order=$grammar[orders] &--search-direction=$grammar[searchDirections]]
+        if (eq $pending --provider) {
+          for command $viable { if (eq (str:join : $command[words]) agent:start) { set enums[--provider] = $grammar[agentKinds] } }
+        }
         if (has-key $enums $pending) {
           for value $enums[$pending] { set candidates = [$@candidates $joined$value] }
         } elif (eq $pending --cwd) {

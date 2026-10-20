@@ -175,6 +175,9 @@ pub(crate) enum AgentTarget {
     Panel {
         target: Target,
     },
+    Terminal {
+        target: Target,
+    },
     #[cfg(windows)]
     Projection {
         selector: AgentSelector,
@@ -929,6 +932,7 @@ pub(crate) enum QueryCommand {
         target: AgentTarget,
         client: WorkbenchClientId,
     },
+    #[cfg(test)]
     AgentRead {
         target: AgentTarget,
         history: Option<u16>,
@@ -989,6 +993,7 @@ pub(crate) enum QueryCommand {
         filter: Option<TerminalListFilter>,
     },
     TerminalGet(Target),
+    #[cfg(test)]
     TerminalRead {
         target: Target,
         /// `Some(n)` selects the `--history --rows n` form: retained
@@ -1014,6 +1019,7 @@ pub(crate) enum QueryCommand {
         timeout_ms: Option<u32>,
         after: Option<OutputAfter>,
     },
+    #[cfg(test)]
     TerminalWaitOutput {
         target: Target,
         /// The searched pattern: the literal `--match` text or the
@@ -1918,7 +1924,6 @@ pub(crate) enum ExpectedValue {
     FiniteNumber,
     SplitPath,
     Shell,
-    HistoryRows,
     DirectoryPath,
     WorktreePath,
     /// The `--directory` worktree-list selector: a nonzero 32-character
@@ -1928,8 +1933,6 @@ pub(crate) enum ExpectedValue {
     /// The `terminal wait-output --regex` operand: a nonempty UTF-8 pattern
     /// of at most 1024 bytes that compiles inside the declared budgets.
     RegexPattern,
-    /// The `terminal read --lines` operand: the presentation tail length.
-    TailLines,
     OutputSource,
     OutputLines,
     WaitTimeout,
@@ -2180,6 +2183,9 @@ struct Options {
     standalone: bool,
     label: Option<String>,
     direction: Option<String>,
+    order: Option<String>,
+    search_direction: Option<String>,
+    terminal: Option<String>,
     insert_index: Option<String>,
     before: Option<String>,
     amount: Option<String>,
@@ -2200,10 +2206,8 @@ struct Options {
     new_tab: bool,
     new_workspace: bool,
     tab_label: Option<String>,
-    history: bool,
     /// `terminal read --unwrap`: join verified soft-wrap rows into logical
     /// lines for presentation only.
-    unwrap: bool,
     /// `terminal read --lines <n>`: presentation tail over emitted entries.
     lines: Option<String>,
     output_source: Option<String>,
@@ -2252,7 +2256,6 @@ struct Options {
     forever: bool,
     profile: Option<String>,
     provider: Option<String>,
-    kind: Option<String>,
     adapter_source: Option<String>,
     /// `workspace close-resume --request <id>`: the close operation's own
     /// request ID — the operation identity, never the resume's new
@@ -2327,6 +2330,9 @@ const VALUE_FLAGS: &[&str] = &[
     "--cols",
     "--cursor",
     "--direction",
+    "--order",
+    "--search-direction",
+    "--terminal",
     "--insert-index",
     "--before",
     "--amount",
@@ -2342,7 +2348,6 @@ const VALUE_FLAGS: &[&str] = &[
     "--tab-label",
     "--with",
     "--key",
-    "--kind",
     "--label",
     "--plugin",
     "--context",
@@ -2744,7 +2749,6 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--group"
             | "--standalone"
             | "--confirm"
-            | "--history"
             | "--enter"
             | "--stdin"
             | "--yes"
@@ -2755,7 +2759,6 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
             | "--new-tab"
             | "--new-workspace"
             | "--paste"
-            | "--unwrap"
             | "--current"
             | "--plain"
             | "--ansi"
@@ -2831,12 +2834,8 @@ fn scan(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
                     (&mut options.detach, "--detach")
                 } else if token == "--retry" {
                     (&mut options.retry, "--retry")
-                } else if token == "--history" {
-                    (&mut options.history, "--history")
                 } else if token == "--stdin" {
                     (&mut options.stdin, "--stdin")
-                } else if token == "--unwrap" {
-                    (&mut options.unwrap, "--unwrap")
                 } else if token == "--outdated-only" {
                     (&mut options.outdated_only, "--outdated-only")
                 } else if token == "--include-ended" {
@@ -3072,6 +3071,9 @@ fn apply_value_flag(
         "--tab" => &mut options.tab,
         "--label" => &mut options.label,
         "--direction" => &mut options.direction,
+        "--order" => &mut options.order,
+        "--search-direction" => &mut options.search_direction,
+        "--terminal" => &mut options.terminal,
         "--insert-index" => &mut options.insert_index,
         "--before" => &mut options.before,
         "--amount" => &mut options.amount,
@@ -3084,7 +3086,6 @@ fn apply_value_flag(
         "--path" => &mut options.path,
         "--match" => &mut options.match_text,
         "--timeout" => &mut options.timeout,
-        "--kind" => &mut options.kind,
         "--text" => &mut options.text,
         "--file" => &mut options.file,
         "--exec" => &mut options.exec,
@@ -3275,6 +3276,20 @@ fn resolve_words(
     options: &Options,
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
+    if words.first() == Some(&"panel") && options.panel.is_some() {
+        return Err(usage_with(
+            UsageReason::UnexpectedOption {
+                context: command_context(
+                    &words
+                        .iter()
+                        .map(|word| (*word).to_owned())
+                        .collect::<Vec<_>>(),
+                ),
+                option: "--panel",
+            },
+            envelope,
+        ));
+    }
     match words {
         #[cfg(windows)]
         ["command", ..] => configured_commands::parse(words, options, envelope),
@@ -3415,38 +3430,18 @@ fn resolve_words(
                     name: true,
                     session: true,
                     panel: true,
+                    terminal: true,
                     ..TERMINAL_READ_SCOPE
                 },
                 context,
                 envelope,
             )?;
-            if options.output_source.is_some()
-                || options.plain
-                || options.ansi
-                || terminal_output::implicit_read(options)
-            {
-                return terminal_output::request(
-                    OutputTarget::Agent(agent_selector(rest, options, context, envelope)?),
-                    options,
-                    context,
-                    envelope,
-                );
-            }
-            let history = match (options.history, options.rows.is_some()) {
-                (true, true) => Some(history_rows_option(options, context, envelope)?),
-                (true, false) => return Err(missing_required(context, "'--rows'", envelope)),
-                (false, true) => return Err(missing_required(context, "'--history'", envelope)),
-                (false, false) => None,
-            };
-            Ok(query(
-                QueryCommand::AgentRead {
-                    target: agent_selector(rest, options, context, envelope)?,
-                    history,
-                    unwrap: options.unwrap,
-                    lines: tail_lines_option(options, context, envelope)?,
-                },
+            terminal_output::request(
+                OutputTarget::Agent(agent_selector(rest, options, context, envelope)?),
                 options,
-            ))
+                context,
+                envelope,
+            )
         }
         ["agent", "start", rest @ ..] => {
             let context = UsageContext::Path("agent start");
@@ -3455,7 +3450,7 @@ fn resolve_words(
                 Scope {
                     panel: true,
                     current: true,
-                    kind: true,
+                    provider: true,
                     timeout: true,
                     args: true,
                     ..NO_OPTIONS
@@ -3478,13 +3473,16 @@ fn resolve_words(
                 return Err(missing_required(context, "<name>", envelope));
             };
             let name = agent_name(name, context, envelope)?;
+            if options.providers.len() != 1 {
+                return Err(missing_required(context, "one --provider", envelope));
+            }
             let provider = options
-                .kind
+                .provider
                 .as_deref()
-                .ok_or_else(|| missing_required(context, "'--kind'", envelope))?;
+                .ok_or_else(|| missing_required(context, "'--provider'", envelope))?;
             if crate::agent_provider::executable(provider).is_none() {
                 return Err(invalid(
-                    "--kind",
+                    "--provider",
                     provider,
                     ExpectedValue::AgentStartProvider,
                 ));
@@ -4345,32 +4343,29 @@ fn resolve_words(
             let target = panel_query_target(panel, options, context, envelope)?;
             Ok(query(QueryCommand::PanelProcessInfo(target), options))
         }
-        ["panel", "current"] => {
+        ["panel", "current", operands @ ..] => {
             let context = UsageContext::Path("panel current");
             check_scope(options, PANEL_CURRENT_SCOPE, context, envelope)?;
-            if options.panel.is_some() && options.current {
+            if let [_, extra, ..] = operands {
+                return Err(unexpected_argument(context, extra, envelope));
+            }
+            if !operands.is_empty() && options.current {
                 return Err(usage_with(
                     UsageReason::ConflictingOptions {
                         context,
-                        first: "--panel",
+                        first: "<panel>",
                         second: "--current",
                     },
                     envelope,
                 ));
             }
-            let panel = options
-                .panel
-                .clone()
-                .map(|value| target(value, Resource::Panel, envelope))
+            let panel = operands
+                .first()
+                .map(|value| target((*value).to_owned(), Resource::Panel, envelope))
                 .transpose()?;
             let target = panel_query_target(panel, options, context, envelope)?;
             Ok(query(QueryCommand::PanelCurrent(target), options))
         }
-        ["panel", "current", extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("panel current"),
-            extra,
-            envelope,
-        )),
         ["panel", "get", value] => {
             check_scope(
                 options,
@@ -4543,86 +4538,24 @@ fn resolve_words(
             terminal_selection::parse(value, options, envelope)
         }
         ["terminal", "read", value] => {
-            check_scope(
-                options,
-                TERMINAL_READ_SCOPE,
-                UsageContext::Path("terminal read"),
-                envelope,
-            )?;
             let context = UsageContext::Path("terminal read");
-            if options.output_source.is_some()
-                || options.plain
-                || options.ansi
-                || terminal_output::implicit_read(options)
-            {
-                return terminal_output::request(
-                    OutputTarget::Terminal(target(
-                        (*value).to_owned(),
-                        Resource::Terminal,
-                        envelope,
-                    )?),
-                    options,
-                    context,
-                    envelope,
-                );
-            }
-            // `--history` and `--rows` are admitted as a pair only: each
-            // without the other is a missing-requirement, never a default.
-            let history = match (options.history, options.rows.is_some()) {
-                (true, true) => Some(history_rows_option(options, context, envelope)?),
-                (true, false) => {
-                    return Err(missing_required(context, "'--rows'", envelope));
-                }
-                (false, true) => {
-                    return Err(missing_required(context, "'--history'", envelope));
-                }
-                (false, false) => None,
-            };
-            Ok(query(
-                QueryCommand::TerminalRead {
-                    target: target((*value).to_owned(), Resource::Terminal, envelope)?,
-                    history,
-                    unwrap: options.unwrap,
-                    lines: tail_lines_option(options, context, envelope)?,
-                },
+            check_scope(options, TERMINAL_READ_SCOPE, context, envelope)?;
+            terminal_output::request(
+                OutputTarget::Terminal(target((*value).to_owned(), Resource::Terminal, envelope)?),
                 options,
-            ))
+                context,
+                envelope,
+            )
         }
         ["terminal", "wait-output", value] => {
-            check_scope(
-                options,
-                TERMINAL_WAIT_OUTPUT_SCOPE,
-                UsageContext::Path("terminal wait-output"),
-                envelope,
-            )?;
             let context = UsageContext::Path("terminal wait-output");
-            if cfg!(windows)
-                || options.agent_view_spec.is_some()
-                || options.output_source.is_some()
-                || options.lines.is_some()
-                || options.forever
-                || options.output_after.is_some()
-            {
-                return terminal_output::wait_request(
-                    target((*value).to_owned(), Resource::Terminal, envelope)?,
-                    options,
-                    context,
-                    envelope,
-                );
-            }
-            // Exactly one of `--match`/`--regex` is required; `--rows` and
-            // `--timeout` carry their documented defaults, and a regex
-            // compiles here — everything resolves before any cohort,
-            // socket, session, viewer, or terminal effect.
-            Ok(query(
-                QueryCommand::TerminalWaitOutput {
-                    target: target((*value).to_owned(), Resource::Terminal, envelope)?,
-                    matcher: wait_matcher_option(options, context, envelope)?,
-                    rows: wait_rows_option(options, context, envelope)?,
-                    timeout_ms: wait_timeout_option(options, context, envelope)?,
-                },
+            check_scope(options, TERMINAL_WAIT_OUTPUT_SCOPE, context, envelope)?;
+            terminal_output::wait_request(
+                target((*value).to_owned(), Resource::Terminal, envelope)?,
                 options,
-            ))
+                context,
+                envelope,
+            )
         }
         ["terminal", "run", operands @ ..] => terminal_run::request(operands, options, envelope),
         ["terminal", "send", value] => {
@@ -5607,7 +5540,7 @@ fn panel_query_target(
         return Err(usage_with(
             UsageReason::ConflictingOptions {
                 context,
-                first: "panel-id/--panel",
+                first: "<panel>",
                 second: "--client",
             },
             envelope,
@@ -5683,6 +5616,9 @@ struct Scope {
     standalone: bool,
     label: bool,
     direction: bool,
+    order: bool,
+    search_direction: bool,
+    terminal: bool,
     insert_index: bool,
     before: bool,
     amount: bool,
@@ -5704,9 +5640,7 @@ struct Scope {
     tab_label: bool,
     /// `terminal read --history --rows <n>`: admits the flag and the
     /// history-row meaning of the shared `--rows` value option.
-    history: bool,
     /// `terminal read --unwrap`: admits the logical-line presentation flag.
-    unwrap: bool,
     /// `terminal read --lines <n>`: admits the presentation tail option.
     lines: bool,
     output_source: bool,
@@ -5760,7 +5694,6 @@ struct Scope {
     /// <id>`: the provider selector — repeatable on doctor; a filter on
     /// integration `list` and a required selector on explain/enable/disable.
     provider: bool,
-    kind: bool,
     /// `agent doctor --asset-root <path>`: admits the repeatable declared
     /// asset-root selector.
     asset_root: bool,
@@ -5833,6 +5766,9 @@ const NO_OPTIONS: Scope = Scope {
     standalone: false,
     label: false,
     direction: false,
+    order: false,
+    search_direction: false,
+    terminal: false,
     insert_index: false,
     before: false,
     amount: false,
@@ -5848,8 +5784,6 @@ const NO_OPTIONS: Scope = Scope {
     new_tab: false,
     new_workspace: false,
     tab_label: false,
-    history: false,
-    unwrap: false,
     lines: false,
     output_source: false,
     plain: false,
@@ -5875,7 +5809,6 @@ const NO_OPTIONS: Scope = Scope {
     after_revision: false,
     timeout: false,
     provider: false,
-    kind: false,
     asset_root: false,
     name: false,
     session: false,
@@ -5898,6 +5831,7 @@ const TUI_SCOPE: Scope = Scope {
 /// `agent list`: the three pagination/filter options of the read grammar.
 const AGENT_TARGET_SCOPE: Scope = Scope {
     panel: true,
+    terminal: true,
     name: true,
     session: true,
     ..NO_OPTIONS
@@ -5923,6 +5857,7 @@ const AGENT_LIST_SCOPE: Scope = Scope {
 const AGENT_WAIT_SCOPE: Scope = Scope {
     client: true,
     panel: true,
+    terminal: true,
     forever: true,
     name: true,
     session: true,
@@ -6022,7 +5957,7 @@ const TAB_CREATE_SCOPE: Scope = Scope {
 };
 
 const TAB_MOVE_SCOPE: Scope = Scope {
-    direction: true,
+    order: true,
     insert_index: true,
     ..NO_OPTIONS
 };
@@ -6085,8 +6020,6 @@ const TERMINAL_READ_SCOPE: Scope = Scope {
     output_source: true,
     plain: true,
     ansi: true,
-    history: true,
-    unwrap: true,
     lines: true,
     ..NO_OPTIONS
 };
@@ -6187,6 +6120,9 @@ fn business_options(options: &Options) -> bool {
         || options.directory.is_some()
         || options.label.is_some()
         || options.direction.is_some()
+        || options.order.is_some()
+        || options.search_direction.is_some()
+        || options.terminal.is_some()
         || options.amount.is_some()
         || options.ratio.is_some()
         || options.cols.is_some()
@@ -6201,8 +6137,6 @@ fn business_options(options: &Options) -> bool {
         || options.new_tab
         || options.new_workspace
         || options.tab_label.is_some()
-        || options.history
-        || options.unwrap
         || options.output_source.is_some()
         || options.plain
         || options.ansi
@@ -6449,6 +6383,15 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     if options.insert_index.is_some() && !scope.insert_index {
         return Some("--insert-index");
     }
+    if options.terminal.is_some() && !scope.terminal {
+        return Some("--terminal");
+    }
+    if options.order.is_some() && !scope.order {
+        return Some("--order");
+    }
+    if options.search_direction.is_some() && !scope.search_direction {
+        return Some("--search-direction");
+    }
     if options.direction.is_some() && !scope.direction {
         return Some("--direction");
     }
@@ -6458,7 +6401,7 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     // `--rows` is a geometry dimension under `geometry` scope, the paired
     // history row count under `history` scope, and the searched window under
     // `wait` scope; all three spellings share the flag.
-    if options.rows.is_some() && !scope.geometry && !scope.history && !scope.wait {
+    if options.rows.is_some() && !scope.geometry {
         return Some("--rows");
     }
     if options.cell_width.is_some() && !scope.geometry {
@@ -6496,12 +6439,6 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.new_tab && !scope.new_tab {
         return Some("--new-tab");
-    }
-    if options.history && !scope.history {
-        return Some("--history");
-    }
-    if options.unwrap && !scope.unwrap {
-        return Some("--unwrap");
     }
     if options.agent_view_spec.is_some() && !scope.agent_view_spec {
         return Some("--spec");
@@ -6610,9 +6547,6 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.profile.is_some() && !scope.profile {
         return Some("--profile");
-    }
-    if options.kind.is_some() && !scope.kind {
-        return Some("--kind");
     }
     if options.provider.is_some() && !scope.provider {
         return Some("--provider");
@@ -7083,53 +7017,6 @@ fn geometry_option(
     })
 }
 
-/// The `--rows` value under `--history`: a bounded retained-row count, not a
-/// geometry dimension. 1..=1000 rows per the read-history contract.
-fn history_rows_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<u16, ParseFailure> {
-    let value = required(&options.rows, context, "'--rows'", envelope)?;
-    match value.parse::<u16>() {
-        Ok(rows) if (1..=1000).contains(&rows) => Ok(rows),
-        _ => Err(usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "--rows",
-                value,
-                expected: ExpectedValue::HistoryRows,
-            },
-            envelope,
-        )),
-    }
-}
-
-/// `terminal read --lines <n>`: the presentation tail length over the
-/// already-emitted entries — logical lines under `--unwrap`, physical rows
-/// otherwise. 1..=65535; it never widens the fetched window.
-fn tail_lines_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<Option<u16>, ParseFailure> {
-    let Some(value) = options.lines.clone() else {
-        return Ok(None);
-    };
-    match value.parse::<u16>() {
-        Ok(lines) if lines >= 1 => Ok(Some(lines)),
-        _ => Err(usage_with(
-            UsageReason::InvalidValue {
-                context,
-                option: "--lines",
-                value,
-                expected: ExpectedValue::TailLines,
-            },
-            envelope,
-        )),
-    }
-}
-
 /// The `--regex` pattern bound: a nonempty UTF-8 pattern of at most this
 /// many bytes, compiled once before any effect.
 pub(crate) const MAXIMUM_WAIT_PATTERN_BYTES: usize = 1024;
@@ -7208,19 +7095,6 @@ fn wait_matcher_option(
                 })?;
             Ok(WaitPattern::Regex(compiled))
         }
-    }
-}
-
-/// `--rows` under `wait-output`: the searched retained-row window spanning
-/// visible plus scrollback as one range. 1..=1000, defaulting to 1000.
-fn wait_rows_option(
-    options: &Options,
-    context: UsageContext,
-    envelope: FailureEnvelope,
-) -> Result<u16, ParseFailure> {
-    match options.rows.is_some() {
-        true => history_rows_option(options, context, envelope),
-        false => Ok(1000),
     }
 }
 
@@ -7482,7 +7356,7 @@ fn provider_option(
         ));
     }
     match &options.provider {
-        Some(value) => crate::agent_integrations::IntegrationId::parse(value)
+        Some(value) => crate::agent_integrations::IntegrationId::parse_provider(value)
             .map(Some)
             .ok_or_else(|| {
                 usage_with(
@@ -7669,8 +7543,10 @@ fn doctor_providers_option(
         .providers
         .iter()
         .map(|value| {
-            if crate::agent_doctor::PROVIDER_IDS.contains(&value.as_str()) {
-                Ok(value.clone())
+            if let Some(provider) = crate::agent_integrations::IntegrationId::parse_provider(value)
+                && crate::agent_doctor::PROVIDER_IDS.contains(&provider.as_str())
+            {
+                Ok(provider.as_str().to_owned())
             } else {
                 Err(usage_with(
                     UsageReason::InvalidValue {
@@ -7731,11 +7607,11 @@ fn tab_move_command(
     envelope: FailureEnvelope,
 ) -> Result<MutationCommand, ParseFailure> {
     let context = UsageContext::Path("tab move");
-    if options.direction.is_some() && options.insert_index.is_some() {
+    if options.order.is_some() && options.insert_index.is_some() {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
                 context,
-                first: "--direction",
+                first: "--order",
                 second: "--insert-index",
             },
             envelope,
@@ -7763,10 +7639,10 @@ fn tab_move_command(
             insert_index: index,
         });
     }
-    if options.direction.is_none() {
+    if options.order.is_none() {
         return Err(missing_required(
             context,
-            "'--direction' or '--insert-index'",
+            "'--order' or '--insert-index'",
             envelope,
         ));
     }
@@ -7781,7 +7657,7 @@ fn tab_direction(
     context: UsageContext,
     envelope: FailureEnvelope,
 ) -> Result<WorkbenchTabMoveDirection, ParseFailure> {
-    let value = required(&options.direction, context, "'--direction'", envelope)?;
+    let value = required(&options.order, context, "'--order'", envelope)?;
     match value.as_str() {
         "previous" => Ok(WorkbenchTabMoveDirection::Previous),
         "next" => Ok(WorkbenchTabMoveDirection::Next),
@@ -7790,7 +7666,7 @@ fn tab_direction(
         _ => Err(usage_with(
             UsageReason::InvalidValue {
                 context,
-                option: "--direction",
+                option: "--order",
                 value,
                 expected: ExpectedValue::TabDirection,
             },
@@ -7803,7 +7679,7 @@ fn tab_direction(
 /// (the original same-Tab adjacent insert), `--into-tab` (an existing
 /// sibling Tab), or `--new-tab` (a fresh Tab appended to the source
 /// TerminalContext). Each form pins its own required and forbidden peers
-/// before any target resolution runs; a stray `--label`/`--direction`
+/// before any target resolution runs; a stray `--label`/`--order`
 /// outside its owning form is a usage conflict, never silently ignored.
 fn panel_move_destination(
     options: &Options,
@@ -7897,8 +7773,8 @@ fn panel_direction(
 ) -> Result<WorkbenchPanelSplitDirection, ParseFailure> {
     let value = required(&options.direction, context, "'--direction'", envelope)?;
     match value.as_str() {
-        "above" => Ok(WorkbenchPanelSplitDirection::Above),
-        "below" => Ok(WorkbenchPanelSplitDirection::Below),
+        "up" => Ok(WorkbenchPanelSplitDirection::Above),
+        "down" => Ok(WorkbenchPanelSplitDirection::Below),
         "left" => Ok(WorkbenchPanelSplitDirection::Left),
         "right" => Ok(WorkbenchPanelSplitDirection::Right),
         _ => Err(usage_with(
@@ -8015,6 +7891,8 @@ fn reject_filters(
 }
 
 #[cfg(test)]
+mod grammar_consistency_tests;
+#[cfg(test)]
 mod tests;
 
 fn agent_name(
@@ -8053,16 +7931,22 @@ fn agent_selector(
     let selected = usize::from(!words.is_empty())
         + usize::from(options.session.is_some())
         + usize::from(options.name.is_some())
-        + usize::from(options.panel.is_some());
+        + usize::from(options.panel.is_some())
+        + usize::from(options.terminal.is_some());
     if selected > 1 {
         return Err(usage_with(
             UsageReason::ConflictingOptions {
                 context,
                 first: "<target>",
-                second: "--agent-session / --name / --panel",
+                second: "--agent-session / --name / --panel / --terminal",
             },
             envelope,
         ));
+    }
+    if let Some(value) = &options.terminal {
+        return Ok(AgentTarget::Terminal {
+            target: target(value.clone(), Resource::Terminal, envelope)?,
+        });
     }
     if let Some(value) = &options.panel {
         return Ok(AgentTarget::Panel {
@@ -8096,6 +7980,11 @@ fn agent_selector(
             })?;
             return Ok(AgentTarget::Projection { selector });
         }
+        if value.starts_with("@terminal:") {
+            return Ok(AgentTarget::Terminal {
+                target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+            });
+        }
         if value.starts_with("@panel:") {
             return Ok(AgentTarget::Panel {
                 target: target((*value).to_owned(), Resource::Panel, envelope)?,
@@ -8128,7 +8017,7 @@ fn agent_selector(
     Err(usage_with(
         UsageReason::MissingRequired {
             context,
-            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector>",
+            requirement: "<target> or --agent-session <id> or --name <alias> or --panel <id|selector> or --terminal <id|selector>",
         },
         envelope,
     ))

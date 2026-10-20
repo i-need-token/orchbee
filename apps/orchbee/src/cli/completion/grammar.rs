@@ -102,6 +102,8 @@ pub(super) fn build() -> serde_json::Value {
         "keys": KEY_VALUES,
         "until": UNTIL_VALUES,
         "providers": PROVIDER_VALUES,
+        "orders": super::ORDER_VALUES,
+        "searchDirections": super::SEARCH_DIRECTION_VALUES,
         "copyMotions": super::COPY_MOTION_VALUES,
         "rightClick": RIGHT_CLICK_VALUES,
         "notificationPositions": ["top-left", "top-right", "bottom-left", "bottom-right"],

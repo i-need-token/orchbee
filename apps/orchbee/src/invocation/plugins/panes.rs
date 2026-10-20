@@ -158,6 +158,8 @@ pub(super) fn parse(
         ));
     }
     let direction = match options.direction.as_deref().unwrap_or("right") {
+        "left" => WorkbenchPanelSplitDirection::Left,
+        "up" => WorkbenchPanelSplitDirection::Above,
         "right" => WorkbenchPanelSplitDirection::Right,
         "down" => WorkbenchPanelSplitDirection::Below,
         value => {
