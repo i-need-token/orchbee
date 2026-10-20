@@ -2510,3 +2510,7 @@ viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收�
 ## 统一保留操作路径
 
 [保留操作状态](native-operation-status.zh-CN.md) 定义推荐的 `<family> status <request-id>` 及支持的 `<family> resume <request-id> --generation <n> --confirm` 语法。本参考中较早的命令族专属路径保留为兼容入口，新调用者使用统一路径。Tab 和 Panel 现有显式状态及恢复入口。
+
+## 终端输入输出的 Panel 目标
+
+`terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。

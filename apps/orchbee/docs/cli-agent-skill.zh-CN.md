@@ -164,3 +164,7 @@ Panel 命令族使用位置目标或 `--current`；Agent 使用 `--panel` 或 `-
 ## 恢复异步操作
 
 Workspace、Tab、Panel、Project、Worktree、Client 和 Server 操作使用回执 ID 调用 `<family> status <request-id>`。支持的恢复路径使用 `<family> resume <request-id> --generation <n> --confirm`，先检查状态。[保留操作状态](native-operation-status.zh-CN.md) 负责身份映射、边界、兼容路径及 Server stop 优先级。
+
+## 终端输入输出的 Panel 目标
+
+`terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。

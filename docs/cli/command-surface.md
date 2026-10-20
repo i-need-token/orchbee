@@ -94,6 +94,12 @@ provider names; capability subsets must be documented. Key modifiers use `ctrl+`
 - Pagination options, when a command declares them, are `--limit <n>` with declared bounds and an
   opaque `--cursor <cursor>` returned by the previous page.
 
+Terminal input/output commands may declare a Terminal-or-Panel target: `terminal run`,
+`terminal read`, `terminal send` and `terminal wait-output` accept Panel IDs, `@panel:` and
+`--panel`. A Panel resolves only to its primary terminal. Child terminals require their own
+terminal identity. A bare ID that selects different resources across both kinds is ambiguous;
+`@terminal:` or `@panel:` disambiguates. Other commands retain their declared target kind.
+
 ## Help, version, and completion
 
 - A single `-h` or `--help` anywhere before `--` emits the same text as `help <path>` for the

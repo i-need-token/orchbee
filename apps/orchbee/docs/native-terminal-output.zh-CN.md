@@ -185,3 +185,7 @@ OBTF 与 OBPB 的网格几何以 `(0, 0)` 保留未知字符像素尺寸，与 H
 当前纯文本和 ANSI 输出封套分别为 v3、v4，包含可空的 `result.cursor`；历史 v1/v2 保持封闭形状。游标标识一个主屏终端、Host epoch、generation、输出原点 epoch、修订和占用行与已有内容端点中较后的行。备用屏或旧 Host 不提供游标。编码值应视为不透明数据。
 
 `wait-output --after <cursor|now>` 输出 v4，并包含准入的 `after` 边界；未加该选项时仍为 v3，可以匹配保留输出。`now` 捕获首个一致样本。匹配排除占用的边界行和提示符／输入行，再对后续行应用既有匹配及软换行规则；不检测边界行内部的追加。身份不匹配、重启、重置／重排、历史淘汰或所选窗口之前缺行时，以 `rejected` 和 `output-cursor-reset` 返回；不支持的来源返回 `output-cursor-unavailable`。不隐藏游标重置。观察者绝不提交输入。
+
+## 终端输入输出的 Panel 目标
+
+`terminal run/read/send/wait-output` 接受终端 ID 或 `@terminal:`、Panel ID 或 `@panel:`，也接受 `--panel <panel>`。Panel 目标在一次已准入快照中选择主 Presentation，绝不改选子终端或改变焦点。子终端需显式使用其终端 ID。Panel 缺失、无绑定或歧义时在输入前失败。裸 ID 同时指向不同 Panel 和 Terminal 资源时拒绝，需类型化句柄消歧。响应保留实际终端及位置身份。示例：`terminal run --panel @panel:0x1 "git status"`。普通目标与 `--panel` 互斥。

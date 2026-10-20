@@ -302,7 +302,9 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
                 .clone(),
         },
         // The parser admits only typed IDs and selectors for terminal targets.
-        Target::Label(_) => return Err(Failure::new(FailureKind::InternalFailure)),
+        Target::Label(_) | Target::TerminalOrPanelId(_) => {
+            return Err(Failure::new(FailureKind::InternalFailure));
+        }
     };
     let request = TerminalLaunchReadRequest::new(
         obcs_request_id()?,

@@ -677,6 +677,99 @@ fn selectors_match_inside_their_own_kind_only() {
 }
 
 #[test]
+fn terminal_io_panel_targets_resolve_primary_and_preserve_missing_or_ambiguous_results() {
+    let snapshot = selector_snapshot();
+    let primary = terminal_rows(&snapshot).into_iter().find(|row| {
+        matches!(project(&QueryCommand::PanelGet(Target::Id(row.panel_id.clone())), &snapshot),
+            Ok(Projection::PanelGet(panel)) if panel.primary_presentation.presentation_id == row.presentation_id)
+    }).unwrap();
+    for target in [
+        Target::Selector(format!(
+            "@panel:0x{}",
+            primary.panel_id.trim_start_matches('0')
+        )),
+        Target::TerminalOrPanelId(primary.panel_id.clone()),
+    ] {
+        assert_eq!(
+            terminal_select(&snapshot, &target).unwrap().terminal_id,
+            primary.terminal_id
+        );
+    }
+    for (target, kind) in [
+        ("@panel:ff", FailureKind::Ambiguous),
+        ("@panel:0xfedc", FailureKind::NotFound),
+    ] {
+        assert_eq!(
+            terminal_select(&snapshot, &Target::Selector(target.into()))
+                .unwrap_err()
+                .kind,
+            kind
+        );
+    }
+}
+
+#[test]
+fn bound_children_do_not_replace_the_panel_primary_and_id_collisions_refuse() {
+    let snapshot = selector_snapshot();
+    let primary = terminal_rows(&snapshot).remove(0);
+    let mut value = serde_json::to_value(&snapshot).unwrap();
+    fn bind_child(value: &mut Value, panel: &str, child_terminal: &str) {
+        match value {
+            Value::Object(object)
+                if object.get("panelId").and_then(Value::as_str) == Some(panel) =>
+            {
+                let primary = object.get("primaryPresentation").unwrap().clone();
+                let mut child = primary;
+                child["presentationId"] = json!("fffffffffffffffffffffffffffffff0");
+                child["binding"]["terminalId"] = json!(child_terminal);
+                object
+                    .get_mut("childPresentations")
+                    .unwrap()
+                    .as_array_mut()
+                    .unwrap()
+                    .push(child);
+            }
+            Value::Object(object) => {
+                for child in object.values_mut() {
+                    bind_child(child, panel, child_terminal);
+                }
+            }
+            Value::Array(items) => {
+                for child in items {
+                    bind_child(child, panel, child_terminal);
+                }
+            }
+            _ => {}
+        }
+    }
+    // Deliberately collide a child Terminal identity with its containing Panel identity.
+    bind_child(&mut value, &primary.panel_id, &primary.panel_id);
+    let snapshot: Snapshot = serde_json::from_value(value).unwrap();
+    let panel = Target::Selector(format!(
+        "@panel:0x{}",
+        primary.panel_id.trim_start_matches('0')
+    ));
+    assert_eq!(
+        terminal_select(&snapshot, &panel).unwrap().terminal_id,
+        primary.terminal_id
+    );
+    let child = Target::Selector(format!(
+        "@terminal:0x{}",
+        primary.panel_id.trim_start_matches('0')
+    ));
+    assert_eq!(
+        terminal_select(&snapshot, &child).unwrap().terminal_id,
+        primary.panel_id
+    );
+    assert_eq!(
+        terminal_select(&snapshot, &Target::TerminalOrPanelId(primary.panel_id))
+            .unwrap_err()
+            .kind,
+        FailureKind::Ambiguous
+    );
+}
+
+#[test]
 fn selector_ambiguity_reports_bounded_candidates_and_the_true_total() {
     let snapshot = selector_snapshot();
     // Two-member collisions per kind, in canonical traversal order.

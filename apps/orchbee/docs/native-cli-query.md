@@ -2964,3 +2964,7 @@ requests remain failures, and no receipt is fabricated after the connection clos
 ## Uniform retained operation paths
 
 [Retained operation status](native-operation-status.md) defines the preferred `<family> status <request-id>` and supported `<family> resume <request-id> --generation <n> --confirm` grammar. Older family-specific paths described in this reference remain compatibility entry points; new callers use the uniform paths. Tab and Panel now have explicit status and resume access.
+
+## Panel targets for terminal I/O
+
+`terminal run/read/send/wait-output` accept a terminal ID or `@terminal:`, a Panel ID or `@panel:`, or `--panel <panel>`. Panel targeting selects the primary presentation in one admitted snapshot; it never selects a child or changes focus. Use a child terminal ID explicitly. Missing, unbound and ambiguous Panels fail before input. Bare IDs that name different Panel and Terminal resources refuse; use typed handles to disambiguate. The response retains the actual terminal and placement identities. Example: `terminal run --panel @panel:0x1 "git status"`. The ordinary target and `--panel` are exclusive.

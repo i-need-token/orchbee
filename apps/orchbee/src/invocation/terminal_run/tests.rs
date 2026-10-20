@@ -24,7 +24,7 @@ fn command_is_opaque_single_operand_lowered_to_paste_then_enter() {
             result,
             Ok(Request::Mutation {
                 command: MutationCommand::TerminalSend {
-                    target: Target::Id("33333333333333333333333333333333".into()),
+                    target: Target::TerminalOrPanelId("33333333333333333333333333333333".into()),
                     input: TerminalSendInput::Paste {
                         content: command.as_bytes().to_vec(),
                         enter: true
@@ -132,7 +132,7 @@ fn waiting_is_explicit_bounded_and_keeps_the_original_command() {
         ]),
         Ok(Request::Mutation {
             command: MutationCommand::TerminalRunWait {
-                target: Target::Id(target.to_owned()),
+                target: Target::TerminalOrPanelId(target.to_owned()),
                 command: "Write-Output 'ok'".to_owned(),
                 timeout_ms: 1200,
             },

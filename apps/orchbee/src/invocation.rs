@@ -69,6 +69,7 @@ pub(crate) use terminal_copy::{TerminalCopyAction, TerminalCopyCommand};
 pub(crate) use terminal_links::TerminalLinkCommand;
 mod terminal_run;
 mod terminal_stream;
+mod terminal_target;
 pub(crate) use client_control::{ClientCommand, LayoutQuery};
 #[cfg(any(windows, test))]
 pub(crate) use client_control::{ClientLayoutTarget, ClientNavigationTarget, ZoomMode};
@@ -134,6 +135,8 @@ pub(crate) enum OutputFormat {
 /// `@<kind>:<suffix>` token. The parser checks its resource kind before effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
+    /// Bare ID in the four input/output commands; resolution refuses cross-kind collisions.
+    TerminalOrPanelId(String),
     Id(String),
     Label(String),
     Selector(String),
@@ -148,7 +151,10 @@ impl Target {
 
     pub(crate) fn text(&self) -> &str {
         match self {
-            Self::Id(value) | Self::Label(value) | Self::Selector(value) => value,
+            Self::Id(value)
+            | Self::TerminalOrPanelId(value)
+            | Self::Label(value)
+            | Self::Selector(value) => value,
         }
     }
 
@@ -4579,28 +4585,38 @@ fn resolve_words(
         ["terminal", "selection-read", value] => {
             terminal_selection::parse(value, options, envelope)
         }
-        ["terminal", "read", value] => {
+        ["terminal", "read", operands @ ..] => {
             let context = UsageContext::Path("terminal read");
             check_scope(options, TERMINAL_READ_SCOPE, context, envelope)?;
             terminal_output::request(
-                OutputTarget::Terminal(target((*value).to_owned(), Resource::Terminal, envelope)?),
+                OutputTarget::Terminal(terminal_target::parse(
+                    operands,
+                    options,
+                    UsageContext::Path("terminal read"),
+                    envelope,
+                )?),
                 options,
                 context,
                 envelope,
             )
         }
-        ["terminal", "wait-output", value] => {
+        ["terminal", "wait-output", operands @ ..] => {
             let context = UsageContext::Path("terminal wait-output");
             check_scope(options, TERMINAL_WAIT_OUTPUT_SCOPE, context, envelope)?;
             terminal_output::wait_request(
-                target((*value).to_owned(), Resource::Terminal, envelope)?,
+                terminal_target::parse(
+                    operands,
+                    options,
+                    UsageContext::Path("terminal wait-output"),
+                    envelope,
+                )?,
                 options,
                 context,
                 envelope,
             )
         }
         ["terminal", "run", operands @ ..] => terminal_run::request(operands, options, envelope),
-        ["terminal", "send", value] => {
+        ["terminal", "send", operands @ ..] => {
             check_scope(
                 options,
                 TERMINAL_SEND_SCOPE,
@@ -4610,7 +4626,12 @@ fn resolve_words(
             let context = UsageContext::Path("terminal send");
             Ok(mutation(
                 MutationCommand::TerminalSend {
-                    target: target((*value).to_owned(), Resource::Terminal, envelope)?,
+                    target: terminal_target::parse(
+                        operands,
+                        options,
+                        UsageContext::Path("terminal send"),
+                        envelope,
+                    )?,
                     input: send_input(options, context, envelope)?,
                 },
                 options,
@@ -5290,36 +5311,7 @@ fn resolve_words(
             extra,
             envelope,
         )),
-        ["terminal", "read"] => Err(missing_required(
-            UsageContext::Path("terminal read"),
-            "<terminal>",
-            envelope,
-        )),
-        ["terminal", "read", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("terminal read"),
-            extra,
-            envelope,
-        )),
-        ["terminal", "wait-output"] => Err(missing_required(
-            UsageContext::Path("terminal wait-output"),
-            "<terminal>",
-            envelope,
-        )),
-        ["terminal", "wait-output", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("terminal wait-output"),
-            extra,
-            envelope,
-        )),
-        ["terminal", "send"] => Err(missing_required(
-            UsageContext::Path("terminal send"),
-            "<terminal>",
-            envelope,
-        )),
-        ["terminal", "send", _, extra, ..] => Err(unexpected_argument(
-            UsageContext::Path("terminal send"),
-            extra,
-            envelope,
-        )),
+
         ["terminal", verb, ..] => Err(unknown_command(
             UsageContext::Path("terminal"),
             verb,
@@ -6059,6 +6051,7 @@ const PANEL_MOVE_SCOPE: Scope = Scope {
 /// `terminal read`: the paired history selector plus the two read-only
 /// presentation transforms — logical-line joining and the entry tail.
 const TERMINAL_READ_SCOPE: Scope = Scope {
+    panel: true,
     output_source: true,
     plain: true,
     ansi: true,
@@ -6067,6 +6060,7 @@ const TERMINAL_READ_SCOPE: Scope = Scope {
 };
 
 const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
+    panel: true,
     output_source: true,
     lines: true,
     forever: true,
@@ -6076,6 +6070,7 @@ const TERMINAL_WAIT_OUTPUT_SCOPE: Scope = Scope {
 };
 
 const TERMINAL_SEND_SCOPE: Scope = Scope {
+    panel: true,
     text: true,
     enter: true,
     key: true,

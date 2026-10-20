@@ -166,3 +166,7 @@ remove removes membership, uninstall removes an installed plugin, and dissolve p
 ## Recover async operations
 
 Use the receipt ID with `<family> status <request-id>` for Workspace, Tab, Panel, Project, Worktree, Client and Server operations. Supported resume paths use `<family> resume <request-id> --generation <n> --confirm`; inspect status first. [Retained operation status](native-operation-status.md) owns the identity mapping, limits, compatibility paths and Server stop precedence.
+
+## Panel targets for terminal I/O
+
+`terminal run/read/send/wait-output` accept a terminal ID or `@terminal:`, a Panel ID or `@panel:`, or `--panel <panel>`. Panel targeting selects the primary presentation in one admitted snapshot; it never selects a child or changes focus. Use a child terminal ID explicitly. Missing, unbound and ambiguous Panels fail before input. Bare IDs that name different Panel and Terminal resources refuse; use typed handles to disambiguate. The response retains the actual terminal and placement identities. Example: `terminal run --panel @panel:0x1 "git status"`. The ordinary target and `--panel` are exclusive.

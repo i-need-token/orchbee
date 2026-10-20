@@ -113,6 +113,7 @@
         }
         if (and (> $provider-count 1) (not-eq $path agent:doctor)) { set valid = $false }
         var limit = $command[operand]
+        if (and (has-value [terminal:read terminal:send terminal:wait-output terminal:run] $path) (has-value $seen --panel)) { set limit = (- $limit 1) }
         if (and (eq $path panel:process-info) (has-value $seen --client)) { set limit = 0 }
         if (and (has-value $panel-targets $path) (any $seen [--panel --current])) { set limit = 0 }
         if (has-value $agent-targets $path) {
@@ -144,6 +145,7 @@
         var allowed = [$@flags $@global]
         if $command[format] { set allowed = [$@allowed --format] }
         for flag $allowed {
+          if (and (has-value [terminal:read terminal:send terminal:wait-output] $path) (> $n $width) (eq $flag --panel)) { continue }
           if (and (eq $path panel:process-info) (> $n $width) (eq $flag --client)) { continue }
           if (and (has-value $panel-targets $path) (> $n $width) (has-value [--panel --current] $flag)) { continue }
           if (has-value $agent-targets $path) {

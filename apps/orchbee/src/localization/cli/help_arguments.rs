@@ -10,6 +10,7 @@ enum Argument {
     Tab,
     Panel,
     Terminal,
+    TerminalOrPanel,
     Agent,
     Command,
     Text,
@@ -183,7 +184,7 @@ impl Locale {
             CommandPath::PanelMove => &[Argument::Panel],
             CommandPath::TerminalList => &[],
             CommandPath::TerminalGet => &[Argument::Terminal],
-            CommandPath::TerminalRead => &[Argument::Terminal],
+            CommandPath::TerminalRead => &[Argument::TerminalOrPanel],
             #[cfg(windows)]
             CommandPath::TerminalSelectionRead => &[Argument::Terminal],
             #[cfg(windows)]
@@ -198,9 +199,9 @@ impl Locale {
             CommandPath::TerminalClear => &[Argument::Terminal],
             #[cfg(windows)]
             CommandPath::TerminalEditScrollback => &[Argument::Terminal],
-            CommandPath::TerminalWaitOutput => &[Argument::Terminal],
-            CommandPath::TerminalSend => &[Argument::Terminal],
-            CommandPath::TerminalRun => &[Argument::Terminal, Argument::Command],
+            CommandPath::TerminalWaitOutput => &[Argument::TerminalOrPanel],
+            CommandPath::TerminalSend => &[Argument::TerminalOrPanel],
+            CommandPath::TerminalRun => &[Argument::TerminalOrPanel, Argument::Command],
             CommandPath::WorktreeList => &[],
             CommandPath::WorktreeCreate => &[],
             CommandPath::WorktreeOpen => &[],
@@ -284,6 +285,7 @@ impl Locale {
                 Argument::Workspaces => ("<target> ...", "One or more workspaces in the desired order; use IDs, @workspace:0x<hex>, or exact labels.", "按期望顺序列出一个或多个工作区；使用 ID、@workspace:0x<hex> 或精确名称。"),
                 Argument::Tab => ("<target>", "Tab ID, @tab:0x<hex>, or exact label; ID/selector syntax takes priority. Use the real ID for labels with that syntax.", "标签页 ID、@tab:0x<hex> 或精确名称；优先解析 ID 和选择器。名称形似 ID 或选择器时，请使用实际 ID。"),
                 Argument::Panel => ("<panel>", "Panel ID or @panel:0x<hex>; list panels with orchbee panel list.", "面板 ID 或 @panel:0x<hex>；使用 orchbee panel list 列出面板。"),
+                Argument::TerminalOrPanel => ("<target>", "Terminal or Panel ID; typed @terminal:0x<hex> and @panel:0x<hex> remove ambiguity. A Panel selects its primary Terminal.", "终端或面板 ID；使用 @terminal:0x<hex> 与 @panel:0x<hex> 消除歧义。面板选择其主终端。"),
                 Argument::Terminal => ("<terminal>", "Terminal ID or @terminal:0x<hex>; list terminals with orchbee terminal list.", "终端 ID 或 @terminal:0x<hex>；使用 orchbee terminal list 列出终端。"),
                 Argument::Agent => ("<target>", "Agent session ID, saved name, or panel target. Choose exactly one positional target or supported selector flag.", "Agent 会话 ID、保存的名称或面板目标。位置参数和受支持的选择器选项中只能选择一种。"),
                 Argument::Command => ("<command>", "One shell command string; quote it if it contains spaces.", "一条 Shell 命令字符串；包含空格时必须加引号。"),

@@ -162,8 +162,8 @@
 			"zhCnSha256": "028edd7850d85f86a29a98daac9028ae68d783d782b40bb63d3c6b4f8344c466"
 		},
 		"apps/orchbee/docs/cli-agent-skill.md": {
-			"englishSha256": "d70ddf67dbdc27ce1045becf686965013835fce0ecc3bf9965b833d441fe8b46",
-			"zhCnSha256": "4a79071b91d76a34ec628159e90a9f0bdd9041276dbe2c28efaceadff21306ef"
+			"englishSha256": "fe2615cc4711ecc167891cb0845d19e6b0dce9b3fd3fb42de3ed19edcc5d9296",
+			"zhCnSha256": "bbed4958fda31ef59085992b6ebd6a0a82f187db98d9a2fd47059a5849465757"
 		},
 		"apps/orchbee/docs/cli-workflows.md": {
 			"englishSha256": "d387c4cf4f93c6cce7d8cc48c88f25002740fafc3df52d37635dec168e056e90",
@@ -182,8 +182,8 @@
 			"zhCnSha256": "3074745601221111ef5a20b4662943ff3d15ee2fecb9144d4944375fe21526fd"
 		},
 		"apps/orchbee/docs/native-cli-query.md": {
-			"englishSha256": "e030923602d01560819f76b773e52343fe54f05b031bce3a7e7d9978c6c69f23",
-			"zhCnSha256": "0f942b49f49fc97c4f9ce19d2c5e47e777f8438d5552a5996792cf2923eee7d5"
+			"englishSha256": "c62c7939814fd48809bea06c1a561135a0e55c9f6de2f9d199833fd6424e6571",
+			"zhCnSha256": "0d8a7a741e0b9bba307ecf14cb10d028a72ca63e9b75157d477b0e42cc13d0c5"
 		},
 		"apps/orchbee/docs/native-cli-wait-model.md": {
 			"englishSha256": "028cf6e0e7caa56b7f38a11ddbadf5a542f0e901613086c338dbc847824bdfa9",
@@ -298,8 +298,8 @@
 			"zhCnSha256": "b2c38885e4aacca877f9484bb5994d566d81b94767aab7ab275c83f3d8f169dd"
 		},
 		"apps/orchbee/docs/native-terminal-output.md": {
-			"englishSha256": "a2eda2b2dcc7f3168188bbe93b0f174ba5637be1f08b49e37480b3a959f0e669",
-			"zhCnSha256": "c51fe4b75a233e7989f8b3713f34a98c3bbdb73073f2ee91d0ce543ae32341f3"
+			"englishSha256": "05ddc1c1aa245b75762a9f3a3a3c6a6b73f22136d26f039d17d2c72436a7d939",
+			"zhCnSha256": "7998adbb06b2448be7d7321169aad18488b2dc5ad03d94d29229d1ea7ad5c9d2"
 		},
 		"apps/orchbee/docs/native-terminal-run.md": {
 			"englishSha256": "4ff6c2d5d95038b9f2a591c951262b982f20946e0800eca2f6fe072ecc681de5",
@@ -566,8 +566,8 @@
 			"zhCnSha256": "eca21f3f0c442c402e55b08b1c98ed42e0e2316f9c7e59adce1a1684889e14fd"
 		},
 		"docs/cli/command-surface.md": {
-			"englishSha256": "ee8379854602bc653fa98261bd86d46523daa83c3d1ecc195ce6fd5eafb660d8",
-			"zhCnSha256": "be2148bc0b8377c5e503a38e5add348da331316bd2169dbce5ea2f98998ec2be"
+			"englishSha256": "a5de4cabe0fcdd659d3b44f185f63c5a7801345086fa1da63d00cfe9ee4310c7",
+			"zhCnSha256": "db2a4b6a322d685f29feb4a1c37503bfc1e7e98cae92f7ad695697251d190dba"
 		},
 		"docs/cli/output.md": {
 			"englishSha256": "e5b89a7abdf086fdad7632b4ce1356019af1fc6335bd044aa6424cd317010d9e",

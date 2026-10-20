@@ -19,7 +19,7 @@ fn unknown_options_point_to_the_recognized_command_help() {
 
 fn expected_terminal_read(target: Target, unwrap: bool, lines: Option<u16>) -> QueryCommand {
     let target = match target {
-        Target::Id(id) => Target::Id(id),
+        Target::Id(id) => Target::TerminalOrPanelId(id),
         other => other,
     };
     QueryCommand::TerminalOutput {
@@ -40,7 +40,7 @@ fn expected_terminal_read(target: Target, unwrap: bool, lines: Option<u16>) -> Q
 fn expected_output_wait(text: &str, lines: Option<u16>, timeout: Option<u32>) -> QueryCommand {
     QueryCommand::TerminalSourceWait {
         after: None,
-        target: Target::Id(ID.into()),
+        target: Target::TerminalOrPanelId(ID.into()),
         matcher: WaitPattern::Literal(text.to_owned()),
         selection: super::OutputSelection {
             source: super::OutputSource::Recent,
@@ -4491,7 +4491,7 @@ fn terminal_wait_output_grammar() {
         Ok(query(
             QueryCommand::TerminalSourceWait {
                 after: None,
-                target: Target::Id(ID.into()),
+                target: Target::TerminalOrPanelId(ID.into()),
                 matcher: WaitPattern::Regex(compiled),
                 selection: super::OutputSelection {
                     source: super::OutputSource::Recent,
@@ -4698,7 +4698,7 @@ fn terminal_send_grammar() {
     let send = |input| {
         mutation(
             MutationCommand::TerminalSend {
-                target: Target::Id(ID.into()),
+                target: Target::TerminalOrPanelId(ID.into()),
                 input,
             },
             OutputFormat::Text,
@@ -4724,7 +4724,7 @@ fn terminal_send_grammar() {
         ]),
         Ok(mutation(
             MutationCommand::TerminalSend {
-                target: Target::Id(ID.into()),
+                target: Target::TerminalOrPanelId(ID.into()),
                 input: TerminalSendInput::Text {
                     text: "make".to_owned(),
                     enter: true,

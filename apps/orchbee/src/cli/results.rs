@@ -1129,6 +1129,43 @@ pub(crate) fn terminal_select(
     snapshot: &Snapshot,
     target: &Target,
 ) -> Result<TerminalRow, Failure> {
+    if let Target::TerminalOrPanelId(id) = target {
+        let terminal = terminal_rows(snapshot)
+            .into_iter()
+            .find(|row| &row.terminal_id == id);
+        let panel_exists = panel_entries(snapshot)
+            .iter()
+            .any(|(panel, _, _)| panel.as_str() == id);
+        if !panel_exists {
+            return terminal.ok_or_else(|| not_found(Resource::Terminal, target));
+        }
+        let panel = primary_terminal(snapshot, &Target::Id(id.clone()));
+        return match (terminal, panel) {
+            (None, result) => result,
+            (Some(terminal), Ok(primary)) if terminal.terminal_id == primary.terminal_id => {
+                Ok(terminal)
+            }
+            (Some(terminal), panel) => {
+                let other = panel.map_or_else(|_| id.clone(), |row| row.terminal_id);
+                let mut failure = ambiguous(
+                    Resource::Terminal,
+                    target,
+                    vec![terminal.terminal_id, other],
+                );
+                failure.candidate_display = Some(Box::new(CandidateDisplay {
+                    lines: [
+                        super::handles::stable("terminal", &[id]),
+                        super::handles::stable("panel", &[id]),
+                    ]
+                    .concat(),
+                }));
+                Err(failure)
+            }
+        };
+    }
+    if target.text().starts_with("@panel:") {
+        return primary_terminal(snapshot, target);
+    }
     if let Target::Label(_) = target {
         return Err(Failure::new(FailureKind::InternalFailure));
     }
@@ -1139,6 +1176,20 @@ pub(crate) fn terminal_select(
         Resource::Terminal,
     )
     .cloned()
+}
+
+fn primary_terminal(snapshot: &Snapshot, target: &Target) -> Result<TerminalRow, Failure> {
+    let Projection::PanelGet(panel) = project(&QueryCommand::PanelGet(target.clone()), snapshot)?
+    else {
+        return Err(Failure::new(FailureKind::InternalFailure));
+    };
+    terminal_rows(snapshot)
+        .into_iter()
+        .find(|row| {
+            row.panel_id == panel.row.panel_id
+                && row.presentation_id == panel.primary_presentation.presentation_id
+        })
+        .ok_or_else(|| not_found(Resource::Terminal, target))
 }
 
 #[derive(Debug)]
@@ -2091,7 +2142,7 @@ fn resolve<'a, Item, Label: AsRef<str>>(
         }
     }
     match target {
-        Target::Id(identity) => items
+        Target::Id(identity) | Target::TerminalOrPanelId(identity) => items
             .find(|(id, _label, _item)| *id == identity.as_str())
             .map(|(_id, _label, item)| item)
             .ok_or_else(Vec::new),

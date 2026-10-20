@@ -1,8 +1,8 @@
 //! Opaque command submission through the existing ordered paste/Enter path.
 use super::{
     ExpectedValue, FailureEnvelope, MAXIMUM_SEND_PASTE_BYTES, MutationCommand, NO_OPTIONS, Options,
-    ParseFailure, Request, Resource, TerminalSendInput, UsageContext, UsageReason, check_scope,
-    missing_required, mutation, target, unexpected_argument, usage_with,
+    ParseFailure, Request, TerminalSendInput, UsageContext, UsageReason, check_scope,
+    missing_required, mutation, unexpected_argument, usage_with,
 };
 
 pub(super) fn request(
@@ -15,6 +15,7 @@ pub(super) fn request(
         options,
         super::Scope {
             prompt_wait: true,
+            panel: true,
             timeout: true,
             ..NO_OPTIONS
         },
@@ -24,13 +25,23 @@ pub(super) fn request(
     if options.timeout.is_some() && !options.prompt_wait {
         return Err(missing_required(context, "--wait", envelope));
     }
-    let Some(selector) = operands.first() else {
-        return Err(missing_required(context, "<target>", envelope));
+    let (selectors, command_words) = if options.panel.is_some() {
+        (&[][..], operands)
+    } else {
+        let Some((selector, rest)) = operands.split_first() else {
+            return Err(missing_required(
+                context,
+                "<target> or --panel <panel>",
+                envelope,
+            ));
+        };
+        (std::slice::from_ref(selector), rest)
     };
-    let Some(command) = operands.get(1) else {
+    let selected = super::terminal_target::parse(selectors, options, context, envelope)?;
+    let Some(command) = command_words.first() else {
         return Err(missing_required(context, "<command>", envelope));
     };
-    if let Some(extra) = operands.get(2) {
+    if let Some(extra) = command_words.get(1) {
         return Err(unexpected_argument(context, extra, envelope));
     }
     if command.is_empty() || command.len() > MAXIMUM_SEND_PASTE_BYTES {
@@ -47,7 +58,7 @@ pub(super) fn request(
     if options.prompt_wait {
         return Ok(mutation(
             MutationCommand::TerminalRunWait {
-                target: target((*selector).to_owned(), Resource::Terminal, envelope)?,
+                target: selected,
                 command: (*command).to_owned(),
                 timeout_ms: super::wait_timeout_option(options, context, envelope)?,
             },
@@ -56,7 +67,7 @@ pub(super) fn request(
     }
     Ok(mutation(
         MutationCommand::TerminalSend {
-            target: target((*selector).to_owned(), Resource::Terminal, envelope)?,
+            target: selected,
             input: TerminalSendInput::Paste {
                 content: command.as_bytes().to_vec(),
                 enter: true,

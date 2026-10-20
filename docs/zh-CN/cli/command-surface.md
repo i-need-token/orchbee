@@ -79,6 +79,12 @@ Provider 统一使用 `--provider` 及规范名称，须说明能力支持子集
   存在的实体但结果为空是成功的空列表。
 - 命令声明分页选项时，使用带声明边界的 `--limit <n>` 和上一页返回的不透明 `--cursor <cursor>`。
 
+终端输入／输出命令可声明 Terminal 或 Panel 目标：`terminal run`、
+`terminal read`、`terminal send` 和 `terminal wait-output` 接受 Panel ID、`@panel:` 与
+`--panel`。Panel 只解析到主终端，子终端需自己的终端身份。
+裸 ID 在两种类型中选中不同资源时产生歧义；
+用 `@terminal:` 或 `@panel:` 消歧。其他命令保留各自声明的目标类型。
+
 ## 帮助、版本与补全
 
 - `--` 前任意位置的单个 `-h` 或 `--help` 为最长的已识别命令路径输出与 `help <path>` 相同的
