@@ -268,7 +268,7 @@ pub(super) fn render(
         )
     };
     #[cfg(windows)]
-    let (status, status_role) = if start_mode {
+    let (status, status_role) = if start_mode || board.start_phase().is_some() {
         start_status(text, board, theme)
     } else {
         (status, status_role)
@@ -498,9 +498,14 @@ fn render_start_form(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
+    let heading = if board.start_phase().is_some() {
+        start_status(text, board, theme).0
+    } else {
+        text.board.empty.to_owned()
+    };
     frame.render_widget(
         Paragraph::new(truncate_display(
-            text.board.empty,
+            &heading,
             usize::from(layout.empty.width),
             theme.glyphs.ellipsis,
         ))
@@ -638,6 +643,10 @@ fn start_status(
     theme: &Theme,
 ) -> (String, Role) {
     let result = match board.start_phase() {
+        Some(AgentStartPhase::WaitingInput) => {
+            (text.board.start_waiting_input, Role::StatusWarning)
+        }
+        Some(AgentStartPhase::Unconfirmed) => (text.board.start_unconfirmed, Role::StatusWarning),
         Some(AgentStartPhase::Starting) => (text.board.start_starting, Role::StatusPending),
         Some(AgentStartPhase::Cancelling) => (text.board.start_cancelling, Role::StatusPending),
         Some(AgentStartPhase::Started) => (text.board.start_started, Role::StatusSuccess),

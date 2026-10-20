@@ -98,7 +98,7 @@ The Windows sidebar fixes two action rows at the top: `[ New workspace ]` and
 `[ Search ]` (`[ 新建工作区 ]` and `[ 搜索 ]` in Chinese). The bracketed action extent is
 both the visible affordance and the exact pointer target; the unused row remainder stays ordinary
 chrome. Hover and press change only the action surface. These rows and the bottom Settings action
-remain outside the scrolling navigation tree. Nonempty legacy compatibility content appears first when present. Projects in their canonical
+remain outside the scrolling navigation tree. Undismissed first-run guidance also reserves space above this footer, leaving at least four navigation rows; it never paints into the terminal. See [native onboarding](native-onboarding.md). Nonempty legacy compatibility content appears first when present. Projects in their canonical
 display order and their children follow, then ungrouped Workspaces. The empty compatibility slot is omitted. An ungrouped Workspace is a root entry; optional Projects group
 ordinary and Git-worktree-backed Workspaces as peers. Agents appear directly under
 each Workspace, with independent lists expanded by default. The legacy Workspace owns its Agent

@@ -212,6 +212,8 @@ pub(crate) enum NativeSessionNotice {
     ConfirmationCancelled,
     DraftCancelled,
     ModalOwnsInput,
+    #[cfg(windows)]
+    AgentStart(super::agent_board::AgentStartPhase),
     HistoryRecovering,
     HistoryUnavailable,
     HistoryPositionLost,
@@ -678,6 +680,8 @@ impl<'a> NativeSessionView<'a> {
             SessionNotice::ConfirmationCancelled => NativeSessionNotice::ConfirmationCancelled,
             SessionNotice::DraftCancelled => NativeSessionNotice::DraftCancelled,
             SessionNotice::ModalOwnsInput => NativeSessionNotice::ModalOwnsInput,
+            #[cfg(windows)]
+            SessionNotice::AgentStart(phase) => NativeSessionNotice::AgentStart(phase),
             SessionNotice::HistoryRecovering => NativeSessionNotice::HistoryRecovering,
             SessionNotice::HistoryUnavailable => NativeSessionNotice::HistoryUnavailable,
             SessionNotice::HistoryPositionLost => NativeSessionNotice::HistoryPositionLost,

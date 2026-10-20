@@ -764,7 +764,18 @@ impl Theme {
         ))
     }
 
-    /// Explicit terminal colors override chrome; System + Host retains captured terminal colors.
+    pub(crate) fn terminal_rgb_defaults(&self) -> Option<(u32, u32)> {
+        let rgb = |color| match color {
+            Color::Rgb(red, green, blue) => {
+                Some((u32::from(red) << 16) | (u32::from(green) << 8) | u32::from(blue))
+            }
+            _ => None,
+        };
+        let (foreground, background) = self.terminal_defaults();
+        Some((rgb(foreground)?, rgb(background)?))
+    }
+
+    /// Explicit terminal colors override chrome; System + Host defers to host resolution.
     pub(crate) fn with_terminal_preferences(
         self,
         values: &orchbee_workbench_protocol::UserPreferencesValues,
@@ -777,8 +788,8 @@ impl Theme {
         )
     }
 
-    /// Resolves terminal defaults from the user's app choice, independent of a System palette's
-    /// detected polarity; System + Host must continue to use captured terminal colors.
+    /// Resolves explicit defaults before the Client applies its captured outer-host colors.
+    /// Unbound frame consumers can still resolve the deferred Host choice from their frame.
     pub(crate) fn with_terminal_appearance_for_application(
         mut self,
         application: orchbee_workbench_protocol::ApplicationAppearance,
@@ -809,14 +820,54 @@ impl Theme {
         self
     }
 
+    /// System uses the outer host's canvas and default terminal colors. A
+    /// retained child's launch baseline cannot replace this local observation.
+    /// Without captured RGB, the resolved Light/Dark palette remains the fallback.
+    pub(crate) fn with_outer_host_colors(
+        mut self,
+        application: orchbee_workbench_protocol::ApplicationAppearance,
+        colors: crate::terminal_host_appearance::HostColors,
+    ) -> Self {
+        if application != orchbee_workbench_protocol::ApplicationAppearance::System {
+            return self;
+        }
+        let (fallback_foreground, fallback_background) = self.terminal_defaults();
+        let background = colors.background.map(|rgb| self.terminal_color(rgb));
+        if let Some(background) = background {
+            self.styles.surface_canvas = self.styles.surface_canvas.bg(background);
+            self.styles.surface_chrome = self.styles.surface_chrome.bg(background);
+            self.styles.surface_inactive = self.styles.surface_inactive.bg(background);
+            if matches!(self.color_level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
+                && interaction_surfaces_collapse(&self.styles)
+            {
+                self.styles.surface_hover = interaction_surface_fallback();
+                self.styles.surface_pressed = interaction_surface_fallback();
+            }
+        }
+        if self.terminal_uses_host_colors {
+            self.terminal_uses_host_colors = false;
+            let foreground = colors
+                .background
+                .and(colors.foreground)
+                .map(|rgb| self.terminal_color(rgb))
+                .unwrap_or(fallback_foreground);
+            self.terminal_colors = Some((foreground, background.unwrap_or(fallback_background)));
+        }
+        self
+    }
+
+    fn terminal_color(&self, value: u32) -> Color {
+        quantize_color(
+            Color::Rgb((value >> 16) as u8, (value >> 8) as u8, value as u8),
+            self.color_level,
+        )
+    }
+
     fn set_terminal_colors(&mut self, foreground: u32, background: u32) {
-        let color = |value: u32| {
-            quantize_color(
-                Color::Rgb((value >> 16) as u8, (value >> 8) as u8, value as u8),
-                self.color_level,
-            )
-        };
-        self.terminal_colors = Some((color(foreground), color(background)));
+        self.terminal_colors = Some((
+            self.terminal_color(foreground),
+            self.terminal_color(background),
+        ));
     }
 
     /// Swap the resolved glyph set (UTF-8 host or declared ASCII fallbacks).

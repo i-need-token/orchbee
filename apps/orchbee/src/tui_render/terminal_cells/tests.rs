@@ -20,6 +20,40 @@ fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
 }
 
 #[test]
+fn a_smaller_live_grid_keeps_terminal_background_across_the_entire_pane() {
+    let mut source = orchbee_terminal_protocol::decode_terminal_text_frame(include_bytes!(
+        "../../../../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    ))
+    .unwrap();
+    source.geometry.columns = 2;
+    source.geometry.rows = 1;
+    source.rows.truncate(1);
+    source.rows[0].cells.truncate(2);
+    let theme = Theme::one_dark().with_terminal_appearance_for_application(
+        orchbee_workbench_protocol::ApplicationAppearance::Dark,
+        orchbee_workbench_protocol::TerminalDisplayAppearance::Custom,
+        "#abcdef",
+        "#102030",
+    );
+    let view = LiveView::new(&source, 8, 4);
+    let mut terminal = Terminal::new(TestBackend::new(8, 4)).unwrap();
+    terminal
+        .draw(|frame| {
+            let area = frame.area();
+            render_live(frame, area, &source, view, false, &theme);
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    for y in 0..4 {
+        for x in 0..8 {
+            if y != 0 || x >= 2 {
+                assert_eq!(buffer[(x, y)].bg, theme.terminal_defaults().1);
+            }
+        }
+    }
+}
+
+#[test]
 fn native_backend_keeps_blank_and_existing_input_cells_visible_for_every_terminal_appearance() {
     use crate::{
         terminal_device::WindowDimensions, terminal_lifecycle::SynchronizedUpdateLease,

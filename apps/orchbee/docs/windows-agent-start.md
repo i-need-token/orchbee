@@ -51,11 +51,16 @@ and joins only owners whose worker has exited. Session teardown owns the final j
 wait for an initial process-creation or Job-assignment call already in progress; after ownership, the
 deadline and teardown slot bound it.
 
-The board's background task calls the app-private typed workflow directly under one 30000 ms
-deadline. Closing the board does not cancel it. `c` and the visible cancel action are explicit;
+The board's background task calls the app-private typed workflow directly under one 300000 ms
+deadline, including time for interactive trust and sign-in prompts. Accepting Start closes the board
+and restores terminal input immediately. Closing the board does not cancel it. `c` and the visible cancel action are explicit;
 Session teardown wakes and joins the bounded owner. Every completion carries its generation and
 Panel target, so an old result cannot settle a replacement draft or target. Unknown reservation or
-input effects remain visible as unknown and are never replayed. The board does not install Agents or
+input effects remain visible as unknown and are never replayed. A fully accepted command whose readiness
+wait expires is labeled unconfirmed, with instructions to check terminal prompts, and remains non-retryable.
+Pinned canonical attention requests update a non-capturing notice and the reopened board while the
+background workflow keeps observing within its original deadline. Clearing attention can complete the
+same reservation; it never submits again. The CLI retains its existing blocked-start refusal. The board does not install Agents or
 change integration/default configuration. When discovery finds nothing, it shows the CLI syntax as
 the manual path without claiming any provider is available. Cancellation wakes process sampling and
 the single send exchange, but an in-progress Windows process-creation/Job-assignment call and a
@@ -109,7 +114,11 @@ local evidence, not causal authentication of a provider or a newly launched sess
 
 ## Windows argument boundary
 
-The outer shell receives an ASCII PowerShell UTF-16LE encoded command. Script arguments use
+The argument-free native form uses a short provider command: cmd invokes the fixed command name; PowerShell
+resolves Application/ExternalScript explicitly before invocation, excluding functions and aliases.
+No temporary launcher or execution-policy change is needed. The CLI keeps its literal argument
+wrapper; its outer shell receives
+an ASCII PowerShell UTF-16LE encoded command. Script arguments use
 single-quoted values and array splatting. Native executables use Windows argv quoting.
 Batch files use an explicit system cmd with command extensions enabled, delayed expansion
 disabled and AutoRun disabled. Embedded quotes are doubled; percent expansion is interrupted
@@ -162,4 +171,4 @@ Restored physical Get v14 reports active provider ownership with its own read so
 Session, reservation or new interactive-readiness claim. Clearing a restored name also clears only its
 matching owned persisted resume reference; later independent reports remain.
 
-Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v3. Successful Start v2 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. This does not change the existing blocked-start cancellation policy or add a screen-recognition rule engine.
+Pending status carries its original reservation and a current blocked flag. Reads never extend its deadline or complete it. Get marks promptReady false while pending; prompt reads management after its canonical/process preflight and refuses pending startup before sending. The same original admission/total and signal owner apply. Failed Status reads preserve the Agent failure family and operation management in v3. Successful Start v2 adds required interactiveReady true to its existing completion and send evidence; the v1 schema remains available for older callers. The CLI blocked-start cancellation policy is unchanged. The interactive board can wait for canonical attention to clear within its original budget; neither path infers trust prompts from screen text.

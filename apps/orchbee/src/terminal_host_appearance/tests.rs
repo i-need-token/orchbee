@@ -7,6 +7,74 @@ fn query_requests_both_default_colors_without_changing_terminal_state() {
 }
 
 #[test]
+fn both_reply_orders_capture_outer_colors_once_within_the_original_window() {
+    let now = Instant::now();
+    let foreground = ColorReply {
+        target: ColorTarget::Foreground,
+        rgb: Some([0xcc, 0xcc, 0xcc]),
+    };
+    let background = ColorReply {
+        target: ColorTarget::Background,
+        rgb: Some([0x0c, 0x0c, 0x0c]),
+    };
+    for replies in [[foreground, background], [background, foreground]] {
+        let mut probe = Probe::default();
+        probe.begin(now);
+        for reply in replies {
+            probe.observe(reply, now + Duration::from_millis(10));
+        }
+        assert_eq!(
+            probe.colors(),
+            super::HostColors {
+                foreground: Some(0xcccccc),
+                background: Some(0x0c0c0c),
+            }
+        );
+        for target in [ColorTarget::Foreground, ColorTarget::Background] {
+            assert_eq!(
+                probe.observe(
+                    ColorReply {
+                        target,
+                        rgb: Some([255, 255, 255]),
+                    },
+                    now + Duration::from_millis(20),
+                ),
+                None
+            );
+        }
+        assert_eq!(probe.colors().background, Some(0x0c0c0c));
+        assert_eq!(probe.colors().foreground, Some(0xcccccc));
+        assert!(probe.timeout(now + Duration::from_secs(1)).is_none());
+    }
+}
+
+#[test]
+fn settled_background_does_not_admit_a_late_foreground() {
+    let now = Instant::now();
+    let mut probe = Probe::default();
+    probe.begin(now);
+    probe.observe(
+        ColorReply {
+            target: ColorTarget::Background,
+            rgb: Some([12, 12, 12]),
+        },
+        now,
+    );
+    assert_eq!(
+        probe.observe(
+            ColorReply {
+                target: ColorTarget::Foreground,
+                rgb: Some([204, 204, 204]),
+            },
+            now + Duration::from_millis(350),
+        ),
+        None
+    );
+    assert_eq!(probe.colors().foreground, None);
+    assert_eq!(probe.colors().background, Some(0x0c0c0c));
+}
+
+#[test]
 fn rgb_forms_scale_to_rgb8_and_reject_malformed_components() {
     assert_eq!(parse_rgb(b"rgb:0000/8080/ffff"), Some([0, 128, 255]));
     assert_eq!(parse_rgb(b"rgb:00/80/ff"), Some([0, 128, 255]));

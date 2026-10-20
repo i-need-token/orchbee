@@ -42,10 +42,10 @@ owner 只在
 owner。Session teardown 负责最终 join；它仍可能等待已开始的初始进程创建或 Job 分配调用；取得
 所有权后，期限与 teardown 时槽会约束它。
 
-看板的后台任务在单一 30000 毫秒期限下直接调用应用私有的类型化流程。关闭看板不会取消任务；
+看板的后台任务在单一 300000 毫秒期限下直接调用应用私有的类型化流程，包含处理信任和登录提示的时间。接受启动后立即关闭看板并恢复终端输入。关闭看板不会取消任务；
 `c` 与可见取消操作才是显式路径。Session teardown 会唤醒并加入有界 owner。每个完成携带代际与
 Panel 目标，因此旧结果无法落定到替代草稿或目标。未知的预留或输入效果保持 unknown，绝不
-重放。看板不会安装 Agent，也不会改变集成／默认配置。发现结果为空时，它只把 CLI 语法显示为
+重放。命令已完整接受但等待就绪超时，会显示尚未确认并提示检查终端，仍不可重试。固定的规范关注请求同时更新不捕获输入的通知和重开的看板，后台流程继续在原始期限内观察。关注解除后可完成同一预留，绝不重新提交。CLI 保留既有启动受阻拒绝。看板不会安装 Agent，也不会改变集成／默认配置。发现结果为空时，它只把 CLI 语法显示为
 手动路径，而不会声称任何 provider 可用。取消会唤醒进程采样与单次 send 交换，但进行中的
 Windows 进程创建／Job 分配调用以及最长一秒的尽力预留释放仍可能延迟 teardown；取消并非瞬时。
 
@@ -87,7 +87,7 @@ Host 进程样本变化或暂时不可用时，在同一原始期限内重新采
 
 ## Windows 参数边界
 
-外层 shell 收到 ASCII 的 PowerShell UTF-16LE 编码命令。脚本参数用单引号值和数组 splatting；
+无参数的原生表单使用简短的提供方命令：cmd 调用固定命令名，PowerShell 在调用前明确解析 Application/ExternalScript，排除函数和别名。无需临时启动文件或执行策略更改。CLI 保留字面参数包装器，其外层 shell 收到 ASCII 的 PowerShell UTF-16LE 编码命令。脚本参数用单引号值和数组 splatting；
 原生可执行文件使用 Windows argv 引用。批处理文件显式调用系统 cmd，启用命令扩展，
 关闭延迟展开与 AutoRun。内部引号加倍，百分号使用固定 Rust 标准库也采用的空 CD 子串
 技术打断展开。进程继承终端控制台、环境和工作目录。不引入执行策略绕过或分离的原生窗口。
@@ -130,4 +130,4 @@ Windows Agent Get v9（指定 Client 时为 v10）包含 `management`，携带�
 恢复后的物理 Get v14 使用独立读取来源报告 active provider 归属，不携带旧 Session、预留或
 新的交互就绪声明。清名同时仅清除仍匹配的自有持久恢复引用；保留后来的独立报告。
 
-Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v3 中标记 operation management。成功的 Start v2 在现有完成和发送证据上增加必需的 interactiveReady true；v1 schema 仍供旧调用者使用。这不改变现有阻塞启动取消策略，也不增加屏幕识别规则引擎。
+Pending 状态携带原始预留及当前 blocked 标志。读取不延长期限、不完成启动。Pending 时 Get 将 promptReady 置为 false；prompt 在规范状态／进程预检后读取 management，并在发送前拒绝待启动状态。沿用原始准入／总期限及信号所有者。Status 读取失败保留 Agent 失败族，并在 v3 中标记 operation management。成功的 Start v2 在现有完成和发送证据上增加必需的 interactiveReady true；v1 schema 仍供旧调用者使用。CLI 的启动受阻取消策略保持不变。交互看板可在原始预算内等待规范关注解除；两个路径均不通过屏幕文本猜测信任提示。

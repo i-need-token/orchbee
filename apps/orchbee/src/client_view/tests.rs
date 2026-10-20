@@ -120,10 +120,24 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     host.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
     host.apply_user_preferences(host_values);
     assert!(host.configure_host_appearance(HostAppearance::Dark));
+    assert_eq!(
+        host.configured_theme()
+            .unwrap()
+            .with_host_terminal_colors(0x141414, 0xfcfcfc)
+            .terminal_defaults(),
+        crate::tui_theme::Theme::one_dark().terminal_defaults()
+    );
+    assert!(host.configure_host_terminal(
+        HostAppearance::Dark,
+        crate::terminal_host_appearance::HostColors {
+            foreground: Some(0x123456),
+            background: Some(0x203040),
+        },
+    ));
     let host_theme = host
         .configured_theme()
         .unwrap()
-        .with_host_terminal_colors(0x123456, 0x203040);
+        .with_host_terminal_colors(0x141414, 0xfcfcfc);
     assert_eq!(host_theme.name, "one-dark");
     assert_eq!(
         host_theme.terminal_defaults(),

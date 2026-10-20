@@ -20,6 +20,13 @@ pub(crate) enum HostAppearance {
     Unknown,
 }
 
+/// Colors captured from the outer terminal, never from a retained child frame.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct HostColors {
+    pub(crate) foreground: Option<u32>,
+    pub(crate) background: Option<u32>,
+}
+
 /// Which dynamic color a terminal returned for one OSC query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ColorTarget {
@@ -73,12 +80,16 @@ enum ProbeState {
 #[derive(Debug)]
 pub(crate) struct Probe {
     state: ProbeState,
+    colors: HostColors,
+    reply_deadline: Option<Instant>,
 }
 
 impl Default for Probe {
     fn default() -> Self {
         Self {
             state: ProbeState::Unissued,
+            colors: HostColors::default(),
+            reply_deadline: None,
         }
     }
 }
@@ -96,23 +107,38 @@ impl Probe {
         self.state = ProbeState::Pending {
             deadline: now + QUERY_DEADLINE,
         };
+        self.reply_deadline = Some(now + QUERY_DEADLINE);
         Some(Query)
     }
 
-    /// Applies one reply only while this endpoint's query remains pending.
+    pub(crate) const fn colors(&self) -> HostColors {
+        self.colors
+    }
+
+    /// Capture each queried component once inside the original bounded window.
+    /// Background may arrive first; its polarity settles immediately, while a
+    /// later foreground can complete the same observation without changing it.
     pub(crate) fn observe(&mut self, reply: ColorReply, now: Instant) -> Option<HostAppearance> {
-        if matches!(self.state, ProbeState::Pending { deadline, .. } if now >= deadline) {
+        if !self.reply_deadline.is_some_and(|deadline| now < deadline) {
             return None;
         }
-        let ProbeState::Pending { .. } = self.state else {
-            return None;
-        };
-        if let (ColorTarget::Background, Some([red, green, blue])) = (reply.target, reply.rgb) {
-            let appearance = classify_background(red, green, blue);
-            self.state = ProbeState::Settled(appearance);
-            Some(appearance)
-        } else {
-            None
+        let [red, green, blue] = reply.rgb?;
+        let rgb = (u32::from(red) << 16) | (u32::from(green) << 8) | u32::from(blue);
+        match reply.target {
+            ColorTarget::Foreground if self.colors.foreground.is_none() => {
+                self.colors.foreground = Some(rgb);
+                match self.state {
+                    ProbeState::Settled(appearance) => Some(appearance),
+                    _ => None,
+                }
+            }
+            ColorTarget::Background if self.colors.background.is_none() => {
+                self.colors.background = Some(rgb);
+                let appearance = classify_background(red, green, blue);
+                self.state = ProbeState::Settled(appearance);
+                Some(appearance)
+            }
+            _ => None,
         }
     }
 
@@ -125,6 +151,7 @@ impl Probe {
             return None;
         }
         self.state = ProbeState::FallbackPending;
+        self.reply_deadline = None;
         Some(Timeout)
     }
 

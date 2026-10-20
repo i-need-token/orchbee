@@ -336,13 +336,8 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             && !view.navigator_active() && !view.machines.sidebar_navigation_active() && !view.resize_pending
             && areas.sidebar.is_none_or(|sidebar| sidebar.layer != SidebarLayer::Overlay));
     #[cfg(windows)]
-    let onboarding_area = (position_uncovered && view.onboarding.visible)
-        .then(|| onboarding::area(areas.panel))
-        .flatten();
-    #[cfg(windows)]
-    let graphics_uncovered = position_uncovered
-        && onboarding_area.is_none()
-        && !status_overlay_visible(view, session.as_ref(), capture_owner);
+    let graphics_uncovered =
+        position_uncovered && !status_overlay_visible(view, session.as_ref(), capture_owner);
     #[cfg(windows)]
     if !graphics_uncovered && let Some(TerminalSessionView::Native(native)) = session.as_ref() {
         native.cover_graphics();
@@ -541,11 +536,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         && let Some(copy) = native.copy_mode()
     {
         copy_mode::render_controls(frame, view, copy, locale, theme, hits);
-    }
-
-    #[cfg(windows)]
-    if let Some(area) = onboarding_area {
-        onboarding::render(frame, area, view, locale, session.is_some(), theme, hits);
     }
 
     let site_status = SiteStatus {

@@ -1672,7 +1672,27 @@ impl RowValuePaint {
     }
 }
 
-fn settings_value(locale: Locale, draft: DraftView<'_>, row: Row) -> String {
+fn settings_value(locale: Locale, draft: DraftView<'_>, row: Row, theme: &Theme) -> String {
+    if matches!(row, Row::Foreground | Row::Background)
+        && draft.values.terminal_display_theme
+            != orchbee_workbench_protocol::TerminalDisplayAppearance::Custom
+    {
+        return theme
+            .terminal_rgb_defaults()
+            .map(|(foreground, background)| {
+                let rgb = if row == Row::Foreground {
+                    foreground
+                } else {
+                    background
+                };
+                format!("#{rgb:06x}")
+            })
+            .unwrap_or_else(|| {
+                locale
+                    .settings_choice(Choice::TerminalTheme(draft.values.terminal_display_theme))
+                    .to_owned()
+            });
+    }
     let value = locale.settings_value(draft, row);
     let Some(metadata) = setting_for_row(row) else {
         return value;
@@ -1718,7 +1738,7 @@ fn render_row_value(
         theme,
         ..
     } = context;
-    let raw_value = settings_value(locale, draft, row);
+    let raw_value = settings_value(locale, draft, row, theme);
     let value = sanitize_terminal_text(&raw_value);
     if let Some(adjustment) = adjustment
         && usize::from(area.width) >= display_width(&value).saturating_add(8)

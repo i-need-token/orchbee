@@ -213,6 +213,13 @@ pub(crate) fn run_local(
     workflow::run_local(request, started, deadline, wake, resolve_panel)
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Progress {
+    Observing,
+    WaitingInput,
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_on_origin(
     request: Request,
     started: Instant,
@@ -221,8 +228,11 @@ pub(crate) fn run_on_origin(
     origin: &crate::local_client::LocalClientOrigin,
     clock: crate::local_client::LocalOperationClock,
     panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    progress: &dyn Fn(Progress),
 ) -> Report {
-    workflow::run_on_origin(request, started, deadline, wake, origin, clock, panel)
+    workflow::run_on_origin(
+        request, started, deadline, wake, origin, clock, panel, progress,
+    )
 }
 
 pub(crate) fn failure(kind: FailureKind, reason: &str) -> Failure {

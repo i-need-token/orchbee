@@ -1298,7 +1298,7 @@ impl InputDispatcher {
         if let DecodedKind::HostReply(reply) = item.kind {
             self.flush_pending(view, port);
             if let Some(appearance) = self.host_reply(reply, now) {
-                view.configure_host_appearance(appearance);
+                view.configure_host_terminal(appearance, self.host_appearance.colors());
             }
             self.synchronize_pointer_admission(view, port, mode)?;
             return Ok(DispatchOutcome::Continue);
@@ -2516,7 +2516,7 @@ impl InputDispatcher {
         for event in events {
             if let ModalInputEvent::HostReply(reply) = event {
                 if let Some(appearance) = self.host_reply(reply, now) {
-                    view.configure_host_appearance(appearance);
+                    view.configure_host_terminal(appearance, self.host_appearance.colors());
                 }
                 continue;
             }

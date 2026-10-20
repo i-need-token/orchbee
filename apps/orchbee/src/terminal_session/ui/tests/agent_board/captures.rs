@@ -357,19 +357,23 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
         Some(&expected_panel),
         "keyboard activation injects the exact focused Panel"
     );
-    assert!(ui.capture_agent_board_key(
-        context.episode(),
-        &crate::client_view::KeyEvent::press(
-            crate::client_view::KeyCode::Char('c'),
-            crate::client_view::Modifiers::NONE,
-        ),
-    ));
-    assert_eq!(
-        ui.agent_board_view().unwrap().start_phase(),
-        Some(crate::terminal_session::agent_board::AgentStartPhase::Starting),
-        "Cancel in the same input packet cannot act before Starting is painted"
+    assert!(
+        !ui.board.is_open(),
+        "accepted startup restores terminal input immediately"
     );
-
+    assert!(ui.agent_board_input_context().is_none());
+    assert!(
+        !ui.capture_agent_board_key(
+            context.episode(),
+            &crate::client_view::KeyEvent::press(
+                crate::client_view::KeyCode::Char('c'),
+                crate::client_view::Modifiers::NONE
+            ),
+        ),
+        "the retired Board cannot consume a terminal key"
+    );
+    ui.toggle_agent_board();
+    let context = ui.agent_board_input_context().unwrap();
     ui.observe_geometry(Geometry::new(120, 40, 8, 16).unwrap());
     let mut cancelling_frame =
         render_board_frame(&ui, 120, 40, crate::localization::Locale::EnUs, &theme);
@@ -521,6 +525,8 @@ fn empty_board_mouse_start_requires_the_current_exact_draw() {
         .and_then(|state| state.focus_panel_id().cloned())
         .unwrap();
     assert!(ui.click_agent_board_control(&start));
+    assert!(!ui.board.is_open());
+    assert!(ui.agent_board_input_context().is_none());
     assert_eq!(ui.board.start_operation_panel_t(), Some(&expected_panel));
 }
 

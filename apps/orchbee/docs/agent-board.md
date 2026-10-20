@@ -51,13 +51,13 @@ The user selects one candidate, enters a bounded Agent name and activates **Star
 `Enter` or the pointer. Both keyboard Start and Cancel require a current successful draw. Activation
 injects the exact currently focused Panel id and runs the same typed reserve, single-submission and hook-readiness
 workflow as the CLI. It never installs a provider, changes integration/default configuration or
-selects an absent command. Closing the overlay leaves accepted startup work running; `c` or the
+selects an absent command. Accepted startup closes the overlay and restores terminal input immediately. The background task keeps one five-minute deadline, reports pinned canonical attention as input needed, and continues observing after the user responds. Startup notices and the reopened board share the same typed phase. A fully sent command that times out remains unconfirmed and non-retryable; a lost delivery receipt remains unknown. An active or retained startup result replaces empty-session guidance and remains visible alongside any canonical rows. Closing the overlay leaves accepted startup work running; `c` or the
 visible cancel control is the explicit cancellation path. Cancellation wakes cancellable reads and
 the one send exchange; teardown can still wait for an already-running Windows process-creation or
 Job-assignment call and the best-effort reservation release of at most one second, so cancellation
 is not instantaneous. Generation and Panel identity reject stale completion, and an uncertain
 mutation or input is never replayed. If no supported command candidate is found,
-the form stays disabled and shows `orchbee agent start <name> --kind <provider> --current` as the
+the form stays disabled and shows `orchbee agent start <name> --provider <provider> --current` as the
 manual path. An empty incomplete read is labeled as partial rather than as proof that no sessions
 exist. See [Windows Agent startup](windows-agent-start.md) for readiness and target requirements.
 

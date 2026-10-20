@@ -9,12 +9,21 @@ One Dark from the outer terminal's detected background polarity; Unknown resolve
 The TUI does not change the outer host's font or appearance.
 
 Terminal Host follows explicit application Light/Dark through the shared shipped terminal defaults.
-With application System, Host uses the captured frame/window foreground and background. Explicit
+With application System, Host uses the outer terminal's captured foreground and background, falling
+back to the resolved One Light/One Dark palette when its RGB observation is unavailable. The outer
+host's captured background also fills System canvas and persistent chrome, including padding, so
+the Client meets the host's surrounding background. Retained child-frame launch defaults cannot
+replace this local choice. Explicit
 terminal Light/Dark and Custom retain precedence; Custom uses the validated RGB pair. Only
 default-marked cells are substituted.
 Explicit program RGB, palette colors, OSC overrides, reversal, attributes and wide-cell geometry
 retain their captured authority in live and retained rows. Empty canvas uses the selected terminal
-defaults.
+defaults across the entire pane, including space beyond a smaller retained grid.
+
+The one-shot OSC 10/11 probe retains each valid color once within its original 350 ms window.
+Background settles polarity immediately; foreground can complete the same observation in either
+reply order. Duplicates, malformed responses and late replies cannot replace settled colors.
+These are Client-local display values, not shared terminal launch policy.
 
 The shared `UserTerminalColors` resolver also supplies the Worker's new-terminal profile from the
 same confirmed snapshot as scrollback and launch selection. OSC 10/11 queries then report those

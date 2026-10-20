@@ -165,7 +165,9 @@ impl NativeUi {
                         .as_ref()
                         .and_then(|state| state.focus_panel_id().cloned())
                     {
-                        self.board.start_agent(panel);
+                        if self.board.start_agent(panel) {
+                            self.accepted_agent_start();
+                        }
                     }
                 }
                 Some(AgentStartKeyAction::PreviousProvider) => {
@@ -227,9 +229,23 @@ impl NativeUi {
             else {
                 return false;
             };
-            return self.board.start_agent_drawn(target, panel);
+            let accepted = self.board.start_agent_drawn(target, panel);
+            if accepted {
+                self.accepted_agent_start();
+            }
+            return accepted;
         }
         self.board.control_drawn(target)
+    }
+
+    #[cfg(windows)]
+    fn accepted_agent_start(&mut self) {
+        self.board.close();
+        if let Some(phase) = self.board.start_phase()
+            && let Some(state) = self.state.as_mut()
+        {
+            state.set_notice(SessionNotice::AgentStart(phase));
+        }
     }
 
     /// Backdrop dismissal: a press outside the painted board surface.
@@ -367,7 +383,15 @@ impl NativeUi {
         changed |= self.board.drive_intent(now);
         #[cfg(windows)]
         {
+            let before = self.board.start_phase();
             changed |= self.board.drain_start();
+            let after = self.board.start_phase();
+            if before != after
+                && let Some(phase) = after
+                && let Some(state) = self.state.as_mut()
+            {
+                state.set_notice(SessionNotice::AgentStart(phase));
+            }
         }
         if allow_jump {
             changed |= self.drive_agent_jump(now);

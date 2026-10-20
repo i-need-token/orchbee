@@ -1333,6 +1333,11 @@ impl AgentBoard {
     }
 
     #[cfg(windows)]
+    pub(super) fn start_phase(&self) -> Option<start::Phase> {
+        self.start.operation_phase()
+    }
+
+    #[cfg(windows)]
     pub(super) fn start_running(&self) -> bool {
         self.start
             .phase(self.epoch)

@@ -522,6 +522,8 @@ pub(super) enum SessionNotice {
     /// A modal surface or armed confirmation owns the input layer — the
     /// Agent board refused to open rather than fight for capture.
     ModalOwnsInput,
+    #[cfg(windows)]
+    AgentStart(super::agent_board::AgentStartPhase),
     /// The viewport lost its facts/anchor and is returning to live —
     /// shown while the recovery demand pair is in flight.
     HistoryRecovering,

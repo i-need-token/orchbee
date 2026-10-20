@@ -181,6 +181,7 @@ fn completion_waits_for_channel_authority_and_reports_started_once() {
     let (sender, outcomes) = mpsc::sync_channel(1);
     let (_reader, wake) = LocalStream::pair().unwrap();
     state.task = Some(StartTask {
+        progress: Arc::new(Mutex::new(None)),
         outcomes,
         wake,
         task: None,
@@ -226,6 +227,7 @@ fn disconnected_start_worker_preserves_recovery_for_start_and_cancel() {
         drop(sender);
         let (_reader, wake) = LocalStream::pair().unwrap();
         state.task = Some(StartTask {
+            progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
             task: None,
@@ -295,7 +297,13 @@ fn only_explicit_cancel_moves_an_accepted_operation_to_cancelling() {
 #[test]
 fn reopening_keeps_accepted_and_unknown_work_but_retires_retryable_results() {
     let target = panel(1);
-    for phase in [Phase::Starting, Phase::Cancelling, Phase::Unknown] {
+    for phase in [
+        Phase::Starting,
+        Phase::WaitingInput,
+        Phase::Cancelling,
+        Phase::Unknown,
+        Phase::Unconfirmed,
+    ] {
         let mut state = State::new();
         state.operation = Some(operation(3, target.clone(), phase));
         state.opened(2);
@@ -429,4 +437,42 @@ fn catalog_where_query_honors_supported_extensions_and_rejects_directories() {
     assert_eq!(lookup("codex"), catalog::Query::Found);
     assert_eq!(lookup("amp"), catalog::Query::Found);
     assert_eq!(lookup("claude"), catalog::Query::Missing);
+}
+
+#[test]
+fn accepted_command_timeout_is_unconfirmed_and_cannot_be_replayed() {
+    let result = report(
+        FailureKind::Timeout,
+        ReservationState::Pending,
+        DeliveryDisposition::Applied,
+        Some(0),
+    );
+    assert_eq!(report_phase(&result), Phase::Unconfirmed);
+    let mut state = State::new();
+    state.operation = Some(operation(1, panel(1), Phase::Unconfirmed));
+    state.opened(2);
+    assert_eq!(state.phase(2), Some(Phase::Unconfirmed));
+    assert!(!state.draft_editable());
+}
+
+#[test]
+fn canonical_attention_progress_is_cancellable_without_replacing_the_operation() {
+    let mut state = State::new();
+    state.operation = Some(operation(1, panel(1), Phase::Starting));
+    let (_sender, outcomes) = mpsc::sync_channel(1);
+    let (_reader, wake) = LocalStream::pair().unwrap();
+    let progress = Arc::new(Mutex::new(Some(Progress::WaitingInput)));
+    state.task = Some(StartTask {
+        progress: Arc::clone(&progress),
+        outcomes,
+        wake,
+        task: None,
+        cancelled: false,
+    });
+    assert!(state.drain().changed);
+    assert_eq!(state.phase(1), Some(Phase::WaitingInput));
+    assert!(state.cancel());
+    *progress.lock().unwrap() = Some(Progress::Observing);
+    state.drain();
+    assert_eq!(state.phase(1), Some(Phase::Cancelling));
 }

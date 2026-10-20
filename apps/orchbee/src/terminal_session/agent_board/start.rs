@@ -9,7 +9,7 @@
 use std::{
     ffi::OsString,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, TryRecvError},
     },
@@ -22,13 +22,13 @@ use orchbee_local_ipc::{AsLocalIo, LocalStream};
 use orchbee_workbench_protocol::WorkbenchPanelId;
 
 use crate::{
-    agent_start::{Report, Request, ReservationState, Verdict},
+    agent_start::{Progress, Report, Request, ReservationState, Verdict},
     cli::FailureKind,
     client_view::{KeyCode, KeyEvent, KeyKind, Modifiers},
     local_client::{LocalClientOrigin, LocalOperationClock},
 };
 
-const START_DEADLINE: Duration = Duration::from_secs(30);
+const START_DEADLINE: Duration = Duration::from_secs(300);
 const CATALOG_DEADLINE: Duration = Duration::from_millis(3_600);
 const MAXIMUM_NAME_BYTES: usize = 32;
 
@@ -61,6 +61,8 @@ enum Catalog {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Phase {
     Starting,
+    WaitingInput,
+    Unconfirmed,
     Cancelling,
     Started,
     Failed,
@@ -76,7 +78,7 @@ pub(super) struct Drain {
 
 impl Phase {
     pub(super) const fn running(self) -> bool {
-        matches!(self, Self::Starting | Self::Cancelling)
+        matches!(self, Self::Starting | Self::WaitingInput | Self::Cancelling)
     }
 }
 
@@ -174,7 +176,11 @@ impl State {
         }
         if matches!(
             operation.phase,
-            Phase::Starting | Phase::Cancelling | Phase::Unknown
+            Phase::Starting
+                | Phase::WaitingInput
+                | Phase::Cancelling
+                | Phase::Unknown
+                | Phase::Unconfirmed
         ) {
             // Closing retires only presentation. Reopening adopts an accepted
             // operation so an in-flight completion stays visible and an
@@ -228,6 +234,10 @@ impl State {
 
     pub(super) const fn cursor(&self) -> usize {
         self.cursor
+    }
+
+    pub(super) fn operation_phase(&self) -> Option<Phase> {
+        self.operation.as_ref().map(|operation| operation.phase)
     }
 
     pub(super) fn phase(&self, episode: u64) -> Option<Phase> {
@@ -411,7 +421,7 @@ impl State {
         let Some(operation) = self.operation.as_mut() else {
             return false;
         };
-        if operation.phase != Phase::Starting {
+        if !matches!(operation.phase, Phase::Starting | Phase::WaitingInput) {
             return false;
         }
         operation.phase = Phase::Cancelling;
@@ -427,6 +437,21 @@ impl State {
             changed: self.drain_catalog(),
             started: false,
         };
+        if let Some(progress) = self.task.as_ref().and_then(|task| {
+            task.progress
+                .try_lock()
+                .ok()
+                .and_then(|mut progress| progress.take())
+        }) && let Some(operation) = self.operation.as_mut()
+            && matches!(operation.phase, Phase::Starting | Phase::WaitingInput)
+        {
+            let phase = match progress {
+                Progress::Observing => Phase::Starting,
+                Progress::WaitingInput => Phase::WaitingInput,
+            };
+            drained.changed |= operation.phase != phase;
+            operation.phase = phase;
+        }
         let outcome = self.task.as_ref().map(StartTask::take);
         match outcome {
             Some(Ok(completion)) => {
@@ -574,6 +599,7 @@ impl State {
             return false;
         };
         self.task = Some(StartTask {
+            progress: Arc::new(Mutex::new(None)),
             outcomes,
             wake,
             task: None,
@@ -586,6 +612,12 @@ impl State {
 fn report_phase(report: &Report) -> Phase {
     match &report.verdict {
         Verdict::Started { .. } => Phase::Started,
+        Verdict::Failed { failure, .. }
+            if failure.kind == FailureKind::Timeout
+                && report.delivery == crate::agent_start::DeliveryDisposition::Applied =>
+        {
+            Phase::Unconfirmed
+        }
         Verdict::Failed { failure, .. }
             if failure.kind == FailureKind::OutcomeUnknown
                 || matches!(
@@ -669,6 +701,7 @@ struct Completion {
 }
 
 struct StartTask {
+    progress: Arc<Mutex<Option<Progress>>>,
     outcomes: Receiver<Completion>,
     wake: LocalStream,
     task: Option<JoinHandle<()>>,
@@ -687,6 +720,8 @@ impl StartTask {
         let (sender, outcomes) = mpsc::sync_channel(1);
         let (reader, wake) = LocalStream::pair()?;
         let completion_panel = panel.clone();
+        let progress = Arc::new(Mutex::new(None));
+        let task_progress = Arc::clone(&progress);
         let task = thread::Builder::new()
             .name("orchbee-agent-start".into())
             .spawn(move || {
@@ -699,6 +734,11 @@ impl StartTask {
                     &origin,
                     clock,
                     panel,
+                    &|value| {
+                        if let Ok(mut progress) = task_progress.lock() {
+                            *progress = Some(value);
+                        }
+                    },
                 );
                 let _ = sender.send(Completion {
                     generation,
@@ -707,6 +747,7 @@ impl StartTask {
                 });
             })?;
         Ok(Self {
+            progress,
             outcomes,
             wake,
             task: Some(task),

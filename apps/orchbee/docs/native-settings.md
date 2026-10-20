@@ -205,8 +205,11 @@ values. See [scope and persistence](../../../crates/workbench-protocol/docs/user
 | Cancel / close       | Discard unsubmitted edits and reveal newest confirmed appearance; hiding after submission cannot roll back a commit.                  |
 
 Application themes change chrome independently of terminal colors. Host terminal
-colors use the frame/window's captured defaults; Light/Dark/Custom change only
+colors with application System use the outer terminal's captured defaults, with the resolved
+application palette as fallback; Light/Dark/Custom change only
 default markers, preserving explicit program colors and color-query semantics.
+Disabled foreground/background rows show the effective display colors rather than unused Custom
+values; reduced-color hosts show the selected terminal appearance when RGB is unavailable.
 Copy-on-select governs later gesture completion; explicit Copy remains available.
 Agent mode/global sound override automatic enablement without erasing host delivery
 or per-Agent mute policy. Completion reminders consume physical-terminal sequence

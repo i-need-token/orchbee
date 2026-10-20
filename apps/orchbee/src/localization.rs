@@ -291,6 +291,8 @@ pub(crate) struct AgentBoardText {
     pub(crate) start_button: &'static str,
     pub(crate) start_cancel_button: &'static str,
     pub(crate) start_starting: &'static str,
+    pub(crate) start_waiting_input: &'static str,
+    pub(crate) start_unconfirmed: &'static str,
     pub(crate) start_cancelling: &'static str,
     pub(crate) start_started: &'static str,
     pub(crate) start_failed: &'static str,
@@ -387,7 +389,9 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_name_invalid: "Use 1–32 characters: a lowercase letter first, then letters, numbers, _ or -.",
     start_button: "Start Agent",
     start_cancel_button: "Cancel start",
-    start_starting: "Starting Agent…",
+    start_starting: "Starting Agent — continue in the terminal.",
+    start_waiting_input: "Your input is needed in the terminal to continue startup.",
+    start_unconfirmed: "Command sent. Check the terminal prompts; readiness is not confirmed. Do not start again.",
     start_cancelling: "Cancelling startup…",
     start_started: "Agent started. Refreshing sessions…",
     start_failed: "Agent did not start. Check the current panel and try again.",
@@ -483,7 +487,9 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_name_invalid: "请以小写字母开头，后接字母、数字、_ 或 -，最多 32 个字符。",
     start_button: "启动智能体",
     start_cancel_button: "取消启动",
-    start_starting: "正在启动智能体…",
+    start_starting: "正在启动智能体，请在终端中继续。",
+    start_waiting_input: "请在终端中确认或输入，以继续启动。",
+    start_unconfirmed: "命令已发送，请检查终端提示；尚未确认就绪，请勿重复启动。",
     start_cancelling: "正在取消启动…",
     start_started: "智能体已启动，正在刷新会话…",
     start_failed: "智能体未启动，请检查当前面板后重试。",
@@ -1338,6 +1344,8 @@ impl Locale {
         use crate::terminal_session::NativeSessionNotice;
         match notice {
             NativeSessionNotice::Settings(notice) => self.settings_notice(notice).to_owned(),
+            #[cfg(windows)]
+            NativeSessionNotice::AgentStart(phase) => self.agent_start_phase(phase).to_owned(),
             NativeSessionNotice::LocalBusy => self.native_local_busy().to_owned(),
             #[cfg(windows)]
             NativeSessionNotice::MenuUnavailable => match self {
@@ -2015,6 +2023,25 @@ impl<'a> ShellText<'a> {
 
 #[cfg(windows)]
 impl Locale {
+    #[cfg(windows)]
+    pub(crate) fn agent_start_phase(
+        self,
+        phase: crate::terminal_session::AgentStartPhase,
+    ) -> &'static str {
+        use crate::terminal_session::AgentStartPhase as Phase;
+        let text = self.shell().board;
+        match phase {
+            Phase::Starting => text.start_starting,
+            Phase::WaitingInput => text.start_waiting_input,
+            Phase::Unconfirmed => text.start_unconfirmed,
+            Phase::Cancelling => text.start_cancelling,
+            Phase::Started => text.start_started,
+            Phase::Failed => text.start_failed,
+            Phase::Unknown => text.start_unknown,
+            Phase::Cancelled => text.start_cancelled,
+        }
+    }
+
     pub(crate) fn onboarding_title(self) -> &'static str {
         match self {
             Self::EnUs => "Welcome to Orchbee",

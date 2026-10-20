@@ -151,7 +151,9 @@ exact selector claims it, preserving Alt+] behavior for other input. After a tar
 out or exceeds its payload bound, the decoder drains toward BEL, C1 ST, or ESC `\\` for at most 98
 bytes, 50 ms without input, or one second total. A late byte after those limits returns to ordinary
 input because an unframed tail cannot be distinguished from new typing. Recognized late replies
-remain inert after the appearance probe settles.
+remain inert after the original appearance deadline. The probe retains each first valid foreground
+and background RGB value for local display resolution. A foreground received after a valid background
+can complete that same observation before the deadline; it never changes the settled polarity.
 
 If no valid OSC `11` background arrives by the deadline, Windows uses its fallback: the Client asks
 `local-site-runtime` to read the current user's

@@ -131,3 +131,64 @@ fn unknown_system_appearance_falls_back_to_the_dark_theme() {
         "one-dark"
     );
 }
+
+#[test]
+fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_preferences() {
+    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    for (terminal, expected) in [
+        (Terminal::Host, (0xcccccc, 0x0c0c0c)),
+        (Terminal::Light, (0x141414, 0xfcfcfc)),
+        (Terminal::Dark, (0xd4d4d4, 0x1e1e1e)),
+        (Terminal::Custom, (0x123456, 0x654321)),
+    ] {
+        let theme =
+            Theme::application_with_host(App::System, HostAppearance::Dark, ColorLevel::Truecolor)
+                .with_terminal_appearance_for_application(
+                    App::System,
+                    terminal,
+                    "#123456",
+                    "#654321",
+                )
+                .with_outer_host_colors(
+                    App::System,
+                    HostColors {
+                        foreground: Some(0xcccccc),
+                        background: Some(0x0c0c0c),
+                    },
+                )
+                .with_host_terminal_colors(0x141414, 0xfcfcfc);
+        assert_eq!(theme.terminal_rgb_defaults(), Some(expected));
+        for role in [
+            Role::SurfaceCanvas,
+            Role::SurfaceChrome,
+            Role::SurfaceInactive,
+        ] {
+            assert_eq!(theme.color(role), Color::Rgb(12, 12, 12));
+        }
+    }
+}
+
+#[test]
+fn absent_outer_rgb_keeps_dark_fallback_and_ignores_an_unpaired_foreground() {
+    use crate::terminal_host_appearance::{HostAppearance, HostColors};
+    for colors in [
+        HostColors::default(),
+        HostColors {
+            foreground: Some(0x141414),
+            background: None,
+        },
+    ] {
+        let theme = Theme::application_with_host(
+            App::System,
+            HostAppearance::Unknown,
+            ColorLevel::Truecolor,
+        )
+        .with_terminal_appearance_for_application(App::System, Terminal::Host, "#141414", "#fcfcfc")
+        .with_outer_host_colors(App::System, colors)
+        .with_host_terminal_colors(0x141414, 0xfcfcfc);
+        assert_eq!(
+            theme.terminal_defaults(),
+            Theme::one_dark().terminal_defaults()
+        );
+    }
+}

@@ -53,6 +53,10 @@ pub(super) fn render_live(
     theme: &Theme,
 ) {
     let theme = theme.with_host_terminal_colors(terminal.foreground, terminal.background);
+    let (foreground, background) = theme.terminal_defaults();
+    frame
+        .buffer_mut()
+        .set_style(area, Style::new().fg(foreground).bg(background));
     let content = view.content(area);
     render_rows_at(
         frame,

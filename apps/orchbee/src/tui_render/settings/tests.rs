@@ -769,6 +769,9 @@ fn current_setting_uses_a_neutral_band_and_preserves_its_disabled_identity() {
         "the enclosing frame owns focus; the row does not repeat its focus marker"
     );
     assert!(line_text(&terminal, row_y).contains("Foreground"));
+    let (foreground, _) = theme.terminal_rgb_defaults().unwrap();
+    assert!(line_text(&terminal, row_y).contains(&format!("#{foreground:06x}")));
+    assert!(!line_text(&terminal, row_y).contains("#141414"));
     let label = (row_x..120)
         .find(|&x| terminal.backend().buffer()[(x, row_y)].symbol() == "F")
         .unwrap();

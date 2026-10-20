@@ -403,6 +403,7 @@ pub(crate) struct ClientView {
     theme_name: Option<orchbee_local_site_runtime::WindowsThemeName>,
     theme: Option<crate::tui_theme::Theme>,
     host_appearance: crate::terminal_host_appearance::HostAppearance,
+    host_colors: crate::terminal_host_appearance::HostColors,
     color_level: crate::tui_theme::ColorLevel,
     pub(crate) notifications: crate::notifications::State,
     #[cfg(windows)]
@@ -451,6 +452,7 @@ impl ClientView {
             theme_name: None,
             theme: None,
             host_appearance: crate::terminal_host_appearance::HostAppearance::Unknown,
+            host_colors: crate::terminal_host_appearance::HostColors::default(),
             color_level: crate::tui_theme::ColorLevel::Ansi16,
             notifications: crate::notifications::State::default(),
             #[cfg(windows)]
@@ -502,7 +504,8 @@ impl ClientView {
                     self.host_appearance,
                     level,
                 )
-                .with_terminal_preferences(values),
+                .with_terminal_preferences(values)
+                .with_outer_host_colors(values.application_theme, self.host_colors),
             );
             #[cfg(windows)]
             return;
@@ -531,10 +534,19 @@ impl ClientView {
         &mut self,
         appearance: crate::terminal_host_appearance::HostAppearance,
     ) -> bool {
-        if self.host_appearance == appearance {
+        self.configure_host_terminal(appearance, self.host_colors)
+    }
+
+    pub(crate) fn configure_host_terminal(
+        &mut self,
+        appearance: crate::terminal_host_appearance::HostAppearance,
+        colors: crate::terminal_host_appearance::HostColors,
+    ) -> bool {
+        if self.host_appearance == appearance && self.host_colors == colors {
             return false;
         }
         self.host_appearance = appearance;
+        self.host_colors = colors;
         if let Some(values) = &self.user_preferences {
             self.theme = Some(
                 crate::tui_theme::Theme::application_with_host(
@@ -542,7 +554,8 @@ impl ClientView {
                     appearance,
                     self.color_level,
                 )
-                .with_terminal_preferences(values),
+                .with_terminal_preferences(values)
+                .with_outer_host_colors(values.application_theme, colors),
             );
             return values.application_theme
                 == orchbee_workbench_protocol::ApplicationAppearance::System;
@@ -570,6 +583,7 @@ impl ClientView {
             preview.custom_foreground,
             preview.custom_background,
         )
+        .with_outer_host_colors(preview.application_theme, self.host_colors)
     }
 
     pub(crate) fn apply_user_preferences(
@@ -582,7 +596,8 @@ impl ClientView {
                 self.host_appearance,
                 self.color_level,
             )
-            .with_terminal_preferences(&values),
+            .with_terminal_preferences(&values)
+            .with_outer_host_colors(values.application_theme, self.host_colors),
         );
         self.user_preferences = Some(values);
     }

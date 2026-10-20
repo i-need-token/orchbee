@@ -26,6 +26,7 @@ const SETTLE: Duration = Duration::from_millis(3000);
 mod tests;
 
 struct Workflow<'a> {
+    progress: Option<&'a dyn Fn(super::Progress)>,
     request: &'a Request,
     started: Instant,
     deadline: Instant,
@@ -52,13 +53,14 @@ pub(super) fn run_local(
             Ok((client, snapshot, panel))
         });
     match settle_cancellation(admitted, wake) {
-        Ok((client, snapshot, panel)) => {
-            run_admitted(&request, started, deadline, wake, client, snapshot, panel)
-        }
+        Ok((client, snapshot, panel)) => run_admitted(
+            &request, started, deadline, wake, client, snapshot, panel, None,
+        ),
         Err(failure) => Report::preflight(request, started, failure),
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn run_on_origin(
     request: Request,
     started: Instant,
@@ -67,13 +69,23 @@ pub(super) fn run_on_origin(
     origin: &crate::local_client::LocalClientOrigin,
     clock: crate::local_client::LocalOperationClock,
     panel: orchbee_workbench_protocol::WorkbenchPanelId,
+    progress: &dyn Fn(super::Progress),
 ) -> Report {
     let admitted = step_deadline(deadline)
         .and_then(|step| agent_start_runtime::snapshot_from_origin(origin, clock, step, wake));
     match settle_cancellation(admitted, wake) {
         Ok((client, snapshot)) => {
             let panel = Target::Id(panel.as_str().to_owned());
-            run_admitted(&request, started, deadline, wake, client, snapshot, panel)
+            run_admitted(
+                &request,
+                started,
+                deadline,
+                wake,
+                client,
+                snapshot,
+                panel,
+                Some(progress),
+            )
         }
         Err(failure) => Report::preflight(request, started, failure),
     }
@@ -87,6 +99,7 @@ fn step_deadline(deadline: Instant) -> Result<Instant, Failure> {
     Ok(deadline.min(now + READ_BUDGET))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_admitted(
     request: &Request,
     started: Instant,
@@ -95,8 +108,10 @@ fn run_admitted(
     mut client: LocalClient,
     snapshot: Snapshot,
     panel: Target,
+    progress: Option<&dyn Fn(super::Progress)>,
 ) -> Report {
     let mut workflow = Workflow {
+        progress,
         request,
         started,
         deadline,
@@ -240,6 +255,10 @@ impl Workflow<'_> {
                 "powershell" | "pwsh"
             )
         });
+        let concise = (self.progress.is_some() && self.request.args.is_empty())
+            .then(|| super::command::interactive(self.request.provider.as_str(), powershell))
+            .flatten();
+        let text = concise.as_deref().unwrap_or(text);
         let receipt = match agent_start_runtime::submit_prompt_on_session(
             client,
             snapshot,
@@ -283,6 +302,9 @@ impl Workflow<'_> {
                 _ => FailureKind::Rejected,
             };
             return Err(error(kind, "input-not-accepted"));
+        }
+        if let Some(progress) = self.progress {
+            progress(super::Progress::Observing);
         }
         self.observe(client, snapshot, terminal, &reservation, submitted, wake)
     }
@@ -365,13 +387,19 @@ impl Workflow<'_> {
                 if !pinned {
                     return Err(error(FailureKind::Rejected, "binding-changed"));
                 }
-                if !detail.snapshot.pending_requests.is_empty()
-                    || matches!(detail.status, AgentSemanticStatus::NeedsAttention { .. })
-                {
+                let waiting = !detail.snapshot.pending_requests.is_empty()
+                    || matches!(detail.status, AgentSemanticStatus::NeedsAttention { .. });
+                if let Some(progress) = self.progress {
+                    progress(if waiting {
+                        super::Progress::WaitingInput
+                    } else {
+                        super::Progress::Observing
+                    });
+                } else if waiting {
                     return Err(error(FailureKind::Rejected, "agent-blocked"));
                 }
-                let ready = detail.snapshot.observation.freshness
-                    == AgentObservationFreshness::Fresh
+                let ready = !waiting
+                    && detail.snapshot.observation.freshness == AgentObservationFreshness::Fresh
                     && matches!(
                         detail.status,
                         AgentSemanticStatus::Idle { .. }
