@@ -87,6 +87,13 @@ impl LocalTerminalService {
         result
     }
 
+    pub(crate) fn read_close_operation(
+        &self,
+        request: orchbee_workbench_protocol::CloseOperationRead,
+    ) -> Option<orchbee_workbench_protocol::CloseOperationResult> {
+        self.coordinator.lock().ok()?.read_close_operation(request)
+    }
+
     pub(crate) fn read_workspace_close(
         &self,
         request: WorkbenchWorkspaceCloseRead,

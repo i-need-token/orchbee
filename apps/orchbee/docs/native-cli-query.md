@@ -2960,3 +2960,7 @@ The viewport-timeout peer may observe `BrokenPipe` when the CLI expires after se
 status poll but before receiving the queued response. It then stops writing; the consumer must
 still return the exact timeout failure with no partial result. Other write errors and malformed
 requests remain failures, and no receipt is fabricated after the connection closes.
+
+## Uniform retained operation paths
+
+[Retained operation status](native-operation-status.md) defines the preferred `<family> status <request-id>` and supported `<family> resume <request-id> --generation <n> --confirm` grammar. Older family-specific paths described in this reference remain compatibility entry points; new callers use the uniform paths. Tab and Panel now have explicit status and resume access.

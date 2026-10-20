@@ -33,6 +33,45 @@ mod publication;
 mod resume;
 mod workspace;
 
+#[test]
+fn receipt_identity_reads_the_exact_retained_close_and_checks_the_site_grant() {
+    use orchbee_workbench_protocol::{
+        CloseOperationOutcome, CloseOperationRead, CloseOperationTarget,
+    };
+    let (mut authority, grant) = fixture(1);
+    let close = close_command(&authority, 980, 0);
+    accept(&mut authority, &grant, close.clone(), Instant::now());
+    let read = CloseOperationRead {
+        protocol_version: ProtocolVersion,
+        request_id: request_id(981),
+        site_id: authority.site_id().clone(),
+        operation_id: close.request_id,
+    };
+    let result = authority.read_close_operation(Some(&grant), read.clone());
+    assert!(result.answers(&read));
+    assert!(matches!(
+        result.outcome,
+        CloseOperationOutcome::Available {
+            target: CloseOperationTarget::Tab { .. },
+            ..
+        }
+    ));
+    assert!(matches!(
+        authority.read_close_operation(None, read.clone()).outcome,
+        CloseOperationOutcome::Denied {}
+    ));
+    let missing = CloseOperationRead {
+        operation_id: request_id(999),
+        ..read
+    };
+    assert!(matches!(
+        authority
+            .read_close_operation(Some(&grant), missing)
+            .outcome,
+        CloseOperationOutcome::NotFound {}
+    ));
+}
+
 pub(super) fn fixture(count: u128) -> (WorkbenchAuthority, WorkbenchGrant) {
     let mut authority = WorkbenchAuthority::new(SiteId::parse(&identity(100)).unwrap()).unwrap();
     let grant = WorkbenchGrant::manage_navigation_and_terminal_create(authority.site_id().clone())

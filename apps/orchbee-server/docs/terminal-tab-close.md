@@ -723,3 +723,7 @@ No new command, wire field, lifecycle receipt or permission is introduced. Focus
 cover multi-Presentation Panel versus Tab scope, complete Tab/Workspace capture, partial target
 settlement, unknown effects, tampered membership, surviving metadata and standalone reference
 composition. Full Windows CLI/TUI acceptance remains a later combined gate.
+
+## Receipt identity reads
+
+OBWP 61/62 reads the exact retained Close ledger entry by original request ID, including empty and completed scopes, under the existing Site read grant. It returns the original target and generation without resolving current layout membership. [CLI status and resume](../../orchbee/docs/native-operation-status.md) reuse existing generation-fenced resume admission; the read itself never renews an attempt or schedules cleanup.

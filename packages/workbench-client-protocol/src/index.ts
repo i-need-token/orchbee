@@ -660,3 +660,10 @@ export type {
 	UserPreferencesRequest,
 	UserPreferencesResponse,
 } from './user-preferences-contract';
+
+export {
+	CloseOperationReadSchema,
+	CloseOperationResultSchema,
+	type CloseOperationRead,
+	type CloseOperationResult,
+} from './workbench-close-operation-contract';

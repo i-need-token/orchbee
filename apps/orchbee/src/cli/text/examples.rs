@@ -4,6 +4,37 @@ use crate::invocation::CommandPath;
 
 pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
     match path {
+        CommandPath::WorkspaceStatus => &["00000000000000000000000000000001"],
+        CommandPath::WorkspaceResume => &[
+            "00000000000000000000000000000001",
+            "--generation",
+            "1",
+            "--confirm",
+        ],
+        CommandPath::TabStatus => &["00000000000000000000000000000001"],
+        CommandPath::TabResume => &[
+            "00000000000000000000000000000001",
+            "--generation",
+            "1",
+            "--confirm",
+        ],
+        CommandPath::PanelStatus => &["00000000000000000000000000000001"],
+        CommandPath::PanelResume => &[
+            "00000000000000000000000000000001",
+            "--generation",
+            "1",
+            "--confirm",
+        ],
+        CommandPath::ProjectStatus => &["00000000000000000000000000000001"],
+        CommandPath::ProjectResume => &[
+            "00000000000000000000000000000001",
+            "--generation",
+            "1",
+            "--confirm",
+        ],
+        CommandPath::ClientStatus => &["00000000000000000000000000000001"],
+        CommandPath::ServerStatus => &["00000000000000000000000000000001"],
+
         #[cfg(windows)]
         CommandPath::PanelGraphicsSet => &["@panel:abcd", "--spec", "@graphics.png"],
         #[cfg(windows)]

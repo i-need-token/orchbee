@@ -19,6 +19,7 @@ mod admission;
 mod continuation;
 mod control;
 mod coordination;
+mod operation_read;
 mod publication;
 mod reservation;
 

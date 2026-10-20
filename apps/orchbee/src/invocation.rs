@@ -1,5 +1,6 @@
 #[cfg(windows)]
 mod agent_view_spec;
+pub(crate) mod operation;
 mod panel_agent;
 mod panel_metadata;
 #[cfg(windows)]
@@ -353,6 +354,17 @@ impl Family {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CommandPath {
+    WorkspaceStatus,
+    WorkspaceResume,
+    TabStatus,
+    TabResume,
+    PanelStatus,
+    PanelResume,
+    ProjectStatus,
+    ProjectResume,
+    ClientStatus,
+    ServerStatus,
+
     #[cfg(windows)]
     EventsSubscribe,
     #[cfg(windows)]
@@ -581,6 +593,16 @@ impl CommandPath {
         match self {
             Self::ClientList => "client list",
             Self::ClientGet => "client get",
+            Self::WorkspaceStatus => "workspace status",
+            Self::WorkspaceResume => "workspace resume",
+            Self::TabStatus => "tab status",
+            Self::TabResume => "tab resume",
+            Self::PanelStatus => "panel status",
+            Self::PanelResume => "panel resume",
+            Self::ProjectStatus => "project status",
+            Self::ProjectResume => "project resume",
+            Self::ClientStatus => "client status",
+            Self::ServerStatus => "server status",
             Self::ClientControlStatus => "client control-status",
             #[cfg(windows)]
             Self::SessionList => "session list",
@@ -1557,6 +1579,16 @@ pub(crate) enum RuntimeStatusScope {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Request {
+    RetainedClose {
+        family: operation::CloseFamily,
+        operation_id: WorkbenchRequestId,
+        generation: Option<WorkbenchTabCloseAttemptGeneration>,
+        format: OutputFormat,
+    },
+    ServerOperationStatus {
+        operation_id: WorkbenchRequestId,
+        format: OutputFormat,
+    },
     #[cfg(windows)]
     PaneGraphics {
         command: pane_graphics::Command,
@@ -3291,6 +3323,16 @@ fn resolve_words(
         ));
     }
     match words {
+        [
+            family @ ("workspace" | "tab" | "panel" | "project"),
+            verb @ ("status" | "resume"),
+            operands @ ..,
+        ]
+        | [
+            family @ ("client" | "server"),
+            verb @ "status",
+            operands @ ..,
+        ] => operation::parse(family, verb, operands, options, envelope),
         #[cfg(windows)]
         ["command", ..] => configured_commands::parse(words, options, envelope),
         #[cfg(windows)]

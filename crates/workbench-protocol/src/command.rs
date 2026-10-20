@@ -1,3 +1,7 @@
+mod close_operation;
+pub use close_operation::{
+    CloseOperationOutcome, CloseOperationRead, CloseOperationResult, CloseOperationTarget,
+};
 mod configured_command;
 mod events;
 pub use events::{
@@ -993,6 +997,8 @@ pub struct WorkbenchCommand {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchRequest {
+    #[serde(rename = "workbench.close-operation.read")]
+    CloseOperationRead(CloseOperationRead),
     #[serde(rename = "workbench.pane-graphics")]
     PaneGraphics(PaneGraphicsRequest),
     #[serde(rename = "workbench.events")]
@@ -1410,6 +1416,8 @@ pub struct WorkbenchSnapshotResult {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum WorkbenchResponse {
+    #[serde(rename = "workbench.close-operation.result")]
+    CloseOperation(CloseOperationResult),
     #[serde(rename = "workbench.pane-graphics.result")]
     PaneGraphics(PaneGraphicsResult),
     #[serde(rename = "workbench.events.result")]
@@ -1811,6 +1819,7 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             ..
         }) => enforce_encoded_limit(encoded, crate::MAXIMUM_ENCODED_WORKSPACE_ORDER_BYTES),
         WorkbenchResponse::Command(_)
+        | WorkbenchResponse::CloseOperation(_)
         | WorkbenchResponse::TabCloseRead(_)
         | WorkbenchResponse::TabCloseResume(_)
         | WorkbenchResponse::WorkspaceCloseResume(_) => {

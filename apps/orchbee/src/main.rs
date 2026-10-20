@@ -324,6 +324,16 @@ fn main() -> ExitCode {
                 path,
                 format,
             }) => cli::export_schema(schema_id.as_deref(), &path, format, locale),
+            Ok(invocation::Request::RetainedClose {
+                family,
+                operation_id,
+                generation,
+                format,
+            }) => cli::operation::run_close(family, &operation_id, generation, format, locale),
+            Ok(invocation::Request::ServerOperationStatus {
+                operation_id,
+                format,
+            }) => cli::operation::run_server(&operation_id, format, locale),
             Ok(invocation::Request::Client { command, format }) => {
                 cli::run_client_control(&command, format, locale)
             }

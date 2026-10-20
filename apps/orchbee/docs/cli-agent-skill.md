@@ -162,3 +162,7 @@ Create and rename display labels with `--label`. Provider selection uses `--prov
 `antigravity` for start/integration/doctor. Events use `panel.*`; keys use `ctrl+c` and other
 canonical plus-separated modifiers. Close ends a live resource, delete destroys a stored record,
 remove removes membership, uninstall removes an installed plugin, and dissolve preserves grouped children.
+
+## Recover async operations
+
+Use the receipt ID with `<family> status <request-id>` for Workspace, Tab, Panel, Project, Worktree, Client and Server operations. Supported resume paths use `<family> resume <request-id> --generation <n> --confirm`; inspect status first. [Retained operation status](native-operation-status.md) owns the identity mapping, limits, compatibility paths and Server stop precedence.

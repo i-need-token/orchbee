@@ -121,6 +121,8 @@ pub(crate) fn admit(request: &Request) -> Option<(OutputFormat, Option<TerminalS
         | Request::WorkspaceCreation { format, .. }
         | Request::PanelTerminalCreation { format, .. }
         | Request::Creation { format, .. }
+        | Request::RetainedClose { format, .. }
+        | Request::ServerOperationStatus { format, .. }
         | Request::WorkspaceGroupClose { format, .. }
         | Request::WorktreeQuery { format, .. }
         | Request::Worktree { format, .. }

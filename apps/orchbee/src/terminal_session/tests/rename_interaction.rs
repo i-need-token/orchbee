@@ -62,7 +62,8 @@ impl RenameServer {
                         let request =
                             read_workbench_request(&mut reader).map_err(io::Error::other)?;
                         let command = match request {
-                            WorkbenchRequest::TabCloseRead(_)
+                            WorkbenchRequest::CloseOperationRead(_)
+                            | WorkbenchRequest::TabCloseRead(_)
                             | WorkbenchRequest::TabCloseResume(_)
                             | WorkbenchRequest::WorkspaceCloseRead(_)
                             | WorkbenchRequest::WorkspaceCloseResume(_)

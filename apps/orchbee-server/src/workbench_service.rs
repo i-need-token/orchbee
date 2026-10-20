@@ -143,6 +143,7 @@ impl WorkbenchService {
             }
             WorkbenchRequest::SnapshotRead(_)
             | WorkbenchRequest::PublicationRead(_)
+            | WorkbenchRequest::CloseOperationRead(_)
             | WorkbenchRequest::TabCloseRead(_)
             | WorkbenchRequest::WorkspaceCloseRead(_)
             | WorkbenchRequest::WorktreeListRead(_)
@@ -297,6 +298,13 @@ impl WorkbenchService {
                 return WorkbenchExecution::Response(
                     response.unwrap_or_else(|| unavailable_or_denied(request, denied)),
                 );
+            }
+            WorkbenchRequest::CloseOperationRead(read) => {
+                let denied = self.terminals.workbench_site_matches(&read.site_id) == Some(false);
+                let response = if denied { None } else {
+                    self.terminals.read_close_operation(read.clone()).map(WorkbenchResponse::CloseOperation)
+                };
+                return WorkbenchExecution::Response(response.unwrap_or_else(|| unavailable_or_denied(request, denied)));
             }
             WorkbenchRequest::WorkspaceCloseRead(read) => {
                 let denied = self.terminals.workbench_site_matches(&read.site_id) == Some(false);
@@ -455,6 +463,19 @@ impl WorkbenchService {
 
 fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchResponse {
     match request {
+        WorkbenchRequest::CloseOperationRead(read) => {
+            WorkbenchResponse::CloseOperation(orchbee_workbench_protocol::CloseOperationResult {
+                protocol_version: read.protocol_version,
+                request_id: read.request_id,
+                site_id: read.site_id,
+                operation_id: read.operation_id,
+                outcome: if denied {
+                    orchbee_workbench_protocol::CloseOperationOutcome::Denied {}
+                } else {
+                    orchbee_workbench_protocol::CloseOperationOutcome::Unavailable {}
+                },
+            })
+        }
         WorkbenchRequest::Settings(request) => {
             WorkbenchResponse::Settings(orchbee_workbench_protocol::NativeSettingsResult {
                 protocol_version: request.protocol_version,

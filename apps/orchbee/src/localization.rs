@@ -9,6 +9,7 @@ mod machines;
 #[cfg(windows)]
 mod navigator;
 mod notification;
+mod operation;
 mod presentation;
 #[cfg(windows)]
 mod tab_menu;

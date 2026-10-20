@@ -425,3 +425,7 @@ The semantic and command boundaries independently validate canonical split ratio
 ## Native Settings binding
 
 `workbench-settings-contract.ts` adds closed Open/Save request and result schemas to the shared command unions. It reuses the complete `ConfigurationSnapshotSchema`, enforces the canonical content/absence token, required-nullable dirty fields and nonempty patches, and supplies independent 4 KiB/256 KiB encoded limits. The [shared corpus](../../schemas/workbench/v1/workbench-settings-conformance-v1.json) is consumed by strict Zod, Rust and JSON Schema. This binding grants no Desktop command, file-write authority, transport retry or live application; those effects remain with the [native Settings owner](../../apps/orchbee/docs/native-settings.md).
+
+## Retained operation identity
+
+The closed `CloseOperationReadSchema` and `CloseOperationResultSchema` join the request/result union and command conformance corpus. They mirror [retained close identity lookup](../../crates/workbench-protocol/README.md#retained-close-identity-lookup) without introducing Client-owned lifecycle state.

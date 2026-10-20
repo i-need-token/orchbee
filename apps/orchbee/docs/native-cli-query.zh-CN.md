@@ -2506,3 +2506,7 @@ Agent focus／Workbench 进程用例在每个测试 binary 内最多接纳四个
 viewport-timeout peer 可能在 CLI 发出最后一次状态轮询之后、收到 queued 响应之前到期时
 观察到 `BrokenPipe`。此时停止写入；消费者仍须返回准确超时失败，且没有部分结果。
 其他写入错误及畸形请求仍属于失败，连接关闭后不编造回执。
+
+## 统一保留操作路径
+
+[保留操作状态](native-operation-status.zh-CN.md) 定义推荐的 `<family> status <request-id>` 及支持的 `<family> resume <request-id> --generation <n> --confirm` 语法。本参考中较早的命令族专属路径保留为兼容入口，新调用者使用统一路径。Tab 和 Panel 现有显式状态及恢复入口。

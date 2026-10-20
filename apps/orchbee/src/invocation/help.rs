@@ -76,6 +76,46 @@ pub(super) const fn diagnostic_path(topic: HelpTopic) -> &'static str {
 }
 
 const HELP_PATHS: &[HelpPath] = &[
+    HelpPath::new(
+        &["workspace", "status"],
+        HelpTopic::Command(CommandPath::WorkspaceStatus),
+    ),
+    HelpPath::new(
+        &["workspace", "resume"],
+        HelpTopic::Command(CommandPath::WorkspaceResume),
+    ),
+    HelpPath::new(
+        &["tab", "status"],
+        HelpTopic::Command(CommandPath::TabStatus),
+    ),
+    HelpPath::new(
+        &["tab", "resume"],
+        HelpTopic::Command(CommandPath::TabResume),
+    ),
+    HelpPath::new(
+        &["panel", "status"],
+        HelpTopic::Command(CommandPath::PanelStatus),
+    ),
+    HelpPath::new(
+        &["panel", "resume"],
+        HelpTopic::Command(CommandPath::PanelResume),
+    ),
+    HelpPath::new(
+        &["project", "status"],
+        HelpTopic::Command(CommandPath::ProjectStatus),
+    ),
+    HelpPath::new(
+        &["project", "resume"],
+        HelpTopic::Command(CommandPath::ProjectResume),
+    ),
+    HelpPath::new(
+        &["client", "status"],
+        HelpTopic::Command(CommandPath::ClientStatus),
+    ),
+    HelpPath::new(
+        &["server", "status"],
+        HelpTopic::Command(CommandPath::ServerStatus),
+    ),
     #[cfg(windows)]
     HelpPath::new(
         &["panel", "graphics"],

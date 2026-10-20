@@ -21,6 +21,9 @@ pub use user_preferences::{
 mod carrier;
 mod command;
 pub use command::{
+    CloseOperationOutcome, CloseOperationRead, CloseOperationResult, CloseOperationTarget,
+};
+pub use command::{
     ConfiguredCommandAction, ConfiguredCommandDescriptor, ConfiguredCommandFailure,
     ConfiguredCommandInvocation, ConfiguredCommandKind, ConfiguredCommandOutcome,
     ConfiguredCommandPopupSpec, ConfiguredCommandRequest, ConfiguredCommandResult,

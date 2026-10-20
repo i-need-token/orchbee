@@ -3,6 +3,7 @@ pub(crate) mod agent_manifests;
 mod agent_view;
 #[cfg(windows)]
 pub(crate) mod client_view;
+mod close_operation;
 pub(crate) mod configuration;
 mod configured_command;
 #[cfg(windows)]

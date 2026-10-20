@@ -19,6 +19,7 @@ enum Argument {
     Args,
     Client,
     Operation,
+    Request,
     #[cfg(windows)]
     Ssh,
     #[cfg(windows)]
@@ -49,6 +50,17 @@ enum Argument {
 impl Locale {
     pub(crate) fn cli_help_arguments(self, path: CommandPath) -> Vec<(&'static str, &'static str)> {
         let roles: &[Argument] = match path {
+            CommandPath::WorkspaceStatus => &[Argument::Request],
+            CommandPath::WorkspaceResume => &[Argument::Request],
+            CommandPath::TabStatus => &[Argument::Request],
+            CommandPath::TabResume => &[Argument::Request],
+            CommandPath::PanelStatus => &[Argument::Request],
+            CommandPath::PanelResume => &[Argument::Request],
+            CommandPath::ProjectStatus => &[Argument::Request],
+            CommandPath::ProjectResume => &[Argument::Request],
+            CommandPath::ClientStatus => &[Argument::Request],
+            CommandPath::ServerStatus => &[Argument::Request],
+
             #[cfg(windows)]
             CommandPath::PanelGraphicsSet => &[Argument::Panel],
             #[cfg(windows)]
@@ -281,6 +293,7 @@ impl Locale {
                 Argument::Name => ("<name>", "Name to bind to the Agent after it is ready.", "Agent 就绪后要绑定的名称。"),
                 Argument::Args => ("-- <args> ...", "Arguments passed to the Agent; --arg can be repeated instead.", "传给 Agent 的参数；也可重复使用 --arg。"),
                 Argument::Client => ("<client-id>", "Full client ID returned by orchbee client list.", "orchbee client list 返回的完整客户端 ID。"),
+                Argument::Request => ("<request-id>", "Exact retained request ID returned by the operation.", "操作返回的精确保留请求 ID。"),
                 Argument::Operation => ("<operation-id>", "Complete operation ID returned by the original request.", "原请求返回的完整操作 ID。"),
                 #[cfg(windows)]
                 Argument::Ssh => ("<ssh-target>", "OpenSSH destination, such as user@host; batch authentication must already work.", "OpenSSH 目标，例如 user@host；须已能进行批处理认证。"),

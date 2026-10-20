@@ -342,3 +342,7 @@ pane graphics 绑定与 Rust 共用封闭的图片、图层、像素块和生产
 ## 原生设置绑定
 
 `workbench-settings-contract.ts` 把闭合 Open/Save 请求和结果 Schema 加入共享命令联合类型，复用完整 `ConfigurationSnapshotSchema`，校验规范内容／缺失令牌、必需但可空的脏字段与非空补丁，并提供独立的 4 KiB／256 KiB 编码限制。严格 Zod、Rust 与 JSON Schema 使用[共享语料](../../schemas/workbench/v1/workbench-settings-conformance-v1.json)。此绑定不授予 Desktop 命令、文件写权限、传输重试或在线应用能力；这些效果仍由[原生设置所有者](../../apps/orchbee/docs/native-settings.zh-CN.md) 负责。
+
+## 保留操作身份
+
+封闭的 `CloseOperationReadSchema` 与 `CloseOperationResultSchema` 加入请求／结果联合及命令一致性语料。它们对应[保留 Close 身份查询](../../crates/workbench-protocol/README.zh-CN.md#保留-close-身份查询)，不引入 Client 所有的生命周期状态。

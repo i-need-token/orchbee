@@ -2784,6 +2784,41 @@ impl Locale {
     ) -> crate::localization::HelpDetails {
         use crate::invocation::CommandPath;
         match (self, path) {
+            (_, CommandPath::WorkspaceStatus) => {
+                self.operation_help("orchbee workspace status <request-id> [--format text|json]", false)
+            }
+            (_, CommandPath::WorkspaceResume) => self.operation_help(
+                "orchbee workspace resume <request-id> --generation <n> --confirm [--format text|json]",
+                true,
+            ),
+            (_, CommandPath::TabStatus) => {
+                self.operation_help("orchbee tab status <request-id> [--format text|json]", false)
+            }
+            (_, CommandPath::TabResume) => self.operation_help(
+                "orchbee tab resume <request-id> --generation <n> --confirm [--format text|json]",
+                true,
+            ),
+            (_, CommandPath::PanelStatus) => {
+                self.operation_help("orchbee panel status <request-id> [--format text|json]", false)
+            }
+            (_, CommandPath::PanelResume) => self.operation_help(
+                "orchbee panel resume <request-id> --generation <n> --confirm [--format text|json]",
+                true,
+            ),
+            (_, CommandPath::ProjectStatus) => {
+                self.operation_help("orchbee project status <request-id> [--format text|json]", false)
+            }
+            (_, CommandPath::ProjectResume) => self.operation_help(
+                "orchbee project resume <request-id> --generation <n> --confirm [--detach] [--timeout <ms>] [--format text|json]",
+                true,
+            ),
+            (_, CommandPath::ClientStatus) => {
+                self.operation_help("orchbee client status <request-id> [--format text|json]", false)
+            }
+            (_, CommandPath::ServerStatus) => {
+                self.operation_help("orchbee server status <request-id> [--format text|json]", false)
+            }
+
             #[cfg(windows)]
             (_, CommandPath::EventsSubscribe | CommandPath::EventsWait) => self.events_help(path),
             #[cfg(windows)]

@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.operation.close",
+        include_str!("schemas/orchbee.operation.close.json"),
+    ),
+    (
         "orchbee.panel.structure",
         include_str!("schemas/orchbee.panel.structure.json"),
     ),
@@ -675,8 +679,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog version 151 includes canonical Panel events and provider identities.
-        "version": 151,
+        // Catalog version 152 includes canonical Panel events and provider identities.
+        "version": 152,
         "source": embedded_source(),
         "result": result,
     });

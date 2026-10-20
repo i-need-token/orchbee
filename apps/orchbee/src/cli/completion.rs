@@ -190,7 +190,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
         ],
     ),
     ("api", &["schema", "snapshot"]),
-    ("client", &["control-status", "get", "list"]),
+    ("client", &["status", "control-status", "get", "list"]),
     #[cfg(windows)]
     ("layout", &["apply", "export", "set-split-ratio"]),
     #[cfg(not(windows))]
@@ -215,6 +215,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "panel",
         &[
+            "status",
+            "resume",
             #[cfg(windows)]
             "graphics",
             #[cfg(windows)]
@@ -245,6 +247,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "project",
         &[
+            "status",
+            "resume",
             "create",
             "get",
             "list",
@@ -260,6 +264,7 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "server",
         &[
+            "status",
             "diagnose",
             "start",
             "stop",
@@ -275,7 +280,9 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     ("status", &["client", "server"]),
     (
         "tab",
-        &["close", "create", "focus", "get", "list", "move", "rename"],
+        &[
+            "status", "resume", "close", "create", "focus", "get", "list", "move", "rename",
+        ],
     ),
     (
         "terminal",
@@ -308,6 +315,8 @@ const FAMILY_VERBS: &[(&str, &[&str])] = &[
     (
         "workspace",
         &[
+            "status",
+            "resume",
             "set-project",
             "create-project",
             "ungroup",
@@ -501,6 +510,19 @@ const REPEATABLE_FLAGS: &[&str] = &[
 const CONTROL_FLAGS: &[&str] = &["--cols", "--rows", "--timeout", "--takeover"];
 const OBSERVE_FLAGS: &[&str] = &["--cols", "--rows", "--timeout"];
 const COMMAND_FLAGS: &[(&str, &[&str])] = &[
+    ("workspace:status", &[]),
+    ("workspace:resume", &["--generation", "--confirm"]),
+    ("tab:status", &[]),
+    ("tab:resume", &["--generation", "--confirm"]),
+    ("panel:status", &[]),
+    ("panel:resume", &["--generation", "--confirm"]),
+    ("project:status", &[]),
+    (
+        "project:resume",
+        &["--generation", "--confirm", "--timeout", "--detach"],
+    ),
+    ("client:status", &[]),
+    ("server:status", &[]),
     #[cfg(windows)]
     (
         "config:import-herdr",
@@ -1412,6 +1434,16 @@ fn agent_target_values() -> Vec<String> {
 
 /// `<family>:<verb>` paths that consume one positional operand.
 const OPERAND_PATHS: &[&str] = &[
+    "workspace:status",
+    "workspace:resume",
+    "tab:status",
+    "tab:resume",
+    "panel:status",
+    "panel:resume",
+    "project:status",
+    "project:resume",
+    "client:status",
+    "server:status",
     #[cfg(windows)]
     "panel:graphics:set",
     #[cfg(windows)]
@@ -1644,7 +1676,7 @@ const HELP_CHILDREN: &[(&str, &[&str])] = &[
         ],
     ),
     ("api", &["schema", "snapshot"]),
-    ("client", &["control-status", "get", "list"]),
+    ("client", &["status", "control-status", "get", "list"]),
     #[cfg(windows)]
     ("layout", &["apply", "export", "set-split-ratio"]),
     #[cfg(not(windows))]

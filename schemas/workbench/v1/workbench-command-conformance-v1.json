@@ -7227,6 +7227,130 @@
 					"reason": "confirmation-required"
 				}
 			}
+		},
+		{
+			"name": "read-close-by-receipt-id",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.close-operation.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003"
+			}
+		},
+		{
+			"name": "close-operation-not-found",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.close-operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "not-found"
+				}
+			}
+		},
+		{
+			"name": "close-operation-denied",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.close-operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "denied"
+				}
+			}
+		},
+		{
+			"name": "close-operation-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.close-operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "unavailable"
+				}
+			}
+		},
+		{
+			"name": "close-operation-tab-tombstone",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.close-operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"target": {
+						"kind": "tab",
+						"terminalContextId": "00000000000000000000000000000004",
+						"tabId": "00000000000000000000000000000005"
+					},
+					"generation": "1",
+					"status": {
+						"kind": "closed",
+						"revision": "8"
+					}
+				}
+			}
+		},
+		{
+			"name": "close-operation-panel-tombstone",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.close-operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"target": {
+						"kind": "panel",
+						"terminalContextId": "00000000000000000000000000000004",
+						"tabId": "00000000000000000000000000000005"
+					},
+					"generation": "1",
+					"status": {
+						"kind": "closed",
+						"revision": "8"
+					}
+				}
+			}
+		},
+		{
+			"name": "close-operation-workspace-tombstone",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.close-operation.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "available",
+					"target": {
+						"kind": "workspace",
+						"workspaceId": "00000000000000000000000000000004"
+					},
+					"generation": "1",
+					"status": {
+						"kind": "closed",
+						"revision": "8"
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -7258,7 +7382,7 @@
 				"action": {
 					"kind": "workspace.create",
 					"projectId": "00000000000000000000000000000002",
-					"label": "\u0085\u00a0\u2003\u3000"
+					"label": "  　"
 				}
 			}
 		},
@@ -7290,7 +7414,7 @@
 				"action": {
 					"kind": "workspace.rename",
 					"workspaceId": "00000000000000000000000000000003",
-					"label": "\u0085\u00a0\u2003\u3000"
+					"label": "  　"
 				}
 			}
 		},
@@ -7335,7 +7459,7 @@
 					"placement": {
 						"kind": "ungrouped"
 					},
-					"label": "\u0085\u00a0\u2003\u3000",
+					"label": "  　",
 					"geometry": {
 						"columns": 80,
 						"rows": 24,
@@ -23263,6 +23387,18 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "close-operation-rejects-current-resource-selector",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.close-operation.read",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000009",
+				"siteId": "00000000000000000000000000000001",
+				"operationId": "00000000000000000000000000000003",
+				"workspaceId": "00000000000000000000000000000004"
+			}
 		}
 	],
 	"invalidJson": [

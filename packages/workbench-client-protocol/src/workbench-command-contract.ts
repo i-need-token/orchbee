@@ -1,4 +1,8 @@
 import {
+	CloseOperationReadSchema,
+	CloseOperationResultSchema,
+} from './workbench-close-operation-contract';
+import {
 	PaneGraphicsRequestSchema,
 	PaneGraphicsResultSchema,
 } from './workbench-pane-graphics-contract';
@@ -624,6 +628,7 @@ export const WorkbenchRequestSchema = z
 		WorkspaceGitRequestSchema,
 		AgentManifestsRequestSchema,
 		ConfigurationRequestSchema,
+		CloseOperationReadSchema,
 		NativeSettingsRequestSchema,
 		TerminalEditorRequestSchema,
 		ConfiguredCommandRequestSchema,
@@ -757,6 +762,7 @@ export const WorkbenchResponseSchema = z
 		WorkspaceGitResultSchema,
 		AgentManifestsResultSchema,
 		ConfigurationResultSchema,
+		CloseOperationResultSchema,
 		NativeSettingsResultSchema,
 		TerminalEditorResultSchema,
 		ConfiguredCommandResultSchema,

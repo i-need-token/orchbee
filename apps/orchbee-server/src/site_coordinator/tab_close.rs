@@ -301,6 +301,15 @@ impl SiteCoordinator {
         })
     }
 
+    pub(crate) fn read_close_operation(
+        &self,
+        request: orchbee_workbench_protocol::CloseOperationRead,
+    ) -> Option<orchbee_workbench_protocol::CloseOperationResult> {
+        let workbench = self.workbench.as_ref()?;
+        let grant = WorkbenchGrant::read_only(workbench.site_id().clone());
+        Some(workbench.read_close_operation(Some(&grant), request))
+    }
+
     pub(crate) fn read_workspace_close(
         &self,
         request: WorkbenchWorkspaceCloseRead,

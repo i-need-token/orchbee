@@ -1,0 +1,402 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.operation.close",
+	"title": "Retained close status and fenced resume",
+	"type": "object",
+	"required": ["schema", "version", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.operation.close"
+		},
+		"version": {
+			"const": 1
+		},
+		"result": {
+			"type": "object",
+			"required": ["requestId", "family", "observation", "resume"],
+			"additionalProperties": false,
+			"properties": {
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"family": {
+					"enum": ["workspace", "tab", "panel"]
+				},
+				"observation": {
+					"type": "object",
+					"required": ["protocolVersion", "requestId", "siteId", "operationId", "outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"protocolVersion": {
+							"const": 1
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"operationId": {
+							"$ref": "#/$defs/id"
+						},
+						"outcome": {
+							"oneOf": [
+								{
+									"type": "object",
+									"required": ["kind"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "not-found"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "denied"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "unavailable"
+										}
+									}
+								},
+								{
+									"type": "object",
+									"required": ["kind", "target", "generation", "status"],
+									"additionalProperties": false,
+									"properties": {
+										"kind": {
+											"const": "available"
+										},
+										"target": {
+											"oneOf": [
+												{
+													"type": "object",
+													"required": ["kind", "workspaceId"],
+													"additionalProperties": false,
+													"properties": {
+														"kind": {
+															"const": "workspace"
+														},
+														"workspaceId": {
+															"$ref": "#/$defs/id"
+														}
+													}
+												},
+												{
+													"type": "object",
+													"required": ["kind", "terminalContextId", "tabId"],
+													"additionalProperties": false,
+													"properties": {
+														"kind": {
+															"const": "tab"
+														},
+														"terminalContextId": {
+															"$ref": "#/$defs/id"
+														},
+														"tabId": {
+															"$ref": "#/$defs/id"
+														}
+													}
+												},
+												{
+													"type": "object",
+													"required": ["kind", "terminalContextId", "tabId"],
+													"additionalProperties": false,
+													"properties": {
+														"kind": {
+															"const": "panel"
+														},
+														"terminalContextId": {
+															"$ref": "#/$defs/id"
+														},
+														"tabId": {
+															"$ref": "#/$defs/id"
+														}
+													}
+												}
+											]
+										},
+										"generation": {
+											"$ref": "#/$defs/generation"
+										},
+										"status": {
+											"$ref": "#/$defs/scopeStatus"
+										}
+									}
+								}
+							]
+						}
+					}
+				},
+				"resume": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"required": ["requestId", "expectedGeneration", "submission"],
+							"additionalProperties": false,
+							"properties": {
+								"requestId": {
+									"$ref": "#/$defs/id"
+								},
+								"expectedGeneration": {
+									"$ref": "#/$defs/generation"
+								},
+								"submission": {
+									"oneOf": [
+										{
+											"type": "object",
+											"required": ["kind", "outcome"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "returned"
+												},
+												"outcome": {
+													"oneOf": [
+														{
+															"type": "object",
+															"properties": {
+																"kind": {
+																	"const": "resumed"
+																},
+																"attemptGeneration": {
+																	"$ref": "#/$defs/tabCloseAttemptGeneration"
+																}
+															},
+															"required": ["kind", "attemptGeneration"],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"kind": {
+																	"const": "stale"
+																},
+																"attemptGeneration": {
+																	"$ref": "#/$defs/tabCloseAttemptGeneration"
+																}
+															},
+															"required": ["kind", "attemptGeneration"],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"kind": {
+																	"const": "denied"
+																}
+															},
+															"required": ["kind"],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"kind": {
+																	"const": "unavailable"
+																},
+																"reason": {
+																	"$ref": "#/$defs/tabCloseUnavailableReason"
+																}
+															},
+															"required": ["kind", "reason"],
+															"additionalProperties": false
+														},
+														{
+															"type": "object",
+															"properties": {
+																"kind": {
+																	"const": "rejected"
+																},
+																"reason": {
+																	"$ref": "#/$defs/tabCloseResumeRejectionReason"
+																}
+															},
+															"required": ["kind", "reason"],
+															"additionalProperties": false
+														}
+													]
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "not-submitted"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"required": ["kind"],
+											"additionalProperties": false,
+											"properties": {
+												"kind": {
+													"const": "outcome-unknown"
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	},
+	"$defs": {
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"revision": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"generation": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"scopeStatus": {
+			"type": "object",
+			"required": ["kind"],
+			"oneOf": [
+				{
+					"properties": {
+						"kind": {
+							"const": "closing"
+						},
+						"phase": {
+							"$ref": "#/$defs/closingPhase"
+						}
+					},
+					"required": ["phase"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": {
+							"const": "cleanup-blocked"
+						},
+						"reason": {
+							"$ref": "#/$defs/blockedReason"
+						},
+						"resumable": {
+							"type": "boolean"
+						}
+					},
+					"required": ["reason", "resumable"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": {
+							"const": "outcome-unknown"
+						},
+						"phase": {
+							"$ref": "#/$defs/unknownPhase"
+						},
+						"reason": {
+							"$ref": "#/$defs/unknownReason"
+						}
+					},
+					"required": ["phase", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": {
+							"const": "disposed-awaiting-publication"
+						},
+						"reason": {
+							"$ref": "#/$defs/publicationReason"
+						},
+						"resumable": {
+							"type": "boolean"
+						}
+					},
+					"required": ["reason", "resumable"],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"kind": {
+							"const": "closed"
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						}
+					},
+					"required": ["revision"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"closingPhase": {
+			"enum": ["queued", "waiting-grace", "waiting-outcome", "disposing"]
+		},
+		"unknownPhase": {
+			"enum": ["terminate", "force", "dispose"]
+		},
+		"blockedReason": {
+			"enum": [
+				"worker-unavailable",
+				"host-refused",
+				"cleanup-incomplete",
+				"inventory-incomplete",
+				"identity-conflict",
+				"continuation-budget-exhausted",
+				"resume-generation-exhausted"
+			]
+		},
+		"unknownReason": {
+			"enum": ["transport-lost", "deadline", "invalid-response"]
+		},
+		"publicationReason": {
+			"enum": [
+				"target-cleanup-pending",
+				"preparing",
+				"preparation-failed",
+				"authority-retired",
+				"workspace-retained"
+			]
+		},
+		"tabCloseResumeRejectionReason": {
+			"enum": [
+				"operation-unavailable",
+				"operation-mismatch",
+				"request-identity-conflict",
+				"generation-mismatch",
+				"not-resumable",
+				"generation-exhausted"
+			]
+		},
+		"tabCloseAttemptGeneration": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"tabCloseUnavailableReason": {
+			"enum": ["server-busy"]
+		}
+	}
+}

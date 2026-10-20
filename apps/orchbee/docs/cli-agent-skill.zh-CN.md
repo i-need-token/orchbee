@@ -160,3 +160,7 @@ Panel 命令族使用位置目标或 `--current`；Agent 使用 `--panel` 或 `-
 使用 `--provider`，start／integration／doctor 中均为 `antigravity`。事件使用 `panel.*`，
 按键使用 `ctrl+c` 等规范加号修饰符。close 结束活动资源，delete 销毁存储记录，remove 移除
 成员关系，uninstall 移除已安装插件，dissolve 保留分组中的子项。
+
+## 恢复异步操作
+
+Workspace、Tab、Panel、Project、Worktree、Client 和 Server 操作使用回执 ID 调用 `<family> status <request-id>`。支持的恢复路径使用 `<family> resume <request-id> --generation <n> --confirm`，先检查状态。[保留操作状态](native-operation-status.zh-CN.md) 负责身份映射、边界、兼容路径及 Server stop 优先级。

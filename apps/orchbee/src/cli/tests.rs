@@ -926,6 +926,16 @@ fn fixed_outputs_are_far_below_the_bound() {
     // Every `CommandPath` variant, in both locales — the bound must cover the
     // mutation helps as well as the queries.
     let commands = [
+        CommandPath::WorkspaceStatus,
+        CommandPath::WorkspaceResume,
+        CommandPath::TabStatus,
+        CommandPath::TabResume,
+        CommandPath::PanelStatus,
+        CommandPath::PanelResume,
+        CommandPath::ProjectStatus,
+        CommandPath::ProjectResume,
+        CommandPath::ClientStatus,
+        CommandPath::ServerStatus,
         #[cfg(windows)]
         CommandPath::SessionList,
         #[cfg(windows)]

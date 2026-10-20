@@ -30,6 +30,47 @@ impl Locale {
     /// Explain the purpose of one help topic without exposing its implementation.
     pub(crate) fn cli_help_summary(self, topic: HelpTopic) -> &'static str {
         let (english, chinese) = match topic {
+            HelpTopic::Command(CommandPath::WorkspaceStatus) => (
+                "Read one retained operation by request ID.",
+                "按请求 ID 读取一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::WorkspaceResume) => (
+                "Resume one retained operation with an exact generation fence.",
+                "按精确代次围栏恢复一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::TabStatus) => (
+                "Read one retained operation by request ID.",
+                "按请求 ID 读取一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::TabResume) => (
+                "Resume one retained operation with an exact generation fence.",
+                "按精确代次围栏恢复一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::PanelStatus) => (
+                "Read one retained operation by request ID.",
+                "按请求 ID 读取一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::PanelResume) => (
+                "Resume one retained operation with an exact generation fence.",
+                "按精确代次围栏恢复一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::ProjectStatus) => (
+                "Read one retained operation by request ID.",
+                "按请求 ID 读取一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::ProjectResume) => (
+                "Resume one retained operation with an exact generation fence.",
+                "按精确代次围栏恢复一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::ClientStatus) => (
+                "Read one retained operation by request ID.",
+                "按请求 ID 读取一项保留操作。",
+            ),
+            HelpTopic::Command(CommandPath::ServerStatus) => (
+                "Read one retained operation by request ID.",
+                "按请求 ID 读取一项保留操作。",
+            ),
+
             #[cfg(windows)]
             HelpTopic::Family(Family::PanelGraphics) => (
                 "Display and inspect graphics in a panel.",

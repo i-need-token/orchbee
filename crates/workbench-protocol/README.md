@@ -224,3 +224,7 @@ requires an ordinary Windows cohort witness as well.
 ## Native Settings contract
 
 Matched Windows cohorts use closed `workbench.settings` kinds 59/60 with independent 4 KiB request and 256 KiB response bounds. Open observes a complete configuration snapshot and an exact SHA-256 content/absence token. Save carries the expected publication revision and three required-nullable dirty fields; empty patches and extra operation fields are rejected. Correlated outcomes distinguish no change, saved/applied, saved/not-applied and pre-write refusal. No arbitrary path or TOML travels on this contract, and uncertain exchanges are not replayed. Rust, TypeScript and JSON Schema consume the [same conformance corpus](../../schemas/workbench/v1/workbench-settings-conformance-v1.json); the [native Settings owner](../../apps/orchbee/docs/native-settings.md) governs effects.
+
+## Retained close identity lookup
+
+`CloseOperationRead` and `CloseOperationResult` use OBWP 61/62 within the existing intent size cap. They read a retained close by its original request ID, with exact Site/request/operation correlation and closed Workspace/Tab/Panel targets. This read creates no state and retains tombstones. Rust, TypeScript and JSON Schema share the command corpus; [CLI operation status](../../apps/orchbee/docs/native-operation-status.md) owns invocation and recovery.
