@@ -23,7 +23,7 @@ use std::{
 };
 
 use orchbee_client_server_protocol::{
-    ClientMessage, HostEpoch, HostTerminalId, SendCleanupStatus, SendKey, SendProgress, SendRecord,
+    ClientMessage, HostEpoch, HostTerminalId, SendCleanupStatus, SendProgress, SendRecord,
     SendRejectedReason, SendTarget, SendUnavailableReason, ServerMessage, TerminalSendOutcome,
     TerminalSendResult, read_client_message, write_server_message,
 };
@@ -453,10 +453,18 @@ fn terminal_send_key_submits_semantic_key() -> TestResult {
         let snapshot_request = admit_and_serve_snapshot(&stream);
         let request = read_send(&stream);
         assert_send_base(&request, snapshot_request.as_str());
-        let [SendRecord::Key { key }] = request.records().as_slice() else {
-            panic!("expected a single key record, got {:?}", request.records())
+        let [SendRecord::Combo { modifiers, base }] = request.records().as_slice() else {
+            panic!(
+                "expected a single modifier key record, got {:?}",
+                request.records()
+            )
         };
-        assert_eq!(*key, SendKey::CtrlC);
+        assert!(modifiers.control);
+        assert!(!modifiers.alt && !modifiers.shift);
+        assert_eq!(
+            *base,
+            orchbee_client_server_protocol::SendComboBase::Letter(b'c')
+        );
         send_result(
             &stream,
             TerminalSendResult::new(
@@ -474,7 +482,7 @@ fn terminal_send_key_submits_semantic_key() -> TestResult {
     let output = run(
         &base,
         &[
-            "terminal", "send", TERMINAL, "--key", "ctrl-c", "--format", "json",
+            "terminal", "send", TERMINAL, "--key", "ctrl+c", "--format", "json",
         ],
     );
     peer.join().expect("peer finished");

@@ -658,7 +658,7 @@ fn zero_source_wait(reply_after_exit: bool) {
 }
 
 #[test]
-fn windows_default_wait_uses_recent_eighty_rows_and_no_total_deadline() {
+fn windows_default_wait_uses_recent_eighty_rows_and_a_thirty_second_deadline() {
     for regex in [false, true] {
         let fixture = Fixture::new();
         let listener = LocalListener::bind(fixture.rendezvous().client_socket_path()).unwrap();
@@ -706,7 +706,7 @@ fn windows_default_wait_uses_recent_eighty_rows_and_no_total_deadline() {
             doc["result"]["selection"],
             serde_json::json!({"source":"recent","lines":null})
         );
-        assert!(doc["result"]["observed"]["timeoutMs"].is_null());
+        assert_eq!(doc["result"]["observed"]["timeoutMs"], 30_000);
         assert_eq!(doc["result"]["observed"]["requestedRows"], 80);
     }
 }

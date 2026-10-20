@@ -37,7 +37,7 @@ fn panel_runtime_uses_one_attachment_and_preserves_unavailable_metadata_without_
             });
             let started = Instant::now();
             let output = if current {
-                fixture.run(&["panel", "current", "--panel", &id(6), "--format=json"])
+                fixture.run(&["panel", "current", &id(6), "--format=json"])
             } else {
                 fixture.run(&["panel", "get", &id(6), "--format=json"])
             };

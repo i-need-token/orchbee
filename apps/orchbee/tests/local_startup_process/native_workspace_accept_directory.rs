@@ -224,13 +224,13 @@ fn accept_directory_completes_the_headless_chain() -> TestResult {
         terminal_id.as_str()
     );
     assert!(
-        !read["result"]["content"]["rows"]
-            .as_array()
+        !read["result"]["content"]["text"]
+            .as_str()
             .expect("rows")
             .is_empty(),
         "a live bound terminal emits grid rows"
     );
-    validate(&validators, "orchbee.terminal.read", &output);
+    validate(&validators, "orchbee.terminal.output", &output);
 
     // 7. `tab close --confirm` — the destructive close completes the chain.
     let (output, closed) = run_json(

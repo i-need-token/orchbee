@@ -208,7 +208,7 @@ fn indexed_move_known_refused_and_unknown_outcomes_never_replay_or_focus() {
 }
 
 #[test]
-fn direction_classifies_order_conflict_but_not_index_only_refusal() {
+fn order_classifies_order_conflict_but_not_index_only_refusal() {
     for (reason, kind, schema) in [
         (
             WorkbenchRejectionReason::TabMoveIndexOutOfBounds,
@@ -244,7 +244,7 @@ fn direction_classifies_order_conflict_but_not_index_only_refusal() {
             .unwrap();
             assert_closed(&mut stream);
         });
-        let output = fixture.run(&["tab", "move", TAB, "--direction=last", "--format=json"]);
+        let output = fixture.run(&["tab", "move", TAB, "--order=last", "--format=json"]);
         worker.join().unwrap();
         let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(doc["schema"], schema);

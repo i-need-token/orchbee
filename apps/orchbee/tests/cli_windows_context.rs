@@ -97,14 +97,7 @@ fn partial_and_invalid_context_fail_before_runtime_without_value_echo() {
 #[test]
 fn explicit_target_bypasses_invalid_caller_context_and_reaches_runtime_validation() {
     let output = run(
-        &[
-            "panel",
-            "current",
-            "--panel",
-            "@panel:01",
-            "--format",
-            "json",
-        ],
+        &["panel", "current", "@panel:01", "--format", "json"],
         Some("invalid"),
         None,
         "en_US.UTF-8",
@@ -163,7 +156,7 @@ fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
             assert!(
                 String::from_utf8(help.stdout)
                     .expect("help")
-                    .contains("--panel")
+                    .contains("--current")
             );
         }
     }

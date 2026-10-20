@@ -1992,6 +1992,8 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
         sorted(complete(&["workspace", ""])),
         sorted(
             [
+                "status",
+                "resume",
                 "accept-directory",
                 "set-project",
                 "create-project",
@@ -2549,7 +2551,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     );
     // Direction values are family-scoped enums, not free text.
     assert_eq!(
-        sorted(complete(&["tab", "move", "t", "--direction", ""])),
+        sorted(complete(&["tab", "move", "t", "--order", ""])),
         sorted(
             ["first", "last", "next", "previous"]
                 .iter()
@@ -2561,7 +2563,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["panel", "split", "p", "--direction", ""])),
         sorted(
-            ["above", "below", "left", "right"]
+            ["up", "down", "left", "right"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect()
@@ -2570,7 +2572,7 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     );
     // Cross-family direction words are dead positions, not fuzzy matches.
     assert_eq!(
-        complete(&["tab", "move", "t", "--direction", "above"]).len(),
+        complete(&["tab", "move", "t", "--order", "above"]).len(),
         0,
         "{engine} offers a panel direction on tab move"
     );
@@ -2705,6 +2707,8 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     assert_eq!(
         sorted(complete(&["help", "project", ""])),
         sorted(vec![
+            "status".to_owned(),
+            "resume".to_owned(),
             "create".to_owned(),
             "get".to_owned(),
             "list".to_owned(),
@@ -3017,8 +3021,8 @@ fn assert_completion_shape(complete: impl Fn(&[&str]) -> Vec<String>, engine: &s
     // A joined enum prefix completes that flag's own closed vocabulary with
     // the `--flag=` spelling preserved; freeform values are never guessed.
     assert_eq!(
-        sorted(complete(&["tab", "move", "t", "--direction=n"])),
-        vec!["--direction=next".to_owned()],
+        sorted(complete(&["tab", "move", "t", "--order=n"])),
+        vec!["--order=next".to_owned()],
         "{engine} joined direction values"
     );
     assert_eq!(
@@ -3483,201 +3487,207 @@ fn take_poll(stream: &UnixStream, attachment: &ViewerId) -> TerminalViewerReques
     request
 }
 
-#[test]
-fn terminal_read_observes_a_bound_terminal() -> TestResult {
-    let base = base_dir("tread");
+/// Visible reads must acknowledge the exact frame and release before publishing.
+fn visible_read(tag: &str, frame: Vec<u8>, options: &[&str]) -> Output {
+    let base = base_dir(tag);
     let scope = stage_scope(&base);
-    let record = obtf_record();
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
-        // One Empty answer, then the frame record, then the released attach.
         let request = take_poll(stream, &attachment);
         viewer_reply(stream, &request, TerminalViewerOutcome::Empty {});
         let request = take_poll(stream, &attachment);
         viewer_reply(
             stream,
             &request,
-            TerminalViewerOutcome::Record(record.clone()),
+            TerminalViewerOutcome::Record(frame_record(&frame)),
         );
+        acknowledge_sample(stream, &attachment, &frame);
         answer_detach(stream, &attachment);
+        expect_session_eof(stream);
     });
-    let output = run(
-        &base,
-        &["terminal", "read", TERMINAL_ID, "--format", "json"],
-    );
+    let mut args = vec!["terminal", "read", TERMINAL_ID, "--source", "visible"];
+    args.extend_from_slice(options);
+    let output = run(&base, &args);
     peer.join().expect("peer finished");
+    assert_eq!(
+        scope.read_dir().expect("scope").count(),
+        1,
+        "read must not write the scope"
+    );
+    output
+}
+
+fn acknowledge_sample(stream: &UnixStream, attachment: &ViewerId, frame: &[u8]) {
+    let route = inspect_terminal_frame_route(frame).expect("fixture route");
+    let request = viewer_request(stream);
+    match request.action() {
+        TerminalViewerAction::FrameApplied {
+            attachment_id,
+            sequence,
+            generation,
+            revision,
+        } => {
+            assert_eq!(attachment_id, attachment);
+            assert_eq!(*sequence, route.sequence);
+            assert_eq!(*generation, route.generation);
+            assert_eq!(*revision, route.revision);
+        }
+        action => panic!("expected frame acknowledgement, got {action:?}"),
+    }
+    viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {});
+}
+
+#[test]
+fn terminal_read_observes_a_bound_terminal() -> TestResult {
+    let output = visible_read("tread", OBTF.to_vec(), &["--format", "json"]);
     assert_eq!(
         output.status.code(),
         Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
+        "{}",
         String::from_utf8_lossy(&output.stderr)
     );
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["schema"], "orchbee.terminal.read");
+    assert_eq!(document["schema"], "orchbee.terminal.output");
+    assert_eq!(document["version"], 3);
     assert_eq!(document["source"]["kind"], "workbench-snapshot");
     assert_eq!(document["source"]["revision"], "7");
-    let route = inspect_terminal_frame_route(OBTF)?;
-    let frame = &document["result"]["frame"];
     assert_eq!(document["result"]["terminal"]["terminalId"], TERMINAL_ID);
-    assert_eq!(frame["sequence"], route.sequence.get().to_string());
-    assert_eq!(frame["generation"], route.generation.get().to_string());
-    assert_eq!(frame["revision"], route.revision.to_string());
+    let route = inspect_terminal_frame_route(OBTF)?;
     let geometry = decode_terminal_text_frame(OBTF)?.geometry;
-    assert_eq!(frame["geometry"]["columns"], geometry.columns);
-    assert_eq!(frame["geometry"]["rows"], geometry.rows);
+    let observed = &document["result"]["observed"];
+    assert_eq!(observed["generation"], route.generation.get().to_string());
+    assert_eq!(observed["revision"], route.revision.to_string());
+    assert_eq!(observed["columns"], geometry.columns);
+    assert_eq!(observed["screenRows"], geometry.rows);
+    assert_eq!(observed["capacityOmittedRows"], "0");
     let content = &document["result"]["content"];
-    assert_eq!(content["truncated"], false);
-    assert_eq!(content["omittedRows"], 0);
-    // The fixture grid is known exactly: joined cell text, wide-cell spacer
-    // collapse, trailing-padding trim, and the row0↔row1 wrap pair — bit 0 is
-    // intoNext on row 0, bit 1 is fromPrevious on row 1.
-    let expected_rows: [(u64, &str, bool, bool); 6] = [
-        (0, "A中e\u{301}👩🏽\u{200d}💻x", false, true),
-        (1, "界", true, false),
-        (2, "H", false, false),
-        (3, "FBITVKOS", false, false),
-        (4, "12345UDE", false, false),
-        (5, "^P.", false, false),
-    ];
-    let emitted = content["rows"].as_array().unwrap();
-    assert_eq!(content["rowCount"], emitted.len());
-    assert_eq!(emitted.len(), expected_rows.len());
-    for (row, (index, text, from_previous, into_next)) in emitted.iter().zip(expected_rows.iter()) {
-        assert_eq!(row["index"], *index, "row index");
-        assert_eq!(row["text"], *text, "row {index} text");
-        assert_eq!(
-            row["continuation"]["fromPrevious"], *from_previous,
-            "row {index} fromPrevious"
-        );
-        assert_eq!(
-            row["continuation"]["intoNext"], *into_next,
-            "row {index} intoNext"
-        );
-    }
-    // The emitted envelope validates against its own advertised schema.
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
-    assert!(schema.is_valid(&document), "read document: {document}");
-    // Nothing but the peer's socket may exist inside the scope afterward.
+    assert_eq!(content["physicalRows"], 6);
     assert_eq!(
-        scope.read_dir()?.count(),
-        1,
-        "read must not write the scope"
+        content["text"],
+        "A中e\u{301}👩🏽\u{200d}💻x\n界\nH\nFBITVKOS\n12345UDE\n^P.\n"
+    );
+    assert_eq!(content["startsMidLine"], false);
+    assert_eq!(content["endsMidLine"], false);
+    assert!(
+        compiled_schema(&base_dir("tread-schema"), "orchbee.terminal.output").is_valid(&document)
     );
     Ok(())
 }
 
 #[test]
 fn terminal_read_text_output_escapes_grid_content() -> TestResult {
-    let base = base_dir("tread-text");
-    let scope = stage_scope(&base);
-    let record = obtf_record();
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        answer_detach(stream, &attachment);
-    });
-    let output = run(&base, &["terminal", "read", TERMINAL_ID]);
-    peer.join().expect("peer finished");
+    let output = visible_read("tread-text", OBTF.to_vec(), &[]);
     assert_eq!(
         output.status.code(),
         Some(0),
-        "stderr={}",
+        "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(!output.stdout.is_empty(), "grid content is emitted");
+    assert!(!output.stdout.is_empty());
     assert!(
         !output.stdout.contains(&0x1b),
-        "raw escape bytes never reach stdout"
+        "raw escapes must be rendered safely"
     );
     Ok(())
 }
 
-/// `--unwrap` is pure presentation over the same fetched window: the
-/// fixture's row0→row1 soft-wrap pair joins into one logical line, the
-/// physical `rowCount` is unchanged, and the version-2 document validates
-/// against its published schema.
+/// Unwrapping joins verified continuation rows without changing physical bounds.
 #[test]
 fn terminal_read_unwrap_joins_the_wrap_chain() -> TestResult {
-    let base = base_dir("tread-unwrap");
-    let scope = stage_scope(&base);
-    let record = obtf_record();
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
+    for (source, expected) in [
+        ("recent", "wrap-a\nwrap-b\n"),
+        ("recent-unwrapped", "wrap-awrap-b\n"),
+    ] {
+        let base = base_dir(source);
+        let scope = stage_scope(&base);
+        let cells = [0_u32; 8];
+        let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 1);
+        let answer = history_record(&obrw_window(
+            0,
+            2,
+            8,
+            1,
+            1,
+            1,
+            &[(1, "wrap-a"), (2, "wrap-b")],
+        ));
+        let peer = read_peer(&scope, move |stream| {
+            let attachment = attach_with_fixture(stream);
+            let request = take_poll(stream, &attachment);
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::Record(frame_record(&frame)),
+            );
+            acknowledge_sample(stream, &attachment, &frame);
+            let (request, start, count) = take_read_rows(stream, &attachment, 1, 1);
+            assert_eq!((start, count), (0, 2));
+            viewer_reply(
+                stream,
+                &request,
+                TerminalViewerOutcome::Record(answer.clone()),
+            );
+            answer_detach(stream, &attachment);
+            expect_session_eof(stream);
+        });
+        let output = run(
+            &base,
+            &[
+                "terminal",
+                "read",
+                TERMINAL_ID,
+                "--source",
+                source,
+                "--format",
+                "json",
+            ],
         );
-        answer_detach(stream, &attachment);
-    });
-    let output = run(
-        &base,
-        &[
-            "terminal",
-            "read",
-            TERMINAL_ID,
-            "--unwrap",
-            "--format",
-            "json",
-        ],
-    );
-    peer.join().expect("peer finished");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["schema"], "orchbee.terminal.read");
-    assert_eq!(document["version"], 2);
-    let content = &document["result"]["content"];
-    assert_eq!(content["rowCount"], 6);
-    let lines = content["lines"].as_array().unwrap();
-    assert_eq!(content["lineCount"], lines.len());
-    assert_eq!(lines.len(), 5);
-    // The wrap pair joins; every other physical row is its own line.
-    assert_eq!(lines[0]["text"], "A中e\u{301}👩🏽\u{200d}💻x界");
-    assert_eq!(lines[0]["firstRow"], 0);
-    assert_eq!(lines[0]["lastRow"], 1);
-    assert_eq!(lines[0]["startsMidLine"], false);
-    assert_eq!(lines[0]["endsMidLine"], false);
-    assert_eq!(lines[1]["text"], "H");
-    assert_eq!(lines[1]["firstRow"], 2);
-    assert_eq!(lines[1]["lastRow"], 2);
-    assert_eq!(lines[4]["text"], "^P.");
-    assert!(content.get("rows").is_none());
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
-    assert!(schema.is_valid(&document), "unwrap document: {document}");
+        peer.join().expect("peer finished");
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+        let content = &document["result"]["content"];
+        assert_eq!(content["physicalRows"], 2);
+        assert_eq!(content["firstRow"], "0");
+        assert_eq!(content["lastRow"], "1");
+        assert_eq!(content["text"], expected);
+        assert_eq!(content["startsMidLine"], false);
+        assert_eq!(content["endsMidLine"], false);
+        assert!(compiled_schema(&base, "orchbee.terminal.output").is_valid(&document));
+    }
     Ok(())
 }
 
-/// `--lines` tails the emitted entries without widening the fetch: with
-/// `--unwrap` the entries are logical lines, `tail` reports the omitted
-/// leading lines separately from `omittedRows`, and the fetched `rowCount`
-/// is untouched.
+/// Selection precedes unwrapping: a partial wrap chain reports its open edge.
 #[test]
-fn terminal_read_lines_tails_logical_lines() -> TestResult {
+fn terminal_read_lines_selects_physical_rows_before_unwrapping() -> TestResult {
     let base = base_dir("tread-lines");
     let scope = stage_scope(&base);
-    let record = obtf_record();
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 2);
+    let answer = history_record(&obrw_window(2, 3, 8, 1, 1, 1, &[(2, "tail")]));
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
         let request = take_poll(stream, &attachment);
         viewer_reply(
             stream,
             &request,
-            TerminalViewerOutcome::Record(record.clone()),
+            TerminalViewerOutcome::Record(frame_record(&frame)),
+        );
+        acknowledge_sample(stream, &attachment, &frame);
+        let (request, start, count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!((start, count), (2, 1));
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
         );
         answer_detach(stream, &attachment);
+        expect_session_eof(stream);
     });
     let output = run(
         &base,
@@ -3685,61 +3695,8 @@ fn terminal_read_lines_tails_logical_lines() -> TestResult {
             "terminal",
             "read",
             TERMINAL_ID,
-            "--unwrap",
-            "--lines",
-            "2",
-            "--format",
-            "json",
-        ],
-    );
-    peer.join().expect("peer finished");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["version"], 2);
-    let content = &document["result"]["content"];
-    assert_eq!(content["rowCount"], 6);
-    let tail = &content["tail"];
-    assert_eq!(tail["requested"], 2);
-    assert_eq!(tail["entries"], "lines");
-    assert_eq!(tail["omitted"], 3);
-    let lines = content["lines"].as_array().unwrap();
-    assert_eq!(lines.len(), 2);
-    assert_eq!(lines[0]["text"], "12345UDE");
-    assert_eq!(lines[1]["text"], "^P.");
-    assert_eq!(content["omittedRows"], 0);
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
-    assert!(schema.is_valid(&document), "lines document: {document}");
-    Ok(())
-}
-
-/// `--lines` without `--unwrap` tails physical rows on the same window.
-#[test]
-fn terminal_read_lines_tails_physical_rows() -> TestResult {
-    let base = base_dir("tread-rows-tail");
-    let scope = stage_scope(&base);
-    let record = obtf_record();
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        answer_detach(stream, &attachment);
-    });
-    let output = run(
-        &base,
-        &[
-            "terminal",
-            "read",
-            TERMINAL_ID,
+            "--source",
+            "recent-unwrapped",
             "--lines",
             "1",
             "--format",
@@ -3749,17 +3706,36 @@ fn terminal_read_lines_tails_physical_rows() -> TestResult {
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["version"], 2);
     let content = &document["result"]["content"];
-    let rows = content["rows"].as_array().unwrap();
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0]["index"], 5);
-    assert_eq!(rows[0]["text"], "^P.");
-    assert_eq!(content["tail"]["requested"], 1);
-    assert_eq!(content["tail"]["omitted"], 5);
-    assert!(content.get("lines").is_none());
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
-    assert!(schema.is_valid(&document), "rows tail document: {document}");
+    assert_eq!(content["physicalRows"], 1);
+    assert_eq!(content["text"], "tail\n");
+    assert_eq!(content["firstRow"], "2");
+    assert_eq!(content["lastRow"], "2");
+    assert_eq!(content["startsMidLine"], true);
+    assert_eq!(content["endsMidLine"], false);
+    assert!(compiled_schema(&base, "orchbee.terminal.output").is_valid(&document));
+    Ok(())
+}
+
+#[test]
+fn terminal_read_lines_tails_visible_physical_rows() -> TestResult {
+    let output = visible_read(
+        "tread-visible-tail",
+        OBTF.to_vec(),
+        &["--lines", "1", "--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let content = &document["result"]["content"];
+    assert_eq!(content["physicalRows"], 1);
+    assert_eq!(content["text"], "^P.\n");
+    let row = (decode_terminal_text_frame(OBTF)?.scrollback_rows + 5).to_string();
+    assert_eq!(content["firstRow"], row);
+    assert_eq!(content["lastRow"], row);
+    assert!(
+        compiled_schema(&base_dir("tread-tail-schema"), "orchbee.terminal.output")
+            .is_valid(&document)
+    );
     Ok(())
 }
 
@@ -3977,11 +3953,20 @@ fn terminal_read_recovers_through_need_snapshot_feedback() -> TestResult {
             &request,
             TerminalViewerOutcome::Record(recovery.clone()),
         );
+        acknowledge_sample(stream, &attachment, OBTF_ALT);
         answer_detach(stream, &attachment);
     });
     let output = run(
         &base,
-        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--source",
+            "visible",
+            "--format",
+            "json",
+        ],
     );
     peer.join().expect("peer finished");
     assert_eq!(
@@ -3995,11 +3980,10 @@ fn terminal_read_recovers_through_need_snapshot_feedback() -> TestResult {
     // The applied frame is the recovery snapshot: the alternate fixture's
     // routing counters (sequence 2, generation 2, revision 2).
     let route = inspect_terminal_frame_route(OBTF_ALT)?;
-    let frame = &document["result"]["frame"];
-    assert_eq!(frame["sequence"], route.sequence.get().to_string());
+    let frame = &document["result"]["observed"];
     assert_eq!(frame["generation"], route.generation.get().to_string());
     assert_eq!(frame["revision"], route.revision.to_string());
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
+    let schema = compiled_schema(&base, "orchbee.terminal.output");
     assert!(schema.is_valid(&document), "read document: {document}");
     Ok(())
 }
@@ -4131,217 +4115,99 @@ fn budget_obtf_scrolled_at(
     frame
 }
 
-/// The exact-boundary witness: one shared 16 KiB string reused across all
-/// 64 cells of a row joins to a 1,048,576-char text whose JSON encoding
-/// debits 1,048,578 budget bytes. Three rows debit 3,145,734; row 3 keeps
-/// 63 shared cells plus one mixed cell (`中`×4000 → 12,000 encoded bytes,
-/// ESC×500 → 3,000, `x`×1376 → 1,376 = 16,376), landing the row at exactly
-/// 1,048,570 and the sum on the 4,194,304 budget — `==` must still emit.
-/// Mutating the debit check to `>=` or skipping the quote bytes drops row 3.
+/// The complete plain body fits exactly, including eight row terminators.
 #[test]
-fn terminal_read_emits_rows_at_the_exact_text_budget() -> TestResult {
-    let base = base_dir("tread-budget-exact");
-    let scope = stage_scope(&base);
+fn terminal_read_emits_exactly_eight_mebibytes_without_partial_rows() -> TestResult {
     let full = "x".repeat(16384);
-    let tail = format!(
-        "{}{}{}",
-        "中".repeat(4000),
-        "\u{1b}".repeat(500),
-        "x".repeat(1376)
-    );
+    let tail = "x".repeat(16376);
     let shared = vec![0_u32; 64];
     let mut last = vec![0_u32; 63];
     last.push(1);
-    let rows: [(u8, &[u32]); 4] = [(0, &shared), (0, &shared), (0, &shared), (0, &last)];
-    let record = frame_record(&budget_obtf(64, &rows, &[full.as_str(), tail.as_str()]));
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        answer_detach(stream, &attachment);
-    });
-    let output = run(
-        &base,
-        &["terminal", "read", TERMINAL_ID, "--format", "json"],
+    let mut rows: Vec<(u8, &[u32])> = (0..7).map(|_| (0, shared.as_slice())).collect();
+    rows.push((0, &last));
+    let output = visible_read(
+        "tread-budget-exact",
+        budget_obtf(64, &rows, &[&full, &tail]),
+        &["--plain"],
     );
-    peer.join().expect("peer finished");
     assert_eq!(
         output.status.code(),
         Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
+        "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    let content = &document["result"]["content"];
-    assert_eq!(content["truncated"], false);
-    assert_eq!(content["omittedRows"], 0);
-    assert_eq!(content["rowCount"], 4);
-    let emitted = content["rows"].as_array().unwrap();
-    assert_eq!(emitted.len(), 4);
-    let full_text = "x".repeat(64 * 16384);
-    for (index, row) in emitted[..3].iter().enumerate() {
-        assert_eq!(row["index"], index as u64);
-        assert_eq!(row["text"].as_str().unwrap(), full_text);
-    }
-    let mut last_text = "x".repeat(63 * 16384);
-    last_text.push_str(&tail);
-    assert_eq!(emitted[3]["index"], 3);
-    assert_eq!(emitted[3]["text"].as_str().unwrap(), last_text);
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
-    assert!(schema.is_valid(&document), "read document: {document}");
-    Ok(())
-}
-
-/// One encoded byte over the remaining budget omits the whole row: the mixed
-/// tail's `x` run grows to 1,377, so row 3 encodes to 1,048,571 against
-/// 1,048,570 left. The kept rows carry a wrap pair (bit 0 on row 0, bit 1 on
-/// row 1) so a continuation-flag swap fails here too.
-#[test]
-fn terminal_read_omits_the_row_one_byte_over_budget() -> TestResult {
-    let base = base_dir("tread-budget-partial");
-    let scope = stage_scope(&base);
-    let full = "x".repeat(16384);
-    let tail = format!(
-        "{}{}{}",
-        "中".repeat(4000),
-        "\u{1b}".repeat(500),
-        "x".repeat(1377)
-    );
-    let shared = vec![0_u32; 64];
-    let mut last = vec![0_u32; 63];
-    last.push(1);
-    let rows: [(u8, &[u32]); 4] = [(1, &shared), (2, &shared), (0, &shared), (0, &last)];
-    let record = frame_record(&budget_obtf(64, &rows, &[full.as_str(), tail.as_str()]));
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        answer_detach(stream, &attachment);
-    });
-    let output = run(
-        &base,
-        &["terminal", "read", TERMINAL_ID, "--format", "json"],
-    );
-    peer.join().expect("peer finished");
+    assert_eq!(output.stdout.len(), 8 * 1024 * 1024);
     assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    let content = &document["result"]["content"];
-    assert_eq!(content["truncated"], true);
-    assert_eq!(content["omittedRows"], 1);
-    assert_eq!(content["rowCount"], 4);
-    let emitted = content["rows"].as_array().unwrap();
-    assert_eq!(emitted.len(), 3);
-    assert_eq!(emitted[0]["continuation"]["intoNext"], true);
-    assert_eq!(emitted[0]["continuation"]["fromPrevious"], false);
-    assert_eq!(emitted[1]["continuation"]["intoNext"], false);
-    assert_eq!(emitted[1]["continuation"]["fromPrevious"], true);
-    assert_eq!(emitted[2]["continuation"]["intoNext"], false);
-    assert_eq!(emitted[2]["continuation"]["fromPrevious"], false);
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
-    assert!(schema.is_valid(&document), "read document: {document}");
-    Ok(())
-}
-
-/// The decoder maximum of 4,096 rows with a first row already over budget:
-/// 64 cells sharing a 16 KiB control string join to 1,048,576 chars that
-/// JSON-escape to 6,291,458 bytes, so every row is omitted and the count
-/// stays honest at the schema's upper bound. Dictionary reuse keeps the wire
-/// frame ≈2.1 MiB — no giant fixture. A budget that debited raw text length
-/// instead of the escaped encoding, or a miscounted `omittedRows`, fails
-/// here; this is also the cell_count = 262,144 decoder boundary.
-#[test]
-fn terminal_read_omits_all_4096_rows_over_budget() -> TestResult {
-    let base = base_dir("tread-budget-omitted");
-    let scope = stage_scope(&base);
-    let control = "\u{1}".repeat(16384);
-    let cells = vec![0_u32; 64];
-    let rows: Vec<(u8, &[u32])> = (0..4096).map(|_| (0_u8, cells.as_slice())).collect();
-    let record = frame_record(&budget_obtf(64, &rows, &[control.as_str()]));
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        answer_detach(stream, &attachment);
-    });
-    let output = run(
-        &base,
-        &["terminal", "read", TERMINAL_ID, "--format", "json"],
-    );
-    peer.join().expect("peer finished");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    let content = &document["result"]["content"];
-    assert_eq!(content["rowCount"], 4096);
-    assert_eq!(content["omittedRows"], 4096);
-    assert_eq!(content["truncated"], true);
-    assert!(content["rows"].as_array().unwrap().is_empty());
-    assert_eq!(document["result"]["frame"]["geometry"]["rows"], 4096);
-    let schema = compiled_schema(&base, "orchbee.terminal.read");
-    assert!(schema.is_valid(&document), "read document: {document}");
-    Ok(())
-}
-
-/// The all-omitted frame through the text path: no grid rows reach stdout,
-/// only the localized truncation marker — and no raw control byte escapes.
-#[test]
-fn terminal_read_text_output_marks_truncated_rows() -> TestResult {
-    let base = base_dir("tread-budget-text");
-    let scope = stage_scope(&base);
-    let control = "\u{1}".repeat(16384);
-    let cells = vec![0_u32; 64];
-    let rows: Vec<(u8, &[u32])> = (0..4096).map(|_| (0_u8, cells.as_slice())).collect();
-    let record = frame_record(&budget_obtf(64, &rows, &[control.as_str()]));
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        answer_detach(stream, &attachment);
-    });
-    let output = run(&base, &["terminal", "read", TERMINAL_ID]);
-    peer.join().expect("peer finished");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "… 4096 more rows truncated at the read limit\n"
+        output.stdout.iter().filter(|byte| **byte == b'\n').count(),
+        8
     );
     assert!(
-        !output.stdout.contains(&0x01),
-        "raw control bytes never reach stdout"
+        output
+            .stdout
+            .iter()
+            .all(|byte| *byte == b'x' || *byte == b'\n')
     );
+    Ok(())
+}
+
+/// One extra raw byte fails the whole read after releasing its viewer.
+#[test]
+fn terminal_read_rejects_one_byte_over_the_complete_text_budget() -> TestResult {
+    let full = "x".repeat(16384);
+    let tail = "x".repeat(16377);
+    let shared = vec![0_u32; 64];
+    let mut last = vec![0_u32; 63];
+    last.push(1);
+    let mut rows: Vec<(u8, &[u32])> = (0..7).map(|_| (0, shared.as_slice())).collect();
+    rows.push((0, &last));
+    let output = visible_read(
+        "tread-budget-over",
+        budget_obtf(64, &rows, &[&full, &tail]),
+        &["--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let document = failure_kind(&output);
+    assert_eq!(document["failure"]["kind"], "output-too-large");
+    assert!(document.get("result").is_none());
+    assert!(
+        compiled_schema(&base_dir("tread-budget-schema"), "orchbee.cli.failure")
+            .is_valid(&document)
+    );
+    Ok(())
+}
+
+/// Decoder-maximum shared rows remain bounded during text expansion.
+#[test]
+fn terminal_read_rejects_an_oversized_maximum_row_frame_without_partial_stdout() -> TestResult {
+    let control = "\u{1}".repeat(16384);
+    let cells = vec![0_u32; 64];
+    let rows: Vec<(u8, &[u32])> = (0..4096).map(|_| (0, cells.as_slice())).collect();
+    let output = visible_read(
+        "tread-budget-max-rows",
+        budget_obtf(64, &rows, &[&control]),
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(!output.stderr.is_empty());
+    Ok(())
+}
+
+/// Escaped JSON can exceed the output bound even when raw text fits.
+#[test]
+fn terminal_read_rejects_oversized_json_without_a_partial_success_document() -> TestResult {
+    let control = "\u{1}".repeat(16384);
+    let cells = vec![0_u32; 64];
+    let output = visible_read(
+        "tread-budget-json",
+        budget_obtf(64, &[(0, &cells), (0, &cells)], &[&control]),
+        &["--format", "json"],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let document = failure_kind(&output);
+    assert_eq!(document["failure"]["kind"], "output-too-large");
+    assert!(document.get("result").is_none());
+    assert!(!output.stdout.contains(&1));
     Ok(())
 }
 
@@ -4496,11 +4362,10 @@ fn terminal_read_incompatible_feedback_result_is_protocol_invalid() -> TestResul
     Ok(())
 }
 
-// ---- terminal read --history ------------------------------------------------
+// ---- source-selected terminal read ------------------------------------------
 //
-// `--history --rows <n>` reuses the same admitted session: attach, one
-// applied frame for its scrollback fact, then exactly one `ReadRows` whose
-// absolute window ends at the scrollback boundary. These peers answer with
+// Recent reads acknowledge an applied frame, then pin one absolute range
+// covering retained and live rows. These peers answer with
 // hand-built decoder-legal OBRW records, so request shape, window
 // validation, typed rejections, and the drop-before-output ordering all run
 // against production code.
@@ -4614,88 +4479,57 @@ fn take_read_rows(
     (request, bounds.0, bounds.1)
 }
 
-/// Zero retained scrollback answers the history read without any `ReadRows`:
-/// the next request after the applied frame must be the release `Detach`.
+/// Zero rows still acknowledge the sample, but must never send ReadRows.
 #[test]
-fn terminal_read_history_empty_scrollback_never_reads_rows() -> TestResult {
-    let base = base_dir("thist-empty");
-    let scope = stage_scope(&base);
-    let record = obtf_record();
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        answer_detach(stream, &attachment);
-        expect_session_eof(stream);
-    });
-    let output = run(
-        &base,
-        &[
-            "terminal",
-            "read",
-            TERMINAL_ID,
-            "--history",
-            "--rows",
-            "10",
-            "--format",
-            "json",
-        ],
+fn terminal_read_zero_lines_never_reads_rows() -> TestResult {
+    let output = visible_read(
+        "tread-zero",
+        OBTF.to_vec(),
+        &["--lines", "0", "--format", "json"],
     );
-    peer.join().expect("peer finished");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    assert_eq!(output.status.code(), Some(0));
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["schema"], "orchbee.terminal.history");
-    let history = &document["result"]["history"];
-    assert_eq!(history["scrollbackRows"], "0");
-    assert_eq!(history["screenRows"], 6);
-    assert_eq!(history["totalRows"], "6");
-    assert_eq!(history["startRow"], "0");
-    assert_eq!(history["requestedRows"], 10);
-    assert_eq!(history["windowRows"], 0);
+    assert_eq!(document["result"]["selection"]["lines"], 0);
+    assert_eq!(document["result"]["observed"]["windowRows"], 0);
     let content = &document["result"]["content"];
-    assert_eq!(content["rowCount"], 0);
-    assert_eq!(content["rows"].as_array().unwrap().len(), 0);
-    assert_eq!(content["truncated"], false);
-    assert_eq!(content["omittedRows"], 0);
-    let schema = compiled_schema(&base, "orchbee.terminal.history");
-    assert!(schema.is_valid(&document), "history document: {document}");
+    assert_eq!(content["physicalRows"], 0);
+    assert_eq!(content["text"], "");
+    assert!(content["firstRow"].is_null());
+    assert!(content["lastRow"].is_null());
+    assert!(
+        compiled_schema(&base_dir("tread-zero-schema"), "orchbee.terminal.output")
+            .is_valid(&document)
+    );
     Ok(())
 }
 
-/// The happy path: `S=3`, `--rows 2` requests the absolute window `[1,3)`;
-/// the emitted rows carry their absolute indices and wrap pair.
+/// Recent selection covers history and live screen under one revision.
 #[test]
-fn terminal_read_history_returns_the_bounded_window() -> TestResult {
-    let base = base_dir("thist-window");
+fn terminal_read_recent_returns_the_bounded_window() -> TestResult {
+    let base = base_dir("trecent-window");
     let scope = stage_scope(&base);
     let cells = [0_u32; 8];
     let frame = budget_obtf_scrolled(8, &[(0, &cells), (0, &cells)], &["s"], 3);
-    let record = frame_record(&frame);
-    // The window answers start=1, rows 1 and 2 of total 3+2=5; row 1 wraps
-    // into row 2 (bit0 set on 1, bit1 set on 2).
-    let obrw = obrw_window(1, 5, 8, 1, 1, 1, &[(0x01, "wrap-a"), (0x02, "wrap-b")]);
-    let answer = history_record(&obrw);
+    let answer = history_record(&obrw_window(
+        3,
+        5,
+        8,
+        1,
+        1,
+        1,
+        &[(1, "wrap-a"), (2, "wrap-b")],
+    ));
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
         let request = take_poll(stream, &attachment);
         viewer_reply(
             stream,
             &request,
-            TerminalViewerOutcome::Record(record.clone()),
+            TerminalViewerOutcome::Record(frame_record(&frame)),
         );
-        let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
-        assert_eq!(start_row, 1);
-        assert_eq!(row_count, 2);
+        acknowledge_sample(stream, &attachment, &frame);
+        let (request, start, count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!((start, count), (3, 2));
         viewer_reply(
             stream,
             &request,
@@ -4710,8 +4544,7 @@ fn terminal_read_history_returns_the_bounded_window() -> TestResult {
             "terminal",
             "read",
             TERMINAL_ID,
-            "--history",
-            "--rows",
+            "--lines",
             "2",
             "--format",
             "json",
@@ -4721,78 +4554,50 @@ fn terminal_read_history_returns_the_bounded_window() -> TestResult {
     assert_eq!(
         output.status.code(),
         Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
+        "{}",
         String::from_utf8_lossy(&output.stderr)
     );
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    assert_eq!(document["schema"], "orchbee.terminal.history");
-    let history = &document["result"]["history"];
-    assert_eq!(history["revision"], "1");
-    assert_eq!(history["generation"], "1");
-    assert_eq!(history["alternateScreen"], false);
-    assert_eq!(history["columns"], 8);
-    assert_eq!(history["screenRows"], 2);
-    assert_eq!(history["scrollbackRows"], "3");
-    assert_eq!(history["totalRows"], "5");
-    assert_eq!(history["startRow"], "1");
-    assert_eq!(history["requestedRows"], 2);
-    assert_eq!(history["windowRows"], 2);
-    let content = &document["result"]["content"];
-    assert_eq!(content["truncated"], false);
-    assert_eq!(content["omittedRows"], 0);
-    assert_eq!(content["rowCount"], 2);
-    assert_eq!(content["limits"]["rows"], 1000);
-    let emitted = content["rows"].as_array().unwrap();
-    assert_eq!(emitted.len(), 2);
-    assert_eq!(emitted[0]["index"], "1");
-    assert_eq!(emitted[0]["text"], "wrap-a");
-    assert_eq!(emitted[0]["continuation"]["fromPrevious"], false);
-    assert_eq!(emitted[0]["continuation"]["intoNext"], true);
-    assert_eq!(emitted[1]["index"], "2");
-    assert_eq!(emitted[1]["text"], "wrap-b");
-    assert_eq!(emitted[1]["continuation"]["fromPrevious"], true);
-    assert_eq!(emitted[1]["continuation"]["intoNext"], false);
-    let schema = compiled_schema(&base, "orchbee.terminal.history");
-    assert!(schema.is_valid(&document), "history document: {document}");
+    let result = &document["result"];
     assert_eq!(
-        scope.read_dir()?.count(),
-        1,
-        "history read must not write the scope"
+        result["selection"],
+        serde_json::json!({"source":"recent", "lines":2})
     );
+    assert_eq!(
+        result["observed"],
+        serde_json::json!({"revision":"1", "generation":"1", "alternateScreen":false,
+        "columns":8, "screenRows":2, "totalRows":"5", "windowStart":"3", "windowRows":2, "capacityOmittedRows":"0"})
+    );
+    assert_eq!(
+        result["content"],
+        serde_json::json!({"text":"wrap-a\nwrap-b\n", "physicalRows":2,
+        "firstRow":"3", "lastRow":"4", "startsMidLine":false, "endsMidLine":false})
+    );
+    assert!(compiled_schema(&base, "orchbee.terminal.output").is_valid(&document));
+    assert_eq!(scope.read_dir()?.count(), 1);
     Ok(())
 }
 
-/// `count = min(requested, scrollback, MAXIMUM_FRAME_CELLS / columns)`: a
-/// 500-column frame caps the window at 524 rows, so `--rows 1000` on 600
-/// retained rows prices `start = 600 - 524 = 76` — the cap bites the recent
-/// end, never the requested edge.
+/// The cell cap keeps the recent edge and reports exactly the omitted rows.
 #[test]
-fn terminal_read_history_capacity_clamps_the_window() -> TestResult {
-    let base = base_dir("thist-cap");
+fn terminal_read_recent_capacity_clamps_the_window() -> TestResult {
+    let base = base_dir("trecent-cap");
     let scope = stage_scope(&base);
     let cells = [0_u32; 500];
     let frame = budget_obtf_scrolled(500, &[(0, &cells)], &["s"], 600);
-    let record = frame_record(&frame);
-    // 524 one-cell rows, indices 76..600 of total 601.
-    let window_rows: Vec<(u8, String)> = (0..524).map(|_| (0_u8, "x".to_owned())).collect();
-    let window_ref: Vec<(u8, &str)> = window_rows
-        .iter()
-        .map(|(flags, text)| (*flags, text.as_str()))
-        .collect();
-    let obrw = obrw_window(76, 601, 500, 1, 1, 1, &window_ref);
-    let answer = history_record(&obrw);
+    let rows = vec![(0, "x"); 524];
+    let answer = history_record(&obrw_window(77, 601, 500, 1, 1, 1, &rows));
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
         let request = take_poll(stream, &attachment);
         viewer_reply(
             stream,
             &request,
-            TerminalViewerOutcome::Record(record.clone()),
+            TerminalViewerOutcome::Record(frame_record(&frame)),
         );
-        let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
-        assert_eq!(start_row, 76);
-        assert_eq!(row_count, 524);
+        acknowledge_sample(stream, &attachment, &frame);
+        let (request, start, count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!((start, count), (77, 524));
         viewer_reply(
             stream,
             &request,
@@ -4807,80 +4612,7 @@ fn terminal_read_history_capacity_clamps_the_window() -> TestResult {
             "terminal",
             "read",
             TERMINAL_ID,
-            "--history",
-            "--rows",
-            "1000",
-            "--format",
-            "json",
-        ],
-    );
-    peer.join().expect("peer finished");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    let history = &document["result"]["history"];
-    assert_eq!(history["scrollbackRows"], "600");
-    assert_eq!(history["totalRows"], "601");
-    assert_eq!(history["startRow"], "76");
-    assert_eq!(history["requestedRows"], 1000);
-    assert_eq!(history["windowRows"], 524);
-    let content = &document["result"]["content"];
-    // min(requested, scrollback) = 600 rows were entitled; the window cap
-    // emitted 524, so 76 count as omitted — honest, not silent.
-    assert_eq!(content["truncated"], true);
-    assert_eq!(content["omittedRows"], 76);
-    assert_eq!(content["rowCount"], 524);
-    let emitted = content["rows"].as_array().unwrap();
-    assert_eq!(emitted[0]["index"], "76");
-    assert_eq!(emitted[523]["index"], "599");
-    let schema = compiled_schema(&base, "orchbee.terminal.history");
-    assert!(schema.is_valid(&document), "history document: {document}");
-    Ok(())
-}
-
-/// `requested > scrollback` clamps to the retained count: `--rows 1000` on
-/// `S=2` requests `[0,2)`, and nothing past the scrollback boundary is owed.
-#[test]
-fn terminal_read_history_clamps_to_the_retained_rows() -> TestResult {
-    let base = base_dir("thist-clamp");
-    let scope = stage_scope(&base);
-    let cells = [0_u32; 8];
-    let frame = budget_obtf_scrolled(8, &[(0, &cells), (0, &cells)], &["s"], 2);
-    let record = frame_record(&frame);
-    let obrw = obrw_window(0, 4, 8, 1, 1, 1, &[(0x00, "oldest"), (0x00, "newer")]);
-    let answer = history_record(&obrw);
-    let peer = read_peer(&scope, move |stream| {
-        let attachment = attach_with_fixture(stream);
-        let request = take_poll(stream, &attachment);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(record.clone()),
-        );
-        let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
-        assert_eq!(start_row, 0);
-        assert_eq!(row_count, 2);
-        viewer_reply(
-            stream,
-            &request,
-            TerminalViewerOutcome::Record(answer.clone()),
-        );
-        answer_detach(stream, &attachment);
-        expect_session_eof(stream);
-    });
-    let output = run(
-        &base,
-        &[
-            "terminal",
-            "read",
-            TERMINAL_ID,
-            "--history",
-            "--rows",
+            "--lines",
             "1000",
             "--format",
             "json",
@@ -4889,20 +4621,92 @@ fn terminal_read_history_clamps_to_the_retained_rows() -> TestResult {
     peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(0));
     let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    let history = &document["result"]["history"];
-    assert_eq!(history["startRow"], "0");
-    assert_eq!(history["windowRows"], 2);
-    assert_eq!(document["result"]["content"]["omittedRows"], 0);
-    assert_eq!(document["result"]["content"]["truncated"], false);
+    let observed = &document["result"]["observed"];
+    assert_eq!(observed["totalRows"], "601");
+    assert_eq!(observed["windowStart"], "77");
+    assert_eq!(observed["windowRows"], 524);
+    assert_eq!(observed["capacityOmittedRows"], "77");
+    let content = &document["result"]["content"];
+    assert_eq!(content["physicalRows"], 524);
+    assert_eq!(content["firstRow"], "77");
+    assert_eq!(content["lastRow"], "600");
+    assert_eq!(content["text"], "x\n".repeat(524));
+    assert!(compiled_schema(&base, "orchbee.terminal.output").is_valid(&document));
     Ok(())
 }
 
-/// An aged pin is not the read's answer: each stale or evicted reply
-/// acknowledges the abandoned frame, the next applied frame re-pins the
+/// A large row request clamps at coordinate zero and includes live rows.
+#[test]
+fn terminal_read_recent_clamps_to_the_retained_and_live_rows() -> TestResult {
+    let base = base_dir("trecent-clamp");
+    let scope = stage_scope(&base);
+    let cells = [0_u32; 8];
+    let frame = budget_obtf_scrolled(8, &[(0, &cells), (0, &cells)], &["s"], 2);
+    let answer = history_record(&obrw_window(
+        0,
+        4,
+        8,
+        1,
+        1,
+        1,
+        &[
+            (0, "oldest"),
+            (0, "newer"),
+            (0, "screen-a"),
+            (0, "screen-b"),
+        ],
+    ));
+    let peer = read_peer(&scope, move |stream| {
+        let attachment = attach_with_fixture(stream);
+        let request = take_poll(stream, &attachment);
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(frame_record(&frame)),
+        );
+        acknowledge_sample(stream, &attachment, &frame);
+        let (request, start, count) = take_read_rows(stream, &attachment, 1, 1);
+        assert_eq!((start, count), (0, 4));
+        viewer_reply(
+            stream,
+            &request,
+            TerminalViewerOutcome::Record(answer.clone()),
+        );
+        answer_detach(stream, &attachment);
+        expect_session_eof(stream);
+    });
+    let output = run(
+        &base,
+        &[
+            "terminal",
+            "read",
+            TERMINAL_ID,
+            "--lines",
+            "1000",
+            "--format",
+            "json",
+        ],
+    );
+    peer.join().expect("peer finished");
+    assert_eq!(output.status.code(), Some(0));
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(document["result"]["observed"]["windowStart"], "0");
+    assert_eq!(document["result"]["observed"]["windowRows"], 4);
+    assert_eq!(document["result"]["observed"]["capacityOmittedRows"], "0");
+    assert_eq!(
+        document["result"]["content"]["text"],
+        "oldest\nnewer\nscreen-a\nscreen-b\n"
+    );
+    assert!(compiled_schema(&base, "orchbee.terminal.output").is_valid(&document));
+    Ok(())
+}
+
+/// An aged pin is not the read's answer: each frame is acknowledged before
+/// its row request, and the next applied frame re-pins the
 /// window, and the retried read uses `request_sequence` 2 under the same
 /// deadline.
 #[test]
-fn terminal_read_history_aged_rows_answer_repins_and_retries() -> TestResult {
+fn terminal_read_recent_aged_rows_answer_repins_and_retries() -> TestResult {
     for (tag, reason) in [
         ("stale-rev", ViewerRowsRejectedReason::StaleRevision),
         ("stale-gen", ViewerRowsRejectedReason::StaleGeneration),
@@ -4926,7 +4730,7 @@ fn terminal_read_history_aged_rows_answer_repins_and_retries() -> TestResult {
             2,
         ));
         let answer = history_record(&obrw_window(
-            1,
+            3,
             5,
             8,
             2,
@@ -4942,21 +4746,22 @@ fn terminal_read_history_aged_rows_answer_repins_and_retries() -> TestResult {
                 &request,
                 TerminalViewerOutcome::Record(first.clone()),
             );
+            take_frame_applied(stream, &attachment);
             let (request, _, _) = take_wait_read_rows(stream, &attachment, 1, 1, 1);
             viewer_reply(
                 stream,
                 &request,
                 TerminalViewerOutcome::RowsRejected { reason },
             );
-            take_frame_applied(stream, &attachment);
             let request = take_poll(stream, &attachment);
             viewer_reply(
                 stream,
                 &request,
                 TerminalViewerOutcome::Record(second.clone()),
             );
+            take_frame_applied_at(stream, &attachment, 2, 2);
             let (request, start_row, row_count) = take_wait_read_rows(stream, &attachment, 2, 1, 2);
-            assert_eq!((start_row, row_count), (1, 2));
+            assert_eq!((start_row, row_count), (3, 2));
             viewer_reply(
                 stream,
                 &request,
@@ -4971,8 +4776,7 @@ fn terminal_read_history_aged_rows_answer_repins_and_retries() -> TestResult {
                 "terminal",
                 "read",
                 TERMINAL_ID,
-                "--history",
-                "--rows",
+                "--lines",
                 "2",
                 "--format",
                 "json",
@@ -4987,57 +4791,86 @@ fn terminal_read_history_aged_rows_answer_repins_and_retries() -> TestResult {
             String::from_utf8_lossy(&output.stderr)
         );
         let document: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-        assert_eq!(document["result"]["contentRevision"], "2", "{tag}");
-        assert_eq!(document["result"]["history"]["windowRows"], 2, "{tag}");
+        assert_eq!(document["result"]["observed"]["revision"], "2", "{tag}");
+        assert_eq!(document["result"]["observed"]["windowRows"], 2, "{tag}");
     }
     Ok(())
 }
 
-/// A pin that keeps aging until the read's deadline fails with the last
-/// typed reason — never a partial window — and still releases the viewer.
+/// Repeated aged pins keep one total deadline and report the final reason.
 #[test]
-fn terminal_read_history_aging_until_deadline_reports_last_reason() -> TestResult {
-    let base = base_dir("thist-aging");
+fn terminal_read_recent_aging_until_deadline_reports_last_reason() -> TestResult {
+    let base = base_dir("trecent-aging");
     let scope = stage_scope(&base);
-    let cells = [0_u32; 8];
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
-        let mut pin = 1_u64;
+        let cells = [0_u32; 8];
+        let mut pin = 0_u64;
+        let mut acknowledged = false;
         loop {
-            let request = take_poll(stream, &attachment);
-            let record = frame_record(&budget_obtf_scrolled_at(
-                8,
-                &[(0, &cells)],
-                &["s"],
-                3,
-                pin,
-                pin,
-            ));
-            viewer_reply(stream, &request, TerminalViewerOutcome::Record(record));
-            let (request, _, _) = take_wait_read_rows(stream, &attachment, pin, 1, pin);
-            viewer_reply(
-                stream,
-                &request,
-                TerminalViewerOutcome::RowsRejected {
-                    reason: ViewerRowsRejectedReason::StaleRevision,
-                },
-            );
-            // Past the deadline the client releases instead of acknowledging.
-            let request = viewer_request(stream);
-            match request.action() {
-                TerminalViewerAction::FrameApplied { .. } => {
-                    viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {})
-                }
-                TerminalViewerAction::Detach { .. } => {
-                    viewer_reply(stream, &request, TerminalViewerOutcome::Detached {});
+            let request = match read_client_message(&mut &*stream) {
+                Ok(ClientMessage::TerminalViewer(request)) => request,
+                Err(orchbee_client_server_protocol::ReadMessageError::Io(error))
+                    if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
                     break;
                 }
-                action => panic!("peer expected feedback or detach, got {action:?}"),
+                other => panic!("unexpected deadline exchange: {other:?}"),
+            };
+            match request.action() {
+                TerminalViewerAction::Poll { attachment_id, .. } => {
+                    assert_eq!(attachment_id, &attachment);
+                    pin += 1;
+                    acknowledged = false;
+                    let frame = budget_obtf_scrolled_at(8, &[(0, &cells)], &["s"], 3, pin, pin);
+                    viewer_reply(
+                        stream,
+                        &request,
+                        TerminalViewerOutcome::Record(frame_record(&frame)),
+                    );
+                }
+                TerminalViewerAction::FrameApplied {
+                    attachment_id,
+                    sequence,
+                    revision,
+                    generation,
+                } => {
+                    assert_eq!(attachment_id, &attachment);
+                    assert_eq!(sequence.get(), pin);
+                    assert_eq!(*revision, pin);
+                    assert_eq!(generation.get(), 1);
+                    assert!(!acknowledged);
+                    acknowledged = true;
+                    viewer_reply(stream, &request, TerminalViewerOutcome::FeedbackAccepted {});
+                }
+                TerminalViewerAction::ReadRows {
+                    attachment_id,
+                    revision,
+                    request_sequence,
+                    ..
+                } => {
+                    assert_eq!(attachment_id, &attachment);
+                    assert!(acknowledged);
+                    assert_eq!(*revision, pin);
+                    assert_eq!(request_sequence.get(), pin);
+                    viewer_reply(
+                        stream,
+                        &request,
+                        TerminalViewerOutcome::RowsRejected {
+                            reason: ViewerRowsRejectedReason::StaleRevision,
+                        },
+                    );
+                }
+                TerminalViewerAction::Detach { attachment_id } => {
+                    assert_eq!(attachment_id, &attachment);
+                    viewer_reply(stream, &request, TerminalViewerOutcome::Detached {});
+                    expect_session_eof(stream);
+                    break;
+                }
+                action => panic!("unexpected deadline action: {action:?}"),
             }
-            pin += 1;
-            std::thread::sleep(std::time::Duration::from_millis(50));
         }
-        expect_session_eof(stream);
+        assert!(pin > 1, "the witness must actually retry an aged pin");
     });
     let output = run(
         &base,
@@ -5045,8 +4878,7 @@ fn terminal_read_history_aging_until_deadline_reports_last_reason() -> TestResul
             "terminal",
             "read",
             TERMINAL_ID,
-            "--history",
-            "--rows",
+            "--lines",
             "1",
             "--format",
             "json",
@@ -5067,7 +4899,7 @@ fn terminal_read_history_aging_until_deadline_reports_last_reason() -> TestResul
 /// state answers are unavailability with the typed reason, and the local
 /// budget overrun is a rejection. No second `ReadRows` is sent for them.
 #[test]
-fn terminal_read_history_rows_rejected_maps_typed_failures() -> TestResult {
+fn terminal_read_recent_rows_rejected_maps_typed_failures() -> TestResult {
     let cases: &[(&str, ViewerRowsRejectedReason, i32, &str, Option<&str>)] = &[
         (
             "exhausted",
@@ -5121,6 +4953,7 @@ fn terminal_read_history_rows_rejected_maps_typed_failures() -> TestResult {
                 &request,
                 TerminalViewerOutcome::Record(record.clone()),
             );
+            take_frame_applied(stream, &attachment);
             let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
             viewer_reply(
                 stream,
@@ -5137,8 +4970,7 @@ fn terminal_read_history_rows_rejected_maps_typed_failures() -> TestResult {
                 "terminal",
                 "read",
                 TERMINAL_ID,
-                "--history",
-                "--rows",
+                "--lines",
                 "3",
                 "--format",
                 "json",
@@ -5188,14 +5020,14 @@ fn terminal_read_history_rows_rejected_maps_typed_failures() -> TestResult {
 /// start row here — is protocol-invalid; the attachment is still released
 /// and the session dropped before the failure envelope is prepared.
 #[test]
-fn terminal_read_history_window_mismatch_is_protocol_invalid() -> TestResult {
+fn terminal_read_recent_window_mismatch_is_protocol_invalid() -> TestResult {
     let base = base_dir("thist-mismatch");
     let scope = stage_scope(&base);
     let cells = [0_u32; 8];
     let frame = budget_obtf_scrolled(8, &[(0, &cells)], &["s"], 5);
     let record = frame_record(&frame);
-    // start_row 0 does not echo the requested start 3.
-    let obrw = obrw_window(0, 7, 8, 1, 1, 1, &[(0x00, "aa"), (0x00, "bb")]);
+    // start_row 0 does not echo the requested recent start 4.
+    let obrw = obrw_window(0, 6, 8, 1, 1, 1, &[(0x00, "aa"), (0x00, "bb")]);
     let answer = history_record(&obrw);
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
@@ -5205,8 +5037,9 @@ fn terminal_read_history_window_mismatch_is_protocol_invalid() -> TestResult {
             &request,
             TerminalViewerOutcome::Record(record.clone()),
         );
+        take_frame_applied(stream, &attachment);
         let (request, start_row, row_count) = take_read_rows(stream, &attachment, 1, 1);
-        assert_eq!(start_row, 3);
+        assert_eq!(start_row, 4);
         assert_eq!(row_count, 2);
         viewer_reply(
             stream,
@@ -5222,8 +5055,7 @@ fn terminal_read_history_window_mismatch_is_protocol_invalid() -> TestResult {
             "terminal",
             "read",
             TERMINAL_ID,
-            "--history",
-            "--rows",
+            "--lines",
             "2",
             "--format",
             "json",
@@ -5241,7 +5073,7 @@ fn terminal_read_history_window_mismatch_is_protocol_invalid() -> TestResult {
 /// budget is rejected as `protocol-invalid` before the row window is
 /// materialized — the byte bound is never relaxed into decode or truncation.
 #[test]
-fn terminal_read_history_oversized_record_is_protocol_invalid() -> TestResult {
+fn terminal_read_recent_oversized_record_is_protocol_invalid() -> TestResult {
     let base = base_dir("thist-oversize");
     let scope = stage_scope(&base);
     let cells = [0_u32; 8];
@@ -5270,6 +5102,7 @@ fn terminal_read_history_oversized_record_is_protocol_invalid() -> TestResult {
             &request,
             TerminalViewerOutcome::Record(record.clone()),
         );
+        take_frame_applied(stream, &attachment);
         let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
         viewer_reply(
             stream,
@@ -5285,8 +5118,7 @@ fn terminal_read_history_oversized_record_is_protocol_invalid() -> TestResult {
             "terminal",
             "read",
             TERMINAL_ID,
-            "--history",
-            "--rows",
+            "--lines",
             "2",
             "--format",
             "json",
@@ -5303,7 +5135,7 @@ fn terminal_read_history_oversized_record_is_protocol_invalid() -> TestResult {
 /// A frame-role or wrong-encoding `record` where the row window belongs is
 /// the same violation — the envelope must be a kind-46 response.
 #[test]
-fn terminal_read_history_frame_record_answer_is_protocol_invalid() -> TestResult {
+fn terminal_read_recent_frame_record_answer_is_protocol_invalid() -> TestResult {
     let base = base_dir("thist-wrongkind");
     let scope = stage_scope(&base);
     let cells = [0_u32; 8];
@@ -5318,6 +5150,7 @@ fn terminal_read_history_frame_record_answer_is_protocol_invalid() -> TestResult
             &request,
             TerminalViewerOutcome::Record(record.clone()),
         );
+        take_frame_applied(stream, &attachment);
         let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
         viewer_reply(
             stream,
@@ -5333,8 +5166,7 @@ fn terminal_read_history_frame_record_answer_is_protocol_invalid() -> TestResult
             "terminal",
             "read",
             TERMINAL_ID,
-            "--history",
-            "--rows",
+            "--lines",
             "2",
             "--format",
             "json",
@@ -5350,7 +5182,7 @@ fn terminal_read_history_frame_record_answer_is_protocol_invalid() -> TestResult
 /// Text format emits one escaped line per row and the localized truncation
 /// marker counts rows the window cap never sent.
 #[test]
-fn terminal_read_history_text_output_marks_omitted_rows() -> TestResult {
+fn terminal_read_recent_text_output_marks_omitted_rows() -> TestResult {
     let base = base_dir("thist-text");
     let scope = stage_scope(&base);
     let cells = [0_u32; 500];
@@ -5361,7 +5193,7 @@ fn terminal_read_history_text_output_marks_omitted_rows() -> TestResult {
         .iter()
         .map(|(flags, text)| (*flags, text.as_str()))
         .collect();
-    let obrw = obrw_window(76, 601, 500, 1, 1, 1, &window_ref);
+    let obrw = obrw_window(77, 601, 500, 1, 1, 1, &window_ref);
     let answer = history_record(&obrw);
     let peer = read_peer(&scope, move |stream| {
         let attachment = attach_with_fixture(stream);
@@ -5371,6 +5203,7 @@ fn terminal_read_history_text_output_marks_omitted_rows() -> TestResult {
             &request,
             TerminalViewerOutcome::Record(record.clone()),
         );
+        take_frame_applied(stream, &attachment);
         let (request, _, _) = take_read_rows(stream, &attachment, 1, 1);
         viewer_reply(
             stream,
@@ -5380,17 +5213,7 @@ fn terminal_read_history_text_output_marks_omitted_rows() -> TestResult {
         answer_detach(stream, &attachment);
         expect_session_eof(stream);
     });
-    let output = run(
-        &base,
-        &[
-            "terminal",
-            "read",
-            TERMINAL_ID,
-            "--history",
-            "--rows",
-            "1000",
-        ],
-    );
+    let output = run(&base, &["terminal", "read", TERMINAL_ID, "--lines", "1000"]);
     peer.join().expect("peer finished");
     assert_eq!(
         output.status.code(),
@@ -5402,7 +5225,7 @@ fn terminal_read_history_text_output_marks_omitted_rows() -> TestResult {
     let lines: Vec<&str> = body.lines().collect();
     assert_eq!(lines.len(), 525, "524 rows plus the marker");
     assert!(lines[..524].iter().all(|line| *line == "x"));
-    assert_eq!(lines[524], "… 76 more rows truncated at the read limit");
+    assert_eq!(lines[524], "… 77 more rows truncated at the read limit");
     Ok(())
 }
 
@@ -5623,7 +5446,7 @@ fn terminal_wait_matches_a_wrap_chain_across_the_window() -> TestResult {
             TERMINAL_ID,
             "--match",
             "cdef",
-            "--rows",
+            "--lines",
             "5",
             "--format",
             "json",
@@ -5748,7 +5571,7 @@ fn terminal_wait_polls_until_the_text_appears() -> TestResult {
             TERMINAL_ID,
             "--match",
             "marker-yes",
-            "--rows",
+            "--lines",
             "10",
             "--format",
             "json",
@@ -6339,11 +6162,11 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
     assert_eq!(output.status.code(), Some(0));
     let listed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(listed["schema"], "orchbee.api.schema");
-    assert_eq!(listed["version"], 145, "catalog envelope is v145");
+    assert_eq!(listed["version"], 153, "catalog envelope is v153");
     assert_eq!(listed["source"]["kind"], "embedded");
     assert!(api_schema.is_valid(&listed), "listing self-validates");
     let schemas = listed["result"]["schemas"].as_object().unwrap();
-    assert_eq!(schemas.len(), 121, "closed dictionary has 121 members");
+    assert_eq!(schemas.len(), 126, "closed dictionary has 126 members");
     assert!(
         schemas.contains_key("orchbee.project.rename"),
         "the rename receipt schema is registered"
@@ -6455,7 +6278,7 @@ fn api_schema_catalog_is_closed_and_self_consistent() -> TestResult {
         "embedded schema retrieval is locale-neutral"
     );
     let named: serde_json::Value = serde_json::from_slice(&english.stdout)?;
-    assert_eq!(named["version"], 145);
+    assert_eq!(named["version"], 153);
     assert_eq!(
         named["result"]["schema"]["schemaId"],
         "orchbee.project.rename"

@@ -982,14 +982,7 @@ fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
 
     let moved = run(
         &base,
-        &[
-            "tab",
-            "move",
-            "logs",
-            "--direction",
-            "last",
-            "--format=json",
-        ],
+        &["tab", "move", "logs", "--order", "last", "--format=json"],
     );
     assert_eq!(moved.status.code(), Some(0));
     let document = envelope(&moved);
@@ -1190,7 +1183,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
             "--target-panel",
             RIGHT_PANEL,
             "--direction",
-            "below",
+            "down",
             "--format=json",
         ],
     );
@@ -1198,7 +1191,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     let document = envelope(&moved);
     assert_eq!(document["result"]["action"], "panel.move");
     assert_eq!(document["result"]["outcome"], "committed");
-    assert_eq!(document["result"]["direction"], "below");
+    assert_eq!(document["result"]["direction"], "down");
     assert_eq!(document["result"]["panelId"], LEFT_PANEL);
     assert_eq!(document["result"]["targetPanelId"], RIGHT_PANEL);
     peer.join().expect("peer finished");
@@ -1237,7 +1230,7 @@ fn tab_and_panel_move_report_unchanged() -> TestResult {
 
     let tab_moved = run(
         &base,
-        &["tab", "move", "ops", "--direction", "next", "--format=json"],
+        &["tab", "move", "ops", "--order", "next", "--format=json"],
     );
     assert_eq!(tab_moved.status.code(), Some(0));
     let document = envelope(&tab_moved);
@@ -1257,7 +1250,7 @@ fn tab_and_panel_move_report_unchanged() -> TestResult {
             "--target-panel",
             RIGHT_PANEL,
             "--direction",
-            "above",
+            "up",
             "--format=json",
         ],
     );
@@ -1266,7 +1259,7 @@ fn tab_and_panel_move_report_unchanged() -> TestResult {
     assert_eq!(document["result"]["action"], "panel.move");
     assert_eq!(document["result"]["outcome"], "unchanged");
     assert_eq!(document["result"]["revision"], "7");
-    assert_eq!(document["result"]["direction"], "above");
+    assert_eq!(document["result"]["direction"], "up");
     peer.join().expect("peer finished");
     Ok(())
 }
@@ -1931,7 +1924,7 @@ fn malformed_and_miscorrelated_responses_are_outcome_unknown() -> TestResult {
     });
     let output = run(
         &base,
-        &["tab", "move", "ops", "--direction", "next", "--format=json"],
+        &["tab", "move", "ops", "--order", "next", "--format=json"],
     );
     malformed_peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(8));
@@ -1947,7 +1940,7 @@ fn malformed_and_miscorrelated_responses_are_outcome_unknown() -> TestResult {
     });
     let output = run(
         &base,
-        &["tab", "move", "ops", "--direction", "next", "--format=json"],
+        &["tab", "move", "ops", "--order", "next", "--format=json"],
     );
     mismatch_peer.join().expect("peer finished");
     assert_eq!(output.status.code(), Some(8));

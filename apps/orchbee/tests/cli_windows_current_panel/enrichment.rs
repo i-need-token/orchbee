@@ -110,7 +110,7 @@ fn enriched_current_schema_requires_complete_facts_and_keeps_legacy_v3_closed() 
         read(&mut stream, 6, None, "stable");
         assert_closed(&mut stream);
     });
-    let output = fixture.run(&["panel", "current", "--panel", &id(6), "--format=json"]);
+    let output = fixture.run(&["panel", "current", &id(6), "--format=json"]);
     server.join().unwrap();
     assert!(output.status.success(), "{output:?}");
     let doc = document(&output);

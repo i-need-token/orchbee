@@ -277,7 +277,7 @@ fn wait_output_joins_a_utf8_soft_wrapped_logical_line() -> TestResult {
         "terminal read for geometry: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let columns = read["result"]["frame"]["geometry"]["columns"]
+    let columns = read["result"]["observed"]["columns"]
         .as_u64()
         .expect("frame geometry columns") as usize;
     let checkpoint = client.checkpoint();

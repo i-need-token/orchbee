@@ -324,13 +324,13 @@ fn project_workspace_tab_chain_binds_a_real_terminal() -> TestResult {
         tab_id.as_str()
     );
     assert!(
-        !read["result"]["content"]["rows"]
-            .as_array()
+        !read["result"]["content"]["text"]
+            .as_str()
             .expect("rows")
             .is_empty(),
         "a live bound terminal emits grid rows"
     );
-    validate(&validators, "orchbee.terminal.read", &output);
+    validate(&validators, "orchbee.terminal.output", &output);
 
     client.close_before(Instant::now() + EXIT_TIMEOUT);
     Ok(())

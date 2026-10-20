@@ -72,11 +72,11 @@ fn bind_terminal(fixture: &Fixture, tab_id: &str) -> (String, String, String) {
 }
 
 fn frame_rows(document: &serde_json::Value) -> Vec<String> {
-    document["result"]["content"]["rows"]
-        .as_array()
-        .expect("frame rows")
-        .iter()
-        .map(|row| row["text"].as_str().expect("frame row text").to_owned())
+    document["result"]["content"]["text"]
+        .as_str()
+        .expect("source text")
+        .lines()
+        .map(str::to_owned)
         .collect()
 }
 
@@ -433,7 +433,7 @@ fn cli_workflow_create_send_wait_read_close_completes_without_tui() -> TestResul
                 String::from_utf8_lossy(&output.stderr)
             );
         }
-        validate(&validators, "orchbee.terminal.read", &output);
+        validate(&validators, "orchbee.terminal.output", &output);
         let rows = frame_rows(&frame);
         assert_eq!(
             rows.iter().filter(|row| row.contains(own)).count(),

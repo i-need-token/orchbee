@@ -94,7 +94,7 @@ impl Fixture {
                 .map(|error| error.to_string())
                 .collect::<Vec<_>>()
         );
-        assert_eq!(document["version"], 4);
+        assert_eq!(document["version"], 6);
         assert_eq!(
             document["result"]["endpoint"]["socket"]["reason"],
             "windows-endpoint-not-inspected"

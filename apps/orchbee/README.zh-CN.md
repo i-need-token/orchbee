@@ -839,26 +839,25 @@ Windows 进程测试在 Git for Windows Bash 中执行输出的补全，通过 `
 
 ## Windows Panel 布局查询
 
-`panel layout`、`panel neighbor --direction left|right|up|down` 和 `panel edges` 检查精确的 Windows TUI Client。它们接受位置参数 Panel、`--panel` 或 `--current`，路由有歧义时使用 `--client`。读取保持焦点和终端尺寸，支持非活动或未访问目标。`orchbee.panel.layout` v1 保留单元格几何、可为 null 的隐藏矩形、未缩放邻居、物理边缘结果及操作回执。参见[几何契约](docs/windows-client-layout.zh-CN.md)。目录 v68 包含 76 份文档；原生命令清单包含 88 条路径。
+`panel layout <panel>` 未带 `--client` 时无需 TUI 即可读取规范结构；带 `--client` 时读取该 Client 的单元格几何。`panel neighbor --direction left|right|up|down` 和 `panel edges` 也依赖 Client 几何。Panel 命令接受位置参数 Panel 或 `--current`，拒绝旧 `--panel` 别名。读取保持焦点和终端尺寸，支持非活动或未访问目标。结构与渲染回执见[几何契约](docs/windows-client-layout.zh-CN.md)。
 
 `panel focus [source] --direction left|right|up|down` 在指定 TUI 的未缩放单元格布局中查找一个邻居，保留缩放；无邻居返回 `direction-unchanged`，不切换到来源 Tab。找到邻居后固定目标，仅在绘制成功后返回 `direction-focused`。回执查询不重复移动。
 
-`panel resize [panel] --direction left|right|up|down [--amount <number>]` 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。两者都路由到一个 Windows TUI，并保留 `layout-adjusted` 回执。当前标签页的变化等待绘制，非活动标签页只保存、不导航。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。Server 将比例提交到共享 Workbench 状态及 checkpoint v6；所有 Client 按各自视口尺寸投影。Client 焦点、zoom 与控制权仍独立。参见[布局契约](docs/windows-client-layout.zh-CN.md)。
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` 通过 Windows TUI 调整一个符合条件的分割边界，保留焦点和缩放。`layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` 设置精确二进制分割路径。显式目标未带 `--client` 时直接提交共享比例；经 Client 路由的调整保留 `layout-adjusted` 回执，目标被选中时等待绘制。有限比例限制为 0.1–0.9；有限 resize 数量转为绝对值且最多 0.5，默认 0.05。Server 拥有共享比例，Client 按各自视口尺寸投影并保留本地焦点、缩放与控制权。参见[布局契约](docs/windows-client-layout.zh-CN.md)。
 
 ## 共享窗格标题
 
 `panel rename <panel-id> --label <text>` 设置共享主 Presentation 的自定义标题；`--clear`（或空白文本）恢复创建时的标签。接受精确 ID 或 `@panel:<suffix>`，不改变焦点或终端。[窗格标题契约](docs/native-panel-labels.zh-CN.md) 负责规范化、修订与重放规则以及匹配 cohort 的兼容边界。`orchbee.panel.rename` v1 区分 `renamed` 与 `unchanged`，可空 `customLabel` 回显规范化后的请求元数据。`panel get` 与 `panel current` v3 提供不变的 `label`、可空 `customLabel` 及实际显示的 `displayLabel`。`api snapshot` v4 保留规范的可选自定义标题。目录 v68 包含 76 份 schema，原生命令清单包含 88 条路径。
 
-Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。Windows CLI 通过原 Client 单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](docs/native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。
+Panel swap 使用共享结构 placement 权威，在同一 Tab 中原子交换完整叶子，保留 Split／slot 及终端身份。显式 Panel 未带 `--client` 时走规范结构流程，不改变焦点。经 Client 路由的交换单独确认源聚焦；后续失败或聚焦未知不抹去已知 canonical 提交。[原生 Panel 交换](docs/native-panel-swap.zh-CN.md) 拥有工作流程、回执及证据。
 
-Windows `tab create` 和 `panel split` 在创建前解析 `--cwd follow|home|current|workspace|<absolute-path>`；默认 follow 采样已解析来源的根进程目录，v3 回执记录实际目录来源／路径。它们接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带共享 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` v3 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](docs/native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
+Windows `tab create` 和 `panel split` 在创建前解析 `--cwd follow|home|current|workspace|<absolute-path>`；默认 follow 采样已解析来源的根进程目录，回执记录实际目录来源／路径。它们接受可选目标及标签，默认不聚焦；`--focus` 请求创建后聚焦，分屏可带共享 `--ratio`。显式目标无需 TUI 即可创建。`orchbee.creation.result` 分别报告已提交创建与后续比例／焦点结果；后续失败不能当作未创建而重试。参见[原生终端创建](docs/native-terminal-creation.zh-CN.md)，其目标、总预算、并发保护和恢复规则为这些 Windows 命令的权威。
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](docs/native-panel-input.zh-CN.md)。Client 的[动作菜单](docs/native-action-menus.zh-CN.md)在面板内容区沿用此策略。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v68 含 76 个 schema，原生命令清单含 88 条路径。
+Windows `panel input (<panel>|--current) --right-click orchbee|panel` 设置共享右键策略，不移动焦点。`--current` 要求有效调用者元数据，显式目标绕过它。`panel split --right-click` 随创建提交新 Panel 策略。默认 `orchbee` 将右键保留给 Client；`panel` 允许无修饰键的右键在启用鼠标上报的终端内容内透传。已准入的手势在策略改变后仍保留匹配的松开事件。路由、排队输入复核及失败恢复见[Panel 输入契约](docs/native-panel-input.zh-CN.md)。Client 的[动作菜单](docs/native-action-menus.zh-CN.md)在面板内容区沿用此策略。`orchbee.panel.input` v1 返回 `configured` 或 `unchanged`；`panel list` v2 与 `panel get/current` v3 提供 `rightClick`，`tab get` v2 和 `api snapshot` v4 接受可选规范字段。目录 v68 含 76 个 schema，原生命令清单含 88 条路径。
 
 Windows `tab move <target> --insert-index N` 按原顺序的零基插入边界移动完整 Tab；0 为首位，
-Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它与 `--direction` 互斥，不改变焦点或终端。
-成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。目录 v68/76，
-原方向封装不变。
+Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它与 `--order` 互斥，不改变焦点或终端。
+成功使用 `orchbee.tab.move` v1，运行时失败使用 `orchbee.cli.failure.tab-move` v1。
 
 ## 自动 Tab 命名
 
@@ -866,26 +865,26 @@ Tab 总数为末尾，源边界及其后一边界无变化，越界拒绝。它�
 
 ## 按来源读取终端输出
 
-Windows `terminal read` 和 `agent read` 接受 `--source visible|recent|recent-unwrapped|detection`。
+Linux 与 Windows 的 `terminal read` 和 `agent read` 接受
+`--source visible|recent|recent-unwrapped|detection`，默认读取 recent 输出。
 recent 合并保留历史与实时屏幕；detection 读取最近的一个屏幕高度范围。
-`--plain` 为管道直接导出文本，默认 recent，与 JSON 互斥。来源模式
-`--lines` 允许零，钳制到 1000，recent 默认 80。它与既有 history/rows/unwrap
-参数互斥，既有行为保持不变。[输出契约](docs/native-terminal-output.zh-CN.md)
-拥有选择、精确样本验证及 `orchbee.terminal.output` v1；目录 v68 共 76 个 schema。
+`--lines` 允许零，钳制到 1000，recent 默认 80。拒绝已移除的
+`--history`、`--rows` 和 `--unwrap` 参数。`--plain` 直接导出 UTF-8，与 JSON 互斥。
+[输出契约](docs/native-terminal-output.zh-CN.md) 拥有选择、精确样本验证及
+`orchbee.terminal.output` v3，包括可为 null 的输出游标。
 
-Windows `terminal wait-output` 接受相同的 `--source` 和 `--lines` 选择，也可用 `--forever`
-明确取消总等待时限。任一参数都会启用来源模式（默认 recent），与 `--rows` 互斥，
-并输出 `orchbee.terminal.wait-output` v3。不带 `--forever` 时默认仍为 30000 ms；
-`--forever` 与 `--timeout` 互斥，保留每次 I/O 的五秒上限并支持 Ctrl+C。
-recent 等待合并软换行；visible/detection 按物理行匹配。既有调用保留 v1/v2 输出。
-现有输出也能满足等待，匹配成功不代表命令执行完成。
+`terminal wait-output` 使用相同的来源与行数限制，默认总超时为 30000 ms。
+`--forever` 显式取消总时限，与 `--timeout` 互斥，保留每次 I/O 的五秒上限及 Ctrl+C 取消。
+recent 等待合并软换行；visible/detection 按物理行匹配。普通等待输出 v3，可匹配已有输出。
+`--after <cursor|now>` 输出 v4，仅匹配已验证边界之后的行。匹配成功不证明命令完成；
+受管理 Shell 的命令完成由 `terminal run --wait` 观察。
 
-Windows `terminal read` 与 `agent read --ansi` 导出带样式快照，默认读取 recent 输出。
-`--format json` 使用 `orchbee.terminal.output` v2，并带 `result.encoding: "ansi"`；文本/plain
-读取保持 v1。ANSI 与 `--plain` 及旧 history/rows/unwrap 参数互斥。它保留带样式空格和
-Unicode，只生成 SGR；`recent-unwrapped` 拼接已验证的软换行。detection 仍是纯文本。
-它不重现原始 PTY 字节、超链接或图形。渲染请求与预备输出各自保持既有 8 MiB 上限；
-渲染资源超限直接失败，不回退、不重试。参见[输出契约](docs/native-terminal-output.zh-CN.md)。
+`terminal read` 与 `agent read --ansi` 导出带样式快照。JSON 使用
+`orchbee.terminal.output` v4，并带 `result.encoding: "ansi"`；纯文本读取使用 v3。
+ANSI 与 `--plain` 互斥，保留带样式空格与 Unicode，只生成 SGR，
+并在 `recent-unwrapped` 下拼接已验证的软换行。detection 仍为纯文本。
+不重现原始 PTY 字节、超链接或图形。渲染请求与预备输出各自保留 8 MiB 上限。
+参见[输出契约](docs/native-terminal-output.zh-CN.md)。
 
 Windows `status server` 在 Client Session 准入前读取实际 Server 构建／协议／cohort 元数据；`status client` 离线检查当前程序。两者支持 `--format text|json`，不激活 Session。裸 `status` 仍查询 Workbench。[运行时状态契约](docs/native-runtime-status.zh-CN.md) 拥有五秒时限、未知元数据、兼容性、schema 和失败语义。发布偏好与安装由显式 Windows 更新命令拥有。
 
@@ -897,7 +896,7 @@ Windows 宿主焦点上报由[原生 Client 提示状态](docs/native-client-att
 
 Windows `agent changes [--cursor <c>] [--limit <n>]` 返回有界 canonical 变更页或当前头部检查点。默认 limit 为 50（1–100），后续复用返回的 cursor。`reset-required` 与 `cursor-invalid` 要求显式重建基线。参见[查询契约](docs/native-cli-query.zh-CN.md#windows-agent-变更页)。Catalog v68 提供 `orchbee.agent.changes` v1，共 76 个 schema、88 条命令路径。
 
-Windows 支持通过 `agent integration enable --provider cursor`、`agent integration enable --provider qodercli` 或 `agent integration enable --provider antigravity-cli` 管理 Cursor、Qoder 和 Antigravity 会话身份 Hook，保留既有 Hook 和其他配置值。
+Windows 支持通过 `agent integration enable --provider cursor`、`agent integration enable --provider qodercli` 或 `agent integration enable --provider antigravity` 管理 Cursor、Qoder 和 Antigravity 会话身份 Hook，保留既有 Hook 和其他配置值。
 
 Windows `agent integration enable --provider mastracode` 安装会话、运行、工具、权限及子 Agent 观察，可修复不完整的自有 Hook 集合。
 

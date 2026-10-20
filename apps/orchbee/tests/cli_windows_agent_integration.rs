@@ -839,7 +839,7 @@ fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     let original = r#"{"user":{"enabled":false,"future":123456789012345678901234567890,"PreInvocation":[{"command":"echo user"}]}}"#;
     fs::write(&target, original).unwrap();
-    let id = "antigravity-cli";
+    let id = "antigravity";
     assert_eq!(
         fixture.provider_document("explain", id, 0)["result"]["state"],
         "not-installed"
@@ -849,7 +849,7 @@ fn antigravity_named_hooks_preserve_foreign_blocks_and_execute_on_windows() {
     assert!(installed.contains("123456789012345678901234567890"));
     fixture.provider_document("enable", id, 0);
     assert_eq!(fs::read_to_string(&target).unwrap(), installed);
-    exercise_installed_json_hooks(id, &target);
+    exercise_installed_json_hooks("antigravity-cli", &target);
     let disabled = installed.replace("\"enabled\":true", "\"enabled\":false");
     assert_ne!(disabled, installed);
     fs::write(&target, &disabled).unwrap();
@@ -2043,7 +2043,7 @@ fn outdated_filter_preserves_unknown_and_blocked_inspections_without_effects() {
             jsonschema::validator_for(&schema).unwrap().is_valid(&doc),
             "{doc}"
         );
-        assert_eq!(doc["version"], 4);
+        assert_eq!(doc["version"], 6);
         let result = &doc["result"];
         assert_eq!(result["inspectedCount"], 1);
         assert_eq!(result["outdatedOnly"], true);

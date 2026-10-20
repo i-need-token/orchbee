@@ -290,7 +290,7 @@ fn current_joins_selected_terminal_agent_report_and_metadata_without_rewriting_p
         let terminal = id(406);
         let mut args = vec!["panel", "current", "--format=json"];
         if primary {
-            args.extend(["--panel", &panel]);
+            args.push(&panel);
         }
         let output = fixture.run_with_caller(
             &args,

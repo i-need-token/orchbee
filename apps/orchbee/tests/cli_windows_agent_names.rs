@@ -757,7 +757,7 @@ fn agent_visible_read_returns_a_schema_valid_frame_and_detaches_before_output() 
             &document,
             include_str!("../src/cli/schemas/orchbee.terminal.output.json"),
         );
-        assert_eq!(document["version"], 1);
+        assert_eq!(document["version"], 3);
         assert_eq!(
             document["result"]["terminal"]["terminalId"],
             "33333333333333333333333333333333"

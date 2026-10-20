@@ -55,23 +55,23 @@ fn send(fixture: &Fixture, terminal_id: &str, arguments: &[&str]) -> serde_json:
 }
 
 /// Text records admit exactly the UTF-8 text plus the folded carriage return;
-/// both `recordBytes` and the Host-echoed `acceptedBytes` carry that count.
+/// both `recordBytes` and the Host-echoed `acceptedEncodedBytes` carry that count.
 fn assert_text_bytes(receipt: &serde_json::Value, text: &str, enter: bool) {
     let result = &receipt["result"];
     let expected = (text.len() + usize::from(enter)) as u64;
     assert_eq!(result["payloadKind"], "text", "{receipt}");
     assert_eq!(result["recordBytes"], expected, "{receipt}");
-    assert_eq!(result["acceptedBytes"], expected, "{receipt}");
+    assert_eq!(result["acceptedEncodedBytes"], expected, "{receipt}");
 }
 
-/// Key records echo the semantic key name; `acceptedBytes` is the Host-encoded
+/// A single key record is confirmed by its count; `acceptedEncodedBytes` is the Host-encoded
 /// count, which may legitimately be zero for a mode-ignored key.
-fn assert_key_bytes(receipt: &serde_json::Value, key: &str) {
+fn assert_key_bytes(receipt: &serde_json::Value) {
     let result = &receipt["result"];
     assert_eq!(result["payloadKind"], "key", "{receipt}");
-    assert_eq!(result["key"], key, "{receipt}");
+    assert_eq!(result["records"], 1, "{receipt}");
     assert!(
-        result["acceptedBytes"].as_u64().is_some(),
+        result["acceptedEncodedBytes"].as_u64().is_some(),
         "accepted sends must echo a bounded byte count: {receipt}"
     );
 }
@@ -151,13 +151,10 @@ fn read_rows(fixture: &Fixture, terminal_id: &str) -> String {
         "terminal read {terminal_id}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    document["result"]["content"]["rows"]
-        .as_array()
-        .expect("read rows")
-        .iter()
-        .filter_map(|row| row["text"].as_str())
-        .collect::<Vec<_>>()
-        .join("\n")
+    document["result"]["content"]["text"]
+        .as_str()
+        .expect("source text")
+        .to_owned()
 }
 
 /// One shell line that both prints a visible token and produces a proof file:
@@ -361,7 +358,7 @@ fn text_without_enter_stages_then_one_semantic_enter_executes() -> TestResult {
     );
 
     let receipt = send(&fixture, &terminal, &["--key", "enter"]);
-    assert_key_bytes(&receipt, "enter");
+    assert_key_bytes(&receipt);
     assert_eq!(
         wait_file(
             &fixture.base.join("staged-proof"),
@@ -375,7 +372,7 @@ fn text_without_enter_stages_then_one_semantic_enter_executes() -> TestResult {
     Ok(())
 }
 
-/// `ctrl-c` interrupts only the target terminal's fixture-owned foreground
+/// `ctrl+c` interrupts only the target terminal's fixture-owned foreground
 /// command: the other terminal and the target's original shell both continue.
 #[test]
 fn ctrl_c_interrupts_only_the_target_terminal_foreground() -> TestResult {
@@ -460,9 +457,9 @@ fn ctrl_c_interrupts_only_the_target_terminal_foreground() -> TestResult {
         "peer-alive"
     );
 
-    // One ctrl-c through the public send path interrupts the foreground child.
-    let receipt = send(&fixture, &terminal_a, &["--key", "ctrl-c"]);
-    assert_key_bytes(&receipt, "ctrl-c");
+    // One ctrl+c through the public send path interrupts the foreground child.
+    let receipt = send(&fixture, &terminal_a, &["--key", "ctrl+c"]);
+    assert_key_bytes(&receipt);
     let deadline = Instant::now() + OBSERVATION_TIMEOUT;
     loop {
         poll(&mut descriptor, PollTimeout::ZERO)?;

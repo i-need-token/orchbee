@@ -1193,7 +1193,7 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
     ),
     ("orchbee agent names --p", "--provider", false),
     ("orchbee panel ", "process-info", true),
-    ("orchbee panel process-info --p", "--panel", true),
+    ("orchbee panel process-info --p", "--panel", false),
     ("orchbee panel process-info --current --p", "--panel", false),
     (
         "orchbee panel process-info '@panel:222' --c",
@@ -1293,7 +1293,7 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
         false,
     ),
     ("orchbee agent resolve a --n", "--name", false),
-    ("orchbee panel current --p", "--panel", true),
+    ("orchbee panel current --p", "--panel", false),
     ("orchbee panel current -- ", "--panel", false),
     (
         "orchbee panel current --panel=@panel:ab --c",

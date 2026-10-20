@@ -244,15 +244,15 @@ fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> 
         String::from_utf8_lossy(&ninth.stderr)
     );
     assert_eq!(read["result"]["terminal"]["terminalId"], terminal_id);
-    assert_eq!(read["result"]["content"]["truncated"], false);
+    assert_eq!(read["result"]["observed"]["capacityOmittedRows"], "0");
     assert!(
-        !read["result"]["content"]["rows"]
-            .as_array()
+        !read["result"]["content"]["text"]
+            .as_str()
             .expect("read rows")
             .is_empty(),
         "a live terminal emits grid rows"
     );
-    validate(&validators(&fixture), "orchbee.terminal.read", &ninth);
+    validate(&validators(&fixture), "orchbee.terminal.output", &ninth);
 
     // The admitted read damages nothing: fresh output in each of the eight
     // views and the first Client's input still reaches each distinct shell.
@@ -331,8 +331,8 @@ fn two_clients_four_panes_leave_cli_read_capacity_then_release_admits_read() -> 
     };
     assert_eq!(read["result"]["terminal"]["terminalId"], terminal_id);
     assert!(
-        !read["result"]["content"]["rows"]
-            .as_array()
+        !read["result"]["content"]["text"]
+            .as_str()
             .expect("read rows")
             .is_empty(),
         "a live terminal emits grid rows"

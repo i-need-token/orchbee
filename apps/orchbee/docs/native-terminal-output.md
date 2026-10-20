@@ -61,8 +61,8 @@ fails before stdout. Read cleanup and platform admission retain the existing que
 Human text preserves printable backslashes, quotes, and Unicode, while escaping terminal controls
 and bidirectional formatting. Read markers remain localized. JSON uses `orchbee.terminal.output` v3 with canonical
 snapshot provenance, terminal identity, source selection, revision/generation, physical range,
-capacity truncation, fragment edges and text. The catalog is v51 with 72 documents; no protocol
-shape or command path is added. `--plain` emits exactly the JSON text member's UTF-8 bytes, under
+capacity truncation, fragment edges and text. The offline `api schema` catalog publishes current
+and historical receipt schemas. `--plain` emits exactly the JSON text member's UTF-8 bytes, under
 the same preparation cap; failures leave text stdout empty. It is an explicit data export under
 the [CLI output standard](../../../docs/cli/output.md), not ordinary human text rendering.
 
@@ -98,7 +98,7 @@ matches; zero-line infinite waits therefore end only on cancellation or a runtim
 Existing output can satisfy a wait immediately: success never proves a new command or completion.
 
 Source mode emits `orchbee.terminal.wait-output` v3. Its required `selection` contains source and
-optional line limit; observed `timeoutMs` is null when the total deadline is omitted or `--forever`
+optional line limit; observed `timeoutMs` defaults to 30000 and is null only when `--forever`
 is explicit. `requestedRows` is the physical source budget before capacity/retained clamps: screen
 height for visible/detection, or the explicit/default recent limit. `windowTruncated` reports capacity loss only. Completed
 observations count validated samples that finished a match pass, including visible-frame samples.
@@ -112,7 +112,7 @@ source and lifetime rules. This workflow uses implementation tests.
 
 ## ANSI snapshot export
 
-Windows `terminal read` and `agent read` accept `--ansi` as a styled data export. It defaults to
+Linux/Windows `terminal read` and `agent read` accept `--ansi` as a styled data export. It defaults to
 `recent`, accepts the four source selectors and source-mode line limits, and excludes `--plain`,
 `--history`, `--rows` and `--unwrap`. Use `recent-unwrapped` to join soft wraps. Grammar is resolved
 before runtime admission. `--format json` remains available; otherwise stdout contains the prepared
@@ -145,7 +145,7 @@ not original PTY bytes. The inert Herdr raw switch is not added.
 ## Render observation boundary
 
 The lifecycle remains `admit → snapshot → resolve → attach → frame → rows → detach → project → emit`.
-Source selection, Agent resolution, exact pins, acknowledgements, one-shot stale refusal, the
+Source selection, Agent resolution, exact pins, acknowledgements, bounded stale-pin retry, the
 existing read deadline and cleanup remain unchanged. Reading styles never claims a controller,
 resizes a terminal, sends input or changes Client focus.
 
@@ -167,14 +167,14 @@ The read payload limit remains 8 MiB. A render window can exceed it because of g
 text would fit. Report that bounded failure; never silently change detail, discard payload bytes,
 increase the budget or retry a different request. Old binaries reject the new detail/tag. Deploy or
 roll back the matching Client/Server/Worker/Host development cohort together; no durable state or
-migration is added. Windows owns the new command runtime; shared wire/codecs remain platform-neutral.
+migration is added. Linux and Windows share the command runtime and wire/codecs.
 
 | Observation                                                | Required outcome                                                           |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Visible or zero selection                                  | Use the applied frame or empty selection; no render-row request.           |
 | Recent styled selection                                    | One exact render request after frame acknowledgement.                      |
 | Wrong detail, pin, extent or malformed projection/graphics | Fail before stdout; release the read-only viewer.                          |
-| Stale pin or history eviction                              | One-shot typed failure; no replay or sample splicing.                      |
+| Stale pin or history eviction                              | Retry a fresh pin within the original deadline; never splice samples.      |
 | Valid styled blanks or wide characters                     | Preserve styling and grapheme order under physical limits and wrap policy. |
 | Oversized prepared output or render payload                | Bounded failure before output; no truncation disguised as success.         |
 

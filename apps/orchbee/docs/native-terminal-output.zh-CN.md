@@ -59,7 +59,7 @@ Agent 解析在同一会话的附着前完成。可见或空选择无需行请�
 人类可读文本保留可打印的反斜杠、引号和 Unicode，同时转义终端控制字符和双向格式字符。
 读取标记保持本地化。JSON 使用 `orchbee.terminal.output` v3，包含规范
 快照来源、终端身份、来源选择、修订/代次、物理范围、
-容量截断、片段边缘和文本。目录为 v51、72 个文档；不增加协议形状或命令路径。
+容量截断、片段边缘和文本。离线 `api schema` 目录发布当前及历史回执的 schema。
 `--plain` 在相同准备上限内原样输出 JSON 文本成员的 UTF-8 字节；
 文本模式失败保持 stdout 为空。它是
 [CLI 输出标准](../../../docs/zh-CN/cli/output.md) 下明确的数据导出，不是普通人类文本展示。
@@ -93,7 +93,7 @@ detection 在与读取相同的空白行移除及尾部选择后匹配物理行�
 已有输出可以立即满足等待；成功从不证明新命令或命令完成。
 
 来源模式输出 `orchbee.terminal.wait-output` v3。必需的 `selection` 包含来源及可选行数限制；
-观察字段 `timeoutMs` 在省略总期限或显式指定 `--forever` 时为 null。
+观察字段 `timeoutMs` 默认为 30000，仅在显式指定 `--forever` 时为 null。
 `requestedRows` 是容量/保留范围钳制前的物理来源预算：visible/detection 为屏幕高度，recent 为显式/默认行数。
 `windowTruncated` 只报告容量损失。已完成观察次数统计完成匹配检查的已验证样本，
 包括可见帧样本。版本 1/2 文档及约束保持不变；离线 `api schema` 目录发布这些版本的封闭 schema。
@@ -105,7 +105,7 @@ detection 在与读取相同的空白行移除及尾部选择后匹配物理行�
 
 ## ANSI 快照导出
 
-Windows `terminal read` 和 `agent read` 接受 `--ansi`，用于导出带样式的数据。默认来源为
+Linux／Windows `terminal read` 和 `agent read` 接受 `--ansi`，用于导出带样式的数据。默认来源为
 `recent`，接受四种来源及来源模式的行数限制，与 `--plain`、`--history`、`--rows` 和
 `--unwrap` 互斥。合并软换行应使用 `recent-unwrapped`。所有参数在运行时准入之前解析。
 仍可使用 `--format json`；否则 stdout 直接写出准备完成的 UTF-8 ANSI 字符串，不带标题。
@@ -132,7 +132,7 @@ CLI 根据规范单元格颜色、样式位、下划线类型及颜色生成 SGR
 ## Render 观察边界
 
 生命周期仍为 `admit → snapshot → resolve → attach → frame → rows → detach → project → emit`。
-来源选择、Agent 解析、精确固定、确认、单次读取的过期拒绝、既有读取时限及清理规则不变。
+来源选择、Agent 解析、精确固定、确认、有界的过期固定重试、既有读取时限及清理规则不变。
 读取样式不申请控制权、不调整终端尺寸、不发送输入，也不改变 Client 焦点。
 
 既有 buffer `ReadRows` 增加可选 `detail`，取 `text` 或 `render`；省略时为 text，保留旧 OBCS
@@ -149,14 +149,14 @@ OBKG 资源快照。投影必须与外层身份、序号、revision、generation
 读取负载上限仍为 8 MiB。即使文本能容纳，render 窗口也可能因图形而超限。应报告有界失败，
 不得静默改变 detail、丢弃负载字节、提高预算或改用另一请求重试。旧二进制拒绝新 detail/tag。
 开发 cohort 的 Client/Server/Worker/Host 必须一起部署或回退；不新增持久状态或迁移。
-新命令运行时由 Windows 承担，共享 wire／codec 保持平台无关。
+Linux 与 Windows 共享命令运行时及 wire／codec。
 
 | 观察                                       | 必须结果                                     |
 | ------------------------------------------ | -------------------------------------------- |
 | Visible 或零行选择                         | 使用已应用帧或空选择；不请求 render 行。     |
 | Recent 带样式选择                          | 帧确认后发起一次精确 render 请求。           |
 | Detail、固定值、范围不符，或投影／图形非法 | 写 stdout 前失败，并释放只读查看器。         |
-| 固定值过期或历史被淘汰                     | 单次读取的类型化失败；不重放，不拼接样本。   |
+| 固定值过期或历史被淘汰                     | 在原期限内重新固定并重试；绝不拼接样本。     |
 | 有效带样式空白或宽字符                     | 在物理行限制及换行规则下保留样式和字素顺序。 |
 | 准备后输出或 render 负载超限               | 输出前有界失败，不将截断伪装成成功。         |
 

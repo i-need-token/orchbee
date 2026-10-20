@@ -277,15 +277,15 @@ fn cli_query_reads_real_state_while_a_tui_keeps_the_site() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(read["result"]["terminal"]["terminalId"], terminal_id);
-    assert_eq!(read["result"]["content"]["truncated"], false);
+    assert_eq!(read["result"]["observed"]["capacityOmittedRows"], "0");
     assert!(
-        !read["result"]["content"]["rows"]
-            .as_array()
+        !read["result"]["content"]["text"]
+            .as_str()
             .expect("rows")
             .is_empty(),
         "a live terminal emits grid rows"
     );
-    validate(&validators, "orchbee.terminal.read", &output);
+    validate(&validators, "orchbee.terminal.output", &output);
 
     // `terminal get` answers the Server's own launch-read join on a live
     // binding: v2 envelope, `terminal-launch-read` source, and the retained

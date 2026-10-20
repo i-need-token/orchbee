@@ -23,7 +23,7 @@ fn copy_empty_search_and_scan_limit_need_no_rows_and_always_release_the_viewer()
             "0:0",
             "--query",
             if empty { "" } else { "x" },
-            "--direction",
+            "--search-direction",
             "forward",
             "--content-revision",
             &revision,
@@ -252,7 +252,7 @@ fn copy_motion_and_search_cli_publish_real_closed_results_without_input_effects(
         if verb == "copy-motion" {
             args.extend(["--motion", "next-word-start"]);
         } else {
-            args.extend(["--query", "x", "--direction", "forward"]);
+            args.extend(["--query", "x", "--search-direction", "forward"]);
             if previous {
                 args.extend(["--previous", "2:2-2:2"]);
             }
@@ -354,7 +354,7 @@ fn copy_search_cli_keeps_one_frame_and_strict_sequences_and_wraps_across_windows
             "0:0",
             "--query",
             "x",
-            "--direction",
+            "--search-direction",
             "forward",
             "--content-revision",
             &revision,
@@ -406,7 +406,7 @@ fn copy_search_cli_refuses_stale_content_and_outside_previous_before_rows_and_re
             "0:0",
             "--query",
             "x",
-            "--direction",
+            "--search-direction",
             "forward",
             "--content-revision",
             &revision,

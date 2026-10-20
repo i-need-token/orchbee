@@ -51,7 +51,7 @@ const WORKSPACE_ID: &str = "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
 /// All-zero typed identities are rejected by every resource.
 const ZERO_ID: &str = "00000000000000000000000000000000";
 
-/// The closed `terminal send --key` vocabulary from CLI-SEND-IMPLEMENT-FINAL.
+/// Representative named and modifier keys in the canonical send grammar.
 const SEND_KEYS: &[&str] = &[
     "enter",
     "escape",
@@ -66,8 +66,8 @@ const SEND_KEYS: &[&str] = &[
     "end",
     "page-up",
     "page-down",
-    "ctrl-c",
-    "ctrl-d",
+    "ctrl+c",
+    "ctrl+d",
 ];
 
 /// A minted, exclusively-created, mode-0700 runtime base with no Site inside:
@@ -332,7 +332,7 @@ fn terminal_send_admitted_forms() -> TestResult {
             "send",
             TERMINAL_ID,
             "--key",
-            "ctrl-c",
+            "ctrl+c",
             "--format",
             "json",
         ],
@@ -461,11 +461,12 @@ fn terminal_send_usage_failures() -> TestResult {
 
 /// CLI-FIRST-FLOW-ACCEPTED admits
 /// `terminal wait-output <terminal-id> (--match <text> | --regex <pattern>)
-/// [--rows <n>] [--timeout <ms>] [--format text|json]` with exactly one
+/// [--lines <n>] [--timeout <ms> | --forever] [--format text|json]` with exactly one
 /// matcher required: `--match` is a non-empty literal of at most 4096 bytes,
 /// `--regex` a non-empty pattern of at most 1024 bytes compiled at parse
-/// under the declared program and DFA budgets; `--rows` 1..=1000
-/// (default 1000); `--timeout` 1..=3600000 (default 30000).
+/// under the declared program and DFA budgets; `--lines` is an unsigned
+/// 32-bit count clamped to 1000 (default 80), including zero; `--timeout`
+/// is 1..=3600000 milliseconds (default 30000), with `--forever` opting out.
 #[test]
 fn terminal_wait_output_admitted_forms() -> TestResult {
     let probe = probe();
@@ -479,7 +480,7 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             TERMINAL_ID,
             "--match",
             "ready",
-            "--rows",
+            "--lines",
             "1",
         ]
         .as_slice(),
@@ -489,7 +490,7 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             TERMINAL_ID,
             "--match",
             "ready",
-            "--rows",
+            "--lines",
             "1000",
         ]
         .as_slice(),
@@ -538,7 +539,7 @@ fn terminal_wait_output_admitted_forms() -> TestResult {
             TERMINAL_ID,
             "--regex",
             "build (ok|FAILED)",
-            "--rows",
+            "--lines",
             "50",
             "--timeout",
             "5000",
@@ -698,7 +699,7 @@ fn terminal_wait_output_usage_failures() -> TestResult {
             "b",
         ]
         .as_slice(),
-        // `--rows` shares the retained-row bound.
+        // The retired `--rows` option is rejected for every spelling.
         [
             "terminal",
             "wait-output",
@@ -788,8 +789,7 @@ fn terminal_wait_output_usage_failures() -> TestResult {
             "99999999999",
         ]
         .as_slice(),
-        // wait-output never admits send's payload flags, read's --history,
-        // or read's presentation flags.
+        // Wait rejects send payload flags and retired read flags.
         [
             "terminal",
             "wait-output",
@@ -806,7 +806,7 @@ fn terminal_wait_output_usage_failures() -> TestResult {
             "--match",
             "x",
             "--lines",
-            "5",
+            "4294967296",
         ]
         .as_slice(),
         [
@@ -907,39 +907,33 @@ fn terminal_wait_output_usage_failures() -> TestResult {
 
 // ---- terminal read ---------------------------------------------------------
 
-/// The read grammar admits
-/// `terminal read <terminal-id> [--history --rows <n>] [--unwrap]
-/// [--lines <n>] [--format text|json]`: `--history` and `--rows` stay a
-/// required pair with `--rows` 1..=1000, and the two presentation options
-/// compose with either source — `--unwrap` joins verified soft-wrap chains
-/// into logical lines, `--lines` keeps the last 1..=65535 emitted entries.
-/// Neither widens the fetched window.
+/// Source and row selection use the same canonical read/wait grammar.
+/// Zero selects an empty sample; large unsigned counts are clamped to 1000.
 #[test]
 fn terminal_read_admitted_forms() -> TestResult {
     let probe = probe();
     for arguments in [
         ["terminal", "read", TERMINAL_ID].as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--unwrap"].as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--lines", "1"].as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--lines", "65535"].as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--unwrap", "--lines", "20"].as_slice(),
-        // The canonical grammar declares `--name value` and `--name=value`
-        // synonymous: the joined form is admitted with the same bound.
-        ["terminal", "read", TERMINAL_ID, "--lines=5"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--source", "visible"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--source", "recent"].as_slice(),
         [
             "terminal",
             "read",
             TERMINAL_ID,
-            "--history",
-            "--rows",
-            "100",
-            "--unwrap",
+            "--source",
+            "recent-unwrapped",
             "--lines",
-            "10",
+            "20",
         ]
         .as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--source=detection"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "0"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "1"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "65535"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "4294967295"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines=5"].as_slice(),
         ["terminal", "read", "--lines", "5", TERMINAL_ID].as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--unwrap", "--"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--source", "recent", "--"].as_slice(),
     ] {
         admitted(&probe, arguments);
     }
@@ -965,8 +959,8 @@ fn terminal_read_usage_failures() -> TestResult {
         // `--lines` is a bounded count, never a bare flag or a duplicate.
         ["terminal", "read", TERMINAL_ID, "--lines"].as_slice(),
         ["terminal", "read", TERMINAL_ID, "--lines", "--"].as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--lines", "0"].as_slice(),
-        ["terminal", "read", TERMINAL_ID, "--lines", "65536"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "-1"].as_slice(),
+        ["terminal", "read", TERMINAL_ID, "--lines", "4294967296"].as_slice(),
         ["terminal", "read", TERMINAL_ID, "--lines", "abc"].as_slice(),
         [
             "terminal",
@@ -979,8 +973,7 @@ fn terminal_read_usage_failures() -> TestResult {
         ]
         .as_slice(),
         ["terminal", "read", TERMINAL_ID, "--unwrap", "--unwrap"].as_slice(),
-        // `--rows` still requires `--history`, and the pair stays bound to
-        // the retained-row limit.
+        // Both old retained-history options are retired, including their pair.
         ["terminal", "read", TERMINAL_ID, "--rows", "5"].as_slice(),
         [
             "terminal",

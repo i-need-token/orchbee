@@ -947,27 +947,26 @@ Windows process tests execute the emitted completion in Git for Windows Bash, fo
 
 ## Windows Panel layout queries
 
-`panel layout`, `panel neighbor --direction left|right|up|down` and `panel edges` inspect an exact Windows TUI Client. They accept a positional Panel, `--panel` or `--current`, and `--client` when routing is ambiguous. Reads preserve focus and terminal sizes, including inactive or unvisited targets. `orchbee.panel.layout` v1 retains cell geometry, nullable hidden rectangles, unzoomed neighbors, physical-edge results and the operation receipt. See the [geometry contract](docs/windows-client-layout.md). Catalog v68 contains 76 documents; the native command inventory contains 88 paths.
+`panel layout <panel>` without `--client` reads canonical structure without a TUI. With `--client`, it reads that Client’s cell geometry; `panel neighbor --direction left|right|up|down` and `panel edges` also require Client geometry. Panel commands accept a positional Panel or `--current`, and reject the former `--panel` alias. Reads preserve focus and terminal sizes, including inactive or unvisited targets. See the [geometry contract](docs/windows-client-layout.md) for structural and rendered receipts.
 
 `panel focus [source] --direction left|right|up|down` finds one neighbor in the selected TUI's unzoomed cell layout and preserves zoom. No neighbor returns `direction-unchanged` without activating the source Tab. A found destination is pinned and returns `direction-focused` only after a successful draw. Receipt reads never repeat the movement.
 
-`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border, preserving focus and zoom. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. Both route to one Windows TUI and retain a `layout-adjusted` receipt. Selected changes wait for a draw; inactive changes store without navigation. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Server commits ratios into shared Workbench state and checkpoint v6; all Clients project them at their own viewport sizes. Client focus, zoom and control remain local. See the [layout contract](docs/windows-client-layout.md).
+`panel resize [panel] --direction left|right|up|down [--amount <number>]` adjusts one eligible split border through a Windows TUI, preserving focus and zoom. `layout set-split-ratio [--tab <tab> | --panel <panel> | --current] --path root|0.1 --ratio <number>` sets an exact binary split path. An explicit target without `--client` commits the shared ratio directly; Client-routed adjustments retain a `layout-adjusted` receipt and wait for a draw when selected. Finite ratios clamp to 0.1–0.9, and finite resize amounts normalize to an absolute magnitude at most 0.5 (default 0.05). Server owns shared ratios; Clients project them at their own viewport sizes and retain local focus, zoom and control. See the [layout contract](docs/windows-client-layout.md).
 
 ## Shared Panel titles
 
 `panel rename <panel-id> --label <text>` sets the shared primary Presentation override; `--clear` (or blank text) restores its creation label. It accepts an exact ID or `@panel:<suffix>`, with no focus or terminal effect. The [Panel label contract](docs/native-panel-labels.md) owns normalization, revision/replay rules and coordinated cohort compatibility. `orchbee.panel.rename` v1 distinguishes `renamed` from `unchanged`; its nullable `customLabel` echoes normalized request metadata. `panel get` and `panel current` v3 expose immutable `label`, nullable `customLabel` and effective `displayLabel`. `api snapshot` v4 preserves the canonical optional override. Catalog v68 contains 76 schemas and the native command inventory contains 88 paths.
 
-Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. The Windows CLI separately acknowledges source focus through the original Client; known canonical commits survive later failure or unknown focus. [Native Panel swap](docs/native-panel-swap.md) owns the workflow, receipt and evidence.
+Panel swap uses the shared structural placement authority for one atomic same-Tab whole-leaf exchange, preserving Split/slot and terminal identities. Explicit Panels without `--client` use the canonical workflow without focus changes. A Client-routed swap separately acknowledges source focus; known canonical commits survive later failure or unknown focus. [Native Panel swap](docs/native-panel-swap.md) owns the workflow, receipt and evidence.
 
-Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their v3 receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a shared `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` v3 separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](docs/native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
+Windows `tab create` and `panel split` resolve `--cwd follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples the resolved source root process. Their receipt records the chosen directory source/path. They accept optional targets and labels, with no focus by default; `--focus` requests post-creation focus, and split accepts a shared `--ratio`. Explicit targets can create without a TUI. `orchbee.creation.result` separates committed creation from later ratio/focus results; a later failure is not permission to repeat creation. [Native terminal creation](docs/native-terminal-creation.md) owns target selection, total budget, concurrency guards and recovery for these Windows commands.
 
-Windows `panel input (<panel>|--panel <panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](docs/native-panel-input.md) for routing, pending-input rechecks and failure recovery. The Client's [action menus](docs/native-action-menus.md) use this policy for pane content. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v68 has 76 schemas and the native inventory has 88 command paths.
+Windows `panel input (<panel>|--current) --right-click orchbee|panel` sets the shared right-button policy without moving focus. `--current` requires validated caller metadata; explicit targets bypass it. `panel split --right-click` commits the new Panel policy with creation. The default `orchbee` reserves right-click to the Client; `panel` permits unmodified right clicks in mouse-reporting terminal content. An admitted gesture retains its matching release after policy changes. See the [Panel input contract](docs/native-panel-input.md) for routing, pending-input rechecks and failure recovery. The Client's [action menus](docs/native-action-menus.md) use this policy for pane content. `orchbee.panel.input` v1 reports `configured` or `unchanged`; `panel list` v2 and `panel get/current` v3 expose `rightClick`. `tab get` v2 and `api snapshot` v4 admit the optional canonical field. Catalog v68 has 76 schemas and the native inventory has 88 command paths.
 
 Windows `tab move <target> --insert-index N` moves a complete Tab to a zero-based boundary in the
 original order: 0 is first, the Tab count is last, source/source+1 are unchanged, and out-of-range
-values are refused. It excludes `--direction` and preserves focus and terminals. Success uses
-`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1. Catalog v68/76 keeps
-the legacy direction envelope unchanged.
+values are refused. It excludes `--order` and preserves focus and terminals. Success uses
+`orchbee.tab.move` v1; runtime failures use `orchbee.cli.failure.tab-move` v1.
 
 ## Automatic Tab naming
 
@@ -975,27 +974,27 @@ The [Tab label contract](docs/native-tab-labels.md) owns optional `automaticLabe
 
 ## Source-selected terminal output
 
-Windows `terminal read` and `agent read` accept `--source visible|recent|recent-unwrapped|detection`.
+Linux and Windows `terminal read` and `agent read` accept
+`--source visible|recent|recent-unwrapped|detection`, defaulting to recent output.
 Recent combines retained history with the live screen; detection reads the recent screen-height
-range. `--plain` exports text directly for pipes, defaults to recent, and excludes JSON. Source-mode
-`--lines` allows zero, clamps to 1000, and defaults to 80 for recent. It excludes the legacy
-history/rows/unwrap flags, whose behavior stays unchanged. The [output contract](docs/native-terminal-output.md)
-owns selection, exact sample validation and `orchbee.terminal.output` v1; catalog v68 has 76 schemas.
+range. `--lines` permits zero, clamps to 1000 and defaults to 80 for recent. The retired
+`--history`, `--rows` and `--unwrap` flags are rejected. `--plain` exports UTF-8 directly and
+excludes JSON. The [output contract](docs/native-terminal-output.md) owns selection, exact sample
+validation and `orchbee.terminal.output` v3, including its nullable output cursor.
 
-Windows `terminal wait-output` accepts the same `--source` and `--lines` selection, or `--forever`
-for an explicit wait without a total ceiling. Any of these chooses source mode (default recent),
-excludes `--rows`, and emits `orchbee.terminal.wait-output` v3. Without `--forever`, the default
-remains 30000 ms; `--forever` conflicts with `--timeout`, retains five-second I/O bounds and supports
-Ctrl+C. Recent waits join soft wraps; visible/detection match physical lines. Old invocations retain
-v1/v2 output. A match can come from existing output and never proves command completion.
+`terminal wait-output` uses the same sources and line limits, with a default total timeout of
+30000 ms. `--forever` explicitly removes that ceiling, conflicts with `--timeout`, and retains
+five-second I/O bounds and Ctrl+C cancellation. Recent waits join soft wraps; visible/detection
+match physical lines. Ordinary waits emit v3 and may match existing output. `--after <cursor|now>`
+emits v4 and restricts matching to rows after a validated boundary. A match does not prove command
+completion; managed-shell completion is observed by `terminal run --wait`.
 
-Windows `terminal read` and `agent read --ansi` export styled snapshots, defaulting to recent output.
-Use `--format json` for `orchbee.terminal.output` v2 with `result.encoding: "ansi"`; text/plain reads
-retain v1. ANSI excludes `--plain` and legacy history/rows/unwrap flags. It preserves styled blanks
-and Unicode, uses only generated SGR, and joins verified soft wraps under `recent-unwrapped`.
-Detection remains plain text. It does not reproduce original PTY bytes, hyperlinks or graphics.
-The render request and prepared output each keep their existing 8 MiB bounds; oversized render
-resources fail without a fallback or retry. See the [output contract](docs/native-terminal-output.md).
+`terminal read` and `agent read --ansi` export styled snapshots. JSON uses
+`orchbee.terminal.output` v4 with `result.encoding: "ansi"`; plain text reads use v3. ANSI excludes
+`--plain`, preserves styled blanks and Unicode, generates only SGR, and joins verified soft wraps
+under `recent-unwrapped`. Detection remains plain text. Original PTY bytes, hyperlinks and graphics
+are not reproduced. Render requests and prepared output each retain the 8 MiB bound. See the
+[output contract](docs/native-terminal-output.md).
 
 Windows `status server` reads actual Server build/protocol/cohort metadata before Client Session admission; `status client` checks this executable offline. Both accept `--format text|json` and never activate a Session. Bare `status` remains a Workbench query. The [runtime status contract](docs/native-runtime-status.md) owns the five-second budget, unknown metadata, compatibility, schemas and failures. Release preference and installation are owned by the explicit Windows update commands.
 
@@ -1007,7 +1006,7 @@ Windows host focus reporting is owned by [native Client attention](docs/native-c
 
 Windows `agent changes [--cursor <c>] [--limit <n>]` returns a bounded canonical change page or current-head checkpoint. The default limit is 50 (1–100); reuse the returned cursor. `reset-required` and `cursor-invalid` require explicit baseline recovery. See the [query contract](docs/native-cli-query.md#windows-agent-change-pages). `orchbee.agent.changes` v1 is available in catalog v68 (76 schemas, 88 command paths).
 
-Cursor, Qoder and Antigravity session identity hooks are managed on Windows with `agent integration enable --provider cursor`, `agent integration enable --provider qodercli` or `agent integration enable --provider antigravity-cli`. Existing hooks and other configuration values are preserved.
+Cursor, Qoder and Antigravity session identity hooks are managed on Windows with `agent integration enable --provider cursor`, `agent integration enable --provider qodercli` or `agent integration enable --provider antigravity`. Existing hooks and other configuration values are preserved.
 
 Windows `agent integration enable --provider mastracode` installs session, run, tool, permission and subagent observations; partial owned hook sets can be repaired.
 
