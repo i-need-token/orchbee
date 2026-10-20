@@ -235,7 +235,7 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
 }
 
 #[test]
-fn human_panel_list_uses_unique_handles_and_the_unified_agent_projection() {
+fn human_panel_list_uses_stable_handles_and_the_unified_agent_projection() {
     for (locale, headers, state) in [
         ("en_US.UTF-8", "HANDLE", "Done"),
         ("zh_CN.UTF-8", "句柄", "完成"),
@@ -292,8 +292,8 @@ fn human_panel_list_uses_unique_handles_and_the_unified_agent_projection() {
         let lines = text.lines().collect::<Vec<_>>();
         assert_eq!(lines.len(), 3, "{text}");
         assert!(lines[0].contains(headers), "{text}");
-        assert!(text.contains("@panel:6"), "{text}");
-        assert!(text.contains("@panel:8"), "{text}");
+        assert!(text.contains("@panel:0x6"), "{text}");
+        assert!(text.contains("@panel:0x8"), "{text}");
         assert!(text.contains("codex"), "{text}");
         assert!(text.contains(state), "{text}");
         assert!(
