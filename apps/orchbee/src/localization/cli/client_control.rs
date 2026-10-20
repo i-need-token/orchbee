@@ -4,23 +4,23 @@ use serde_json::Value;
 
 pub(super) const HELP_AGENT_FOCUS_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
         "Focus the live Agent's unique primary panel in an existing Windows terminal client. Choose exactly one target: a positional name/session/panel, --agent-session, --name or --panel. '@agent:<kind>' selects a unique provider; '@agent:<n>' selects a one-based ordinal in the complete Agent list, not a page. Bare names preserve Server alias precedence before provider matching. Get, read, prompt, send-keys, wait and focus share this resolver; partial projections cannot establish uniqueness. Child-only and ambiguous bindings are refused.\n\n--client selects explicitly; otherwise use the caller or the single current client. --request-id retains an identity for client control-status. Default timeout: 30000 ms; range: 1..3600000. --detach returns after submission without waiting for rendering.\n\nTimeout or Ctrl+C stops waiting without undoing accepted focus. This command does not start an Agent or activate an OS window. Successful visible paint acknowledges this client's observed Agent state unless the window is known to be unfocused.",
     );
 pub(super) const HELP_AGENT_FOCUS_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee agent focus [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
         "在已有 Windows 终端客户端中聚焦存活 Agent 唯一对应的主面板。必须选择一个目标：位置参数名称／会话／面板，或 --agent-session、--name、--panel。'@agent:<kind>' 选择唯一提供方；'@agent:<n>' 选择完整 Agent 列表中的一基序号（不是页内序号）。裸名称仍优先匹配 Server 别名，然后回退到提供方匹配。get、read、prompt、send-keys、wait 和 focus 共用此解析器；部分投影不能证明匹配唯一。拒绝仅有子终端或存在歧义的绑定。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的标识。默认时限 30000 毫秒，范围 1..3600000；--detach 提交后立即返回，不等待绘制。\n\n超时或 Ctrl+C 只停止等待，不撤销已接受的聚焦。不启动 Agent，也不激活操作系统窗口。成功绘制会确认该客户端观察到的 Agent 状态，已知窗口未聚焦时除外。",
     );
 
 pub(super) const HELP_AGENT_ATTENTION_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee agent attention [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee agent attention [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
         "Read one Windows terminal client's seen/unseen observation for an Agent. Choose exactly one target: a positional session/name/panel, --agent-session, --name or --panel.\n\n--client selects explicitly; otherwise use the caller or the single current client. --request-id retains a read receipt for client control-status. --detach returns after submission. Default timeout: 30000 ms; range: 1..3600000.\n\nThis read does not focus a window or mark an Agent seen. Missing and unavailable observations remain distinct; each client keeps its own acknowledgement.",
     );
 pub(super) const HELP_AGENT_ATTENTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
-        "orchbee agent attention [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:suffix>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
+        "orchbee agent attention [<target> | --agent-session <id> | --name <name> | --panel <id|@panel:0x<hex>>] [--client <id>] [--request-id <id>] [--detach] [--timeout <ms>] [--format text|json]",
         "读取一个 Windows 终端客户端对 Agent 的已读／未读观察。必须选择一个目标：位置参数会话／名称／面板，或 --session、--name、--panel。\n\n--client 显式选择客户端，否则使用调用者或唯一当前客户端。--request-id 保留可用于 client control-status 的读取回执；--detach 提交后返回。默认时限 30000 毫秒，范围 1..3600000。\n\n此读取不聚焦窗口，也不将 Agent 标为已读。缺失与不可用的观察仍有区别；每个客户端单独保存确认状态。",
     );
 
@@ -28,10 +28,10 @@ impl Locale {
     pub(super) fn cli_client_selection_failure(self, reason: &str) -> Option<&'static str> {
         Some(match (self, reason) {
             (Self::EnUs, "client-not-found") => {
-                "No current TUI Client matches the selection, so there is no current Panel or Tab to use. Without a TUI, pass an explicit target such as a Panel from `orchbee panel list` (`@panel:<suffix>`).\n"
+                "No current TUI Client matches the selection, so there is no current Panel or Tab to use. Without a TUI, pass an explicit target such as a Panel from `orchbee panel list` (`@panel:0x<hex>`).\n"
             }
             (Self::ZhCn, "client-not-found") => {
-                "没有与选择匹配的当前 TUI 客户端，因此没有可用的当前面板或标签页。没有 TUI 时，请传入显式目标，例如 `orchbee panel list` 中的面板（`@panel:<suffix>`）。\n"
+                "没有与选择匹配的当前 TUI 客户端，因此没有可用的当前面板或标签页。没有 TUI 时，请传入显式目标，例如 `orchbee panel list` 中的面板（`@panel:0x<hex>`）。\n"
             }
             (Self::EnUs, "client-ambiguous") => {
                 "More than one current TUI Client matches the selection. Use `orchbee client list` and pass --client <id>.\n"

@@ -8093,3 +8093,20 @@ fn layout_reads_reject_mutation_and_detached_options() {
         .is_err()
     );
 }
+
+#[test]
+fn stable_compact_selectors_are_exact_nonzero_identities() {
+    for kind in ["project", "workspace", "tab", "panel", "terminal"] {
+        for hex in ["1", "91", "ffffffffffffffffffffffffffffffff"] {
+            let handle = format!("@{kind}:0x{hex}");
+            let target = Target::Selector(handle.clone());
+            assert_eq!(target.text(), handle);
+            assert_eq!(target.selector_identity(), Some(format!("{hex:0>32}")));
+            assert!(parse(&[kind, "get", &handle]).is_ok());
+        }
+        for hex in ["", "0", "01", "A", "g", "fffffffffffffffffffffffffffffffff"] {
+            assert!(parse(&[kind, "get", &format!("@{kind}:0x{hex}")]).is_err());
+        }
+    }
+    assert!(parse(&["panel", "get", "@terminal:0x1"]).is_err());
+}

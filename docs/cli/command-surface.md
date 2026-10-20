@@ -52,27 +52,28 @@ reference is a defect, and so is the reverse.
 
 ## Targets and filters
 
-- A `<target>` operand is parsed first as a complete typed identifier, then as an explicit
-  selector `@<kind>:<suffix>` — `<kind>` one of `project`, `workspace`, `tab`, `panel`,
-  `terminal`, and `<suffix>` one to thirty-one lowercase hexadecimal characters — resolved
-  against the snapshot the command already reads to the one member of that kind whose
-  identifier ends with the suffix. A token that is neither is an exact, case-sensitive label
-  candidate when the resource admits labels. There is no prefix, fuzzy, or case-insensitive
-  matching.
-- An identifier matches by identity only. A selector whose kind does not match the operand's
-  resource, or whose suffix is empty, uppercase, or a full 32-digit identifier, is a usage
-  failure before any runtime access; any other `@` token keeps its label reading — only the
-  five recognized prefixes are selector syntax. A label that itself has identifier or selector
-  shape is reachable only through its real identifier.
-- Zero matches is a not-found refusal. Several matches — exact labels or selector suffixes —
-  is an ambiguous refusal that reports a bounded candidate list and the true total; the
-  command never picks one.
-- A selector names the member whose identifier ends with the suffix in that invocation's
-  snapshot — a momentary handle, never a durable one: after deletion and recreation the same
-  suffix can name a different member, and a command needing stable identity uses the full
-  typed identifier. Selector candidates are the members visible in that snapshot under the
-  command's declared scope; an operand scoped to a context (such as `panel move
---target-panel`) resolves inside that scope only, with no global fallback.
+- A `<target>` accepts a complete typed identifier or a stable compact identity
+  `@<kind>:0x<hex>`. The kind is `project`, `workspace`, `tab`, `panel` or `terminal`;
+  hex contains every significant digit of that nonzero 128-bit ID, lowercase, without leading
+  zeros (1–32 digits). Resolution pads with leading zeros and compares the exact identity.
+  Human lists and candidate diagnostics print this stable form; JSON retains canonical IDs.
+- Legacy `@<kind>:<suffix>` selectors remain accepted, with 1–31 lowercase hexadecimal
+  digits. They search the existing snapshot for a unique trailing match. They are momentary
+  selectors and are never printed as saved handles: removal can make a suffix match another
+  resource. The distinct `0x` marker prevents reinterpretation of previously saved suffixes.
+- Recognized selector kinds must match the operand's resource. Empty, uppercase, malformed,
+  oversized or zero compact identities fail before runtime access. Other `@` tokens keep
+  their label interpretation. Labels are exact and case-sensitive where admitted; no prefix,
+  fuzzy or case-insensitive matching occurs. ID-shaped labels require their real identity.
+- Zero matches is not-found. Multiple label or legacy suffix matches are ambiguous, reporting
+  a bounded candidate list and true total. A command never picks one or falls back to a label.
+- A printed stable handle does not depend on peers, list filtering or display order. Creating
+  or removing other resources cannot change its meaning; deleting its exact identity makes
+  it not-found. Identity lifetime and runtime scope remain those of the underlying ID: use
+  the selected Session, and rediscover runtime terminal IDs after Server restart. Persisted
+  Workbench identities retain their existing non-reuse/high-water contract. Handles add no
+  global alias registry or cross-Session identity guarantee. Every operand still resolves
+  inside its declared scope, with no global fallback.
 - Resources whose labels are not unique by contract accept identifiers and their own selectors
   only.
 - Filters use the same target rules as operands and are declared per command. A filter naming an

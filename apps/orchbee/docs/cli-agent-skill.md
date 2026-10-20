@@ -28,7 +28,7 @@ A missing runtime base is an environment check failure; inspect `config check` b
 
 A Workspace has a directory and may belong to a Project. Project grouping is optional. A Workspace contains Tabs; Tabs contain Panels; a Panel has a primary terminal and may have child terminals. TUI Clients retain their own selection and view.
 
-Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client` or `agent` list/get command. Reuse returned IDs. Where help permits them, labels and selectors such as `@panel:<suffix>` are convenient; ambiguous matches require an exact ID. IDs are scoped to the selected Session.
+Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client` or `agent` list/get command. Reuse returned IDs. Prefer printed stable handles such as `@panel:0x1`: they preserve the exact ID with leading zeros omitted and cannot change when other resources come or go. Quote handles in PowerShell. Legacy suffix selectors still work but are momentary; never save them as identities. IDs and compact handles are scoped to the selected Session and underlying identity lifetime; rediscover runtime terminal IDs after Server restart.
 
 Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or `--panel <id>` for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback.
 

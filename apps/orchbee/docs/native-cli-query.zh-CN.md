@@ -272,10 +272,9 @@ Windows `workspace list/get` 返回 `number`、`tabCount` 和 `panelCount`；
 空上下文的 Tab 和 Panel 数量均为零。Panel 是 Tab 分割树中的一个叶节点；
 子 presentation 和终端绑定都不会增加 Panel 数量。
 
-人类文本中的 `project list`、`workspace list` 与 `tab list` 输出 `HANDLE` 列：在快照中
-该类所有成员间唯一的最短 `@<kind>:<suffix>` 选择器，因此筛选后的列表输出的句柄仍可被
-对应 `get` 解析。没有不超过 31 位的唯一后缀时，句柄为裸完整 ID；列表绝不输出
-后缀为完整 32 位的选择器。`workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
+人类文本中的 `project list`、`workspace list` 与 `tab list` 输出 `HANDLE` 列：精确身份的稳定 `@<kind>:0x<hex>` 形式，仅省略前导零。
+筛选以及其他成员的创建／删除不改变句柄。精确身份被删除后返回 not-found；
+紧凑身份保留所有有效数字，最多 32 位。`workspace list` 使用本地化的 `HANDLE`（句柄）、`NAME`（名称）、
 `PROJECT`（项目）列；`tab list` 使用 `HANDLE`（句柄）、`NAME`（名称）、`PANELS`（面板）、
 `WORKSPACE`（工作区）列。目标歧义时，文本诊断以这些句柄加带引号的标签列出至多八个候选
 及真实总数；JSON 保留标识符形式的 `candidates` 与 `totalCount` 详情。项目和工作区所属列显示规范名称；独立 Tab
@@ -975,7 +974,11 @@ Windows ConPTY 证据单独检查实际交互注册与加载。这证明静态�
 
 ### 目标与过滤器
 
-`<target>` 操作数有三种解析形态。第一种是完整 typed ID（恰好 32 位小写十六进制、非零），
+`<target>` 接受稳定紧凑身份 `@<kind>:0x<hex>`：1–32 位小写十六进制、非零、无前导零，
+补足前导零后作为精确 32 位类型化身份。列表和文本诊断打印该句柄，JSON 回执保留规范 ID。
+补全把它当作不透明操作数接受，不枚举运行时身份。PowerShell 中给句柄加引号，例如
+`panel get '@panel:0x1'`。其作用域和寿命与完整 ID 相同，Server 重启后重新发现运行时终端 ID。
+其他资源变化不会使它改指对象。既有三种输入形态也继续支持。第一种是完整 typed ID（恰好 32 位小写十六进制、非零），
 只按身份匹配。第二种是显式 selector `@<kind>:<suffix>`——`<kind>` 为 `project`、
 `workspace`、`tab`、`panel`、`terminal` 之一，`<suffix>` 为一至三十一个小写十六进制
 字符——在已读快照上解析到该 kind 中标识符以该后缀结尾的唯一成员。已识别 selector
@@ -1004,8 +1007,8 @@ profile ID，再按名称、匹配基数必须恰为一。零匹配应答 `not-f
 读取成功后的解析：零匹配 → `not-found`（3）；多个精确 label 或 selector 后缀匹配 →
 `ambiguous`（3），按 canonical 遍历次序报告至多前 8 个候选 typed ID 与真实 `totalCount`。
 selector 候选是命令本已读取的那份快照中可见的成员——对每个操作数声明的作用域都是完整
-集合，绝不追加抓取——且 selector 是当下句柄而非持久句柄：删除再创建可能让同一后缀落到
-不同成员上，需要稳定身份的命令使用完整 typed ID。命名不存在实体的过滤器是
+集合，绝不追加抓取——且旧后缀是瞬时选择器而非稳定句柄：删除再创建可能让同一后缀落到
+不同成员上，需要稳定身份的命令使用打印的紧凑句柄或完整 typed ID。命名不存在实体的过滤器是
 `not-found`；实体存在但结果为空是成功的空表。
 
 ## 查询状态机与预算
@@ -1568,8 +1571,8 @@ tabId,terminalContextId}}]}`；JSON 行只包含身份，不含 lifecycle、proc
   筛选规则：成员不存在时为未找到，成员存在但没有终端时为空列表。
   Windows 文本输出为对齐的 `HANDLE`、`TITLE`、`AGENT`、`STATE`、`WORKSPACE`、`PANEL`、`CWD` 表格。
   其他平台保留相同身份表格，无法观察的运行时列显示为 `-`。
-  `HANDLE`、`WORKSPACE` 与 `PANEL` 是在此快照中同类所有成员间唯一的最短 `@<kind>:<suffix>`
-  选择器，因此筛选后的行仍可解析；若 ID 的 31 位十六进制后缀仍冲突，则显示完整 ID。
+  `HANDLE`、`WORKSPACE` 与 `PANEL` 使用稳定的 `@<kind>:0x<hex>` 精确身份，
+  筛选和其他成员变化不影响解析，全部有效数字保持可复制。
   独立终端的 `WORKSPACE` 列显示本地化的独立上下文名称。仅文本的补充数据在快照、精确
   Presentation 报告批次和最多 64 次精确绑定的 Host viewer 读取之间共用一个五秒期限与取消
   监视；其余行的补充字段保留为 `-`。`TITLE` 是已清理的 Host 帧标题；若标题只是指向

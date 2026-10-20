@@ -342,10 +342,9 @@ Empty contexts have zero Tabs and Panels. A Panel is one leaf of a Tab's split t
 child presentations and terminal bindings never increase its count.
 
 Human `project list`, `workspace list` and `tab list` print a `HANDLE` column: the
-shortest `@<kind>:<suffix>` selector that is unique among every member of that kind in the
-snapshot, so a filtered list still prints handles its `get` resolves. When no suffix of at
-most 31 digits is unique, the handle is the bare full ID; a list never prints a selector
-with a complete 32-digit suffix. `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT`
+stable `@<kind>:0x<hex>` spelling of the exact identity, omitting only leading zero digits.
+Filtering, creation and deletion of other members never change these handles. Deleted exact
+identities return not-found; compact identities retain every significant digit, up to 32. `workspace list` uses the localized `HANDLE`, `NAME`, and `PROJECT`
 columns; `tab list` uses `HANDLE`, `NAME`, `PANELS`, and `WORKSPACE`. An ambiguous target's
 text diagnostic lists up to eight candidates as these handles with their quoted labels,
 plus the true total; JSON keeps the identifier `candidates` and `totalCount` details.
@@ -1194,7 +1193,13 @@ names, or runtime data, and never guesses a freeform value.
 
 ### Targets and filters
 
-`<target>` operands parse in three forms. First a complete typed ID (exactly 32 lowercase
+`<target>` operands accept stable compact identities `@<kind>:0x<hex>`: 1–32 lowercase
+hex digits, nonzero and without leading zeros, expanded to an exact 32-digit typed identity.
+Lists and text diagnostics print these handles; JSON receipts retain canonical IDs. Completion
+accepts them as opaque operands and does not enumerate runtime identities. In PowerShell, quote
+the handle, for example `panel get '@panel:0x1'`. Their scope and lifetime equal the full ID;
+rediscover runtime terminal IDs after Server restart. Other resource changes cannot retarget them.
+The existing three input forms also remain available. First a complete typed ID (exactly 32 lowercase
 hexadecimal characters, nonzero), which matches by identity only. Second, an explicit selector
 `@<kind>:<suffix>` — `<kind>` one of `project`, `workspace`, `tab`, `panel`, `terminal`, and
 `<suffix>` one to thirty-one lowercase hexadecimal characters — which resolves to the one
@@ -1228,9 +1233,9 @@ Resolution after a successful read: zero matches → `not-found` (3); multiple e
 selector-suffix matches → `ambiguous` (3) reporting at most the first 8 candidate typed IDs in
 canonical traversal order plus the true `totalCount`. Selector candidates are the members
 visible in the one snapshot the command already read — complete for every operand's declared
-scope, never an extra fetch — and a selector is a momentary handle, not a durable one: deletion
+scope, never an extra fetch — and a legacy suffix is a momentary selector, not a stable handle: deletion
 and recreation can put the same suffix on a different member, so commands needing stable
-identity use the full typed ID. A filter naming an absent entity is `not-found`; an existing
+identity use the printed compact handle or full typed ID. A filter naming an absent entity is `not-found`; an existing
 entity with an empty result set is a successful empty list.
 
 ## Query state machine and budgets
@@ -1907,9 +1912,8 @@ tabId,terminalContextId}}]}`; the JSON rows carry identity only, with no lifecyc
   not-found and an existing member without terminals is an empty list. Windows text output is an
   aligned `HANDLE`, `TITLE`, `AGENT`, `STATE`, `WORKSPACE`, `PANEL`, `CWD` table. Other platforms
   keep the same identity table and render unavailable runtime columns as `-`. `HANDLE`,
-  `WORKSPACE` and `PANEL` are the shortest `@<kind>:<suffix>` selectors unique over every member
-  of their kind in this snapshot, so filtered rows stay resolvable; when IDs share the maximum
-  31-hex suffix, the full ID is shown instead. A standalone terminal shows the localized
+  `WORKSPACE` and `PANEL` use stable `@<kind>:0x<hex>` exact identities, so filtering and
+  changes to other members cannot affect resolution. All significant digits remain copyable. A standalone terminal shows the localized
   standalone label under `WORKSPACE`. The text-only enrichment shares one five-second deadline and cancellation watch
   across the snapshot, exact-presentation report batches, and at most 64 exact-bound Host viewer
   reads; later rows retain `-` for enrichment. `TITLE` is the stripped Host frame title; a title

@@ -1129,10 +1129,10 @@ impl Locale {
                 "一个 Agent 会话身份（1–128 个 ASCII 字母、数字、'.'、'_'、':'、'-'）"
             }
             (Self::EnUs, ExpectedValue::AgentTarget) => {
-                "an Agent session ID or name, a Panel ID, or @panel:<suffix>; for a terminal, pass the Panel that shows it"
+                "an Agent session ID or name, a Panel ID, or @panel:0x<hex>; for a terminal, pass the Panel that shows it"
             }
             (Self::ZhCn, ExpectedValue::AgentTarget) => {
-                "Agent 会话 ID 或名称、Panel ID 或 @panel:<suffix>；如要指定终端，请传入显示它的 Panel"
+                "Agent 会话 ID 或名称、Panel ID 或 @panel:0x<hex>；如要指定终端，请传入显示它的 Panel"
             }
             (Self::EnUs, ExpectedValue::AgentListLimit) => "a decimal integer from 1 to 100",
             (Self::ZhCn, ExpectedValue::AgentListLimit) => "1–100 的十进制整数",
@@ -3061,11 +3061,11 @@ impl Locale {
             (Self::EnUs, CommandPath::AgentList) => HELP_AGENT_LIST_EN,
             (Self::ZhCn, CommandPath::AgentList) => HELP_AGENT_LIST_ZH,
             (Self::EnUs, CommandPath::AgentStart) => crate::localization::HelpDetails::new(
-                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
+                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
                 "Windows: start an interactive Agent in an idle terminal, then bind its name after verified readiness.\nThe default target is the caller Panel. Timeout: 3001–300000 ms, default 30000.\nUse --arg=<value> repeatedly as an alternative to trailing arguments. Input is submitted once.\nCancellation or timeout releases the name when confirmed; it never kills the Agent.\nProvider hooks must report readiness. Use agent integration and agent doctor to check setup.\nFor Antigravity, use --kind antigravity here and --provider antigravity-cli in integration/doctor.",
             ),
             (Self::ZhCn, CommandPath::AgentStart) => crate::localization::HelpDetails::new(
-                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:suffix>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
+                "orchbee agent start <name> --kind <provider> [--panel <id|@panel:0x<hex>>|--current] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
                 "Windows：在空闲终端启动交互式 Agent，确认就绪后绑定名称。默认目标为调用者 Panel。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。启动输入只提交一次。取消或超时在确认后释放名称，但不会终止 Agent。提供方 hook 必须能报告就绪；可用 agent integration 和 agent doctor 检查配置。\nAntigravity 在此使用 --kind antigravity，在 integration/doctor 中使用 --provider antigravity-cli。",
             ),
             (Self::EnUs, CommandPath::AgentPrompt) if cfg!(windows) => HELP_AGENT_PROMPT_WINDOWS_EN,
@@ -3082,11 +3082,11 @@ impl Locale {
             (Self::ZhCn, CommandPath::AgentRead) if cfg!(windows) => HELP_AGENT_OUTPUT_ZH,
             (Self::EnUs, CommandPath::AgentRead) => crate::localization::HelpDetails::new(
                 "orchbee agent read (<target> | --agent-session <id> | --name <name> | --panel <panel>) [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
-                "Read the terminal bound to one live Agent. Target: Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Panel selects its primary terminal;\notherwise exactly one navigable binding is required. Uses terminal\nread/history envelopes; history excludes visible rows.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v4 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.",
+                "Read the terminal bound to one live Agent. Target: Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:0x<hex>>. Panel selects its primary terminal;\notherwise exactly one navigable binding is required. Uses terminal\nread/history envelopes; history excludes visible rows.\n\nExplicit sources: --source visible|recent|recent-unwrapped|detection.\nRecent includes history and live screen (default 80 physical rows); detection\nuses one screen height near the cursor, not Agent state. Source-mode --lines\naccepts 0..4294967295 and clamps to 1000. Visible is this viewer's live screen.\n--plain prints UTF-8 text directly and defaults to recent; it conflicts with\n--format json. Source/plain cannot mix with --history, --rows or --unwrap.\nJSON uses orchbee.terminal.output; a stale sample fails without a hidden retry.\n\n--ansi exports styled text directly (default recent); --format json instead\nuses orchbee.terminal.output v4 with encoding: ansi. It conflicts with\n--plain, --history, --rows and --unwrap. Styled blanks remain content;\nrecent-unwrapped joins soft wraps. Detection stays plain text. This is a\nstyled snapshot with SGR, not original PTY bytes or graphics replay.",
             ),
             (Self::ZhCn, CommandPath::AgentRead) => crate::localization::HelpDetails::new(
                 "orchbee agent read (<target> | --agent-session <id> | --name <name> | --panel <panel>) [--history --rows <n>] [--unwrap] [--lines <n>] [--format text|json]",
-                "读取一个存活 Agent 绑定的终端。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。未指定 Panel 时必须有且仅有一个可导航绑定。复用终端 read/history 封套；历史不含可见行。\n\n显式来源：--source visible|recent|recent-unwrapped|detection。\nrecent 合并历史与实时屏幕，默认 80 个物理行；detection 读取光标附近一个屏幕高度，不是 Agent 状态。来源模式 --lines 接受 0..4294967295，钳制到 1000。visible 是当前查看器的实时屏幕。\n--plain 直接输出 UTF-8 文本，默认 recent；与 --format json 冲突。来源/plain 不能与 --history、--rows 或 --unwrap 混用。\nJSON 使用 orchbee.terminal.output；样本过期时失败，不隐藏重试。\n\n--ansi 直接导出带样式文本（默认 recent）；配合 --format json 时改用\norchbee.terminal.output v4，encoding 为 ansi。它与 --plain、--history、\n--rows 和 --unwrap 冲突。保留带样式空格；recent-unwrapped 拼接软换行。\ndetection 仍输出纯文本。这是包含 SGR 的样式快照，不是原始 PTY 字节或图形重放。",
+                "读取一个存活 Agent 绑定的终端。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:0x<hex>>。Panel 选择主终端。未指定 Panel 时必须有且仅有一个可导航绑定。复用终端 read/history 封套；历史不含可见行。\n\n显式来源：--source visible|recent|recent-unwrapped|detection。\nrecent 合并历史与实时屏幕，默认 80 个物理行；detection 读取光标附近一个屏幕高度，不是 Agent 状态。来源模式 --lines 接受 0..4294967295，钳制到 1000。visible 是当前查看器的实时屏幕。\n--plain 直接输出 UTF-8 文本，默认 recent；与 --format json 冲突。来源/plain 不能与 --history、--rows 或 --unwrap 混用。\nJSON 使用 orchbee.terminal.output；样本过期时失败，不隐藏重试。\n\n--ansi 直接导出带样式文本（默认 recent）；配合 --format json 时改用\norchbee.terminal.output v4，encoding 为 ansi。它与 --plain、--history、\n--rows 和 --unwrap 冲突。保留带样式空格；recent-unwrapped 拼接软换行。\ndetection 仍输出纯文本。这是包含 SGR 的样式快照，不是原始 PTY 字节或图形重放。",
             ),
             (Self::EnUs, CommandPath::AgentSendKeys) if cfg!(windows) => {
                 HELP_AGENT_SEND_KEYS_WINDOWS_EN
@@ -3096,11 +3096,11 @@ impl Locale {
             }
             (Self::EnUs, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
                 "orchbee agent send-keys (<target> | --agent-session <id> | --name <name> | --panel <panel>) <key>... [--format text|json]",
-                "Send 1..64 semantic keys or combinations (enter, ctrl-c, alt+left, ctrl+shift+a)\nto one live Agent terminal. Target: Session ID/name/Panel ID, --agent-session <id>, --name <alias>,\nor --panel <id|@panel:suffix>. Panel selects its primary terminal.\nUses orchbee.terminal.send receipts. Never replays uncertain input.",
+                "Send 1..64 semantic keys or combinations (enter, ctrl-c, alt+left, ctrl+shift+a)\nto one live Agent terminal. Target: Session ID/name/Panel ID, --agent-session <id>, --name <alias>,\nor --panel <id|@panel:0x<hex>>. Panel selects its primary terminal.\nUses orchbee.terminal.send receipts. Never replays uncertain input.",
             ),
             (Self::ZhCn, CommandPath::AgentSendKeys) => crate::localization::HelpDetails::new(
                 "orchbee agent send-keys (<target> | --agent-session <id> | --name <name> | --panel <panel>) <key>... [--format text|json]",
-                "向一个存活 Agent 终端发送 1..64 个语义按键或组合（enter、ctrl-c、alt+left、ctrl+shift+a）。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:suffix>。Panel 选择主终端。使用 orchbee.terminal.send 回执。不重放不确定输入。",
+                "向一个存活 Agent 终端发送 1..64 个语义按键或组合（enter、ctrl-c、alt+left、ctrl+shift+a）。目标：Session ID/名称/Panel ID、--agent-session <id>、--name <alias>\n或 --panel <id|@panel:0x<hex>>。Panel 选择主终端。使用 orchbee.terminal.send 回执。不重放不确定输入。",
             ),
             (Self::EnUs, CommandPath::AgentAttention) => client_control::HELP_AGENT_ATTENTION_EN,
             (Self::ZhCn, CommandPath::AgentAttention) => client_control::HELP_AGENT_ATTENTION_ZH,
@@ -3119,16 +3119,16 @@ impl Locale {
                 "列出当前会话运行时中的 Agent 名称。会话结束或会话停止后名称会释放。",
             ),
             (Self::EnUs, CommandPath::AgentResolve) => crate::localization::HelpDetails::new(
-                "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:suffix>",
+                "orchbee agent resolve <target> [--format text|json]\n       orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>>",
                 "Resolve an exact Session ID first, then a runtime name, then a Panel ID.\nA Panel selects its primary terminal and requires one live Agent. Use --name to select an alias that collides with an ID.",
             ),
             (Self::ZhCn, CommandPath::AgentResolve) => crate::localization::HelpDetails::new(
-                "orchbee agent resolve <target> [--format text|json]\n      orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:suffix>",
+                "orchbee agent resolve <target> [--format text|json]\n      orchbee agent resolve --agent-session <id> | --name <alias> | --panel <id|@panel:0x<hex>>",
                 "优先按完整 Session ID 定位，再查运行时名称，最后回退到 Panel ID。\nPanel 选择主终端，要求唯一存活 Agent。名称与 ID 冲突时，用 --name 明确选择名称。",
             ),
             (Self::EnUs, CommandPath::AgentRename) => crate::localization::HelpDetails::new(
                 "orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel>) <new-name> [--format text|json]\n       orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel>) --clear",
-                "Assign or atomically rename one live Agent. Name: [a-z][a-z0-9_-]{0,31}. Duplicate names are rejected. --clear releases only the name. Replace <target> with --agent-session <id>, --name <alias>, or --panel <id|@panel:suffix> to select explicitly. Names reset when the session ends or the session stops.",
+                "Assign or atomically rename one live Agent. Name: [a-z][a-z0-9_-]{0,31}. Duplicate names are rejected. --clear releases only the name. Replace <target> with --agent-session <id>, --name <alias>, or --panel <id|@panel:0x<hex>> to select explicitly. Names reset when the session ends or the session stops.",
             ),
             (Self::ZhCn, CommandPath::AgentRename) => crate::localization::HelpDetails::new(
                 "orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel>) <new-name> [--format text|json]\n      orchbee agent rename (<target> | --agent-session <id> | --name <name> | --panel <panel>) --clear",
@@ -3288,12 +3288,12 @@ const HELP_STATUS_ZH: crate::localization::HelpDetails = crate::localization::He
 const HELP_TERMINAL_OBSERVE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>] [--format text|json]",
-        "Windows: observe one existing terminal as NDJSON (orchbee.terminal.stream v2).\nTarget: complete terminal ID or @terminal:<suffix>. Default viewport: 120x40;\ndimensions: 1..4096, at most 262144 cells. Crops/pads without resizing the source.\nFrames contain full safe ANSI screens encoded as base64, not raw PTY output.\nThe stream does not read stdin or acquire control. Both formats emit NDJSON.\nNo total timeout by default; --timeout: 1..3600000 ms. Ctrl+C exits 130; timeout\nexits 7. Each transport/output stall is bounded to five seconds; cleanup may\ntake two seconds. A disconnected source is a failure, not a successful exit.",
+        "Windows: observe one existing terminal as NDJSON (orchbee.terminal.stream v2).\nTarget: complete terminal ID or @terminal:0x<hex>. Default viewport: 120x40;\ndimensions: 1..4096, at most 262144 cells. Crops/pads without resizing the source.\nFrames contain full safe ANSI screens encoded as base64, not raw PTY output.\nThe stream does not read stdin or acquire control. Both formats emit NDJSON.\nNo total timeout by default; --timeout: 1..3600000 ms. Ctrl+C exits 130; timeout\nexits 7. Each transport/output stall is bounded to five seconds; cleanup may\ntake two seconds. A disconnected source is a failure, not a successful exit.",
     );
 const HELP_TERMINAL_OBSERVE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal session observe <terminal> [--cols <n>] [--rows <n>] [--timeout <ms>] [--format text|json]",
-        "Windows：以 NDJSON 持续观察一个已有终端（orchbee.terminal.stream v2）。目标：完整终端 ID 或 @terminal:<suffix>。默认视口为 120x40；单边尺寸为\n1..4096，总计最多 262144 个单元格。仅裁剪或填充，不改变源终端大小。帧包含以 base64 编码的完整安全 ANSI 屏幕，不是原始 PTY 输出。不读取 stdin，也不获取控制权。两种格式均输出 NDJSON。默认没有总超时；--timeout 范围为 1..3600000 毫秒。Ctrl+C 退出码为 130，超时为 7。每次传输或输出停滞最多五秒；清理可能需要两秒。源连接断开视为失败，不会报告成功退出。",
+        "Windows：以 NDJSON 持续观察一个已有终端（orchbee.terminal.stream v2）。目标：完整终端 ID 或 @terminal:0x<hex>。默认视口为 120x40；单边尺寸为\n1..4096，总计最多 262144 个单元格。仅裁剪或填充，不改变源终端大小。帧包含以 base64 编码的完整安全 ANSI 屏幕，不是原始 PTY 输出。不读取 stdin，也不获取控制权。两种格式均输出 NDJSON。默认没有总超时；--timeout 范围为 1..3600000 毫秒。Ctrl+C 退出码为 130，超时为 7。每次传输或输出停滞最多五秒；清理可能需要两秒。源连接断开视为失败，不会报告成功退出。",
     );
 
 #[cfg(windows)]
@@ -3359,21 +3359,21 @@ const HELP_AGENT_SEND_KEYS_WINDOWS_ZH: crate::localization::HelpDetails =
 const HELP_AGENT_EXPLAIN_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent explain (<target> | --agent-session <id> | --name <name> | --panel <panel>) [--format text|json]",
-        "Explain a canonical Agent session or a Windows physical terminal.\nPhysical targets return effective state and a fresh rule evaluation: manifest\nsource/version, winner, all rule matches and bounded region evidence. Live full\nlifecycle authority explicitly skips the screen read. No input or focus change.\nCanonical sessions retain their derived view: the canonical status basis,\nfreshness meaning, capability ceiling, observation source and fidelity,\nand the navigate-only action boundary. '--format json' emits the\norchbee.agent.explain envelope: v1 canonical session, v2 physical terminal, v3 with active rules provenance.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
+        "Explain a canonical Agent session or a Windows physical terminal.\nPhysical targets return effective state and a fresh rule evaluation: manifest\nsource/version, winner, all rule matches and bounded region evidence. Live full\nlifecycle authority explicitly skips the screen read. No input or focus change.\nCanonical sessions retain their derived view: the canonical status basis,\nfreshness meaning, capability ceiling, observation source and fidelity,\nand the navigate-only action boundary. '--format json' emits the\norchbee.agent.explain envelope: v1 canonical session, v2 physical terminal, v3 with active rules provenance.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:0x<hex>>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
     );
 const HELP_AGENT_EXPLAIN_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee agent explain (<target> | --agent-session <id> | --name <name> | --panel <panel>) [--format text|json]",
-        "解释规范 Agent 会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据；生效的完整生命周期权威明确跳过屏幕读取。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 封套：v1 为规范会话，v2 为物理终端，v3 增加生效规则来源。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
+        "解释规范 Agent 会话或 Windows 物理终端。物理目标返回当前有效状态及一次新鲜规则评估：清单来源/版本、胜出规则、每条规则的匹配与有界区域证据；生效的完整生命周期权威明确跳过屏幕读取。不发送输入或改变焦点。规范会话保留推导视图：规范状态依据、新鲜度含义、能力上限、观察来源与保真度，以及仅限导航的操作边界。'--format json' 输出\norchbee.agent.explain 封套：v1 为规范会话，v2 为物理终端，v3 增加生效规则来源。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
     );
 
 const HELP_AGENT_WAIT_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent wait (<target> | --agent-session <id> | --name <name> | --panel <panel>) [--until <condition>]... [--after-revision <n>] [--timeout <ms> | --forever] [--format text|json]",
-    "Poll one Agent session on a held Client Session until a requested\ncondition matches, the revision fence refuses, the session answer is\nterminal, or the total deadline lands. '--until' is repeatable and takes\none of: blocked, done, needs-attention, failed, succeeded, canceled, interrupted,\nworking, idle, unknown, ended, fresh, stale, disconnected (default:\nneeds-attention failed succeeded canceled interrupted idle ended).\nStatus conditions require fresh freshness; the three freshness\nconditions match the observation directly. '--after-revision' is a\nglobal-revision fence, not a turn identity; '--timeout' bounds the whole\nwait at 1-3600000 ms (default 600000). --forever removes the total\ntimeout and conflicts with --timeout; every read remains bounded.\nblocked matches fresh needs-attention; done matches fresh completed\noutcomes (succeeded/failed/canceled/interrupted), not an unseen marker.\nPolling samples current state: a\ntransition that begins and ends between two completed observations is\nmissed. '--format json' emits the orchbee.agent.wait envelope.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:suffix>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
+    "Poll one Agent session on a held Client Session until a requested\ncondition matches, the revision fence refuses, the session answer is\nterminal, or the total deadline lands. '--until' is repeatable and takes\none of: blocked, done, needs-attention, failed, succeeded, canceled, interrupted,\nworking, idle, unknown, ended, fresh, stale, disconnected (default:\nneeds-attention failed succeeded canceled interrupted idle ended).\nStatus conditions require fresh freshness; the three freshness\nconditions match the observation directly. '--after-revision' is a\nglobal-revision fence, not a turn identity; '--timeout' bounds the whole\nwait at 1-3600000 ms (default 600000). --forever removes the total\ntimeout and conflicts with --timeout; every read remains bounded.\nblocked matches fresh needs-attention; done matches fresh completed\noutcomes (succeeded/failed/canceled/interrupted), not an unseen marker.\nPolling samples current state: a\ntransition that begins and ends between two completed observations is\nmissed. '--format json' emits the orchbee.agent.wait envelope.\nTarget: one positional Session ID/name/Panel ID, --agent-session <id>,\n--name <alias>, or --panel <id|@panel:0x<hex>>. Exact retained Session IDs\nand names precede Panel fallback. Panels select their primary terminal;\nmultiple live Agents are refused. A wait stays pinned to its first Session.",
 );
 const HELP_AGENT_WAIT_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee agent wait (<target> | --agent-session <id> | --name <name> | --panel <panel>) [--until <条件>]... [--after-revision <n>] [--timeout <毫秒> | --forever] [--format text|json]",
-    "在持有的 Client Session 上轮询一个 Agent 会话，直到请求的条件命中、修订栅栏拒绝、会话应答终止，或总截止到达。'--until' 可重复，取值为：\nblocked、done、needs-attention、failed、succeeded、canceled、interrupted、working、\nidle、unknown、ended、fresh、stale、disconnected（默认：\nneeds-attention failed succeeded canceled interrupted idle ended）。状态条件要求 fresh 新鲜度；三个新鲜度条件直接匹配观察。\n'--after-revision' 是全局修订栅栏而非回合身份；'--timeout' 将整个等待界于 1-3600000 毫秒（默认 600000）。--forever 取消总期限，与 --timeout 互斥，单次读取仍有界。blocked 匹配 fresh needs-attention；\ndone 匹配 fresh 的 succeeded/failed/canceled/interrupted，不代表未读。轮询采样当前状态：在两次已完成观察之间开始又结束的跃迁会被错过。'--format json' 输出\norchbee.agent.wait 封套。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:suffix>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
+    "在持有的 Client Session 上轮询一个 Agent 会话，直到请求的条件命中、修订栅栏拒绝、会话应答终止，或总截止到达。'--until' 可重复，取值为：\nblocked、done、needs-attention、failed、succeeded、canceled、interrupted、working、\nidle、unknown、ended、fresh、stale、disconnected（默认：\nneeds-attention failed succeeded canceled interrupted idle ended）。状态条件要求 fresh 新鲜度；三个新鲜度条件直接匹配观察。\n'--after-revision' 是全局修订栅栏而非回合身份；'--timeout' 将整个等待界于 1-3600000 毫秒（默认 600000）。--forever 取消总期限，与 --timeout 互斥，单次读取仍有界。blocked 匹配 fresh needs-attention；\ndone 匹配 fresh 的 succeeded/failed/canceled/interrupted，不代表未读。轮询采样当前状态：在两次已完成观察之间开始又结束的跃迁会被错过。'--format json' 输出\norchbee.agent.wait 封套。目标：一个位置参数 Session ID/名称/Panel ID、--agent-session <id>、\n--name <alias> 或 --panel <id|@panel:0x<hex>>。Session ID、名称优先于 Panel。\nPanel 选择主终端，多 Agent 匹配时拒绝；等待固定到首次解析的 Session。",
 );
 const HELP_SITE_DIAGNOSE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
@@ -3453,11 +3453,11 @@ const HELP_PROJECT_LIST_ZH: crate::localization::HelpDetails =
 
 const HELP_PROJECT_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee project get <target> [--format text|json]",
-    "Show one Project: its directories (with worker ids and paths) and its\nworkspaces. The target is an exact 32-hex ID, an @project:<suffix>\nselector, or an exact case-sensitive label; ambiguous labels or suffixes\nreport candidates instead of guessing.",
+    "Show one Project: its directories (with worker ids and paths) and its\nworkspaces. The target is an exact 32-hex ID, an @project:0x<hex>\nselector, or an exact case-sensitive label; ambiguous labels or suffixes\nreport candidates instead of guessing.",
 );
 const HELP_PROJECT_GET_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee project get <target> [--format text|json]",
-    "显示一个 Project：其目录（含 worker id 与路径）与工作区。target 为精确\n32 位十六进制 ID、@project:<suffix> 选择器或精确区分大小写的 label；歧义 label 或后缀报告候选而非猜测。",
+    "显示一个 Project：其目录（含 worker id 与路径）与工作区。target 为精确\n32 位十六进制 ID、@project:0x<hex> 选择器或精确区分大小写的 label；歧义 label 或后缀报告候选而非猜测。",
 );
 
 const HELP_PROJECT_CREATE_EN: crate::localization::HelpDetails =
@@ -3474,23 +3474,23 @@ const HELP_PROJECT_CREATE_ZH: crate::localization::HelpDetails =
 const HELP_PROJECT_RENAME_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project rename <target> --label <label> [--format text|json]",
-        "Rename one Project selected by exact ID, @project:<suffix>, or exact\nlabel. The command\nreads one snapshot, then submits exactly one command. A committed result\ncarries the new revision; an unchanged one means the label already\nmatched.",
+        "Rename one Project selected by exact ID, @project:0x<hex>, or exact\nlabel. The command\nreads one snapshot, then submits exactly one command. A committed result\ncarries the new revision; an unchanged one means the label already\nmatched.",
     );
 const HELP_PROJECT_RENAME_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee project rename <target> --label <label> [--format text|json]",
-        "重命名一个由精确 ID、@project:<suffix> 或精确 label 选择的 Project。命令先读取一次快照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。",
+        "重命名一个由精确 ID、@project:0x<hex> 或精确 label 选择的 Project。命令先读取一次快照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。",
     );
 
 const HELP_WORKSPACE_LIST_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace list [--project <t>] [--client <id>] [--format text|json]",
-        "List all Workspaces, including ungrouped ones, or filter by the Project selected by\n--project (exact ID, @project:<suffix>, or exact label). Fields: ids,\nlabel, primary directory\n(null means none), and terminal context.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.",
+        "List all Workspaces, including ungrouped ones, or filter by the Project selected by\n--project (exact ID, @project:0x<hex>, or exact label). Fields: ids,\nlabel, primary directory\n(null means none), and terminal context.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.",
     );
 const HELP_WORKSPACE_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace list [--project <t>] [--client <id>] [--format text|json]",
-        "列出所有 Workspace（包括未分组），或仅列 --project（精确 ID、@project:<suffix> 或精确 label）所选\nProject 内的。字段：各 ID、label、主目录（null 表示无）与终端上下文。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
+        "列出所有 Workspace（包括未分组），或仅列 --project（精确 ID、@project:0x<hex> 或精确 label）所选\nProject 内的。字段：各 ID、label、主目录（null 表示无）与终端上下文。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
     );
 
 const HELP_WORKSPACE_GET_EN: crate::localization::HelpDetails =
@@ -3517,33 +3517,33 @@ const HELP_WORKSPACE_CREATE_ZH: crate::localization::HelpDetails =
 const HELP_WORKSPACE_RENAME_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace rename <target> --label <label> [--format text|json]",
-        "Rename one Workspace selected by exact ID, @workspace:<suffix>, or exact\nlabel. The command\nreads one snapshot, then submits exactly one command. A committed result\ncarries the new revision; an unchanged one means the label already\nmatched.",
+        "Rename one Workspace selected by exact ID, @workspace:0x<hex>, or exact\nlabel. The command\nreads one snapshot, then submits exactly one command. A committed result\ncarries the new revision; an unchanged one means the label already\nmatched.",
     );
 const HELP_WORKSPACE_RENAME_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace rename <target> --label <label> [--format text|json]",
-        "重命名一个由精确 ID、@workspace:<suffix> 或精确 label 选择的 Workspace。命令先读取一次快照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。",
+        "重命名一个由精确 ID、@workspace:0x<hex> 或精确 label 选择的 Workspace。命令先读取一次快照，然后只提交一个命令。committed 结果携带新修订；unchanged 表示\nlabel 本已相同。",
     );
 const HELP_WORKSPACE_ACCEPT_DIRECTORY_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace accept-directory <target> --path <path> [--format text|json]",
-        "Accept a literal absolute local-platform path as the primary directory of the\nWorkspace selected by exact ID, @workspace:<suffix>, or exact label.\n'--path' is required: a\nliteral absolute path of at most 4,096 UTF-8 bytes without NUL — never\nexpanded ('~', '$'), created, or probed by the CLI. The command reads one\nsnapshot, resolves the target and its owning Project, then submits\nexactly one command under a fresh request id; the Server authoritatively\nprobes the path and rejects a Workspace that already has a directory.\nA committed result carries the new revision, the Server-allocated\ndirectory and worker ids, the resolved project and workspace ids, and the\nrequest's literal path.",
+        "Accept a literal absolute local-platform path as the primary directory of the\nWorkspace selected by exact ID, @workspace:0x<hex>, or exact label.\n'--path' is required: a\nliteral absolute path of at most 4,096 UTF-8 bytes without NUL — never\nexpanded ('~', '$'), created, or probed by the CLI. The command reads one\nsnapshot, resolves the target and its owning Project, then submits\nexactly one command under a fresh request id; the Server authoritatively\nprobes the path and rejects a Workspace that already has a directory.\nA committed result carries the new revision, the Server-allocated\ndirectory and worker ids, the resolved project and workspace ids, and the\nrequest's literal path.",
     );
 const HELP_WORKSPACE_ACCEPT_DIRECTORY_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace accept-directory <target> --path <path> [--format text|json]",
-        "将一个字面本机绝对路径接受为由精确 ID、@workspace:<suffix> 或精确 label 选择的\nWorkspace 的主目录。'--path' 为必填：字面绝对路径，至多 4,096 个\nUTF-8 字节且不含 NUL——CLI 不展开（'~'、'$'）、不创建、不探测。命令先读取一次快照、解析目标及其所属 Project，然后以全新请求 ID 只提交一个命令；由 Server 权威探测该路径，并拒绝已有目录的\nWorkspace。committed 结果携带新修订、Server 分配的 directory 与\nworker ID、已解析的 project 与 workspace ID，以及请求的字面路径。",
+        "将一个字面本机绝对路径接受为由精确 ID、@workspace:0x<hex> 或精确 label 选择的\nWorkspace 的主目录。'--path' 为必填：字面绝对路径，至多 4,096 个\nUTF-8 字节且不含 NUL——CLI 不展开（'~'、'$'）、不创建、不探测。命令先读取一次快照、解析目标及其所属 Project，然后以全新请求 ID 只提交一个命令；由 Server 权威探测该路径，并拒绝已有目录的\nWorkspace。committed 结果携带新修订、Server 分配的 directory 与\nworker ID、已解析的 project 与 workspace ID，以及请求的字面路径。",
     );
 
 const HELP_WORKSPACE_CLOSE_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
-        "Close only the selected Workspace and all its terminals for every Client.\nTargets resolve globally by exact ID, @workspace:<suffix>, or exact label.\n--confirm is required. Checkout directories and branches remain; other Workspaces\nsharing its repository or Project remain open. By default the command waits until\nthe Workspace is gone (--timeout, default 30000 ms; timeout exits 7 and the close\ncontinues). --detach returns the accepted receipt with the close request ID and\nstable Workspace/context IDs. --dry-run lists the terminals, titles and Agents that\nwould end, without --confirm. Observe with workspace close-status;\nonly an explicit workspace close-resume resumes an eligible retained attempt.\nFor all members of a Project use project close-all --confirm.",
+        "Close only the selected Workspace and all its terminals for every Client.\nTargets resolve globally by exact ID, @workspace:0x<hex>, or exact label.\n--confirm is required. Checkout directories and branches remain; other Workspaces\nsharing its repository or Project remain open. By default the command waits until\nthe Workspace is gone (--timeout, default 30000 ms; timeout exits 7 and the close\ncontinues). --detach returns the accepted receipt with the close request ID and\nstable Workspace/context IDs. --dry-run lists the terminals, titles and Agents that\nwould end, without --confirm. Observe with workspace close-status;\nonly an explicit workspace close-resume resumes an eligible retained attempt.\nFor all members of a Project use project close-all --confirm.",
     );
 const HELP_WORKSPACE_CLOSE_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee workspace close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
-        "仅为所有客户端关闭选定 Workspace 及其所有终端。目标按精确 ID、@workspace:<suffix> 或精确名称全局解析。必须指定 --confirm。checkout 目录与分支保留；同仓库或 Project 的其他 Workspace\n继续运行。默认等待 Workspace 消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 返回已接纳回执，包含关闭请求 ID 与稳定的 Workspace/context ID。--dry-run 无需 --confirm，列出将结束的终端、标题与 Agent。用 workspace close-status 观测；只有显式 workspace close-resume 才恢复符合条件的保留尝试。关闭 Project 全部成员使用 project close-all --confirm。",
+        "仅为所有客户端关闭选定 Workspace 及其所有终端。目标按精确 ID、@workspace:0x<hex> 或精确名称全局解析。必须指定 --confirm。checkout 目录与分支保留；同仓库或 Project 的其他 Workspace\n继续运行。默认等待 Workspace 消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 返回已接纳回执，包含关闭请求 ID 与稳定的 Workspace/context ID。--dry-run 无需 --confirm，列出将结束的终端、标题与 Agent。用 workspace close-status 观测；只有显式 workspace close-resume 才恢复符合条件的保留尝试。关闭 Project 全部成员使用 project close-all --confirm。",
     );
 
 const HELP_WORKSPACE_CLOSE_STATUS_EN: crate::localization::HelpDetails =
@@ -3570,11 +3570,11 @@ const HELP_WORKSPACE_CLOSE_RESUME_ZH: crate::localization::HelpDetails =
 
 const HELP_TAB_LIST_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab list [--workspace <t> | --standalone] [--client <id>] [--format text|json]",
-    "List Tabs. Filters select one Workspace's context (exact ID,\n@workspace:<suffix>, or label) or\nthe standalone context. Fields: ids, label, pinned flag, group, and owning\ncontext kind.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.",
+    "List Tabs. Filters select one Workspace's context (exact ID,\n@workspace:0x<hex>, or label) or\nthe standalone context. Fields: ids, label, pinned flag, group, and owning\ncontext kind.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.",
 );
 const HELP_TAB_LIST_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab list [--workspace <t> | --standalone] [--client <id>] [--format text|json]",
-    "列出 Tab。过滤参数可选择一个 Workspace 的上下文（精确 ID、@workspace:<suffix> 或 label）或独立上下文。字段：各 ID、label、置顶标记、分组与所属上下文类型。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
+    "列出 Tab。过滤参数可选择一个 Workspace 的上下文（精确 ID、@workspace:0x<hex> 或 label）或独立上下文。字段：各 ID、label、置顶标记、分组与所属上下文类型。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
 );
 
 const HELP_TAB_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3588,30 +3588,30 @@ const HELP_TAB_GET_ZH: crate::localization::HelpDetails = crate::localization::H
 
 const HELP_TAB_CREATE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab create [--workspace <target> | --standalone] [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
-    "Create one Tab in the selected terminal context: a Workspace chosen by\nexact ID, @workspace:<suffix>, or exact label, or the standalone context.\nThe four geometry\nflags are an all-or-none group: with all four absent the command\nrequests an 80x24 logical grid with unknown cell pixels (0,0) — a\nrequest policy, not a measured display fact; supplying any of the four\nrequires all four. The result carries the committed revision, the new\ntab, panel, and presentation ids, and the terminal spawn outcome.\n'--exec' selects the launched program by absolute path and each '--arg'\nappends one verbatim argument; omitting both launches the default shell.\n'--profile' instead selects a stored Launch Profile by exact ID or\nsingly-matching name, resolved by the Server — it cannot combine with\n'--exec' or '--arg'.\nWindows --cwd defaults to follow: sample the resolved source Panel root process cwd.\nAn absolute path overrides it; home/current use the CLI home/current directory;\nworkspace keeps Server Workspace/Worker-home defaults. Known absent cwd keeps\nthose defaults; read failures stop before creation. Explicit headless Tab context\ndoes not select a Client just to find cwd. Other platforms keep absolute paths. '--env NAME=VALUE' repeats to overlay inherited variables;\nvalues are literal, including empty values. These options also work with\n'--profile' and the default shell. Names: ASCII letters/digits/underscore,\n1..128 bytes, no leading digit; case-insensitive duplicates, ORCHBEE_*,\nTERM, COLORTERM and TERM_PROGRAM are rejected. Limit: 32 entries, 1,024\nUTF-8 name/value bytes total, no NUL. A bad directory fails the launch.\n\nWindows: omitted targets use validated caller context or one current Client selection. Invalid caller metadata never falls back; --client ignores caller environment. Unnamed Tabs display their current one-based position; --label fixes the name, including numeric names. Split labels default to the preflight Panel count plus one. No focus by default; --focus waits for the original Client to focus the new Panel after creation. Explicit targets without Client effects work headlessly. Total timeout: 30000ms (1..3600000). orchbee.creation.result v3 records directory policy/source/path and preserves creation and subsequent phase facts; later failure never undoes creation. Do not blindly repeat.",
+    "Create one Tab in the selected terminal context: a Workspace chosen by\nexact ID, @workspace:0x<hex>, or exact label, or the standalone context.\nThe four geometry\nflags are an all-or-none group: with all four absent the command\nrequests an 80x24 logical grid with unknown cell pixels (0,0) — a\nrequest policy, not a measured display fact; supplying any of the four\nrequires all four. The result carries the committed revision, the new\ntab, panel, and presentation ids, and the terminal spawn outcome.\n'--exec' selects the launched program by absolute path and each '--arg'\nappends one verbatim argument; omitting both launches the default shell.\n'--profile' instead selects a stored Launch Profile by exact ID or\nsingly-matching name, resolved by the Server — it cannot combine with\n'--exec' or '--arg'.\nWindows --cwd defaults to follow: sample the resolved source Panel root process cwd.\nAn absolute path overrides it; home/current use the CLI home/current directory;\nworkspace keeps Server Workspace/Worker-home defaults. Known absent cwd keeps\nthose defaults; read failures stop before creation. Explicit headless Tab context\ndoes not select a Client just to find cwd. Other platforms keep absolute paths. '--env NAME=VALUE' repeats to overlay inherited variables;\nvalues are literal, including empty values. These options also work with\n'--profile' and the default shell. Names: ASCII letters/digits/underscore,\n1..128 bytes, no leading digit; case-insensitive duplicates, ORCHBEE_*,\nTERM, COLORTERM and TERM_PROGRAM are rejected. Limit: 32 entries, 1,024\nUTF-8 name/value bytes total, no NUL. A bad directory fails the launch.\n\nWindows: omitted targets use validated caller context or one current Client selection. Invalid caller metadata never falls back; --client ignores caller environment. Unnamed Tabs display their current one-based position; --label fixes the name, including numeric names. Split labels default to the preflight Panel count plus one. No focus by default; --focus waits for the original Client to focus the new Panel after creation. Explicit targets without Client effects work headlessly. Total timeout: 30000ms (1..3600000). orchbee.creation.result v3 records directory policy/source/path and preserves creation and subsequent phase facts; later failure never undoes creation. Do not blindly repeat.",
 );
 const HELP_TAB_CREATE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab create [--workspace <target> | --standalone] [--label <label>] [--cols <n> --rows <n> --cell-width <px> --cell-height <px>] [--profile <s> | --exec <abs> [--arg <v>]...] [--cwd <abs|follow|home|current|workspace>] [--env NAME=VALUE]... [--focus | --no-focus] [--client <id>] [--timeout <ms>] [--format text|json]",
-    "在所选终端上下文内创建一个 Tab：由精确 ID、@workspace:<suffix> 或精确 label 选择的\nWorkspace，或独立上下文。四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素为未知 (0,0)——这是请求策略而非实测显示事实；提供其中任何一个就必须提供全部四个。结果携带已提交修订、新的 tab、panel、presentation ID 及终端拉起结果。\n'--exec' 以绝对路径选择启动程序，每个 '--arg' 逐字追加一个参数；两者均省略时启动默认 shell。\n'--profile' 改为按精确 ID 或唯一匹配的名称选择已存储的启动配置，由 Server 解析——不能与 '--exec' 或 '--arg' 组合。\nWindows --cwd 默认为 follow：采样已解析来源 Panel 的根进程目录。绝对路径直接覆盖；\nhome/current 使用 CLI 的主目录／当前目录；workspace 保留 Server Workspace／Worker 主目录默认值。明确缺失 cwd 时保留默认值；读取失败则在创建前停止。显式无界面 Tab 上下文不会为查目录选择 Client。其他平台仍只使用绝对路径。\n'--env NAME=VALUE' 可重复使用，覆盖继承的变量；值逐字保留，允许空值。这些选项也可配合 '--profile' 或默认 shell 使用。名称只允许 ASCII 字母、数字和下划线，1..128 字节且不能以数字开头；拒绝忽略大小写后重复的名称、\nORCHBEE_*、TERM、COLORTERM 和 TERM_PROGRAM。至多 32 项，名称和值合计不超过 1,024 UTF-8 字节，不能含 NUL。目录不可用时启动失败。\n\nWindows：省略目标时使用经校验的调用者上下文，或唯一 current Client 的选择。无效调用者信息不回退；显式 --client 忽略调用者环境。未命名 Tab 显示当前从一开始的位置序号；--label 固定名称，包括数字名称。分屏标签默认为创建前 Panel 数加一。默认不聚焦；--focus 在创建后等待原 Client 聚焦新 Panel。显式目标且无需 Client 操作时可无 TUI 运行。总超时默认 30000ms（1..3600000）。orchbee.creation.result v3 记录目录策略／来源／路径，并保留已创建身份及后续步骤结果；后续失败不会撤销创建，勿盲目重试。",
+    "在所选终端上下文内创建一个 Tab：由精确 ID、@workspace:0x<hex> 或精确 label 选择的\nWorkspace，或独立上下文。四个几何 flag 为全有或全无组：全部省略时请求 80x24 逻辑网格且单元像素为未知 (0,0)——这是请求策略而非实测显示事实；提供其中任何一个就必须提供全部四个。结果携带已提交修订、新的 tab、panel、presentation ID 及终端拉起结果。\n'--exec' 以绝对路径选择启动程序，每个 '--arg' 逐字追加一个参数；两者均省略时启动默认 shell。\n'--profile' 改为按精确 ID 或唯一匹配的名称选择已存储的启动配置，由 Server 解析——不能与 '--exec' 或 '--arg' 组合。\nWindows --cwd 默认为 follow：采样已解析来源 Panel 的根进程目录。绝对路径直接覆盖；\nhome/current 使用 CLI 的主目录／当前目录；workspace 保留 Server Workspace／Worker 主目录默认值。明确缺失 cwd 时保留默认值；读取失败则在创建前停止。显式无界面 Tab 上下文不会为查目录选择 Client。其他平台仍只使用绝对路径。\n'--env NAME=VALUE' 可重复使用，覆盖继承的变量；值逐字保留，允许空值。这些选项也可配合 '--profile' 或默认 shell 使用。名称只允许 ASCII 字母、数字和下划线，1..128 字节且不能以数字开头；拒绝忽略大小写后重复的名称、\nORCHBEE_*、TERM、COLORTERM 和 TERM_PROGRAM。至多 32 项，名称和值合计不超过 1,024 UTF-8 字节，不能含 NUL。目录不可用时启动失败。\n\nWindows：省略目标时使用经校验的调用者上下文，或唯一 current Client 的选择。无效调用者信息不回退；显式 --client 忽略调用者环境。未命名 Tab 显示当前从一开始的位置序号；--label 固定名称，包括数字名称。分屏标签默认为创建前 Panel 数加一。默认不聚焦；--focus 在创建后等待原 Client 聚焦新 Panel。显式目标且无需 Client 操作时可无 TUI 运行。总超时默认 30000ms（1..3600000）。orchbee.creation.result v3 记录目录策略／来源／路径，并保留已创建身份及后续步骤结果；后续失败不会撤销创建，勿盲目重试。",
 );
 
 const HELP_PANEL_RENAME_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel rename <panel> (--label <text> | --clear) [--format text|json]",
-        "Set a shared custom Panel title by exact ID or @panel:<suffix>. Empty or\nwhitespace-only text clears the title and restores its creation label. Input\nis limited to 512 Unicode characters before trimming. No focus change.\nrenamed reports a committed revision; unchanged means the override matched.",
+        "Set a shared custom Panel title by exact ID or @panel:0x<hex>. Empty or\nwhitespace-only text clears the title and restores its creation label. Input\nis limited to 512 Unicode characters before trimming. No focus change.\nrenamed reports a committed revision; unchanged means the override matched.",
     );
 const HELP_PANEL_RENAME_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel rename <panel> (--label <text> | --clear) [--format text|json]",
-        "用精确 ID 或 @panel:<suffix> 设置共享的窗格自定义标题。空文本或纯空白文本会清除标题，恢复创建时的标签。裁剪前最多 512 个 Unicode 字符。不会切换焦点。\nrenamed 表示已提交新修订；unchanged 表示自定义标题未变。",
+        "用精确 ID 或 @panel:0x<hex> 设置共享的窗格自定义标题。空文本或纯空白文本会清除标题，恢复创建时的标签。裁剪前最多 512 个 Unicode 字符。不会切换焦点。\nrenamed 表示已提交新修订；unchanged 表示自定义标题未变。",
     );
 const HELP_TAB_RENAME_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab rename <target> --label <label> [--format text|json]",
-    "Rename one Tab selected by exact ID, @tab:<suffix>, or exact label.\nA committed result\ncarries the new revision; unchanged means an already fixed name matched. Renaming an automatic Tab fixes its name even when the visible text is equal.",
+    "Rename one Tab selected by exact ID, @tab:0x<hex>, or exact label.\nA committed result\ncarries the new revision; unchanged means an already fixed name matched. Renaming an automatic Tab fixes its name even when the visible text is equal.",
 );
 const HELP_TAB_RENAME_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab rename <target> --label <label> [--format text|json]",
-    "重命名一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。committed 结果携带新修订；unchanged 表示固定名称本已相同。自动命名 Tab 即使文本相同，重命名也会将其改为固定名称。",
+    "重命名一个由精确 ID、@tab:0x<hex> 或精确 label 选择的 Tab。committed 结果携带新修订；unchanged 表示固定名称本已相同。自动命名 Tab 即使文本相同，重命名也会将其改为固定名称。",
 );
 
 const HELP_TAB_MOVE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3625,11 +3625,11 @@ const HELP_TAB_MOVE_ZH: crate::localization::HelpDetails = crate::localization::
 
 const HELP_TAB_CLOSE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
-    "Close one Tab selected by exact ID, @tab:<suffix>, or exact label.\n'--confirm' is\nrequired. By default the command waits until the Tab is gone (--timeout, default\n30000 ms; timeout exits 7 and the close continues). --detach returns once accepted,\nwith the accepted revision and close request id. --dry-run lists the terminals,\ntitles and Agents that would end, without --confirm.",
+    "Close one Tab selected by exact ID, @tab:0x<hex>, or exact label.\n'--confirm' is\nrequired. By default the command waits until the Tab is gone (--timeout, default\n30000 ms; timeout exits 7 and the close continues). --detach returns once accepted,\nwith the accepted revision and close request id. --dry-run lists the terminals,\ntitles and Agents that would end, without --confirm.",
 );
 const HELP_TAB_CLOSE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee tab close <target> (--confirm [--detach | --timeout <ms>] | --dry-run) [--format text|json]",
-    "关闭一个由精确 ID、@tab:<suffix> 或精确 label 选择的 Tab。'--confirm' 为必填。\n默认等待 Tab 消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 在接纳后立即返回，携带已接受修订与关闭请求 ID。--dry-run 无需 --confirm，列出将结束的终端、标题与 Agent。",
+    "关闭一个由精确 ID、@tab:0x<hex> 或精确 label 选择的 Tab。'--confirm' 为必填。\n默认等待 Tab 消失（--timeout，默认 30000 毫秒；超时以 7 退出，关闭继续进行）。--detach 在接纳后立即返回，携带已接受修订与关闭请求 ID。--dry-run 无需 --confirm，列出将结束的终端、标题与 Agent。",
 );
 
 const HELP_PANEL_LIST_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3643,11 +3643,11 @@ const HELP_PANEL_LIST_ZH: crate::localization::HelpDetails = crate::localization
 
 const HELP_PANEL_GET_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel get <panel> [--client <id>] [--format text|json]",
-    "Show one Panel by complete typed ID or @panel:<suffix>: owning tab,\ncontext, slot path, and its primary and child Presentations.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\nWindows also observes primary terminal title, directory and process facts.\nUnavailable observations are explicit; the query never controls or resizes terminals.",
+    "Show one Panel by complete typed ID or @panel:0x<hex>: owning tab,\ncontext, slot path, and its primary and child Presentations.\n\nWindows --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\nWindows also observes primary terminal title, directory and process facts.\nUnavailable observations are explicit; the query never controls or resizes terminals.",
 );
 const HELP_PANEL_GET_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel get <panel> [--client <id>] [--format text|json]",
-    "按完整类型化 ID 或 @panel:<suffix> 显示一个 Panel：所属 Tab、上下文、slot 路径及其主与子 Presentation。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
+    "按完整类型化 ID 或 @panel:0x<hex> 显示一个 Panel：所属 Tab、上下文、slot 路径及其主与子 Presentation。\n\nWindows --client <id> 附加指定 TUI 的选择与焦点；Workspace 结果包含记忆的活动 Tab。不猜测 Client，查询不导航。读取总超时为 5000 毫秒。\nWindows 结果包含关联的存活 Agent 会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 还观察主终端标题、目录和进程事实。不可用观察会明确标记；查询不控制或调整终端大小。",
 );
 
 const HELP_PANEL_SPLIT_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -3661,11 +3661,11 @@ const HELP_PANEL_SPLIT_ZH: crate::localization::HelpDetails = crate::localizatio
 
 const HELP_PANEL_CLOSE_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel close <panel> --confirm [--format text|json]",
-    "Close one Panel selected by complete typed ID or @panel:<suffix>.\n'--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the session finishes the close asynchronously.",
+    "Close one Panel selected by complete typed ID or @panel:0x<hex>.\n'--confirm' is required.\nAn accepted result carries the accepted revision and the close request\nid; the session finishes the close asynchronously.",
 );
 const HELP_PANEL_CLOSE_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel close <panel> --confirm [--format text|json]",
-    "关闭一个由完整类型化 ID 或 @panel:<suffix> 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
+    "关闭一个由完整类型化 ID 或 @panel:0x<hex> 选择的 Panel。'--confirm' 为必填。accepted\n结果携带已接受修订与关闭请求 ID；会话异步完成关闭。",
 );
 
 #[cfg(not(windows))]
@@ -3693,12 +3693,12 @@ const HELP_TERMINAL_LIST_ZH: crate::localization::HelpDetails =
 const HELP_TERMINAL_GET_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal get <terminal> [--format text|json]",
-        "Show one bound terminal by complete typed ID or @terminal:<suffix>:\nworker id and its single boundTo location (presentation, panel, tab,\ncontext).",
+        "Show one bound terminal by complete typed ID or @terminal:0x<hex>:\nworker id and its single boundTo location (presentation, panel, tab,\ncontext).",
     );
 const HELP_TERMINAL_GET_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal get <terminal> [--format text|json]",
-        "按完整类型化 ID 或 @terminal:<suffix> 显示一个已绑定终端：worker id 及其唯一 boundTo 位置（presentation、panel、tab、context）。",
+        "按完整类型化 ID 或 @terminal:0x<hex> 显示一个已绑定终端：worker id 及其唯一 boundTo 位置（presentation、panel、tab、context）。",
     );
 
 #[cfg(not(windows))]
@@ -3729,12 +3729,12 @@ const HELP_TERMINAL_WAIT_OUTPUT_ZH: crate::localization::HelpDetails =
 const HELP_TERMINAL_RUN_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal run <target> <command> [--wait] [--timeout <ms>] [--format text|json]",
-        "Submit one quoted command as paste followed by Enter in one request. Target: exact ID or @terminal:<suffix>. Whitespace and newlines are preserved. Use -- before operands resembling options. Empty/extra command operands are rejected; total argv is at most 64 KiB.\nWithout --wait, the five-second send budget and orchbee.terminal.send receipt report input only.\nWindows --wait requires an idle managed PowerShell integration and an empty input line. It checks readiness before submitting once and waits for this invocation's correlated completion. The total timeout defaults to 30000 ms. JSON orchbee.terminal.run v1 keeps submission, completion, failure and viewer cleanup separately. powershell-success is 0/1 Shell status, not a native process exit code. Use JSON before submitting scripts that need recovery evidence. Cancellation does not stop the command. Never replay accepted, partial or unknown input. No controller, resize or focus is acquired.",
+        "Submit one quoted command as paste followed by Enter in one request. Target: exact ID or @terminal:0x<hex>. Whitespace and newlines are preserved. Use -- before operands resembling options. Empty/extra command operands are rejected; total argv is at most 64 KiB.\nWithout --wait, the five-second send budget and orchbee.terminal.send receipt report input only.\nWindows --wait requires an idle managed PowerShell integration and an empty input line. It checks readiness before submitting once and waits for this invocation's correlated completion. The total timeout defaults to 30000 ms. JSON orchbee.terminal.run v1 keeps submission, completion, failure and viewer cleanup separately. powershell-success is 0/1 Shell status, not a native process exit code. Use JSON before submitting scripts that need recovery evidence. Cancellation does not stop the command. Never replay accepted, partial or unknown input. No controller, resize or focus is acquired.",
     );
 const HELP_TERMINAL_RUN_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal run <target> <command> [--wait] [--timeout <ms>] [--format text|json]",
-        "一次请求发送带引号命令的 paste 和 Enter。目标为完整 ID 或 @terminal:<suffix>，保留空白和换行。操作数类似选项时使用 --。拒绝空命令和多余命令操作数，参数包最多 64 KiB。\n未加 --wait 时，五秒发送预算和 orchbee.terminal.send 回执只说明输入进度。\nWindows --wait 需要空闲的受管 PowerShell 集成及空输入行。发送前检查就绪，只提交一次并等待本次调用的关联完成。总期限默认 30000 毫秒。JSON orchbee.terminal.run v1 分别保留 submission、completion、failure 和 viewer 清理。powershell-success 是 0/1 Shell 状态，不是原生进程退出码。需要恢复证据的脚本应在提交前选择 JSON。取消不会停止命令。不要重放已接受、部分或未知输入。不取得 controller、resize 或焦点。",
+        "一次请求发送带引号命令的 paste 和 Enter。目标为完整 ID 或 @terminal:0x<hex>，保留空白和换行。操作数类似选项时使用 --。拒绝空命令和多余命令操作数，参数包最多 64 KiB。\n未加 --wait 时，五秒发送预算和 orchbee.terminal.send 回执只说明输入进度。\nWindows --wait 需要空闲的受管 PowerShell 集成及空输入行。发送前检查就绪，只提交一次并等待本次调用的关联完成。总期限默认 30000 毫秒。JSON orchbee.terminal.run v1 分别保留 submission、completion、failure 和 viewer 清理。powershell-success 是 0/1 Shell 状态，不是原生进程退出码。需要恢复证据的脚本应在提交前选择 JSON。取消不会停止命令。不要重放已接受、部分或未知输入。不取得 controller、resize 或焦点。",
     );
 
 const HELP_TERMINAL_SEND_EN: crate::localization::HelpDetails =
@@ -3795,12 +3795,12 @@ const HELP_LAUNCH_PROFILE_DELETE_ZH: crate::localization::HelpDetails =
 const HELP_WORKTREE_LIST_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee worktree list [--workspace <target>|--cwd <path>] [--trust-repository] [--client <id>] [--format text|json]\norchbee worktree list --directory <directory-id> [--format text|json]",
-        "Windows: list Git checkouts and associated Workspaces. With no source selector,\n--client selects an exact ready TUI; otherwise use the validated caller, then a unique\ncurrent ready TUI, then CLI cwd only when neither exists. A Workspace source keeps its exact identity and must have a primary directory. No Project is required for a directory query. Invalid caller identity\nnever falls back. --trust-repository trusts this repository for this query only.\nThe query is read-only, does not activate a session, and has a 5-second total budget.\nJSON source queries emit orchbee.worktree.query; failed Server results keep typed reasons.\nThe globally stable --directory selector keeps orchbee.worktree.list and its failure schema;\nthese selectors cannot be combined with --workspace, --cwd, --client or --trust-repository.\nWorkspace targets accept exact IDs, @workspace:<suffix> or exact labels; ambiguity is rejected.\nBranches keep refs/heads/ prefixes; all-zero HEAD marks an unborn repository.\nWindows --cwd accepts absolute, relative and ~ paths; the final executing CLI resolves its own cwd/home after routing. Home precedence: USERPROFILE, HOMEDRIVE+HOMEPATH, HOME.",
+        "Windows: list Git checkouts and associated Workspaces. With no source selector,\n--client selects an exact ready TUI; otherwise use the validated caller, then a unique\ncurrent ready TUI, then CLI cwd only when neither exists. A Workspace source keeps its exact identity and must have a primary directory. No Project is required for a directory query. Invalid caller identity\nnever falls back. --trust-repository trusts this repository for this query only.\nThe query is read-only, does not activate a session, and has a 5-second total budget.\nJSON source queries emit orchbee.worktree.query; failed Server results keep typed reasons.\nThe globally stable --directory selector keeps orchbee.worktree.list and its failure schema;\nthese selectors cannot be combined with --workspace, --cwd, --client or --trust-repository.\nWorkspace targets accept exact IDs, @workspace:0x<hex> or exact labels; ambiguity is rejected.\nBranches keep refs/heads/ prefixes; all-zero HEAD marks an unborn repository.\nWindows --cwd accepts absolute, relative and ~ paths; the final executing CLI resolves its own cwd/home after routing. Home precedence: USERPROFILE, HOMEDRIVE+HOMEPATH, HOME.",
     );
 const HELP_WORKTREE_LIST_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee worktree list [--workspace <target>|--cwd <路径>] [--trust-repository] [--client <id>] [--format text|json]\norchbee worktree list --directory <directory-id> [--format text|json]",
-        "Windows：列出 Git 检出目录及关联 Workspace。省略来源选择器时，已验证的调用者终端\n优先，其次为唯一当前就绪 TUI，均无时才使用 CLI cwd。--client 选择精确就绪 TUI，\n覆盖隐式调用者。Workspace 来源保留其精确标识且必须有主目录。目录查询无需 Project。无效调用者身份\n绝不回退。--trust-repository 仅在本次查询中信任该仓库。\n查询只读、不激活会话，总预算 5 秒。来源查询 JSON 使用 orchbee.worktree.query，\nServer 失败结果保留类型化原因。全局稳定 --directory 选择器保留 orchbee.worktree.list\n及其失败 Schema；不可混用 --workspace、--cwd、--client 或 --trust-repository。\nWorkspace 目标支持精确 ID、@workspace:<suffix> 或精确标签；拒绝歧义。\n分支保留 refs/heads/ 前缀；全零 HEAD 表示未出生仓库。\nWindows --cwd 接受绝对、相对和 ~ 路径；路由后由最终执行的 CLI 使用自身 cwd／主目录解析。主目录优先级：USERPROFILE、HOMEDRIVE+HOMEPATH、HOME。",
+        "Windows：列出 Git 检出目录及关联 Workspace。省略来源选择器时，已验证的调用者终端\n优先，其次为唯一当前就绪 TUI，均无时才使用 CLI cwd。--client 选择精确就绪 TUI，\n覆盖隐式调用者。Workspace 来源保留其精确标识且必须有主目录。目录查询无需 Project。无效调用者身份\n绝不回退。--trust-repository 仅在本次查询中信任该仓库。\n查询只读、不激活会话，总预算 5 秒。来源查询 JSON 使用 orchbee.worktree.query，\nServer 失败结果保留类型化原因。全局稳定 --directory 选择器保留 orchbee.worktree.list\n及其失败 Schema；不可混用 --workspace、--cwd、--client 或 --trust-repository。\nWorkspace 目标支持精确 ID、@workspace:0x<hex> 或精确标签；拒绝歧义。\n分支保留 refs/heads/ 前缀；全零 HEAD 表示未出生仓库。\nWindows --cwd 接受绝对、相对和 ~ 路径；路由后由最终执行的 CLI 使用自身 cwd／主目录解析。主目录优先级：USERPROFILE、HOMEDRIVE+HOMEPATH、HOME。",
     );
 
 const HELP_API_SNAPSHOT_EN: crate::localization::HelpDetails =
@@ -4189,12 +4189,12 @@ impl Locale {
 const HELP_PANEL_CURRENT_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel current [--panel <panel> | --current] [--client <id>] [--format text|json]",
-        "Read a Panel, Tab and Workspace from a running Windows session.\nAn explicit Panel ID or @panel:<suffix> ignores caller environment and needs no TUI.\nOtherwise use validated ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID. If both are absent,\nuse the only current TUI Client; multiple Clients require --client. --client ignores\ncaller environment and cannot combine with --panel. Partial, invalid or stale caller\nmetadata never falls back. The Client must be ready or busy with a valid selected Panel.\nIncludes primary Agent status, terminal title/cwd and process observation.\nA selected Client supplies focus and scroll; changes during the read are rejected.\nFive-second total deadline; Ctrl+C cancels. No focus changes or session activation.",
+        "Read a Panel, Tab and Workspace from a running Windows session.\nAn explicit Panel ID or @panel:0x<hex> ignores caller environment and needs no TUI.\nOtherwise use validated ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID. If both are absent,\nuse the only current TUI Client; multiple Clients require --client. --client ignores\ncaller environment and cannot combine with --panel. Partial, invalid or stale caller\nmetadata never falls back. The Client must be ready or busy with a valid selected Panel.\nIncludes primary Agent status, terminal title/cwd and process observation.\nA selected Client supplies focus and scroll; changes during the read are rejected.\nFive-second total deadline; Ctrl+C cancels. No focus changes or session activation.",
     );
 const HELP_PANEL_CURRENT_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel current [--panel <panel> | --current] [--client <id>] [--format text|json]",
-        "从运行中的 Windows 会话读取 Panel、Tab 和 Workspace。显式 Panel ID 或 @panel:<suffix> 忽略调用者环境，无需 TUI。否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，使用唯一 current TUI Client，多个 Client 必须用 --client 指定。--client 忽略调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须处于就绪或忙碌状态，且所选 Panel 仍有效。补齐主 Agent 状态、终端标题/cwd 和进程观察。选定 Client 时包含焦点和滚动信息；读取中途变化则拒绝。总期限五秒；Ctrl+C 取消。不改变焦点，不激活会话。",
+        "从运行中的 Windows 会话读取 Panel、Tab 和 Workspace。显式 Panel ID 或 @panel:0x<hex> 忽略调用者环境，无需 TUI。否则校验 ORCHBEE_TERMINAL_ID 与 ORCHBEE_WORKER_ID；两个变量均缺失时，使用唯一 current TUI Client，多个 Client 必须用 --client 指定。--client 忽略调用者环境，不能与 --panel 同用。部分缺失、无效或过期的调用者信息绝不回退。\nClient 必须处于就绪或忙碌状态，且所选 Panel 仍有效。补齐主 Agent 状态、终端标题/cwd 和进程观察。选定 Client 时包含焦点和滚动信息；读取中途变化则拒绝。总期限五秒；Ctrl+C 取消。不改变焦点，不激活会话。",
     );
 
 impl Locale {
@@ -4264,12 +4264,12 @@ impl Locale {
 const HELP_PANEL_PROCESS_INFO_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel process-info [<panel> | --panel <panel> | --current] [--client <id>] [--format text|json]",
-        "Read the primary Terminal's Windows Job process information. Complete Panel IDs\nand @panel:<suffix> are accepted. Explicit Panel selectors are exclusive and conflict\nwith --client. Otherwise use validated caller context; only when both caller variables\nare absent, select the only current TUI Client. --client selects a Client and ignores\ncaller environment. Partial, invalid or stale caller metadata never falls back.\nThe Client must be ready or busy with a valid selected Panel. Each sample reports owned\nprocesses with PID, creation time, image, command line and cwd; unavailable optional\nfields are null. Five-second total deadline; Ctrl+C cancels. No focus or input changes.",
+        "Read the primary Terminal's Windows Job process information. Complete Panel IDs\nand @panel:0x<hex> are accepted. Explicit Panel selectors are exclusive and conflict\nwith --client. Otherwise use validated caller context; only when both caller variables\nare absent, select the only current TUI Client. --client selects a Client and ignores\ncaller environment. Partial, invalid or stale caller metadata never falls back.\nThe Client must be ready or busy with a valid selected Panel. Each sample reports owned\nprocesses with PID, creation time, image, command line and cwd; unavailable optional\nfields are null. Five-second total deadline; Ctrl+C cancels. No focus or input changes.",
     );
 const HELP_PANEL_PROCESS_INFO_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee panel process-info [<panel> | --panel <panel> | --current] [--client <id>] [--format text|json]",
-        "读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:<suffix>。显式 Panel 选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；仅当两个调用者变量均缺失时，选择唯一 current TUI Client。--client 指定 Client\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。Client 必须已就绪且所选 Panel 仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。",
+        "读取主 Terminal 的 Windows Job 进程信息，接受完整 Panel ID 或 @panel:0x<hex>。显式 Panel 选择器互斥，也不能与 --client 同用。否则使用经校验的调用者上下文；仅当两个调用者变量均缺失时，选择唯一 current TUI Client。--client 指定 Client\n并忽略调用者环境。部分缺失、无效或过期的调用者信息绝不回退。Client 必须已就绪且所选 Panel 仍有效。样本列出归属进程的 PID、创建时间、映像、命令行和 cwd；不可用的可选字段为 null。总期限五秒；Ctrl+C 取消。不改变焦点或输入。",
     );
 
 impl Locale {
@@ -4570,11 +4570,11 @@ impl Locale {
 
 const HELP_PANEL_SWAP_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel swap [<panel>] (--with <target> | --direction left|right|up|down) [--panel <panel>|--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-    "Explicit source and --with without --client perform a shared, headless exchange with no focus phase (orchbee.panel.swap v2). Other modes require one Ready Client and preserve the existing focus workflow. Exchange two complete Panel positions in one Tab, then focus the source in the selected Windows TUI. Source selectors are exclusive; omitted source uses valid caller context or the selected Client. Targets are exact IDs or @panel:<suffix>. Multiple Clients require an explicit selection.\n\nSame Panel, cross-Tab pair and no neighbor leave layout and focus unchanged. Positions commit before focus acknowledgment: a later failure preserves the committed receipt; never automatically retry a swap. One total timeout defaults to 30000 ms (1..3600000). No --detach or --request-id.",
+    "Explicit source and --with without --client perform a shared, headless exchange with no focus phase (orchbee.panel.swap v2). Other modes require one Ready Client and preserve the existing focus workflow. Exchange two complete Panel positions in one Tab, then focus the source in the selected Windows TUI. Source selectors are exclusive; omitted source uses valid caller context or the selected Client. Targets are exact IDs or @panel:0x<hex>. Multiple Clients require an explicit selection.\n\nSame Panel, cross-Tab pair and no neighbor leave layout and focus unchanged. Positions commit before focus acknowledgment: a later failure preserves the committed receipt; never automatically retry a swap. One total timeout defaults to 30000 ms (1..3600000). No --detach or --request-id.",
 );
 const HELP_PANEL_SWAP_ZH: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
     "orchbee panel swap [<panel>] (--with <target> | --direction left|right|up|down) [--panel <panel>|--current] [--client <id>] [--timeout <ms>] [--format text|json]",
-    "显式来源及 --with 且省略 --client 时，无头交换共享位置，不执行聚焦阶段（orchbee.panel.swap v2）。其他模式需要 Ready Client，并保留既有聚焦流程。 交换同一 Tab 中两个完整 Panel 的位置，再在所选 Windows TUI 聚焦来源。来源选择器互斥；省略时使用有效调用者上下文或所选 Client。目标为精确 ID 或 @panel:<suffix>。多个 Client 时须明确选择。\n\n同一 Panel、跨 Tab 或没有邻居不改变布局和焦点。位置提交先于聚焦确认；后续失败保留提交回执，绝不自动重试交换。总超时默认 30000 ms（1..3600000）。不支持 --detach 或 --request-id。",
+    "显式来源及 --with 且省略 --client 时，无头交换共享位置，不执行聚焦阶段（orchbee.panel.swap v2）。其他模式需要 Ready Client，并保留既有聚焦流程。 交换同一 Tab 中两个完整 Panel 的位置，再在所选 Windows TUI 聚焦来源。来源选择器互斥；省略时使用有效调用者上下文或所选 Client。目标为精确 ID 或 @panel:0x<hex>。多个 Client 时须明确选择。\n\n同一 Panel、跨 Tab 或没有邻居不改变布局和焦点。位置提交先于聚焦确认；后续失败保留提交回执，绝不自动重试交换。总超时默认 30000 ms（1..3600000）。不支持 --detach 或 --request-id。",
 );
 
 const HELP_PANEL_INPUT_EN: crate::localization::HelpDetails = crate::localization::HelpDetails::new(
@@ -4705,12 +4705,12 @@ impl Locale {
 const HELP_TERMINAL_ATTACH_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:suffix; never starts a session or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+B then q detaches; Ctrl+B twice sends a literal Ctrl+B. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
+        "Windows interactive terminal attachment. Requires terminal stdin/stdout.\nUses an existing terminal ID or @terminal:0x<hex>; never starts a session or focuses\na Workbench Panel. Uses the console size and exclusive input/resize control.\n--takeover revokes the old controller and may revoke it even on failure.\nCtrl+B then q detaches; Ctrl+B twice sends a literal Ctrl+B. Ctrl+C reaches\nthe application. Paste is semantic; plain page keys and wheel use history\nor the application's mouse/cursor modes. Mouse is on by default.\n--timeout is 1..3600000 ms; default unlimited, exchanges bounded to 5s, cleanup\nto 2s. No reconnect or input replay. Modes restore before diagnostics.\nOutput is an interactive screen with either --format; use terminal session\nobserve/control for NDJSON.",
     );
 const HELP_TERMINAL_ATTACH_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal attach <terminal> [--takeover] [--timeout ms] [--mouse on|off] [--format text|json]",
-        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:suffix，不启动会话，也不聚焦 Workbench Panel。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
+        "Windows 交互终端附着，需要终端 stdin/stdout。使用既有终端 ID 或\n@terminal:0x<hex>，不启动会话，也不聚焦 Workbench Panel。采用控制台尺寸，取得独占输入/尺寸控制权。--takeover 撤销旧控制者；失败也可能撤销旧权限。\nCtrl+B 后按 q 脱离；连续两次 Ctrl+B 发送字面 Ctrl+B。Ctrl+C 交付应用。粘贴使用语义操作；普通翻页键和滚轮使用历史或应用鼠标/光标模式。默认启用鼠标。--timeout 为 1..3600000 毫秒，默认不限总时长；单次交换最多 5 秒、清理最多 2 秒。不重连或重放输入。输出诊断前恢复终端模式。两种 --format 均显示交互画面；NDJSON 请使用 terminal session observe/control。",
     );
 const HELP_AGENT_ATTACH_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
@@ -4958,13 +4958,13 @@ const HELP_CONFIG_RESET_KEYS_ZH: crate::localization::HelpDetails =
 const HELP_TERMINAL_SELECTION_EN: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
-        "Windows: read one inclusive screen-buffer selection, independent of Client viewport.\nUse a complete terminal ID or @terminal:<suffix>. Coordinates are zero-based;\nrow 0..4294967295, column 0..65535, at most 4096 selected rows and an 8 MiB\nrow window. Reversed endpoints are ordered. Wide/combining glyphs remain whole;\nverified soft wraps join, hard-line padding is trimmed.\nContent revision is optional full-u64; generation is optional positive full-u64.\nBoth pin expected content before reading. Changed/evicted content fails whole.\nOne cancellable five-second existing-session read; no input, clipboard or user\nselection changes. JSON: orchbee.terminal.selection v1; text escapes controls.",
+        "Windows: read one inclusive screen-buffer selection, independent of Client viewport.\nUse a complete terminal ID or @terminal:0x<hex>. Coordinates are zero-based;\nrow 0..4294967295, column 0..65535, at most 4096 selected rows and an 8 MiB\nrow window. Reversed endpoints are ordered. Wide/combining glyphs remain whole;\nverified soft wraps join, hard-line padding is trimmed.\nContent revision is optional full-u64; generation is optional positive full-u64.\nBoth pin expected content before reading. Changed/evicted content fails whole.\nOne cancellable five-second existing-session read; no input, clipboard or user\nselection changes. JSON: orchbee.terminal.selection v1; text escapes controls.",
     );
 #[cfg(windows)]
 const HELP_TERMINAL_SELECTION_ZH: crate::localization::HelpDetails =
     crate::localization::HelpDetails::new(
         "orchbee terminal selection-read <terminal> --anchor ROW:COL --cursor ROW:COL [--content-revision N] [--generation N] [--format text|json]",
-        "Windows：读取包含两个端点的屏幕缓冲区选区，与 Client 视口无关。使用完整终端 ID 或 @terminal:<suffix>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有会话读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
+        "Windows：读取包含两个端点的屏幕缓冲区选区，与 Client 视口无关。使用完整终端 ID 或 @terminal:0x<hex>。坐标以零开始；行 0..4294967295、列 0..65535，最多选 4096 行及一个 8 MiB 行窗口。反向端点先排序；保留完整宽字／组合字形，连接已验证软换行并移除硬行尾填充。可选内容修订为完整 u64，generation 为正 u64；先检查预期内容，变化或已回收内容整体失败。一次可取消的五秒既有会话读取；不发送输入、不改用户选区／剪贴板。JSON 为 orchbee.terminal.selection v1，文本转义控制字符。",
     );
 
 #[cfg(windows)]

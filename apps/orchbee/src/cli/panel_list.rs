@@ -44,7 +44,7 @@ pub(super) fn read(
     else {
         return Err(Failure::new(FailureKind::InternalFailure));
     };
-    let handles = super::handles::short(
+    let handles = super::handles::stable(
         "panel",
         &all.iter().map(|p| p.panel_id.as_str()).collect::<Vec<_>>(),
     );

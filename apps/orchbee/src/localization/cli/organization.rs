@@ -42,7 +42,7 @@ impl Help {
                 ),
                 Self::WorkspaceSetProject => crate::localization::HelpDetails::new(
                     "orchbee workspace set-project <target> --project <target> [--format text|json]",
-                    "Move one globally resolved Workspace into an existing Project with one metadata command.\nTargets are exact IDs, @workspace:<suffix>/@project:<suffix> selectors, or exact labels.\nAll scope IDs, terminals, cwd and filesystem data remain unchanged.\nUse workspace move or move-block for navigation reordering.",
+                    "Move one globally resolved Workspace into an existing Project with one metadata command.\nTargets are exact IDs, @workspace:0x<hex>/@project:0x<hex> selectors, or exact labels.\nAll scope IDs, terminals, cwd and filesystem data remain unchanged.\nUse workspace move or move-block for navigation reordering.",
                 ),
                 Self::WorkspaceCreateProject => crate::localization::HelpDetails::new(
                     "orchbee workspace create-project <target> --label <label> [--format text|json]",
@@ -72,7 +72,7 @@ impl Help {
                 ),
                 Self::WorkspaceSetProject => crate::localization::HelpDetails::new(
                     "orchbee workspace set-project <target> --project <target> [--format text|json]",
-                    "通过一次元数据命令，将全局解析的 Workspace 移入现有 Project。目标接受精确 ID、@workspace:<suffix>/@project:<suffix> 选择器或精确名称。所有作用域 ID、终端、cwd 与文件系统数据保持不变。导航排序使用 workspace move 或 move-block。",
+                    "通过一次元数据命令，将全局解析的 Workspace 移入现有 Project。目标接受精确 ID、@workspace:0x<hex>/@project:0x<hex> 选择器或精确名称。所有作用域 ID、终端、cwd 与文件系统数据保持不变。导航排序使用 workspace move 或 move-block。",
                 ),
                 Self::WorkspaceCreateProject => crate::localization::HelpDetails::new(
                     "orchbee workspace create-project <target> --label <label> [--format text|json]",

@@ -129,9 +129,8 @@ pub(crate) enum OutputFormat {
 
 /// A `get`/filter target validated at parse time. `Id` carries the canonical
 /// 32-lowercase-hex text; `Label` carries an exact case-sensitive label;
-/// `Selector` carries an explicit `@<kind>:<suffix>` token whose kind was
-/// already checked against the operand's resource — resolution reads only
-/// the suffix, since the candidate set is always kind-scoped by the caller.
+/// `Selector` carries an exact compact `@<kind>:0x<hex>` identity or a legacy
+/// `@<kind>:<suffix>` token. The parser checks its resource kind before effects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Target {
     Id(String),
@@ -140,15 +139,19 @@ pub(crate) enum Target {
 }
 
 impl Target {
+    /// Expand an exact compact selector, preserving the original token for diagnostics.
+    pub(crate) fn selector_identity(&self) -> Option<String> {
+        let hex = self.suffix()?.strip_prefix("0x")?;
+        Some(format!("{hex:0>32}"))
+    }
+
     pub(crate) fn text(&self) -> &str {
         match self {
             Self::Id(value) | Self::Label(value) | Self::Selector(value) => value,
         }
     }
 
-    /// The validated lowercase-hex tail of a `@<kind>:<suffix>` selector; the
-    /// parser admitted the token, so the split is structural. Non-selector
-    /// targets have no suffix.
+    /// The admitted selector payload, including `0x` for an exact identity.
     pub(crate) fn suffix(&self) -> Option<&str> {
         match self {
             Self::Selector(token) => token.split_once(':').map(|(_, suffix)| suffix),
@@ -2388,9 +2391,14 @@ pub(crate) fn label_requires_id(value: &str) -> bool {
             .is_some_and(|(kind, _)| Resource::selector_token(kind).is_some())
 }
 
-/// A selector suffix is one to thirty-one lowercase hex characters — a tail
-/// of a member's typed identifier, never the full 32-character id shape.
+/// Compact identities have a distinct `0x` marker and all significant digits.
+/// Legacy suffixes remain one to thirty-one lowercase hex characters.
 fn valid_selector_suffix(suffix: &str) -> bool {
+    if let Some(hex) = suffix.strip_prefix("0x") {
+        return (1..=32).contains(&hex.len())
+            && !hex.starts_with('0')
+            && lowercase_hex(hex.as_bytes());
+    }
     (1..32).contains(&suffix.len()) && lowercase_hex(suffix.as_bytes())
 }
 
@@ -2411,7 +2419,7 @@ fn target(
     };
     // A recognized `@<kind>:` prefix claims selector syntax wherever it
     // appears: the kind must equal the operand's resource and the suffix must
-    // be a short lowercase-hex tail — both are parse-time `invalid-identifier`
+    // be a compact identity or legacy hex tail — both are parse-time `invalid-identifier`
     // failures. An `@` token without a recognized prefix falls through to the
     // label rule unchanged.
     let selector = value

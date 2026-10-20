@@ -369,7 +369,7 @@ fn unknown_option_advice_uses_root_family_and_leaf_grammar_scopes() {
 }
 
 #[test]
-fn terminal_lists_use_localized_headers_and_copyable_snapshot_handles() {
+fn terminal_lists_use_localized_headers_and_copyable_stable_handles() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let rows = (1..=2)
             .map(|number| TerminalRow {
@@ -394,15 +394,15 @@ fn terminal_lists_use_localized_headers_and_copyable_snapshot_handles() {
             text.lines()
                 .all(|line| super::escape::display_width(line) <= 80)
         );
-        assert!(text.contains("@terminal:1"), "{text}");
-        assert!(text.contains("@terminal:2"), "{text}");
+        assert!(text.contains("@terminal:0x1"), "{text}");
+        assert!(text.contains("@terminal:0x2"), "{text}");
         assert!(!text.contains(ID), "full identities belong to JSON: {text}");
         assert!(text.starts_with(locale.cli_labels().terminal_list_headers[0]));
     }
 }
 
 #[test]
-fn terminal_handles_expand_to_unique_suffixes_without_truncation() {
+fn terminal_handles_keep_all_significant_digits_without_truncation() {
     let suffix = "a".repeat(30);
     let rows = [format!("1b{suffix}"), format!("2c{suffix}")].map(|terminal_id| TerminalRow {
         terminal_id,
@@ -420,8 +420,8 @@ fn terminal_handles_expand_to_unique_suffixes_without_truncation() {
         Locale::EnUs,
     );
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.contains(&format!("@terminal:b{suffix}")), "{text}");
-    assert!(text.contains(&format!("@terminal:c{suffix}")), "{text}");
+    assert!(text.contains(&format!("@terminal:0x1b{suffix}")), "{text}");
+    assert!(text.contains(&format!("@terminal:0x2c{suffix}")), "{text}");
 }
 
 #[test]
@@ -445,7 +445,7 @@ fn empty_terminal_lists_keep_the_localized_header() {
 #[test]
 fn terminal_list_agent_states_are_localized() {
     let row = TerminalRow {
-        terminal_id: ID.into(),
+        terminal_id: format!("{:032x}", 1),
         worker_id: "1".repeat(32),
         presentation_id: "2".repeat(32),
         panel_id: "3".repeat(32),
@@ -513,7 +513,7 @@ fn terminal_list_keeps_full_paths_and_escapes_terminal_controls() {
         2,
         "controls must not add lines: {text:?}"
     );
-    assert!(text.contains("@terminal:f"));
+    assert!(text.contains(&format!("@terminal:0x{}", ID.trim_start_matches('0'))));
     assert!(text.contains("pwsh"));
     assert!(text.contains("grok"));
     // A path is copyable as a whole: never clipped, controls still escaped.

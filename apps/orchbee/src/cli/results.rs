@@ -190,8 +190,7 @@ pub(crate) struct StatusDoc {
 #[derive(Clone, Debug)]
 pub(crate) struct ProjectRow {
     pub(crate) project_id: String,
-    /// The text target spelling: the full ID by default, the shortest unique
-    /// selector once a list has seen every Project in the snapshot.
+    /// The text target spelling: full identity or its stable lossless compact form.
     pub(crate) handle: String,
     pub(crate) label: String,
     pub(crate) directory_count: usize,
@@ -2052,7 +2051,7 @@ impl<'a> ContextIndex<'a> {
     }
 }
 
-/// A typed target hits identity first; a `@<kind>:<suffix>` selector tails
+/// Typed and compact targets match exact identity; legacy suffix selectors tail
 /// the member ids; only a non-ID, non-selector token becomes an exact
 /// case-sensitive label search. Multi-match arms share one epilogue: zero is
 /// an empty candidate set, one is the answer, several return every matching
@@ -2079,6 +2078,12 @@ fn resolve<'a, Item, Label: AsRef<str>>(
                 .collect(),
         ),
         Target::Selector(_) => {
+            if let Some(identity) = target.selector_identity() {
+                return items
+                    .find(|(id, _label, _item)| *id == identity)
+                    .map(|(_id, _label, item)| item)
+                    .ok_or_else(Vec::new);
+            }
             let suffix = target.suffix().unwrap_or_default();
             settle(
                 items
@@ -2135,8 +2140,7 @@ pub(crate) fn resolve_or_fail<'a, Item, Label: AsRef<str>>(
     }
 }
 
-/// Shortest unique selector per member over the complete set a selector of
-/// this kind resolves against.
+/// Stable compact identity for each member, independent of filtering or peers.
 fn list_handles<'a>(
     resource: Resource,
     ids: impl Iterator<Item = &'a str>,
@@ -2144,7 +2148,7 @@ fn list_handles<'a>(
     let ids: Vec<&str> = ids.collect();
     ids.iter()
         .copied()
-        .zip(super::handles::short(resource.as_str(), &ids))
+        .zip(super::handles::stable(resource.as_str(), &ids))
         .collect()
 }
 

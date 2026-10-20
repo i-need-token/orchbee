@@ -28,7 +28,7 @@ orchbee --session work tui
 
 Workspace 拥有目录，可属于 Project；Project 分组是可选的。Workspace 包含 Tab，Tab 包含 Panel，Panel 有主终端且可包含子终端。TUI 客户端各自保存选择与视图。
 
-先用 `api snapshot`，再使用相关的 `project`、`workspace`、`tab`、`panel`、`terminal`、`launch-profile`、`client` 或 `agent` list/get 命令。复用返回的 ID。帮助允许时，可使用标签和 `@panel:<suffix>` 等 selector；匹配有歧义时必须使用精确 ID。ID 属于所选 Session 的作用域。
+先用 `api snapshot`，再使用相关的 `project`、`workspace`、`tab`、`panel`、`terminal`、`launch-profile`、`client` 或 `agent` list/get 命令。复用返回的 ID。优先使用打印的 `@panel:0x1` 等稳定句柄：它只省略 ID 的前导零，其他资源增删不会改变其含义。PowerShell 中给句柄加引号。旧后缀选择器仍可用，但属于瞬时选择器，不要作为身份保存。ID 和紧凑句柄受所选 Session 及底层身份寿命约束；Server 重启后重新发现运行时终端 ID。
 
 在 Orchbee 终端内，调用者元数据可以选择其 Panel；在外部，`panel current` 可使用唯一当前 TUI 客户端。存在多个客户端时传入 `--client <id>`；无界面查找可使用 `--panel <id>`。`agent start` 省略 `--panel` 时明确要求有效调用者元数据。部分或过期元数据不会授权回退。
 

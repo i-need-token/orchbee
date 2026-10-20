@@ -297,7 +297,7 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
         else {
             return Err(classify(Error::Invalid));
         };
-        let handles = super::handles::short(
+        let handles = super::handles::stable(
             "panel",
             &panels
                 .iter()

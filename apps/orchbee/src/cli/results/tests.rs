@@ -1877,8 +1877,8 @@ mod terminal_wait {
 }
 
 /// Every handle a list prints resolves through the matching `get` to the same
-/// member, including members whose short suffixes collide, and the parser
-/// accepts it; no handle is the rejected `@kind:<32 digits>` form.
+/// member, including members whose suffixes collide, and the parser accepts
+/// every significant digit in the compact identity.
 #[test]
 fn list_handles_round_trip_through_get() {
     let snapshot = selector_snapshot();
@@ -1902,7 +1902,11 @@ fn list_handles_round_trip_through_get() {
         panic!("project list");
     };
     for row in &projects {
-        assert!(row.handle.len() < 32 + "@project:".len(), "{}", row.handle);
+        assert!(
+            row.handle.len() <= 32 + "@project:0x".len(),
+            "{}",
+            row.handle
+        );
         assert!(parses(["project", "get"], &row.handle), "{}", row.handle);
         let Projection::ProjectGet(doc) =
             project(&QueryCommand::ProjectGet(target(&row.handle)), &snapshot).unwrap()
@@ -1923,7 +1927,7 @@ fn list_handles_round_trip_through_get() {
     };
     assert_eq!(workspaces.len(), 1);
     for row in &workspaces {
-        assert_eq!(row.handle, "@workspace:000000000000000cc");
+        assert_eq!(row.handle, "@workspace:0xcc");
         assert!(parses(["workspace", "get"], &row.handle), "{}", row.handle);
         let Projection::WorkspaceGet(doc) =
             project(&QueryCommand::WorkspaceGet(target(&row.handle)), &snapshot).unwrap()
@@ -1969,11 +1973,11 @@ fn ambiguity_text_lists_candidate_handles_with_labels() {
     let english = crate::localization::Locale::EnUs.cli_failure(&failure);
     assert_eq!(
         english,
-        "2 workspace candidates match \"w\": @workspace:000000000000000cc (\"w\"), @workspace:100000000000000cc (\"w\"). Use one of these handles or the full ID.\n"
+        "2 workspace candidates match \"w\": @workspace:0xcc (\"w\"), @workspace:0x100000000000000cc (\"w\"). Use one of these handles or the full ID.\n"
     );
     let chinese = crate::localization::Locale::ZhCn.cli_failure(&failure);
     assert!(
-        chinese.contains("@workspace:100000000000000cc (\"w\")"),
+        chinese.contains("@workspace:0x100000000000000cc (\"w\")"),
         "{chinese}"
     );
     assert!(chinese.contains("共有 2 个"), "{chinese}");
@@ -2089,6 +2093,38 @@ fn workspace_get_text_leads_with_the_workspace_and_its_directory_path() {
         assert!(
             text.contains(locale.cli_ungrouped()) || text.contains("("),
             "{text}"
+        );
+    }
+}
+
+#[test]
+fn printed_handles_never_follow_a_later_suffix_match() {
+    for resource in [
+        Resource::Project,
+        Resource::Workspace,
+        Resource::Tab,
+        Resource::Panel,
+        Resource::Terminal,
+    ] {
+        let original = tid(0, 1);
+        let later = tid(0, 0x91);
+        let handle =
+            list_handles(resource, [original.as_str()].into_iter())[original.as_str()].clone();
+        let target = Target::Selector(handle.clone());
+        for peers in [
+            vec![original.as_str()],
+            vec![later.as_str(), original.as_str()],
+            vec![original.as_str(), later.as_str()],
+        ] {
+            let handles = list_handles(resource, peers.iter().copied());
+            assert_eq!(handles[original.as_str()], handle);
+            let selected = resolve(peers.iter().map(|id| (*id, "", *id)), &target).unwrap();
+            assert_eq!(selected, original);
+        }
+        assert!(
+            resolve([(later.as_str(), "", later.as_str())].into_iter(), &target)
+                .unwrap_err()
+                .is_empty()
         );
     }
 }

@@ -354,10 +354,9 @@ fn terminal_title(title: &str) -> String {
     }
 }
 
-/// Choose the shortest selector suffix that resolves exactly within these
-/// rows when no snapshot placement was attached.
+/// Print stable compact identities when no snapshot placement was attached.
 fn terminal_handles(rows: &[TerminalRow]) -> Vec<String> {
-    super::handles::short(
+    super::handles::stable(
         "terminal",
         &rows
             .iter()

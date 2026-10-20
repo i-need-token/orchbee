@@ -284,10 +284,13 @@ pub(crate) fn terminal_get(target: &Target) -> Result<(serde_json::Value, Projec
     // resolved full id.
     let identity = match target {
         Target::Id(identity) => identity.clone(),
-        Target::Selector(_) => super::results::terminal_select(&snapshot, target)
-            .map_err(|failure| failure.source(super::results::snapshot_source(&snapshot)))?
-            .terminal_id
-            .clone(),
+        Target::Selector(_) => match target.selector_identity() {
+            Some(identity) => identity,
+            None => super::results::terminal_select(&snapshot, target)
+                .map_err(|failure| failure.source(super::results::snapshot_source(&snapshot)))?
+                .terminal_id
+                .clone(),
+        },
         // The parser admits only typed IDs and selectors for terminal targets.
         Target::Label(_) => return Err(Failure::new(FailureKind::InternalFailure)),
     };

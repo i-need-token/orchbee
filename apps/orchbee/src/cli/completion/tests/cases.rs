@@ -28,6 +28,12 @@ pub(in crate::cli::completion) const CASES: &[(&str, &str, bool)] = &[
         true,
     ),
     ("orchbee workspace get target --h", "--help", true),
+    (
+        "orchbee workspace get '@workspace:0x91' --h",
+        "--help",
+        true,
+    ),
+    ("orchbee panel get '@panel:0x1' --fo", "--format", true),
     #[cfg(windows)]
     (
         "orchbee --session work workspace create --label example --h",
