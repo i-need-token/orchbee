@@ -90,7 +90,26 @@ fn actual_windows_powershell_prompts_preserve_status_and_publish_provider_direct
         }
         // No files/profile are written. The command owns and reaps its child.
         let script = format!(
-            r"function global:prompt {{ if ($?) {{ 'ok> ' }} else {{ 'failed> ' }} }}; {prompt}; {prompt}; $null = Get-Item -LiteralPath 'Z:\orchbee-cwd-absent' -ErrorAction SilentlyContinue; $answer = prompt; if ($answer -ne 'failed> ') {{ throw ('lost status: ' + $answer) }}; Set-Location -LiteralPath $env:SystemRoot; $answer = prompt; if ($answer -ne 'ok> ') {{ throw 'changed prompt' }}; if ([Environment]::CurrentDirectory -ne $pwd.ProviderPath) {{ throw 'stale process cwd' }}; $last = [Environment]::CurrentDirectory; Set-Location HKCU:\; $null = prompt; if ([Environment]::CurrentDirectory -ne $last) {{ throw 'non-filesystem cwd' }}; 'directory-prompt-ok'"
+            r"function global:prompt {{ if ($?) {{ 'ok> ' }} else {{ 'failed> ' }} }}
+{prompt}
+{prompt}
+$null = Get-Item -LiteralPath 'Z:\orchbee-cwd-absent' -ErrorAction SilentlyContinue
+$answer = prompt
+if ($answer -ne 'failed> ') {{ throw ('lost status: ' + $answer) }}
+$global:__OrchbeeRunId = 'ffffffffffffffffffffffffffffffff'
+$null = Get-Item -LiteralPath 'Z:\orchbee-cwd-absent' -ErrorAction SilentlyContinue
+$answer = prompt
+if ($answer -ne 'failed> ' -or $null -ne $global:__OrchbeeRunId) {{ throw 'lost failed command status' }}
+$global:__OrchbeeRunId = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+Set-Location -LiteralPath $env:SystemRoot
+$answer = prompt
+if ($answer -ne 'ok> ' -or $null -ne $global:__OrchbeeRunId) {{ throw 'lost successful command status' }}
+if ([Environment]::CurrentDirectory -ne $pwd.ProviderPath) {{ throw 'stale process cwd' }}
+$last = [Environment]::CurrentDirectory
+Set-Location HKCU:\
+$null = prompt
+if ([Environment]::CurrentDirectory -ne $last) {{ throw 'non-filesystem cwd' }}
+'directory-prompt-ok'"
         );
         let output = Command::new(&shell)
             .args([
@@ -109,6 +128,16 @@ fn actual_windows_powershell_prompts_preserve_status_and_publish_provider_direct
             shell.display(),
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(String::from_utf8_lossy(&output.stdout).contains("directory-prompt-ok"));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("directory-prompt-ok"));
+        for (id, status) in [("f".repeat(32), 1), ("b".repeat(32), 0)] {
+            assert_eq!(
+                stdout
+                    .matches(&format!("orchbee.command.v1;finish;{id};{status}"))
+                    .count(),
+                1,
+                "{stdout}"
+            );
+        }
     }
 }
