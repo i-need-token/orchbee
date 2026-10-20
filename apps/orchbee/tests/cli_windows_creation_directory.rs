@@ -401,22 +401,30 @@ fn directory_receipt_schema_rejects_invented_and_inconsistent_facts() {
         "../src/cli/schemas/orchbee.creation.result.json"
     ))
     .unwrap();
-    let validator = jsonschema::validator_for(&doc["properties"]["directory"]).unwrap();
-    let valid = json!({"policy":"follow","source":"terminal-process","path":r"C:\source","sourcePanelId":id(6)});
-    assert!(validator.is_valid(&valid));
-    for (key, value) in [
-        ("policy", json!("unknown")),
-        ("source", json!("child-agent")),
-        ("sourcePanelId", Value::Null),
-        ("path", Value::Null),
-    ] {
-        let mut wrong = valid.clone();
-        wrong[key] = value;
-        assert!(!validator.is_valid(&wrong), "{wrong}");
+    let directories = doc["oneOf"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|variant| variant["properties"].get("directory"))
+        .collect::<Vec<_>>();
+    assert!(!directories.is_empty());
+    for directory in directories {
+        let validator = jsonschema::validator_for(directory).unwrap();
+        let valid = json!({"policy":"follow","source":"terminal-process","path":r"C:\source","sourcePanelId":id(6)});
+        assert!(validator.is_valid(&valid));
+        for (key, value) in [
+            ("policy", json!("unknown")),
+            ("source", json!("child-agent")),
+            ("sourcePanelId", Value::Null),
+            ("path", Value::Null),
+        ] {
+            let mut wrong = valid.clone();
+            wrong[key] = value;
+            assert!(!validator.is_valid(&wrong), "{wrong}");
+        }
+        let mut default = json!({"policy":"workspace","source":"launch-default","path":null,"sourcePanelId":null});
+        assert!(validator.is_valid(&default));
+        default["path"] = json!(r"C:\invented");
+        assert!(!validator.is_valid(&default));
     }
-    let mut default =
-        json!({"policy":"workspace","source":"launch-default","path":null,"sourcePanelId":null});
-    assert!(validator.is_valid(&default));
-    default["path"] = json!(r"C:\invented");
-    assert!(!validator.is_valid(&default));
 }
