@@ -2,287 +2,6 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.mutation.result",
 	"title": "orchbee workbench mutation result envelope",
-	"type": "object",
-	"required": ["schema", "version", "source", "result"],
-	"additionalProperties": false,
-	"properties": {
-		"schema": {
-			"const": "orchbee.mutation.result"
-		},
-		"version": {
-			"enum": [4, 5, 6]
-		},
-		"source": {
-			"oneOf": [
-				{
-					"$ref": "#/$defs/commandSource"
-				},
-				{
-					"$ref": "#/$defs/closeResumeSource"
-				}
-			]
-		},
-		"result": {
-			"type": "object",
-			"required": ["action", "outcome"],
-			"additionalProperties": false,
-			"properties": {
-				"action": {
-					"enum": [
-						"launch-profile.create",
-						"launch-profile.delete",
-						"panel.close",
-						"panel.move",
-						"panel.relocate",
-						"panel.split",
-						"project.create",
-						"tab.close",
-						"tab.create",
-						"tab.move",
-						"tab.rename",
-						"workspace.accept-directory",
-						"workspace.close",
-						"workspace.close-resume",
-						"workspace.create",
-						"workspace.rename",
-						"workspace.set-project",
-						"workspace.create-project",
-						"project.dissolve"
-					]
-				},
-				"outcome": {
-					"enum": ["accepted", "committed", "resumed", "unchanged"]
-				},
-				"revision": {
-					"$ref": "#/$defs/revision"
-				},
-				"acceptedRevision": {
-					"$ref": "#/$defs/revision"
-				},
-				"closeRequestId": {
-					"$ref": "#/$defs/id"
-				},
-				"attemptGeneration": {
-					"$ref": "#/$defs/revision"
-				},
-				"projectId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/id"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"workspaceId": {
-					"$ref": "#/$defs/id"
-				},
-				"terminalContextId": {
-					"$ref": "#/$defs/id"
-				},
-				"tabId": {
-					"$ref": "#/$defs/id"
-				},
-				"panelId": {
-					"$ref": "#/$defs/id"
-				},
-				"newPanelId": {
-					"$ref": "#/$defs/id"
-				},
-				"targetPanelId": {
-					"$ref": "#/$defs/id"
-				},
-				"targetTabId": {
-					"$ref": "#/$defs/id"
-				},
-				"splitId": {
-					"$ref": "#/$defs/id"
-				},
-				"firstSlotId": {
-					"$ref": "#/$defs/id"
-				},
-				"secondSlotId": {
-					"$ref": "#/$defs/id"
-				},
-				"presentationId": {
-					"$ref": "#/$defs/id"
-				},
-				"directoryId": {
-					"$ref": "#/$defs/id"
-				},
-				"workerId": {
-					"$ref": "#/$defs/id"
-				},
-				"direction": {
-					"enum": ["above", "below", "first", "last", "left", "next", "previous", "right"]
-				},
-				"label": {
-					"type": "string"
-				},
-				"path": {
-					"type": "string"
-				},
-				"profileId": {
-					"$ref": "#/$defs/profileId"
-				},
-				"catalogRevision": {
-					"$ref": "#/$defs/revision"
-				},
-				"name": {
-					"type": "string",
-					"minLength": 1,
-					"maxLength": 512
-				},
-				"terminal": {
-					"type": "object",
-					"required": ["outcome"],
-					"additionalProperties": false,
-					"properties": {
-						"outcome": {
-							"enum": ["failed", "pending", "started", "unavailable", "unknown"]
-						},
-						"reason": {
-							"enum": ["server-busy", "terminal-create-failed", "terminal-runtime-unavailable"]
-						},
-						"geometry": {
-							"$ref": "#/$defs/geometry"
-						}
-					}
-				},
-				"transfer": {
-					"type": "object",
-					"properties": {
-						"targetTerminalContextId": {
-							"$ref": "#/$defs/id"
-						},
-						"closedSourceTab": {
-							"type": "boolean"
-						},
-						"closedSourceWorkspaceId": {
-							"$ref": "#/$defs/id"
-						},
-						"createdWorkspaceId": {
-							"$ref": "#/$defs/id"
-						},
-						"createdDirectoryId": {
-							"$ref": "#/$defs/id"
-						}
-					},
-					"required": ["targetTerminalContextId", "closedSourceTab"],
-					"additionalProperties": false
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"outcome": {
-								"enum": ["committed", "unchanged"]
-							}
-						},
-						"required": ["outcome"]
-					},
-					"then": {
-						"required": ["revision"]
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"outcome": {
-								"const": "accepted"
-							}
-						},
-						"required": ["outcome"]
-					},
-					"then": {
-						"required": ["acceptedRevision", "closeRequestId"]
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"outcome": {
-								"const": "resumed"
-							}
-						},
-						"required": ["outcome"]
-					},
-					"then": {
-						"required": ["closeRequestId", "attemptGeneration"]
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"action": {
-								"const": "workspace.close-resume"
-							}
-						},
-						"required": ["action"]
-					},
-					"then": {
-						"required": ["workspaceId"]
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"action": {
-								"const": "workspace.close"
-							}
-						},
-						"required": ["action"]
-					},
-					"then": {
-						"required": ["workspaceId", "terminalContextId"]
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"action": {
-								"enum": ["launch-profile.create", "launch-profile.delete"]
-							}
-						},
-						"required": ["action"]
-					},
-					"then": {
-						"required": ["profileId", "catalogRevision"]
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"action": {
-								"const": "launch-profile.create"
-							}
-						},
-						"required": ["action"]
-					},
-					"then": {
-						"required": ["name"]
-					}
-				},
-				{
-					"if": {
-						"required": ["transfer"]
-					},
-					"then": {
-						"properties": {
-							"action": {
-								"const": "panel.relocate"
-							},
-							"outcome": {
-								"const": "committed"
-							}
-						}
-					}
-				}
-			]
-		}
-	},
 	"$defs": {
 		"id": {
 			"type": "string",
@@ -361,229 +80,1055 @@
 			}
 		}
 	},
-	"allOf": [
+	"oneOf": [
 		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 4
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"not": {
-							"required": ["transfer"]
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.mutation.result"
+				},
+				"version": {
+					"enum": [4, 5, 6]
+				},
+				"source": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/commandSource"
+						},
+						{
+							"$ref": "#/$defs/closeResumeSource"
 						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 5
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"action": {
-								"const": "panel.relocate"
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [4, 5]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"result": {
-						"properties": {
-							"projectId": {
-								"$ref": "#/$defs/id"
-							},
-							"action": {
-								"not": {
-									"enum": ["workspace.set-project", "workspace.create-project", "project.dissolve"]
+					]
+				},
+				"result": {
+					"type": "object",
+					"required": ["action", "outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"action": {
+							"enum": [
+								"launch-profile.create",
+								"launch-profile.delete",
+								"panel.close",
+								"panel.move",
+								"panel.relocate",
+								"panel.split",
+								"project.create",
+								"tab.close",
+								"tab.create",
+								"tab.move",
+								"tab.rename",
+								"workspace.accept-directory",
+								"workspace.close",
+								"workspace.close-resume",
+								"workspace.create",
+								"workspace.rename",
+								"workspace.set-project",
+								"workspace.create-project",
+								"project.dissolve"
+							]
+						},
+						"outcome": {
+							"enum": ["accepted", "committed", "resumed", "unchanged"]
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						},
+						"acceptedRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"closeRequestId": {
+							"$ref": "#/$defs/id"
+						},
+						"attemptGeneration": {
+							"$ref": "#/$defs/revision"
+						},
+						"projectId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/id"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"newPanelId": {
+							"$ref": "#/$defs/id"
+						},
+						"targetPanelId": {
+							"$ref": "#/$defs/id"
+						},
+						"targetTabId": {
+							"$ref": "#/$defs/id"
+						},
+						"splitId": {
+							"$ref": "#/$defs/id"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/id"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/id"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"directoryId": {
+							"$ref": "#/$defs/id"
+						},
+						"workerId": {
+							"$ref": "#/$defs/id"
+						},
+						"direction": {
+							"enum": ["above", "below", "first", "last", "left", "next", "previous", "right"]
+						},
+						"label": {
+							"type": "string"
+						},
+						"path": {
+							"type": "string"
+						},
+						"profileId": {
+							"$ref": "#/$defs/profileId"
+						},
+						"catalogRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 512
+						},
+						"terminal": {
+							"type": "object",
+							"required": ["outcome"],
+							"additionalProperties": false,
+							"properties": {
+								"outcome": {
+									"enum": ["failed", "pending", "started", "unavailable", "unknown"]
+								},
+								"reason": {
+									"enum": ["server-busy", "terminal-create-failed", "terminal-runtime-unavailable"]
+								},
+								"geometry": {
+									"$ref": "#/$defs/geometry"
 								}
 							}
 						},
-						"allOf": [
-							{
-								"if": {
-									"properties": {
-										"action": {
-											"enum": ["workspace.close", "workspace.close-resume"]
-										}
+						"transfer": {
+							"type": "object",
+							"properties": {
+								"targetTerminalContextId": {
+									"$ref": "#/$defs/id"
+								},
+								"closedSourceTab": {
+									"type": "boolean"
+								},
+								"closedSourceWorkspaceId": {
+									"$ref": "#/$defs/id"
+								},
+								"createdWorkspaceId": {
+									"$ref": "#/$defs/id"
+								},
+								"createdDirectoryId": {
+									"$ref": "#/$defs/id"
+								}
+							},
+							"required": ["targetTerminalContextId", "closedSourceTab"],
+							"additionalProperties": false
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"enum": ["committed", "unchanged"]
 									}
 								},
-								"then": {
-									"required": ["projectId"]
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["revision"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"const": "accepted"
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["acceptedRevision", "closeRequestId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"const": "resumed"
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["closeRequestId", "attemptGeneration"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "workspace.close-resume"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["workspaceId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "workspace.close"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["workspaceId", "terminalContextId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"enum": ["launch-profile.create", "launch-profile.delete"]
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["profileId", "catalogRevision"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "launch-profile.create"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["name"]
+							}
+						},
+						{
+							"if": {
+								"required": ["transfer"]
+							},
+							"then": {
+								"properties": {
+									"action": {
+										"const": "panel.relocate"
+									},
+									"outcome": {
+										"const": "committed"
+									}
 								}
 							}
-						]
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 6
-					}
+						}
+					]
 				}
 			},
-			"then": {
-				"properties": {
-					"result": {
-						"allOf": [
-							{
-								"if": {
-									"properties": {
-										"action": {
-											"enum": [
-												"workspace.close",
-												"workspace.close-resume",
-												"workspace.rename",
-												"workspace.accept-directory"
-											]
-										}
-									}
-								},
-								"then": {
-									"not": {
-										"required": ["projectId"]
-									}
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 4
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"not": {
+									"required": ["transfer"]
 								}
-							},
-							{
-								"if": {
-									"properties": {
-										"action": {
-											"enum": [
-												"workspace.create",
-												"workspace.set-project",
-												"workspace.create-project"
-											]
-										}
-									}
-								},
-								"then": {
-									"required": ["projectId", "workspaceId"]
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"action": {
-											"const": "project.dissolve"
-										}
-									}
-								},
-								"then": {
-									"required": ["projectId"],
-									"properties": {
-										"projectId": {
-											"$ref": "#/$defs/id"
-										}
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"action": {
-											"const": "workspace.set-project"
-										}
-									}
-								},
-								"then": {
-									"required": ["revision", "workspaceId", "projectId"],
-									"properties": {
-										"outcome": {
-											"enum": ["committed", "unchanged"]
-										}
-									},
-									"propertyNames": {
-										"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"action": {
-											"const": "workspace.create-project"
-										}
-									}
-								},
-								"then": {
-									"required": ["revision", "workspaceId", "projectId"],
-									"properties": {
-										"projectId": {
-											"$ref": "#/$defs/id"
-										},
-										"outcome": {
-											"enum": ["committed"]
-										}
-									},
-									"propertyNames": {
-										"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
-									}
-								}
-							},
-							{
-								"if": {
-									"properties": {
-										"action": {
-											"const": "project.dissolve"
-										}
-									}
-								},
-								"then": {
-									"required": ["revision", "projectId"],
-									"properties": {
-										"outcome": {
-											"enum": ["committed"]
-										}
-									},
-									"propertyNames": {
-										"enum": ["action", "outcome", "revision", "projectId"]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 5
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"action": {
+										"const": "panel.relocate"
 									}
 								}
 							}
-						],
+						}
+					}
+				},
+				{
+					"if": {
 						"properties": {
-							"action": {
-								"enum": [
-									"workspace.create",
-									"workspace.rename",
-									"workspace.close",
-									"workspace.close-resume",
-									"workspace.accept-directory",
-									"workspace.set-project",
-									"workspace.create-project",
-									"project.dissolve"
+							"version": {
+								"enum": [4, 5]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"projectId": {
+										"$ref": "#/$defs/id"
+									},
+									"action": {
+										"not": {
+											"enum": [
+												"workspace.set-project",
+												"workspace.create-project",
+												"project.dissolve"
+											]
+										}
+									}
+								},
+								"allOf": [
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"enum": ["workspace.close", "workspace.close-resume"]
+												}
+											}
+										},
+										"then": {
+											"required": ["projectId"]
+										}
+									}
 								]
 							}
 						}
 					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 6
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"allOf": [
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"enum": [
+														"workspace.close",
+														"workspace.close-resume",
+														"workspace.rename",
+														"workspace.accept-directory"
+													]
+												}
+											}
+										},
+										"then": {
+											"not": {
+												"required": ["projectId"]
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"enum": [
+														"workspace.create",
+														"workspace.set-project",
+														"workspace.create-project"
+													]
+												}
+											}
+										},
+										"then": {
+											"required": ["projectId", "workspaceId"]
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "project.dissolve"
+												}
+											}
+										},
+										"then": {
+											"required": ["projectId"],
+											"properties": {
+												"projectId": {
+													"$ref": "#/$defs/id"
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "workspace.set-project"
+												}
+											}
+										},
+										"then": {
+											"required": ["revision", "workspaceId", "projectId"],
+											"properties": {
+												"outcome": {
+													"enum": ["committed", "unchanged"]
+												}
+											},
+											"propertyNames": {
+												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "workspace.create-project"
+												}
+											}
+										},
+										"then": {
+											"required": ["revision", "workspaceId", "projectId"],
+											"properties": {
+												"projectId": {
+													"$ref": "#/$defs/id"
+												},
+												"outcome": {
+													"enum": ["committed"]
+												}
+											},
+											"propertyNames": {
+												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "project.dissolve"
+												}
+											}
+										},
+										"then": {
+											"required": ["revision", "projectId"],
+											"properties": {
+												"outcome": {
+													"enum": ["committed"]
+												}
+											},
+											"propertyNames": {
+												"enum": ["action", "outcome", "revision", "projectId"]
+											}
+										}
+									}
+								],
+								"properties": {
+									"action": {
+										"enum": [
+											"workspace.create",
+											"workspace.rename",
+											"workspace.close",
+											"workspace.close-resume",
+											"workspace.accept-directory",
+											"workspace.set-project",
+											"workspace.create-project",
+											"project.dissolve"
+										]
+									}
+								}
+							}
+						}
+					}
 				}
-			}
+			]
+		},
+		{
+			"type": "object",
+			"required": ["schema", "version", "source", "result", "resolvedLaunch"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.mutation.result"
+				},
+				"version": {
+					"enum": [7]
+				},
+				"source": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/commandSource"
+						},
+						{
+							"$ref": "#/$defs/closeResumeSource"
+						}
+					]
+				},
+				"result": {
+					"type": "object",
+					"required": ["action", "outcome"],
+					"additionalProperties": false,
+					"properties": {
+						"action": {
+							"enum": [
+								"launch-profile.create",
+								"launch-profile.delete",
+								"panel.close",
+								"panel.move",
+								"panel.relocate",
+								"panel.split",
+								"project.create",
+								"tab.close",
+								"tab.create",
+								"tab.move",
+								"tab.rename",
+								"workspace.accept-directory",
+								"workspace.close",
+								"workspace.close-resume",
+								"workspace.create",
+								"workspace.rename",
+								"workspace.set-project",
+								"workspace.create-project",
+								"project.dissolve"
+							]
+						},
+						"outcome": {
+							"enum": ["accepted", "committed", "resumed", "unchanged"]
+						},
+						"revision": {
+							"$ref": "#/$defs/revision"
+						},
+						"acceptedRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"closeRequestId": {
+							"$ref": "#/$defs/id"
+						},
+						"attemptGeneration": {
+							"$ref": "#/$defs/revision"
+						},
+						"projectId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/id"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalContextId": {
+							"$ref": "#/$defs/id"
+						},
+						"tabId": {
+							"$ref": "#/$defs/id"
+						},
+						"panelId": {
+							"$ref": "#/$defs/id"
+						},
+						"newPanelId": {
+							"$ref": "#/$defs/id"
+						},
+						"targetPanelId": {
+							"$ref": "#/$defs/id"
+						},
+						"targetTabId": {
+							"$ref": "#/$defs/id"
+						},
+						"splitId": {
+							"$ref": "#/$defs/id"
+						},
+						"firstSlotId": {
+							"$ref": "#/$defs/id"
+						},
+						"secondSlotId": {
+							"$ref": "#/$defs/id"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/id"
+						},
+						"directoryId": {
+							"$ref": "#/$defs/id"
+						},
+						"workerId": {
+							"$ref": "#/$defs/id"
+						},
+						"direction": {
+							"enum": ["above", "below", "first", "last", "left", "next", "previous", "right"]
+						},
+						"label": {
+							"type": "string"
+						},
+						"path": {
+							"type": "string"
+						},
+						"profileId": {
+							"$ref": "#/$defs/profileId"
+						},
+						"catalogRevision": {
+							"$ref": "#/$defs/revision"
+						},
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 512
+						},
+						"terminal": {
+							"type": "object",
+							"required": ["outcome"],
+							"additionalProperties": false,
+							"properties": {
+								"outcome": {
+									"enum": ["failed", "pending", "started", "unavailable", "unknown"]
+								},
+								"reason": {
+									"enum": ["server-busy", "terminal-create-failed", "terminal-runtime-unavailable"]
+								},
+								"geometry": {
+									"$ref": "#/$defs/geometry"
+								}
+							}
+						},
+						"transfer": {
+							"type": "object",
+							"properties": {
+								"targetTerminalContextId": {
+									"$ref": "#/$defs/id"
+								},
+								"closedSourceTab": {
+									"type": "boolean"
+								},
+								"closedSourceWorkspaceId": {
+									"$ref": "#/$defs/id"
+								},
+								"createdWorkspaceId": {
+									"$ref": "#/$defs/id"
+								},
+								"createdDirectoryId": {
+									"$ref": "#/$defs/id"
+								}
+							},
+							"required": ["targetTerminalContextId", "closedSourceTab"],
+							"additionalProperties": false
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"enum": ["committed", "unchanged"]
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["revision"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"const": "accepted"
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["acceptedRevision", "closeRequestId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"outcome": {
+										"const": "resumed"
+									}
+								},
+								"required": ["outcome"]
+							},
+							"then": {
+								"required": ["closeRequestId", "attemptGeneration"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "workspace.close-resume"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["workspaceId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "workspace.close"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["workspaceId", "terminalContextId"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"enum": ["launch-profile.create", "launch-profile.delete"]
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["profileId", "catalogRevision"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"action": {
+										"const": "launch-profile.create"
+									}
+								},
+								"required": ["action"]
+							},
+							"then": {
+								"required": ["name"]
+							}
+						},
+						{
+							"if": {
+								"required": ["transfer"]
+							},
+							"then": {
+								"properties": {
+									"action": {
+										"const": "panel.relocate"
+									},
+									"outcome": {
+										"const": "committed"
+									}
+								}
+							}
+						},
+						{
+							"properties": {
+								"action": {
+									"enum": ["tab.create", "panel.split"]
+								}
+							}
+						}
+					]
+				},
+				"resolvedLaunch": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["exec", "args"],
+					"properties": {
+						"exec": {
+							"type": "string",
+							"minLength": 1
+						},
+						"args": {
+							"type": "array",
+							"maxItems": 128,
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 7
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"not": {
+									"required": ["transfer"]
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": -1
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"action": {
+										"const": "panel.relocate"
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [7, -1]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"properties": {
+									"projectId": {
+										"$ref": "#/$defs/id"
+									},
+									"action": {
+										"not": {
+											"enum": [
+												"workspace.set-project",
+												"workspace.create-project",
+												"project.dissolve"
+											]
+										}
+									}
+								},
+								"allOf": [
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"enum": ["workspace.close", "workspace.close-resume"]
+												}
+											}
+										},
+										"then": {
+											"required": ["projectId"]
+										}
+									}
+								]
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": -1
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"result": {
+								"allOf": [
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"enum": [
+														"workspace.close",
+														"workspace.close-resume",
+														"workspace.rename",
+														"workspace.accept-directory"
+													]
+												}
+											}
+										},
+										"then": {
+											"not": {
+												"required": ["projectId"]
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"enum": [
+														"workspace.create",
+														"workspace.set-project",
+														"workspace.create-project"
+													]
+												}
+											}
+										},
+										"then": {
+											"required": ["projectId", "workspaceId"]
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "project.dissolve"
+												}
+											}
+										},
+										"then": {
+											"required": ["projectId"],
+											"properties": {
+												"projectId": {
+													"$ref": "#/$defs/id"
+												}
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "workspace.set-project"
+												}
+											}
+										},
+										"then": {
+											"required": ["revision", "workspaceId", "projectId"],
+											"properties": {
+												"outcome": {
+													"enum": ["committed", "unchanged"]
+												}
+											},
+											"propertyNames": {
+												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "workspace.create-project"
+												}
+											}
+										},
+										"then": {
+											"required": ["revision", "workspaceId", "projectId"],
+											"properties": {
+												"projectId": {
+													"$ref": "#/$defs/id"
+												},
+												"outcome": {
+													"enum": ["committed"]
+												}
+											},
+											"propertyNames": {
+												"enum": ["action", "outcome", "revision", "workspaceId", "projectId"]
+											}
+										}
+									},
+									{
+										"if": {
+											"properties": {
+												"action": {
+													"const": "project.dissolve"
+												}
+											}
+										},
+										"then": {
+											"required": ["revision", "projectId"],
+											"properties": {
+												"outcome": {
+													"enum": ["committed"]
+												}
+											},
+											"propertyNames": {
+												"enum": ["action", "outcome", "revision", "projectId"]
+											}
+										}
+									}
+								],
+								"properties": {
+									"action": {
+										"enum": [
+											"workspace.create",
+											"workspace.rename",
+											"workspace.close",
+											"workspace.close-resume",
+											"workspace.accept-directory",
+											"workspace.set-project",
+											"workspace.create-project",
+											"project.dissolve"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			]
 		}
 	]
 }

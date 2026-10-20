@@ -45,13 +45,14 @@ mod creation;
 mod current_panel;
 #[cfg(windows)]
 mod current_presentation;
+mod launch_receipt;
 #[cfg(any(windows, test))]
 mod source_context;
 #[cfg(windows)]
 pub(crate) mod workspace_creation;
 #[cfg(windows)]
 mod workspace_focus;
-pub(crate) use creation::run as run_creation;
+pub(crate) use creation::run_parsed as run_creation;
 #[cfg(windows)]
 pub(crate) mod channel;
 mod completion;

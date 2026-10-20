@@ -160,3 +160,13 @@ or selecting a working default lets the user create directly from this page, inc
 the only Tab. Close keeps its existing
 confirmation path. The state membership and projection tests own these transitions; real-window
 review covers both locales, narrow wrapping, copying and recovery.
+
+## Executable names
+
+Creation commands accept `--exec <path|name>` with literal repeated `--arg` values. Syntax is validated before routing; only the final CLI process resolves a single filename on its own `PATH`, before configuration, discovery or mutation. Absolute executable paths retain their existing meaning. Relative paths, separators in names, shell expansion and implicit current-directory search are rejected. A missing program fails before any creation request. Launch Profiles still store absolute paths.
+
+Lookup uses the first executable in at most 256 absolute UTF-8 directory entries of a PATH bounded to 1 MiB. Empty, relative and control-containing entries are skipped. Windows tries `.exe` then `.com` for extensionless names and accepts those extensions explicitly; it does not use `PATHEXT` or script associations. Unix requires an executable regular file. Arguments are never evaluated by a shell. The final path and arguments are revalidated against the launch contract before submission.
+
+Named-program receipts add `resolvedLaunch` with `exec` and `args`: `orchbee.creation.result` versions 6/7/8 correspond to versions 3/4/5, `orchbee.workspace.creation` version 3 follows version 2, `orchbee.panel.terminal-create` version 2 follows version 1, and the Linux canonical `orchbee.mutation.result` version 7 follows version 4. Existing absolute-path receipts keep their versions. Text output shows the resolved executable. Resolution is an input fact, not evidence that the process started; original submission, failure and cleanup facts remain authoritative.
+
+For example, `orchbee tab create --exec pwsh --arg -NoExit --arg -Command --arg "npm run dev"` resolves PowerShell once and passes the command as one literal argument. PATH lookup is covered for ordering, missing executables, invalid names and relative entries; receipt coverage checks version selection and preservation of unknown outcomes.

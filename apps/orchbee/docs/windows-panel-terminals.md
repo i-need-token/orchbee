@@ -1,7 +1,7 @@
 # Windows Panel terminal creation
 
 `orchbee panel create-terminal [<panel>|--panel <target>|--current] [--client <id>]
-[--child|--presentation <id>] [--label <label>] [--exec <absolute-path> --arg <value>...|--profile <selector>]
+[--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>]
 [--cwd follow|home|current|workspace|<absolute-path>] [--env NAME=VALUE] [--timeout <ms>]`
 creates a terminal inside an existing Panel without splitting its geometry. It is Windows-only.
 Omitted member selection binds the unbound primary; `--presentation` selects an exact unbound
@@ -33,3 +33,5 @@ The shared creation adapter also serves layout materialization/binding. Matched 
 binaries roll out and roll back together; no durable migration is introduced. Parser/target/receipt
 checks and scoped Windows CLI peers verify the boundary; real-provider and complete TUI acceptance
 remain part of the final Windows regression.
+
+Executable names use the final CLI PATH and retain the resolved absolute path in receipts; see [Executable names](native-terminal-creation.md#executable-names).

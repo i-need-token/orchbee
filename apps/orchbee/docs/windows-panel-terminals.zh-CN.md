@@ -1,7 +1,7 @@
 # Windows Panel 终端创建
 
 `orchbee panel create-terminal [<panel>|--panel <target>|--current] [--client <id>]
-[--child|--presentation <id>] [--label <label>] [--exec <absolute-path> --arg <value>...|--profile <selector>]
+[--child|--presentation <id>] [--label <label>] [--exec <path|name> --arg <value>...|--profile <selector>]
 [--cwd follow|home|current|workspace|<absolute-path>] [--env NAME=VALUE] [--timeout <ms>]`
 在既有 Panel 内创建终端，不分割其几何区域，仅支持 Windows。
 省略成员选择时绑定未绑定的主项；`--presentation` 选择该 Panel 内精确的未绑定主项或子项；
@@ -28,3 +28,5 @@ Server 负责授权、修订／Close 约束、身份分配、启动及结算。
 共享创建适配器也服务布局结构创建／绑定。匹配的原生 CLI／Server 二进制一起上线及回滚，
 不增加持久化迁移。解析器／目标／回执检查及作用域内 Windows CLI 对端验证边界；
 真实 provider 和完整 TUI 验收继续纳入最终 Windows 回归。
+
+程序名使用最终 CLI 的 PATH，回执保留解析出的绝对路径；参见[可执行程序名](native-terminal-creation.zh-CN.md#可执行程序名)。

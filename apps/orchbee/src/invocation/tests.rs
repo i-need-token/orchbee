@@ -1723,7 +1723,7 @@ fn mutation(command: MutationCommand, format: OutputFormat) -> Request {
             kind,
             label: Some(label),
             geometry,
-            launch,
+            launch: launch.map(super::program::ParsedLaunch::Absolute),
             profile,
             options,
             client: None,
@@ -2566,8 +2566,12 @@ fn launch_selection_options_fail_closed_on_misuse() {
     usage(&["--arg"]);
     // Empty `--exec=` is an invalid executable, not a missing value.
     usage(&["--exec="]);
-    // Executable shape: relative and bare names are invalid values.
-    usage(&["--exec", "sh"]);
+    // Bare names stay unresolved until the final CLI; relative paths are invalid.
+    assert!(
+        matches!(tab_create_with(&["--exec", "sh"]), Ok(Request::Creation {
+        command: CreationCommand { launch: Some(super::program::ParsedLaunch::Path { name, .. }), .. }, ..
+    }) if name == "sh")
+    );
     usage(&["--exec", "bin/sh"]);
     // NUL-bearing values cannot arrive through &str argv — NUL input is
     // exercised through OsString at the byte envelope instead.

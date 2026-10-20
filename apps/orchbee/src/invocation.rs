@@ -35,6 +35,7 @@ mod machines;
 #[cfg(windows)]
 pub(crate) use machines::MachineCommand;
 mod creation;
+pub(crate) mod program;
 #[cfg(windows)]
 mod workspace_creation;
 #[cfg(windows)]
@@ -1707,11 +1708,11 @@ pub(crate) enum Request {
     },
     #[cfg(windows)]
     PanelTerminalCreation {
-        command: panel_terminal_creation::PanelTerminalCreationCommand,
+        command: panel_terminal_creation::PanelTerminalCreationCommand<program::ParsedLaunch>,
         format: OutputFormat,
     },
     Creation {
-        command: CreationCommand,
+        command: CreationCommand<program::ParsedLaunch>,
         format: OutputFormat,
     },
     SchemaExport {
@@ -1987,6 +1988,8 @@ pub(crate) enum ExpectedValue {
     CommandText,
     MouseMode,
     Executable,
+    ExecutableName,
+    ExecutableOnPath,
     LaunchArguments,
     LaunchEnvironment,
     AgentSessionId,

@@ -2,7 +2,7 @@
 use super::{
     CreationDirectory, FailureEnvelope, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request,
     Resource, Scope, Target, UsageContext, UsageReason, check_scope, client_control,
-    geometry_option, label_option, launch_option, launch_options_with_directory, profile_option,
+    geometry_option, label_option, launch_options_with_directory, profile_option,
     reject_launch_profile_conflict, report_target, target, unexpected_argument, usage_with,
     wait_timeout_option,
 };
@@ -18,13 +18,13 @@ pub(crate) enum Member {
     Child,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PanelTerminalCreationCommand {
+pub(crate) struct PanelTerminalCreationCommand<L = LaunchSelection> {
     pub(crate) panel: Option<Target>,
     pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) member: Member,
     pub(crate) label: Option<WorkbenchLabel>,
     pub(crate) geometry: WorkbenchTerminalGeometry,
-    pub(crate) launch: Option<LaunchSelection>,
+    pub(crate) launch: Option<L>,
     pub(crate) profile: Option<LaunchProfileSelector>,
     pub(crate) options: LaunchOptions,
     pub(crate) directory: CreationDirectory,
@@ -124,7 +124,7 @@ pub(super) fn parse(
                 .map(|_| label_option(options, context, envelope))
                 .transpose()?,
             geometry: geometry_option(options, context, envelope)?,
-            launch: launch_option(options, context, envelope)?,
+            launch: super::program::parse(options, context, envelope)?,
             profile: profile_option(options, context, envelope)?,
             options: launch_options_with_directory(
                 options,
@@ -149,3 +149,28 @@ pub(super) fn parse(
 
 #[cfg(test)]
 mod tests;
+
+impl PanelTerminalCreationCommand<super::program::ParsedLaunch> {
+    pub(crate) fn into_resolved(
+        self,
+        format: OutputFormat,
+    ) -> Result<PanelTerminalCreationCommand, ParseFailure> {
+        let context = UsageContext::Path("panel create-terminal");
+        Ok(PanelTerminalCreationCommand {
+            panel: self.panel,
+            client: self.client,
+            member: self.member,
+            label: self.label,
+            geometry: self.geometry,
+            launch: super::program::resolve(
+                self.launch,
+                context,
+                super::selection_envelope(Some(format)),
+            )?,
+            profile: self.profile,
+            options: self.options,
+            directory: self.directory,
+            timeout_ms: self.timeout_ms,
+        })
+    }
+}

@@ -21,6 +21,29 @@ use orchbee_workbench_protocol::{
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
+pub(crate) fn run_parsed(
+    command: &PanelTerminalCreationCommand<crate::invocation::program::ParsedLaunch>,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
+    let named = matches!(
+        command.launch,
+        Some(crate::invocation::program::ParsedLaunch::Path { .. })
+    );
+    match command.clone().into_resolved(format) {
+        Ok(command) => {
+            let output = run(&command, format, locale);
+            super::launch_receipt::annotate(
+                output,
+                command.launch.as_ref().filter(|_| named),
+                format,
+                locale,
+            )
+        }
+        Err(failure) => super::parse_failure(failure, locale),
+    }
+}
+
 pub(crate) fn run(
     command: &PanelTerminalCreationCommand,
     format: OutputFormat,

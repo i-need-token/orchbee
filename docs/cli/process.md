@@ -119,3 +119,5 @@ processes or silently repairs unrelated state.
   and the authority owns ordering. Declared offline configuration workflows serialize through their shared configuration owner, including bounded interruption and recovery.
 - Pagination cursors and request identities are opaque to the caller. Declared lifecycle cleanup
   may additionally retain its private recovery intent until the cleanup completes.
+
+Executable-name admission must remain syntax-only before routing. If a command owns PATH resolution, the final executing CLI resolves a bounded absolute executable before configuration, discovery and mutation, passes arguments literally, and records the resolved path without claiming process success.

@@ -22,11 +22,25 @@ pub(crate) fn run(
     format: OutputFormat,
     locale: Locale,
 ) -> Output {
-    let mut command =
+    let named = matches!(
+        command.launch,
+        Some(crate::invocation::program::ParsedLaunch::Path { .. })
+    );
+    let command =
         match command.into_resolved(format, |name| std::env::var_os(name), std::env::current_dir) {
             Ok(command) => command,
             Err(failure) => return super::parse_failure(failure, locale),
         };
+    let launch = command.launch.clone();
+    let output = run_resolved(command, format, locale);
+    super::launch_receipt::annotate(output, launch.as_ref().filter(|_| named), format, locale)
+}
+
+fn run_resolved(
+    mut command: WorkspaceCreationCommand,
+    format: OutputFormat,
+    locale: Locale,
+) -> Output {
     let settings = match crate::cli::configuration::load() {
         Ok(settings) => settings,
         Err(error) => return failure_output(error.failure(), Some(format), locale),

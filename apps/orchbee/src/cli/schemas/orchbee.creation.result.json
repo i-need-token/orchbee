@@ -2,355 +2,6 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "orchbee.creation.result",
 	"title": "Windows terminal creation and requested Client effects",
-	"type": "object",
-	"additionalProperties": false,
-	"required": ["schema", "version", "source", "result", "postCreate", "directory"],
-	"properties": {
-		"schema": {
-			"const": "orchbee.creation.result"
-		},
-		"version": {
-			"enum": [2, 3, 4, 5]
-		},
-		"source": {
-			"$ref": "#/$defs/canonical/$defs/commandSource"
-		},
-		"result": {
-			"allOf": [
-				{
-					"$ref": "#/$defs/canonical/properties/result"
-				},
-				{
-					"type": "object",
-					"properties": {
-						"action": {
-							"enum": ["tab.create", "panel.split"]
-						},
-						"outcome": {
-							"const": "committed"
-						}
-					},
-					"required": [
-						"action",
-						"outcome",
-						"revision",
-						"terminalContextId",
-						"tabId",
-						"panelId",
-						"presentationId",
-						"label",
-						"terminal"
-					],
-					"allOf": [
-						{
-							"if": {
-								"properties": {
-									"action": {
-										"const": "panel.split"
-									}
-								}
-							},
-							"then": {
-								"required": ["newPanelId", "splitId", "firstSlotId", "secondSlotId", "direction"]
-							}
-						}
-					]
-				}
-			]
-		},
-		"postCreate": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
-			"properties": {
-				"clientId": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control/$defs/clientId"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"requested": {
-					"type": "object",
-					"additionalProperties": false,
-					"required": ["ratio", "focus"],
-					"properties": {
-						"ratio": {
-							"anyOf": [
-								{
-									"type": "number",
-									"minimum": 0.1,
-									"maximum": 0.9
-								},
-								{
-									"type": "null"
-								}
-							]
-						},
-						"focus": {
-							"type": "boolean"
-						},
-						"zoom": {
-							"const": true
-						},
-						"overlay": {
-							"const": true
-						}
-					}
-				},
-				"ratio": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"focus": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/control"
-						},
-						{
-							"$ref": "#/$defs/overlayControl"
-						},
-						{
-							"type": "null"
-						}
-					]
-				},
-				"stage": {
-					"enum": ["created", "ratio-resolution", "ratio", "focus-observation", "focus", "complete"]
-				},
-				"failure": {
-					"anyOf": [
-						{
-							"enum": [
-								"invalid-usage",
-								"not-found",
-								"ambiguous",
-								"denied",
-								"rejected",
-								"service-unavailable",
-								"protocol-invalid",
-								"transport",
-								"outcome-unknown",
-								"timeout",
-								"cancelled",
-								"internal-failure",
-								"check-failed",
-								"output-too-large"
-							]
-						},
-						{
-							"type": "null"
-						}
-					],
-					"enum": [
-						"ambiguous",
-						"cancelled",
-						"check-failed",
-						"denied",
-						"incompatible",
-						"internal-failure",
-						"invalid-identifier",
-						"invalid-usage",
-						"not-found",
-						"outcome-unknown",
-						"output-too-large",
-						"protocol-invalid",
-						"rejected",
-						"service-unavailable",
-						"session-capacity",
-						"timeout",
-						"transport-loss",
-						null
-					]
-				},
-				"outcome": {
-					"enum": ["not-requested", "completed", "incomplete"]
-				}
-			}
-		},
-		"directory": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["policy", "source", "path", "sourcePanelId"],
-			"properties": {
-				"policy": {
-					"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
-				},
-				"source": {
-					"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
-				},
-				"path": {
-					"type": ["string", "null"],
-					"minLength": 1,
-					"maxLength": 4096
-				},
-				"sourcePanelId": {
-					"anyOf": [
-						{
-							"type": "string",
-							"pattern": "^[0-9a-f]{32}$"
-						},
-						{
-							"type": "null"
-						}
-					]
-				}
-			},
-			"allOf": [
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "launch-default"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"path": {
-								"type": "null"
-							}
-						}
-					},
-					"else": {
-						"properties": {
-							"path": {
-								"type": "string"
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"source": {
-								"const": "terminal-process"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"sourcePanelId": {
-								"type": "string",
-								"pattern": "^[0-9a-f]{32}$"
-							}
-						}
-					}
-				},
-				{
-					"if": {
-						"properties": {
-							"policy": {
-								"const": "plugin-root"
-							}
-						}
-					},
-					"then": {
-						"properties": {
-							"source": {
-								"const": "launch-default"
-							},
-							"path": {
-								"type": "null"
-							},
-							"sourcePanelId": {
-								"type": "null"
-							}
-						}
-					}
-				}
-			],
-			"oneOf": [
-				{
-					"properties": {
-						"policy": {
-							"const": "follow"
-						},
-						"source": {
-							"enum": ["launch-default", "terminal-process"]
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "explicit"
-						},
-						"source": {
-							"enum": ["argument"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "home"
-						},
-						"source": {
-							"enum": ["home"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "current"
-						},
-						"source": {
-							"enum": ["current"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "workspace"
-						},
-						"source": {
-							"enum": ["launch-default"]
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				},
-				{
-					"properties": {
-						"policy": {
-							"const": "plugin-root"
-						},
-						"source": {
-							"const": "launch-default"
-						},
-						"path": {
-							"type": "null"
-						},
-						"sourcePanelId": {
-							"type": "null"
-						}
-					}
-				}
-			]
-		}
-	},
 	"$defs": {
 		"canonical": {
 			"title": "orchbee workbench mutation result envelope",
@@ -2368,117 +2019,986 @@
 			}
 		}
 	},
-	"allOf": [
+	"oneOf": [
 		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 2
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"directory": {
-						"properties": {
-							"policy": {
-								"not": {
-									"const": "plugin-root"
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"enum": [4, 5]
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"postCreate": {
-						"properties": {
-							"requested": {
-								"required": ["zoom"],
-								"properties": {
-									"focus": {
-										"const": true
-									}
-								}
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"postCreate": {
-						"properties": {
-							"requested": {
-								"not": {
-									"required": ["zoom"]
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"version": {
-						"const": 5
-					}
-				}
-			},
-			"then": {
-				"properties": {
-					"postCreate": {
-						"properties": {
-							"requested": {
-								"required": ["overlay", "zoom"],
-								"properties": {
-									"focus": {
-										"const": true
-									},
-									"ratio": {
-										"type": "null"
-									}
-								}
-							}
-						}
-					}
-				}
-			},
-			"else": {
-				"properties": {
-					"postCreate": {
-						"properties": {
-							"requested": {
-								"not": {
-									"required": ["overlay"]
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["schema", "version", "source", "result", "postCreate", "directory"],
+			"properties": {
+				"schema": {
+					"const": "orchbee.creation.result"
+				},
+				"version": {
+					"enum": [2, 3, 4, 5]
+				},
+				"source": {
+					"$ref": "#/$defs/canonical/$defs/commandSource"
+				},
+				"result": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/canonical/properties/result"
+						},
+						{
+							"type": "object",
+							"properties": {
+								"action": {
+									"enum": ["tab.create", "panel.split"]
+								},
+								"outcome": {
+									"const": "committed"
 								}
 							},
-							"focus": {
-								"anyOf": [
-									{
-										"$ref": "#/$defs/control"
+							"required": [
+								"action",
+								"outcome",
+								"revision",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"label",
+								"terminal"
+							],
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "panel.split"
+											}
+										}
 									},
-									{
+									"then": {
+										"required": [
+											"newPanelId",
+											"splitId",
+											"firstSlotId",
+											"secondSlotId",
+											"direction"
+										]
+									}
+								}
+							]
+						}
+					]
+				},
+				"postCreate": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
+					"properties": {
+						"clientId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/clientId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"requested": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["ratio", "focus"],
+							"properties": {
+								"ratio": {
+									"anyOf": [
+										{
+											"type": "number",
+											"minimum": 0.1,
+											"maximum": 0.9
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"focus": {
+									"type": "boolean"
+								},
+								"zoom": {
+									"const": true
+								},
+								"overlay": {
+									"const": true
+								}
+							}
+						},
+						"ratio": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focus": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control"
+								},
+								{
+									"$ref": "#/$defs/overlayControl"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"stage": {
+							"enum": [
+								"created",
+								"ratio-resolution",
+								"ratio",
+								"focus-observation",
+								"focus",
+								"complete"
+							]
+						},
+						"failure": {
+							"anyOf": [
+								{
+									"enum": [
+										"invalid-usage",
+										"not-found",
+										"ambiguous",
+										"denied",
+										"rejected",
+										"service-unavailable",
+										"protocol-invalid",
+										"transport",
+										"outcome-unknown",
+										"timeout",
+										"cancelled",
+										"internal-failure",
+										"check-failed",
+										"output-too-large"
+									]
+								},
+								{
+									"type": "null"
+								}
+							],
+							"enum": [
+								"ambiguous",
+								"cancelled",
+								"check-failed",
+								"denied",
+								"incompatible",
+								"internal-failure",
+								"invalid-identifier",
+								"invalid-usage",
+								"not-found",
+								"outcome-unknown",
+								"output-too-large",
+								"protocol-invalid",
+								"rejected",
+								"service-unavailable",
+								"session-capacity",
+								"timeout",
+								"transport-loss",
+								null
+							]
+						},
+						"outcome": {
+							"enum": ["not-requested", "completed", "incomplete"]
+						}
+					}
+				},
+				"directory": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["policy", "source", "path", "sourcePanelId"],
+					"properties": {
+						"policy": {
+							"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
+						},
+						"source": {
+							"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+						},
+						"path": {
+							"type": ["string", "null"],
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"sourcePanelId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
 										"type": "null"
 									}
-								]
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"source": {
+										"const": "terminal-process"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"sourcePanelId": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"policy": {
+										"const": "plugin-root"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									},
+									"path": {
+										"type": "null"
+									},
+									"sourcePanelId": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					],
+					"oneOf": [
+						{
+							"properties": {
+								"policy": {
+									"const": "follow"
+								},
+								"source": {
+									"enum": ["launch-default", "terminal-process"]
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "explicit"
+								},
+								"source": {
+									"enum": ["argument"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "home"
+								},
+								"source": {
+									"enum": ["home"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "current"
+								},
+								"source": {
+									"enum": ["current"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "workspace"
+								},
+								"source": {
+									"enum": ["launch-default"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "plugin-root"
+								},
+								"source": {
+									"const": "launch-default"
+								},
+								"path": {
+									"type": "null"
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						}
+					]
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 2
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"directory": {
+								"properties": {
+									"policy": {
+										"not": {
+											"const": "plugin-root"
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [4, 5]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"required": ["zoom"],
+										"properties": {
+											"focus": {
+												"const": true
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"not": {
+											"required": ["zoom"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 5
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"required": ["overlay", "zoom"],
+										"properties": {
+											"focus": {
+												"const": true
+											},
+											"ratio": {
+												"type": "null"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"not": {
+											"required": ["overlay"]
+										}
+									},
+									"focus": {
+										"anyOf": [
+											{
+												"$ref": "#/$defs/control"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
 							}
 						}
 					}
 				}
-			}
+			]
+		},
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema",
+				"version",
+				"source",
+				"result",
+				"postCreate",
+				"directory",
+				"resolvedLaunch"
+			],
+			"properties": {
+				"schema": {
+					"const": "orchbee.creation.result"
+				},
+				"version": {
+					"enum": [6, 7, 8]
+				},
+				"source": {
+					"$ref": "#/$defs/canonical/$defs/commandSource"
+				},
+				"result": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/canonical/properties/result"
+						},
+						{
+							"type": "object",
+							"properties": {
+								"action": {
+									"enum": ["tab.create", "panel.split"]
+								},
+								"outcome": {
+									"const": "committed"
+								}
+							},
+							"required": [
+								"action",
+								"outcome",
+								"revision",
+								"terminalContextId",
+								"tabId",
+								"panelId",
+								"presentationId",
+								"label",
+								"terminal"
+							],
+							"allOf": [
+								{
+									"if": {
+										"properties": {
+											"action": {
+												"const": "panel.split"
+											}
+										}
+									},
+									"then": {
+										"required": [
+											"newPanelId",
+											"splitId",
+											"firstSlotId",
+											"secondSlotId",
+											"direction"
+										]
+									}
+								}
+							]
+						}
+					]
+				},
+				"postCreate": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["clientId", "requested", "ratio", "focus", "stage", "failure", "outcome"],
+					"properties": {
+						"clientId": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control/$defs/clientId"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"requested": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["ratio", "focus"],
+							"properties": {
+								"ratio": {
+									"anyOf": [
+										{
+											"type": "number",
+											"minimum": 0.1,
+											"maximum": 0.9
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"focus": {
+									"type": "boolean"
+								},
+								"zoom": {
+									"const": true
+								},
+								"overlay": {
+									"const": true
+								}
+							}
+						},
+						"ratio": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"focus": {
+							"anyOf": [
+								{
+									"$ref": "#/$defs/control"
+								},
+								{
+									"$ref": "#/$defs/overlayControl"
+								},
+								{
+									"type": "null"
+								}
+							]
+						},
+						"stage": {
+							"enum": [
+								"created",
+								"ratio-resolution",
+								"ratio",
+								"focus-observation",
+								"focus",
+								"complete"
+							]
+						},
+						"failure": {
+							"anyOf": [
+								{
+									"enum": [
+										"invalid-usage",
+										"not-found",
+										"ambiguous",
+										"denied",
+										"rejected",
+										"service-unavailable",
+										"protocol-invalid",
+										"transport",
+										"outcome-unknown",
+										"timeout",
+										"cancelled",
+										"internal-failure",
+										"check-failed",
+										"output-too-large"
+									]
+								},
+								{
+									"type": "null"
+								}
+							],
+							"enum": [
+								"ambiguous",
+								"cancelled",
+								"check-failed",
+								"denied",
+								"incompatible",
+								"internal-failure",
+								"invalid-identifier",
+								"invalid-usage",
+								"not-found",
+								"outcome-unknown",
+								"output-too-large",
+								"protocol-invalid",
+								"rejected",
+								"service-unavailable",
+								"session-capacity",
+								"timeout",
+								"transport-loss",
+								null
+							]
+						},
+						"outcome": {
+							"enum": ["not-requested", "completed", "incomplete"]
+						}
+					}
+				},
+				"directory": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["policy", "source", "path", "sourcePanelId"],
+					"properties": {
+						"policy": {
+							"enum": ["follow", "explicit", "home", "current", "workspace", "plugin-root"]
+						},
+						"source": {
+							"enum": ["launch-default", "argument", "home", "current", "terminal-process"]
+						},
+						"path": {
+							"type": ["string", "null"],
+							"minLength": 1,
+							"maxLength": 4096
+						},
+						"sourcePanelId": {
+							"anyOf": [
+								{
+									"type": "string",
+									"pattern": "^[0-9a-f]{32}$"
+								},
+								{
+									"type": "null"
+								}
+							]
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"path": {
+										"type": "null"
+									}
+								}
+							},
+							"else": {
+								"properties": {
+									"path": {
+										"type": "string"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"source": {
+										"const": "terminal-process"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"sourcePanelId": {
+										"type": "string",
+										"pattern": "^[0-9a-f]{32}$"
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"policy": {
+										"const": "plugin-root"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"source": {
+										"const": "launch-default"
+									},
+									"path": {
+										"type": "null"
+									},
+									"sourcePanelId": {
+										"type": "null"
+									}
+								}
+							}
+						}
+					],
+					"oneOf": [
+						{
+							"properties": {
+								"policy": {
+									"const": "follow"
+								},
+								"source": {
+									"enum": ["launch-default", "terminal-process"]
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "explicit"
+								},
+								"source": {
+									"enum": ["argument"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "home"
+								},
+								"source": {
+									"enum": ["home"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "current"
+								},
+								"source": {
+									"enum": ["current"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "workspace"
+								},
+								"source": {
+									"enum": ["launch-default"]
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						},
+						{
+							"properties": {
+								"policy": {
+									"const": "plugin-root"
+								},
+								"source": {
+									"const": "launch-default"
+								},
+								"path": {
+									"type": "null"
+								},
+								"sourcePanelId": {
+									"type": "null"
+								}
+							}
+						}
+					]
+				},
+				"resolvedLaunch": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["exec", "args"],
+					"properties": {
+						"exec": {
+							"type": "string",
+							"minLength": 1
+						},
+						"args": {
+							"type": "array",
+							"maxItems": 128,
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": -1
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"directory": {
+								"properties": {
+									"policy": {
+										"not": {
+											"const": "plugin-root"
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"enum": [7, 8]
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"required": ["zoom"],
+										"properties": {
+											"focus": {
+												"const": true
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"not": {
+											"required": ["zoom"]
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"version": {
+								"const": 8
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"required": ["overlay", "zoom"],
+										"properties": {
+											"focus": {
+												"const": true
+											},
+											"ratio": {
+												"type": "null"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"postCreate": {
+								"properties": {
+									"requested": {
+										"not": {
+											"required": ["overlay"]
+										}
+									},
+									"focus": {
+										"anyOf": [
+											{
+												"$ref": "#/$defs/control"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			]
 		}
 	]
 }

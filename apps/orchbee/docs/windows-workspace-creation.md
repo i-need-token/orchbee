@@ -59,3 +59,5 @@ Create-project atomically creates a Project and moves the selected Workspace. Di
 ## Evidence
 
 Grammar and schema tests cover optional organization, exact global targets, required-nullable Project metadata, offline help/completion and parse-before-effect. Scripted Windows process tests check one launch with zero/one/multiple Projects, advanced options, source precedence, exact effects, unknown identity with no replay, terminal failures and guarded focus. Raw-route and real-process witnesses cover grammar before context, unchanged sender/relay operands, final-process home/cwd resolution and context refusal before configuration or runtime effects. Fixture owners release temporary pipes, profiles and processes. Actual terminal acceptance belongs to the matched native cohort tests; these scoped tests do not claim every live race.
+
+Executable names use the final CLI PATH and retain the resolved absolute path in receipts; see [Executable names](native-terminal-creation.md#executable-names).

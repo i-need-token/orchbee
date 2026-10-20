@@ -257,7 +257,7 @@ fn main() -> ExitCode {
             }
             #[cfg(windows)]
             Ok(invocation::Request::PanelTerminalCreation { command, format }) => {
-                cli::panel_terminal_creation::run(&command, format, locale)
+                cli::panel_terminal_creation::run_parsed(&command, format, locale)
             }
             Ok(invocation::Request::Creation { command, format }) => {
                 cli::run_creation(&command, format, locale)

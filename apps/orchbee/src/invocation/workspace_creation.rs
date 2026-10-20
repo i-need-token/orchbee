@@ -3,21 +3,20 @@ use super::{
     CreationDirectory, ExpectedValue, FailureEnvelope, LaunchOptions, LaunchProfileSelector,
     LaunchSelection, NO_OPTIONS, Options, OutputFormat, ParseFailure, Request, Resource, Scope,
     Target, UsageContext, UsageReason, WorkbenchLabel, WorkbenchTerminalGeometry, check_scope,
-    client_control, geometry_option, label_option, launch_option, launch_options_with_directory,
-    profile_option, reject_launch_profile_conflict, selection_envelope, target, usage_with,
-    wait_timeout_option,
+    client_control, geometry_option, label_option, launch_options_with_directory, profile_option,
+    reject_launch_profile_conflict, selection_envelope, target, usage_with, wait_timeout_option,
 };
 use orchbee_local_site_runtime::WindowsUserPathOperand;
 use orchbee_workbench_protocol::WorkbenchClientId;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct WorkspaceCreationCommand<D = CreationDirectory> {
+pub(crate) struct WorkspaceCreationCommand<D = CreationDirectory, L = LaunchSelection> {
     pub(crate) project: Option<Target>,
     pub(crate) source: Option<Target>,
     pub(crate) directory: D,
     pub(crate) label: Option<WorkbenchLabel>,
     pub(crate) geometry: WorkbenchTerminalGeometry,
-    pub(crate) launch: Option<LaunchSelection>,
+    pub(crate) launch: Option<L>,
     pub(crate) profile: Option<LaunchProfileSelector>,
     pub(crate) options: LaunchOptions,
     pub(crate) client: Option<WorkbenchClientId>,
@@ -37,7 +36,7 @@ pub(crate) enum ParsedWorkspaceCreationDirectory {
 }
 
 pub(crate) type ParsedWorkspaceCreationCommand =
-    WorkspaceCreationCommand<ParsedWorkspaceCreationDirectory>;
+    WorkspaceCreationCommand<ParsedWorkspaceCreationDirectory, super::program::ParsedLaunch>;
 
 impl ParsedWorkspaceCreationCommand {
     /// Resolves explicit paths in the final process, before configuration or runtime access.
@@ -76,7 +75,11 @@ impl ParsedWorkspaceCreationCommand {
             directory,
             label: self.label,
             geometry: self.geometry,
-            launch: self.launch,
+            launch: super::program::resolve(
+                self.launch,
+                UsageContext::Path("workspace create"),
+                selection_envelope(Some(format)),
+            )?,
             profile: self.profile,
             options,
             client: self.client,
@@ -175,7 +178,7 @@ pub(super) fn parse(options: &Options, envelope: FailureEnvelope) -> Result<Requ
                 .map(|_| label_option(options, context, envelope))
                 .transpose()?,
             geometry: geometry_option(options, context, envelope)?,
-            launch: launch_option(options, context, envelope)?,
+            launch: super::program::parse(options, context, envelope)?,
             profile: profile_option(options, context, envelope)?,
             options: launch_options,
             client: client_control::client_id(options, context, envelope)?,

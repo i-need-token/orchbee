@@ -4,7 +4,7 @@ use super::{
     PANEL_SPLIT_SCOPE, ParseFailure, Request, Resource, TAB_CREATE_SCOPE, TabContext, Target,
     UsageContext, UsageReason, WorkbenchLabel, WorkbenchPanelSplitDirection,
     WorkbenchTerminalGeometry, check_scope, client_control, geometry_option, label_option,
-    launch_option, launch_options_with_directory, panel_direction, profile_option, reject_conflict,
+    launch_options_with_directory, panel_direction, profile_option, reject_conflict,
     reject_launch_profile_conflict, target, unexpected_argument, usage_with, wait_timeout_option,
 };
 use orchbee_workbench_protocol::{ClientSplitRatio, WorkbenchClientId};
@@ -23,12 +23,12 @@ pub(crate) enum CreationKind {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CreationCommand {
+pub(crate) struct CreationCommand<L = LaunchSelection> {
     pub(crate) directory: CreationDirectory,
     pub(crate) kind: CreationKind,
     pub(crate) label: Option<WorkbenchLabel>,
     pub(crate) geometry: WorkbenchTerminalGeometry,
-    pub(crate) launch: Option<LaunchSelection>,
+    pub(crate) launch: Option<L>,
     pub(crate) profile: Option<LaunchProfileSelector>,
     pub(crate) options: LaunchOptions,
     pub(crate) client: Option<WorkbenchClientId>,
@@ -164,7 +164,7 @@ pub(super) fn parse(
                 .map(|_| label_option(options, context, envelope))
                 .transpose()?,
             geometry: geometry_option(options, context, envelope)?,
-            launch: launch_option(options, context, envelope)?,
+            launch: super::program::parse(options, context, envelope)?,
             profile: profile_option(options, context, envelope)?,
             options: launch_options_with_directory(
                 options,
@@ -188,4 +188,34 @@ pub(super) fn parse(
         },
         format: options.format.unwrap_or(OutputFormat::Text),
     })
+}
+
+impl CreationCommand<super::program::ParsedLaunch> {
+    pub(crate) fn into_resolved(
+        self,
+        format: OutputFormat,
+    ) -> Result<CreationCommand, ParseFailure> {
+        let context = UsageContext::Path(match self.kind {
+            CreationKind::Tab { .. } => "tab create",
+            CreationKind::Split { .. } => "panel split",
+        });
+        Ok(CreationCommand {
+            directory: self.directory,
+            kind: self.kind,
+            label: self.label,
+            geometry: self.geometry,
+            launch: super::program::resolve(
+                self.launch,
+                context,
+                super::selection_envelope(Some(format)),
+            )?,
+            profile: self.profile,
+            options: self.options,
+            client: self.client,
+            focus: self.focus,
+            zoom: self.zoom,
+            overlay: self.overlay,
+            timeout_ms: self.timeout_ms,
+        })
+    }
 }
