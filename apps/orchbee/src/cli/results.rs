@@ -18,7 +18,7 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::{Map, Value, json};
 
-use super::{Failure, FailureKind, target_details};
+use super::{CandidateDisplay, Failure, FailureKind, target_details};
 use crate::invocation::{
     AgentWaitCondition, PanelQueryTarget, QueryCommand, Resource, Target, TerminalListFilter,
 };
@@ -2122,7 +2122,7 @@ pub(crate) fn resolve_or_fail<'a, Item, Label: AsRef<str>>(
                 target,
                 candidates.into_iter().map(str::to_owned).collect(),
             );
-            failure.candidate_display = Some(display.into_boxed_slice());
+            failure.candidate_display = Some(Box::new(CandidateDisplay { lines: display }));
             Err(failure)
         }
     }

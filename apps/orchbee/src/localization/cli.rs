@@ -1487,7 +1487,7 @@ impl Locale {
         let escaped = crate::cli::escape::quoted(target);
         let details = failure.details.as_ref();
         let listed: Vec<String> = match &failure.candidate_display {
-            Some(display) => display.to_vec(),
+            Some(display) => display.lines.clone(),
             None => details
                 .and_then(|details| details.get("candidates"))
                 .and_then(|value| value.as_array())

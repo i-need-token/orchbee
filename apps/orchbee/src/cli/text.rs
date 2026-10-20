@@ -118,9 +118,7 @@ pub(super) fn usage_value(usage: &str, flag: &str) -> Option<String> {
         {
             continue;
         }
-        let Some(rest) = usage[end..].strip_prefix(' ') else {
-            return None;
-        };
+        let rest = usage[end..].strip_prefix(' ')?;
         if rest.starts_with('<') {
             return rest.find('>').map(|close| rest[..=close].to_owned());
         }

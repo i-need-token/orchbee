@@ -58,7 +58,7 @@ fn event_line(event: &SemanticEvent) -> String {
             report,
             exited,
         } => {
-            let state = serde_json::to_value(&report.state)
+            let state = serde_json::to_value(report.state)
                 .ok()
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .unwrap_or_default();

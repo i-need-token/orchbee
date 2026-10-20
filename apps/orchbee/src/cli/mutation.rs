@@ -579,7 +579,8 @@ mod linux {
         let mut hint = None;
         let result = execute(command).and_then(|receipt| match wait {
             Some(CloseWait::Wait { timeout_ms }) => {
-                settle_close(receipt, started, timeout_ms, locale).map_err(|(failure, text)| {
+                settle_close(receipt, started, timeout_ms, locale).map_err(|boxed| {
+                    let (failure, text) = *boxed;
                     hint = Some(text);
                     failure
                 })
@@ -729,7 +730,7 @@ mod linux {
         started: Instant,
         timeout_ms: u32,
         locale: Locale,
-    ) -> Result<Receipt, (Failure, String)> {
+    ) -> Result<Receipt, Box<(Failure, String)>> {
         const INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
         let deadline = started + std::time::Duration::from_millis(u64::from(timeout_ms));
         let (key, workspace) = if receipt.action == "workspace.close" {
@@ -764,7 +765,7 @@ mod linux {
                     }
                 }
                 Err(failure) if failure.kind == FailureKind::Timeout => true,
-                Err(failure) => return Err((failure.source(receipt.source()), hint)),
+                Err(failure) => return Err(Box::new((failure.source(receipt.source()), hint))),
             };
             if !present {
                 let closing = receipt.closing.clone().map(|closing| Closing {
@@ -785,7 +786,7 @@ mod linux {
                         ),
                     ]))
                     .source(receipt.source());
-                return Err((failure, hint));
+                return Err(Box::new((failure, hint)));
             }
             std::thread::sleep((deadline - now).min(INTERVAL));
         }

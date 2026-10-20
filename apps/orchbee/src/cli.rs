@@ -401,7 +401,14 @@ pub(crate) struct Failure {
     pub(crate) io_diagnostic: Option<Box<IoDiagnostic>>,
     /// Ambiguity candidates as list handles with their labels, carried to
     /// localized text only; JSON keeps the identifier `candidates` detail.
-    pub(crate) candidate_display: Option<Box<[String]>>,
+    /// Boxed so it never enlarges the hot Result.
+    pub(crate) candidate_display: Option<Box<CandidateDisplay>>,
+}
+
+/// Ambiguity candidates rendered for people, in listing order.
+#[derive(Debug)]
+pub(crate) struct CandidateDisplay {
+    pub(crate) lines: Vec<String>,
 }
 
 /// Artifact identity proven absent by its own open operation.
