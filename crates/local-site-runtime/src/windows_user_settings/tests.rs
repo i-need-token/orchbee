@@ -446,7 +446,7 @@ fn paths_keep_file_parent_home_and_literal_operand_semantics() {
     .unwrap();
     assert_eq!(
         Path::new(settings.cwd.as_ref().unwrap().1.as_ref().unwrap()),
-        Path::new(r"C:\config\..\项目")
+        Path::new(r"C:\项目")
     );
     assert_eq!(
         Path::new(settings.worktree_root.as_ref().unwrap()),

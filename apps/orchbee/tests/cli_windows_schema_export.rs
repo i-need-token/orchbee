@@ -92,7 +92,7 @@ impl Drop for Fixture {
 fn exports_and_replaces_catalog_and_selected_schema_offline() {
     let fixture = Fixture::new();
     for id in [None, Some("orchbee.client.control")] {
-        let mut args = vec!["api", "schema"];
+        let mut args = vec!["api", "schema", "--format=json"];
         if let Some(id) = id {
             args.push(id);
         }
@@ -100,7 +100,7 @@ fn exports_and_replaces_catalog_and_selected_schema_offline() {
         assert!(expected.status.success());
         let path = "用户 schema.json";
         fs::write(fixture.0.join(path), b"original destination").unwrap();
-        args.extend(["--output", path, "--format=json"]);
+        args.extend(["--output", path]);
         let actual = fixture.run(&args);
         assert!(
             actual.status.success(),

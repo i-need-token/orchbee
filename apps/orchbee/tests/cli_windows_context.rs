@@ -123,7 +123,12 @@ fn explicit_target_bypasses_invalid_caller_context_and_reaches_runtime_validatio
 
 #[test]
 fn offline_catalog_is_closed_and_current_panel_schema_is_discoverable() {
-    let output = run(&["api", "schema"], None, None, "en_US.UTF-8");
+    let output = run(
+        &["api", "schema", "--format=json"],
+        None,
+        None,
+        "en_US.UTF-8",
+    );
     assert!(output.status.success());
     let document: serde_json::Value = serde_json::from_slice(&output.stdout).expect("catalog");
     let schemas = document["result"]["schemas"]
@@ -193,7 +198,7 @@ fn panel_input_current_rejects_untrusted_metadata_before_admission_in_both_local
             let result = run(&args, None, None, locale);
             assert!(result.status.success());
             let text = String::from_utf8(result.stdout).unwrap();
-            assert!(text.contains("--right-click orchbee|panel") && text.contains("--current"));
+            assert!(text.contains("--right-click <orchbee|panel>") && text.contains("--current"));
         }
     }
 }

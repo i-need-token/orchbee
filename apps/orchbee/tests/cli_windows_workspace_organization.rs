@@ -170,7 +170,14 @@ fn unknown_organization_mutation_retains_the_original_request_and_is_not_replaye
 #[test]
 fn ordinary_close_submits_only_selected_workspace_without_project_scope() {
     let (status, doc) = run(
-        &["workspace", "close", "work", "--confirm", "--format=json"],
+        &[
+            "workspace",
+            "close",
+            "work",
+            "--confirm",
+            "--detach",
+            "--format=json",
+        ],
         |mut stream| {
             snapshot(&mut stream, true);
             let WorkbenchRequest::Command(command) = read_workbench_request(&mut stream).unwrap()

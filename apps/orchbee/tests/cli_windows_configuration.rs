@@ -743,7 +743,7 @@ fn config_check_reports_the_actual_file_without_creating_it() {
     assert_eq!(check["details"]["manifestCheckSource"], "file");
     assert_eq!(
         std::path::Path::new(check["details"]["worktreeDirectory"].as_str().unwrap()),
-        fixture.0.join("appdata/Orchbee/../trees")
+        fixture.0.join(r"appdata\trees")
     );
     std::fs::write(&config, "[worktrees]\ndirectory=3").unwrap();
     let doc = config_check_document(&fixture);

@@ -155,11 +155,11 @@ fn relocation_cannot_change_source_relative_directories_and_sound_identities() {
     let table = candidate(&plan);
     assert_eq!(
         table["terminal"]["new_cwd"].as_str(),
-        Some("C:/Herdr\\project")
+        Some("C:\\Herdr\\project")
     );
     assert_eq!(
         table["worktrees"]["directory"].as_str(),
-        Some("C:/Users/test\\trees")
+        Some("C:\\Users\\test\\trees")
     );
     assert_eq!(
         table["ui"]["sound"]["agents"]["opencode"].as_str(),
