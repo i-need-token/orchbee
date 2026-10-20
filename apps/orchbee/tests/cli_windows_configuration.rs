@@ -1185,7 +1185,7 @@ fn config_check_notification_policy_validates_actual_file_and_closed_versions() 
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
     std::fs::write(
         &config,
-        "[ui.toast]\ndelivery='herdr'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.herdr]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'",
+        "[ui.toast]\ndelivery='herdr'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'",
     )
     .unwrap();
     let doc = document(fixture.run(&["config", "check", "--format=json"]));

@@ -80,7 +80,7 @@ profile 省略并报告；非法已知动作写为空绑定数组，仅禁用该
 | `ui.window_title`、`ui.sidebar.agents`、`ui.sidebar.spaces` | 保留兼容的显式标题/profile 字段，包括显式空 rows                                                                                 |
 | `keys.prefix` 与当前内置动作注册表                          | 保留接纳的绑定；`zoom` 优先于 `fullscreen`；注册表顺序决定冲突并禁用落败动作                                                     |
 | `ui.toast.delivery` 或旧 `ui.toast.enabled`                 | 显式 `delivery` 即使非法也优先；有效的 `herdr` 变为 `orchbee`，同时设置 `delivery` 和 `agent_delivery`；缺席时保留 Orchbee 默认  |
-| `ui.toast.delay_seconds`、`ui.toast.herdr.position`         | 保留接纳的延迟和位置                                                                                                             |
+| `ui.toast.delay_seconds`、`ui.toast.overlay.position`       | 保留接纳的延迟和位置                                                                                                             |
 | `ui.sound.enabled`、`ui.sound.agents`                       | 保留显式布尔值及 `default`/`on`/`off`；`open_code` 映射为 `opencode`，`github_copilot` 为 `copilot`，`agy` 仍为 `agy`            |
 | 其他字段                                                    | 报告并省略，包括全部 Herdr 更新策略、onboarding/theme/server/advanced/experimental/remote、图形、自定义声音路径及自定义/插件命令 |
 
@@ -359,7 +359,7 @@ Client 独立配置策略仍待补全。
 
 ## 自定义通知配置
 
-`ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system，用于手动 CLI 通知；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.herdr.position` 选择四角默认位置。自动物理 Agent 通知使用独立的 `ui.toast.agent_delivery`（默认 orchbee）和 `ui.toast.delay_seconds`（默认一秒，范围 0–3600）。`[ui.sound] enabled` 默认 false，并与 `[ui.sound.agents]` 一起仅控制自动内置提示音，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
+`ui.toast.delivery` 接受 off（默认）、orchbee/herdr、terminal 或 system，用于手动 CLI 通知；仅在未指定 delivery 时，旧 `ui.toast.enabled` 提供关闭/卡片选择。`ui.toast.overlay.position` 选择四角默认位置。自动物理 Agent 通知使用独立的 `ui.toast.agent_delivery`（默认 orchbee）和 `ui.toast.delay_seconds`（默认一秒，范围 0–3600）。`[ui.sound] enabled` 默认 false，并与 `[ui.sound.agents]` 一起仅控制自动内置提示音，不改变显式 `notification show` 的声音；剪贴板策略仍然独立。启动配置属于 Client；显式 Session 重载与键位一起发布完整的有界通知 profile，Client 在同时校验两者之后应用。`server config`/重载 v7 携带 16 KiB `notificationProfile`，`config check` v12 暴露手动与自动策略，配置失败 v9 增加自动延迟／声音诊断。旧公开版本保持封闭。详见完整的[自动通知契约](windows-notifications.zh-CN.md#自动物理-agent-通知)。
 
 通用 Agent 提醒模式与声音确认后覆盖旧自动通知字段；手动通知投递与逐 Agent 声音覆盖保持独立归属。
 

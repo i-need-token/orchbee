@@ -18,7 +18,7 @@ pub use crate::notification_policy::{
 impl WindowsNotificationSettings {
     pub fn profile(&self) -> String {
         let mut profile = format!(
-            "[ui.toast]\ndelivery='{}'\nagent_delivery='{}'\ndelay_seconds={}\n[ui.toast.herdr]\nposition='{}'\n[ui.sound]\nenabled={}\n",
+            "[ui.toast]\ndelivery='{}'\nagent_delivery='{}'\ndelay_seconds={}\n[ui.toast.overlay]\nposition='{}'\n[ui.sound]\nenabled={}\n",
             self.delivery.as_str(),
             self.agent_delivery.as_str(),
             self.delay_seconds,
@@ -171,40 +171,40 @@ impl WindowsNotificationSettings {
                 ),
             }
         }
-        let Some(herdr) = table.get("herdr") else {
+        let Some(overlay) = table.get("overlay") else {
             return;
         };
-        let Some(herdr) = herdr.as_table() else {
+        let Some(overlay) = overlay.as_table() else {
             diagnostics.push(
-                "ui.toast.herdr",
+                "ui.toast.overlay",
                 "wrong-type",
                 WindowsSettingsDiagnosticDisposition::Defaulted,
             );
             return;
         };
-        for key in herdr
+        for key in overlay
             .keys()
-            .filter(|key| !windows_user_config_has_child("ui.toast.herdr", key))
+            .filter(|key| !windows_user_config_has_child("ui.toast.overlay", key))
         {
             diagnostics.push(
-                unknown_field("ui.toast.herdr", key),
+                unknown_field("ui.toast.overlay", key),
                 "unknown-key",
                 WindowsSettingsDiagnosticDisposition::Ignored,
             );
         }
-        if let Some(position) = herdr.get("position") {
+        if let Some(position) = overlay.get("position") {
             match position.as_str() {
                 Some("top-left") => self.position = "top-left",
                 Some("top-right") => self.position = "top-right",
                 Some("bottom-left") => self.position = "bottom-left",
                 Some("bottom-right") => self.position = "bottom-right",
                 Some(_) => diagnostics.push(
-                    "ui.toast.herdr.position",
+                    "ui.toast.overlay.position",
                     "invalid-mode",
                     WindowsSettingsDiagnosticDisposition::Defaulted,
                 ),
                 None => diagnostics.push(
-                    "ui.toast.herdr.position",
+                    "ui.toast.overlay.position",
                     "wrong-type",
                     WindowsSettingsDiagnosticDisposition::Defaulted,
                 ),
@@ -335,15 +335,15 @@ impl WindowsNotificationSettings {
                 return Err(toast_error("invalid-delay"));
             }
         }
-        if let Some(herdr) = table.get("herdr") {
-            let herdr = herdr.as_table().ok_or(toast_error("wrong-type"))?;
-            if herdr
+        if let Some(overlay) = table.get("overlay") {
+            let overlay = overlay.as_table().ok_or(toast_error("wrong-type"))?;
+            if overlay
                 .keys()
-                .any(|key| !windows_user_config_has_child("ui.toast.herdr", key))
+                .any(|key| !windows_user_config_has_child("ui.toast.overlay", key))
             {
                 return Err(toast_error("unknown-key"));
             }
-            if let Some(position) = herdr.get("position") {
+            if let Some(position) = overlay.get("position") {
                 self.position = match position.as_str().ok_or(toast_error("wrong-type"))? {
                     "top-left" => "top-left",
                     "top-right" => "top-right",

@@ -342,8 +342,8 @@
 			"zhCnSha256": "5b766741ce0b8452eba160aef8c9935c1c9e05a82c0c3ad5a36f891db6f4c308"
 		},
 		"apps/orchbee/docs/windows-cli-configuration.md": {
-			"englishSha256": "b0c147901f5eba341365b40d44a3c47abfa98a47fbfd656c4bff9fc3c879101c",
-			"zhCnSha256": "d98022eaa6a71b1ae8039fb545581cde09c1b263b02e32f88d3249a0ef8ad35b"
+			"englishSha256": "9d1d12ef39dc04eb6dceb7f153d049c5bbd02a006be56bf6574bde31ef8df724",
+			"zhCnSha256": "460fee84fc456271fdf2b60ef1628ad941480e2b5502a0b3304e621f47fea051"
 		},
 		"apps/orchbee/docs/windows-client-control.md": {
 			"englishSha256": "d8b380fa28eb40a9181a8d776e3a3edb292b0a6a8ae7e803db0bcacb5ef0c031",
@@ -362,8 +362,8 @@
 			"zhCnSha256": "c3eb31f52d7887ad5771b60560b1b08aed01a7645de9001b6593776f0c1ee242"
 		},
 		"apps/orchbee/docs/windows-notifications.md": {
-			"englishSha256": "92706df96d9ad2d793483dd0f70238a0744213ce7f69f1e1ad2dc2744c43a4b2",
-			"zhCnSha256": "accb3e78ad25d173fa28a8c0e6e77a2e29bec5e6f012912df953a1f72a455a23"
+			"englishSha256": "84a5391166909f07adad1e67dcf4ae861a452e760d179f71f3e1da1bc947633f",
+			"zhCnSha256": "180c2f6b6289fe4a18cc8de9c32e7ad8197b5ba162ebf2a2a725bf8542249edf"
 		},
 		"apps/orchbee/docs/windows-panel-agent-reports.md": {
 			"englishSha256": "25acfa6b9d6711770a080bae5e2a1a9aadeef3fd52eefbaa49896a1503b8892c",

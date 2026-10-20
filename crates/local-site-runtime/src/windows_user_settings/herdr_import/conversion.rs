@@ -238,7 +238,7 @@ impl<F: Fn(&str) -> Option<OsString>> Converter<'_, F> {
                 }
                 "enabled" => {}
                 "delay_seconds" => self.leaf("ui.toast.delay_seconds", value)?,
-                "herdr" => self.simple_section("ui.toast.herdr", value, &["position"])?,
+                "herdr" => self.simple_section("ui.toast.overlay", value, &["position"])?,
                 _ => self.skip_other("ui.toast", key, value),
             }
         }

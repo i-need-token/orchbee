@@ -655,7 +655,7 @@ fn notification_reload_exposes_policy_and_defaults_invalid_leaves() {
     registry.initialize(&fixture.settings(true)).unwrap();
     for delivery in ["herdr", "terminal", "system", "off"] {
         fixture.write(&format!(
-            "[ui.toast]\ndelivery='{delivery}'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.herdr]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'"
+            "[ui.toast]\ndelivery='{delivery}'\nagent_delivery='terminal'\ndelay_seconds=7\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'"
         ));
         let Outcome::Reloaded { snapshot, .. } =
             registry.execute(&request(Action::Reload), |_| true)

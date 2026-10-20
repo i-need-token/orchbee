@@ -18,7 +18,7 @@ fn notification_profile_roundtrips_deliveries_delay_position_and_agent_sound() {
     for delivery in ["off", "orchbee", "herdr", "terminal", "system"] {
         for agent_delivery in ["off", "orchbee", "herdr", "terminal", "system"] {
             let text = format!(
-                "[ui.toast]\nenabled=true\ndelivery='{delivery}'\nagent_delivery='{agent_delivery}'\ndelay_seconds=3600\n[ui.toast.herdr]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'"
+                "[ui.toast]\nenabled=true\ndelivery='{delivery}'\nagent_delivery='{agent_delivery}'\ndelay_seconds=3600\n[ui.toast.overlay]\nposition='top-left'\n[ui.sound]\nenabled=true\n[ui.sound.agents]\ncodex='off'\npi='on'"
             );
             let policy = WindowsNotificationSettings::from_profile(&text).unwrap();
             assert_eq!(policy.position(), "top-left");
@@ -65,7 +65,7 @@ fn notification_profile_rejects_unknown_types_bounds_and_agent_ids() {
         "[ui.toast]\ndelay_seconds=-1",
         "[ui.toast]\ndelay_seconds=3601",
         "[ui.toast]\nunknown=true",
-        "[ui.toast.herdr]\nposition='center'",
+        "[ui.toast.overlay]\nposition='center'",
         "[ui.sound]\nenabled='yes'",
         "[ui.sound]\npath='later.mp3'",
         "[ui.sound.agents]\n'Bad Agent'='off'",
@@ -91,5 +91,15 @@ fn notification_profile_rejects_unknown_types_bounds_and_agent_ids() {
             &"x".repeat(MAXIMUM_NOTIFICATION_PROFILE_BYTES + 1)
         )
         .is_err()
+    );
+}
+
+#[test]
+fn canonical_profile_uses_overlay_and_rejects_the_retired_section() {
+    let profile = WindowsNotificationSettings::default().profile();
+    assert!(profile.contains("[ui.toast.overlay]"));
+    assert!(!profile.contains("herdr"));
+    assert!(
+        WindowsNotificationSettings::from_profile("[ui.toast.herdr]\nposition='top-left'").is_err()
     );
 }

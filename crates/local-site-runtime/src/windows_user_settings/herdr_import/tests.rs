@@ -306,3 +306,14 @@ fn unknown_nested_fields_do_not_materialize_profiles_or_claim_herdr_support() {
         assert!(item.target_fields.is_empty());
     }
 }
+
+#[test]
+fn competitor_source_section_is_converted_to_the_canonical_overlay_key() {
+    let plan = prepare("[ui.toast.herdr]\nposition='top-left'\n");
+    let table = candidate(&plan);
+    assert_eq!(
+        table["ui"]["toast"]["overlay"]["position"].as_str(),
+        Some("top-left")
+    );
+    assert!(table["ui"]["toast"].get("herdr").is_none());
+}

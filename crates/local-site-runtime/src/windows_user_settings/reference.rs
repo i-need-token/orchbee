@@ -177,7 +177,7 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
         description: "Quiet period before an automatic Agent notification.",
     },
     WindowsUserConfigOption {
-        path: "ui.toast.herdr.position",
+        path: "ui.toast.overlay.position",
         default: "bottom-right",
         choices: "top-left, top-right, bottom-left, bottom-right",
         description: "Corner used by the compatibility notification surface.",
@@ -256,7 +256,7 @@ delivery = "off"
 # agent_delivery = "orchbee"
 delay_seconds = 1
 
-[ui.toast.herdr]
+[ui.toast.overlay]
 position = "bottom-right"
 
 [ui.sound]
