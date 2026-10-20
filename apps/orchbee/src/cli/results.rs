@@ -90,8 +90,10 @@ pub(crate) const fn schema_version(command: &QueryCommand) -> u64 {
                 2
             }
         }
+        QueryCommand::TerminalSourceWait { after: Some(_), .. } => 4,
         QueryCommand::TerminalSourceWait { .. } => 3,
-        QueryCommand::TerminalOutput { ansi: true, .. } => 2,
+        QueryCommand::TerminalOutput { ansi: true, .. } => 4,
+        QueryCommand::TerminalOutput { .. } => 3,
         QueryCommand::PanelGet(_) => {
             if cfg!(windows) {
                 11
@@ -794,6 +796,7 @@ pub(crate) struct WaitObservation {
 /// or complete output capture.
 #[derive(Debug)]
 pub(crate) struct TerminalWaitOutputDoc {
+    pub(crate) after: Option<String>,
     pub(crate) terminal: TerminalRow,
     pub(crate) attachment_id: String,
     pub(crate) host_epoch: String,
@@ -1046,6 +1049,7 @@ pub(crate) fn terminal_wait_output_doc(
     report: WaitReport,
 ) -> TerminalWaitOutputDoc {
     TerminalWaitOutputDoc {
+        after: None,
         terminal,
         selection: None,
         attachment_id: attachment.to_text(),
@@ -1833,6 +1837,9 @@ impl Projection {
                 if let Some(selection) = doc.selection {
                     result["selection"] =
                         json!({ "source": selection.source.token(), "lines": selection.lines });
+                }
+                if let Some(after) = &doc.after {
+                    result["after"] = json!(after);
                 }
                 result
             }

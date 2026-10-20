@@ -10,7 +10,7 @@
 			"const": "orchbee.api.schema"
 		},
 		"version": {
-			"const": 148
+			"const": 149
 		},
 		"source": {
 			"type": "object",
@@ -163,6 +163,7 @@
 						"orchbee.terminal.list",
 						"orchbee.terminal.output",
 						"orchbee.terminal.read",
+						"orchbee.terminal.run",
 						"orchbee.terminal.selection",
 						"orchbee.terminal.send",
 						"orchbee.terminal.stream",
@@ -299,6 +300,7 @@
 				"orchbee.terminal.list",
 				"orchbee.terminal.output",
 				"orchbee.terminal.read",
+				"orchbee.terminal.run",
 				"orchbee.terminal.selection",
 				"orchbee.terminal.send",
 				"orchbee.terminal.stream",

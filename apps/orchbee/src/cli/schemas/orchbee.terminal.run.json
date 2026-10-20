@@ -1,0 +1,485 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "orchbee.terminal.run",
+	"title": "Correlated shell command observation",
+	"type": "object",
+	"required": ["schema", "version", "source", "result"],
+	"additionalProperties": false,
+	"properties": {
+		"schema": {
+			"const": "orchbee.terminal.run"
+		},
+		"version": {
+			"const": 1
+		},
+		"source": {
+			"anyOf": [
+				{
+					"$ref": "#/$defs/snapshotSource"
+				},
+				{
+					"type": "null"
+				}
+			]
+		},
+		"result": {
+			"type": "object",
+			"required": [
+				"runId",
+				"terminalId",
+				"cursor",
+				"submission",
+				"completion",
+				"failure",
+				"cleanup",
+				"timeoutMs",
+				"elapsedMs"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"runId": {
+					"$ref": "#/$defs/id"
+				},
+				"terminalId": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/id"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"cursor": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^o1:[0-9a-f]{32}:[0-9a-f]{32}:[1-9][0-9]*:[1-9][0-9]*:[0-9]+:[0-9]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"submission": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/sendReceipt"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"completion": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/completion"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"failure": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/failureObservation"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"cleanup": {
+					"enum": ["not-attached", "requested", "confirmed"]
+				},
+				"timeoutMs": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 3600000
+				},
+				"elapsedMs": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		}
+	},
+	"$defs": {
+		"sendReceipt": {
+			"type": "object",
+			"required": ["schema", "version", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"schema": {
+					"const": "orchbee.terminal.send"
+				},
+				"version": {
+					"const": 1
+				},
+				"source": {
+					"$ref": "#/$defs/sendSource"
+				},
+				"result": {
+					"type": "object",
+					"required": [
+						"action",
+						"requestId",
+						"siteId",
+						"workerId",
+						"terminalId",
+						"inputStatus",
+						"cleanupStatus",
+						"payloadKind",
+						"records",
+						"recordsAccepted",
+						"firstStoppedRecord",
+						"acceptedEncodedBytes"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"action": {
+							"const": "terminal.send"
+						},
+						"requestId": {
+							"$ref": "#/$defs/id"
+						},
+						"siteId": {
+							"$ref": "#/$defs/id"
+						},
+						"workerId": {
+							"$ref": "#/$defs/id"
+						},
+						"terminalId": {
+							"$ref": "#/$defs/id"
+						},
+						"payloadKind": {
+							"enum": ["text", "key", "bytes", "paste", "sequence"]
+						},
+						"recordBytes": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 1048576
+						},
+						"inputStatus": {
+							"enum": ["accepted", "not-submitted", "rejected", "unknown", "partial-accepted"]
+						},
+						"cleanupStatus": {
+							"enum": ["not-needed", "confirmed", "unconfirmed"]
+						},
+						"reason": {
+							"enum": [
+								"host-input-backpressure",
+								"host-input-invalid",
+								"host-input-limit-exceeded",
+								"host-input-unavailable",
+								"host-protocol-fault",
+								"host-rejected",
+								"host-unavailable",
+								"server-busy",
+								"stale-host-epoch",
+								"stale-worker-generation",
+								"terminal-runtime-unavailable",
+								"terminal-unavailable",
+								"worker-unavailable",
+								"input-budget-exhausted"
+							]
+						},
+						"target": {
+							"type": "object",
+							"required": ["workerGeneration", "hostEpoch", "hostTerminalId"],
+							"additionalProperties": false,
+							"properties": {
+								"workerGeneration": {
+									"type": "string",
+									"pattern": "^[1-9][0-9]*$"
+								},
+								"hostEpoch": {
+									"$ref": "#/$defs/id"
+								},
+								"hostTerminalId": {
+									"$ref": "#/$defs/id"
+								}
+							}
+						},
+						"records": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 64
+						},
+						"recordsAccepted": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 64
+						},
+						"firstStoppedRecord": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 64
+						},
+						"acceptedEncodedBytes": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 67108864
+						}
+					},
+					"allOf": [
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"enum": ["not-submitted", "rejected", "partial-accepted"]
+									}
+								},
+								"required": ["inputStatus"]
+							},
+							"then": {
+								"required": ["reason"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"enum": ["accepted", "unknown"]
+									}
+								},
+								"required": ["inputStatus"]
+							},
+							"then": {
+								"required": ["target"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"cleanupStatus": {
+										"enum": ["confirmed", "unconfirmed"]
+									}
+								},
+								"required": ["cleanupStatus"]
+							},
+							"then": {
+								"required": ["target"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"payloadKind": {
+										"enum": ["text", "bytes", "paste"]
+									}
+								},
+								"required": ["payloadKind"]
+							},
+							"then": {
+								"required": ["recordBytes"]
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"const": "partial-accepted"
+									}
+								}
+							},
+							"then": {
+								"required": ["target"],
+								"properties": {
+									"recordsAccepted": {
+										"minimum": 1
+									},
+									"cleanupStatus": {
+										"enum": ["confirmed", "unconfirmed"]
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"const": "accepted"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"recordsAccepted": {
+										"minimum": 1
+									},
+									"cleanupStatus": {
+										"enum": ["confirmed", "unconfirmed"]
+									}
+								}
+							}
+						},
+						{
+							"if": {
+								"properties": {
+									"inputStatus": {
+										"const": "unknown"
+									}
+								}
+							},
+							"then": {
+								"properties": {
+									"cleanupStatus": {
+										"enum": ["not-needed", "unconfirmed"]
+									}
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		"sendSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "requestId", "snapshotRevision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "terminal.send"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"requestId": {
+					"$ref": "#/$defs/id"
+				},
+				"snapshotRevision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"snapshotSource": {
+			"type": "object",
+			"required": ["kind", "siteId", "revision"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"const": "workbench-snapshot"
+				},
+				"siteId": {
+					"$ref": "#/$defs/id"
+				},
+				"revision": {
+					"type": "string",
+					"pattern": "^(0|[1-9][0-9]*)$"
+				}
+			}
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^(0|[1-9][0-9]*)$"
+		},
+		"positiveDecimal": {
+			"type": "string",
+			"pattern": "^[1-9][0-9]*$"
+		},
+		"completion": {
+			"type": "object",
+			"required": ["exitCode", "statusKind", "outputRange"],
+			"additionalProperties": false,
+			"properties": {
+				"exitCode": {
+					"type": "integer",
+					"minimum": -2147483648,
+					"maximum": 2147483647
+				},
+				"statusKind": {
+					"const": "powershell-success"
+				},
+				"outputRange": {
+					"type": "object",
+					"required": [
+						"generation",
+						"outputEpoch",
+						"startRow",
+						"startColumn",
+						"endRow",
+						"endColumn",
+						"retained"
+					],
+					"additionalProperties": false,
+					"properties": {
+						"generation": {
+							"$ref": "#/$defs/positiveDecimal"
+						},
+						"outputEpoch": {
+							"$ref": "#/$defs/positiveDecimal"
+						},
+						"startRow": {
+							"$ref": "#/$defs/decimal"
+						},
+						"startColumn": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"endRow": {
+							"$ref": "#/$defs/decimal"
+						},
+						"endColumn": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						},
+						"retained": {
+							"type": "boolean"
+						}
+					}
+				}
+			}
+		},
+		"failureObservation": {
+			"type": "object",
+			"required": ["kind", "details", "source", "schema", "version"],
+			"additionalProperties": false,
+			"properties": {
+				"kind": {
+					"enum": [
+						"ambiguous",
+						"cancelled",
+						"check-failed",
+						"denied",
+						"incompatible",
+						"internal-failure",
+						"invalid-identifier",
+						"invalid-usage",
+						"not-found",
+						"outcome-unknown",
+						"output-too-large",
+						"protocol-invalid",
+						"rejected",
+						"service-unavailable",
+						"session-capacity",
+						"timeout",
+						"transport-loss"
+					]
+				},
+				"details": {
+					"type": ["object", "null"]
+				},
+				"source": {
+					"type": ["object", "null"]
+				},
+				"schema": {
+					"type": "string"
+				},
+				"version": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		}
+	}
+}

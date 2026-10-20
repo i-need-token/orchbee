@@ -193,6 +193,23 @@ pub(super) fn wait_request(
     Ok(query(
         QueryCommand::TerminalSourceWait {
             target,
+            after: options
+                .output_after
+                .as_deref()
+                .map(|value| {
+                    super::OutputAfter::parse(value).ok_or_else(|| {
+                        usage_with(
+                            UsageReason::InvalidValue {
+                                context,
+                                option: "--after",
+                                value: value.to_owned(),
+                                expected: ExpectedValue::OutputCursor,
+                            },
+                            envelope,
+                        )
+                    })
+                })
+                .transpose()?,
             selection: if cfg!(windows) && options.rows.is_some() {
                 OutputSelection {
                     source: OutputSource::Recent,

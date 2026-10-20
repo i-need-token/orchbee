@@ -457,6 +457,7 @@ const BUSINESS_FLAGS: &[&str] = &[
     "--cursor",
     "--until",
     "--after-revision",
+    "--after",
     "--provider",
     "--asset-root",
     "--profile",
@@ -1204,9 +1205,11 @@ const COMMAND_FLAGS: &[(&str, &[&str])] = &[
         "terminal:send",
         &["--text", "--enter", "--key", "--file", "--stdin", "--paste"],
     ),
+    ("terminal:run", &["--wait", "--timeout"]),
     (
         "terminal:wait-output",
         &[
+            "--after",
             "--match",
             "--regex",
             "--rows",
@@ -1995,6 +1998,7 @@ fn flag_bit(flag: &str) -> &'static str {
         "--cursor" => "seen_cursor",
         "--until" => "seen_until",
         "--after-revision" => "seen_after_revision",
+        "--after" => "seen_output_after",
         "--provider" => "seen_provider",
         "--asset-root" => "seen_asset_root",
         "--profile" => "seen_profile",

@@ -963,7 +963,7 @@
 					"const": "wait-output"
 				},
 				"reason": {
-					"const": "limit-exceeded"
+					"enum": ["limit-exceeded", "output-cursor-unavailable", "output-cursor-reset"]
 				},
 				"matchObserved": {
 					"const": true

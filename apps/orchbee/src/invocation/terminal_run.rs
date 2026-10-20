@@ -11,7 +11,19 @@ pub(super) fn request(
     envelope: FailureEnvelope,
 ) -> Result<Request, ParseFailure> {
     let context = UsageContext::Path("terminal run");
-    check_scope(options, NO_OPTIONS, context, envelope)?;
+    check_scope(
+        options,
+        super::Scope {
+            prompt_wait: true,
+            timeout: true,
+            ..NO_OPTIONS
+        },
+        context,
+        envelope,
+    )?;
+    if options.timeout.is_some() && !options.prompt_wait {
+        return Err(missing_required(context, "--wait", envelope));
+    }
     let Some(selector) = operands.first() else {
         return Err(missing_required(context, "<target>", envelope));
     };
@@ -30,6 +42,16 @@ pub(super) fn request(
                 expected: ExpectedValue::CommandText,
             },
             envelope,
+        ));
+    }
+    if options.prompt_wait {
+        return Ok(mutation(
+            MutationCommand::TerminalRunWait {
+                target: target((*selector).to_owned(), Resource::Terminal, envelope)?,
+                command: (*command).to_owned(),
+                timeout_ms: super::wait_timeout_option(options, context, envelope)?,
+            },
+            options,
         ));
     }
     Ok(mutation(

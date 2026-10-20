@@ -995,7 +995,7 @@ ScriptBlock；已识别的现代适配器向原生 ReadLine 传入已保存状�
 两者都在 finally 中发送 C，保留输入／异常，保留 prompt 输出（包括 mise）、PSReadLine 历史／键位钩子和全部
 profile 文件。命令、脚本及未知 shell 不注入。缺失或受限制的 reader 支持不产生空闲证明。
 无集成的既有会话要求确认。[VS Code 的 PowerShell 集成](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1)
-也采用该 reader 钩子边界；Orchbee 只采用读行阶段标记，不采用命令文本、环境上报或键位重映射。
+也采用该 reader 钩子边界；Orchbee 采用读行阶段标记及下文的有界关联，不上报命令文本或环境，也不重映射键位。
 
 Host owner 在接受带门禁的优雅信号派发前立即重新检查严格采样；拒绝不改变 Core 意图，也不
 发送信号。Server 保留迟到拒绝／部分结果，绝不强制执行未经确认的 Close。运行时／进程回归及
@@ -1005,3 +1005,11 @@ bundled-ConPTY 光标套件还会检查真实 Windows PowerShell 和可用 Power
 草稿输入，确保插入位置始终位于提示符所在行。真实 PSReadLine 预测反馈见证在
 原生 ReadLine 边界检查失败／成功命令状态。真实启动、全部 Tab 成员及 OS 调度仍要求原生 TUI 证据；采样证据
 不是原子的 OS 进程创建事务。
+
+## 关联 Shell 观察与行原点
+
+运行时的终端 mutex 拥有一个 `command_observation` tracker。其最旧行的 Ghostty 跟踪 pin 为数值行坐标提供围栏：淘汰、屏幕替换或原点移动会递增经过检查的正输出 epoch。分配失败阻止捕获，epoch 耗尽绝不回绕。投影 generation 单独围栏几何／重排。不保留命令历史。
+
+私有 APC `orchbee.command.v1;ready`、`start;<32-lowercase-hex-id>` 和 `finish;<id>;<i32-status>` 是有界的协作式 Shell 事实。Start 记录 generation、epoch 和光标坐标；只有匹配且未完成的调用接受 finish。语义 C 清除 ready。读取批次将这些事实与终端内容一起暂存并提交。OBTF 可选 kind 5 发布它们，旧消费者可跳过。这些标记不授予输入、焦点、关闭或进程生命周期权限。
+
+受管 PowerShell reader 只剥离返回命令开头的 `<#orchbee-run:<id>#> `。Prompt 在集成工作前捕获 `$?`，在渲染原提示符前发出 D 和匹配的 0/1 finish，然后清除 ID。原命令在正常作用域中运行。就绪标记说明集成能力和当前 reader 入口，不为调用者独占输入行。

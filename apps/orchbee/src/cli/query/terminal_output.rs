@@ -235,6 +235,7 @@ pub(super) fn wait_sample(
     matcher: &super::super::results::WaitMatcher<'_>,
 ) -> Result<Option<WaitSample>, Failure> {
     let range = terminal_output::range(frame, selection)?;
+    let boundary = after_row(run, frame, range)?;
     let mut rows = if range.count == 0 {
         Vec::new()
     } else if selection.source == OutputSource::Visible {
@@ -259,7 +260,7 @@ pub(super) fn wait_sample(
         let result = result.map_err(classify_viewer)?;
         match result.outcome() {
             TerminalViewerOutcome::Record(record) => {
-                terminal_output::window_rows(&decode_history_window(
+                let window = decode_history_window(
                     record.clone(),
                     frame.route.attachment_id,
                     frame.route.host_epoch,
@@ -267,7 +268,18 @@ pub(super) fn wait_sample(
                     range.start,
                     u64::from(range.count),
                     sequence,
-                )?)
+                )?;
+                let mut rows = terminal_output::window_rows(&window);
+                if boundary.is_some() {
+                    rows.retain(|row| {
+                        window.rows.iter().any(|source| {
+                            source.index == row.index
+                                && source.prompt_class
+                                    == orchbee_terminal_protocol::TerminalRowPromptClass::None
+                        })
+                    });
+                }
+                rows
             }
             TerminalViewerOutcome::RowsRejected { reason } => {
                 use orchbee_client_server_protocol::ViewerRowsRejectedReason as Reason;
@@ -285,6 +297,16 @@ pub(super) fn wait_sample(
             _ => return Err(viewer_protocol_invalid()),
         }
     };
+    if let Some(boundary) = boundary {
+        rows.retain(|row| {
+            row.index > boundary
+                && (selection.source != OutputSource::Visible
+                    || frame.rows.iter().any(|source| {
+                        frame.scrollback_rows + u64::from(source.index) == row.index
+                            && source.prompt_class == 0
+                    }))
+        });
+    }
     terminal_output::prepare_rows(&mut rows, selection);
     let matched = super::super::results::match_rows(
         rows.iter().map(|row| {
@@ -322,4 +344,42 @@ pub(super) fn wait_sample(
         requested_rows,
         capacity_omitted: Some(range.capacity_omitted),
     }))
+}
+
+fn after_row(
+    run: &mut WaitRun<'_>,
+    frame: &TerminalTextFrame,
+    range: SampleRange,
+) -> Result<Option<u64>, Failure> {
+    use crate::invocation::OutputAfter;
+    if run.after.is_none() {
+        return Ok(None);
+    }
+    let current = terminal_output::capture_cursor(&run.terminal_id, frame)
+        .ok_or_else(|| cursor_failure("output-cursor-unavailable"))?;
+    if matches!(run.after, Some(OutputAfter::Now)) {
+        run.after = Some(OutputAfter::Cursor(current.clone()));
+    }
+    let Some(OutputAfter::Cursor(cursor)) = &run.after else {
+        return Err(Failure::new(FailureKind::InternalFailure));
+    };
+    if cursor.terminal_id != current.terminal_id
+        || cursor.host_epoch != current.host_epoch
+        || cursor.generation != current.generation
+        || cursor.output_epoch != current.output_epoch
+        || cursor.revision > current.revision
+        || range.start > cursor.row.saturating_add(1)
+        || cursor.row >= range.total
+    {
+        return Err(cursor_failure("output-cursor-reset"));
+    }
+    Ok(Some(cursor.row))
+}
+
+fn cursor_failure(reason: &'static str) -> Failure {
+    Failure::new(FailureKind::Rejected).details(serde_json::Map::from_iter([
+        ("stage".into(), "viewer".into()),
+        ("operation".into(), "wait-output".into()),
+        ("reason".into(), reason.into()),
+    ]))
 }

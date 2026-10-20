@@ -152,7 +152,7 @@ fn catalog_requires_and_admits_every_embedded_schema_exactly_once() {
         crate::localization::Locale::EnUs,
     );
     let published: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(published["version"], 148, "runtime catalog emitter version");
+    assert_eq!(published["version"], 149, "runtime catalog emitter version");
     let validator = jsonschema::validator_for(&catalog).unwrap();
     validator.validate(&published).unwrap();
     let mut stale = published;

@@ -1200,7 +1200,7 @@ test "OSC 133 projects only bounded command completion facts with deterministic 
     // Close activity is projection-scheduler sampled. A direct Engine encode
     // before that first sample remains conservatively unknown and omits the
     // optional extension.
-    try std.testing.expectEqual(@as(u16, 3), summary.extension_count);
+    try std.testing.expectEqual(@as(u16, 4), summary.extension_count);
     const completion = summary.command_completion.?;
     try std.testing.expectEqual(@as(u64, 1), completion.sequence);
     try std.testing.expectEqual(@as(u64, 5_500), completion.duration_milliseconds);
@@ -1235,6 +1235,23 @@ test "OSC 133 preserves parser order for multiple completions in one reader batc
     try std.testing.expectEqual(@as(u64, 2), completion.sequence);
     try std.testing.expectEqual(@as(u64, 4_000), completion.duration_milliseconds);
     try std.testing.expectEqual(@as(u8, 1), completion.exit_code);
+    try runtime.forceTerminate();
+}
+
+test "shell correlation preserves the exact run and ignores unrelated finish markers" {
+    const runtime = try createRuntimeWithHooks(.{});
+    defer runtime.destroy();
+    const state = runtimeState(runtime);
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b_orchbee.command.v1;ready\x1b\\"));
+    try std.testing.expect(state.command_observation.committed.ready);
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b]133;C\x07\x1b_orchbee.command.v1;start;11111111111111111111111111111111\x1b\\"));
+    try std.testing.expect(!state.command_observation.committed.ready);
+    try std.testing.expect(!state.command_observation.committed.command.?.completed);
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "result\r\n\x1b_orchbee.command.v1;finish;22222222222222222222222222222222;0\x1b\\"));
+    try std.testing.expect(!state.command_observation.committed.command.?.completed);
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(runtime, "\x1b_orchbee.command.v1;finish;11111111111111111111111111111111;1\x1b\\"));
+    try std.testing.expect(state.command_observation.committed.command.?.completed);
+    try std.testing.expectEqual(@as(i32, 1), state.command_observation.committed.command.?.exit_code);
     try runtime.forceTerminate();
 }
 test "Windows child exiting 259 completes normally with exit code 259 (THCR-041)" {

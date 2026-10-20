@@ -2004,7 +2004,7 @@ It preserves prompt output (including mise), PSReadLine history/key hooks and al
 Commands, scripts and unknown shells receive no bootstrap. Missing or restricted reader
 support emits no idle proof. Existing sessions without integration require confirmation. The reader
 hook boundary also appears in [VS Code's PowerShell integration](https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1);
-Orchbee adopts only read-phase markers, not command text, environment reporting or key remapping.
+Orchbee adopts read-phase markers and the bounded correlation described below; it does not report command text or environment, or remap keys.
 
 The Host owner rechecks this strict sample immediately before admitting guarded graceful dispatch;
 refusal leaves Core intent unchanged and sends no signal. The Server retains late refusal/partial
@@ -2017,3 +2017,11 @@ A real PSReadLine prediction-feedback witness checks failed/successful command s
 native ReadLine boundary. Native TUI evidence remains required for live startup,
 all-Tab membership and actual OS scheduling; sampled evidence is not an atomic OS process-spawn
 transaction.
+
+## Correlated shell observation and row origin
+
+The runtime's terminal mutex owns one `command_observation` tracker. Its oldest-row tracked Ghostty pin fences numeric row coordinates: eviction, screen replacement or origin movement increments a checked positive output epoch. Allocation failure blocks capture; epoch exhaustion never wraps. Projection generation separately fences geometry/reflow. There is no retained command history.
+
+Private APC `orchbee.command.v1;ready`, `start;<32-lowercase-hex-id>` and `finish;<id>;<i32-status>` are bounded cooperative Shell facts. Start records generation, epoch and cursor coordinates; only a matching unfinished invocation accepts finish. Semantic C clears ready. Reader batches stage and commit these facts with their terminal content. OBTF optional kind 5 publishes them; old consumers can skip it. These markers grant no input, focus, close or process-lifecycle authority.
+
+The managed PowerShell reader strips only `<#orchbee-run:<id>#> ` at the beginning of the returned command. The prompt captures `$?` before integration work, emits D and a matching finish with 0/1 status before rendering the original prompt, then clears the ID. The original command runs in its normal scope. Readiness advertises integration capability and current reader entry; it does not reserve the input line against other writers.

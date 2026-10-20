@@ -39,6 +39,10 @@ pub(crate) const PROJECT_RENAME_RESULT_ID: &str = "orchbee.project.rename";
 /// `schema` id → embedded document, in dictionary order.
 const DOCUMENTS: &[(&str, &str)] = &[
     (
+        "orchbee.terminal.run",
+        include_str!("schemas/orchbee.terminal.run.json"),
+    ),
+    (
         "orchbee.config.import-herdr",
         include_str!("schemas/orchbee.config.import-herdr.json"),
     ),
@@ -663,8 +667,8 @@ pub(crate) fn answer(schema_id: Option<&str>, format: OutputFormat, locale: Loca
     };
     let document = json!({
         "schema": "orchbee.api.schema",
-        // Catalog version 148 includes the current Agent projection schemas.
-        "version": 148,
+        // Catalog version 149 includes correlated command observations and output cursors.
+        "version": 149,
         "source": embedded_source(),
         "result": result,
     });

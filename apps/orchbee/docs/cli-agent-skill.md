@@ -135,3 +135,9 @@ orchbee workspace list --format json | ConvertFrom-Json
 Use help for metadata reporting, Agent view filters, attention/acknowledgement, terminal selection/copy/links/graphics, layout export/apply, notifications, configured commands, manifest maintenance, configuration reload/import/reset, update and channel selection. Some are Windows-only; the installed grammar owns admission and effect details. `channel set` saves its selection and starts an update attempt, so inspect both the saved setting and update result.
 
 Detailed behavior and maintenance contracts are indexed in [the native CLI reference](native-cli-query.md) and [the application README](../README.md). Prefer the installed build's help and schemas for executable discovery.
+
+## Wait for a shell command or new output
+
+For an idle, empty command line in a newly initialized managed PowerShell terminal, use `terminal run <target> <command> --wait --timeout 30000 --format json`. It submits once and waits for that invocation's shell markers. Inspect `submission`, `completion`, `failure` and `cleanup` separately. `powershell-success` reports Shell success (0/1), not a native process's numeric exit code. Timeout/cancellation never retracts accepted input; do not replay it.
+
+To exclude retained output, save `terminal read --format json`'s `result.cursor` and pass `--after <cursor>` to `terminal wait-output`, or use `--after now` before new work. Only later physical output rows match. The current row and prompt/input rows are excluded. Reset/eviction/window gaps reject the cursor explicitly; increase `--lines` in advance and use a finite `--timeout` for automation. See [command submission](native-terminal-run.md).

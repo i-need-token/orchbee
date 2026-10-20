@@ -116,3 +116,40 @@ fn invalid_command_forms_are_rejected_before_runtime() {
         .is_err()
     );
 }
+
+#[test]
+fn waiting_is_explicit_bounded_and_keeps_the_original_command() {
+    let target = "33333333333333333333333333333333";
+    assert_eq!(
+        parse(&[
+            "terminal",
+            "run",
+            target,
+            "Write-Output 'ok'",
+            "--wait",
+            "--timeout",
+            "1200"
+        ]),
+        Ok(Request::Mutation {
+            command: MutationCommand::TerminalRunWait {
+                target: Target::Id(target.to_owned()),
+                command: "Write-Output 'ok'".to_owned(),
+                timeout_ms: 1200,
+            },
+            format: OutputFormat::Text,
+        })
+    );
+    assert!(parse(&["terminal", "run", target, "echo", "--timeout", "1200"]).is_err());
+    assert!(
+        parse(&[
+            "terminal",
+            "run",
+            target,
+            "echo",
+            "--wait",
+            "--timeout",
+            "0"
+        ])
+        .is_err()
+    );
+}

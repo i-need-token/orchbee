@@ -9,6 +9,9 @@ use orchbee_local_ipc::LocalListener;
 use peer_support::*;
 use serde_json::Value;
 
+#[path = "cli_windows_terminal_run/wait.rs"]
+mod wait;
+
 #[test]
 fn windows_run_sends_one_opaque_paste_then_enter_and_preserves_partial_receipts() {
     for (partial, format) in [false, true]

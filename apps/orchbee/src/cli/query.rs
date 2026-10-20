@@ -4,6 +4,27 @@
 //! explicit link activation delegates one plugin Job to the existing execution owner.
 
 #[cfg(windows)]
+mod terminal_run;
+#[cfg(windows)]
+pub(super) use terminal_run::run as run_terminal;
+#[cfg(not(windows))]
+pub(super) fn run_terminal(
+    _target: &crate::invocation::Target,
+    _command: &str,
+    _timeout_ms: u32,
+    format: crate::invocation::OutputFormat,
+    locale: crate::localization::Locale,
+) -> super::Output {
+    super::failure_output(
+        super::Failure::new(super::FailureKind::ServiceUnavailable).details(
+            super::stage_reason_details("platform", "unsupported-platform"),
+        ),
+        Some(format),
+        locale,
+    )
+}
+
+#[cfg(windows)]
 mod terminal_buffer;
 #[cfg(windows)]
 pub(super) mod terminal_copy;
@@ -30,8 +51,15 @@ pub(crate) fn wait_source_output(
     pattern: &crate::invocation::WaitPattern,
     selection: crate::invocation::OutputSelection,
     timeout_ms: Option<u32>,
+    after: Option<&crate::invocation::OutputAfter>,
 ) -> Result<(serde_json::Value, Projection), Failure> {
-    wait_output_inner(target, pattern, WaitWindow::Source(selection), timeout_ms)
+    wait_output_inner(
+        target,
+        pattern,
+        WaitWindow::Source(selection),
+        timeout_ms,
+        after.cloned(),
+    )
 }
 #[cfg(not(windows))]
 pub(crate) fn wait_source_output(
@@ -39,6 +67,7 @@ pub(crate) fn wait_source_output(
     _pattern: &crate::invocation::WaitPattern,
     _selection: crate::invocation::OutputSelection,
     _timeout_ms: Option<u32>,
+    _after: Option<&crate::invocation::OutputAfter>,
 ) -> Result<(serde_json::Value, super::results::Projection), Failure> {
     Err(Failure::new(FailureKind::ServiceUnavailable))
 }
@@ -1694,6 +1723,10 @@ struct WaitRun<'a> {
     observations: u64,
     next_row_sequence: u64,
     poll_interval: Duration,
+    #[cfg(windows)]
+    after: Option<crate::invocation::OutputAfter>,
+    #[cfg(windows)]
+    terminal_id: String,
 }
 
 #[cfg(any(target_os = "linux", windows))]
@@ -1784,6 +1817,7 @@ pub(crate) fn wait_output(
         pattern,
         WaitWindow::Retained(rows),
         Some(timeout_ms),
+        None,
     )
 }
 
@@ -1793,7 +1827,10 @@ fn wait_output_inner(
     pattern: &crate::invocation::WaitPattern,
     window: WaitWindow,
     timeout_ms: Option<u32>,
+    after: Option<crate::invocation::OutputAfter>,
 ) -> Result<(serde_json::Value, Projection), Failure> {
+    #[cfg(not(windows))]
+    let _ = after;
     // The pattern was already validated — and for `--regex`, compiled —
     // before this command caused any effect; matching reuses it as-is.
     let matcher = match pattern {
@@ -1834,6 +1871,10 @@ fn wait_output_inner(
         observations: 0,
         next_row_sequence: 1,
         poll_interval: EMPTY_POLL_INTERVAL,
+        #[cfg(windows)]
+        after,
+        #[cfg(windows)]
+        terminal_id: String::new(),
     };
     let attached = run.check().and_then(|()| {
         let deadline = run.step_deadline()?;
@@ -1851,6 +1892,10 @@ fn wait_output_inner(
             return Err(run.check().err().unwrap_or(failure).source(source));
         }
     };
+    #[cfg(windows)]
+    {
+        run.terminal_id = row.terminal_id.clone();
+    }
     // From here a real viewer attachment exists: every exit — including a
     // deadline or cancel that lands before the first poll — releases it
     // through the same confirmed-detach discipline, so the cleanup fact is
@@ -1901,6 +1946,10 @@ fn wait_output_inner(
             #[cfg(windows)]
             if let WaitWindow::Source(selection) = window {
                 doc.selection = Some(selection);
+            }
+            #[cfg(windows)]
+            if let Some(crate::invocation::OutputAfter::Cursor(cursor)) = &run.after {
+                doc.after = Some(cursor.encode());
             }
             if let Some(omitted) = sample.capacity_omitted {
                 doc.window_truncated = omitted > 0;

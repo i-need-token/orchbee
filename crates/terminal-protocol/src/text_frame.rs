@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 mod completion;
 pub use completion::TerminalCommandCompletion;
+mod command_observation;
+pub use command_observation::{TerminalCommandObservation, TerminalObservedCommand};
 mod progress;
 mod rows;
 mod sgr;
@@ -63,6 +65,8 @@ pub struct TerminalTextFrame {
     pub progress: Option<TerminalProgress>,
     /// Latest OSC 133 command-completion fact, scoped by the physical terminal identity.
     pub command_completion: Option<TerminalCommandCompletion>,
+    /// Correlated shell command and retained-row origin; absence means unsupported.
+    pub command_observation: Option<TerminalCommandObservation>,
     /// None leaves delta graphics unchanged. False identifies an exact empty OBKG update;
     /// other optional graphics payloads remain opaque and conservatively protect presentation.
     pub graphics_present: Option<bool>,
@@ -275,6 +279,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
     let mut extension_bytes = 0_u64;
     let mut progress = None;
     let mut command_completion = None;
+    let mut command_observation = None;
     let mut graphics_present = None;
     for _ in 0..extensions_count {
         let kind = header.u16()?;
@@ -311,6 +316,12 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
             }
             command_completion = Some(completion::decode(bytes)?);
         }
+        if kind == 5 {
+            if command_observation.is_some() {
+                return Err(error(ProtocolErrorCode::InvalidField));
+            }
+            command_observation = Some(command_observation::decode(bytes)?);
+        }
     }
     if !header.bytes.is_empty() {
         return Err(error(ProtocolErrorCode::LengthMismatch));
@@ -333,6 +344,7 @@ pub fn decode_terminal_text_frame(bytes: &[u8]) -> Result<TerminalTextFrame, Pro
         current_directory: (directory != u32::MAX).then(|| strings[directory as usize].clone()),
         progress,
         command_completion,
+        command_observation,
         graphics_present,
         rows,
     })

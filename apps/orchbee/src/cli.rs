@@ -680,6 +680,14 @@ pub(crate) fn skill(locale: Locale) -> Output {
 /// `terminal send` takes its own input-record path on the same session
 /// discipline — both admit once, submit once, and never replay.
 pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: Locale) -> Output {
+    if let MutationCommand::TerminalRunWait {
+        target,
+        command,
+        timeout_ms,
+    } = &command
+    {
+        return query::run_terminal(target, command, *timeout_ms, format, locale);
+    }
     if let MutationCommand::TerminalSend { target, input } = &command {
         return send::run(target, input, format, locale);
     }
@@ -871,7 +879,14 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             matcher,
             selection,
             timeout_ms,
-        } => match query::wait_source_output(target, matcher, *selection, *timeout_ms) {
+            after,
+        } => match query::wait_source_output(
+            target,
+            matcher,
+            *selection,
+            *timeout_ms,
+            after.as_ref(),
+        ) {
             Err(failure) => failure_output(failure, Some(format), locale),
             Ok((source, projection)) => {
                 success_output(projection, source, &command, format, locale)

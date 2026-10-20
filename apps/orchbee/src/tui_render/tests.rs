@@ -1403,6 +1403,7 @@ fn history_entering_keeps_the_live_frame() {
         progress: None,
         graphics_present: None,
         command_completion: None,
+        command_observation: None,
         title: None,
         current_directory: None,
         rows: vec![TerminalTextRow {

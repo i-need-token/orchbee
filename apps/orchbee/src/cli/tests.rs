@@ -220,6 +220,7 @@ fn terminal_output_text_is_copyable_and_json_preserves_original_data() {
         },
         text: content.into(),
         ansi: false,
+        cursor: None,
     });
     let command = QueryCommand::TerminalOutput {
         target: OutputTarget::Terminal(Target::Id(ID.into())),

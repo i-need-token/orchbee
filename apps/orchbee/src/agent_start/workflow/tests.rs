@@ -64,6 +64,8 @@ fn idle_shell_accepts_only_the_complete_runtime_powershell_initialization() {
                     current_directory: None,
                 }],
             };
+            assert!(sample.processes[0].command_line.as_ref().unwrap().encode_utf16().count()
+                <= orchbee_terminal_protocol::MAXIMUM_PROCESS_TEXT_UTF16_UNITS);
             assert!(
                 idle_shell(&sample).is_ok(),
                 "runtime-created {shell} must admit startup"

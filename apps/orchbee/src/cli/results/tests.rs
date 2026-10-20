@@ -969,6 +969,7 @@ mod terminal_read {
             progress: None,
             graphics_present: None,
             command_completion: None,
+            command_observation: None,
             title: None,
             current_directory: None,
             rows,

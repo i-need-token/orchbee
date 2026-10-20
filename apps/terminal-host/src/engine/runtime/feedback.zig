@@ -24,6 +24,16 @@ pub fn privateApplicationSignalEffect(
     const apc = switch (sequence) {
         .apc => |value| value,
     };
+    if (!apc.truncated) {
+        if (self.command_observation.accept(
+            &self.terminal,
+            self.generation,
+            apc.content,
+        ) catch {
+            self.feedback_sequence_overflow_pending = true;
+            return;
+        }) return;
+    }
     if (apc.truncated or
         !std.mem.startsWith(u8, apc.content, private_application_signal_prefix)) return;
     const encoded = apc.content[private_application_signal_prefix.len..];
@@ -105,6 +115,7 @@ pub fn semanticPromptEffect(
     std.debug.assert(self.command_batch_active);
     switch (command.action) {
         .end_input_start_output => {
+            self.command_observation.staged.ready = false;
             self.close_prompt_phase_staged = .command_active;
             stageCloseInputLineAcknowledgement(self);
             self.command_started_at_ns_staged = clock.monotonicTimeNanoseconds(self);
@@ -163,6 +174,7 @@ pub fn beginReaderBatch(self: *state.State) void {
     std.debug.assert(self.progress_staged == null);
     std.debug.assert(!self.command_batch_active);
     self.command_batch_active = true;
+    self.command_observation.begin();
     self.close_prompt_phase_staged = self.close_prompt_phase;
     self.close_input_line_acknowledgements_staged = 0;
     self.command_completion_staged = self.command_completion;
@@ -238,6 +250,7 @@ pub fn commitReaderBatch(self: *state.State) void {
     self.close_prompt_phase_staged = .unknown;
     self.close_input_line_acknowledgements_staged = 0;
     self.command_started_at_ns = self.command_started_at_ns_staged;
+    self.command_observation.commit();
     self.command_completion = self.command_completion_staged;
     self.command_sequence = self.command_sequence_staged;
     self.command_batch_active = false;
@@ -319,6 +332,7 @@ pub fn commitClipboardWriteRequest(
 }
 
 pub fn deinit(self: *state.State) void {
+    self.command_observation.deinit(&self.terminal);
     abortReaderBatch(self);
     for (0..self.application_signal_pending_count) |offset| {
         const index = (self.application_signal_pending_head + offset) %

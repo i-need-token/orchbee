@@ -52,7 +52,8 @@ pub fn encodeOwned(
     const base_revision: ?u64 = if (snapshot) null else request.base_revision;
     const extension_count: u16 = 2 +
         @as(u16, @intFromBool(request.close_activity != .unknown)) +
-        @as(u16, @intFromBool(request.command_completion != null));
+        @as(u16, @intFromBool(request.command_completion != null)) +
+        @as(u16, @intFromBool(request.command_observation != null));
     if (!snapshot and base_revision.? >= self.captured_revision) return error.ProjectionTooLarge;
 
     var strings = StringTable.init(self.allocator);
@@ -243,6 +244,28 @@ pub fn encodeOwned(
         try writer.appendInt(u64, completion.duration_milliseconds);
         try writer.appendInt(u64, completion.completed_at_milliseconds);
         try writer.appendInt(u8, completion.exit_code);
+    }
+
+    if (request.command_observation) |observation| {
+        try writer.appendInt(u16, protocol.terminal_frame_extension_command_observation);
+        try writer.appendInt(u16, 0);
+        try writer.appendInt(u32, if (observation.command != null) 66 else 10);
+        try writer.appendInt(u64, observation.output_epoch);
+        try writer.appendInt(u8, @intFromBool(observation.ready));
+        try writer.appendInt(u8, if (observation.command) |command|
+            (if (command.completed) @as(u8, 2) else 1)
+        else
+            0);
+        if (observation.command) |command| {
+            for (command.id) |byte| try writer.appendInt(u8, byte);
+            try writer.appendInt(u64, command.start_row);
+            try writer.appendInt(u16, command.start_column);
+            try writer.appendInt(u64, command.end_row);
+            try writer.appendInt(u16, command.end_column);
+            try writer.appendInt(u64, command.generation);
+            try writer.appendInt(u64, command.output_epoch);
+            try writer.appendInt(i32, command.exit_code);
+        }
     }
 
     const frame_length = writer.bytes.items.len - frame_offset;

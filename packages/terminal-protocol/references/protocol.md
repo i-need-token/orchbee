@@ -514,6 +514,7 @@ The current optional extension registry is:
 |  `2` | `40..33 MiB` | One strictly decoded OBKG `0.0.2` Kitty graphics resource snapshot or placement-only update.                                                                 |
 |  `3` |          `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                                       |
 |  `4` |         `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code.         |
+|  `5` | `10` or `66` | Row-origin epoch and the latest correlated Shell invocation; see the extension contract below.                                                               |
 
 Close activity is an advisory, freshness-sensitive sample, not lifecycle or containment authority.
 A consumer maps an absent, duplicated, malformed, or unrecognized close-activity payload to
@@ -956,3 +957,9 @@ Accepted activity bytes latch live idle evidence unknown until terminal replacem
 settlement: even fully accounted OS writes and later C/A prompt cycles do not prove shell-buffer
 consumption. Ordinary projection close-activity fallback does not grant destructive authority. TypeScript/Rust codecs and
 the Zig registry share the closed discriminants and existing canonical target-ACK fixture.
+
+## Correlated command observation extension
+
+Optional OBTF extension kind `5` contains a positive output-origin epoch (`u64`), reader-ready (`u8`, 0/1), and invocation phase (`u8`, 0 absent, 1 running, 2 completed). An absent invocation is exactly 10 bytes. Otherwise its 66-byte payload appends: nonzero 16-byte invocation ID; start row `u64`, start column `u16`, end row `u64`, end column `u16`, positive start generation `u64`, positive start output epoch `u64`, and signed `i32` status, all integers little-endian. A running invocation has zero end coordinates and status. Duplicates, illegal phases/booleans, zero identities/epochs/generations and incorrect lengths reject the frame in consumers that understand this extension.
+
+The observation is the latest cooperative Shell invocation, with no command text. It does not replace kind 4's presentation metadata. Coordinates belong to retained physical rows only while generation and output epoch still agree. The Host changes output epoch when its oldest retained-row pin loses continuity; clients must never infer continuity from a saturated row count. Older consumers skip this optional extension. The Windows CLI combines it with terminal identity and Host epoch to fence opaque output cursors.

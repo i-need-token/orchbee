@@ -32,6 +32,7 @@ pub const EncodeRequest = struct {
     close_activity: TerminalCloseActivity = .unknown,
     progress: TerminalProgress = .{},
     command_completion: ?TerminalCommandCompletion = null,
+    command_observation: ?protocol.TerminalCommandObservation = null,
 };
 
 pub const EncodedFrame = struct {

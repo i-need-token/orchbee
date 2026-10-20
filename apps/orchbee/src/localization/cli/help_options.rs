@@ -10,6 +10,21 @@ impl Locale {
         flag: &str,
     ) -> (&'static str, &'static str) {
         let (value, english, chinese) = match (path, flag) {
+            (CommandPath::TerminalRun, "--wait") => (
+                "",
+                "Wait for this command's correlated managed-shell completion.",
+                "等待受管 Shell 回传本次命令的关联完成结果。",
+            ),
+            (CommandPath::TerminalRun, "--timeout") => (
+                "<ms>",
+                "Total wait deadline: 1..3600000 ms; default: 30000; requires --wait.",
+                "总等待时限：1..3600000 毫秒；默认 30000；需要 --wait。",
+            ),
+            (CommandPath::TerminalWaitOutput, "--after") => (
+                "<cursor|now>",
+                "Match new complete rows after this cursor; now captures the first observation.",
+                "仅匹配游标之后的新完整行；now 以第一次观测为起点。",
+            ),
             (
                 CommandPath::PanelLayout | CommandPath::PanelNeighbor | CommandPath::PanelEdges,
                 "--timeout",

@@ -74,6 +74,8 @@ pub(crate) use client_control::{ClientLayoutTarget, ClientNavigationTarget, Zoom
 #[cfg(windows)]
 pub(crate) use client_control::{PanelSwapCommand, PanelSwapDestination};
 pub(crate) use terminal_output::{OutputSelection, OutputSource, OutputTarget};
+mod output_cursor;
+pub(crate) use output_cursor::{OutputAfter, OutputCursor};
 #[cfg(windows)]
 pub(crate) use terminal_stream::AttachTarget;
 pub(crate) use terminal_stream::{
@@ -1007,6 +1009,7 @@ pub(crate) enum QueryCommand {
         matcher: WaitPattern,
         selection: OutputSelection,
         timeout_ms: Option<u32>,
+        after: Option<OutputAfter>,
     },
     TerminalWaitOutput {
         target: Target,
@@ -1403,6 +1406,11 @@ pub(crate) enum MutationCommand {
     TerminalSend {
         target: Target,
         input: TerminalSendInput,
+    },
+    TerminalRunWait {
+        target: Target,
+        command: String,
+        timeout_ms: u32,
     },
 }
 
@@ -1943,6 +1951,7 @@ pub(crate) enum ExpectedValue {
     AgentName,
     AgentListLimit,
     AgentCursor,
+    OutputCursor,
     /// The `agent wait --until` operand: one of the fourteen
     /// condition names.
     AgentWaitUntil,
@@ -2228,6 +2237,7 @@ struct Options {
     until: Vec<String>,
     /// `agent wait --after-revision <n>`: the revision-fence value option.
     after_revision: Option<String>,
+    output_after: Option<String>,
     /// `agent doctor --provider <id>`: repeatable, append-ordered.
     providers: Vec<String>,
     /// `agent doctor --asset-root <path>`: repeatable, append-ordered.
@@ -2254,6 +2264,7 @@ struct Options {
 /// both the format-envelope walk and the option scan so ownership is decided
 /// identically in the two passes.
 const VALUE_FLAGS: &[&str] = &[
+    "--after",
     #[cfg(windows)]
     "--input-file",
     #[cfg(windows)]
@@ -3089,6 +3100,7 @@ fn apply_value_flag(
         "--content-revision" => &mut options.content_revision,
         "--cursor" => &mut options.cursor,
         "--after-revision" => &mut options.after_revision,
+        "--after" => &mut options.output_after,
         "--name" => &mut options.name,
         "--agent-session" => &mut options.session,
         #[cfg(windows)]
@@ -4581,6 +4593,7 @@ fn resolve_words(
                 || options.output_source.is_some()
                 || options.lines.is_some()
                 || options.forever
+                || options.output_after.is_some()
             {
                 return terminal_output::wait_request(
                     target((*value).to_owned(), Resource::Terminal, envelope)?,
@@ -6505,6 +6518,9 @@ fn first_out_of_scope(options: &Options, scope: Scope) -> Option<&'static str> {
     }
     if options.regex.is_some() && !scope.regex {
         return Some("--regex");
+    }
+    if options.output_after.is_some() && !scope.wait {
+        return Some("--after");
     }
     // `--timeout` belongs to `terminal wait-output` through `wait` scope and
     // to `agent wait` through its own `timeout` scope; the two never share

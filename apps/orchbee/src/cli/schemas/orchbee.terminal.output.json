@@ -10,7 +10,7 @@
 			"const": "orchbee.terminal.output"
 		},
 		"version": {
-			"enum": [1, 2]
+			"enum": [1, 2, 3, 4]
 		},
 		"source": {
 			"$ref": "#/$defs/snapshotSource"
@@ -137,6 +137,17 @@
 				},
 				"encoding": {
 					"const": "ansi"
+				},
+				"cursor": {
+					"anyOf": [
+						{
+							"type": "string",
+							"pattern": "^o1:[0-9a-f]{32}:[0-9a-f]{32}:[1-9][0-9]*:[1-9][0-9]*:[0-9]+:[0-9]+$"
+						},
+						{
+							"type": "null"
+						}
+					]
 				}
 			}
 		}
@@ -209,7 +220,7 @@
 			"if": {
 				"properties": {
 					"version": {
-						"const": 2
+						"enum": [2, 4]
 					}
 				},
 				"type": "object"
@@ -233,6 +244,31 @@
 					}
 				},
 				"type": "object"
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"version": {
+						"enum": [3, 4]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"required": ["cursor"]
+					}
+				}
+			},
+			"else": {
+				"properties": {
+					"result": {
+						"not": {
+							"required": ["cursor"]
+						}
+					}
+				}
 			}
 		}
 	]

@@ -16,6 +16,30 @@ fn selection(source: OutputSource, lines: Option<u16>) -> OutputSelection {
 }
 
 #[test]
+fn output_cursor_excludes_existing_content_below_the_cursor_and_alternate_screens() {
+    use orchbee_terminal_protocol::{TerminalCommandObservation, decode_terminal_text_frame};
+    let mut frame = decode_terminal_text_frame(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../packages/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin"
+    )))
+    .unwrap();
+    frame.command_observation = Some(TerminalCommandObservation {
+        output_epoch: std::num::NonZeroU64::new(1).unwrap(),
+        ready: true,
+        command: None,
+    });
+    frame.alternate_screen = false;
+    frame.cursor.row = 0;
+    let cursor = capture_cursor(&"1".repeat(32), &frame).unwrap();
+    assert!(cursor.row >= visible::last_content_row(&frame).unwrap_or(0));
+    frame.alternate_screen = true;
+    assert!(capture_cursor(&"1".repeat(32), &frame).is_none());
+    frame.alternate_screen = false;
+    frame.command_observation = None;
+    assert!(capture_cursor(&"1".repeat(32), &frame).is_none());
+}
+
+#[test]
 fn recent_endpoint_respects_content_cursor_empty_and_alternate_screens() {
     let visible = rows(&["a", "b", "", ""]);
     let choose = |source, lines, cursor, alternate, rows: &[OutputRow], capacity| {

@@ -135,3 +135,9 @@ orchbee workspace list --format json | ConvertFrom-Json
 元数据报告、Agent 视图筛选、关注／确认、终端选择／复制／链接／图形、布局导出／应用、通知、配置命令、清单维护、配置重载／导入／重置、更新和 channel 选择均可通过帮助发现。部分能力仅支持 Windows；准入与效果细节由已安装语法规定。`channel set` 保存选择并发起更新，因此应同时检查保存的设置和更新结果。
 
 详细行为与维护契约见[原生 CLI 参考](native-cli-query.zh-CN.md)和[应用 README](../README.zh-CN.md)。可执行能力发现以已安装构建的帮助和 Schema 为准。
+
+## 等待 Shell 命令或新输出
+
+在新初始化的受管 PowerShell 终端中，确认命令行空闲且为空后，使用 `terminal run <target> <command> --wait --timeout 30000 --format json`。它只提交一次，并等待本次调用的 Shell 标记。分别检查 `submission`、`completion`、`failure` 和 `cleanup`。`powershell-success` 表示 Shell 成功状态（0/1），不是原生进程的数值退出码。超时／取消不会撤回已接受输入，不要重放。
+
+要排除保留输出，保存 `terminal read --format json` 的 `result.cursor`，向 `terminal wait-output` 传入 `--after <cursor>`，或在新工作前使用 `--after now`。只匹配后续物理输出行，排除当前行和提示符／输入行。重置、淘汰和窗口间隙会明确拒绝游标；提前增大 `--lines`，自动化使用有限 `--timeout`。参见[命令提交](native-terminal-run.zh-CN.md)。

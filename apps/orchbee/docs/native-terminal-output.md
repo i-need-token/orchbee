@@ -6,7 +6,7 @@ This reference owns Windows `terminal read` and `agent read`, including their de
 
 `--source visible|recent|recent-unwrapped|detection` selects a text snapshot. `--plain` exports UTF-8 directly and conflicts with JSON. Explicit source/plain/ANSI rejects history/rows/unwrap; use recent-unwrapped for explicit joining. `--lines` accepts an unsigned 32-bit integer, clamps to 1000 and permits zero. All grammar resolves before effects. Terminal and Agent target resolution remains unchanged.
 
-Unqualified Windows reads now emit `orchbee.terminal.output` v1 instead of the legacy visible document. Scripts must select the source and consume the corresponding schema explicitly. Rollback restores the old executable; there is no persisted migration.
+Unqualified Windows reads now emit `orchbee.terminal.output` v3 instead of the legacy visible document. Scripts must select the source and consume the corresponding schema explicitly. Rollback restores the old executable; there is no persisted migration.
 
 ## Selection model
 
@@ -53,7 +53,7 @@ fails before stdout. Read cleanup and platform admission retain the existing que
 ## Output and compatibility
 
 Human text preserves printable backslashes, quotes, and Unicode, while escaping terminal controls
-and bidirectional formatting. Read markers remain localized. JSON uses `orchbee.terminal.output` v1 with canonical
+and bidirectional formatting. Read markers remain localized. JSON uses `orchbee.terminal.output` v3 with canonical
 snapshot provenance, terminal identity, source selection, revision/generation, physical range,
 capacity truncation, fragment edges and text. The catalog is v51 with 72 documents; no protocol
 shape or command path is added. `--plain` emits exactly the JSON text member's UTF-8 bytes, under
@@ -67,7 +67,7 @@ checks and model review, not an unrun model-checking claim.
 
 ## Source-selected waits
 
-Windows `terminal wait-output` always uses this source model, defaulting to recent (80 physical rows) and no total deadline. Explicit `--timeout` bounds the total wait; `--forever` is an optional no-ceiling alias and conflicts with timeout. `--rows <1..1000>` selects recent with that line count and conflicts with explicit source/lines. Every Windows invocation emits v3. For a finite 30-second, 1000-row wait, use `--lines 1000 --timeout 30000`; the source range remains governed by the recent endpoint.
+Windows `terminal wait-output` always uses this source model, defaulting to recent (80 physical rows) and no total deadline. Explicit `--timeout` bounds the total wait; `--forever` is an optional no-ceiling alias and conflicts with timeout. `--rows <1..1000>` selects recent with that line count and conflicts with explicit source/lines. Windows invocations without `--after` emit v3. For a finite 30-second, 1000-row wait, use `--lines 1000 --timeout 30000`; the source range remains governed by the recent endpoint.
 
 Every individual admission and I/O remains bounded to five seconds. Finite timeouts keep the existing
 positive range and patterns keep their existing nonempty and compiled-program bounds.
@@ -109,9 +109,8 @@ before runtime admission. `--format json` remains available; otherwise stdout co
 UTF-8 ANSI string directly, without headings. This is the same explicit data-export exception as
 plain output, not a change to ordinary escaped human text.
 
-JSON ANSI output uses `orchbee.terminal.output` v2 with `result.encoding:"ansi"`; `content.text`
-contains the ANSI string. Text/plain source reads retain v1 and their existing shape. The catalog
-is v51 with 72 schemas and 86 command paths. Empty selection exports no bytes. Preparation and
+JSON ANSI output uses `orchbee.terminal.output` v4 with `result.encoding:"ansi"`; `content.text`
+contains the ANSI string. Text/plain source reads emit v3 with the same cursor field. The catalog lists the current schemas and command paths. Empty selection exports no bytes. Preparation and
 serialization preserve the existing 8 MiB output limit and finish before stdout; an over-budget
 result fails completely. Raw export and JSON content have identical UTF-8 bytes when both fit.
 
@@ -193,3 +192,9 @@ text. Every append, including row separators, checks the aggregate 8 MiB prepara
 omitted rows and shared blank aliases never allocate expanded text. Recent and ANSI selection do
 not prepare an unused plain visible copy. This preserves padding, wide-cell and control-data rules
 while preventing shared grapheme aliases from bypassing the output budget during preparation.
+
+## Output cursors
+
+Current plain and ANSI output envelopes are v3 and v4, respectively, with nullable `result.cursor`; historical v1/v2 retain their closed shapes. A cursor identifies one primary-screen terminal, Host epoch, generation, output-origin epoch, revision and later of the occupied row and existing content endpoint. It is unavailable on alternate screens or older Hosts. Treat the encoded value as opaque.
+
+`wait-output --after <cursor|now>` emits v4 with the admitted `after` boundary. Without this flag, waits retain v3 and may match retained output. `now` captures the first consistent sample. Matching excludes the occupied boundary row and prompt/input rows, then applies the existing matching and wrap rules to later rows. It does not detect append-only changes within the boundary row. A mismatched identity, restart, reset/reflow, history eviction or missing rows before the selected window returns `rejected` with `output-cursor-reset`; an unsupported source returns `output-cursor-unavailable`. No cursor reset is hidden. The observer never submits input.

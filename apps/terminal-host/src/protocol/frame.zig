@@ -51,6 +51,7 @@ pub const FrameSummary = struct {
     close_activity: ?contract.TerminalCloseActivity,
     columns: u16,
     command_completion: ?contract.TerminalCommandCompletion,
+    command_observation: ?contract.TerminalCommandObservation,
     current_directory: ?[]const u8,
     cursor_column: u16,
     cursor_row: u16,
@@ -303,6 +304,7 @@ pub fn validateTerminalFrame(
     var graphics: ?graphics_extension.Summary = null;
     var progress: ?contract.TerminalProgress = null;
     var command_completion: ?contract.TerminalCommandCompletion = null;
+    var command_observation: ?contract.TerminalCommandObservation = null;
     var close_activity: ?contract.TerminalCloseActivity = null;
     for (0..extension_count) |_| {
         const extension_kind = try reader.readInt(u16);
@@ -356,6 +358,36 @@ pub fn validateTerminalFrame(
                 return error.InvalidField;
             }
             command_completion = completion;
+        } else if (extension_kind == contract.terminal_frame_extension_command_observation) {
+            if (command_observation != null or (extension.len != 10 and extension.len != 66)) return error.InvalidField;
+            const epoch = std.mem.readInt(u64, extension[0..8], .little);
+            if (epoch == 0 or extension[8] > 1) return error.InvalidField;
+            var observation: contract.TerminalCommandObservation = .{
+                .output_epoch = epoch,
+                .ready = extension[8] == 1,
+            };
+            switch (extension[9]) {
+                0 => if (extension.len != 10) return error.InvalidField,
+                1, 2 => {
+                    if (extension.len != 66) return error.InvalidField;
+                    const command: contract.TerminalCommandObservation.Command = .{
+                        .id = extension[10..26].*,
+                        .completed = extension[9] == 2,
+                        .start_row = std.mem.readInt(u64, extension[26..34], .little),
+                        .start_column = std.mem.readInt(u16, extension[34..36], .little),
+                        .end_row = std.mem.readInt(u64, extension[36..44], .little),
+                        .end_column = std.mem.readInt(u16, extension[44..46], .little),
+                        .generation = std.mem.readInt(u64, extension[46..54], .little),
+                        .output_epoch = std.mem.readInt(u64, extension[54..62], .little),
+                        .exit_code = std.mem.readInt(i32, extension[62..66], .little),
+                    };
+                    if (std.mem.allEqual(u8, &command.id, 0) or command.generation == 0 or command.output_epoch == 0 or
+                        (!command.completed and (command.end_row != 0 or command.end_column != 0 or command.exit_code != 0))) return error.InvalidField;
+                    observation.command = command;
+                },
+                else => return error.InvalidField,
+            }
+            command_observation = observation;
         }
     }
     if (reader.offset != bytes.len) return error.LengthMismatch;
@@ -370,6 +402,7 @@ pub fn validateTerminalFrame(
         .close_activity = close_activity,
         .columns = columns,
         .command_completion = command_completion,
+        .command_observation = command_observation,
         .current_directory = try stringAt(strings, current_directory_index),
         .cursor_column = cursor_column,
         .cursor_row = cursor_row,

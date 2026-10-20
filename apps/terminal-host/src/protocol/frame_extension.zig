@@ -23,3 +23,22 @@ pub const TerminalCommandCompletion = struct {
     completed_at_milliseconds: u64,
     exit_code: u8,
 };
+
+/// Optional shell observations contain identities and positions, never command text.
+pub const TerminalCommandObservation = struct {
+    output_epoch: u64,
+    ready: bool = false,
+    command: ?Command = null,
+
+    pub const Command = struct {
+        id: [16]u8,
+        completed: bool = false,
+        exit_code: i32 = 0,
+        start_row: u64,
+        start_column: u16,
+        end_row: u64 = 0,
+        end_column: u16 = 0,
+        generation: u64,
+        output_epoch: u64,
+    };
+};

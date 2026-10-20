@@ -66,6 +66,7 @@ pub const State = struct {
     close_input_partial_line: bool = false,
     close_input_last_byte_was_cr: bool = false,
     command_batch_active: bool = false,
+    command_observation: @import("command_observation.zig").Tracker = .{},
     command_completion: ?contracts.TerminalCommandCompletion = null,
     command_completion_staged: ?contracts.TerminalCommandCompletion = null,
     command_sequence: u64 = 0,

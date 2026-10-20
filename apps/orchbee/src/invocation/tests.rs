@@ -52,6 +52,7 @@ fn expected_output_wait(text: &str, rows: Option<u16>, timeout: Option<u32>) -> 
     let matcher = WaitPattern::Literal(text.to_owned());
     if cfg!(windows) {
         QueryCommand::TerminalSourceWait {
+            after: None,
             target,
             matcher,
             selection: super::OutputSelection {
@@ -4707,6 +4708,7 @@ fn terminal_wait_output_grammar() {
         Ok(query(
             if cfg!(windows) {
                 QueryCommand::TerminalSourceWait {
+                    after: None,
                     target: Target::Id(ID.into()),
                     matcher: WaitPattern::Regex(compiled),
                     selection: super::OutputSelection {

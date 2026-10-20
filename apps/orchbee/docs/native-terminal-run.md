@@ -2,50 +2,24 @@
 
 ## Command and ownership
 
-`orchbee terminal run <target> <command>` submits one quoted, nonempty UTF-8 command
-string to an existing Terminal. Use `--` before operands that resemble CLI options.
-The global `--format text|json` still selects the input receipt projection. The
-complete argument envelope remains bounded to 64 KiB; the existing paste limit is
-256 KiB. Command bytes, whitespace, quotes and newlines are preserved. Separate
-unquoted command operands are rejected; Orchbee does not reassemble shell argv.
+`orchbee terminal run <target> <command>` submits one quoted, nonempty UTF-8 command to an existing Terminal. Use `--` before operands resembling options. Command bytes, whitespace, quotes and newlines remain unchanged; separate command operands are rejected. The argument envelope is bounded to 64 KiB and paste to 256 KiB. The selected terminal's current program interprets the command.
 
-The current program in that Terminal interprets the content. The CLI does not start
-another process, choose a Shell, inspect a prompt, or claim that the Shell is ready.
-A submission receipt confirms input progress, not command completion or its exit
-code. Observe output or canonical Agent state separately when needed.
+Without `--wait`, one snapshot resolves the target and one input request sends paste followed by Enter. The five-second send budget and `orchbee.terminal.send` receipt govern this path. A receipt confirms input progress only. Partial or unknown delivery is never replayed. No viewer, controller, resize or focus is acquired.
 
-Successful `terminal run` and `terminal send` text output is one localized confirmation
-with the admitted Terminal ID. Nonzero text outcomes keep stdout empty and explain
-partial or unknown delivery on stderr, including guidance against replay. JSON retains
-the complete receipt, request identity, delivery frontier and cleanup status; exit codes
-do not change.
+## Correlated completion
 
-## Input lifecycle model
+On Windows, `--wait [--timeout <ms>]` uses a read-only viewer and the managed PowerShell integration. Its total deadline defaults to 30000 ms, including discovery, readiness observation, submission, polling and cleanup. Unsupported or unready integration refuses before input. The caller must own an empty editable command line; concurrent user input is not excluded by a viewer.
 
-| Stage     | Rule                                                                                                                                                      |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Parse     | Resolve grammar, command bounds and target syntax before discovery or runtime effects. Empty text, extra operands and send-source flags are usage errors. |
-| Resolve   | Reuse the Terminal ID or typed-suffix resolver over one snapshot and one admitted session. No implicit focus target is selected.                          |
-| Submit    | Lower to one existing terminal input request with a paste record followed by semantic Enter. Host encodes paste according to the current terminal mode.   |
-| Settle    | Preserve the existing `orchbee.terminal.send` receipt, exact request/target identities, accepted-prefix evidence and cleanup status.                      |
-| Uncertain | A lost answer remains unknown; a confirmed prefix remains partial. Never replay, append another Enter, or infer execution success.                        |
+The CLI generates a random invocation ID and sends one paste/Enter request with a comment prefix. The verified PSReadLine wrapper strips exactly that prefix and returns the original command to PowerShell without evaluation in a new scope. Private APC markers echo the ID at command start and completion. An unrelated OSC 133 completion cannot finish this wait. The Host retains only the latest correlated invocation; missing or overwritten evidence can time out and never authorizes replay. This is cooperative shell evidence, not an authentication boundary against the terminal process.
 
-The existing five-second send deadline, cancellation and failure vocabulary govern
-this entry point. It acquires no viewer, controller, resize or focus authority and
-creates no new shared protocol or durable state. `terminal send` keeps its explicit
-source/key forms. The shortcut carries two ordered records in one request; it does
-not add stronger all-or-nothing delivery to the existing send contract.
+JSON uses `orchbee.terminal.run` v1. `submission` preserves the complete input receipt; `completion` separately carries `exitCode`, `statusKind: powershell-success`, and physical output coordinates. PowerShell status is 0 for `$? = true`, 1 otherwise; it is not a guessed native process exit code. The output range's `retained` field is false after generation/origin changes. `failure` retains timeout, cancellation or transport facts without erasing accepted input or observed completion. `cleanup` records the viewer obligation. Cancellation does not stop the shell command. JSON is the recovery format; choose it before submitting scripted work.
+
+## Fresh output boundaries
+
+`terminal read --format json` supplies an opaque cursor when the Host can identify the primary screen's row origin. Pass it to `terminal wait-output <target> --after <cursor> --contains <text>`, or use `--after now` to begin at the first observed frame. Only later physical rows participate; the occupied boundary row and prompt/input rows are excluded. Existing output is never counted as fresh.
+
+Host restart, generation changes, history eviction and gaps beyond the chosen window reject the cursor. Select a sufficient `--lines` window and an explicit `--timeout`. A new cursor is a new observation boundary, not recovery of lost output. See [terminal output](native-terminal-output.md).
 
 ## Evidence and compatibility
 
-Parser evidence covers opaque quoted/Unicode/multiline text, the argument separator,
-missing/empty/extra operands and forbidden source flags. Windows named-pipe process
-evidence pins a single snapshot plus a single paste/Enter request, accepted/partial/
-unknown results and no replay. A staged Windows cohort exercises actual PowerShell
-5.1 and 7 execution while a TUI retains its controller and focus.
-
-Help, all completion adapters, the offline Agent Skill and this reference evolve
-together. The schema catalog remains v36/69 because no document shape changes.
-Older executables reject the new verb; rollback needs no data migration. Evidence
-is Windows-only and same-author; This workflow uses implementation tests. Root verification
-is required before integration.
+Parser, cursor, wire-decoder and Host reader-batch cases cover exact correlation, unrelated completions, invalid records and non-replay. Windows named-pipe cases cover the existing single paste/Enter receipt path. Same-author implementation tests are the evidence; no independent review or exhaustive schedule proof is claimed. Help, completion adapters, the offline Agent guide and schemas evolve together. Older binaries reject new options; existing sessions need newly initialized managed PowerShell for correlated waiting.

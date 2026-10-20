@@ -132,6 +132,7 @@ pub(crate) struct TerminalOutputDoc {
     pub(crate) span: ContentSpan,
     pub(crate) text: String,
     pub(crate) ansi: bool,
+    pub(crate) cursor: Option<String>,
 }
 
 pub(crate) fn document(
@@ -169,6 +170,7 @@ pub(crate) fn prepared_document(
     range: SampleRange,
     content: PreparedContent,
 ) -> TerminalOutputDoc {
+    let cursor = capture_cursor(&terminal.terminal_id, frame).map(|value| value.encode());
     TerminalOutputDoc {
         terminal,
         selection,
@@ -181,6 +183,7 @@ pub(crate) fn prepared_document(
         span: content.span,
         text: content.text,
         ansi: content.ansi,
+        cursor,
     }
 }
 
@@ -228,6 +231,7 @@ impl TerminalOutputDoc {
     pub(crate) fn result(&self) -> Value {
         let mut result = json!({
             "terminal": super::results::terminal_row_json(&self.terminal),
+            "cursor": self.cursor,
             "selection": { "source": self.selection.source.token(), "lines": self.selection.lines },
             "observed": { "revision": self.revision.to_string(), "generation": self.generation.to_string(),
                 "alternateScreen": self.alternate, "columns": self.columns, "screenRows": self.screen_rows,
@@ -244,6 +248,28 @@ impl TerminalOutputDoc {
         }
         result
     }
+}
+
+/// A cursor excludes the currently occupied physical row. Resize, screen replacement
+/// and retained-row eviction invalidate its coordinate system rather than moving it.
+pub(crate) fn capture_cursor(
+    terminal_id: &str,
+    frame: &TerminalTextFrame,
+) -> Option<crate::invocation::OutputCursor> {
+    if frame.alternate_screen {
+        return None;
+    }
+    Some(crate::invocation::OutputCursor {
+        terminal_id: terminal_id.to_owned(),
+        host_epoch: frame.route.host_epoch.to_text(),
+        generation: frame.route.generation.get(),
+        output_epoch: frame.command_observation?.output_epoch.get(),
+        revision: frame.route.revision,
+        row: frame
+            .scrollback_rows
+            .checked_add(u64::from(frame.cursor.row))?
+            .max(visible::last_content_row(frame).unwrap_or(0)),
+    })
 }
 
 #[cfg(test)]

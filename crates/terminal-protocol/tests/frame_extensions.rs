@@ -192,3 +192,43 @@ fn presence_duplicate_length_flags_and_optional_unknown_extensions_are_distinct(
         assert!(decode_terminal_text_frame(&bytes[..end]).is_err());
     }
 }
+
+#[test]
+fn correlated_command_observations_are_closed_and_transactional() {
+    let mut payload = vec![0_u8; 66];
+    payload[..8].copy_from_slice(&1_u64.to_le_bytes());
+    payload[8] = 1;
+    assert!(
+        decode_terminal_text_frame(&frame(&[(5, 0, &payload[..10])]))
+            .unwrap()
+            .command_observation
+            .unwrap()
+            .ready
+    );
+    payload[9] = 2;
+    payload[10..26].fill(0x11);
+    payload[26..34].copy_from_slice(&2_u64.to_le_bytes());
+    payload[36..44].copy_from_slice(&4_u64.to_le_bytes());
+    payload[46..54].copy_from_slice(&3_u64.to_le_bytes());
+    payload[54..62].copy_from_slice(&1_u64.to_le_bytes());
+    payload[62..66].copy_from_slice(&1_i32.to_le_bytes());
+    let command = decode_terminal_text_frame(&frame(&[(5, 0, &payload)]))
+        .unwrap()
+        .command_observation
+        .unwrap()
+        .command
+        .unwrap();
+    assert!(command.completed);
+    assert_eq!(command.start_row, 2);
+    assert_eq!(command.end_row, 4);
+    assert_eq!(command.exit_code, 1);
+    assert_eq!(command.id, [0x11; 16]);
+    assert!(decode_terminal_text_frame(&frame(&[(5, 0, &payload), (5, 0, &payload)])).is_err());
+    for (offset, value) in [(0, 0), (8, 2), (9, 3), (46, 0), (54, 0)] {
+        let mut invalid = payload.clone();
+        invalid[offset] = value;
+        assert!(decode_terminal_text_frame(&frame(&[(5, 0, &invalid)])).is_err());
+    }
+    payload[9] = 1;
+    assert!(decode_terminal_text_frame(&frame(&[(5, 0, &payload)])).is_err());
+}

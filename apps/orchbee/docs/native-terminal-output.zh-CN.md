@@ -6,7 +6,7 @@
 
 `--source visible|recent|recent-unwrapped|detection` 选择文本快照。`--plain` 原样导出 UTF-8，与 JSON 互斥。显式来源/plain/ANSI 拒绝 history/rows/unwrap；显式拼接用 recent-unwrapped。`--lines` 接受无符号 32 位整数，钳制到 1000，允许零。所有语法在效果发生前解析。终端和 Agent 目标解析不变。
 
-Windows 不带限定选项的读取现在输出 `orchbee.terminal.output` v1，替代旧的可见屏文档。脚本应显式选择来源并使用对应 schema。回滚恢复旧可执行文件，不涉及持久化迁移。
+Windows 不带限定选项的读取现在输出 `orchbee.terminal.output` v3，替代旧的可见屏文档。脚本应显式选择来源并使用对应 schema。回滚恢复旧可执行文件，不涉及持久化迁移。
 
 ## 选择模型
 
@@ -51,7 +51,7 @@ Agent 解析在同一会话的附着前完成。可见或空选择无需行请�
 ## 输出与兼容性
 
 人类可读文本保留可打印的反斜杠、引号和 Unicode，同时转义终端控制字符和双向格式字符。
-读取标记保持本地化。JSON 使用 `orchbee.terminal.output` v1，包含规范
+读取标记保持本地化。JSON 使用 `orchbee.terminal.output` v3，包含规范
 快照来源、终端身份、来源选择、修订/代次、物理范围、
 容量截断、片段边缘和文本。目录为 v51、72 个文档；不增加协议形状或命令路径。
 `--plain` 在相同准备上限内原样输出 JSON 文本成员的 UTF-8 字节；
@@ -65,7 +65,7 @@ Agent 解析在同一会话的附着前完成。可见或空选择无需行请�
 
 ## 按来源等待
 
-Windows `terminal wait-output` 始终使用此来源模型，默认 recent（80 个物理行），不设总期限。显式 `--timeout` 限制总等待时长；`--forever` 是可选的无总期限别名，与 timeout 互斥。`--rows <1..1000>` 选择对应行数的 recent，与显式 source/lines 冲突。全部 Windows 调用输出 v3。需要 30 秒期限和 1000 行窗口时，用 `--lines 1000 --timeout 30000`；来源范围仍以最近端点为准。
+Windows `terminal wait-output` 始终使用此来源模型，默认 recent（80 个物理行），不设总期限。显式 `--timeout` 限制总等待时长；`--forever` 是可选的无总期限别名，与 timeout 互斥。`--rows <1..1000>` 选择对应行数的 recent，与显式 source/lines 冲突。未带 `--after` 的 Windows 调用输出 v3。需要 30 秒期限和 1000 行窗口时，用 `--lines 1000 --timeout 30000`；来源范围仍以最近端点为准。
 
 每次准入及 I/O 仍有五秒上限。有限超时沿用既有正数范围，模式沿用非空及
 编译程序大小上限。
@@ -102,9 +102,8 @@ Windows `terminal read` 和 `agent read` 接受 `--ansi`，用于导出带样式
 仍可使用 `--format json`；否则 stdout 直接写出准备完成的 UTF-8 ANSI 字符串，不带标题。
 这是与纯文本导出相同的显式数据导出例外，不改变普通人类可读文本的转义规则。
 
-ANSI JSON 使用 `orchbee.terminal.output` v2，并包含 `result.encoding:"ansi"`；`content.text`
-承载 ANSI 字符串。text/plain 来源读取保留 v1 及其既有结构。目录为 v51，共 72 份 schema、
-81 条命令路径。空选择不导出字节。准备及序列化保留既有 8 MiB 输出上限，并在写 stdout 前完成；
+ANSI JSON 使用 `orchbee.terminal.output` v4，并包含 `result.encoding:"ansi"`；`content.text`
+承载 ANSI 字符串。text/plain 来源读取输出 v3，并包含相同的游标字段。目录列出当前 schema 和命令路径。空选择不导出字节。准备及序列化保留既有 8 MiB 输出上限，并在写 stdout 前完成；
 超限结果整体失败。直接导出和 JSON 内容都能容纳时，它们的 UTF-8 字节完全一致。
 
 来源范围仍由已确认的帧决定。visible ANSI 使用该帧已验证的单元格样式；recent 来源按帧的
@@ -171,3 +170,9 @@ OBTF 与 OBPB 的网格几何以 `(0, 0)` 保留未知字符像素尺寸，与 H
 空行并选择物理行尾部，再生成文本。每次追加（含行分隔符）前检查累计 8 MiB 预备上限；
 被省略的行及共享空白别名不分配展开文本。recent 和 ANSI 选择不生成未使用的纯文本可见
 副本。填充、宽字符及控制数据规则保持不变，同时避免共享字素别名在预备阶段绕过输出预算。
+
+## 输出游标
+
+当前纯文本和 ANSI 输出封套分别为 v3、v4，包含可空的 `result.cursor`；历史 v1/v2 保持封闭形状。游标标识一个主屏终端、Host epoch、generation、输出原点 epoch、修订和占用行与已有内容端点中较后的行。备用屏或旧 Host 不提供游标。编码值应视为不透明数据。
+
+`wait-output --after <cursor|now>` 输出 v4，并包含准入的 `after` 边界；未加该选项时仍为 v3，可以匹配保留输出。`now` 捕获首个一致样本。匹配排除占用的边界行和提示符／输入行，再对后续行应用既有匹配及软换行规则；不检测边界行内部的追加。身份不匹配、重启、重置／重排、历史淘汰或所选窗口之前缺行时，以 `rejected` 和 `output-cursor-reset` 返回；不支持的来源返回 `output-cursor-unavailable`。不隐藏游标重置。观察者绝不提交输入。

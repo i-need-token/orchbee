@@ -290,6 +290,11 @@ pub fn encodeProjectionFrameOwned(
     const read_commit_epoch = self.read_commit_epoch;
     const progress = self.progress;
     const command_completion = self.command_completion;
+    self.command_observation.refresh(&self.terminal) catch {
+        self.terminal_mutex.unlock();
+        return .{ .blocked = .{ .attempted_revision = revision, .reason = .capture_allocation_failed } };
+    };
+    const command_observation = self.command_observation.committed;
     const close_activity = self.close_activity;
     const close_activity_epoch = self.close_activity_epoch;
     const close_activity_epoch_exhausted = self.close_activity_epoch_exhausted;
@@ -318,6 +323,7 @@ pub fn encodeProjectionFrameOwned(
     projection_request.close_activity = close_activity;
     projection_request.progress = progress;
     projection_request.command_completion = command_completion;
+    projection_request.command_observation = command_observation;
     var frame = self.projection.encodeOwned(
         output_allocator,
         output_prefix_bytes,
