@@ -1,6 +1,51 @@
 use super::*;
 
 #[test]
+fn current_stream_envelopes_validate_without_reopening_historical_event_names() {
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../schemas/orchbee.events.stream.json")).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let corpus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../schemas/workbench/v1/workbench-events-conformance-v1.json"
+    ))
+    .unwrap();
+    let source = json!({"kind":"server","siteId":"1".repeat(32),"revision":"1"});
+    let mut kinds = std::collections::BTreeSet::new();
+    for case in corpus["valid"].as_array().unwrap() {
+        let mut value = case["document"].clone();
+        value.as_object_mut().unwrap().remove("kind");
+        let Ok(reply) = serde_json::from_value::<SemanticEventsResult>(value) else {
+            continue;
+        };
+        let kind = match reply.outcome {
+            Outcome::Opened { .. } => "opened",
+            Outcome::Matched { .. } => "event",
+            Outcome::Gap { .. } => "gap",
+            _ => continue,
+        };
+        kinds.insert(kind);
+        let mut document = json!({"schema":"orchbee.events.stream","version":4,
+            "kind":kind,"source":source,"result":public_reply(&reply).unwrap()});
+        validator.validate(&document).unwrap();
+        if let Outcome::Matched { event, .. } = &reply.outcome
+            && event.event.as_str().starts_with("pane.")
+        {
+            document["result"] = json!(reply);
+            assert!(!validator.is_valid(&document));
+            document["version"] = json!(3);
+            validator.validate(&document).unwrap();
+        }
+    }
+    let closed = json!({"schema":"orchbee.events.stream","version":4,"kind":"closed",
+        "source":source,"reason":"completed","cleanup":"closed"});
+    validator.validate(&closed).unwrap();
+    assert_eq!(
+        kinds,
+        std::collections::BTreeSet::from(["opened", "event", "gap"])
+    );
+}
+
+#[test]
 fn organization_events_have_one_nullable_project_location_in_both_machine_envelopes() {
     let corpus: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../schemas/workbench/v1/workbench-events-conformance-v1.json"

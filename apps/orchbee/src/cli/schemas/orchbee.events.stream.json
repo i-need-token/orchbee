@@ -339,7 +339,7 @@
 							"const": "orchbee.events.stream"
 						},
 						"version": {
-							"const": 3
+							"const": 4
 						},
 						"kind": {
 							"const": "opened"
@@ -374,7 +374,7 @@
 							"const": "orchbee.events.stream"
 						},
 						"version": {
-							"const": 3
+							"const": 4
 						},
 						"kind": {
 							"const": "event"
@@ -409,7 +409,7 @@
 							"const": "orchbee.events.stream"
 						},
 						"version": {
-							"const": 3
+							"const": 4
 						},
 						"kind": {
 							"const": "gap"
@@ -444,7 +444,7 @@
 							"const": "orchbee.events.stream"
 						},
 						"version": {
-							"const": 3
+							"const": 4
 						},
 						"kind": {
 							"const": "closed"
