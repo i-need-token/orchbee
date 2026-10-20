@@ -29,7 +29,7 @@ use crate::{
 };
 
 const START_DEADLINE: Duration = Duration::from_secs(300);
-const CATALOG_DEADLINE: Duration = Duration::from_millis(3_600);
+const CATALOG_DEADLINE: Duration = Duration::from_secs(6);
 const MAXIMUM_NAME_BYTES: usize = 32;
 
 mod catalog;
@@ -54,7 +54,7 @@ pub(crate) enum CatalogStatus {
 enum Catalog {
     Unloaded,
     Loading,
-    Ready(Box<[&'static str]>),
+    Ready,
     Unavailable,
 }
 
@@ -98,6 +98,10 @@ pub(super) struct State {
     catalog_task: Option<CatalogTask>,
     retiring_catalog_tasks: Vec<CatalogTask>,
     name: String,
+    automatic_name: bool,
+    provider_chosen: bool,
+    providers: Vec<&'static str>,
+    detected: Vec<&'static str>,
     cursor: usize,
     selected_provider: usize,
     draft_revision: u64,
@@ -116,8 +120,12 @@ impl State {
             catalog_revision: 0,
             catalog_task: None,
             retiring_catalog_tasks: Vec::new(),
-            name: String::new(),
-            cursor: 0,
+            name: "pi-1".into(),
+            automatic_name: true,
+            provider_chosen: false,
+            providers: crate::agent_provider::CANONICAL_IDS.to_vec(),
+            detected: Vec::new(),
+            cursor: 4,
             selected_provider: 0,
             draft_revision: 0,
             generation: 0,
@@ -190,6 +198,7 @@ impl State {
             operation.episode = episode;
         } else {
             self.operation = None;
+            self.suggest_name();
         }
     }
 
@@ -208,7 +217,7 @@ impl State {
     pub(super) fn catalog_status(&self) -> CatalogStatus {
         match self.catalog {
             Catalog::Unloaded | Catalog::Loading => CatalogStatus::Loading,
-            Catalog::Ready(_) => CatalogStatus::Ready,
+            Catalog::Ready => CatalogStatus::Ready,
             Catalog::Unavailable => CatalogStatus::Unavailable,
         }
     }
@@ -218,9 +227,20 @@ impl State {
     }
 
     pub(super) fn providers(&self) -> &[&'static str] {
-        match &self.catalog {
-            Catalog::Ready(providers) => providers,
-            _ => &[],
+        &self.providers
+    }
+
+    pub(super) fn detected(&self) -> &[&'static str] {
+        &self.detected
+    }
+
+    fn suggest_name(&mut self) {
+        if self.automatic_name && self.draft_editable() {
+            let provider = self.selected_provider().unwrap_or("agent");
+            let base = crate::agent_provider::executable(provider).unwrap_or(provider);
+            self.name = format!("{base}-{}", self.generation.saturating_add(1));
+            self.cursor = self.name.len();
+            self.touch_draft();
         }
     }
 
@@ -270,13 +290,15 @@ impl State {
     }
 
     pub(super) fn select_provider(&mut self, index: usize) -> bool {
-        if !self.draft_editable()
-            || index >= self.providers().len()
-            || self.selected_provider == index
-        {
+        if !self.draft_editable() || index >= self.providers().len() {
+            return false;
+        }
+        self.provider_chosen = true;
+        if self.selected_provider == index {
             return false;
         }
         self.selected_provider = index;
+        self.suggest_name();
         self.touch_draft();
         true
     }
@@ -306,6 +328,10 @@ impl State {
                     || matches!(character, '-' | '_'))
                     && self.name.len() < MAXIMUM_NAME_BYTES
                 {
+                    if self.automatic_name {
+                        self.name.clear();
+                        self.cursor = 0;
+                    }
                     self.name.insert(self.cursor, character);
                     self.cursor += 1;
                     true
@@ -338,9 +364,16 @@ impl State {
                 self.cursor = self.name.len();
                 true
             }
+            (KeyCode::Char('u'), Modifiers::CTRL) if !self.name.is_empty() => {
+                self.name.clear();
+                self.cursor = 0;
+                true
+            }
             _ => false,
         };
         if changed {
+            self.automatic_name = false;
+            self.provider_chosen = true;
             self.touch_draft();
         }
         changed
@@ -493,32 +526,55 @@ impl State {
     }
 
     fn drain_catalog(&mut self) -> bool {
-        let outcome = self.catalog_task.as_ref().map(CatalogTask::take);
-        match outcome {
-            Some(Ok((revision, providers))) => {
-                self.retire_active_catalog_task();
-                if revision != self.catalog_revision {
-                    return false;
+        let mut changed = false;
+        // One candidate per canonical provider plus one final verdict is the
+        // complete bounded mailbox. Input never waits for a lookup or a join.
+        for _ in 0..=crate::agent_provider::CANONICAL_IDS.len() {
+            let Some(task) = self.catalog_task.as_ref() else {
+                break;
+            };
+            let expected = task.revision;
+            match task.take() {
+                Ok((revision, _)) if revision != expected => continue,
+                Ok((_, CatalogUpdate::Found(provider))) => {
+                    if !self.detected.contains(&provider) {
+                        if self.detected.is_empty()
+                            && !self.provider_chosen
+                            && self.draft_editable()
+                            && let Some(index) =
+                                self.providers.iter().position(|id| *id == provider)
+                        {
+                            self.selected_provider = index;
+                            self.suggest_name();
+                        }
+                        self.detected.push(provider);
+                        self.detected.sort_unstable();
+                        changed = true;
+                    }
                 }
-                if let Some(providers) = providers {
-                    self.catalog = Catalog::Ready(providers.into_boxed_slice());
-                    self.selected_provider = self
-                        .selected_provider
-                        .min(self.providers().len().saturating_sub(1));
-                } else {
+                Ok((_, CatalogUpdate::Finished(complete))) => {
+                    self.retire_active_catalog_task();
+                    self.catalog = if complete {
+                        Catalog::Ready
+                    } else {
+                        Catalog::Unavailable
+                    };
+                    changed = true;
+                    break;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    self.retire_active_catalog_task();
                     self.catalog = Catalog::Unavailable;
+                    changed = true;
+                    break;
                 }
-                self.catalog_revision = self.catalog_revision.wrapping_add(1);
-                true
+                Err(TryRecvError::Empty) => break,
             }
-            Some(Err(TryRecvError::Disconnected)) => {
-                self.retire_active_catalog_task();
-                self.catalog = Catalog::Unavailable;
-                self.catalog_revision = self.catalog_revision.wrapping_add(1);
-                true
-            }
-            Some(Err(TryRecvError::Empty)) | None => false,
         }
+        if changed {
+            self.catalog_revision = self.catalog_revision.wrapping_add(1);
+        }
+        changed
     }
 
     pub(super) fn close(&mut self) {
@@ -538,7 +594,7 @@ impl State {
         if !matches!(self.catalog, Catalog::Unloaded) {
             self.catalog = Catalog::Unloaded;
             self.catalog_revision = self.catalog_revision.wrapping_add(1);
-            self.selected_provider = 0;
+            self.detected.clear();
         }
     }
 
@@ -556,14 +612,27 @@ impl State {
     #[cfg(test)]
     pub(super) fn install_catalog(&mut self, providers: &[&'static str]) {
         self.retire_active_catalog_task();
-        self.catalog = Catalog::Ready(providers.to_vec().into_boxed_slice());
+        self.catalog = Catalog::Ready;
+        self.detected = providers.to_vec();
+        self.providers = providers
+            .iter()
+            .copied()
+            .chain(
+                crate::agent_provider::CANONICAL_IDS
+                    .iter()
+                    .copied()
+                    .filter(|provider| !providers.contains(provider)),
+            )
+            .collect();
         self.catalog_revision = self.catalog_revision.wrapping_add(1);
         self.selected_provider = 0;
+        self.suggest_name();
     }
 
     #[cfg(test)]
     pub(super) fn set_name(&mut self, name: &str) {
         self.name = name.to_owned();
+        self.automatic_name = false;
         self.cursor = self.name.len();
         self.touch_draft();
     }
@@ -641,8 +710,14 @@ impl Drop for State {
     }
 }
 
+enum CatalogUpdate {
+    Found(&'static str),
+    Finished(bool),
+}
+
 struct CatalogTask {
-    outcomes: Receiver<(u64, Option<Vec<&'static str>>)>,
+    revision: u64,
+    outcomes: Receiver<(u64, CatalogUpdate)>,
     cancelled: Arc<AtomicBool>,
     task: Option<JoinHandle<()>>,
 }
@@ -652,27 +727,31 @@ impl CatalogTask {
         let deadline = Instant::now()
             .checked_add(CATALOG_DEADLINE)
             .ok_or_else(|| std::io::Error::other("Agent catalog deadline overflow"))?;
-        let (sender, outcomes) = mpsc::sync_channel(1);
+        let (sender, outcomes) = mpsc::sync_channel(crate::agent_provider::CANONICAL_IDS.len() + 1);
         let cancelled = Arc::new(AtomicBool::new(false));
         let task_cancelled = Arc::clone(&cancelled);
         let task = thread::Builder::new()
             .name("orchbee-agent-start-catalog".into())
             .spawn(move || {
-                let providers = catalog::client_path_candidates(
+                let complete = catalog::client_path_candidates(
                     path.as_deref(),
                     task_cancelled.as_ref(),
                     deadline,
+                    |provider| {
+                        let _ = sender.send((revision, CatalogUpdate::Found(provider)));
+                    },
                 );
-                let _ = sender.send((revision, providers));
+                let _ = sender.send((revision, CatalogUpdate::Finished(complete)));
             })?;
         Ok(Self {
+            revision,
             outcomes,
             cancelled,
             task: Some(task),
         })
     }
 
-    fn take(&self) -> Result<(u64, Option<Vec<&'static str>>), TryRecvError> {
+    fn take(&self) -> Result<(u64, CatalogUpdate), TryRecvError> {
         self.outcomes.try_recv()
     }
 

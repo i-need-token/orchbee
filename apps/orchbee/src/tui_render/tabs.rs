@@ -28,8 +28,11 @@ pub(crate) fn render_tab_drag_preview(
         && frame.area().contains((x, y).into())
     {
         frame.render_widget(
-            Paragraph::new(theme.glyphs.scrollbar_track)
-                .style(theme.style(Role::TextPrimary).add_modifier(Modifier::BOLD)),
+            Paragraph::new(theme.glyphs.scrollbar_track).style(
+                theme
+                    .style(Role::TextPrimary)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            ),
             Rect::new(x, y, 1, 1),
         );
     }
@@ -480,7 +483,7 @@ fn navigator_projection<'a>(
 fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Option<(String, usize)> {
     let safe_label = sanitize_terminal_text(&tab.label);
     let prefix = if tab.active {
-        theme.current_context_marker()
+        theme.glyphs.active_marker
     } else {
         " "
     };
@@ -508,7 +511,7 @@ fn compact_token(tab: &TabDisplay<'_>, max_width: usize, theme: &Theme) -> Optio
 
 fn compact_token_width(tab: &TabDisplay<'_>) -> usize {
     let safe_label = sanitize_terminal_text(&tab.label);
-    display_width(safe_label.as_ref()).saturating_add(2)
+    display_width(safe_label.as_ref()).saturating_add(2).min(40)
 }
 
 fn navigator_row(tab: &TabDisplay<'_>, layout: NavigatorRowLayout, theme: &Theme) -> Line<'static> {

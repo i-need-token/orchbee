@@ -80,13 +80,13 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                        | Compact                           | Minimal                     | TooSmall     |
-| ------------ | --------------------------- | --------------------------------- | --------------------------- | ------------ |
-| Top strip    | 1 row (tabs)                | 1 row (tabs)                      | none; Actions button hidden | none         |
-| Status       | overlay, no reserved rows   | overlay, no reserved rows         | overlay, no reserved rows   | exit overlay |
-| Side panel   | docked, bounded preference  | overlay, bounded preference, left | hidden                      | hidden       |
-| Panel chrome | split frame and leaf titles | split frame and leaf titles       | not drawn                   | not drawn    |
-| Content      | remainder                   | remainder                         | remainder                   | notice only  |
+| Chrome       | Full                       | Compact                           | Minimal                   | TooSmall     |
+| ------------ | -------------------------- | --------------------------------- | ------------------------- | ------------ |
+| Top strip    | 1 row (tabs)               | 1 row (tabs)                      | none                      | none         |
+| Status       | overlay, no reserved rows  | overlay, no reserved rows         | overlay, no reserved rows | exit overlay |
+| Side panel   | docked, bounded preference | overlay, bounded preference, left | hidden                    | hidden       |
+| Panel chrome | pane frame and leaf titles | pane frame and leaf titles        | not drawn                 | not drawn    |
+| Content      | remainder                  | remainder                         | remainder                 | notice only  |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -110,11 +110,10 @@ omits Site, terminal-status, Business, Projects and Workspaces placeholders, inc
 Workspaces heading. New workspace, Search and Settings keep their complete existing targets and
 footer geometry. A creation preview retains its Workspace heading and pending row.
 The no-Workspace main content stays blank, without a Terminal title, onboarding statement or repeated
-creation hint. Fixed actions and effective keyboard routes remain available. The global Actions
-button is visible in Full and Compact; Minimal hides its pointer button and keeps the Ctrl+B F2 route.
-An empty canonical Workspace keeps its localized directory and Tab creation guidance. With no
-Minimal Actions button, the first workbench row remains available to authored guidance or terminal
-content. This does not reserve PTY geometry.
+creation hint. Fixed actions and effective keyboard routes remain available. Global actions retain
+`Ctrl+B F2` at every presentable tier, with no permanent Actions button. An empty canonical Workspace
+keeps its localized directory and Tab creation guidance. The first workbench row remains available
+to authored guidance or terminal content; no PTY geometry is reserved.
 
 Fixed-action shortcut hints align to the right edge of the sidebar content, with at least two
 blank cells after the button. A hint that cannot fit in full is omitted; its cells are outside
@@ -214,42 +213,32 @@ within its current Project/ungrouped list. The existing row-menu binding retains
 and shares the same stable target proof as secondary click. These local bindings appear in sidebar
 help from the binding registry; the gesture does not add a separate shortcut system.
 
-At Full and Compact tiers, the Windows top strip contains Tabs, their creation control, any active
-Presentation selector, and the global Actions entry. Full keeps Agent metadata with its sidebar
-owner. Compact also uses otherwise available top-strip space for a localized summary of the most
-urgent row from the existing machine-sidebar Agent observations, evaluated with the current
-machine's accepted Agent view filter. This summary ignores the picker's transient query, scope,
-state, and selection.
-It describes observed rows only and does not claim a canonical inventory or count. Known empty,
-no matches, loading, unavailable, and incomplete source coverage remain distinct; a row observed
-while another enabled source is loading or unavailable carries an incomplete marker. The summary
-continues updating while the sidebar is hidden or another picker query is active, without making
-the sidebar visible or admitting sidebar input. It shortens the observed Agent detail first and
-leaves the active Tab, creation control, Presentation selector, global Actions entry, and sidebar
-restore control usable. It has no pointer hit target; `Ctrl+B g` opens the existing Agent Board and
-does not promise to select the summarized row. Non-Windows Clients retain their context breadcrumb
-because their sidebar does not project canonical navigation rows; a location equal to the active
-Tab label is still omitted there. Active
-Tabs use padding, `surface-current` and bold identity; the current marker appears only when reduced
-color makes the current and chrome fills identical. Checked group-member markers remain independent.
+At Full and Compact tiers, the Windows top strip contains Tabs, their close and creation controls,
+and a sidebar restore control when needed. Agent information stays
+in the sidebar and Agent Board; top chrome neither displays Agent summaries nor demands observation
+work while those surfaces are hidden. Global actions are available through `Ctrl+B F2` and configured
+menu bindings. Non-Windows Clients retain their context breadcrumb because their sidebar does not
+project canonical navigation rows; a location equal to the active Tab label is omitted there.
+Active Tabs use padding, `surface-current`, bold identity, underline, and an always-visible marker.
+Checked group-member markers remain independent.
 Compact Tabs show their labels without ordinal prefixes; navigation lists retain keyboard positions.
 In split view the shared outer frame has no duplicate generic title. Its base
 style is neutral; the existing boundary segments around the focused leaf use the
 focused frame role, alongside that leaf's accented title. No extra border cells
 are added around leaves and divider rectangles stay unchanged. Divider
 ends update the existing outer boundary's junction glyphs, leaving no half-cell
-gap and preserving the frame's corner style. Single panes and zoom have no title band or outer
-borders: terminal content begins directly below the Tab strip and keeps every panel row. Each pane
+gap and preserving the frame's corner style. Single panes and zoom retain the same outer frame and
+one-row leaf title as splits, so terminal inset does not change when the first split appears. Each pane
 reserves one right chrome column for its [history scrollbar](native-terminal-viewport.md#scrollbar-interaction).
 The column stays reserved when history is empty or pending, so output never changes PTY width.
 It is disjoint from the content, title and split-divider hit regions. A one-column pane omits
 the gutter; a track shorter than two rows has no thumb. Split leaves and zoom use the same
 content-width deduction in native geometry, drawing, input coordinates and layout queries.
-Split leaf titles use the localized Terminal label, preserving custom metadata, ordinals
-and presentation identity. Focus is visible in that title and is suppressed while sidebar navigation
-owns input. Single and zoomed panes use the current Tab and terminal cursor without a duplicate
-Terminal label or report badge. Multiple-Presentation arrows and their count occupy the existing
-top strip for single/zoomed panes and the leaf header for split panes, with disjoint hit targets.
+Leaf titles prefer custom metadata, then the stable creation label. Numeric creation labels use the
+localized Terminal prefix and never a current layout ordinal. The active title has an explicit marker;
+its complete perimeter is emphasized after divider glyphs are painted, including shared edges.
+Sidebar navigation suppresses terminal focus cues. Multiple-Presentation arrows and their count
+occupy the leaf header in single, split and zoomed views, with disjoint hit targets.
 The renderer, PTY dimensions, popups and read-only layout queries share
 this geometry; zoomed hidden leaves retain their canonical unzoomed dimensions.
 Inactive terminal content retains normal text contrast; focus is expressed by
@@ -259,10 +248,8 @@ for the sidebar, tab strip and split-pane title bands. Overlays paint their
 own complete opaque surface; frames and titles express boundary and focus rather
 than supplying the only visible distinction between regions.
 
-The global Actions button occupies the right end of the Full and Compact top strip. Minimal hides
-the pointer button and keeps its Ctrl+B F2 route, leaving the first workbench row to the terminal.
-Copy and resize modes replace the top strip with their controls, or overlay that first workbench row
-when no strip exists.
+The top strip reserves its space for terminal navigation. Copy and resize modes replace it with
+their controls, or overlay the first workbench row when no strip exists.
 These controls reserve no additional terminal geometry; painted control cells take pointer
 precedence over the content beneath them. Their behavior belongs to the owning action, copy
 and resize references.
@@ -277,7 +264,7 @@ hidden controls. A restored presentable frame can resume the retained help page.
 
 On Windows the top strip reserves three cells for `+` after the last visible Tab,
 including an empty canonical Workspace. The current Tab and create control share the strip with
-Actions and any Presentation selector. Controls disappear with the strip below Compact.
+any Presentation selector. Controls disappear with the strip below Compact.
 The fixed New workspace row invokes the existing immediate quick-Workspace action;
 an eligible current-site Project row has a create action beside its row menu whenever the painted
 width admits a separate control. Disclosure, content, create and menu cells are disjoint. Compact
@@ -495,7 +482,7 @@ ordinary draw restores the covered terminal cells and cursor.
 
 The overlay appears for prefix capture, other input modes, meaningful notices, connection or recovery,
 released pointer capture and a focused terminal's ended lifecycle. Exit feedback remains visible
-after the single-pane title is removed: `Locale::native_status` owns its localized exit result,
+alongside pane titles: `Locale::native_status` owns its localized exit result,
 and the renderer keeps the status overlay admitted even when the session remains Ready and controlling.
 When the retained-output detail cannot fit, localized compact copy preserves the complete exit code,
 signal, unknown result or runtime-failure fact within twenty cells. This never reserves a terminal row
@@ -607,15 +594,15 @@ display-width truncation.
 
 Whole-screen review follows `docs/tui/verification.md`: the current Workspace remains marked
 independently of keyboard focus, ordinary sidebars expose only Settings at the bottom, complete lists omit redundant
-ranges, and single-pane edges belong to terminal content. Review the default theme together with
+ranges, and single/split/zoom views share their frame and title insets. Review the default theme together with
 both named RGB themes, empty and populated sidebars, navigation, hidden sidebar and split/zoom.
 `terminal_session/ui/tests/viewport/chrome.rs` checks last-row content, prefix coverage, pointer
-occlusion, the first content row directly below Tabs, stable geometry and exact restoration in both
+occlusion, the first content row below the pane title, stable geometry and exact restoration in both
 locales and native/RGB themes. The [empty-workspace witnesses](../src/terminal_session/ui/tests/quick_workspace.rs)
-check blank content and retained creation, Search, Settings and Actions targets across tiers.
-The [layout query witnesses](../src/terminal_session/ui/client_layout/tests.rs) pin the extra single/zoom
-content row while preserving split geometry. The [report witnesses](../src/terminal_session/ui/tests/panel_reports.rs)
-keep single-pane chrome quiet and retain exact-scope reports in split leaves; the
+check blank content, retained creation, Search and Settings targets, and absence of the Actions button across tiers.
+The [layout query witnesses](../src/terminal_session/ui/client_layout/tests.rs) pin shared single/zoom
+content insets and split geometry. The [report witnesses](../src/terminal_session/ui/tests/panel_reports.rs)
+retain exact-scope reports in each leaf; the
 [Presentation witnesses](../src/terminal_session/ui/presentations/tests.rs) check the relocated arrows,
 inert count and keyboard/pointer selection.
 The same viewport/chrome witnesses inject correlated terminal-exit records and check persistent

@@ -133,6 +133,11 @@ pub(crate) enum InteractionTarget {
     #[cfg(windows)]
     TabCreate(crate::action_menu::DrawnTabCreate),
     #[cfg(windows)]
+    TabCloseRequest {
+        source: crate::action_menu::DrawnTabCreate,
+        tab: orchbee_workbench_protocol::WorkbenchTabId,
+    },
+    #[cfg(windows)]
     PopupClose(crate::terminal_session::DrawnPopupClose),
     #[cfg(test)]
     Fixture(HitTarget),
@@ -188,7 +193,11 @@ impl InteractionTarget {
         #[cfg(windows)]
         if matches!(
             self,
-            Self::GlobalChrome(_) | Self::Sidebar(_) | Self::SidebarFixed(_) | Self::TabCreate(_)
+            Self::GlobalChrome(_)
+                | Self::Sidebar(_)
+                | Self::SidebarFixed(_)
+                | Self::TabCreate(_)
+                | Self::TabCloseRequest { .. }
         ) {
             return true;
         }
@@ -208,7 +217,6 @@ impl InteractionTarget {
             #[cfg(windows)]
             Self::GlobalChrome(action) => match action {
                 super::GlobalChromeAction::Onboarding(action) => HitTarget::Onboarding(*action),
-                super::GlobalChromeAction::OpenMenu => HitTarget::MenuButton,
                 super::GlobalChromeAction::RestoreSidebar => HitTarget::SidebarRestoreButton,
             },
             Self::SettingsRow { token, row } => HitTarget::SettingsRow {
@@ -283,6 +291,11 @@ impl InteractionTarget {
             Self::NavigatorClose(source) => HitTarget::NavigatorClose(source.episode()),
             #[cfg(windows)]
             Self::TabCreate(target) => HitTarget::TabCreate(target.clone()),
+            #[cfg(windows)]
+            Self::TabCloseRequest { source, tab } => HitTarget::TabCloseRequest {
+                source: source.clone(),
+                tab: tab.clone(),
+            },
             #[cfg(windows)]
             Self::PopupClose(target) => HitTarget::PopupClose(target.clone()),
             #[cfg(test)]

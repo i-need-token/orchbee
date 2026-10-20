@@ -14,8 +14,12 @@ use orchbee_workbench_protocol::MAXIMUM_LABEL_LENGTH;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NativeRenameDraftToken(RenameDraftToken);
 
-pub(crate) struct NativeRenameDraftView<'a>(RenameDraftView<'a>);
+pub(crate) struct NativeRenameDraftView<'a>(RenameDraftView<'a>, Option<&'a str>);
 impl<'a> NativeRenameDraftView<'a> {
+    #[cfg(windows)]
+    pub(crate) fn tab_id(&self) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
+        self.0.tab_id()
+    }
     pub(crate) fn token(&self) -> NativeRenameDraftToken {
         NativeRenameDraftToken(self.0.token())
     }
@@ -27,7 +31,10 @@ impl<'a> NativeRenameDraftView<'a> {
         locale: crate::localization::Locale,
     ) -> std::borrow::Cow<'a, str> {
         if self.0.automatic_label() {
-            locale.automatic_tab_label(self.0.position()).into()
+            self.1.map_or_else(
+                || locale.automatic_tab_label(self.0.position()).into(),
+                std::borrow::Cow::Borrowed,
+            )
         } else {
             self.0.target_label()
         }
@@ -88,10 +95,12 @@ pub(crate) enum NativeRenameEdit<'a> {
 
 impl<'a> NativeSessionView<'a> {
     pub(crate) fn rename_draft(&self) -> Option<NativeRenameDraftView<'a>> {
-        self.state
-            .as_ref()?
-            .rename_draft()
-            .map(NativeRenameDraftView)
+        self.state.as_ref()?.rename_draft().map(|draft| {
+            let title = self
+                .tab(draft.position() - 1)
+                .and_then(|tab| tab.observed_title);
+            NativeRenameDraftView(draft, title)
+        })
     }
 }
 

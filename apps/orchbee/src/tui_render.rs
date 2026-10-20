@@ -88,8 +88,6 @@ pub(crate) fn render_agent_board_for_test(
 }
 #[cfg(windows)]
 mod agent_sidebar;
-#[cfg(windows)]
-mod compact_agent_summary;
 mod contexts;
 pub(crate) mod controls;
 #[cfg(windows)]
@@ -282,45 +280,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         } else {
             None
         };
-    #[cfg(windows)]
-    let menu_label = locale.menu_title();
-    #[cfg(windows)]
-    // The Minimal projection gives every available row to the terminal. Keep
-    // its pointer route out of the terminal's first row; Ctrl+B F2 remains the
-    // keyboard route to the same menu.
-    let menu_button = if matches!(areas.tier, ViewportTier::Minimal | ViewportTier::TooSmall) {
-        None
-    } else {
-        let action = controls::ActionSpec::new(
-            menu_label,
-            controls::ActionKind::Secondary,
-            controls::ControlSurface::Chrome,
-            chrome_action_state,
-        );
-        let measurement = Rect::new(0, 0, u16::MAX, 1);
-        controls::action_rect(measurement, measurement, action, theme).and_then(|measured| {
-            let width = measured.width;
-            if areas.tabs.width >= width.saturating_add(2) && areas.tabs.height > 0 {
-                let offered = Rect::new(areas.tabs.right() - width, areas.tabs.y, width, 1);
-                let button = controls::action_rect(area, offered, action, theme)?;
-                areas.tabs.width = areas.tabs.width.saturating_sub(width.saturating_add(1));
-                Some(button)
-            } else if areas.tabs.is_empty()
-                && areas.workbench.width >= width.saturating_add(2)
-                && areas.workbench.height > 1
-            {
-                let offered = Rect::new(
-                    areas.workbench.right() - width - 1,
-                    areas.workbench.y,
-                    width,
-                    1,
-                );
-                controls::action_rect(area, offered, action, theme)
-            } else {
-                None
-            }
-        })
-    };
+
     let tier = areas.tier;
     #[cfg(windows)]
     if tier != ViewportTier::TooSmall {
@@ -449,7 +409,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                     &phase_status,
                     capture_owner.is_none(),
                     #[cfg(windows)]
-                    menu_button,
+                    None,
                     theme,
                     hits,
                     #[cfg(windows)]
@@ -485,33 +445,6 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         debug_assert_eq!(painted, Some(button));
         if painted == Some(button) {
             hits.record_interaction(HitLayer::Foreground, button, button, target, spec);
-        }
-    }
-
-    #[cfg(windows)]
-    if let Some(button) = menu_button {
-        let target = InteractionTarget::GlobalChrome(GlobalChromeAction::OpenMenu);
-        let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
-        let pointer = match hits.projected_pointer(HitLayer::Chrome, button, button, &target, spec)
-        {
-            ProjectedPointer::Rest => controls::PointerPresentation::Rest,
-            ProjectedPointer::Hovered => controls::PointerPresentation::Hovered,
-            ProjectedPointer::Pressed => controls::PointerPresentation::Pressed,
-        };
-        let painted = controls::render_action(
-            frame,
-            button,
-            controls::ActionSpec::new(
-                menu_label,
-                controls::ActionKind::Secondary,
-                controls::ControlSurface::Chrome,
-                chrome_action_state.with_pointer(pointer),
-            ),
-            theme,
-        );
-        debug_assert_eq!(painted, Some(button));
-        if painted == Some(button) {
-            hits.record_interaction(HitLayer::Chrome, button, button, target, spec);
         }
     }
 
@@ -730,6 +663,24 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             && let Some(TerminalSessionView::Native(native)) = session.as_ref()
             && let Some(draft) = native.rename_draft()
         {
+            #[cfg(windows)]
+            let inline_area = hits.tab_area(draft.tab_id()).map(|area| {
+                Rect::new(
+                    area.x,
+                    area.y,
+                    area.width
+                        .max(24)
+                        .min(frame.area().right().saturating_sub(area.x)),
+                    1,
+                )
+            });
+            #[cfg(windows)]
+            let (area, token) = if let Some(area) = inline_area.filter(|area| area.width >= 8) {
+                tab_rename::render_inline(frame, locale, &draft, area, theme, hits)
+            } else {
+                tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme, hits)
+            };
+            #[cfg(not(windows))]
             let (area, token) =
                 tab_rename::render(frame, locale, &draft, overlay_area(&areas), theme, hits);
             status_draw = status_draw.filter(|(_, status_area)| !status_area.intersects(area));
@@ -1071,6 +1022,19 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
         let draw = if tier == ViewportTier::TooSmall {
             ModalPresentation::NotPresented
         } else {
+            let title = match menu.source {
+                crate::action_menu::MenuTarget::Tab(id)
+                | crate::action_menu::MenuTarget::TabGroupChoices(id)
+                | crate::action_menu::MenuTarget::TabTools(id) => (0..native.tab_count())
+                    .filter_map(|index| native.tab(index))
+                    .find(|tab| tab.tab_id() == id)
+                    .map(|tab| tab.display_label(locale)),
+                _ => None,
+            };
+            let mut menu = menu;
+            if let Some(title) = title.as_deref() {
+                menu.title = title;
+            }
             action_menu::render(frame, menu_area, menu, view.bindings(), locale, theme, hits)
         };
         frame.render_widget(Clear, areas.status);
@@ -1471,20 +1435,10 @@ fn render_native_workbench(
     let framed = areas.tier.shows_panel_frame();
     let split_visible =
         framed && active_tab.is_some_and(|tab| tab.panel_count() > 1 && !native.zoom_active());
-    let selector = active_tab
-        .filter(|_| framed && !split_visible)
-        .and_then(|tab| tab.active_panel().and_then(|index| tab.panel(index)))
-        .and_then(|panel| {
-            presentation_selector::PresentationSelector::new(areas.tabs, panel, native)
-        });
     #[cfg(windows)]
-    let mut tabs_area = selector
-        .as_ref()
-        .map_or(areas.tabs, |selector| selector.title_area(areas.tabs));
+    let mut tabs_area = areas.tabs;
     #[cfg(not(windows))]
-    let tabs_area = selector
-        .as_ref()
-        .map_or(areas.tabs, |selector| selector.title_area(areas.tabs));
+    let tabs_area = areas.tabs;
     #[cfg(windows)]
     if areas.tier == ViewportTier::Compact
         && let Some(sidebar) = areas
@@ -1499,16 +1453,6 @@ fn render_native_workbench(
             tabs_area.height,
         );
     }
-    #[cfg(windows)]
-    if areas.tier == ViewportTier::Compact && client_view.machines.available {
-        tabs_area = compact_agent_summary::render(
-            frame,
-            tabs_area,
-            client_view.machines.compact_agent_summary(),
-            locale,
-            theme,
-        );
-    }
     render_tab_strip(
         frame,
         tabs_area,
@@ -1519,10 +1463,6 @@ fn render_native_workbench(
         theme,
         hits,
     );
-    if let Some(selector) = &selector {
-        selector.paint(frame, theme, hits);
-    }
-
     if native.no_current_workspace()
         && native.phase() == NativeDisplayPhase::Empty
         && native.retirement().is_none()
@@ -1531,7 +1471,7 @@ fn render_native_workbench(
     }
 
     let content_area = native_terminal_area(panel_area, framed, split_visible);
-    if split_visible {
+    if framed && active_tab.is_some() {
         frame.render_widget(
             Block::new()
                 .borders(Borders::ALL)
@@ -1541,18 +1481,25 @@ fn render_native_workbench(
             panel_area,
         );
     }
-    // Under zoom the drawn set narrows to the focused leaf: the single-pane
-    // path below paints it across the whole content area and records the
-    // only pane hit region — hidden leaves stay attached but undrawn.
-    if let Some(tab) =
-        active_tab.filter(|tab| framed && tab.panel_count() > 1 && !native.zoom_active())
-    {
-        let projection = crate::tui_layout::project_panel_tree(
-            content_area,
-            tab.panel_tree(),
-            tab.active_panel(),
-            &|split, first, second| tab.split_ratio(split, first, second),
-        );
+    // Every framed view uses the same leaf chrome. Zoom narrows the drawn set only.
+    if let Some(tab) = active_tab.filter(|_| framed) {
+        let projection = if split_visible {
+            crate::tui_layout::project_panel_tree(
+                content_area,
+                tab.panel_tree(),
+                tab.active_panel(),
+                &|split, first, second| tab.split_ratio(split, first, second),
+            )
+        } else {
+            crate::tui_layout::PanelTreeProjection {
+                leaves: vec![crate::tui_layout::LeafArea {
+                    panel_index: tab.active_panel().unwrap_or(0),
+                    leaf: terminal_area(panel_area, true),
+                    content: content_area,
+                }],
+                ..Default::default()
+            }
+        };
         for leaf in &projection.leaves {
             let selector = render_leaf(
                 frame,
@@ -1631,14 +1578,6 @@ fn render_native_workbench(
         } else {
             Vec::new()
         };
-        if pane_focused
-            && let Some(leaf) = projection
-                .leaves
-                .iter()
-                .find(|leaf| Some(leaf.panel_index) == tab.active_panel())
-        {
-            emphasize_pane_boundary(frame, leaf.leaf, panel_area, theme);
-        }
         #[cfg(windows)]
         render_dividers(
             frame,
@@ -1650,6 +1589,14 @@ fn render_native_workbench(
         );
         #[cfg(not(windows))]
         render_dividers(frame, &projection.dividers, panel_area, theme);
+        if pane_focused
+            && let Some(leaf) = projection
+                .leaves
+                .iter()
+                .find(|leaf| Some(leaf.panel_index) == tab.active_panel())
+        {
+            emphasize_pane_boundary(frame, leaf.leaf, panel_area, theme);
+        }
     } else {
         let terminal = if native.projection_status() == NativeProjectionStatus::FrameAvailable {
             native
@@ -2058,6 +2005,7 @@ fn render_tab_strip(
                 HitTarget::Tab(tab.tab_id().clone())
             })
         };
+        let mut close_controls = Vec::new();
         tabs::groups::render(
             frame,
             tab_area,
@@ -2073,18 +2021,57 @@ fn render_tab_strip(
                     let Some(target) = tab_target(index, group_header) else {
                         return ProjectedPointer::Rest;
                     };
-                    hits.projected_tab_pointer(source, &target, rect)
+                    let body = tab_body_rect(rect, group_header);
+                    hits.projected_tab_pointer(source, &target, body)
                 },
                 &mut |hits, index, group_header, rect| {
                     used = usize::from(rect.right().saturating_sub(strip.x));
                     if let (Some(source), Some(target)) =
                         (tab_source.as_ref(), tab_target(index, group_header))
                     {
-                        hits.record_tab_target(source, rect, target);
+                        let body = tab_body_rect(rect, group_header);
+                        hits.record_tab_target(source, body, target);
+                        if body.width < rect.width
+                            && let Some(tab) = native.tab(index)
+                        {
+                            close_controls.push((
+                                Rect::new(body.right(), rect.y, 3, 1),
+                                tab.tab_id().clone(),
+                            ));
+                        }
                     }
                 },
             ),
         );
+        if let Some(source) = tab_source.as_ref() {
+            for (rect, tab) in close_controls {
+                let target = InteractionTarget::TabCloseRequest {
+                    source: source.clone(),
+                    tab,
+                };
+                let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+                let pointer = tabs::pointer_presentation(hits.projected_pointer(
+                    HitLayer::Foreground,
+                    rect,
+                    rect,
+                    &target,
+                    spec,
+                ));
+                if let Some(painted) = controls::render_icon_action(
+                    frame,
+                    rect,
+                    controls::IconActionSpec::new(
+                        controls::IconActionGlyph::Close,
+                        controls::ControlSurface::Chrome,
+                        controls::Availability::Enabled,
+                        pointer,
+                    ),
+                    theme,
+                ) {
+                    hits.record_interaction(HitLayer::Foreground, rect, painted, target, spec);
+                }
+            }
+        }
     }
     #[cfg(windows)]
     if let Some(target) = create_target {
@@ -2168,35 +2155,26 @@ fn render_leaf(
             panel_reports::title(
                 presentation.custom_label(),
                 presentation.display_label(),
-                panel_index + 1,
                 text.panel_title,
                 native.panel_report(p),
-                theme,
             )
         },
     );
     #[cfg(not(windows))]
     let title = panel.map_or_else(
-        || format!(" {} {} ", text.panel_title, panel_index.saturating_add(1)),
+        || format!(" {} ", text.panel_title),
         |panel| {
-            let override_title = native.selected_presentation(panel).custom_label();
-            if let Some(title) = override_title {
-                return format!(
-                    " {} {} {} ",
-                    sanitize_terminal_text(title),
-                    theme.glyphs.middle_dot,
-                    panel_index.saturating_add(1)
-                );
-            }
             format!(
-                " {} {} {} {} ",
-                text.panel_title,
-                panel_index.saturating_add(1),
-                theme.glyphs.middle_dot,
+                " {} ",
                 sanitize_terminal_text(native.selected_presentation(panel).display_label())
             )
         },
     );
+    let title = if active && pane_focused {
+        format!("{}{title}", theme.glyphs.active_marker)
+    } else {
+        title
+    };
     let title = panel.map_or(title.clone(), |panel| {
         if panel.presentation_count() == 1 || selector.is_some() {
             return title.clone();
@@ -2463,6 +2441,15 @@ fn render_dividers(
     #[cfg(windows)]
     for target in targets {
         hits.record_divider(target.clone());
+    }
+}
+
+#[cfg(windows)]
+fn tab_body_rect(rect: Rect, group_header: bool) -> Rect {
+    if !group_header && rect.width >= 7 {
+        Rect::new(rect.x, rect.y, rect.width - 3, rect.height)
+    } else {
+        rect
     }
 }
 
@@ -2808,7 +2795,9 @@ fn emphasize_pane_boundary(frame: &mut Frame<'_>, leaf: Rect, panel: Rect, theme
     if outline.is_empty() {
         return;
     }
-    let style = theme.style(Role::FrameFocused);
+    let style = Style::default()
+        .fg(theme.color(Role::FrameFocused))
+        .add_modifier(Modifier::BOLD);
     for edge in [
         Rect::new(outline.x, outline.y, outline.width, 1),
         Rect::new(outline.x, outline.bottom() - 1, outline.width, 1),

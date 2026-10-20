@@ -1080,6 +1080,9 @@ fn tab_title(menu: &MenuView<'_>, locale: Locale, theme: &Theme, width: usize) -
     } else {
         menu.title
     });
+    if matches!(menu.source, crate::action_menu::MenuTarget::Tab(_)) {
+        return truncate_display(&name, width, theme.glyphs.ellipsis);
+    }
     let separator = format!(" {} ", theme.glyphs.middle_dot);
     let budget = width.saturating_sub(display_width(&path) + display_width(&separator));
     let name = truncate_display(&name, budget, theme.glyphs.ellipsis);

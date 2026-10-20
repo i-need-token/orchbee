@@ -199,6 +199,7 @@ pub(crate) enum HitTarget {
         back: bool,
     },
     #[cfg(windows)]
+    #[cfg(test)]
     MenuButton,
     /// A visible divider with its exact canonical and geometric source.
     #[cfg(windows)]
@@ -216,6 +217,11 @@ pub(crate) enum HitTarget {
     PopupClose(crate::terminal_session::DrawnPopupClose),
     /// A compact tab-strip token (also a non-Windows navigator row).
     Tab(WorkbenchTabId),
+    #[cfg(windows)]
+    TabCloseRequest {
+        source: crate::action_menu::DrawnTabCreate,
+        tab: WorkbenchTabId,
+    },
     #[cfg(windows)]
     TabGroup {
         tab: WorkbenchTabId,
@@ -286,7 +292,6 @@ pub(crate) enum HitTarget {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum GlobalChromeAction {
     Onboarding(crate::onboarding::Action),
-    OpenMenu,
     RestoreSidebar,
 }
 
@@ -664,6 +669,12 @@ pub(crate) struct HitMapBuilder {
 }
 
 impl HitMapBuilder {
+    #[cfg(windows)]
+    pub(crate) fn tab_area(&self, tab: &WorkbenchTabId) -> Option<Rect> {
+        self.map.regions.iter().find_map(|region| {
+            (region.target == HitTarget::Tab(tab.clone())).then_some(region.rect)
+        })
+    }
     #[cfg(windows)]
     pub(crate) fn resolve_sidebar_reorder_preview(
         &self,
@@ -1474,6 +1485,8 @@ pub(crate) struct PointerState {
     #[cfg(windows)]
     cancelled_chrome_release: Option<CancelledChromeRelease>,
     click: Option<SelectionClick>,
+    #[cfg(windows)]
+    tab_click: Option<tabs::TabClick>,
     close_press: Option<modal::PaintedPress>,
     modal_press: Option<modal::PaintedPress>,
     list_scroll: Option<list_scroll::Pending>,
@@ -1531,6 +1544,7 @@ impl PointerState {
                 self.cancel_divider();
                 self.cancel_sidebar_width();
                 self.cancel_tab_drag();
+                self.tab_click = None;
                 self.cancel_sidebar_reorder();
             }
         }
@@ -2751,6 +2765,15 @@ impl PointerState {
         };
         #[cfg(windows)]
         if event.action == MouseAction::Press
+            && !matches!(
+                map.hit(event.column, event.row),
+                HitResolution::Region(HitTarget::Tab(_))
+            )
+        {
+            self.tab_click = None;
+        }
+        #[cfg(windows)]
+        if event.action == MouseAction::Press
             && event.mods == crate::client_view::Modifiers::NONE
             && !view.resize_mode()
             && !view.machines.open
@@ -2886,7 +2909,6 @@ impl PointerState {
                 HitTarget::CreateMenu(_)
                 | HitTarget::Onboarding(_)
                 | HitTarget::OnboardingSurface
-                | HitTarget::MenuButton
                 | HitTarget::SidebarRestoreButton
                 | HitTarget::ActionMenuRow { .. }
                 | HitTarget::Worktree { .. }
@@ -2921,6 +2943,8 @@ impl PointerState {
                 }
                 PointerOutcome::Handled
             }
+            #[cfg(test)]
+            HitResolution::Region(HitTarget::MenuButton) => PointerOutcome::Ignored,
             HitResolution::Dead => PointerOutcome::Ignored,
             HitResolution::OverlayBackdrop => {
                 // An outside click on a capturing overlay dismisses it and
@@ -2963,7 +2987,9 @@ impl PointerState {
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(
-                HitTarget::SidebarMenu(_) | HitTarget::ActionMenuControl { .. },
+                HitTarget::SidebarMenu(_)
+                | HitTarget::ActionMenuControl { .. }
+                | HitTarget::TabCloseRequest { .. },
             ) => PointerOutcome::Ignored,
             #[cfg(windows)]
             HitResolution::Region(HitTarget::MachineProjectRow { window, .. }) => {

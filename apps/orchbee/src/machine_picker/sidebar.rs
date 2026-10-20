@@ -159,14 +159,6 @@ impl Picker {
             self.spaces.reset();
         }
     }
-    pub(crate) fn observe_compact_agent_summary(&mut self, demanded: bool) -> bool {
-        if self.compact_agent_summary == demanded {
-            return false;
-        }
-        self.compact_agent_summary = demanded;
-        self.invalidate();
-        true
-    }
     pub(crate) fn configure_agent_sidebar(
         &mut self,
         settings: orchbee_local_site_runtime::WindowsAgentSidebarSettings,

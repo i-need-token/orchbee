@@ -582,22 +582,14 @@ fn root_chrome_actions_use_canonical_geometry_roles_and_exact_targets() {
                 assert_eq!(x, rect.right(), "action styles cover the exact target");
             };
 
-            let menu = target_rect(&HitTarget::MenuButton);
+            assert!(target_rect(&HitTarget::MenuButton).is_none());
             if projected.tier == ViewportTier::Minimal {
-                assert!(
-                    menu.is_none(),
-                    "{width}x{height} {locale:?}: no content overlay"
-                );
                 assert!(target_rect(&HitTarget::SidebarRestoreButton).is_none());
             } else {
-                let menu = menu.expect("global Menu action");
-                assert_action(menu, locale.menu_title());
-                assert_eq!(menu.right(), projected.tabs.right());
                 let restore = target_rect(&HitTarget::SidebarRestoreButton)
                     .expect("hidden available sidebar restore action");
                 assert_action(restore, locale.sidebar_restore_label());
                 assert_eq!(restore.x, projected.tabs.x);
-                assert!(restore.right() <= menu.x);
             }
         }
     }

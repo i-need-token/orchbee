@@ -377,16 +377,16 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     read_transport: "Agent read failed: transport",
     lane_unavailable: "Agent board unavailable: no read lane",
     empty: "No Agent sessions",
-    empty_start: "Start one in the current idle Orchbee terminal.",
-    empty_start_command: "orchbee agent start <name> --kind <provider> --current",
+    empty_start: "Choose an installed Agent. Its name is ready to use or edit.",
+    empty_start_command: "orchbee agent start <name> --provider <provider> --current",
     empty_partial: "No sessions in this partial read.",
-    start_checking: "Checking Client PATH for Agent command candidates…",
-    start_catalog_unavailable: "Agent command availability cannot be verified for this Session.",
-    start_none_found: "No supported Agent command candidate was found on the Client PATH.",
-    start_providers: "Client PATH candidates",
+    start_checking: "Looking for installed commands; you can choose now.",
+    start_catalog_unavailable: "Detection incomplete. Choose an Agent installed in this terminal.",
+    start_none_found: "Nothing detected. You can still choose an installed Agent.",
+    start_providers: "Found on PATH",
     start_name: "Agent name",
-    start_name_placeholder: "type a unique name",
-    start_name_invalid: "Use 1–32 characters: a lowercase letter first, then letters, numbers, _ or -.",
+    start_name_placeholder: "choose a name",
+    start_name_invalid: "Name: 1–32 lowercase letters, digits, _ or -; start with a letter.",
     start_button: "Start Agent",
     start_cancel_button: "Cancel start",
     start_starting: "Starting Agent — continue in the terminal.",
@@ -397,7 +397,7 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_failed: "Agent did not start. Check the current panel and try again.",
     start_unknown: "Startup outcome is unknown. Refresh sessions before retrying.",
     start_cancelled: "Startup canceled. The Agent process may still be running.",
-    start_provider_hint: "provider",
+    start_provider_hint: "more Agents",
     start_edit_hint: "edit name",
     start_cancel_hint: "cancel start",
     jumping: "Jumping…",
@@ -475,15 +475,15 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     read_transport: "智能体读取失败：传输错误",
     lane_unavailable: "看板不可用：无读取通道",
     empty: "没有智能体会话",
-    empty_start: "在当前空闲的 Orchbee 终端中启动智能体。",
-    empty_start_command: "orchbee agent start <name> --kind <provider> --current",
+    empty_start: "选择已安装的智能体，名称已填好，也可修改。",
+    empty_start_command: "orchbee agent start <name> --provider <provider> --current",
     empty_partial: "本次不完整读取暂未返回会话。",
-    start_checking: "正在检查 Client PATH 中的智能体命令候选项…",
-    start_catalog_unavailable: "无法验证此 Session 的智能体命令可用性。",
-    start_none_found: "Client PATH 中未找到受支持的智能体命令候选项。",
-    start_providers: "Client PATH 候选项",
+    start_checking: "正在查找已安装的命令；也可直接选择。",
+    start_catalog_unavailable: "检测未完成，请选择此终端中已安装的智能体。",
+    start_none_found: "未检测到命令，仍可手动选择已安装的智能体。",
+    start_providers: "已在 PATH 中找到",
     start_name: "智能体名称",
-    start_name_placeholder: "请输入唯一名称",
+    start_name_placeholder: "请输入名称",
     start_name_invalid: "请以小写字母开头，后接字母、数字、_ 或 -，最多 32 个字符。",
     start_button: "启动智能体",
     start_cancel_button: "取消启动",
@@ -495,7 +495,7 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_failed: "智能体未启动，请检查当前面板后重试。",
     start_unknown: "启动结果未知，请先刷新会话再决定是否重试。",
     start_cancelled: "已取消启动；智能体进程仍可能在运行。",
-    start_provider_hint: "选择提供方",
+    start_provider_hint: "更多智能体",
     start_edit_hint: "编辑名称",
     start_cancel_hint: "取消启动",
     jumping: "正在跳转…",
@@ -1079,9 +1079,16 @@ impl Locale {
         {
             return self.native_unbound_terminal().to_owned();
         }
+        let tab = view
+            .active_position()
+            .and_then(|position| view.tab(position - 1));
+        let label = tab.map(|tab| tab.display_label(self));
+        let safe_label = label
+            .as_deref()
+            .map(crate::terminal_text::sanitize_terminal_text);
         self.native_phase_status_values(
             view.phase(),
-            view.active_position(),
+            safe_label.as_deref(),
             view.controller(),
             view.selected_provenance(),
             view.projection_status(),
@@ -1099,7 +1106,7 @@ impl Locale {
     fn native_phase_status_values(
         self,
         phase: crate::terminal_session::NativeDisplayPhase,
-        position: Option<usize>,
+        label: Option<&str>,
         controller: Option<crate::terminal_session::NativeDisplayController>,
         provenance: Option<crate::terminal_session::NativeDisplayProvenance>,
         projection: crate::terminal_session::NativeProjectionStatus,
@@ -1126,18 +1133,18 @@ impl Locale {
                 Self::EnUs => "No terminal tabs".to_owned(),
                 Self::ZhCn => "没有终端标签".to_owned(),
             },
-            Phase::Starting => self.native_starting_status(position, projection),
-            Phase::Switching => self.native_switching_status(position, projection),
+            Phase::Starting => self.native_starting_status(label, projection),
+            Phase::Switching => self.native_switching_status(label, projection),
             Phase::Ready => {
-                let Some(position) = position else {
+                let Some(label) = label else {
                     return self
                         .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
                         .to_owned();
                 };
                 match controller {
-                    Some(Controller::Controlling) => self.native_ready_controlling(position),
-                    Some(Controller::ReadOnly) => self.native_ready_read_only(position),
-                    None => self.native_terminal_unavailable(position),
+                    Some(Controller::Controlling) => self.native_ready_controlling(label),
+                    Some(Controller::ReadOnly) => self.native_ready_read_only(label),
+                    None => self.native_terminal_unavailable(label),
                 }
             }
             Phase::Creating | Phase::CreateCommittedNeedDetach => self.native_creating().to_owned(),
@@ -1155,29 +1162,27 @@ impl Locale {
                 Self::ZhCn => "重命名已提交 · 需要刷新".to_owned(),
             },
             Phase::SelectedWithoutAttachment => {
-                let Some(position) = position else {
+                let Some(label) = label else {
                     return self
                         .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
                         .to_owned();
                 };
                 match provenance {
-                    Some(Provenance::Pending) => self.native_terminal_pending(position),
-                    Some(Provenance::Unavailable) => self.native_terminal_unavailable(position),
-                    Some(Provenance::Failed) => self.native_terminal_failed(position),
-                    Some(Provenance::OutcomeUnknown) => {
-                        self.native_terminal_outcome_unknown(position)
-                    }
+                    Some(Provenance::Pending) => self.native_terminal_pending(label),
+                    Some(Provenance::Unavailable) => self.native_terminal_unavailable(label),
+                    Some(Provenance::Failed) => self.native_terminal_failed(label),
+                    Some(Provenance::OutcomeUnknown) => self.native_terminal_outcome_unknown(label),
                     Some(Provenance::Started | Provenance::BindingOnly) | None => {
-                        self.native_terminal_unavailable(position)
+                        self.native_terminal_unavailable(label)
                     }
                 }
             }
-            Phase::RetryableAttachUnavailable => position.map_or_else(
+            Phase::RetryableAttachUnavailable => label.map_or_else(
                 || {
                     self.terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
                         .to_owned()
                 },
-                |position| self.native_terminal_unavailable(position),
+                |label| self.native_terminal_unavailable(label),
             ),
             Phase::Retired => self
                 .terminal_status(crate::terminal_session::TerminalStatus::Unavailable)
@@ -1671,11 +1676,11 @@ impl Locale {
 
     fn native_starting_status(
         self,
-        position: Option<usize>,
+        label: Option<&str>,
         projection: crate::terminal_session::NativeProjectionStatus,
     ) -> String {
         self.native_connection_status(
-            position,
+            label,
             projection,
             crate::terminal_session::TerminalStatus::Connecting,
         )
@@ -1683,11 +1688,11 @@ impl Locale {
 
     fn native_switching_status(
         self,
-        position: Option<usize>,
+        label: Option<&str>,
         projection: crate::terminal_session::NativeProjectionStatus,
     ) -> String {
         self.native_connection_status(
-            position,
+            label,
             projection,
             crate::terminal_session::TerminalStatus::Unavailable,
         )
@@ -1695,20 +1700,20 @@ impl Locale {
 
     fn native_connection_status(
         self,
-        position: Option<usize>,
+        label: Option<&str>,
         projection: crate::terminal_session::NativeProjectionStatus,
         missing_position: crate::terminal_session::TerminalStatus,
     ) -> String {
         use crate::terminal_session::NativeProjectionStatus;
 
-        let Some(position) = position else {
+        let Some(label) = label else {
             return self.terminal_status(missing_position).to_owned();
         };
         match projection {
-            NativeProjectionStatus::WaitingForFullFrame => self.native_waiting_for_frame(position),
-            NativeProjectionStatus::Blocked => self.native_display_blocked(position),
+            NativeProjectionStatus::WaitingForFullFrame => self.native_waiting_for_frame(label),
+            NativeProjectionStatus::Blocked => self.native_display_blocked(label),
             NativeProjectionStatus::Empty | NativeProjectionStatus::FrameAvailable => {
-                self.native_connecting(position)
+                self.native_connecting(label)
             }
         }
     }
@@ -1770,38 +1775,38 @@ impl Locale {
         }
     }
 
-    fn native_connecting(self, position: usize) -> String {
+    fn native_connecting(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · Connecting…"),
-            Self::ZhCn => format!("Tab {position} · 正在连接…"),
+            Self::EnUs => format!("{label} · Connecting…"),
+            Self::ZhCn => format!("{label} · 正在连接…"),
         }
     }
 
-    fn native_waiting_for_frame(self, position: usize) -> String {
+    fn native_waiting_for_frame(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · Connecting · waiting for full frame"),
-            Self::ZhCn => format!("Tab {position} · 正在连接 · 等待完整帧"),
+            Self::EnUs => format!("{label} · Connecting · waiting for full frame"),
+            Self::ZhCn => format!("{label} · 正在连接 · 等待完整帧"),
         }
     }
 
-    fn native_display_blocked(self, position: usize) -> String {
+    fn native_display_blocked(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · Connecting · display blocked"),
-            Self::ZhCn => format!("Tab {position} · 正在连接 · 显示已阻塞"),
+            Self::EnUs => format!("{label} · Connecting · display blocked"),
+            Self::ZhCn => format!("{label} · 正在连接 · 显示已阻塞"),
         }
     }
 
-    fn native_ready_controlling(self, position: usize) -> String {
+    fn native_ready_controlling(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · Ready · controlling"),
-            Self::ZhCn => format!("Tab {position} · 已就绪 · 可控制"),
+            Self::EnUs => format!("{label} · Ready · controlling"),
+            Self::ZhCn => format!("{label} · 已就绪 · 可控制"),
         }
     }
 
-    fn native_ready_read_only(self, position: usize) -> String {
+    fn native_ready_read_only(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · Ready · view only"),
-            Self::ZhCn => format!("Tab {position} · 已就绪 · 仅查看"),
+            Self::EnUs => format!("{label} · Ready · view only"),
+            Self::ZhCn => format!("{label} · 已就绪 · 仅查看"),
         }
     }
 
@@ -1812,31 +1817,31 @@ impl Locale {
         }
     }
 
-    fn native_terminal_pending(self, position: usize) -> String {
+    fn native_terminal_pending(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · terminal creation pending · no replay"),
-            Self::ZhCn => format!("Tab {position} · 终端创建等待中 · 不会重放"),
+            Self::EnUs => format!("{label} · terminal creation pending · no replay"),
+            Self::ZhCn => format!("{label} · 终端创建等待中 · 不会重放"),
         }
     }
 
-    fn native_terminal_unavailable(self, position: usize) -> String {
+    fn native_terminal_unavailable(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · terminal unavailable"),
-            Self::ZhCn => format!("Tab {position} · 终端不可用"),
+            Self::EnUs => format!("{label} · terminal unavailable"),
+            Self::ZhCn => format!("{label} · 终端不可用"),
         }
     }
 
-    fn native_terminal_failed(self, position: usize) -> String {
+    fn native_terminal_failed(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · terminal creation failed"),
-            Self::ZhCn => format!("Tab {position} · 终端创建失败"),
+            Self::EnUs => format!("{label} · terminal creation failed"),
+            Self::ZhCn => format!("{label} · 终端创建失败"),
         }
     }
 
-    fn native_terminal_outcome_unknown(self, position: usize) -> String {
+    fn native_terminal_outcome_unknown(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("Tab {position} · terminal result unknown · no replay"),
-            Self::ZhCn => format!("Tab {position} · 终端结果未知 · 不会重放"),
+            Self::EnUs => format!("{label} · terminal result unknown · no replay"),
+            Self::ZhCn => format!("{label} · 终端结果未知 · 不会重放"),
         }
     }
 }

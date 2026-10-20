@@ -33,6 +33,12 @@ pub const WINDOWS_USER_CONFIG_OPTIONS: &[WindowsUserConfigOption] = &[
         description: "How the selected shell is started.",
     },
     WindowsUserConfigOption {
+        path: "terminal.focus_new_panel",
+        default: "true",
+        choices: "true, false",
+        description: "Focus the newly split pane in a native Client; restart the Client to apply.",
+    },
+    WindowsUserConfigOption {
         path: "worktrees.directory",
         default: "unset",
         choices: "a normalized Windows path",
@@ -230,6 +236,7 @@ pub struct WindowsDefaultActionBindings {
 const DEFAULT_CONFIG: &str = r#"[terminal]
 default_shell = ""
 shell_mode = "auto"
+focus_new_panel = true
 
 [session]
 resume_agents_on_restore = true

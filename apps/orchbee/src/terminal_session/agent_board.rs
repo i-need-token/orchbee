@@ -1990,6 +1990,10 @@ impl<'a> NativeAgentBoardView<'a> {
         self.board.start.providers()
     }
     #[cfg(windows)]
+    pub(crate) fn detected_start_providers(&self) -> &[&'static str] {
+        self.board.start.detected()
+    }
+    #[cfg(windows)]
     pub(crate) fn selected_start_provider(&self) -> Option<&'static str> {
         self.board.start.selected_provider()
     }

@@ -11,17 +11,14 @@ fn row() -> PanelReport {
 }
 
 #[test]
-fn provided_titles_stay_exact_and_generated_title_keeps_its_ordinal() {
-    let theme = Theme::terminal_native();
+fn provided_titles_and_creation_numbers_survive_layout_reordering() {
     let report = row();
     assert_eq!(
         title(
             Some("1"),
             "Shell",
-            1,
             "Terminal",
             PanelReportView::Ready(&report),
-            &theme,
         ),
         " 1 "
     );
@@ -29,40 +26,19 @@ fn provided_titles_stay_exact_and_generated_title_keeps_its_ordinal() {
     let mut metadata = row();
     metadata.metadata.title = Some(serde_json::from_value(json!("Build Shell")).unwrap());
     assert_eq!(
-        title(
-            None,
-            "Shell",
-            1,
-            "Terminal",
-            PanelReportView::Ready(&metadata),
-            &theme,
-        ),
+        title(None, "Shell", "Terminal", PanelReportView::Ready(&metadata)),
         " Build Shell "
     );
 
     assert_eq!(
-        title(
-            None,
-            "Shell",
-            2,
-            "Terminal",
-            PanelReportView::Pending,
-            &theme,
-        ),
-        format!(" Terminal 2 {} Shell ", theme.glyphs.middle_dot)
+        title(None, "Shell", "Terminal", PanelReportView::Pending),
+        " Shell "
     );
 
     for inherited_number in ["1", "5"] {
         assert_eq!(
-            title(
-                None,
-                inherited_number,
-                1,
-                "Terminal",
-                PanelReportView::Pending,
-                &theme,
-            ),
-            " Terminal 1 ",
+            title(None, inherited_number, "Terminal", PanelReportView::Pending),
+            format!(" Terminal {inherited_number} "),
         );
     }
 }

@@ -352,6 +352,7 @@ fn run_prepared_surface(
             let settings = load.settings;
             initial_view.configure_theme(settings.theme);
             initial_view.configure_keys(&settings.keys);
+            terminal_input.configure_panel_focus(settings.focus_new_panel);
             terminal_input.configure_agent_notifications(0, &settings.notifications);
             initial_view.notifications.configure(settings.notifications);
             initial_view
@@ -1199,12 +1200,7 @@ fn synchronize_sidebar_visibility(view: &mut ClientView, dimensions: WindowDimen
     let areas = crate::tui_layout::project_shell_areas(to_area(dimensions), view.sidebar_surface());
     let visible = areas.sidebar.is_some();
     view.machines.observe_agent_sidebar(visible);
-    let summary_demanded =
-        view.machines.available && areas.tier == crate::tui_layout::ViewportTier::Compact;
-    let summary_changed = view
-        .machines
-        .observe_compact_agent_summary(summary_demanded);
-    (owned && !view.machines.sidebar_navigation_active()) || summary_changed
+    owned && !view.machines.sidebar_navigation_active()
 }
 
 #[cfg(windows)]

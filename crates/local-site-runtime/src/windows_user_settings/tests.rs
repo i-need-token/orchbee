@@ -823,3 +823,22 @@ fn default_configuration_quotes_and_roundtrips_binding_strings() {
     let roundtripped = WindowsKeySettings::from_profile(&settings.profile()).unwrap();
     assert_eq!(&roundtripped, settings);
 }
+
+#[test]
+fn split_focus_defaults_true_and_admits_only_booleans() {
+    for (value, expected, valid) in [
+        ("true", true, true),
+        ("false", false, true),
+        ("'false'", true, false),
+    ] {
+        let load = parse(
+            &format!("[terminal]\nfocus_new_panel={value}"),
+            Path::new(r"C:\config.toml"),
+            &|_| None,
+        )
+        .unwrap();
+        assert_eq!(load.focus_new_panel, expected);
+        assert_eq!(load.diagnostics.is_empty(), valid);
+    }
+    assert!(WindowsUserSettings::default().focus_new_panel);
+}

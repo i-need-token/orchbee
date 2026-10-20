@@ -32,6 +32,13 @@ pub(crate) struct TabDragSource {
     pub(crate) tabs: Vec<TabDragTab>,
 }
 
+pub(super) struct TabClick {
+    source: DrawnTabCreate,
+    tab: WorkbenchTabId,
+    position: (u16, u16),
+    at: std::time::Instant,
+}
+
 pub(crate) struct TabDragPreview {
     pub(crate) grabbed: Vec<Rect>,
     pub(crate) marker: Option<(u16, u16)>,
@@ -364,6 +371,7 @@ impl PointerState {
     }
 
     pub(crate) fn cancel_tab_drag(&mut self) -> bool {
+        self.tab_click = None;
         if matches!(self.gesture, Gesture::Tab(_)) {
             self.gesture = Gesture::TabCancelled;
             true
@@ -419,13 +427,38 @@ impl PointerState {
                 } => {
                     if !activation_cancelled && drag.over_pressed_target(event.column, event.row) {
                         let action = match drag.target {
-                            HitTarget::Tab(id) => drag
-                                .source
-                                .tabs
-                                .iter()
-                                .position(|tab| tab.id == id)
-                                .and_then(|index| u8::try_from(index + 1).ok())
-                                .map(ClientAction::SelectTab),
+                            HitTarget::Tab(id) => {
+                                let position = (event.column, event.row);
+                                let double = self.tab_click.take().is_some_and(|click| {
+                                    click.source == drag.source.drawn
+                                        && click.tab == id
+                                        && click.position.0.abs_diff(position.0) <= 1
+                                        && click.position.1 == position.1
+                                        && now.saturating_duration_since(click.at)
+                                            <= std::time::Duration::from_millis(500)
+                                });
+                                if double {
+                                    if let Some(disposition) =
+                                        port.request_drawn_tab_rename(&drag.source.drawn, &id)
+                                    {
+                                        view.commit_pointer(disposition);
+                                    }
+                                    None
+                                } else {
+                                    self.tab_click = Some(TabClick {
+                                        source: drag.source.drawn.clone(),
+                                        tab: id.clone(),
+                                        position,
+                                        at: now,
+                                    });
+                                    drag.source
+                                        .tabs
+                                        .iter()
+                                        .position(|tab| tab.id == id)
+                                        .and_then(|index| u8::try_from(index + 1).ok())
+                                        .map(ClientAction::SelectTab)
+                                }
+                            }
                             HitTarget::TabGroup { group, .. } => {
                                 Some(ClientAction::ToggleTabGroup(group))
                             }
@@ -440,6 +473,7 @@ impl PointerState {
                     }
                 }
                 Phase::Dragging(_) => {
+                    self.tab_click = None;
                     if let Some(drop) = drag.destination(event.column, event.row) {
                         port.commit_tab_drag(
                             &drag.source.drawn,

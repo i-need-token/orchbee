@@ -47,6 +47,12 @@ pub(in crate::terminal_session) struct RenameDraftView<'a> {
 }
 
 impl<'a> RenameDraftView<'a> {
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn tab_id(
+        &self,
+    ) -> &'a orchbee_workbench_protocol::WorkbenchTabId {
+        self.draft.target.tab_id()
+    }
     pub(in crate::terminal_session) const fn token(&self) -> RenameDraftToken {
         self.draft.token
     }

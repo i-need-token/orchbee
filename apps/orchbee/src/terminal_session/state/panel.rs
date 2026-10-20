@@ -66,6 +66,7 @@ pub(in crate::terminal_session) struct PanelOperation {
     kind: PanelRequestKind,
     intent: PanelIntent,
     deadline: Instant,
+    focus_new_panel: bool,
 }
 
 impl PanelOperation {
@@ -86,6 +87,7 @@ impl PanelOperation {
             kind,
             intent,
             deadline,
+            focus_new_panel: false,
         }
     }
 
@@ -181,6 +183,16 @@ impl PendingPanelCommit {
 
     pub(in crate::terminal_session) const fn operation(&self) -> &PanelOperation {
         &self.operation
+    }
+
+    pub(super) fn focus_index(&self, candidate: &NativeContextTabs) -> Option<usize> {
+        if !self.operation.focus_new_panel {
+            return None;
+        }
+        let tab = candidate
+            .tabs()
+            .get(candidate.tab_index(self.operation.target.tab_id())?)?;
+        tab.panel_index(self.commit.new_panel_id()?)
     }
 
     fn valid(&self) -> bool {
@@ -482,7 +494,16 @@ impl NativeSessionState {
         let intent = match kind {
             PanelRequestKind::Split { direction } => PanelIntent::Split {
                 direction: wire_direction(direction),
-                label: panel.presentation_label().clone(),
+                label: WorkbenchLabel::parse(
+                    &(0..tab.panel_count())
+                        .filter_map(|index| tab.panel(index))
+                        .filter_map(|panel| panel.presentation_label().as_str().parse::<u64>().ok())
+                        .max()
+                        .unwrap_or(0)
+                        .checked_add(1)?
+                        .to_string(),
+                )
+                .ok()?,
                 geometry: WorkbenchTerminalGeometry::new(
                     self.latest_geometry.columns(),
                     self.latest_geometry.rows(),
@@ -502,7 +523,7 @@ impl NativeSessionState {
                 }
             }
         };
-        Some(PanelOperation::new(
+        let mut operation = PanelOperation::new(
             request_id,
             self.desired.as_ref()?.anchor().clone(),
             panel.panel_id().clone(),
@@ -510,7 +531,9 @@ impl NativeSessionState {
             kind,
             intent,
             deadline,
-        ))
+        );
+        operation.focus_new_panel = self.focus_new_panel;
+        Some(operation)
     }
 
     pub(in crate::terminal_session) fn begin_panel(&mut self, operation: PanelOperation) -> bool {
@@ -615,14 +638,17 @@ impl NativeSessionState {
         pending: Option<PendingPanelCommit>,
         candidate: NativeContextTabs,
     ) -> PreparedPanelResult {
-        let mut leaf_repair = None;
+        let mut leaf_repair = pending
+            .as_ref()
+            .and_then(|pending| pending.focus_index(&candidate));
         if candidate.tab_index(operation.target.tab_id()).is_some() {
             // A superseding candidate may have folded in a peer panel.close that removed the
             // selected leaf while the Tab survives: repair the selection through the paired
             // membership path instead of a direct merge that cannot find it.
-            leaf_repair = self
-                .active()
-                .and_then(|active| self.selected_leaf_repair_index(&candidate, active));
+            leaf_repair = leaf_repair.or_else(|| {
+                self.active()
+                    .and_then(|active| self.selected_leaf_repair_index(&candidate, active))
+            });
             if leaf_repair.is_none() {
                 return match pending {
                     Some(pending) => PreparedPanelResult::Committed {

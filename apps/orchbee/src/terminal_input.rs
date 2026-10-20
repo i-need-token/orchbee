@@ -458,6 +458,23 @@ pub(crate) trait TerminalInputPort {
     }
 
     #[cfg(windows)]
+    fn request_drawn_tab_rename(
+        &mut self,
+        _source: &crate::action_menu::DrawnTabCreate,
+        _tab: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) -> Option<SessionActionDisposition> {
+        None
+    }
+
+    #[cfg(windows)]
+    fn request_drawn_tab_close(
+        &mut self,
+        _source: &crate::action_menu::DrawnTabCreate,
+        _tab: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) {
+    }
+
+    #[cfg(windows)]
     fn commit_tab_drag(
         &mut self,
         _source: &crate::action_menu::DrawnTabCreate,

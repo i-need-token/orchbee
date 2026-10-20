@@ -619,21 +619,21 @@ fn native_tab_copy_matches_the_accepted_english_table() {
     );
     assert_eq!(locale.native_local_busy(), "Client busy · no command sent");
     assert_eq!(locale.native_no_tab(9), "No Tab at position 9");
-    assert_eq!(locale.native_connecting(10), "Tab 10 · Connecting…");
+    assert_eq!(locale.native_connecting("Tab 10"), "Tab 10 · Connecting…");
     assert_eq!(
-        locale.native_waiting_for_frame(10),
+        locale.native_waiting_for_frame("Tab 10"),
         "Tab 10 · Connecting · waiting for full frame"
     );
     assert_eq!(
-        locale.native_display_blocked(10),
+        locale.native_display_blocked("Tab 10"),
         "Tab 10 · Connecting · display blocked"
     );
     assert_eq!(
-        locale.native_ready_controlling(10),
+        locale.native_ready_controlling("Tab 10"),
         "Tab 10 · Ready · controlling"
     );
     assert_eq!(
-        locale.native_ready_read_only(10),
+        locale.native_ready_read_only("Tab 10"),
         "Tab 10 · Ready · view only"
     );
     assert_eq!(
@@ -641,19 +641,19 @@ fn native_tab_copy_matches_the_accepted_english_table() {
         "Created Tab committed · refresh required"
     );
     assert_eq!(
-        locale.native_terminal_pending(10),
+        locale.native_terminal_pending("Tab 10"),
         "Tab 10 · terminal creation pending · no replay"
     );
     assert_eq!(
-        locale.native_terminal_unavailable(10),
+        locale.native_terminal_unavailable("Tab 10"),
         "Tab 10 · terminal unavailable"
     );
     assert_eq!(
-        locale.native_terminal_failed(10),
+        locale.native_terminal_failed("Tab 10"),
         "Tab 10 · terminal creation failed"
     );
     assert_eq!(
-        locale.native_terminal_outcome_unknown(10),
+        locale.native_terminal_outcome_unknown("Tab 10"),
         "Tab 10 · terminal result unknown · no replay"
     );
 }
@@ -679,21 +679,21 @@ fn native_tab_copy_matches_the_accepted_chinese_table() {
     );
     assert_eq!(locale.native_local_busy(), "Client 正忙 · 未发送命令");
     assert_eq!(locale.native_no_tab(9), "第 9 个 Tab 不存在");
-    assert_eq!(locale.native_connecting(10), "Tab 10 · 正在连接…");
+    assert_eq!(locale.native_connecting("Tab 10"), "Tab 10 · 正在连接…");
     assert_eq!(
-        locale.native_waiting_for_frame(10),
+        locale.native_waiting_for_frame("Tab 10"),
         "Tab 10 · 正在连接 · 等待完整帧"
     );
     assert_eq!(
-        locale.native_display_blocked(10),
+        locale.native_display_blocked("Tab 10"),
         "Tab 10 · 正在连接 · 显示已阻塞"
     );
     assert_eq!(
-        locale.native_ready_controlling(10),
+        locale.native_ready_controlling("Tab 10"),
         "Tab 10 · 已就绪 · 可控制"
     );
     assert_eq!(
-        locale.native_ready_read_only(10),
+        locale.native_ready_read_only("Tab 10"),
         "Tab 10 · 已就绪 · 仅查看"
     );
     assert_eq!(
@@ -701,16 +701,19 @@ fn native_tab_copy_matches_the_accepted_chinese_table() {
         "已提交创建的 Tab · 需要刷新"
     );
     assert_eq!(
-        locale.native_terminal_pending(10),
+        locale.native_terminal_pending("Tab 10"),
         "Tab 10 · 终端创建等待中 · 不会重放"
     );
     assert_eq!(
-        locale.native_terminal_unavailable(10),
+        locale.native_terminal_unavailable("Tab 10"),
         "Tab 10 · 终端不可用"
     );
-    assert_eq!(locale.native_terminal_failed(10), "Tab 10 · 终端创建失败");
     assert_eq!(
-        locale.native_terminal_outcome_unknown(10),
+        locale.native_terminal_failed("Tab 10"),
+        "Tab 10 · 终端创建失败"
+    );
+    assert_eq!(
+        locale.native_terminal_outcome_unknown("Tab 10"),
         "Tab 10 · 终端结果未知 · 不会重放"
     );
 }
@@ -934,7 +937,8 @@ fn native_prebootstrap_starting_remains_connecting_without_a_selected_tab() {
         );
     }
     assert_eq!(
-        Locale::EnUs.native_starting_status(Some(1), NativeProjectionStatus::WaitingForFullFrame),
+        Locale::EnUs
+            .native_starting_status(Some("Tab 1"), NativeProjectionStatus::WaitingForFullFrame),
         "Tab 1 · Connecting · waiting for full frame"
     );
 }

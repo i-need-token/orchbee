@@ -40,51 +40,81 @@ pub(super) fn client_path_candidates(
     path: Option<&OsStr>,
     cancelled: &AtomicBool,
     deadline: Instant,
-) -> Option<Vec<&'static str>> {
+    found: impl Fn(&'static str) + Sync,
+) -> bool {
     if stopped(cancelled, deadline) {
-        return None;
+        return false;
     }
-    let system = PathBuf::from(winsafe::GetSystemDirectory().ok()?);
+    let Ok(system) = winsafe::GetSystemDirectory().map(PathBuf::from) else {
+        return false;
+    };
     let executable = system.join("where.exe");
-    let run_deadline = deadline.checked_sub(TEARDOWN)?;
-    resolve_candidates(
-        || stopped(cancelled, run_deadline),
-        |command| {
-            query(
-                &executable,
-                &system,
-                path,
-                command,
-                cancelled,
-                run_deadline,
-                deadline,
-            )
-        },
-    )
+    let Some(run_deadline) = deadline.checked_sub(TEARDOWN) else {
+        return false;
+    };
+    // Four owned workers, at most one killable lookup per worker. Partial results
+    // publish immediately; all workers join before the catalog task retires.
+    thread::scope(|scope| {
+        let mut workers = Vec::new();
+        let mut complete = true;
+        for providers in crate::agent_provider::CANONICAL_IDS.chunks(
+            crate::agent_provider::CANONICAL_IDS
+                .len()
+                .div_ceil(4)
+                .max(1),
+        ) {
+            let found = &found;
+            let executable = &executable;
+            let system = &system;
+            match thread::Builder::new()
+                .name("orchbee-provider-lookup".into())
+                .spawn_scoped(scope, move || {
+                    resolve_candidates(
+                        providers,
+                        || stopped(cancelled, run_deadline),
+                        |command| {
+                            let slot = Instant::now()
+                                .checked_add(Duration::from_millis(900))
+                                .unwrap_or(run_deadline)
+                                .min(run_deadline);
+                            query(executable, system, path, command, cancelled, slot, deadline)
+                        },
+                        found,
+                    )
+                }) {
+                Ok(worker) => workers.push(worker),
+                Err(_) => complete = false,
+            }
+        }
+        for worker in workers {
+            complete &= worker.join().unwrap_or(false);
+        }
+        complete
+    })
 }
 
-/// Projects the closed provider mapping through one lookup verdict per command.
-/// The OS query stays outside this deterministic policy loop so cancellation,
-/// mapping, and process behavior can each carry focused evidence.
+/// A failed lookup never discards candidates already found or skips unrelated providers.
 pub(super) fn resolve_candidates(
+    providers: &[&'static str],
     mut should_stop: impl FnMut() -> bool,
     mut lookup: impl FnMut(&str) -> Query,
-) -> Option<Vec<&'static str>> {
-    let mut candidates = Vec::new();
-    for provider in crate::agent_provider::CANONICAL_IDS.iter().copied() {
+    mut found: impl FnMut(&'static str),
+) -> bool {
+    let mut complete = true;
+    for provider in providers.iter().copied() {
         if should_stop() {
-            return None;
+            return false;
         }
-        let Some(command) = crate::agent_provider::executable(provider) else {
+        let Some(command) = crate::agent_provider::detection_executable(provider) else {
             continue;
         };
         match lookup(command) {
-            Query::Found => candidates.push(provider),
+            Query::Found => found(provider),
             Query::Missing => {}
-            Query::Unavailable => return None,
+            Query::Unavailable => complete = false,
         }
     }
-    Some(candidates)
+    complete
 }
 
 pub(super) fn query(

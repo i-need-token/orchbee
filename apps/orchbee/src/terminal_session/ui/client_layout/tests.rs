@@ -83,7 +83,7 @@ fn selected_and_inactive_reads_preserve_selection_cache_and_empty_command_queue(
             result.focused_panel_id.as_ref(),
             Some(&result.panels[0].panel_id)
         );
-        assert_eq!(result.area, cell(Rect::new(0, 1, 119, 39)));
+        assert_eq!(result.area, cell(Rect::new(1, 3, 117, 36)));
         assert_eq!(result.panels.len(), 1);
         assert_eq!(result.panels[0].displayed, Some(result.area));
         assert_eq!(native.control_observation(false).unwrap(), before);

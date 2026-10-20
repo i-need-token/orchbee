@@ -434,74 +434,33 @@ fn menu_wheel_is_regional_bounded_reversible_and_cancelled_by_keyboard() {
 }
 
 #[test]
-fn global_menu_button_and_close_follow_painted_cells_and_own_the_tail() {
+fn global_menu_has_no_top_button_and_keyboard_open_retains_its_close_control() {
     let mut port = Port::new(MenuAction::Help);
     let mut dispatcher = InputDispatcher::default();
     let mut view = ClientView::new(120);
     dispatcher.set_pointer_capture(&mut view, &mut port, true);
     let map = rendered_sidebar_map(&view);
-    let global_cell = (0..40)
-        .find_map(|y| {
-            (0..120).find_map(|x| {
-                (map.hit_target_at(x, y) == Some(&HitTarget::MenuButton)).then_some((x + 1, y + 1))
-            })
-        })
-        .unwrap();
-    dispatcher.publish_hit_map(map);
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}M", global_cell.0, global_cell.1).as_bytes(),
-    );
     assert!(
-        !port.menu.active(),
-        "press only arms the global Menu control"
+        (0..40).all(|y| (0..120).all(|x| map.hit_target_at(x, y) != Some(&HitTarget::MenuButton)))
     );
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}mtail", global_cell.0, global_cell.1).as_bytes(),
-    );
-    assert!(port.menu.active());
-    assert_eq!(port.target, Some(MenuTarget::Global));
+    dispatcher.publish_hit_map(map);
+    assert!(port.open_action_menu(MenuTarget::Global, None, false));
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
-    let close_cell = painted
-        .close
-        .expect("global menu retains its painted close control");
+    let close = painted.close.unwrap();
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        format!("\x1b[<0;{};{}M", close_cell.0, close_cell.1).as_bytes(),
+        format!("\x1b[<0;{};{}M", close.0, close.1).as_bytes(),
     );
     assert!(port.menu.active());
     dispatch_all(
         &mut dispatcher,
         &mut view,
         &mut port,
-        format!("\x1b[<0;{};{}mtail", close_cell.0, close_cell.1).as_bytes(),
+        format!("\x1b[<0;{};{}mtail", close.0, close.1).as_bytes(),
     );
     assert!(!port.menu.active());
-    assert!(port.calls.borrow().is_empty());
-
-    dispatcher.publish_hit_map(rendered_sidebar_map(&view));
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}M", global_cell.0, global_cell.1).as_bytes(),
-    );
-    assert!(port.open_action_menu(MenuTarget::Create(None), None, true));
-    dispatch_all(
-        &mut dispatcher,
-        &mut view,
-        &mut port,
-        format!("\x1b[<0;{};{}mtail", global_cell.0, global_cell.1).as_bytes(),
-    );
-    assert!(port.menu.active());
-    assert_eq!(port.target, Some(MenuTarget::Create(None)));
     assert!(port.calls.borrow().is_empty());
 }
 

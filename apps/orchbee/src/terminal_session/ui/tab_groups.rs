@@ -261,6 +261,32 @@ impl NativeUi {
         })
     }
 
+    pub(in crate::terminal_session) fn request_drawn_tab_rename(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        tab: &WorkbenchTabId,
+    ) -> Option<SessionActionDisposition> {
+        if self.tab_drag_source()?.drawn != *source
+            || self.state.as_ref()?.active()?.key().anchor().tab_id() != tab
+        {
+            return None;
+        }
+        self.request_rename_draft()?;
+        Some(SessionActionDisposition::DismissNavigator)
+    }
+
+    pub(in crate::terminal_session) fn request_drawn_tab_close(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        tab: &WorkbenchTabId,
+    ) {
+        if self.tab_drag_source().is_some_and(|current| {
+            current.drawn == *source && current.tabs.iter().any(|item| &item.id == tab)
+        }) {
+            let _admitted = self.request_close_set(std::slice::from_ref(tab));
+        }
+    }
+
     pub(in crate::terminal_session) fn commit_tab_drag(
         &mut self,
         source: &crate::action_menu::DrawnTabCreate,

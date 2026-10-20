@@ -2,9 +2,8 @@
 
 ## Interaction
 
-Windows `Ctrl+B F2`, `[keys].menu` and the upper-right Actions button open the global action menu.
-The pointer button appears in Full and Compact; Minimal hides it so the first terminal row stays
-uncovered, while both keyboard routes remain available. Unmodified right-click opens a menu for a drawn
+Windows `Ctrl+B F2` and `[keys].menu` open the global action menu. These keyboard routes remain
+available without a permanent Actions button. Unmodified right-click opens a menu for a drawn
 pane, tab or Workspace row. Opening or cancelling does not change focus. Pane content retains its configured
 `right_click = "panel"` policy; pane chrome remains Client-owned. Shift gestures retain
 the host-terminal bypass. Machines retains `Ctrl+B Shift+M`.

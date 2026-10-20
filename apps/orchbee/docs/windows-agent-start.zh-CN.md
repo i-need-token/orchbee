@@ -23,16 +23,19 @@ capsule 未发布时，以 `integration-not-enabled` 拒绝；`conflict` 或 `st
 修改提供方自己的配置。没有托管集成的 kind、仅手动管理、`unknown` 状态以及因预算截断的检查，
 继续交由 canonical 就绪判定。成功时，文本结果给出下一步 `agent prompt --name <name>`。
 
-完整读取为空后，[Agent 看板](agent-board.zh-CN.md)会运行固定 System32 `where.exe`，查询
-`agent_provider::executable()` 映射的命令。helper 不持有输出管道。固定本机进程创建与 suspended
-分配完成后，它在 kill-on-close Windows Job 中运行并共享单一绝对目录期限；取消会请求终止 Job，
-并在固定 teardown 时槽内确认进程退出。
-得到的 `.exe`、`.com`、`.cmd`、`.bat` 与 `.ps1` 匹配项只是 Client PATH 候选项。其中包括规范
-`amp`、`maki` 与 `muse` 身份；别名不会增加 kind。候选项不能证明目标终端继承了相同 PATH，
-也不能证明 provider 能在那里启动。本地 PATH 不能证明隧道 Session 的可用性，因此远程 origin
-会让目录保持不可用，并且只提供手动 CLI 路径。表单接纳相同的有界 Agent 名称，并在键盘或
-指针激活被接受时注入精确聚焦的 Panel id。它既不读取调用者上下文环境变量，也不启动子进程
-适配器。
+完整读取为空后，[Agent 看板](agent-board.zh-CN.md)通过 `agent_provider::detection_executable()`
+运行固定的 System32 `where.exe` 查询。最多四个作用域内 worker 逐项发布候选结果，邮箱容量为
+提供方数量加一个最终结论。每项有 900 ms 运行时槽和 600 ms 清理时槽，共享六秒目录期限。
+部分或失败结果保留已找到的候选和手动表单。每个 helper 都不持有输出管道，并在固定本机进程
+创建与 suspended 分配后进入 kill-on-close Windows Job。所有 worker 加入后目录 owner 才退出；
+UI 退休队列只回收已退出的 owner。
+
+`.exe`、`.com`、`.cmd`、`.bat` 与 `.ps1` 匹配只是 Client PATH 提示，不是目标可用性证明。
+自动检测排除通用命令名 `agent`：[Cursor 使用该命令](https://prod.cursor.com/docs/cli/installation)，
+但其他提供方也可能安装同名文件。Cursor 仍可手动选择，沿用已有启动映射。远程 origin 不查询
+Client PATH，同样提供手动选择。表单提供可编辑的自动名称，并在当前绘制准入后注入精确聚焦
+的 Panel ID。手动选项复用预留、前置检查、单次提交和就绪归属者，不引入调用者上下文环境变量
+或子进程适配器。
 
 固定本机 System32 进程创建及 suspended Job 分配是同步 Windows 所有权原语，应用取消无法中断。
 取得自有 child 后，每次等待都会轮询取消与绝对期限；Job 终止加 kill-on-close 覆盖整个进程树，
@@ -45,8 +48,7 @@ owner。Session teardown 负责最终 join；它仍可能等待已开始的初�
 看板的后台任务在单一 300000 毫秒期限下直接调用应用私有的类型化流程，包含处理信任和登录提示的时间。接受启动后立即关闭看板并恢复终端输入。关闭看板不会取消任务；
 `c` 与可见取消操作才是显式路径。Session teardown 会唤醒并加入有界 owner。每个完成携带代际与
 Panel 目标，因此旧结果无法落定到替代草稿或目标。未知的预留或输入效果保持 unknown，绝不
-重放。命令已完整接受但等待就绪超时，会显示尚未确认并提示检查终端，仍不可重试。固定的规范关注请求同时更新不捕获输入的通知和重开的看板，后台流程继续在原始期限内观察。关注解除后可完成同一预留，绝不重新提交。CLI 保留既有启动受阻拒绝。看板不会安装 Agent，也不会改变集成／默认配置。发现结果为空时，它只把 CLI 语法显示为
-手动路径，而不会声称任何 provider 可用。取消会唤醒进程采样与单次 send 交换，但进行中的
+重放。命令已完整接受但等待就绪超时，会显示尚未确认并提示检查终端，仍不可重试。固定的规范关注请求同时更新不捕获输入的通知和重开的看板，后台流程继续在原始期限内观察。关注解除后可完成同一预留，绝不重新提交。CLI 保留既有启动受阻拒绝。看板不会安装 Agent，也不会改变集成／默认配置。发现结果为空时仍可手动选择，但不会声称已检测到任何 provider。取消会唤醒进程采样与单次 send 交换，但进行中的
 Windows 进程创建／Job 分配调用以及最长一秒的尽力预留释放仍可能延迟 teardown；取消并非瞬时。
 
 终端必须有已观察到的空闲 cmd、PowerShell 或 pwsh 进程。运行中的命令、缺失的进程详情，

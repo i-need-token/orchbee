@@ -9,6 +9,7 @@ Windows CLI creation reads `APPDATA/Orchbee/config.toml`, or the absolute file n
 new_cwd = "follow"
 default_shell = "pwsh.exe"
 shell_mode = "auto"
+focus_new_panel = true
 
 [worktrees]
 directory = "~/Projects/worktrees"
@@ -549,3 +550,5 @@ Configuration failure v8 admits `ui.sidebar.spaces`. Session/Client reload valid
 keys, notifications and both sidebar profiles before publishing any of them.
 Each profile caps at 32 KiB; the matched-cohort configuration frame caps at 256 KiB
 including escaping. Older public CLI versions retain their closed fields.
+
+`terminal.focus_new_panel` accepts a boolean and defaults to `true`. Native Client splits select the newly committed pane; `false` preserves the original pane. The Client reads this preference at startup, so restart it after editing this field. Invalid types produce a field-local diagnostic and use the default. CLI `panel split --focus` retains its explicit command policy.

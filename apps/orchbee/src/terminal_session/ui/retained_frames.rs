@@ -213,6 +213,31 @@ pub(super) struct RetainedView<'a> {
 }
 
 impl<'a> RetainedView<'a> {
+    /// A last observed title for an inactive tab, fenced by its canonical binding.
+    pub(super) fn title(
+        &self,
+        tab: &WorkbenchTabId,
+        panel: &crate::terminal_session::NativePanel,
+    ) -> Option<&'a str> {
+        let member = self.state.selected_presentation(panel);
+        self.frames
+            .entries
+            .iter()
+            .rev()
+            .find(|pixels| {
+                let id = &pixels.identity;
+                &id.tab == tab
+                    && &id.panel == panel.panel_id()
+                    && &id.presentation == member.presentation_id()
+                    && Some(&id.binding) == member.binding()
+                    && id.remains_member(self.state)
+            })?
+            .frame
+            .title
+            .as_deref()
+            .and_then(crate::terminal_title::stripped)
+    }
+
     pub(super) fn frame(
         &self,
         panel: &WorkbenchPanelId,

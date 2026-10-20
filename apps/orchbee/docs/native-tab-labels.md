@@ -22,18 +22,31 @@ after move or close; it never renames a survivor or commits another revision. Ra
 identities, Presentation labels and bindings remain unchanged by reordering. Duplicate display
 names are permitted.
 
-Native Tab-strip and navigator chrome localize automatic positions as `Tab 1`, `Tab 2`, … in
-`en-US` and `标签页 1`, `标签页 2`, … in `zh-CN`. The rename dialog uses that same display name for
-its current-name line. Automatic-name drafts start empty and show the current display name as an
-informational placeholder; it is not submitted as the new label. Fixed names, including numeric
-names, remain exact and prefill the editor. The provisional first Tab uses the same title during
-Workspace creation. Canonical ordinal labels, CLI selectors, and launch-profile selection keep their
-existing semantics.
+Native Tab-strip, navigator, status and Tab-menu chrome share one display name. Fixed names remain
+exact. Automatic names prefer a selected Presentation's custom label, then its valid live OSC title;
+inactive Tabs may use their last observed title from the bounded frame cache only while the exact
+Site/context/Tab/Panel/Presentation/binding remains canonical. The launch executable basename is the
+next fallback, then the localized position (`Tab 1` in `en-US`, `标签页 1` in `zh-CN`). Activity prefixes
+are stripped and all displayed text is sanitized. This presentation never renames canonical state or
+claims an observed title is authoritative process identity. Canonical ordinal labels, CLI selectors,
+and launch-profile selection keep their existing semantics.
+
+Automatic rename drafts start empty with the same current display name as an informational
+placeholder; only typed text can submit. Fixed names prefill the editor. Windows renders the existing
+rename draft anchored at its painted Tab, expanding along the strip to at least 24 cells when possible;
+when fewer than eight cells fit it uses the complete
+modal. Enter submits and Esc cancels; the same exact shown token and input fences apply in both forms.
+
+Windows compact Tabs retain an active marker plus bold underline at every color level. Each wide
+enough token reserves a stable three-cell `[x]` control with hover/press feedback; narrow tokens keep
+their whole label selectable. Close validates the painted context/revision and exact Tab ID, then
+opens the existing confirmation for that single Tab. Two releases on the same unchanged Tab within
+500 ms and one horizontal cell request rename only if that Tab is now selected. Dragging, focus loss,
+other targets, changed source, and capture release break the pair. These controls never forward input.
 
 `tab rename` always chooses a fixed name. Renaming an automatic Tab to the same visible or raw
 text is a real change: it clears automatic naming and advances one revision. Repeating that
-rename on the fixed Tab is unchanged. Blank-name reset and terminal-title following are not
-part of this contract.
+rename on the fixed Tab is unchanged. Blank-name reset is not part of this contract.
 
 ## Consumers and model
 
@@ -48,8 +61,8 @@ checks preserve the complete surviving metadata; a rename changes only its targe
 mode. Same-revision refresh remains exact, while later canonical revisions may contain a
 rename. Create validation pins the submitted mode at the commit revision. A surviving fixed Tab cannot become automatic again; an automatic survivor keeps its raw
 creation text until a rename switches it to fixed mode. Completion
-cannot overwrite an intervening rename. The strip, rename draft, close confirmation and Agent
-board derive labels using the target's position in the captured context. Selection, input
+cannot overwrite an intervening rename. Close confirmation and Agent board retain names derived from the target's position in the captured
+context; native chrome uses the display projection above. Selection, input
 ownership, geometry and terminal controller rights are independent of naming.
 
 The naming fact is the complete pair `(raw label, automatic mode)`, not only visible text. Creating or renaming can clear automatic mode without changing text. Movement preserves that metadata and derives display from order. Concrete codec, authority, projection and Windows process tests check these obligations; there is no separate label workflow model.

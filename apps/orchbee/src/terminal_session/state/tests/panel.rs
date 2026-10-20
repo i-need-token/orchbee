@@ -480,7 +480,7 @@ fn split_grafted_snapshot() -> Snapshot {
                                         terminal_id: terminal_id(90_007),
                                         worker_id: worker_id(90_006),
                                     }),
-                                    label: "1".into(),
+                                    label: "2".into(),
                                     presentation_id: presentation_id(90_005),
                                 },
                             },
@@ -655,7 +655,7 @@ fn panel_split_plans_the_selected_identity_latest_geometry_and_direction() {
             panic!("split intent")
         };
         assert_eq!(*direction, wire);
-        assert_eq!(label, selected.presentation_label());
+        assert_eq!(label.as_str(), "2");
         assert_eq!(planned_geometry.columns(), 91);
         assert!(
             state.pending_panel().is_none(),
@@ -1076,8 +1076,9 @@ fn unchanged_result_at_a_divergent_revision_retires() {
 }
 
 #[test]
-fn committed_split_merges_the_exact_projection_in_place() {
+fn committed_split_can_preserve_focus_with_the_exact_projection() {
     let mut state = split_ready();
+    state.configure_panel_focus(false);
     let operation = plan(&state, 70_070, split_kind());
     let known = pending_split(&operation);
     assert!(state.begin_panel(operation.clone()));
@@ -2396,4 +2397,28 @@ fn retirement_drops_the_armed_panel_close_confirmation() {
     state.retire(CarrierFailure::Closed);
     assert!(state.view().panel_close_confirmation().is_none());
     assert!(state.invariant_holds());
+}
+
+#[test]
+fn committed_split_focuses_the_created_identity_through_membership_install() {
+    let mut state = split_ready();
+    let operation = plan(&state, 70_999, split_kind());
+    assert!(state.begin_panel(operation.clone()));
+    let prepared = state.prepare_panel(
+        &operation,
+        PanelResult::Committed {
+            commit: Box::new(split_commit(&operation)),
+            outcome: WorkbenchSnapshotOutcome::Available {
+                snapshot: split_grafted_snapshot(),
+            },
+        },
+    );
+    let candidate = prepared
+        .membership_candidate()
+        .expect("new focus requires paired installation");
+    assert_eq!(candidate.focus_panel_id(), Some(&panel_id(90_001)));
+    assert!(
+        state.invariant_holds(),
+        "preparing never moves the old input owner"
+    );
 }

@@ -9,6 +9,7 @@ Windows CLI 创建操作读取 `APPDATA/Orchbee/config.toml`，或 `ORCHBEE_CONF
 new_cwd = "follow"
 default_shell = "pwsh.exe"
 shell_mode = "auto"
+focus_new_panel = true
 
 [worktrees]
 directory = "~/Projects/worktrees"
@@ -445,3 +446,5 @@ Git 在所属 Worker 上读取已提交的 Workspace 目录，显示相对本地
 配置失败 v8 接纳 `ui.sidebar.spaces`。Session／Client 重载先验证键位、通知及两个侧栏 profile，
 再统一发布。每个 profile 最多 32 KiB；匹配 cohort 的配置帧包括转义最多 256 KiB。
 旧公开 CLI 版本保持原有封闭字段。
+
+`terminal.focus_new_panel` 接受布尔值，默认为 `true`。原生 Client 分屏选中刚提交的新窗格；`false` 保留原窗格。Client 在启动时读取该偏好，编辑此字段后需重启。类型无效时产生字段级诊断并使用默认值。CLI `panel split --focus` 保留显式命令策略。

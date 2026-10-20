@@ -254,15 +254,24 @@ fn catalog_result_survives_empty_then_sender_exit() {
     state.catalog_revision = 4;
     let (sender, outcomes) = mpsc::sync_channel(1);
     state.catalog_task = Some(CatalogTask {
+        revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
         task: None,
     });
     assert!(!state.drain_catalog());
-    sender.send((4, Some(vec!["codex", "amp"]))).unwrap();
+    sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
+    assert!(state.drain_catalog());
+    assert_eq!(state.detected(), ["codex"]);
+    assert_eq!(state.catalog_status(), CatalogStatus::Loading);
+    assert_eq!(state.selected_provider(), Some("codex"));
+    assert_eq!(state.name(), "codex-1");
+    sender.send((4, CatalogUpdate::Finished(false))).unwrap();
     drop(sender);
     assert!(state.drain_catalog());
-    assert_eq!(state.providers(), ["codex", "amp"]);
+    assert_eq!(state.detected(), ["codex"]);
+    assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
+    assert!(state.providers().contains(&"cursor"));
 }
 
 #[test]
@@ -273,6 +282,7 @@ fn disconnected_catalog_worker_settles_unavailable() {
     let (sender, outcomes) = mpsc::sync_channel(1);
     drop(sender);
     state.catalog_task = Some(CatalogTask {
+        revision: 4,
         outcomes,
         cancelled: Arc::new(AtomicBool::new(false)),
         task: None,
@@ -325,66 +335,73 @@ fn remote_origin_never_publishes_the_local_process_path_as_target_availability()
     state.set_origin(crate::local_client::tests::server::disconnected_remote_origin());
     state.ensure_catalog(std::env::var_os("PATH"));
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
-    assert!(state.providers().is_empty());
+    assert!(state.detected().is_empty());
+    assert!(!state.providers().is_empty());
     assert!(state.catalog_task.is_none());
 }
 
 #[test]
-fn catalog_mapping_deadline_and_cancel_are_deterministic() {
+fn catalog_keeps_partial_results_and_never_guesses_cursor_from_agent() {
     use std::cell::Cell;
-
     let mut observed = Vec::new();
-    let found = catalog::resolve_candidates(
+    let mut found = Vec::new();
+    let complete = catalog::resolve_candidates(
+        crate::agent_provider::CANONICAL_IDS,
         || false,
         |command| {
             observed.push(command.to_owned());
             match command {
-                "codex" | "agent" | "amp" | "maki" | "muse" => catalog::Query::Found,
+                "codex" | "agent" | "amp" => catalog::Query::Found,
+                "pi" => catalog::Query::Unavailable,
                 _ => catalog::Query::Missing,
             }
         },
-    )
-    .unwrap();
-    let expected_commands = crate::agent_provider::CANONICAL_IDS
-        .iter()
-        .filter_map(|provider| crate::agent_provider::executable(provider))
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        observed, expected_commands,
-        "every canonical mapping is queried"
+        |provider| found.push(provider),
     );
-    assert_eq!(found, ["codex", "cursor", "amp", "maki", "muse"]);
-
+    assert!(!complete);
+    assert_eq!(found, ["codex", "amp"]);
+    assert!(!observed.iter().any(|command| command == "agent"));
     let probes = Cell::new(0);
-    assert!(
-        catalog::resolve_candidates(
-            || probes.get() == 2,
-            |_| {
-                probes.set(probes.get() + 1);
-                catalog::Query::Missing
-            },
-        )
-        .is_none(),
-        "a stop verdict interrupts the mapping before another lookup"
-    );
+    assert!(!catalog::resolve_candidates(
+        crate::agent_provider::CANONICAL_IDS,
+        || probes.get() == 2,
+        |_| {
+            probes.set(probes.get() + 1);
+            catalog::Query::Missing
+        },
+        |_| {}
+    ));
     assert_eq!(probes.get(), 2);
-    assert!(
-        catalog::resolve_candidates(|| false, |_| catalog::Query::Unavailable).is_none(),
-        "one unavailable OS lookup makes the whole catalog unavailable"
-    );
-
     let cancelled = AtomicBool::new(true);
-    assert!(
-        catalog::client_path_candidates(None, &cancelled, Instant::now() + CATALOG_DEADLINE,)
-            .is_none(),
-        "pre-cancel returns without starting an OS lookup"
-    );
-    let active = AtomicBool::new(false);
-    assert!(
-        catalog::client_path_candidates(None, &active, Instant::now()).is_none(),
-        "an already-expired catalog budget returns without starting an OS lookup"
-    );
+    assert!(!catalog::client_path_candidates(
+        None,
+        &cancelled,
+        Instant::now() + CATALOG_DEADLINE,
+        |_| panic!("cancelled lookup")
+    ));
+    assert!(!catalog::client_path_candidates(
+        None,
+        &AtomicBool::new(false),
+        Instant::now(),
+        |_| panic!("expired lookup")
+    ));
+}
+
+#[test]
+fn automatic_names_follow_provider_until_edited_and_advance_after_an_attempt() {
+    let mut state = State::new();
+    state.install_catalog(&["claude-code", "codex"]);
+    assert_eq!(state.name(), "claude-1");
+    state.select_provider(1);
+    assert_eq!(state.name(), "codex-1");
+    state.edit(KeyEvent::press(KeyCode::Char('m'), Modifiers::NONE));
+    state.select_provider(0);
+    assert_eq!(state.name(), "m");
+    state.automatic_name = true;
+    state.generation = 1;
+    state.operation = Some(operation(1, panel(1), Phase::Cancelled));
+    state.opened(2);
+    assert_eq!(state.name(), "claude-2");
 }
 
 #[test]

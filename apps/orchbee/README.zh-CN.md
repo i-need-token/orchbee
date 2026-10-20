@@ -210,7 +210,7 @@ Windows Session 中没有 Workspace 或终端内容时，`cd <project>; orchbee`
 及[启动位置](docs/native-context-selection.zh-CN.md#windows-启动偏好)。
 
 前缀键为 `Ctrl+B`，随后按 `|` 左右分屏、`-` 上下分屏、`h/j/k/l` 切换窗格，或 `d` 脱离。
-分屏保留当前焦点。再次运行可执行文件即可重新连接保留的 Session。脱离后 Shell 继续运行；退出的 Shell
+分屏默认聚焦新窗格；设置 `terminal.focus_new_panel = false` 并重启 Client 后可保留当前焦点。再次运行可执行文件即可重新连接保留的 Session。脱离后 Shell 继续运行；退出的 Shell
 仍可观察，直至显式关闭其 Tab/Panel。全部已登记的 Session 进程退出后，再次运行可执行文件会自动开始
 新代，并恢复已有 checkpoint。旧 owner 仍活着或无法证明退出时拒绝启动；当前恢复不接管活 Host。
 `session list` v2 用 `recoverable` 报告受 guard 保护的冷恢复资格。持续 Workbench checkpoint

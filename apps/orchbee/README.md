@@ -231,7 +231,7 @@ another directory does not add a Workspace. See [directory startup](docs/native-
 and [startup position](docs/native-context-selection.md#windows-startup-preference).
 
 The prefix is `Ctrl+B`, followed by `|` for a side-by-side split, `-` for a stacked split,
-`h/j/k/l` for pane focus, or `d` to detach. Splitting preserves the current focus. Run the executable
+`h/j/k/l` for pane focus, or `d` to detach. Splitting focuses the new pane by default; `terminal.focus_new_panel = false` preserves the current focus after restarting the Client. Run the executable
 again to reattach to the retained Session. Detaching leaves shells running; an exited shell remains
 observable until its Tab/Panel is explicitly closed. If every registered Session process has exited,
 running the executable again automatically starts a fresh generation and restores the existing

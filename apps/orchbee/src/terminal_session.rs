@@ -547,6 +547,13 @@ impl TerminalSession {
         }
     }
 
+    #[cfg(windows)]
+    pub(crate) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
+        if let Some(native) = self.backend.native_mut() {
+            native.configure_panel_focus(focus_new_panel);
+        }
+    }
+
     pub(crate) fn automatic_notifications_tick(
         &mut self,
         view: &mut crate::client_view::ClientView,
@@ -1493,6 +1500,28 @@ impl TerminalInputPort for TerminalSession {
     #[cfg(windows)]
     fn tab_drag_source(&mut self) -> Option<crate::tui_pointer::TabDragSource> {
         self.backend.native_mut()?.tab_drag_source()
+    }
+
+    #[cfg(windows)]
+    fn request_drawn_tab_rename(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        tab: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) -> Option<SessionActionDisposition> {
+        self.backend
+            .native_mut()?
+            .request_drawn_tab_rename(source, tab)
+    }
+
+    #[cfg(windows)]
+    fn request_drawn_tab_close(
+        &mut self,
+        source: &crate::action_menu::DrawnTabCreate,
+        tab: &orchbee_workbench_protocol::WorkbenchTabId,
+    ) {
+        if let Some(native) = self.backend.native_mut() {
+            native.request_drawn_tab_close(source, tab);
+        }
     }
 
     #[cfg(windows)]

@@ -39,6 +39,16 @@ impl TerminalInputPort for Port {
     fn tab_drag_source(&mut self) -> Option<TabDragSource> {
         Some(self.source.clone())
     }
+    fn request_drawn_tab_rename(
+        &mut self,
+        source: &DrawnTabCreate,
+        tab: &WorkbenchTabId,
+    ) -> Option<SessionActionDisposition> {
+        assert_eq!(source, &self.source.drawn);
+        assert_eq!(tab, &id(2));
+        self.actions.push(ClientAction::RequestRenameTab);
+        Some(SessionActionDisposition::KeepNavigator)
+    }
     fn commit_tab_drag(&mut self, source: &DrawnTabCreate, operation: TabConfiguration) {
         assert_eq!(source, &self.source.drawn);
         self.writes.push(operation);
@@ -567,4 +577,33 @@ fn pinned_partition_collapsed_group_boundary_and_shift_bypass() {
     assert!(
         matches!(&port.writes[0], TabConfiguration::MoveTabsByDrag { insert_index, group_id: None, .. } if insert_index.value() == 4)
     );
+}
+
+#[test]
+fn second_exact_tab_click_renames_but_focus_loss_cancels_the_pair() {
+    for lose_focus in [false, true] {
+        let (mut pointer, mut port, mut view, _) = fixture(false);
+        for action in [MouseAction::Press, MouseAction::Release] {
+            send(&mut pointer, &mut port, &mut view, action, 12, 0);
+        }
+        if lose_focus {
+            pointer.set_host_focus(false);
+            pointer.set_host_focus(true);
+        }
+        for action in [MouseAction::Press, MouseAction::Release] {
+            send(&mut pointer, &mut port, &mut view, action, 12, 0);
+        }
+        assert_eq!(
+            port.actions,
+            vec![
+                ClientAction::SelectTab(2),
+                if lose_focus {
+                    ClientAction::SelectTab(2)
+                } else {
+                    ClientAction::RequestRenameTab
+                }
+            ]
+        );
+        assert!(port.writes.is_empty());
+    }
 }

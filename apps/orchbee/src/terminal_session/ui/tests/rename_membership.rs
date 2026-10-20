@@ -205,3 +205,28 @@ fn rename_retained_key_consumes_timely_result_after_original_cutoff_without_memb
     assert_eq!(operation.deadline() + Duration::from_secs(950), clock.now());
     mailbox.finish_lease(lease).unwrap();
 }
+
+#[test]
+fn automatic_native_titles_follow_observation_while_fixed_titles_and_status_remain_exact() {
+    for automatic in [false, true] {
+        let mut source = super::super::tests::membership::snapshot(1, 1);
+        source.terminal_contexts[0].tabs[0].automatic_label = automatic;
+        source.terminal_contexts[0].tabs[0].label = "dev server".into();
+        let (ui, _, _, _) = super::super::tests::move_membership::ready_ui_with_snapshot(source);
+        let mut tab = ui.view().tab(0).unwrap();
+        tab.observed_title = Some("claude");
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            assert_eq!(
+                tab.display_label(locale),
+                if automatic { "claude" } else { "dev server" }
+            );
+            if !automatic {
+                assert!(
+                    locale
+                        .native_phase_status(&ui.view())
+                        .starts_with("dev server")
+                );
+            }
+        }
+    }
+}

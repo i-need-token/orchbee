@@ -204,6 +204,7 @@ Agent 尾部折叠共用保留历史的读取/确认/恢复权威。它仅用精
 | `ui.toast.delivery`、旧 `enabled`、`agent_delivery`、`delay_seconds`、`herdr.position`；`ui.sound.enabled`、`ui.sound.agents` | 重载更新手动交付和后续自动反馈；已确认的共享 Agent 模式／全局声音仍具权威，保留各 Agent 静音 |
 | 旧 `theme.name`                                                                                                               | 仅一次填充尚未声明的共享外观；后续 TOML 重载不能覆盖已确认的通用偏好                         |
 | `terminal.default_shell`、`terminal.shell_mode`                                                                               | 重载仅改变后续启动准备；已确认的共享启动配置优先，Windows 通用配置拒绝登录 Shell             |
+| `terminal.focus_new_panel`                                                                                                    | 重启原生 Client 后应用分屏焦点偏好，默认为 true                                              |
 | `terminal.new_cwd`、`worktrees.directory`                                                                                     | Windows CLI 在下一次相关创建调用中读取；不移动现有进程                                       |
 | `session.resume_agents_on_restore`                                                                                            | 仅启动时生效；重载报告 `restartRequired`，不重做恢复                                         |
 | `update.manifest_check`                                                                                                       | 重载更新既有规则检查调度器；自动检查仍遵循受管发布／能力限制                                 |

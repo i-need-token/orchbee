@@ -379,9 +379,8 @@ struct StartFormLayout {
     empty: Rect,
     explanation: Rect,
     catalog: Rect,
-    command: Option<Rect>,
     name: Option<Rect>,
-    providers: Vec<Rect>,
+    providers: Vec<(usize, Rect, String)>,
 }
 
 #[cfg(windows)]
@@ -404,86 +403,75 @@ impl StartFormLayout {
             .checked_add(2)?
             .checked_add(START_NAME_VALUE_COLUMNS.checked_add(4)?)?;
         let name_fits = name_width <= usize::from(body.width);
-        match board.start_catalog_status() {
-            AgentStartCatalogStatus::Loading => Some(Self {
-                empty,
-                explanation,
-                catalog,
-                command: None,
-                name: name_fits.then(|| row(body.y.saturating_add(3))).flatten(),
-                providers: Vec::new(),
-            }),
-            AgentStartCatalogStatus::Unavailable => Some(Self {
-                empty,
-                explanation,
-                catalog,
-                command: row(body.y.checked_add(3)?),
-                name: None,
-                providers: Vec::new(),
-            }),
-            AgentStartCatalogStatus::Ready if board.start_providers().is_empty() => Some(Self {
-                empty,
-                explanation,
-                catalog,
-                command: row(body.y.checked_add(3)?),
-                name: None,
-                providers: Vec::new(),
-            }),
-            AgentStartCatalogStatus::Ready => {
-                if !name_fits {
-                    return None;
-                }
-                let label_width =
-                    u16::try_from(display_width(text.board.start_providers).checked_add(2)?)
-                        .ok()?;
-                if label_width >= body.width {
-                    return None;
-                }
-                let mut y = catalog.y;
-                let mut x = body.x.checked_add(label_width)?;
-                let mut providers = Vec::with_capacity(board.start_providers().len());
-                for provider in board.start_providers() {
-                    let kind = if board.selected_start_provider() == Some(*provider) {
-                        super::controls::ActionKind::Primary
-                    } else {
-                        super::controls::ActionKind::Auxiliary
-                    };
-                    let action = super::controls::ActionSpec::new(
-                        provider,
-                        kind,
-                        super::controls::ControlSurface::Overlay,
-                        interaction_state(
-                            board.start_draft_editable(),
-                            false,
-                            false,
-                            super::controls::PointerPresentation::Rest,
-                        ),
-                    );
-                    let remaining = Rect::new(x, y, body.right().saturating_sub(x), 1);
-                    let rect = super::controls::action_rect(bounds, remaining, action, theme)
-                        .or_else(|| {
-                            y = y.checked_add(1)?;
-                            x = body.x;
-                            let remaining = Rect::new(x, y, body.width, 1);
-                            super::controls::action_rect(bounds, remaining, action, theme)
-                        })?;
-                    if rect.bottom() > body.bottom() {
-                        return None;
-                    }
-                    x = rect.right().checked_add(1)?;
-                    providers.push(rect);
-                }
-                let name = row(y.checked_add(1)?)?;
-                Some(Self {
-                    empty,
-                    explanation,
-                    catalog,
-                    command: None,
-                    name: Some(name),
-                    providers,
-                })
-            }
+        if !name_fits || body.height < 6 {
+            return None;
         }
+        let selected = board
+            .start_providers()
+            .iter()
+            .position(|provider| Some(*provider) == board.selected_start_provider())
+            .unwrap_or(0);
+        let mut providers = Vec::new();
+        let mut y = catalog.y + 1;
+        let mut x = body.x;
+        // A bounded moving window keeps the selected provider visible at every
+        // width; Up/Down reaches all canonical providers, including manual choices.
+        for (index, provider) in board
+            .start_providers()
+            .iter()
+            .enumerate()
+            .skip(selected)
+            .take(5)
+        {
+            let label = format!(
+                "{} {provider}",
+                if index == selected {
+                    theme.glyphs.active_marker
+                } else {
+                    " "
+                }
+            );
+            let kind = if index == selected {
+                super::controls::ActionKind::Primary
+            } else {
+                super::controls::ActionKind::Auxiliary
+            };
+            let action = super::controls::ActionSpec::new(
+                &label,
+                kind,
+                super::controls::ControlSurface::Overlay,
+                interaction_state(
+                    board.start_draft_editable(),
+                    false,
+                    false,
+                    super::controls::PointerPresentation::Rest,
+                ),
+            );
+            let remaining = Rect::new(x, y, body.right().saturating_sub(x), 1);
+            let rect =
+                super::controls::action_rect(bounds, remaining, action, theme).or_else(|| {
+                    y += 1;
+                    x = body.x;
+                    super::controls::action_rect(
+                        bounds,
+                        Rect::new(x, y, body.width, 1),
+                        action,
+                        theme,
+                    )
+                })?;
+            if y > catalog.y + 2 {
+                break;
+            }
+            x = rect.right().saturating_add(1);
+            providers.push((index, rect, label));
+        }
+        Some(Self {
+            empty,
+            explanation,
+            catalog,
+            name: Some(row(catalog.y + 3)?),
+            providers,
+        })
     }
 }
 
@@ -521,13 +509,26 @@ fn render_start_form(
         .style(theme.style(Role::TextSecondary)),
         layout.explanation,
     );
-    let catalog = match board.start_catalog_status() {
-        AgentStartCatalogStatus::Loading => text.board.start_checking.to_owned(),
-        AgentStartCatalogStatus::Unavailable => text.board.start_catalog_unavailable.to_owned(),
-        AgentStartCatalogStatus::Ready if board.start_providers().is_empty() => {
-            text.board.start_none_found.to_owned()
+    let detected = board.detected_start_providers();
+    let catalog = if detected.is_empty() {
+        match board.start_catalog_status() {
+            AgentStartCatalogStatus::Loading => text.board.start_checking.to_owned(),
+            AgentStartCatalogStatus::Unavailable => text.board.start_catalog_unavailable.to_owned(),
+            AgentStartCatalogStatus::Ready => text.board.start_none_found.to_owned(),
         }
-        AgentStartCatalogStatus::Ready => format!("{}:", text.board.start_providers),
+    } else {
+        let pending = match board.start_catalog_status() {
+            AgentStartCatalogStatus::Loading => format!(" · {}", text.board.start_checking),
+            AgentStartCatalogStatus::Unavailable => {
+                format!(" · {}", text.board.start_catalog_unavailable)
+            }
+            AgentStartCatalogStatus::Ready => String::new(),
+        };
+        format!(
+            "{}: {}{pending}",
+            text.board.start_providers,
+            detected.join(", ")
+        )
     };
     frame.render_widget(
         Paragraph::new(truncate_display(
@@ -538,30 +539,15 @@ fn render_start_form(
         .style(theme.style(Role::TextSecondary)),
         layout.catalog,
     );
-    if let Some(command) = layout.command {
-        frame.render_widget(
-            Paragraph::new(truncate_display(
-                text.board.empty_start_command,
-                usize::from(command.width),
-                theme.glyphs.ellipsis,
-            ))
-            .style(theme.style(Role::TextDisabled)),
-            command,
-        );
-    }
-    for (index, (provider, rect)) in board
-        .start_providers()
-        .iter()
-        .zip(&layout.providers)
-        .enumerate()
-    {
+    for (index, rect, label) in &layout.providers {
+        let provider = board.start_providers()[*index];
         let enabled = board.start_draft_editable();
-        let kind = if board.selected_start_provider() == Some(*provider) {
+        let kind = if board.selected_start_provider() == Some(provider) {
             super::controls::ActionKind::Primary
         } else {
             super::controls::ActionKind::Auxiliary
         };
-        let target = draw.control_target(AgentBoardControl::StartProvider(index));
+        let target = draw.control_target(AgentBoardControl::StartProvider(*index));
         let interaction = InteractionTarget::AgentBoardControl(target);
         let spec = if enabled {
             InteractionSpec::enabled(PrimaryContract::ActivateOnRelease)
@@ -576,7 +562,7 @@ fn render_start_form(
             spec,
         ));
         let action = super::controls::ActionSpec::new(
-            provider,
+            label,
             kind,
             super::controls::ControlSurface::Overlay,
             interaction_state(enabled, false, false, pointer),
@@ -653,10 +639,8 @@ fn start_status(
         Some(AgentStartPhase::Failed) => (text.board.start_failed, Role::StatusError),
         Some(AgentStartPhase::Unknown) => (text.board.start_unknown, Role::StatusWarning),
         Some(AgentStartPhase::Cancelled) => (text.board.start_cancelled, Role::StatusWarning),
-        None if board.start_catalog_status() == AgentStartCatalogStatus::Ready
-            && !board.start_providers().is_empty()
-            && orchbee_agent_observation_protocol::AgentName::parse(board.start_name())
-                .is_err() =>
+        None if orchbee_agent_observation_protocol::AgentName::parse(board.start_name())
+            .is_err() =>
         {
             (text.board.start_name_invalid, Role::StatusInfo)
         }

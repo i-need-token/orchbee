@@ -170,3 +170,48 @@ pub(super) fn render(
     );
     (layout.area, ModalPresentation::Presented(draft.token()))
 }
+
+/// Same draft, input owner, and shown token as the full editor, anchored to its tab.
+#[cfg(windows)]
+pub(super) fn render_inline(
+    frame: &mut Frame<'_>,
+    locale: Locale,
+    draft: &NativeRenameDraftView<'_>,
+    area: Rect,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> (Rect, ModalPresentation<NativeRenameDraftToken>) {
+    let width = usize::from(area.width.saturating_sub(4));
+    let Some(window) = draft
+        .field_window(width)
+        .filter(|_| width >= 4 && frame.area().intersection(area) == area)
+    else {
+        return (Rect::default(), ModalPresentation::NotPresented);
+    };
+    let text = if draft.automatic_label() && draft.text().is_empty() {
+        truncate_display(
+            &sanitize_terminal_text(&draft.target_label(locale)),
+            width,
+            theme.glyphs.ellipsis,
+        )
+    } else {
+        window.display().to_owned()
+    };
+    let role = if draft.input_fault() || !draft.label_valid() && !draft.text().is_empty() {
+        Role::StatusError
+    } else {
+        Role::AccentFocus
+    };
+    hits.start_modal();
+    hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        Paragraph::new(format!("[ {text} ]")).style(theme.style(role)),
+        area,
+    );
+    frame.set_cursor_position((
+        area.x + 2 + u16::try_from(window.cursor_column()).unwrap_or(0),
+        area.y,
+    ));
+    (area, ModalPresentation::Presented(draft.token()))
+}

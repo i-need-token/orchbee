@@ -1134,6 +1134,7 @@ pub(super) struct NativeSessionState {
     next_incarnation: u32,
     reconcile_deadlines: Option<OperationDeadlines>,
     latest_geometry: Geometry,
+    focus_new_panel: bool,
     notice: Option<SessionNotice>,
     pending_refresh: Option<PendingRefreshFlight>,
     publication_debt: PublicationDebt,
@@ -1285,6 +1286,7 @@ impl NativeSessionState {
             next_incarnation: 1,
             reconcile_deadlines: None,
             latest_geometry: geometry,
+            focus_new_panel: true,
             notice: None,
             pending_refresh: None,
             publication_debt: PublicationDebt::Clean,
@@ -1524,6 +1526,10 @@ impl NativeSessionState {
             | SessionPhase::RetryableAttachUnavailable(_)
             | SessionPhase::Retired(_) => None,
         }
+    }
+
+    pub(super) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
+        self.focus_new_panel = focus_new_panel;
     }
 
     pub(super) const fn latest_geometry(&self) -> Geometry {
@@ -3054,9 +3060,15 @@ impl NativeSessionState {
         };
         // The Tab survives but the selected leaf vanished (for example after our own panel.close):
         // repair the selection to a surviving leaf through the membership path instead of retiring.
-        let leaf_repair = active
+        let leaf_repair = self
+            .panel_recovery
             .as_ref()
-            .and_then(|active| self.selected_leaf_repair_index(&candidate, active));
+            .and_then(|pending| pending.focus_index(&candidate))
+            .or_else(|| {
+                active
+                    .as_ref()
+                    .and_then(|active| self.selected_leaf_repair_index(&candidate, active))
+            });
         if active
             .as_ref()
             .is_none_or(|active| candidate.tab_index(active.key.anchor().tab_id()).is_none())

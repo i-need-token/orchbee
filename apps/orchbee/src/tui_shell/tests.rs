@@ -1117,11 +1117,6 @@ mod window_title;
 #[test]
 fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forwarding_input() {
     use crate::terminal_text::display_width;
-    use crate::tui_render::controls::{
-        ActionKind, ActionSpec, Availability, CheckedState, ControlSurface, CurrentState,
-        FocusState, InteractionState, NavigationState, OperationState, PointerPresentation,
-        action_rect,
-    };
     use crate::tui_theme::{ColorLevel, Role, Theme};
     use orchbee_local_site_runtime::WindowsThemeName;
     for (width, height) in [(80, 24), (120, 40), (70, 18), (40, 10), (18, 4)] {
@@ -1144,52 +1139,6 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                 (WindowsThemeName::TerminalNative, Theme::terminal_native()),
             ] {
                 view.configure_theme(name);
-                let menu_button = if matches!(
-                    areas.tier,
-                    crate::tui_layout::ViewportTier::Minimal
-                        | crate::tui_layout::ViewportTier::TooSmall
-                ) || !areas.tabs.is_empty()
-                {
-                    None
-                } else {
-                    let state = InteractionState::new(
-                        FocusState::Unfocused,
-                        PointerPresentation::Rest,
-                        NavigationState::None,
-                        CurrentState::NotCurrent,
-                        CheckedState::Unchecked,
-                        Availability::Enabled,
-                        OperationState::Idle,
-                    );
-                    let action = ActionSpec::new(
-                        locale.menu_title(),
-                        ActionKind::Secondary,
-                        ControlSurface::Chrome,
-                        state,
-                    );
-                    let measurement = ratatui::layout::Rect::new(0, 0, u16::MAX, 1);
-                    action_rect(measurement, measurement, action, &expected).and_then(|measured| {
-                        let button_width = measured.width;
-                        if areas.workbench.width >= button_width.saturating_add(2)
-                            && areas.workbench.height > 1
-                        {
-                            let offered = ratatui::layout::Rect::new(
-                                areas.workbench.right() - button_width - 1,
-                                areas.workbench.y,
-                                button_width,
-                                1,
-                            );
-                            action_rect(
-                                to_area(dimensions(width, height)),
-                                offered,
-                                action,
-                                &expected,
-                            )
-                        } else {
-                            None
-                        }
-                    })
-                };
                 assert!(
                     super::draw_surface(
                         &mut terminal,
@@ -1211,7 +1160,7 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     "{context} {name:?}: geometry"
                 );
                 // This sessionless fixture has canvas beneath the unavailable notice and panel
-                // frame. Chrome owns the projected bars, sidebar, and the global menu control.
+                // frame. Chrome owns the projected bars and sidebar.
                 for y in 0..height {
                     let mut x = 0;
                     while x < width {
@@ -1223,7 +1172,6 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                             || areas
                                 .sidebar
                                 .is_some_and(|sidebar| sidebar.area.contains(position))
-                            || menu_button.is_some_and(|button| button.contains(position))
                         {
                             Role::SurfaceChrome
                         } else {

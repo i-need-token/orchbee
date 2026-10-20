@@ -1850,9 +1850,6 @@ impl InputDispatcher {
                                     if Self::projected_capture(view, port).is_none() {
                                         let action = match action {
                                             crate::tui_pointer::GlobalChromeAction::Onboarding(action) => view.onboarding.visible.then(|| action.client()),
-                                            crate::tui_pointer::GlobalChromeAction::OpenMenu => {
-                                                Some(ClientAction::OpenActionMenu)
-                                            }
                                             crate::tui_pointer::GlobalChromeAction::RestoreSidebar
                                                 if view.machines.available
                                                     && view.sidebar_surface()
@@ -1906,6 +1903,11 @@ impl InputDispatcher {
                                             after_layout(view, port)?;
                                         }
                                     }
+                                }
+                                #[cfg(windows)]
+                                InteractionTarget::TabCloseRequest { source, tab } => {
+                                    self.menu_packet = true;
+                                    port.request_drawn_tab_close(&source, &tab);
                                 }
                                 #[cfg(windows)]
                                 InteractionTarget::TabCreate(target) => {

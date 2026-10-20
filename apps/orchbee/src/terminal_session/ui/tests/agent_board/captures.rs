@@ -459,7 +459,7 @@ fn empty_board_without_a_client_path_candidate_keeps_the_manual_route_in_both_lo
     bootstrap(&mut ui, &mailbox, &clock);
     ready(&mut ui);
     install_capture_empty_read(&mut ui);
-    ui.board.install_start_draft_t(&[], "");
+    ui.board.install_start_draft_t(&[], "manual-1");
     let theme = crate::tui_theme::Theme::terminal_native();
 
     for locale in [
@@ -475,9 +475,16 @@ fn empty_board_without_a_client_path_candidate_keeps_the_manual_route_in_both_lo
             .join(" ");
         let board_text = locale.shell().board;
         assert!(normalized.contains(board_text.start_none_found));
-        assert!(normalized.contains(board_text.empty_start_command));
-        assert!(!ui.agent_board_view().unwrap().can_start_agent());
+        assert!(normalized.contains("manual-1"));
+        assert!(normalized.contains("pi"));
+        assert!(!normalized.contains(board_text.empty_start_command));
+        assert!(
+            frame
+                .control_hit(AgentBoardControl::StartProvider(0))
+                .is_some()
+        );
         frame.settle(&mut ui);
+        assert!(ui.agent_board_view().unwrap().can_start_agent());
     }
 }
 

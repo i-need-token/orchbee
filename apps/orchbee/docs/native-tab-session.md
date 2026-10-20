@@ -859,7 +859,7 @@ structural panel commands through the same mailbox mutation admission, typed set
 pending-commit retention, and publication-refresh recovery used by Tab operations; the bindings
 are provisional pending the input-design review and may be rebound. `-`, `_`, `\`, and `|` submit
 `panel.split` on the focused leaf in the Below / Above / Left / Right direction — the glyph set
-follows the input-vocabulary draft table — carry the leaf's existing presentation label, and use
+follows the input-vocabulary draft table — assign the next available numeric creation label, and use
 the Client's real controlling cell/pixel geometry rather than a fabricated size. `X` arms the
 leaf-scoped panel-close confirmation on the focused leaf under
 [native panel close confirmation](native-panel-close-confirmation.md): only a drawn, still-valid
@@ -2314,3 +2314,5 @@ selection, later binding, cleanup and absence of invented attachment effects. Re
 the empty state and ordinary member controls. They do not establish real provider or multi-Client
 visual acceptance; those remain final Windows validation obligations. No new wire contract,
 persistence or physical process owner is introduced.
+
+Native splits focus the committed new Panel by default. The operation freezes this preference, and both the initial validated snapshot and later recovery resolve the new Panel ID through the paired membership cleanup/install path. If the new Panel has already disappeared, normal surviving-leaf repair applies. Peer splits preserve local focus. The Windows startup setting `terminal.focus_new_panel = false` retains the original selection; changing it requires restarting the Client.

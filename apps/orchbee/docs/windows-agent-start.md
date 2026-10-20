@@ -30,17 +30,20 @@ budget proceed to canonical readiness. On success the text result names the
 `agent prompt --name <name>` next step.
 
 After a complete empty read, the [Agent board](agent-board.md) runs fixed System32 `where.exe`
-queries for the commands mapped by `agent_provider::executable()`. The helper owns no output pipe.
-After fixed local process creation and suspended assignment, it runs in a kill-on-close Windows Job
-and shares one absolute catalog deadline; cancellation requests Job termination and confirms process
-exit within a fixed teardown slot. The resulting `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` matches
-are only Client-PATH candidates. This includes the
-canonical `amp`, `maki` and `muse` identities; aliases do not add kinds. A candidate does not prove
-the target terminal inherited the same PATH or that the provider can start there. This local PATH
-is not evidence for a tunneled Session, so a remote origin keeps the catalog unavailable and offers
-only the manual CLI path. The form accepts the same bounded Agent name and
-injects the exact focused Panel id when keyboard or pointer activation is accepted. It neither reads
-caller-context environment variables nor starts a subprocess adapter.
+queries through `agent_provider::detection_executable()`. Up to four scoped workers publish individual
+candidates into a mailbox bounded by the provider count plus one final verdict. Queries have a 900 ms
+run slot and 600 ms teardown allowance inside one six-second catalog deadline. A partial or failed
+round retains its found candidates and the manual form. Each helper owns no output pipe and runs in
+a kill-on-close Windows Job after fixed local process creation and suspended assignment. All workers
+join before the catalog owner exits; UI retirement only reaps exited owners.
+
+The `.exe`, `.com`, `.cmd`, `.bat` and `.ps1` matches are Client-PATH hints, never target availability
+proof. Generic command `agent` is excluded from automatic detection: [Cursor uses that command](https://prod.cursor.com/docs/cli/installation),
+but other providers can install the same basename. Cursor stays manually selectable using its existing
+launch mapping. A remote origin performs no Client-PATH lookup and also offers manual selection.
+The form supplies an editable automatic name and injects the exact focused Panel ID after current-draw
+admission. Manual choices use the same reserve, preflight, single-submit and readiness owners. No caller
+context environment variable or subprocess adapter is introduced.
 
 Fixed local System32 process creation and suspended Job assignment are synchronous Windows ownership
 primitives which application cancellation cannot interrupt. After the owned child is returned, every
@@ -61,8 +64,8 @@ wait expires is labeled unconfirmed, with instructions to check terminal prompts
 Pinned canonical attention requests update a non-capturing notice and the reopened board while the
 background workflow keeps observing within its original deadline. Clearing attention can complete the
 same reservation; it never submits again. The CLI retains its existing blocked-start refusal. The board does not install Agents or
-change integration/default configuration. When discovery finds nothing, it shows the CLI syntax as
-the manual path without claiming any provider is available. Cancellation wakes process sampling and
+change integration/default configuration. When discovery finds nothing, manual selection remains
+available without claiming that any provider was detected. Cancellation wakes process sampling and
 the single send exchange, but an in-progress Windows process-creation/Job-assignment call and a
 best-effort reservation release of at most one second can still delay teardown; cancellation is not
 instantaneous.

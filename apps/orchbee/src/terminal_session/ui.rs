@@ -319,6 +319,7 @@ pub(crate) enum NativeDisplayRetirement {
 #[derive(Clone, Copy)]
 pub(crate) struct NativeTabView<'a> {
     inner: StateTabView<'a>,
+    observed_title: Option<&'a str>,
     resize: Option<&'a crate::tui_layout::ResizeProjection>,
 }
 
@@ -360,13 +361,16 @@ impl<'a> NativeTabView<'a> {
         self.inner.tab_label()
     }
 
-    /// Localizes automatic Tab chrome while retaining exact fixed names.
+    /// Uses observed terminal titles for automatic chrome; fixed names remain exact.
     pub(crate) fn display_label(
         &self,
         locale: crate::localization::Locale,
     ) -> std::borrow::Cow<'a, str> {
         if self.inner.automatic_label() {
-            locale.automatic_tab_label(self.position()).into()
+            self.observed_title.map_or_else(
+                || locale.automatic_tab_label(self.position()).into(),
+                std::borrow::Cow::Borrowed,
+            )
         } else {
             self.tab_label()
         }
@@ -616,6 +620,41 @@ impl<'a> NativeSessionView<'a> {
 
     pub(crate) fn tab(&self, index: usize) -> Option<NativeTabView<'a>> {
         self.state.as_ref()?.tab(index).map(|inner| NativeTabView {
+            observed_title: inner
+                .active_panel()
+                .or(Some(0))
+                .and_then(|index| inner.panel(index))
+                .and_then(|panel| {
+                    let member = self.selected_presentation(panel);
+                    member
+                        .custom_label()
+                        .or_else(|| {
+                            (self.retirement.is_none()
+                                && self.pane_projection_status(panel.panel_id())
+                                    == NativeProjectionStatus::FrameAvailable)
+                                .then(|| self.pane_projection(panel.panel_id()))
+                                .flatten()
+                                .and_then(|projection| projection.frame())
+                                .and_then(|frame| frame.title.as_deref())
+                                .and_then(crate::terminal_title::stripped)
+                        })
+                        .or_else(|| {
+                            (!inner.active() && self.retirement.is_none())
+                                .then(|| {
+                                    self.retained_frames.as_ref()?.title(inner.tab_id(), panel)
+                                })
+                                .flatten()
+                        })
+                        .or_else(|| {
+                            self.state
+                                .as_ref()?
+                                .launch_description(panel)?
+                                .executable
+                                .as_deref()
+                                .and_then(|program| program.rsplit(['/', '\\']).next())
+                        })
+                        .filter(|label| !label.trim().is_empty())
+                }),
             inner,
             resize: self.resize,
         })
@@ -1217,6 +1256,7 @@ enum ActionBuildError {
 }
 
 pub(super) struct NativeUi {
+    focus_new_panel: bool,
     settings: settings::Coordinator,
     #[cfg(windows)]
     launch_profiles: launch_profiles::Coordinator,
@@ -1343,6 +1383,11 @@ impl NativeUi {
     pub(super) fn configuration_clock(&self) -> LocalOperationClock {
         self.clock.clone()
     }
+    #[cfg(windows)]
+    pub(super) fn configure_panel_focus(&mut self, focus_new_panel: bool) {
+        self.focus_new_panel = focus_new_panel;
+    }
+
     pub(super) fn new(mailbox: Arc<CommandMailbox>, clock: LocalOperationClock) -> Self {
         Self {
             mailbox: Some(mailbox),
@@ -1352,6 +1397,7 @@ impl NativeUi {
             #[cfg(windows)]
             menus: action_menus::Coordinator::default(),
             settings: settings::Coordinator::default(),
+            focus_new_panel: true,
             #[cfg(windows)]
             launch_profiles: launch_profiles::Coordinator::default(),
             preferences: orchbee_workbench_protocol::UserPreferencesValues::default(),
@@ -3331,6 +3377,7 @@ impl NativeUi {
         else {
             return SessionActionDisposition::KeepNavigator;
         };
+        state.configure_panel_focus(self.focus_new_panel);
         let result = mailbox.try_enqueue_panel_for(
             state,
             deadline,

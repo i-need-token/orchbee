@@ -119,6 +119,8 @@ pub(in crate::tui_render) fn render<C, P, R>(
             {
                 label.push_str(" ]");
             }
+            // Stable three-cell close track; pointer movement never resizes tabs.
+            label.push_str("   ");
             tokens.push(Token {
                 index,
                 active: item.tab.active,
@@ -179,7 +181,14 @@ pub(in crate::tui_render) fn render<C, P, R>(
         } else {
             ""
         };
-        let label = truncate_display(&token.label, budget, marker);
+        let close_width = usize::from(token.color.is_none() && budget >= 7) * 3;
+        let label = if close_width > 0 {
+            let body = token.label.strip_suffix("   ").unwrap_or(&token.label);
+            let body = truncate_display(body, budget - close_width, marker);
+            format!("{body}   ")
+        } else {
+            truncate_display(&token.label, budget, marker)
+        };
         let cells = display_width(&label);
         if cells == 0 {
             break;

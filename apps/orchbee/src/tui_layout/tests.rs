@@ -262,7 +262,10 @@ fn single_and_zoomed_terminals_keep_every_panel_row_while_split_frames_keep_thei
             panel.width.saturating_sub(u16::from(panel.width > 1)),
             panel.height,
         );
-        assert_eq!(native_terminal_area(panel, true, false), content);
+        assert_eq!(
+            native_terminal_area(panel, true, false),
+            pane_content(terminal_area(panel, true))
+        );
         assert_eq!(native_terminal_area(panel, false, false), content);
         assert_eq!(native_terminal_area(panel, false, true), content);
         assert_eq!(

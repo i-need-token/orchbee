@@ -100,6 +100,7 @@ pub struct WindowsUserSettings {
     pub notifications: WindowsNotificationSettings,
     pub keys: WindowsKeySettings,
     pub shell: WindowsShellSettings,
+    pub focus_new_panel: bool,
     pub path: Option<PathBuf>,
     pub exists: bool,
     pub explicit: bool,
@@ -155,6 +156,7 @@ impl Default for WindowsUserSettings {
             notifications: WindowsNotificationSettings::default(),
             keys: WindowsKeySettings::default(),
             shell: WindowsShellSettings::default(),
+            focus_new_panel: true,
             path: None,
             exists: false,
             explicit: false,
@@ -612,6 +614,16 @@ fn parse_terminal(
                 WindowsSettingsDiagnosticDisposition::Ignored
             },
         );
+    }
+    if let Some(value) = table.get("focus_new_panel") {
+        match value.as_bool() {
+            Some(value) => settings.focus_new_panel = value,
+            None => diagnostics.push(
+                "terminal.focus_new_panel",
+                "wrong-type",
+                WindowsSettingsDiagnosticDisposition::Defaulted,
+            ),
+        }
     }
     let mut executable = String::new();
     if let Some(value) = table.get("default_shell") {

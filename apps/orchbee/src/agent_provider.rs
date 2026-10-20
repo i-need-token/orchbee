@@ -48,6 +48,12 @@ pub(crate) fn executable(canonical: &str) -> Option<&'static str> {
     })
 }
 
+/// A generic command name is not enough evidence to advertise a provider as installed.
+#[cfg(windows)]
+pub(crate) fn detection_executable(canonical: &str) -> Option<&'static str> {
+    executable(canonical).filter(|command| *command != "agent")
+}
+
 /// The `agent integration --provider` identity that manages a canonical
 /// interactive identity, when a managed integration exists for it.
 pub(crate) fn integration_id(canonical: &str) -> Option<&'static str> {

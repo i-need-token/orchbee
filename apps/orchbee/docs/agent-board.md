@@ -40,25 +40,29 @@ edges — open and close — invalidate the published pointer hit map, so a clic
 vanished board row or pass through the overlay onto a stale foreground region. Notifications,
 task sending, scheduling, persistence and new Panel creation are excluded.
 
-On Windows, after a complete empty list, the board asks a fixed System32 `where.exe` helper for
-canonical commands on the Client process's inherited `PATH`. The helper runs off the input thread
-with no output pipe. Once fixed local process creation and suspended Job assignment return, an owned
-Windows Job gives its waits one absolute deadline and bounded process-tree termination. The listed
-providers are Client-PATH candidates: they do not prove that the exact target terminal has
-the same environment or that the provider can start. A tunneled Session never treats the local
-Client's PATH as target evidence, so its catalog remains unavailable and shows the manual CLI path.
-The user selects one candidate, enters a bounded Agent name and activates **Start Agent** with
+On Windows, after a complete empty list, the board queries mapped commands on the Client's inherited
+`PATH` using fixed System32 `where.exe` helpers. At most four owned workers run concurrently, with a
+six-second shared deadline, a 900 ms lookup slot and bounded Job termination. Results publish one at
+a time; a missing, failed or timed-out lookup never discards other results. The input thread only
+consumes bounded messages and reaps exited owners. Generic `agent` is not enough evidence for Cursor,
+so Cursor remains a manual choice and is not advertised as detected from that filename.
+Detected commands are hints about this Client's PATH, not guarantees about the target terminal.
+A remote Session performs no local PATH detection. All canonical providers remain manually selectable
+while detection is loading, unavailable or empty; a bounded moving button window and Up/Down expose
+the choices, with a visible selected marker even without color. The form suggests an editable
+command-based name such as `claude-1`; provider changes update an untouched suggestion, typing replaces
+it, and later attempts advance the local sequence. The server reservation remains the uniqueness
+check, including other Clients. The user activates **Start Agent** with
 `Enter` or the pointer. Both keyboard Start and Cancel require a current successful draw. Activation
 injects the exact currently focused Panel id and runs the same typed reserve, single-submission and hook-readiness
-workflow as the CLI. It never installs a provider, changes integration/default configuration or
-selects an absent command. Accepted startup closes the overlay and restores terminal input immediately. The background task keeps one five-minute deadline, reports pinned canonical attention as input needed, and continues observing after the user responds. Startup notices and the reopened board share the same typed phase. A fully sent command that times out remains unconfirmed and non-retryable; a lost delivery receipt remains unknown. An active or retained startup result replaces empty-session guidance and remains visible alongside any canonical rows. Closing the overlay leaves accepted startup work running; `c` or the
+workflow as the CLI. It never installs a provider or changes integration/default configuration;
+manual selection does not bypass terminal preflight or canonical readiness. Accepted startup closes the overlay and restores terminal input immediately. The background task keeps one five-minute deadline, reports pinned canonical attention as input needed, and continues observing after the user responds. Startup notices and the reopened board share the same typed phase. A fully sent command that times out remains unconfirmed and non-retryable; a lost delivery receipt remains unknown. An active or retained startup result replaces empty-session guidance and remains visible alongside any canonical rows. Closing the overlay leaves accepted startup work running; `c` or the
 visible cancel control is the explicit cancellation path. Cancellation wakes cancellable reads and
 the one send exchange; teardown can still wait for an already-running Windows process-creation or
 Job-assignment call and the best-effort reservation release of at most one second, so cancellation
 is not instantaneous. Generation and Panel identity reject stale completion, and an uncertain
-mutation or input is never replayed. If no supported command candidate is found,
-the form stays disabled and shows `orchbee agent start <name> --provider <provider> --current` as the
-manual path. An empty incomplete read is labeled as partial rather than as proof that no sessions
+mutation or input is never replayed. Empty or failed detection leaves the form available for an
+explicit manual choice. An empty incomplete read is labeled as partial rather than as proof that no sessions
 exist. See [Windows Agent startup](windows-agent-start.md) for readiness and target requirements.
 
 Closing or superseding a catalog cancels its owner and moves it to a retirement queue. The input
@@ -114,7 +118,7 @@ Only a result that proves zero input and a settled reservation becomes retryable
 | Request jump   | Select by opaque session id; a lane `Get` revalidates the target after the current bounded List under its own deadline and 128 KiB bound. A newer request supersedes the logical jump immediately while the superseded `Get` drains its lane credit.                                                                                                              |
 | Resolve stages | Re-resolve context, then Tab, then Panel against current canonical identity at every stage; same-context attached viewers focus locally, otherwise attach/switch. If no canonical snapshot has fed the presentation index yet, resolution waits inside the jump's own deadline and asks the session for a refresh — an unfed index is not proof of `Gone`.        |
 | Land           | Install the exact requested Panel including non-zero indices; a retired or missing target reports `TargetGone` and never falls back. A target in the already-active Tab whose viewer is dead reattaches in place — a fresh-generation switch at the same position, by stable Panel identity — while a live same-Tab target stays a no-op.                         |
-| Start Agent    | A complete empty read plus a current successful draw admits one valid name, one Client-PATH candidate and the exact focused Panel. The background workflow reserves once, submits input once and waits for canonical readiness under one absolute deadline. A generation/Panel mismatch drops the completion.                                                     |
+| Start Agent    | A complete empty read plus a current successful draw admits one valid name, one canonical provider and the exact focused Panel. The background workflow reserves once, submits input once and waits for canonical readiness under one absolute deadline. A generation/Panel mismatch drops the completion.                                                        |
 | Close          | Invalidate the board generation, cancel read/jump intents and reclaim that lane after actual exit. An accepted startup task remains Session-owned and keeps running; only explicit cancel or Session teardown wakes it.                                                                                                                                           |
 
 Rows from different revisions are never spliced. An incomplete read retains `last_good` marked

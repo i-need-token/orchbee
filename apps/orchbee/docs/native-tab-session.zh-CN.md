@@ -698,7 +698,7 @@ Workbench 修订，也绝不提交
 变更准入、typed 结算、pending-commit 保留及 publication 刷新恢复路径，提交三个结构性
 panel 命令；键位为临时绑定，待输入设计裁决后可能重绑。`-`、`_`、`\`、`|` 对焦点叶子按
 Below / Above / Left / Right 方向提交 `panel.split`——键形遵循 input-vocabulary 草案表——
-沿用叶子现有 presentation label，并使用 Client 真实的控制 cell/pixel 几何，绝不伪造尺寸。
+分配下一个可用的数字创建标签，并使用 Client 真实的控制 cell/pixel 几何，绝不伪造尺寸。
 `X` 对焦点叶子武装叶子作用域的 panel 关闭确认
 （[原生 panel 关闭确认](native-panel-close-confirmation.zh-CN.md)）：只有已绘制且仍有效的确认
 才对冻结叶子准入普通 `panel.close`——完整绘制后 `Enter` 确认、`Esc` 取消——被确认的 close 经普通
@@ -1866,3 +1866,5 @@ Session 独立于附着保留精确 Presentation ID。选中的空成员使用 `
 投影、Session 与原生线协议测试覆盖空/混合结构、精确空子成员选择、后续绑定、清理和
 不存在虚构附着副作用。渲染测试覆盖空状态和普通成员控件。这些测试不证明真实 provider
 或多 Client 视觉验收；后者仍属最终 Windows 验证义务。不引入新线协议、持久化或物理进程所有者。
+
+原生分屏默认聚焦已提交的新 Panel。操作冻结此偏好，首次有效快照和后续恢复均按新 Panel ID 通过配对的成员清理／安装流程切换；新 Panel 已消失时执行普通的存续叶子修复。对端分屏保留本地焦点。Windows 启动设置 `terminal.focus_new_panel = false` 保留原选择，修改后需重启 Client。
