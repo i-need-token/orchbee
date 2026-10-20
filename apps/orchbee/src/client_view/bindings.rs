@@ -408,7 +408,10 @@ pub(crate) static PREFIX_GROUPS: &[PrefixGroup] = &[
     },
     #[cfg(windows)]
     PrefixGroup {
-        members: &[member(shift_key('b'), ClientAction::FocusBusinessSidebar)],
+        members: &[
+            member(key(KeyCode::Tab), ClientAction::FocusBusinessSidebar),
+            member(shift_key('b'), ClientAction::FocusBusinessSidebar),
+        ],
         desc: PrefixDesc::SidebarFocus,
     },
     PrefixGroup {

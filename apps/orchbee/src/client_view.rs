@@ -722,6 +722,10 @@ impl ClientView {
         self.prefix_active
     }
 
+    pub(crate) fn cancel_prefix(&mut self) {
+        self.prefix_active = false;
+    }
+
     /// Whether pane resize mode currently owns ordinary Client input.
     pub(crate) const fn resize_mode(&self) -> bool {
         #[cfg(windows)]
@@ -1401,8 +1405,9 @@ impl ClientView {
             }
             #[cfg(windows)]
             ClientAction::FocusBusinessSidebar => {
+                let was_active = self.machines.sidebar_navigation_active();
                 self.dismiss_focus_modes();
-                if self.machines.available {
+                if self.machines.available && !was_active {
                     match self.viewport {
                         ViewportClass::Wide => self.wide_sidebar_visible = true,
                         ViewportClass::Narrow => {

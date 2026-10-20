@@ -149,7 +149,7 @@ fn en_us_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::MovePanel => "Move focused Panel to that side (requires session)",
         PrefixDesc::SidebarToggle => "Toggle business sidebar",
         #[cfg(windows)]
-        PrefixDesc::SidebarFocus => "Focus sidebar navigation",
+        PrefixDesc::SidebarFocus => "Switch sidebar / terminal focus",
         PrefixDesc::NavigatorToggle => "Toggle Workbench navigator",
         PrefixDesc::BoardToggle => "Toggle the Agent board",
         PrefixDesc::ShowHelp => "Open or close this shortcut help",
@@ -243,7 +243,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::MovePanel => "将焦点 Panel 移向该侧（需要会话）",
         PrefixDesc::SidebarToggle => "切换业务侧边栏",
         #[cfg(windows)]
-        PrefixDesc::SidebarFocus => "聚焦侧栏导航",
+        PrefixDesc::SidebarFocus => "切换侧栏／终端焦点",
         PrefixDesc::NavigatorToggle => "切换 Workbench 导航器",
         PrefixDesc::BoardToggle => "切换智能体看板",
         PrefixDesc::ShowHelp => "打开或关闭此快捷键帮助",

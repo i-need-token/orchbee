@@ -33,6 +33,10 @@ pub(crate) struct InputDispatcher {
     pointer_admission: crate::terminal_pointer_admission::Probe,
     host_appearance: crate::terminal_host_appearance::Probe,
     pointer_capture: PointerCaptureRequest,
+    /// A real button-free report is independent of optional DECRQM support on
+    /// the admitted Windows console endpoint. It grants presentation only.
+    #[cfg(windows)]
+    native_motion_observed: bool,
     /// A failed level switch may have emitted a prefix. Runtime must exit and
     /// lifecycle cleanup must settle it; input never retries that transition.
     pointer_transition_failed: bool,
@@ -325,6 +329,21 @@ impl InputDispatcher {
         }
     }
 
+    fn pointer_observability(&self, request: PointerCaptureRequest) -> MotionObservability {
+        match request {
+            PointerCaptureRequest::AnyMotion => MotionObservability::AnyMotion,
+            #[cfg(windows)]
+            PointerCaptureRequest::MenuMotion => MotionObservability::AnyMotion,
+            #[cfg(windows)]
+            PointerCaptureRequest::ButtonOnly if self.native_motion_observed => {
+                MotionObservability::AnyMotion
+            }
+            PointerCaptureRequest::Release | PointerCaptureRequest::ButtonOnly => {
+                MotionObservability::ButtonOnly
+            }
+        }
+    }
+
     /// Global motion follows capability admission. An already armed capturing menu may also
     /// request motion with button fallback; a released pointer is never implicitly re-armed.
     /// Every mode effect precedes publication, including menu exit and late probe settlement.
@@ -362,14 +381,8 @@ impl InputDispatcher {
             return Err(error);
         }
         self.pointer_capture = request;
-        self.pointer.set_motion_observability(match request {
-            PointerCaptureRequest::AnyMotion => MotionObservability::AnyMotion,
-            #[cfg(windows)]
-            PointerCaptureRequest::MenuMotion => MotionObservability::AnyMotion,
-            PointerCaptureRequest::Release | PointerCaptureRequest::ButtonOnly => {
-                MotionObservability::ButtonOnly
-            }
-        });
+        self.pointer
+            .set_motion_observability(self.pointer_observability(request));
         Ok(())
     }
     #[cfg(windows)]
@@ -419,14 +432,8 @@ impl InputDispatcher {
                 self.settle_action_menu_closed(port);
             }
         }
-        self.pointer.set_motion_observability(match request {
-            PointerCaptureRequest::AnyMotion => MotionObservability::AnyMotion,
-            #[cfg(windows)]
-            PointerCaptureRequest::MenuMotion => MotionObservability::AnyMotion,
-            PointerCaptureRequest::Release | PointerCaptureRequest::ButtonOnly => {
-                MotionObservability::ButtonOnly
-            }
-        });
+        self.pointer
+            .set_motion_observability(self.pointer_observability(request));
         self.pointer.set_capture_with_port(port, enabled);
         view.settle_pointer_released(!enabled);
         self.pointer_capture = request;
@@ -1311,6 +1318,7 @@ impl InputDispatcher {
                 && (self.pointer.cancel_tab_drag() | self.pointer.cancel_sidebar_reorder());
             self.pointer.set_host_focus(focused);
             if !focused {
+                view.cancel_prefix();
                 self.pointer.cancel_list_scroll();
                 self.pointer.cancel_modal_press();
                 self.pointer.cancel_scrollbar();
@@ -1330,6 +1338,19 @@ impl InputDispatcher {
             return Ok(DispatchOutcome::Continue);
         }
         if let DecodedKind::Mouse(event) = item.kind {
+            #[cfg(windows)]
+            if self.pointer_capture != PointerCaptureRequest::Release
+                && !self.pointer_transition_failed
+                && event.action == super::MouseAction::Motion
+                && event.button == super::MouseButton::None
+                && event.mods == Modifiers::NONE
+            {
+                // Native console movement is already delivered independently of
+                // the VT query. Do not discard it or change any host capture mode.
+                self.native_motion_observed = true;
+                self.pointer
+                    .set_motion_observability(MotionObservability::AnyMotion);
+            }
             match self.pointer.cancelled_modal_event(event) {
                 CancelledModalEvent::Ended => {
                     // The painted owner and the packet-level button debt are
@@ -1765,8 +1786,9 @@ impl InputDispatcher {
                 }
                 DecodedKind::Paste { .. } => {
                     // Paste is exclusive-capture data, never a binding key;
-                    // the pane owns it in original order and the prefix
-                    // stays armed.
+                    // the pane owns it in original order. The interrupted
+                    // chord retires before later typed input reaches the pane.
+                    view.cancel_prefix();
                     forward_or_report(view, &item.raw, port);
                     return Ok(DispatchOutcome::Continue);
                 }
@@ -2523,6 +2545,7 @@ impl InputDispatcher {
             if let ModalInputEvent::Focus(focused) = event {
                 self.pointer.set_host_focus(focused);
                 if !focused {
+                    view.cancel_prefix();
                     self.pointer.cancel_list_scroll();
                     self.pointer.cancel_modal_press();
                     self.pointer.cancel_scrollbar();

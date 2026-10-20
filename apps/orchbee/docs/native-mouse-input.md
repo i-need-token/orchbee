@@ -93,7 +93,8 @@ An already-read packet resolves pending input frames before idle decoder timeout
 
 ## Sidebar navigation input boundary
 
-On Windows, `Ctrl+B Shift+B` explicitly enters sidebar keyboard navigation and
+On Windows, `Ctrl+B Tab` switches between sidebar keyboard navigation and terminal input;
+`Ctrl+B Shift+B` remains an alias. Entering navigation
 reveals the sidebar when its effective geometry can present it. `Ctrl+B b` keeps
 its visibility-toggle meaning. `Picker` owns the visible tree, expansion, focused
 stable row and scroll window; the active terminal context remains independent.
@@ -209,7 +210,7 @@ presses before that draw and admission after it, without changing Picker focus.
   issues one `1003` DECRQM query with a DA1 barrier for the retained outer endpoint. Only a reset
   report (`2`) followed by that barrier admits global any-motion tracking. Unsupported or permanently
   fixed reports retain button-only tracking; a contradictory set report, missing reply, or the
-  300 ms deadline settles unknown. None retries on menu open or capture re-arm. The same lease
+  300 ms deadline settles unknown. The query begins after the first viewport paint. None retries on menu open or capture re-arm. The same lease
   disables `1003`, `1006` and `1002` on every exit path — normal return, failure, owner-thread panic,
   and each termination signal — like every other leased mode.
 - `Ctrl+B m` releases and re-arms capture at runtime. The release applies only after the mode
@@ -227,6 +228,12 @@ presses before that draw and admission after it, without changing Picker focus.
   `Shift` report during pane-program passthrough is dropped while that gesture survives so an
   unmodified release still reaches the pane; one received during Client selection cancels the
   Client gesture without copying.
+
+On Windows, an actual unmodified button-free console report received while capture is armed also
+admits hover presentation, without changing the VT query verdict or capture mode. Sidebar, Tab,
+button and menu hit maps use that same observation capability. Pasted sequences cannot admit it,
+and released capture stays released. Hosts that provide neither admitted VT motion nor console
+movement retain bracketed actions and keyboard navigation without a hover claim.
 
 ## Region map
 
@@ -254,7 +261,7 @@ not write keyboard focus, current or checked state, availability, pending state,
 The action-menu pointer adapter additionally reports a real enabled-row movement to its owner,
 which updates only the [provisional menu candidate](native-action-menus.md#interaction).
 Other collections retain their provisional selection. `Hovered` requires a real button-free movement
-report after global `AnyMotion` admission or a completed scoped `MenuMotion` request. Button-only
+report after global `AnyMotion` admission, a completed scoped `MenuMotion` request, or independent Windows console movement observation. Button-only
 observability, capture release, host-focus loss, and observability downgrade clear retained position,
 so restoration cannot synthesize hover. The dispatcher publishes global `AnyMotion` only after both
 capability admission and the typed mode transition complete successfully; scoped menu observability

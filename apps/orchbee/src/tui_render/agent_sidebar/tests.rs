@@ -898,14 +898,14 @@ fn settings_stays_at_the_sidebar_bottom_as_an_exact_discoverable_action() {
             let browse_binding = view
                 .bindings()
                 .action_labels_with_glyphs(
-                    PrefixAction::ShowHelp,
+                    PrefixAction::Client(ClientAction::FocusBusinessSidebar),
                     key_label_glyphs(&Theme::terminal_native()),
                 )
                 .into_iter()
                 .next()
                 .unwrap();
             assert!(rows[38].contains(&browse_binding), "{:?}", rows[38]);
-            assert!(rows[38].contains(locale.onboarding_label(crate::onboarding::Action::Help)));
+            assert!(rows[38].contains(locale.machine_picker_text("workspace-sidebar-open")));
             assert!(rows[37].starts_with('─'));
             for y in [37, 38] {
                 assert!((0..28).all(|x| !matches!(
@@ -945,6 +945,10 @@ fn settings_footer_omits_whole_hints_at_narrow_width_and_saves_a_row_on_short_ho
             assert!(footer.contains(locale.settings_title()), "{footer:?}");
             assert_eq!(footer.contains(&hint), visible_hint, "{footer:?}");
             assert_eq!(rows[usize::from(height - 3)].starts_with('─'), height >= 24);
+            assert!(
+                rows[usize::from(height - 2)]
+                    .contains(locale.machine_picker_text("workspace-sidebar-open"))
+            );
             assert!((0..preferred).any(|x| matches!(
                 hits.hit_target_at(x, height - 1),
                 Some(HitTarget::SettingsButton)
@@ -1003,7 +1007,7 @@ fn sidebar_footer_follows_input_ownership_without_moving_settings_or_publishing_
                 match input {
                     SidebarInput::Terminal => {
                         assert!(
-                            hint.contains(locale.onboarding_label(crate::onboarding::Action::Help)),
+                            hint.contains(locale.machine_picker_text("workspace-sidebar-open")),
                             "{hint}"
                         )
                     }

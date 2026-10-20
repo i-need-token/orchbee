@@ -2624,3 +2624,76 @@ fn default_agent_cycle_opens_filtered_navigation_and_query_completion_is_capture
         );
     }
 }
+
+#[test]
+fn focus_loss_cancels_prefix_and_preserves_the_next_terminal_key() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x02\x1b[O\x1b[Ix");
+    assert!(!view.prefix_active());
+    assert_eq!(forwarded_bytes(&calls), b"x");
+}
+
+#[test]
+fn terminal_paste_retires_prefix_before_the_next_typed_key() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x02\x1b[200~hello\x1b[201~x",
+    );
+    assert!(!view.prefix_active());
+    assert!(forwarded_bytes(&calls).ends_with(b"x"));
+}
+
+#[cfg(windows)]
+#[test]
+fn delivered_console_motion_survives_an_unavailable_vt_query_without_rearming_capture() {
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut port = UnavailablePort(Rc::clone(&calls));
+    let mut dispatcher = InputDispatcher::default();
+    let mut view = ClientView::new(100);
+    dispatcher.set_pointer_capture(&mut view, &mut port, true);
+    let now = Instant::now();
+    dispatcher
+        .begin_pointer_admission(now, &mut |_| Ok::<_, io::Error>(()))
+        .unwrap();
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[?1003;0$y");
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::ButtonOnly
+    );
+    dispatch_all(
+        &mut dispatcher,
+        &mut view,
+        &mut port,
+        b"\x1b[200~\x1b[<35;5;5M\x1b[201~",
+    );
+    assert!(
+        !dispatcher.native_motion_observed,
+        "pasted sequences are not motion evidence"
+    );
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<35;5;5M");
+    assert!(dispatcher.native_motion_observed);
+    assert_eq!(
+        dispatcher.pointer_capture,
+        PointerCaptureRequest::ButtonOnly
+    );
+    assert_eq!(
+        dispatcher.pointer_observability(PointerCaptureRequest::ButtonOnly),
+        MotionObservability::AnyMotion
+    );
+    dispatcher.set_pointer_capture(&mut view, &mut port, false);
+    dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<35;6;5M");
+    assert_eq!(dispatcher.pointer_capture, PointerCaptureRequest::Release);
+    assert_eq!(
+        dispatcher.pointer_observability(PointerCaptureRequest::Release),
+        MotionObservability::ButtonOnly
+    );
+}

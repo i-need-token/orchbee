@@ -82,7 +82,7 @@ menu 配对的数据包债务）会在同一个所有者前置步骤中结算。
 
 ## 侧栏导航输入边界
 
-Windows 上，`Ctrl+B Shift+B` 显式进入侧栏键盘导航，并在有效几何允许呈现时
+Windows 上，`Ctrl+B Tab` 在侧栏键盘导航与终端输入之间切换，保留 `Ctrl+B Shift+B` 别名。进入导航时，在有效几何允许呈现时
 显示侧栏。`Ctrl+B b` 保持切换显隐的含义。`Picker` 拥有可见树、展开状态、
 稳定行焦点及滚动窗口；活动终端上下文保持独立。`InputDispatcher` 拥有输入
 租约及包边界保护。不增加服务端、线协议或持久状态。
@@ -169,7 +169,7 @@ Picker 拥有侧栏偏好宽度；`SidebarSurface` 把同一个偏好传给布�
 - 启动通过一个 `ModeLease` arm button-event tracking（`?1002h`）与 SGR 编码（`?1006h`）；
   `orchbee tui --mouse off` 跳过 arming。基线完成后，dispatcher 为保留的外层端点发出一次 `1003`
   DECRQM 查询与 DA1 屏障。只有 reset 报告（`2`）后接该屏障，才准入全局任意移动跟踪。不支持或
-  固定模式的报告保持 button-only；矛盾的 set 报告、缺少回复或 300 ms 截止均结算为 unknown。
+  固定模式的报告保持 button-only；矛盾的 set 报告、缺少回复或 300 ms 截止均结算为 unknown。查询在首帧视口绘制后才启动。
   打开菜单和重新 arm 捕获都不重试。同一租约在每条退出路径上禁用 `1003`、`1006` 和 `1002`——正常返回、失败、owner 线程 panic 以及每个
   终止信号。
 - `Ctrl+B m` 在运行时释放并重新 arm 捕获。释放只在模式写成功后生效，因此持久状态指示
@@ -184,6 +184,10 @@ Picker 拥有侧栏偏好宽度；`SidebarSurface` 把同一个偏好传给布�
 - `Shift` 修饰的报告从不被认领：宿主保留 `Shift` 用于原生选择。pane 程序透传期间收到的
   `Shift` 报告被丢弃，而该手势继续存活，使随后不带修饰的 release 仍到达 pane；Client
   选择期间收到该报告则取消 Client 手势且不复制。
+
+Windows 下，捕获已启用时收到的实际无修饰、无按钮控制台移动，也可准入悬停呈现，不改变 VT 查询裁决
+或捕获模式。侧栏、Tab、按钮和菜单命中表共用该观察能力。粘贴序列不能准入它，已释放捕获保持释放。
+既不提供已准入 VT 移动、也不提供控制台移动的宿主，保留方括号动作与键盘导航，不声称具有悬停能力。
 
 ## 区域映射
 
@@ -203,8 +207,8 @@ map。区域携带稳定身份——`WorkbenchTabId`、`NativeContextLocation`�
 `PointerState` 只把 `Rest`、`Hovered` 或 `Pressed` 投影到下一个候选 frame；它不写键盘焦点、
 current 或 checked 状态、availability、pending 状态或任何领域模型。动作菜单的指针适配器
 还会把真实可用行移动报告给所有者，由其只更新[临时菜单候选](native-action-menus.md#interaction)。
-其他集合保留临时选择。`Hovered` 要求在全局 `AnyMotion` 准入或完成菜单范围的 `MenuMotion`
-请求之后收到真实的无键移动报告。button-only 可观测性、释放捕获、宿主失焦及可观测性降级
+其他集合保留临时选择。`Hovered` 要求全局 `AnyMotion` 准入、菜单范围 `MenuMotion` 请求完成，
+或独立观察到 Windows 控制台移动，且必须收到真实的无按钮移动报告。button-only 可观测性、释放捕获、宿主失焦及可观测性降级
 都会清掉保留位置，因此恢复不能合成 hover。dispatcher 只有在能力准入和类型化模式切换都成功
 完成后，才发布全局 `AnyMotion`；菜单范围可观测性则要求其自身的切换完成。不确定的部分切换会通过恢复边界退出，
 而不发布回退状态。捕获释放期间收到的回复只结算准入；下一次捕获使用该结果，不再查询。迟到及

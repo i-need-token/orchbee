@@ -684,3 +684,20 @@ fn exits_only_for_the_two_accepted_prefixed_keys() {
         ShellCommand::ForwardTerminal
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn prefix_tab_toggles_sidebar_focus_without_activating_a_workspace() {
+    let mut view = ClientView::new(120);
+    view.machines.available = true;
+    for focused in [true, false, true] {
+        enter_prefix(&mut view);
+        let transition = commit(&mut view, key(KeyCode::Tab));
+        assert_eq!(
+            transition.action(),
+            Some(ClientAction::FocusBusinessSidebar)
+        );
+        assert_eq!(view.machines.sidebar_navigation_active(), focused);
+        assert!(!view.prefix_active());
+    }
+}

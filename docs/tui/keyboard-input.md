@@ -102,7 +102,10 @@ Ownership rules:
   capture owns input, pressing the prefix twice forwards the literal chord; a capturing owner may
   consume it under its own contract. Explicit user configuration may add safe direct chords after
   higher ownership; the same printable, editing, and signal-key exclusions apply.
-- An armed prefix has no timeout. `Esc` dismisses it. An unbound key after the prefix dismisses the
+- An armed prefix has no timeout. `Esc` and host focus loss dismiss it. A paste delivered to the
+  terminal also dismisses the interrupted prefix before subsequent typed input; paste owned by a
+  capturing surface retains that surface's contract. Host capability replies never dismiss it.
+  An unbound key after the prefix dismisses the
   prefix, forwards nothing, and shows a transient notice naming the effective help binding.
 - A named mode owns one domain for its duration. Its name and return route stay visible; every key
   resolves to at most one intent; unbound keys are ignored, never forwarded. Modes do not nest:

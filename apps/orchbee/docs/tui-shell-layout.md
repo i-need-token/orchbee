@@ -123,8 +123,10 @@ has at least five rows, a divider and one shortcut-hint row separate Settings fr
 list. While terminal input owns the keyboard, that hint shows the effective sidebar-focus binding
 and a localized Browse label. Sidebar navigation shows its local Back and Help bindings; an
 occluding input owner suppresses both projections. These complete hints use the shared hint
-component and publish no pointer targets. Shorter layouts omit both rows and retain the one-row
-Settings footer; the existing navigation status overlay continues to own full local help.
+component and publish no pointer targets. Shorter layouts omit only the divider; two available rows
+retain the navigation hint and Settings. The default focus switch is `Ctrl+B Tab`, with the previous
+`Ctrl+B Shift+B` alias retained. Repeating the focus switch returns to the terminal without activating
+a Workspace. Blank sidebar cells do not change focus; the explicit binding and row controls own it.
 
 Hosts shorter than 24 rows omit the spacer after the actions; sections shorter than 10 rows
 omit heading padding before clipping entries. The unified window fits

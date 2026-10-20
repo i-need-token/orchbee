@@ -154,9 +154,9 @@ DWORD `1` 表示浅色，`0` 表示深色。缺失、不可读或非布尔值保
 ## 指针捕获生命周期
 
 指针上报拥有一个 tracking level 加 SGR cell 编码。准入先关闭 any-motion（`?1003l`），
-再启用 `?1002h` 与 `?1006h`，建立 button-event baseline。该完整 baseline 成功后，生命周期
+再启用 `?1002h` 与 `?1006h`，建立 button-event baseline。该完整 baseline 和首次视口同步及绘制成功后，生命周期
 控制的输出路径发出一次有序的 `?1003$p` DECRQM，并以 DA1 作为完成哨兵。只有
-`Reset (2)` DECRPM 回复准入 any-motion。`Set (1)` 与已经建立的 baseline 矛盾，settle 为
+`Reset (2)` DECRPM 回复准入全局 VT 模式升级。`Set (1)` 与已经建立的 baseline 矛盾，settle 为
 unknown；`0`、`3`、`4` settle 为 unavailable；DA1 先到或有界 deadline 到期 settle 为
 unknown。由于回复没有 query identifier，同一端点绝不再次探测：迟到或重复回复会被消费，
 但不能改变已经 settle 的结果。
@@ -170,13 +170,13 @@ generic non-decision input，并保留 raw passthrough。若一个 run 在回复
 保持字面值，绝不在其中检查这些回复。
 
 准入结果通过先关闭旧 level、再启用新 level，从 `1002` 切换到 `1003`。unknown 与
-unavailable 保持 `1002`，因此 click、drag、wheel 可用，而下述菜单范围策略之外的 idle hover
+unavailable 保持 `1002`，因此 click、drag、wheel 可用，而在实际 Windows 移动证据或下述菜单范围策略之外，idle hover
 如实缺席。全局捕获只选择一个 tracking level；`1006` 仍是其编码。捕获释放与重新 arm 复用端点已经
 settle 的结果，不再发出查询。
 只有完整 mode 写入成功后，已准入的切换才发布到指针交互状态。切换失败不发布 hover
 权限，运行中的输入循环也绝不重试；致命路径直接进入完整生命周期清理。全局准入后的
 any-motion 服务所有已绘制 chrome 控件，包括 action menu。菜单之外的 ButtonOnly fallback
-具有 click、drag、wheel，但没有 idle hover。
+具有 click、drag、wheel；只有独立观察到 Windows 移动时才提供 idle hover。
 
 捕获已启用的动作菜单在全局 any-motion 尚未准入时，还拥有菜单范围的 `MenuMotion` 请求。
 它先写 `1002h`，再写 `1003h`，保留 `1006`：忽略 `1003` 的宿主仍保留按钮回退；只有实际
@@ -192,6 +192,14 @@ transition-unknown 状态，不能再尝试运行时 fallback；只有完整释�
 `?1006l`、`?1002l`）能够 settle 它。经 `Ctrl+B m` 的运行时释放、重新 arm、启动 arming、
 错误清理与 panic 清理共用该租约。手势路由、命中测试、降级或释放时的状态清理，以及 pane
 透传属于[原生鼠标输入](native-mouse-input.zh-CN.md)；本节拥有能力 settle 与模式生命周期。
+
+Windows 控制台读取器还可独立于 VT 查询投递原生无按钮移动。捕获已启用时收到的第一条无修饰移动，
+会为此端点准入悬停呈现，覆盖侧栏、Tab 与模态控件；它不更改已结算查询、不重新查询、不开启宿主模式，
+不激活动作，也不重新启用已释放捕获。粘贴内容不能提供此证据。释放清除悬停；重新启用可复用观察能力，
+但不复用旧位置或手势。这遵循 [Windows 控制台输入契约](https://learn.microsoft.com/windows/console/setconsolemode)。
+能力查询在首次视口同步和绘制完成后启动，避免冷启动占用响应期限。输入批次保留接收时刻，读取和分派之间
+的 Session 工作不会把已经收到的宿主响应变成超时。查询仍只接受 Reset 来升级全局 VT 模式；ButtonOnly 下
+只有实际 Windows 移动证据或已完成菜单模式请求时才呈现悬停。
 
 ## 同步帧输出
 

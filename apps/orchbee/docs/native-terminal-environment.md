@@ -195,8 +195,8 @@ known rather than on any estimate.
 
 Pointer reporting owns one tracking level plus SGR cell encoding. Admission first establishes the
 button-event baseline by disabling any-motion (`?1003l`) and enabling `?1002h` with `?1006h`.
-After that complete baseline, the lifecycle-controlled output path issues one ordered `?1003$p`
-DECRQM followed by DA1 as a completion sentinel. Only a `Reset (2)` DECRPM reply admits any-motion. A
+After that complete baseline and the initial viewport synchronization and paint, the lifecycle-controlled output path issues one ordered `?1003$p`
+DECRQM followed by DA1 as a completion sentinel. Only a `Reset (2)` DECRPM reply admits a global VT mode upgrade. A
 `Set (1)` reply contradicts the established baseline and settles unknown; `0`, `3`, and `4` settle
 unavailable; DA1 arriving first or the bounded deadline expiring settles unknown. Because the
 reply has no query identifier, an endpoint is never probed again: late or duplicate replies are
@@ -213,14 +213,23 @@ payloads stay literal and are never inspected for these replies.
 
 An admitted result switches from `1002` to `1003` by disabling the old level before enabling the
 new one. Unknown and unavailable results retain `1002`, so click, drag, and wheel work while idle
-hover remains absent outside the scoped menu policy below. Global capture selects one tracking
+hover remains absent unless actual Windows console movement proves observation or the scoped menu policy below applies. Global capture selects one tracking
 level; `1006` remains its encoding.
 Capture release and re-arm reuse the endpoint's settled result rather than issuing another query.
 An admitted switch is published to pointer interaction state only after the complete mode write
 succeeds. A failed switch publishes no hover authority and is never retried by the running input
 loop; the fatal path proceeds to full lifecycle cleanup. Global admitted any-motion serves every
 painted chrome control, including action menus. Outside menus, ButtonOnly fallback has click, drag,
-and wheel without idle hover.
+and wheel without idle hover unless Windows console movement has independently been observed.
+
+The Windows console reader can also deliver native button-free movement independently of the VT
+query. The first unmodified motion received while capture is armed admits hover presentation for
+this endpoint, including sidebar, Tabs and modal controls. It does not modify the settled query,
+issue a new query, enable a host mode, activate a control, or re-arm released capture. Paste content
+cannot supply this evidence. Release clears hover; re-arm may reuse observation capability but
+never an old position or gesture. This follows the [Windows console input contract](https://learn.microsoft.com/windows/console/setconsolemode).
+Input batches retain their receive timestamp for bounded host replies; session work between read
+and dispatch cannot turn an already-received reply into a timeout.
 
 An action menu with already armed capture additionally owns a scoped `MenuMotion` request when
 global any-motion is not admitted. It writes `1002h`, then `1003h`, retaining `1006`: a host ignoring

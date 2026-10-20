@@ -22,7 +22,7 @@ authority for current capture and pointer behavior.
   while its interface is active. This is the admitted level for hover on Orchbee-painted chrome
   and overlays. When any-motion reporting is unavailable or has not been admitted, use
   button-event tracking (`1002`) with `1006`; click, drag, and wheel remain available, while hover
-  is honestly absent outside the scoped menu policy below. Global capture selects one of `1002`
+  is honestly absent outside the scoped menu and native-record policies below. Global capture selects one of `1002`
   and `1003` at a time.
 - While an action menu exclusively owns input and capture is already armed, it may request idle
   motion with button fallback by enabling `1002` before `1003`, retaining `1006`. A host that
@@ -30,6 +30,10 @@ authority for current capture and pointer behavior.
   This does not promote the global capability result. Menu exit restores `1003l`, then `1002h`,
   unless global any-motion is independently admitted. Released capture stays released, and a
   failed or uncertain mode write goes through full lifecycle cleanup without publishing or retrying.
+- A native console-record transport may admit hover from actual unmodified button-free movement
+  received while capture is armed, independently of a VT capability query. This observation does
+  not change host modes or re-arm capture. Paste is never evidence. All surfaces share the same
+  capability, and release/focus loss still clear transient pointer state.
 - Any-motion reporting is an outer-Client transport, not ownership of a pane program's input.
   Orchbee consumes movement over its chrome and forwards events inside a pane viewport only under
   [Passthrough](#passthrough). Unrequested movement never reaches the pane program.

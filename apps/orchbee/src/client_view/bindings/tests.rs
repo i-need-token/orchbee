@@ -78,6 +78,10 @@ fn digit_range_resolves_as_one_member() {
 #[test]
 fn sidebar_focus_is_an_explicit_prefix_action_distinct_from_visibility() {
     assert_eq!(
+        match_prefix(press(KeyCode::Tab)).unwrap().action,
+        PrefixAction::Client(ClientAction::FocusBusinessSidebar)
+    );
+    assert_eq!(
         match_prefix(press(KeyCode::Char('B'))).unwrap().action,
         PrefixAction::Client(ClientAction::FocusBusinessSidebar)
     );

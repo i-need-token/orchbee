@@ -213,15 +213,13 @@ fn render_navigation_hint(
         SidebarInput::Suppressed => return,
         SidebarInput::Terminal => view
             .bindings()
-            .action_labels_with_glyphs(PrefixAction::ShowHelp, glyphs)
+            .action_labels_with_glyphs(
+                PrefixAction::Client(ClientAction::FocusBusinessSidebar),
+                glyphs,
+            )
             .into_iter()
             .take(1)
-            .map(|key| {
-                (
-                    key,
-                    locale.onboarding_label(crate::onboarding::Action::Help),
-                )
-            })
+            .map(|key| (key, locale.machine_picker_text("workspace-sidebar-open")))
             .collect::<Vec<_>>(),
         SidebarInput::Navigation => [
             (SidebarCommand::Exit, locale.sidebar_back_hint()),
@@ -322,7 +320,7 @@ pub(super) fn render(
     let footer_rows = if frame.area().height >= 24 && area.height >= 5 {
         3
     } else {
-        1
+        area.height.min(2)
     };
     let settings = Rect::new(area.x, area.bottom() - 1, area.width, 1);
     if footer_rows == 3 {
@@ -333,6 +331,8 @@ pub(super) fn render(
                 .style(theme.style(Role::SurfaceChrome)),
             Rect::new(area.x, settings.y - 2, area.width, 1),
         );
+    }
+    if footer_rows >= 2 {
         render_navigation_hint(
             frame,
             Rect::new(area.x + 1, settings.y - 1, area.width.saturating_sub(1), 1),

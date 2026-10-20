@@ -646,12 +646,6 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 PointerCaptureRequest::Release
             },
         );
-        dispatcher.begin_host_appearance(inputs.sample_time(), &mut |request| {
-            mode(request).map_err(LoopFailure::Input)
-        })?;
-        dispatcher.begin_pointer_admission(inputs.sample_time(), &mut |request| {
-            mode(request).map_err(LoopFailure::Input)
-        })?;
         if termination.requested() {
             return Ok(LoopExit::Signal);
         }
@@ -703,6 +697,14 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
         if pointer_projection_redraw {
             wakeup.signal();
         }
+        // Cold viewport synchronization and the first paint must not consume
+        // the host's bounded reply window before the reader can run.
+        dispatcher.begin_host_appearance(inputs.sample_time(), &mut |request| {
+            mode(request).map_err(LoopFailure::Input)
+        })?;
+        dispatcher.begin_pointer_admission(inputs.sample_time(), &mut |request| {
+            mode(request).map_err(LoopFailure::Input)
+        })?;
         loop {
             if termination.requested() {
                 return Ok(LoopExit::Signal);
@@ -715,6 +717,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                 .min(maximum_wait);
             let started = measurements.start();
             let input = inputs.next_input_or_wakeup(timeout, &wakeup);
+            let input_received_at = inputs.sample_time();
             let batch = started.and_then(|started| started.input_completed(&input));
             let input = input.map_err(LoopFailure::Input)?;
             let terminal_input = surface.active();
@@ -794,7 +797,7 @@ fn run_surface_loop<B: Backend + ResizableBackend>(
                     &mut view,
                     &input,
                     terminal_input,
-                    now,
+                    input_received_at,
                     |view, terminal_input| {
                         synchronize_viewport(
                             terminal,
