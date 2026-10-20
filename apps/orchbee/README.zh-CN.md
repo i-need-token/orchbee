@@ -318,10 +318,10 @@ navigator 与 viewport；另一 Client 已提交的新 Tab 经自动 publication
 [上下文选择](docs/native-context-selection.zh-CN.md) 在切换位置时保留各终端的执行。
 Workspace 身份独立于可选的 Project。侧边栏将 Agent 直接列在各 Workspace 下，支持同时
 展开多个 Workspace 的 Agent 列表。[Workspace 设置](docs/native-workspace-setup.zh-CN.md)
-使用默认名称、解析出的目录和首个 shell 直接创建未分组 Workspace；从 Project 菜单创建则
+打开包含当前与最近目录的目录／名称选择器，按 Enter 使用显示值创建未分组 Workspace 与首个 shell；从 Project 菜单创建则
 显式加入该 Project。之后可重命名、整理分组；目录接受绝不启动终端。已知部分结果可通过
 `orchbee workspace list` 检查；未知结果绝不重放，延迟完成不能覆盖更新的选择。
-Windows TUI 会立即显示新的侧栏项及当前顶部 Tab，目录准备和终端启动继续异步进行，并在内容区显示进度。
+Windows TUI 在目录编辑期间保持侧栏，提交后按已选名称显示位置与行高稳定的待创建项，终端启动继续异步进行。
 `Ctrl+B W` 在发现来源后，用生成的分支名和默认起点创建 Git 检出目录；`Ctrl+B O` 按精确
 路径选择已有检出目录。[Worktree 打开流程](docs/native-worktrees.zh-CN.md) 添加同级 Workspace，
 沿用来源的当前 Project，或将未分组来源和新 Workspace 原子地加入新 Project。其他 Client

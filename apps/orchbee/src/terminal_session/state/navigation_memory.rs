@@ -43,11 +43,17 @@ impl NavigationMemory {
                 });
                 self.contexts.len() - 1
             });
-        let entry = &mut self.contexts[index];
+        let entry = self.contexts.remove(index);
+        self.contexts.push(entry);
+        let entry = self.contexts.last_mut().expect("remembered context");
         entry.last_tab = Some(tab.tab_id().clone());
         entry
             .panels
             .insert(tab.tab_id().clone(), selected.key().panel().clone());
+    }
+
+    pub(super) fn recent_locations(&self) -> impl Iterator<Item = &NativeContextLocation> {
+        self.contexts.iter().rev().map(|entry| &entry.location)
     }
 
     pub(super) fn remember_presentation(

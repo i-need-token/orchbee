@@ -107,6 +107,15 @@ impl NativeUi {
         token: NativeSetupToken,
         index: usize,
     ) {
+        if self.view().setup_draft().is_some_and(|draft| {
+            matches!(
+                draft.stage(),
+                NativeSetupStage::QuickName | NativeSetupStage::QuickDirectory
+            )
+        }) {
+            self.edit_setup_draft(token, NativeSetupEdit::SelectDirectory(index));
+            return;
+        }
         if self
             .state
             .as_mut()
@@ -208,7 +217,7 @@ impl NativeUi {
         &mut self,
         request: Option<crate::terminal_session::ProjectQuickWorkspaceRequest>,
     ) -> bool {
-        self.request_quick_workspace_with_review(request, false)
+        self.request_quick_workspace_with_review(request, true)
     }
 
     pub(super) fn request_quick_workspace_with_review(

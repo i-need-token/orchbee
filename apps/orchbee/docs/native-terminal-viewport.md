@@ -435,3 +435,5 @@ The checked claims are bounded queue ownership, one read flight, current-epoch p
 Run `node scripts/tla/run-models.mjs --models native-terminal-viewport` for the bounded protocol and the native Cargo tests for its implementation. `scripts/tla/model-mutations.test.mjs` restores an independent outcome producer and requires an `OutcomeProductionOwned` counterexample. The complete `pnpm test:tla` gate runs this negative control and all retained configurations without success-cache reuse.
 
 The model does not prove actual clock latency, payload validation, row geometry or all UI schedules. A timeout, unfinished state queue or incomplete action coverage is a failed check.
+
+The TUI describes a lost reading anchor as showing the latest output. This one-shot notice expires after four seconds and clears immediately when the focused pane completes its return to live. The status row lies outside terminal geometry; the recovery protocol and retained operation facts are unchanged.

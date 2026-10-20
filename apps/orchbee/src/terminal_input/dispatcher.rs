@@ -2472,7 +2472,10 @@ impl InputDispatcher {
         let choice_keys = setup.is_some_and(|context| {
             matches!(
                 context.stage,
-                NativeSetupStage::QuickProject | NativeSetupStage::ChooseWorkspaceProject
+                NativeSetupStage::QuickProject
+                    | NativeSetupStage::ChooseWorkspaceProject
+                    | NativeSetupStage::QuickDirectory
+                    | NativeSetupStage::QuickName
             )
         });
         #[cfg(windows)]

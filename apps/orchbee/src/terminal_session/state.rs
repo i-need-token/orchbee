@@ -556,6 +556,25 @@ pub(super) enum SessionNotice {
     PositionUnavailable,
 }
 
+impl SessionNotice {
+    pub(super) const fn transient(self) -> bool {
+        match self {
+            Self::DuplicatePending
+            | Self::DuplicateOutcomeUnknown
+            | Self::CopyUnknown
+            | Self::BellUnknown => false,
+            #[cfg(windows)]
+            Self::AgentStart(phase) => matches!(
+                phase,
+                super::agent_board::AgentStartPhase::Started
+                    | super::agent_board::AgentStartPhase::Failed
+                    | super::agent_board::AgentStartPhase::Cancelled
+            ),
+            _ => true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum NavigatorRefreshStatus {
     Refreshing,

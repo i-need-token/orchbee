@@ -48,11 +48,28 @@ pub(crate) enum NativeSetupStatus {
     CommittedNeedRefresh,
     OutcomeUnknown,
 }
+impl NativeSetupStatus {
+    pub(in crate::terminal_session) const fn transient(self) -> bool {
+        !matches!(
+            self,
+            Self::TabsCommittedNeedRefresh
+                | Self::TabsOutcomeUnknown
+                | Self::CommittedNeedRefresh
+                | Self::OutcomeUnknown
+                | Self::LocationLabel {
+                    status: NativeLocationLabelStatus::CommittedNeedRefresh
+                        | NativeLocationLabelStatus::OutcomeUnknown,
+                    ..
+                }
+        )
+    }
+}
 /// The typed edit vocabulary the setup draft applies — the same contract
 /// U5's typed-input bridge delivers. Text operations apply to the stage's
 /// line editor and are inert while the picker owns the draft.
 pub(crate) enum NativeSetupEdit<'a> {
     NextField,
+    SelectDirectory(usize),
     Append(&'a str),
     Paste(&'a str),
     Backspace,
@@ -120,6 +137,8 @@ pub(super) struct SetupParent {
     quick: Option<super::quick::QuickWorkspaceFields>,
 }
 pub(crate) struct NativeSetupDraftView<'a> {
+    #[cfg(windows)]
+    foreground_preparation: bool,
     pub(super) draft: &'a SetupDraft,
     presentation: PresentationPhase,
 }
@@ -165,7 +184,7 @@ impl<'a> NativeSetupProjectView<'a> {
 impl<'a> NativeSetupDraftView<'a> {
     #[cfg(windows)]
     pub(in crate::terminal_session) fn background(&self) -> bool {
-        self.draft.stage == NativeSetupStage::PreparingWorkspace
+        (self.draft.stage == NativeSetupStage::PreparingWorkspace && !self.foreground_preparation)
             || self.draft.quick.is_some() && self.draft.continuation.is_some()
     }
     pub(crate) const fn interactive(&self) -> bool {
@@ -177,6 +196,20 @@ impl<'a> NativeSetupDraftView<'a> {
     /// Index within the current token's Project choices, including synthetic rows.
     pub(crate) fn selected_project(&self) -> usize {
         self.draft.selected
+    }
+    pub(crate) fn directory_choices(
+        &self,
+    ) -> &[orchbee_workbench_protocol::WorkbenchDirectoryPath] {
+        self.draft
+            .quick
+            .as_ref()
+            .map_or(&[], |fields| fields.directory_choices())
+    }
+    pub(crate) fn selected_directory(&self) -> Option<usize> {
+        self.draft
+            .quick
+            .as_ref()
+            .and_then(|fields| fields.selected_directory())
     }
     pub(crate) fn quick_window(
         &self,
@@ -458,6 +491,12 @@ impl NativeSessionState {
                 .as_ref()
                 .is_none_or(|fields| fields.target_current(self)))
         .then_some(NativeSetupDraftView {
+            #[cfg(windows)]
+            foreground_preparation: self
+                .setup
+                .preparation
+                .as_ref()
+                .is_some_and(|preparation| preparation.review_directory),
             draft,
             presentation: self.setup.presentation,
         })
@@ -550,6 +589,36 @@ impl NativeSessionState {
             return false;
         };
         match edit {
+            NativeSetupEdit::SelectDirectory(_)
+            | NativeSetupEdit::SelectPreviousProject
+            | NativeSetupEdit::SelectNextProject
+                if draft.complete
+                    && matches!(
+                        draft.stage,
+                        NativeSetupStage::QuickDirectory | NativeSetupStage::QuickName
+                    )
+                    && draft.quick.is_some() =>
+            {
+                let Some(next) = self.setup.last_token.checked_add(1) else {
+                    return false;
+                };
+                let fields = draft.quick.as_mut().expect("guarded quick fields");
+                let count = fields.directory_choices().len();
+                let current = fields.selected_directory().unwrap_or(0);
+                let index = match edit {
+                    NativeSetupEdit::SelectDirectory(index) => index,
+                    NativeSetupEdit::SelectNextProject => (current + 1) % count,
+                    _ => (current + count - 1) % count,
+                };
+                if !fields.select_directory(index, &draft.baseline) {
+                    return false;
+                }
+                draft.stage = NativeSetupStage::QuickDirectory;
+                draft.faulted = false;
+                draft.token = NativeSetupToken(next);
+                self.setup.last_token = next;
+                draft.shown = false;
+            }
             NativeSetupEdit::NextField
                 if draft.complete
                     && draft.quick.is_some()
@@ -647,6 +716,11 @@ impl NativeSessionState {
                 draft.editor_mut().end();
             }
             _ => return false,
+        }
+        if draft.stage == NativeSetupStage::QuickDirectory
+            && let Some(fields) = &mut draft.quick
+        {
+            fields.refresh_name(&draft.baseline);
         }
         true
     }

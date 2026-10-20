@@ -8,15 +8,18 @@ revisions; the Client owns selection and input. This reference extends
 [context selection](native-context-selection.md) and the Server's
 [directory contract](../../orchbee-server/docs/workspace-terminal-directory.md).
 
-On Windows, New Workspace, `Ctrl+B a` and `Ctrl+B Shift+N` immediately prepare and submit a
-Workspace with its first default shell. They require no Project, name form or second confirmation.
-The default result is ungrouped. New Workspace on an exact Project row uses that Project, including
+On Windows, New Workspace, `Ctrl+B a` and `Ctrl+B Shift+N` prepare a lightweight directory and
+name picker. Enter creates with the displayed defaults; Escape creates nothing. Both fields remain
+editable. Up/Down or a drawn directory row selects the current directory, recent workspace directories,
+then other known workspace directories, deduplicated and limited to eight choices. Recency belongs
+to the Client's existing volatile navigation memory; no filesystem scan or new history file is created.
+An automatic name follows path edits until the user edits the name. The default result is ungrouped. New Workspace on an exact Project row uses that Project, including
 empty and noncurrent Projects. Creating a Workspace never starts an AI provider automatically.
 
-Accepted Windows TUI creation immediately displays a pending sidebar item and current top Tab,
-before directory preparation or terminal startup finishes. The sidebar's localized New workspace
-label gives way to the prepared Workspace name; the top Tab uses the localized automatic Tab 1
-title from [Tab labels](native-tab-labels.md). Progress appears in the content region without a modal.
+Directory preparation and review leave the sidebar and current Tab intact. The preparing form owns
+input without claiming that a Workspace exists. Only explicit submission displays a pending sidebar
+item using the already chosen name and a current top Tab. The top Tab uses the localized automatic Tab 1
+title from [Tab labels](native-tab-labels.md). Accepted creation progress appears in the content region without a modal.
 This feedback improvement is scoped to the Windows TUI. GUI creation retains its existing
 activation owner and the same canonical creation semantics.
 
@@ -34,7 +37,7 @@ the Client does not invent a successful sample. The directory basename supplies 
 with a localized fallback for a root path. Generated names avoid every Workspace label in the
 captured snapshot, adding ` (2)`, ` (3)` and subsequent suffixes as needed. Truncation leaves room
 for the suffix within the 512-Unicode-scalar label bound. Explicit labels remain unchanged. Default
-and Project-targeted creation use this same quick path.
+and Project-targeted creation use this same editable preparation path.
 
 One revision-fenced `WorkspaceLaunch` accepts the directory and commits Workspace, Directory,
 Context, Tab, Panel and primary Presentation together. Project membership is a nullable property;

@@ -409,6 +409,7 @@ pub(crate) struct ClientView {
     #[cfg(windows)]
     pub(crate) window_title: Option<orchbee_workbench_protocol::WindowTitleSnapshot>,
     notice: Option<Notice>,
+    notice_timer: crate::transient_notice::NoticeTimer<Notice>,
     #[cfg(windows)]
     configuration_warning: bool,
     overlay: Option<Overlay>,
@@ -460,6 +461,7 @@ impl ClientView {
             #[cfg(windows)]
             onboarding: crate::onboarding::State::default(),
             notice: None,
+            notice_timer: Default::default(),
             #[cfg(windows)]
             configuration_warning: false,
             overlay: None,
@@ -480,6 +482,15 @@ impl ClientView {
             wide_sidebar_visible: true,
             help: help::State::default(),
             pointer_released: false,
+        }
+    }
+
+    pub(crate) fn expire_notice(&mut self, now: std::time::Instant) -> bool {
+        if self.notice_timer.expired(self.notice, now) {
+            self.notice = None;
+            true
+        } else {
+            false
         }
     }
 

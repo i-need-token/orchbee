@@ -874,6 +874,10 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     let status_visible = status_overlay_visible(view, session.as_ref(), capture_owner)
         || notice.is_some()
         || tier == ViewportTier::TooSmall;
+    frame.render_widget(
+        Block::new().style(theme.style(Role::SurfaceChrome)),
+        areas.status,
+    );
     if status_visible {
         frame.render_widget(Clear, areas.status);
         frame

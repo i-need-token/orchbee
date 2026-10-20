@@ -138,6 +138,9 @@ pub(in crate::terminal_session) struct QuickWorkspaceFields {
     name: LineEditor,
     directory: LineEditor,
     project: QuickProject,
+    directories: Vec<WorkbenchDirectoryPath>,
+    automatic_name: bool,
+    locale: Locale,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -185,8 +188,11 @@ impl QuickWorkspaceFields {
         Self {
             name: LineEditor::new(label, LengthLimit::Scalars(512)),
             directory: LineEditor::new(cwd.as_str().to_owned(), LengthLimit::Bytes(4096)),
+            directories: vec![cwd.clone()],
             base: cwd,
             project,
+            automatic_name: true,
+            locale,
         }
     }
     pub(in crate::terminal_session) fn name(&self) -> &str {
@@ -229,10 +235,36 @@ impl QuickWorkspaceFields {
             &self.name
         }
     }
+    pub(super) fn directory_choices(&self) -> &[WorkbenchDirectoryPath] {
+        &self.directories
+    }
+    pub(super) fn selected_directory(&self) -> Option<usize> {
+        self.directories
+            .iter()
+            .position(|path| path.as_str().eq_ignore_ascii_case(self.directory()))
+    }
+    pub(super) fn select_directory(&mut self, index: usize, cache: &NativeContextTabs) -> bool {
+        let Some(path) = self.directories.get(index) else {
+            return false;
+        };
+        self.directory = LineEditor::new(path.as_str().to_owned(), LengthLimit::Bytes(4096));
+        self.refresh_name(cache);
+        true
+    }
+    pub(super) fn refresh_name(&mut self, cache: &NativeContextTabs) {
+        if self.automatic_name
+            && let Some(path) = self
+                .normalized_path()
+                .and_then(|path| WorkbenchDirectoryPath::parse(&path).ok())
+        {
+            self.name = Self::with_project(cache, self.project.clone(), path, self.locale).name;
+        }
+    }
     pub(in crate::terminal_session) fn field_mut(&mut self, directory: bool) -> &mut LineEditor {
         if directory {
             &mut self.directory
         } else {
+            self.automatic_name = false;
             &mut self.name
         }
     }
@@ -460,7 +492,7 @@ impl NativeSessionState {
         let Some(next) = self.setup.last_token.checked_add(1) else {
             return;
         };
-        let fields = match &preparation.target {
+        let mut fields = match &preparation.target {
             Some(target) => QuickWorkspaceFields::with_project(
                 &self.cache,
                 QuickProject::Targeted(target.clone()),
@@ -469,6 +501,42 @@ impl NativeSessionState {
             ),
             None => QuickWorkspaceFields::new(&self.cache, cwd, locale),
         };
+        // Current directory first, then recent selections, then other known Workspaces.
+        // Choices are frozen with the draft and bounded independently of navigation size.
+        let locations = self.navigation_memory.recent_locations().chain(
+            self.cache
+                .navigation()
+                .iter()
+                .map(|context| &context.location),
+        );
+        for location in locations {
+            let crate::terminal_session::workbench_projection::NativeContextLocation::Workspace {
+                workspace_id,
+                ..
+            } = location
+            else {
+                continue;
+            };
+            let Some(directory) = self
+                .cache
+                .canonical_snapshot()
+                .navigation
+                .workspace_directory(workspace_id)
+            else {
+                continue;
+            };
+            let path = directory.path.clone();
+            if !fields
+                .directories
+                .iter()
+                .any(|prior| prior.as_str().eq_ignore_ascii_case(path.as_str()))
+            {
+                fields.directories.push(path);
+            }
+            if fields.directories.len() >= 8 {
+                break;
+            }
+        }
         let stage = if preparation.review_directory {
             NativeSetupStage::QuickDirectory
         } else if fields.project() == &QuickProject::Choose {

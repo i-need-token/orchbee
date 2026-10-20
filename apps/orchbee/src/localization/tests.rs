@@ -628,10 +628,7 @@ fn native_tab_copy_matches_the_accepted_english_table() {
         locale.native_display_blocked("Tab 10"),
         "Tab 10 · Connecting · display blocked"
     );
-    assert_eq!(
-        locale.native_ready_controlling("Tab 10"),
-        "Tab 10 · Ready · controlling"
-    );
+    assert_eq!(locale.native_ready_controlling("Tab 10"), "Tab 10 · Ready");
     assert_eq!(
         locale.native_ready_read_only("Tab 10"),
         "Tab 10 · Ready · view only"
@@ -688,10 +685,7 @@ fn native_tab_copy_matches_the_accepted_chinese_table() {
         locale.native_display_blocked("Tab 10"),
         "Tab 10 · 正在连接 · 显示已阻塞"
     );
-    assert_eq!(
-        locale.native_ready_controlling("Tab 10"),
-        "Tab 10 · 已就绪 · 可控制"
-    );
+    assert_eq!(locale.native_ready_controlling("Tab 10"), "Tab 10 · 已就绪");
     assert_eq!(
         locale.native_ready_read_only("Tab 10"),
         "Tab 10 · 已就绪 · 仅查看"

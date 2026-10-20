@@ -242,11 +242,9 @@ impl Locale {
     pub(crate) const fn quick_workspace_directory_hint(self) -> &'static str {
         match self {
             Self::EnUs => {
-                "Uses the terminal process directory; PowerShell cd may differ. Choose an existing folder for this Workspace."
+                "Enter creates here. Edit the path, or use Up/Down to choose current or recent workspace folders."
             }
-            Self::ZhCn => {
-                "默认使用终端进程目录，可能与 PowerShell 的 cd 目录不同。可为本次工作区指定已有文件夹。"
-            }
+            Self::ZhCn => "回车在此创建。可直接编辑路径，或用上下键选择当前及最近工作区目录。",
         }
     }
     pub(crate) const fn quick_workspace_preparing_fact(self) -> &'static str {

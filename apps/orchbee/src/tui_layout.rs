@@ -143,7 +143,7 @@ pub(crate) fn guidance_area(content: Rect, global_action: Option<Rect>) -> Rect 
 
 pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -> ShellAreas {
     let tier = ViewportTier::from_area(area);
-    // Status is an overlay, never a reservation in the terminal's geometry.
+    // The sidebar retains its full height; the workbench reserves one stable status row.
     let body = area;
     let surface = effective_sidebar_surface(tier, sidebar_surface);
     let (workbench, sidebar) = match surface {
@@ -175,6 +175,12 @@ pub(crate) fn project_shell_areas(area: Rect, sidebar_surface: SidebarSurface) -
             }),
         ),
     };
+    let workbench = Rect::new(
+        workbench.x,
+        workbench.y,
+        workbench.width,
+        workbench.height.saturating_sub(STATUS_ROWS),
+    );
     let (tabs, panel) = if tier.shows_tab_strip() {
         let [tabs, panel] =
             Layout::vertical([Constraint::Length(TAB_STRIP_ROWS), Constraint::Min(0)])
@@ -215,13 +221,8 @@ fn effective_sidebar_surface(tier: ViewportTier, surface: SidebarSurface) -> Sid
 }
 
 pub(crate) const fn overlay_area(areas: &ShellAreas) -> Rect {
-    // Capturing surfaces leave room for their transient hint; PTYs still own it.
-    Rect::new(
-        areas.panel.x,
-        areas.panel.y,
-        areas.panel.width,
-        areas.panel.height.saturating_sub(STATUS_ROWS),
-    )
+    // Status already lies outside the workbench and every terminal projection.
+    areas.panel
 }
 
 pub(crate) fn place_overlay(

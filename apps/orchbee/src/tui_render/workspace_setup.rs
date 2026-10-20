@@ -816,7 +816,34 @@ fn render_quick(
         lines.push(status_line(locale.setup_fault(), Role::StatusError, theme));
         lines.push(Line::from(""));
     }
-    lines.extend([Line::from(""), Line::from("")]);
+    let choices_start = lines.len();
+    let selected = draft.selected_directory().unwrap_or(0);
+    let first = selected
+        .saturating_sub(1)
+        .min(draft.directory_choices().len().saturating_sub(2));
+    let choices: Vec<_> = draft
+        .directory_choices()
+        .iter()
+        .enumerate()
+        .skip(first)
+        .take(2)
+        .collect();
+    for (index, path) in &choices {
+        let marker = if draft.selected_directory() == Some(*index) {
+            theme.glyphs.active_marker
+        } else {
+            " "
+        };
+        lines.push(Line::from(format!(
+            "{marker} {} {}",
+            index + 1,
+            truncate_display(
+                &sanitize_terminal_text(path.as_str()),
+                usize::from(content_area.width.saturating_sub(16).min(44)),
+                theme.glyphs.ellipsis
+            )
+        )));
+    }
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let tab = modal_key_label(theme, &Binding::new(KeyCode::Tab, Modifiers::NONE));
@@ -1014,6 +1041,20 @@ fn render_quick(
                 HitLayer::Overlay,
                 geometry.row,
                 target,
+                InteractionAvailability::Enabled,
+            );
+        }
+    }
+    for (row, (index, _)) in choices.iter().enumerate() {
+        let rect = super::controls::text_row(&text, layout.inner, choices_start + row);
+        if rect.height == 1 && layout.inner.intersection(rect) == rect {
+            hits.record_modal_control(
+                HitLayer::Overlay,
+                rect,
+                HitTarget::Setup {
+                    token: draft.token(),
+                    control: ModalControl::Choice(*index),
+                },
                 InteractionAvailability::Enabled,
             );
         }

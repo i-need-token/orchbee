@@ -80,13 +80,13 @@ Width and height are classified independently and the lower tier wins.
 `ViewportTier::from_size(columns, rows)` in `tui_layout` is the single classifier. Chrome row and
 column counts per tier:
 
-| Chrome       | Full                       | Compact                           | Minimal                   | TooSmall     |
-| ------------ | -------------------------- | --------------------------------- | ------------------------- | ------------ |
-| Top strip    | 1 row (tabs)               | 1 row (tabs)                      | none                      | none         |
-| Status       | overlay, no reserved rows  | overlay, no reserved rows         | overlay, no reserved rows | exit overlay |
-| Side panel   | docked, bounded preference | overlay, bounded preference, left | hidden                    | hidden       |
-| Panel chrome | pane frame and leaf titles | pane frame and leaf titles        | not drawn                 | not drawn    |
-| Content      | remainder                  | remainder                         | remainder                 | notice only  |
+| Chrome       | Full                       | Compact                           | Minimal        | TooSmall       |
+| ------------ | -------------------------- | --------------------------------- | -------------- | -------------- |
+| Top strip    | 1 row (tabs)               | 1 row (tabs)                      | none           | none           |
+| Status       | 1 reserved row             | 1 reserved row                    | 1 reserved row | 1 reserved row |
+| Side panel   | docked, bounded preference | overlay, bounded preference, left | hidden         | hidden         |
+| Panel chrome | pane frame and leaf titles | pane frame and leaf titles        | not drawn      | not drawn      |
+| Content      | remainder                  | remainder                         | remainder      | notice only    |
 
 At TooSmall the Client paints one localized too-small notice and the status line, nothing else, and
 resumes normal rendering when the host grows. The sidebar surface the view requests is an intent;
@@ -263,9 +263,9 @@ hidden controls. A restored presentable frame can resume the retained help page.
 ## Quick creation controls
 
 On Windows the top strip reserves three cells for `+` after the last visible Tab,
-including an empty canonical Workspace. The current Tab and create control share the strip with
-any Presentation selector. Controls disappear with the strip below Compact.
-The fixed New workspace row invokes the existing immediate quick-Workspace action;
+including an empty canonical Workspace. The current Tab and create control share the strip;
+Presentation selectors belong to pane headers. Controls disappear with the strip below Compact.
+The fixed New workspace row opens the existing directory/name picker;
 an eligible current-site Project row has a create action beside its row menu whenever the painted
 width admits a separate control. Disclosure, content, create and menu cells are disjoint. Compact
 glyphs are locale-neutral; full action labels and unavailable reasons use
@@ -274,7 +274,7 @@ the existing English and Chinese catalogs.
 | Entry             | Existing action and authority                                                                                                                                                                                                                                                                                                                       |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tab-strip `+`     | `DrawnTabCreate` freezes the Session, snapshot revision and context. An unmodified left press arms a local pointer gesture; matching release inside the same still-exposed rectangle asks `NativeUi` to revalidate that proof, then hands `ClientAction::CreateTab` to the ordinary dispatcher and membership admission. No effect occurs on press. |
-| New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It creates an independent Workspace and first shell without opening the creation menu. No effect occurs on press.                                        |
+| New workspace row | An unmodified left press arms the exact painted action; a matching release inside the still-exposed extent delegates `ClientAction::RequestQuickWorkspace` to the existing creation owner. It opens the directory/name picker; Enter submits one independent Workspace and first shell. No effect occurs on press.                                  |
 | Project-row `+`   | Opens the same creation subset over the exact painted Project, with targeted quick Workspace first. Existing capability checks and disabled reasons remain; no child Workspace is selected implicitly.                                                                                                                                              |
 
 Right-clicking the Tab-strip `+` opens the separate new-Tab menu (plain Tab, recent group,
@@ -438,7 +438,7 @@ explicit Client-local preference owned by Picker, not a content-driven size or a
 persisted setting. A visible sidebar uses `min(preferred, host columns / 2)` columns;
 the existing Full and Compact floors ensure that this cap remains above the minimum.
 `SidebarSurface` carries the preferred value through the existing single shell
-projector, terminal geometry and local pane-layout validation. The status overlay uses the columns to the right of a visible sidebar. Host shrinkage clamps only the effective rectangle, retaining
+projector, terminal geometry and local pane-layout validation. The status row uses the columns to the right of a visible sidebar. Host shrinkage clamps only the effective rectangle, retaining
 the preference for later restoration.
 
 | State / event            | Decision and invariant                                                                                                                                                                                                                                                                                                                                                                     |
@@ -474,19 +474,18 @@ those effects. The existing bounded hierarchy traces remain the hierarchy author
 
 ## Status line
 
-Ordinary terminal content reaches the bottom of the host. No status row, idle shortcuts,
-Menu button or current-machine indicator reserves terminal height. `ShellAreas.status` is
-an overlay rectangle at the bottom, to the right of a visible sidebar; `ShellAreas.panel`
-includes those cells. Prefix entry and exit leave PTY geometry unchanged, and a later
-ordinary draw restores the covered terminal cells and cursor.
+The workbench reserves one bottom status row at every size. `ShellAreas.panel` and all terminal,
+pane, scrollbar and read-only layout projections exclude it. The sidebar keeps its full height.
+The row stays reserved when empty, so prefix entry, notices and expiry never resize a PTY or cover
+terminal cells or pane borders. Idle status is blank.
 
-The overlay appears for prefix capture, other input modes, meaningful notices, connection or recovery,
+Status text appears for prefix capture, other input modes, meaningful notices, connection or recovery,
 released pointer capture and a focused terminal's ended lifecycle. Exit feedback remains visible
 alongside pane titles: `Locale::native_status` owns its localized exit result,
-and the renderer keeps the status overlay admitted even when the session remains Ready and controlling.
+and the renderer keeps status text admitted even when the session remains Ready and controlling.
 When the retained-output detail cannot fit, localized compact copy preserves the complete exit code,
-signal, unknown result or runtime-failure fact within twenty cells. This never reserves a terminal row
-or restores a title band. Ready, control and zoom context is available with prefix hints.
+signal, unknown result or runtime-failure fact within twenty cells. The reserved row is stable. Ready and zoom context is available with prefix hints; ordinary
+controlling status is omitted, while read-only input remains explicit.
 TooSmall retains its exit hint.
 Segments follow `docs/tui/overlays-and-status.md`; context yields to the mode and exit hint.
 The prefix badge shortens its cancellation hint to `Esc`, then to the badge alone. Menus
@@ -521,8 +520,7 @@ locales, configured prefix labels, long scrolled columns, 120x41, 120x40 and 80x
 The navigator suppresses pane cursor/focus emphasis. Prefix input also hides the terminal cursor. Shortcut Help
 retains its nonmodal behavior.
 
-Content-scoped centered overlays use `ShellAreas.panel` minus its final row, leaving space for their
-transient hint. Application Settings instead uses the full host viewport minus its final row,
+Content-scoped centered overlays use `ShellAreas.panel`; status already lies outside it. Application Settings instead uses the full host viewport minus its final row,
 including the sidebar and top strip in its centering reference. Sidebar visibility and width never
 shift that surface. These placement rules leave terminal geometry unchanged. `tui_layout` exposes
 two pure functions for content-scoped surface renderers:
@@ -586,7 +584,7 @@ keeping the last valid geometry below that floor is the environment slice's conc
 ## Correctness evidence
 
 `cargo test -p orchbee` covers: the tier boundary matrix including the width/height lower-of-two
-rule, the one-row status overlay and strip, sidebar presentation per tier, overlay clamping, centering, and
+rule, the reserved status row and strip, sidebar presentation per tier, overlay clamping, centering, and
 refusal, pane division geometry and the shared divider, plus TestBackend renders at 120x40, 80x24,
 60x12, 50x10, 15x4 and mixed-axis geometries in `en-US` and `zh-CN` proving the status row is never
 covered, the too-small notice is localized, and active/long-label tab tokens stay visible through
@@ -633,3 +631,5 @@ Tab available with its group annotation. Text passes the existing sanitizer and 
 painted widths define the exact Tab/group pointer regions. Display annotations never become raw
 names or automatic ordinals. The [Tab group contract](native-tab-groups.md) owns disclosure,
 configuration and cross-host capability coverage.
+
+Pending and canonical Workspace rows reserve the same nonempty configured token rows, including empty metadata tracks. Late Git information fills those tracks without moving neighboring entries. The heading spacer depends only on available height, never metadata readiness. Style rules may hide text without removing its row.

@@ -1421,8 +1421,8 @@ impl Locale {
                 Self::ZhCn => "请先关闭当前对话框".to_owned(),
             },
             NativeSessionNotice::HistoryRecovering => match self {
-                Self::EnUs => "History position lost · returning to live".to_owned(),
-                Self::ZhCn => "历史位置已失效 · 正在返回实时".to_owned(),
+                Self::EnUs => "Showing the latest output".to_owned(),
+                Self::ZhCn => "正在显示最新输出".to_owned(),
             },
             #[cfg(windows)]
             NativeSessionNotice::CommandAccepted => match self {
@@ -1520,9 +1520,9 @@ impl Locale {
             },
             NativeSessionNotice::HistoryPositionLost => match self {
                 Self::EnUs => {
-                    "Previous history position unavailable · returning to live".to_owned()
+                    "Earlier output is no longer saved; showing the latest output".to_owned()
                 }
-                Self::ZhCn => "无法恢复先前历史位置 · 正在返回实时".to_owned(),
+                Self::ZhCn => "先前输出已不在保留范围，正在显示最新输出".to_owned(),
             },
             NativeSessionNotice::SelectionEvicted => match self {
                 Self::EnUs => "Selected rows are no longer available".to_owned(),
@@ -1798,8 +1798,8 @@ impl Locale {
 
     fn native_ready_controlling(self, label: &str) -> String {
         match self {
-            Self::EnUs => format!("{label} · Ready · controlling"),
-            Self::ZhCn => format!("{label} · 已就绪 · 可控制"),
+            Self::EnUs => format!("{label} · Ready"),
+            Self::ZhCn => format!("{label} · 已就绪"),
         }
     }
 

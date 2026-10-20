@@ -38,7 +38,13 @@ impl NativeSessionState {
     pub(in crate::terminal_session) fn workspace_creation_preview(
         &self,
     ) -> Option<WorkspaceCreationPreview<'_>> {
-        if self.setup.uncertain.is_some() {
+        if self.setup.uncertain.is_some()
+            || self
+                .setup
+                .preparation
+                .as_ref()
+                .is_some_and(|preparation| preparation.review_directory)
+        {
             return None;
         }
         if self.setup.preparation.is_some() || self.setup.draft.is_some() {

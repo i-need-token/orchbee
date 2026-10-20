@@ -240,3 +240,26 @@ fn mailbox_retirement_interrupts_the_bound_ui_waiter() {
     mailbox.close(CarrierFailure::OutcomeUnknown);
     assert!(wakeup.take());
 }
+
+#[test]
+fn one_shot_notices_expire_without_discarding_unknown_outcomes() {
+    use crate::terminal_session::state::SessionNotice;
+    use std::sync::atomic::Ordering;
+    let (mut ui, _mailbox, _clock, elapsed) = move_membership::ready_ui();
+    ui.state
+        .as_mut()
+        .unwrap()
+        .set_notice(SessionNotice::HistoryRecovering);
+    assert!(!ui.expire_status_notices());
+    elapsed.store(4000, Ordering::SeqCst);
+    assert!(ui.expire_status_notices());
+    assert!(ui.view().notice().is_none());
+    ui.state
+        .as_mut()
+        .unwrap()
+        .set_notice(SessionNotice::DuplicateOutcomeUnknown);
+    assert!(!ui.expire_status_notices());
+    elapsed.store(12000, Ordering::SeqCst);
+    assert!(!ui.expire_status_notices());
+    assert!(ui.view().notice().is_some());
+}

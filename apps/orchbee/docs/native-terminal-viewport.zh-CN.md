@@ -371,3 +371,5 @@ Home、End 和 Esc。
 运行 `node scripts/tla/run-models.mjs --models native-terminal-viewport` 检查有界协议，并运行原生 Cargo 测试验证实现。`scripts/tla/model-mutations.test.mjs` 注入独立结果生产者，要求得到 `OutcomeProductionOwned` 反例。完整 `pnpm test:tla` 门禁执行此负向控制及所有保留配置，不复用成功结果缓存。
 
 模型不证明实际时钟延迟、载荷校验、行几何或所有 UI 调度。超时、未清空状态队列或动作覆盖不足均属于检查失败。
+
+TUI 将阅读锚点失效表述为正在显示最新输出。这条一次性提示四秒后过期，焦点窗格完成返回实时后立即清除。状态行位于终端几何之外，恢复协议和保留的操作事实保持不变。

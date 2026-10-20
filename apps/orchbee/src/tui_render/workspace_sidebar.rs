@@ -295,16 +295,8 @@ fn lines(
                 ));
             }
         }
-        // A visible configured row keeps its height even when a tiny viewport clips all text.
-        if !spans.is_empty()
-            || !tokens.is_empty()
-                && tokens.iter().any(|token| {
-                    context.visible(
-                        token.kind(),
-                        token.style_for_value(context.value(token.kind())),
-                    )
-                })
-        {
+        // Configured tracks keep their height while asynchronous metadata arrives.
+        if !tokens.is_empty() {
             lines.push(Line::from(spans));
         }
     }
@@ -326,20 +318,12 @@ fn lines(
     ProjectedSidebarLines::new(lines, current_identity)
 }
 
-fn height(view: &ClientView, row: &Row, locale: Locale) -> u16 {
-    let context = Context::new(view, row, locale);
+fn configured_height(view: &ClientView) -> u16 {
     view.machines
         .space_settings()
         .rows()
         .iter()
-        .filter(|tokens| {
-            tokens.iter().any(|token| {
-                context.visible(
-                    token.kind(),
-                    token.style_for_value(context.value(token.kind())),
-                )
-            })
-        })
+        .filter(|tokens| !tokens.is_empty())
         .count()
         .max(1) as u16
 }
@@ -498,7 +482,7 @@ fn entry_height(
     } = context;
     let base = match row {
         SidebarRow::Project { .. } => 1,
-        SidebarRow::Context { row, .. } => height(view, row, locale),
+        SidebarRow::Context { .. } => configured_height(view),
         SidebarRow::Agent { row, .. } => super::agent_sidebar::tokens::height(view, row, locale),
     };
     let text_width = entry_width(view, source, row, width, sidebar_width);
@@ -564,46 +548,6 @@ fn append_identity(lines: &mut Vec<Line<'static>>, suffix: &str, width: usize, s
             ));
         }
     }
-}
-
-fn minimum_height(
-    view: &ClientView,
-    source: &SidebarSource,
-    rows: &[SidebarRow<'_>],
-    locale: Locale,
-    width: u16,
-    sidebar_width: u16,
-    theme: &Theme,
-) -> u16 {
-    let measure = EntryMeasureContext {
-        view,
-        source,
-        locale,
-        sidebar_width,
-        theme,
-    };
-    let annotations = annotations(measure, rows, width);
-    rows.iter()
-        .position(|row| {
-            view.machines
-                .sidebar_focused_target()
-                .is_some_and(|target| row.target() == *target)
-        })
-        .or_else(|| {
-            rows.iter().position(|row| {
-                matches!(row, SidebarRow::Agent { row, .. } if row.sidebar_agent().is_some_and(|agent| view.machines.current_agent(&row.choice, agent)))
-            })
-        })
-        .or_else(|| {
-            rows.iter().position(|row| {
-                matches!(row, SidebarRow::Context { row, .. } if view.machines.current_workspace(row))
-            })
-        })
-        .or_else(|| (!rows.is_empty()).then_some(0))
-        .map_or(1, |index| {
-            entry_height(measure, &rows[index], &annotations[index], width)
-        })
-        .saturating_add(2)
 }
 
 pub(super) struct RenderContext<'a> {
@@ -1123,14 +1067,7 @@ pub(super) fn render(
     if area.height < 3 {
         return;
     }
-    let header_rows = if area.height >= 10
-        && area.height
-            > minimum_height(view, source, rows, locale, area.width, sidebar_width, theme)
-    {
-        2
-    } else {
-        1
-    };
+    let header_rows = if area.height >= 10 { 2 } else { 1 };
     let body = Rect::new(
         area.x,
         area.y + header_rows,
@@ -1163,7 +1100,7 @@ pub(super) fn render(
         })
         .collect();
     if let Some(index) = insertion {
-        heights.insert(index, 1);
+        heights.insert(index, configured_height(view));
         let following_gap = if index < rows.len() && starts_group(view, rows, index) {
             space_gap.max(1)
         } else {

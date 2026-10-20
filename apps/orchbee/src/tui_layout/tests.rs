@@ -39,7 +39,7 @@ fn classifies_tiers_by_the_lower_of_the_width_and_height_tiers() {
 }
 
 #[test]
-fn docks_the_sidebar_beside_full_height_content_and_an_overlaid_status() {
+fn docks_the_sidebar_beside_content_with_a_reserved_status_row() {
     let viewport = Rect::new(0, 0, 120, 40);
     let areas = project_shell_areas(viewport, SidebarSurface::Docked(SidebarWidth::DEFAULT));
 
@@ -52,13 +52,13 @@ fn docks_the_sidebar_beside_full_height_content_and_an_overlaid_status() {
         areas.sidebar.map(|sidebar| sidebar.area),
         Some(Rect::new(0, 0, SidebarWidth::DEFAULT.columns(), 40))
     );
-    assert_eq!(areas.workbench, Rect::new(30, 0, 90, 40));
+    assert_eq!(areas.workbench, Rect::new(30, 0, 90, 39));
     assert_eq!(areas.tabs, Rect::new(30, 0, 90, 1));
-    assert_eq!(areas.panel, Rect::new(30, 1, 90, 39));
+    assert_eq!(areas.panel, Rect::new(30, 1, 90, 38));
     assert_eq!(areas.status, Rect::new(30, 39, 90, 1));
     assert_eq!(
         terminal_area(areas.panel, areas.tier.shows_panel_frame()),
-        Rect::new(31, 2, 88, 37)
+        Rect::new(31, 2, 88, 36)
     );
 }
 
@@ -72,7 +72,7 @@ fn overlays_the_left_edge_without_reflowing_the_compact_workbench() {
 
     assert_eq!(hidden.tier, ViewportTier::Compact);
     assert_eq!(hidden.workbench, overlay.workbench);
-    assert_eq!(overlay.workbench, Rect::new(4, 2, 70, 20));
+    assert_eq!(overlay.workbench, Rect::new(4, 2, 70, 19));
     assert_eq!(
         overlay.sidebar.map(|sidebar| sidebar.layer),
         Some(SidebarLayer::Overlay)
@@ -96,7 +96,7 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
     );
     assert_eq!(minimal.tier, ViewportTier::Minimal);
     assert!(minimal.tabs.is_empty());
-    assert_eq!(minimal.panel, Rect::new(0, 0, 50, 10));
+    assert_eq!(minimal.panel, Rect::new(0, 0, 50, 9));
     assert_eq!(minimal.sidebar, None);
     assert_eq!(minimal.status, Rect::new(0, 9, 50, 1));
 
@@ -108,7 +108,7 @@ fn drops_the_tab_strip_and_sidebar_at_minimal_and_too_small() {
     assert!(tiny.tabs.is_empty());
     assert_eq!(tiny.sidebar, None);
     assert_eq!(tiny.status, Rect::new(0, 3, 15, 1));
-    assert_eq!(tiny.panel, tiny.body);
+    assert_eq!(tiny.panel.bottom(), tiny.status.y);
     // TooSmall draws no panel frame, so the honest content area is the panel
     // itself; `active_pane_area` still withholds it (Ok(None)), so the session
     // keeps its last valid geometry instead of receiving a fabricated resize.
@@ -126,11 +126,15 @@ fn minimal_viewports_keep_the_terminal_at_the_first_row_without_a_top_strip() {
 
         assert_eq!(areas.tier, ViewportTier::Minimal, "{width}x{height}");
         assert!(areas.tabs.is_empty(), "{width}x{height}");
-        assert_eq!(areas.panel, viewport, "{width}x{height}");
+        assert_eq!(
+            areas.panel,
+            Rect::new(viewport.x, viewport.y, width, height - 1),
+            "{width}x{height}"
+        );
 
         let terminal = native_terminal_area(areas.panel, false, false);
         assert_eq!(terminal.y, viewport.y, "{width}x{height}");
-        assert_eq!(terminal.bottom(), viewport.bottom(), "{width}x{height}");
+        assert_eq!(terminal.bottom(), areas.status.y, "{width}x{height}");
         assert!(!terminal.intersects(areas.tabs), "{width}x{height}");
     }
 }
@@ -163,7 +167,7 @@ fn keeps_overlay_geometry_inside_the_content_area_and_never_the_status() {
     let content = overlay_area(&areas);
 
     assert_eq!(content, Rect::new(30, 1, 90, 38));
-    assert!(areas.panel.intersects(areas.status));
+    assert!(!areas.panel.intersects(areas.status));
     assert!(!content.intersects(areas.status));
 
     let placed = place_overlay(content, u16::MAX, u16::MAX).unwrap();
@@ -249,7 +253,7 @@ fn reserves_a_title_row_and_scrollbar_column_inside_each_leaf() {
 #[test]
 fn single_and_zoomed_terminals_keep_every_panel_row_while_split_frames_keep_their_geometry() {
     for panel in [
-        Rect::new(30, 1, 90, 39),
+        Rect::new(30, 1, 90, 38),
         Rect::new(0, 1, 80, 23),
         Rect::new(0, 1, 60, 11),
         Rect::new(0, 0, 50, 10),

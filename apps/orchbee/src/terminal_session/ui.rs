@@ -1256,6 +1256,8 @@ enum ActionBuildError {
 }
 
 pub(super) struct NativeUi {
+    notice_timer: crate::transient_notice::NoticeTimer<SessionNotice>,
+    setup_notice_timer: crate::transient_notice::NoticeTimer<NativeSetupStatus>,
     focus_new_panel: bool,
     settings: settings::Coordinator,
     #[cfg(windows)]
@@ -1397,6 +1399,8 @@ impl NativeUi {
             #[cfg(windows)]
             menus: action_menus::Coordinator::default(),
             settings: settings::Coordinator::default(),
+            notice_timer: Default::default(),
+            setup_notice_timer: Default::default(),
             focus_new_panel: true,
             #[cfg(windows)]
             launch_profiles: launch_profiles::Coordinator::default(),
@@ -1847,6 +1851,7 @@ impl NativeUi {
                 changed |= self.tick_copy_mode();
             }
         }
+        changed |= self.expire_status_notices();
         acknowledged
             || command_notice_changed
             || changed
@@ -2537,6 +2542,12 @@ impl NativeUi {
             mailbox.apply_local_for(state, |state| state.set_notice(notice));
         }
         if effect.live {
+            if let Some(state) = self.state.as_mut()
+                && state.focus_pane_ref().as_ref() == Some(key)
+                && state.notice() == Some(SessionNotice::HistoryRecovering)
+            {
+                mailbox.apply_local_for(state, NativeSessionState::clear_notice);
+            }
             if let Some(projection) = self.projections.iter_mut().find(|p| &p.key == key) {
                 projection.viewport = None;
                 projection.tail = None;
@@ -2804,16 +2815,14 @@ impl NativeUi {
             #[cfg(windows)]
             ClientAction::RequestWorktreeOpen => self.request_worktree(WorktreeMode::Open),
             ClientAction::RequestQuickWorkspace | ClientAction::RequestWorkspaceCreate => {
-                if self.request_quick_workspace() && self.workspace_creation_replaces_content() {
+                if self.request_quick_workspace() {
                     SessionActionDisposition::LayoutChanged
                 } else {
                     SessionActionDisposition::KeepNavigator
                 }
             }
             ClientAction::RequestWorkspaceAtDirectory(request) => {
-                if self.request_quick_workspace_with_review(request.map(|request| *request), true)
-                    && self.workspace_creation_replaces_content()
-                {
+                if self.request_quick_workspace_with_review(request.map(|request| *request), true) {
                     SessionActionDisposition::LayoutChanged
                 } else {
                     SessionActionDisposition::KeepNavigator
@@ -2821,9 +2830,7 @@ impl NativeUi {
             }
             ClientAction::RequestProjectQuickWorkspace(request) => {
                 if self.request_quick_workspace_for(Some(*request)) {
-                    if self.workspace_creation_replaces_content() {
-                        return SessionActionDisposition::LayoutChanged;
-                    }
+                    return SessionActionDisposition::LayoutChanged;
                 } else if let Some(state) = self.state.as_mut() {
                     state.set_notice(super::state::SessionNotice::DraftCancelled);
                 }
@@ -2982,6 +2989,24 @@ impl NativeUi {
                 SessionActionDisposition::KeepNavigator
             }
         }
+    }
+
+    fn expire_status_notices(&mut self) -> bool {
+        let Some(state) = self.state.as_mut() else {
+            return false;
+        };
+        let now = self.clock.now();
+        let notice = state.notice().filter(|notice| notice.transient());
+        let setup = state.setup_status().filter(|status| status.transient());
+        let notice_expired = self.notice_timer.expired(notice, now);
+        let setup_expired = self.setup_notice_timer.expired(setup, now);
+        if notice_expired {
+            state.clear_notice();
+        }
+        if setup_expired {
+            state.clear_settled_setup_status();
+        }
+        notice_expired || setup_expired
     }
 
     fn clear_notice(&mut self) {

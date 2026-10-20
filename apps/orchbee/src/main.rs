@@ -103,6 +103,7 @@ mod terminal_text;
 mod terminal_title;
 #[cfg(any(unix, windows))]
 mod termination_signal;
+mod transient_notice;
 #[cfg(any(unix, windows))]
 mod tui_backend;
 #[cfg(any(unix, windows))]

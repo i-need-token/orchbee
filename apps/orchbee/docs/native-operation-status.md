@@ -53,3 +53,5 @@ Parser cases cover exact IDs, missing operands, resource-selector rejection and 
 fences. Rust and TypeScript share the command conformance corpus with JSON Schema; it includes
 request-only lookup, each target kind, denied/unavailable/missing results and closed tombstones.
 Server authority cases cover retained identity and grant checks. Local verification follows the repository affected-host gate.
+
+One-shot Client notices, native notices and settled setup results expire after four seconds on the existing monotonic UI tick. Identical notices coalesce without extending their lifetime. Pending work, unknown outcomes, recovery-required results and persistent configuration warnings remain with their owning workflows; expiry never discards receipts or retries an operation.

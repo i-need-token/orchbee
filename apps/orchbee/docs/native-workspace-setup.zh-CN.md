@@ -7,14 +7,17 @@ Server 拥有规范导航和修订号，Client 拥有选择与输入。本参考
 [上下文选择](native-context-selection.zh-CN.md)和 Server 的
 [目录契约](../../orchbee-server/docs/workspace-terminal-directory.zh-CN.md)。
 
-在 Windows 上，新建工作区、`Ctrl+B a` 和 `Ctrl+B Shift+N` 会立即准备并提交带有首个默认 shell 的
-Workspace，不要求先建 Project、填写名称表单或再次确认。默认结果不属于任何 Project。
+在 Windows 上，新建工作区、`Ctrl+B a` 和 `Ctrl+B Shift+N` 准备轻量的目录与名称选择器。
+按 Enter 使用显示的默认值创建，Escape 不创建任何内容，两个字段均可编辑。
+上下键或已绘制的目录行可选择当前目录、最近工作区目录，随后是其他已知工作区目录，去重后最多八项。
+最近使用顺序复用 Client 既有的临时导航记忆，不扫描文件系统、不新增历史文件。
+名称未被手动编辑时随路径更新；默认结果不属于任何 Project。
 在明确的 Project 行上新建工作区，则使用该 Project，包括空项目和非当前项目。
 创建 Workspace 不会自动启动 AI 提供商。
 
-Windows TUI 接受创建后，立即显示待创建侧栏项和当前顶部 Tab，不等待目录准备或终端启动完成。
-侧栏本地化的“新建工作区”名称在准备完成后替换为工作区名称；顶部 Tab 使用
-[Tab 标签](native-tab-labels.zh-CN.md)规定的本地化自动名称“标签页 1”。进度在内容区显示，不打开模态框。
+目录准备与编辑期间保持侧栏和当前 Tab 不变。准备表单拥有输入，但不宣称 Workspace 已存在。
+只有显式提交后才按已选名称显示待创建侧栏项及当前顶部 Tab。顶部 Tab 使用
+[Tab 标签](native-tab-labels.zh-CN.md)规定的本地化自动名称“标签页 1”。已接受的创建进度在内容区显示，不打开模态框。
 此反馈改进限定于 Windows TUI。GUI 保留既有激活所有者，并沿用相同的规范创建语义。
 
 普通 Workspace 与基于 worktree 的 Workspace 同级。每个 Workspace 可以包含多个 Agent，并直接在其下列出。
@@ -28,7 +31,7 @@ Windows TUI 接受创建后，立即显示待创建侧栏项和当前顶部 Tab�
 Windows 用户主目录。采样不可用、根进程缺失或路径无效时拒绝准备，Client 不伪造成功采样。
 目录 basename 提供初始名称，根路径使用本地化后备名称。生成名称避开所捕获快照中全部 Workspace 标签，
 必要时依次追加 ` (2)`、` (3)` 等后缀。截断时预留后缀空间，整体不超过 512 个 Unicode 标量值。
-显式名称保持原样。默认创建和指定 Project 的创建使用同一快速路径。
+显式名称保持原样。默认创建和指定 Project 的创建使用同一可编辑准备路径。
 
 一次带修订号围栏的 `WorkspaceLaunch` 接受目录，并一并提交 Workspace、Directory、Context、Tab、
 Panel 和主 Presentation。Project 成员关系是可空属性，不提前发送 Default Project 创建命令。

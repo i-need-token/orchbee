@@ -47,6 +47,26 @@ pub(in crate::terminal_session::ui) fn empty_ui(
 }
 
 #[test]
+fn ordinary_workspace_entry_waits_for_a_drawn_directory_review() {
+    let (mut ui, mailbox, clock, snapshot) = no_workspace();
+    ui.apply_client_action(ClientAction::RequestQuickWorkspace);
+    assert!(ui.view().workspace_creation_preview().is_none());
+    assert!(ui.view().setup_capture_claim());
+    finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "opening never creates a Workspace"
+    );
+    let draft = ui.view().setup_draft().unwrap();
+    assert_eq!(draft.stage(), NativeSetupStage::QuickDirectory);
+    assert!(!draft.directory_choices().is_empty());
+    assert!(ui.view().workspace_creation_preview().is_none());
+    let token = draft.token();
+    ui.cancel_setup_draft(token);
+    assert!(mailbox.try_recv().unwrap().is_none());
+}
+
+#[test]
 fn directory_review_prepares_without_launching_and_submits_only_the_visible_edited_path() {
     use orchbee_workbench_protocol::{WorkbenchAction, WorkbenchDirectoryPath};
     let (mut ui, mailbox, clock, snapshot) = no_workspace();
