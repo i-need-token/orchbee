@@ -9,7 +9,7 @@ impl Locale {
     pub(crate) fn worktree_remove_title(self, label: &str) -> String {
         match self {
             Self::EnUs => format!("Remove worktree: {label}"),
-            Self::ZhCn => format!("移除 Worktree：{label}"),
+            Self::ZhCn => format!("移除 工作树：{label}"),
         }
     }
     pub(crate) fn worktree_remove_scope(self, terminals: usize) -> String {
@@ -36,9 +36,9 @@ impl Locale {
     ) -> &'static str {
         match (self, stage, resumable) {
             (Self::EnUs, WorktreeStage::Remove, _) => "Remove",
-            (Self::ZhCn, WorktreeStage::Remove, _) => "移除",
+            (Self::ZhCn, 工作树Stage::Remove, _) => "移除",
             (Self::EnUs, WorktreeStage::ResumeRemove, _) => "Resume removal",
-            (Self::ZhCn, WorktreeStage::ResumeRemove, _) => "恢复移除",
+            (Self::ZhCn, 工作树Stage::ResumeRemove, _) => "恢复移除",
             (Self::EnUs, _, true) => "Resume removal…",
             (Self::ZhCn, _, true) => "恢复移除…",
             (Self::EnUs, _, false) => "Read status",
@@ -109,7 +109,7 @@ impl Locale {
                 F::WorkerUnavailable { .. } | F::WorkerBusy { .. } | F::WorkerCapacity { .. },
             ) => "Worker 不可用或忙碌。请查询状态，在允许时恢复移除。",
             (Self::EnUs, F::Unsupported { .. }) => "This Worker does not support worktree removal.",
-            (Self::ZhCn, F::Unsupported { .. }) => "此 Worker 不支持移除 Worktree。",
+            (Self::ZhCn, F::Unsupported { .. }) => "此 Worker 不支持移除 工作树。",
             (Self::EnUs, F::SiteStopping { .. }) => {
                 "The Session is stopping. Read status before continuing."
             }
@@ -134,7 +134,7 @@ impl Locale {
     ) -> &'static str {
         match (self, state) {
             (Self::EnUs, WorktreeWorkspaceDisposition::Open { .. }) => "Workspace is retained.",
-            (Self::ZhCn, WorktreeWorkspaceDisposition::Open { .. }) => "工作区已保留。",
+            (Self::ZhCn, 工作树WorkspaceDisposition::Open { .. }) => "工作区已保留。",
             (Self::EnUs, WorktreeWorkspaceDisposition::Closing { .. }) => {
                 "Workspace closure is held until removal settles."
             }
@@ -142,7 +142,7 @@ impl Locale {
                 "工作区关闭正在等待移除结果。"
             }
             (Self::EnUs, WorktreeWorkspaceDisposition::Closed { .. }) => "Workspace is closed.",
-            (Self::ZhCn, WorktreeWorkspaceDisposition::Closed { .. }) => "工作区已关闭。",
+            (Self::ZhCn, 工作树WorkspaceDisposition::Closed { .. }) => "工作区已关闭。",
             (Self::EnUs, WorktreeWorkspaceDisposition::Unassociated { .. }) => {
                 "Workspace state has not been observed."
             }

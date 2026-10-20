@@ -33,6 +33,8 @@ pub(super) enum Kind {
 pub(super) enum Scope {
     #[cfg(windows)]
     Diagnostic,
+    #[cfg(windows)]
+    PickerIdentifier,
     Selection {
         generation: NonZeroU64,
         export: Option<NonZeroU64>,
@@ -188,6 +190,11 @@ pub(super) struct Queue {
     bytes: usize,
 }
 impl Queue {
+    #[cfg(windows)]
+    pub(super) fn enqueue_identifier(&mut self, key: PaneRef, text: String) -> bool {
+        self.enqueue(key, Scope::PickerIdentifier, Payload::Clipboard(text))
+    }
+
     #[cfg(windows)]
     pub(super) fn enqueue_diagnostic(&mut self, key: PaneRef, text: String) -> bool {
         self.enqueue(key, Scope::Diagnostic, Payload::Clipboard(text))

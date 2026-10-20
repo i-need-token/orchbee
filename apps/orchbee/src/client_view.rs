@@ -663,12 +663,16 @@ impl ClientView {
         if event.kind == KeyKind::Release {
             return None;
         }
+        if Binding::new(KeyCode::Tab, Modifiers::NONE).matches(event) {
+            self.help.toggle_all();
+            return Some(ClientAction::PageShortcutHelp);
+        }
         if Binding::new(KeyCode::PageUp, Modifiers::NONE).matches(event) {
-            self.request_help_page(self.help.page().saturating_sub(8));
+            self.request_help_page(self.help.page().saturating_sub(self.help.page_step()));
             return Some(ClientAction::PageShortcutHelp);
         }
         if Binding::new(KeyCode::PageDown, Modifiers::NONE).matches(event) {
-            self.request_help_page(self.help.page().saturating_add(8));
+            self.request_help_page(self.help.page().saturating_add(self.help.page_step()));
             return Some(ClientAction::PageShortcutHelp);
         }
         if Binding::new(KeyCode::Up, Modifiers::NONE).matches(event) {
@@ -845,6 +849,10 @@ impl ClientView {
         self.help.page()
     }
 
+    pub(crate) const fn help_expanded(&self) -> bool {
+        self.help.expanded()
+    }
+
     pub(crate) fn help_filter(&self) -> &str {
         self.help.filter()
     }
@@ -868,6 +876,7 @@ impl ClientView {
         }
         match self.help.activate(target) {
             Some(help::Activation::Close) => self.dismiss_overlay(),
+            Some(help::Activation::ToggleAll) => self.help.toggle_all(),
             Some(help::Activation::Page(page)) => self.request_help_page(page),
             None => return false,
         }
@@ -1602,8 +1611,10 @@ impl ClientView {
                     // Only open Help scrolls. The renderer's exact viewport
                     // settles any requested offset beyond its last line.
                     self.request_help_page(match member.action {
-                        PrefixAction::HelpPagePrevious => self.help_page().saturating_sub(8),
-                        _ => self.help_page().saturating_add(8),
+                        PrefixAction::HelpPagePrevious => {
+                            self.help_page().saturating_sub(self.help.page_step())
+                        }
+                        _ => self.help_page().saturating_add(self.help.page_step()),
                     });
                     (ClientAction::PageShortcutHelp, ShellCommand::None)
                 } else if member.action == PrefixAction::HelpPagePrevious {

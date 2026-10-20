@@ -141,7 +141,7 @@ fn bounded_adjustments_use_owner_steps_without_rounding_and_disable_at_endpoints
     draw(&mut editor);
     editor.edit(Edit::Activate);
     editor.edit(Edit::Clear);
-    editor.paste("10000001");
+    editor.paste("10.000001");
     editor.edit(Edit::Activate);
     draw(&mut editor);
     editor.edit(Edit::Adjust(false));

@@ -12,22 +12,11 @@ The Workspace sidebar admits right-click only for an exact, still-present row on
 current machine and painted Session. It uses the existing Workspace menu and never
 requests a machine or context switch on opening or cancellation.
 
-Workspace, Project, Tab and Tab Group context-menu rename entries use only `Rename` in `en-US`
-and `重命名` in `zh-CN`. The clicked object supplies the target context. Pane menus currently have no rename entry.
-Shortcut discovery and rename-dialog titles retain their object-specific names.
+Rename actions name their object in both locales. Context menus show the target name in the frame title; Tab menus use their shared displayed name in the existing scope header. Workspace menus separate only destructive deletion from the other root actions. An available Worktree submenu does not reserve an empty reason row.
 
-Pointer opening anchors the frame to the triggering host cell, including sidebar
-rows and their action buttons. The frame clamps to the entire viewport above the
-status line; it can overlap navigation chrome. Keyboard opening remains centered
-in the pane content area. Neither path changes the target or underlying focus.
+Pointer menus use the current painted trigger rectangle when available. Sidebar object menus prefer its right edge; other menus and constrained sidebar menus fit below or above the complete trigger row. Height yields to scrolling before covering that row; insufficient room keeps the existing recovery surface. Keyboard opening stays centered. Placement changes no target or focus.
 
-Object and creation context menus omit generic frame titles, header X controls, footer hints and
-selection counters, and publish no hidden hit targets for those omitted controls. Their border,
-action rows and optional reserved reason remain compact. Tab menus additionally reserve purposeful
-target/scope/path content and, for a retained parent, a Back action described below. Esc and outside
-dismissal, and Left or Esc returning from a submenu, keep their existing owner and draw guards.
-Submenus inherit the root menu's chrome policy rather than deriving it from a replacement child target. The global
-action menu retains its title and discovery controls.
+Object and creation context menus omit header X controls, footer hints and selection counters, and publish no hidden hit targets for those omitted controls. Tab menus retain their target/scope/path header and parent Back action. Esc, outside dismissal and returning from a submenu retain the existing owner and draw guards. Submenus inherit the root chrome policy. The global menu keeps its title and discovery controls.
 
 The presentation decision consumes the root target, retained parent chain, exact menu token,
 viewport, locale, theme and owner-derived unavailable reasons. It changes no action identity,

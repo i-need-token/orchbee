@@ -26,6 +26,7 @@ pub(crate) use metadata::{
     SettingAvailability, SettingCategory, SettingControl, SettingUnit, setting, setting_for_row,
 };
 pub(crate) use rows::{Page, Row};
+pub(crate) use values::scrollback_megabytes;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Token(u64);

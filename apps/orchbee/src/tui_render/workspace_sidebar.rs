@@ -57,6 +57,7 @@ struct Context<'a> {
     standalone: &'static str,
     unnamed: &'static str,
     git_stale: bool,
+    branch_redundant: bool,
 }
 impl<'a> Context<'a> {
     fn new(view: &'a ClientView, row: &'a Row, locale: Locale) -> Self {
@@ -72,6 +73,7 @@ impl<'a> Context<'a> {
             standalone: locale.shell().standalone,
             unnamed: locale.unnamed_workspace(),
             git_stale: view.machines.space_checkpoint_stale(row),
+            branch_redundant: view.machines.space_branch_redundant(row),
         }
     }
     fn value(&self, kind: Kind<'_>) -> Option<&str> {
@@ -91,7 +93,9 @@ impl<'a> Context<'a> {
                     })
                     .unwrap_or(self.standalone),
             ),
-            Kind::Branch => self.observed?.git.as_ref()?.branch.as_deref(),
+            Kind::Branch => (!self.branch_redundant)
+                .then_some(self.observed?.git.as_ref()?.branch.as_deref())
+                .flatten(),
             Kind::Custom(key) => self
                 .observed?
                 .tokens
@@ -1151,6 +1155,7 @@ pub(super) fn render(
         });
     }
     let mut y = body.y;
+    let mut hovered_hint = None;
 
     for index in window.top..window.end() {
         let leading_gap = if index == window.top {
@@ -1378,6 +1383,53 @@ pub(super) fn render(
         } else {
             row_pointer
         };
+        if row_paint_pointer != PointerPresentation::Rest {
+            let mut hint = Vec::new();
+            if current {
+                hint.push(format!(
+                    "{} {}",
+                    theme.glyphs.active_marker,
+                    locale.sidebar_marker_label("current")
+                ));
+            }
+            let state = match row {
+                SidebarRow::Agent { row, .. } => {
+                    row.sidebar_agent().map(|agent| agent.display_state())
+                }
+                SidebarRow::Context { row, .. } => view.machines.workspace_state(row),
+                SidebarRow::Project { .. } => None,
+            };
+            if let Some(state) = state {
+                hint.push(format!(
+                    "{} {}",
+                    theme.agent_glyph(state),
+                    locale.machine_picker_text(state_role(state).0)
+                ));
+            }
+            let unread = match row {
+                SidebarRow::Agent { row, .. } => {
+                    row.sidebar_agent().is_some_and(|agent| !agent.seen)
+                }
+                SidebarRow::Context { row, .. } => view.machines.workspace_unread(row),
+                SidebarRow::Project { .. } => false,
+            };
+            if unread {
+                hint.push(format!(
+                    "{} {}",
+                    theme.glyphs.status_bullet,
+                    locale.sidebar_marker_label("unread")
+                ));
+            }
+            if has_disclosure {
+                hint.push(format!(
+                    "{} {}",
+                    theme.glyphs.disclosure_open,
+                    locale.sidebar_marker_label("disclosure")
+                ));
+            }
+            hint.push(locale.sidebar_marker_label("help").to_owned());
+            hovered_hint = Some(hint.join(" · "));
+        }
         let mut bands = vec![
             RowContentBand::explicit(tracks.current),
             RowContentBand::explicit(tracks.state),
@@ -1585,6 +1637,18 @@ pub(super) fn render(
     } else {
         String::new()
     };
+    if let Some(hint) = hovered_hint {
+        frame.render_widget(
+            Paragraph::new(truncate_display(
+                &hint,
+                usize::from(area.width),
+                theme.glyphs.ellipsis,
+            ))
+            .style(theme.style(Role::TextSecondary)),
+            Rect::new(area.x, area.bottom() - 1, area.width, 1),
+        );
+        return;
+    }
     if range.is_empty() {
         return;
     }

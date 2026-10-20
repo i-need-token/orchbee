@@ -20,10 +20,20 @@ impl HelpDrawCandidate {
     /// Constructs the exact source for a complete help panel. The renderer may
     /// clamp the first visible line after geometry changes, but it cannot
     /// publish a different filter revision or an invalid scroll boundary.
+    #[cfg(test)]
     pub(crate) const fn presented(
         self,
         effective_page: usize,
         last: usize,
+    ) -> Option<HelpDrawSource> {
+        self.presented_rows(effective_page, last, 1)
+    }
+
+    pub(crate) const fn presented_rows(
+        self,
+        effective_page: usize,
+        last: usize,
+        rows: usize,
     ) -> Option<HelpDrawSource> {
         let expected_page = if self.page < last { self.page } else { last };
         if effective_page == expected_page {
@@ -31,6 +41,7 @@ impl HelpDrawCandidate {
                 episode: self.episode,
                 page: effective_page,
                 last,
+                rows,
                 revision: self.revision,
             })
         } else {
@@ -55,6 +66,7 @@ pub(crate) enum HelpDrawSource {
         episode: HelpEpisodeToken,
         page: usize,
         last: usize,
+        rows: usize,
         revision: u64,
     },
     Refused {
@@ -86,6 +98,7 @@ impl HelpDrawSource {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HelpControl {
+    ToggleAll,
     Close,
     Previous,
     Next,
@@ -113,6 +126,7 @@ impl DrawnHelpControl {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Activation {
+    ToggleAll,
     Close,
     Page(usize),
 }
@@ -125,6 +139,8 @@ pub(super) struct State {
     page: usize,
     revision: u64,
     filter: String,
+    expanded: bool,
+    page_rows: usize,
     shown: Option<HelpDrawSource>,
 }
 
@@ -137,6 +153,7 @@ impl State {
         self.page = 0;
         self.revision = 0;
         self.filter.clear();
+        self.expanded = false;
         self.shown = None;
         true
     }
@@ -144,6 +161,7 @@ impl State {
     pub(super) fn close(&mut self) {
         self.page = 0;
         self.filter.clear();
+        self.expanded = false;
         self.shown = None;
     }
 
@@ -163,6 +181,19 @@ impl State {
         self.page = page.min(bound);
         self.bump_revision();
         self.shown = None;
+    }
+
+    pub(super) const fn expanded(&self) -> bool {
+        self.expanded
+    }
+    pub(super) fn toggle_all(&mut self) {
+        self.expanded = !self.expanded;
+        self.page = 0;
+        self.bump_revision();
+        self.shown = None;
+    }
+    pub(super) fn page_step(&self) -> usize {
+        self.page_rows.max(1)
     }
 
     pub(super) fn filter(&self) -> &str {
@@ -226,10 +257,11 @@ impl State {
             return;
         }
         match source {
-            HelpDrawSource::Presented { page, last, .. }
-                if page == self.page.min(last) && page <= last =>
-            {
+            HelpDrawSource::Presented {
+                page, last, rows, ..
+            } if page == self.page.min(last) && page <= last => {
                 self.page = page;
+                self.page_rows = rows.max(1);
                 self.shown = Some(source);
             }
             HelpDrawSource::Refused { page, .. } if page == self.page => {
@@ -250,13 +282,20 @@ impl State {
         }
         match target.control() {
             HelpControl::Close => Some(Activation::Close),
+            HelpControl::ToggleAll if matches!(source, HelpDrawSource::Presented { .. }) => {
+                Some(Activation::ToggleAll)
+            }
             HelpControl::Previous if matches!(source, HelpDrawSource::Presented { page, .. } if page > 0) => {
-                Some(Activation::Page(self.page - 1))
+                Some(Activation::Page(self.page.saturating_sub(self.page_step())))
             }
             HelpControl::Next if matches!(source, HelpDrawSource::Presented { page, last, .. } if page < last) => {
-                Some(Activation::Page(self.page + 1))
+                Some(Activation::Page(
+                    self.page
+                        .saturating_add(self.page_step())
+                        .min(self.end_page()?),
+                ))
             }
-            HelpControl::Previous | HelpControl::Next => None,
+            HelpControl::Previous | HelpControl::Next | HelpControl::ToggleAll => None,
         }
     }
 

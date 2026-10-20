@@ -24,6 +24,7 @@ use std::{
 
 mod attention;
 mod metadata;
+mod names;
 mod titles;
 pub(crate) mod view;
 pub(crate) use attention::Attention;
@@ -44,6 +45,7 @@ pub(crate) struct Target {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Row {
     pub(crate) seen: bool,
+    pub(crate) name: Option<String>,
     pub(crate) order: PlacementOrder,
     pub(crate) target: Target,
     pub(crate) label: String,
@@ -305,6 +307,7 @@ pub(crate) fn read_at(
         &mut bytes,
         Some(head),
     )?;
+    let names = names::read(client, deadline, cancel, &mut bytes)?;
     confirm(client, snapshot, head, deadline, cancel)?;
     if source_view(client, snapshot, deadline, cancel)? != initial_view {
         return Err(());
@@ -326,6 +329,14 @@ pub(crate) fn read_at(
                 .presentation(Some(&agent), report.authority_source.as_deref());
             rows.push(Row {
                 seen: true,
+                name: names.iter().find_map(|named| match &named.target {
+                    orchbee_agent_observation_protocol::AgentNameTarget::Terminal { binding }
+                        if binding == &state.binding =>
+                    {
+                        Some(named.name.as_str().to_owned())
+                    }
+                    _ => None,
+                }),
                 order: placement.order,
                 metadata: effective,
                 tokens: extra.metadata.tokens,

@@ -948,6 +948,15 @@ impl TerminalSession {
 }
 
 impl TerminalInputPort for TerminalSession {
+    #[cfg(windows)]
+    fn copy_picker_identifier(&mut self, text: String) -> bool {
+        match &mut self.backend {
+            SessionBackend::Native(native) => native.copy_picker_identifier(text),
+            #[cfg(test)]
+            SessionBackend::Legacy(_) => false,
+        }
+    }
+
     fn native_capture_claims(&self) -> crate::tui_composition::NativeCaptureClaims {
         match &self.backend {
             SessionBackend::Native(native) => native.capture_claims(),

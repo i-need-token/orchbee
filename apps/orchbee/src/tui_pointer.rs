@@ -727,6 +727,22 @@ impl HitMapBuilder {
         self.map.menu_source = source;
     }
     #[cfg(windows)]
+    pub(crate) fn context_menu_anchor_rect(&self, column: u16, row: u16) -> Option<Rect> {
+        self.map
+            .regions
+            .iter()
+            .filter(|region| {
+                contains(region.rect, column, row)
+                    && (region.target.sidebar_target().is_some()
+                        || matches!(
+                            region.target,
+                            HitTarget::Tab(_) | HitTarget::TabGroup { .. }
+                        ))
+            })
+            .max_by_key(|region| region.rect.height)
+            .map(|region| region.rect)
+    }
+    #[cfg(windows)]
     pub(crate) fn start_action_menu(&mut self) {
         self.map.backdrop_dismissal = None;
         self.map.navigator = None;

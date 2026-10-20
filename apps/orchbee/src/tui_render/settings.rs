@@ -1694,6 +1694,9 @@ fn settings_value(locale: Locale, draft: DraftView<'_>, row: Row, theme: &Theme)
             });
     }
     let value = locale.settings_value(draft, row);
+    if row == Row::Scrollback {
+        return value;
+    }
     let Some(metadata) = setting_for_row(row) else {
         return value;
     };

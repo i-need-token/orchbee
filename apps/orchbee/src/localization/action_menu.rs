@@ -52,7 +52,7 @@ impl Locale {
             #[cfg(windows)]
             (Self::EnUs, A::Worktree) => "worktree",
             #[cfg(windows)]
-            (Self::ZhCn, A::Worktree) => "Worktree",
+            (Self::ZhCn, A::Worktree) => "工作树",
             (Self::EnUs, A::Project) => "project",
             (Self::ZhCn, A::Project) => "项目",
             (Self::EnUs, A::Tab) => "tab",
@@ -155,13 +155,13 @@ impl Locale {
     ) -> &'static str {
         match (self, reason, compact) {
             (Self::EnUs, MenuUnavailable::WorktreeChecking, false) => "Checking Git source…",
-            (Self::ZhCn, MenuUnavailable::WorktreeChecking, false) => "正在识别 Git 来源…",
+            (Self::ZhCn, MenuUnavailable::工作树Checking, false) => "正在识别 Git 来源…",
             (Self::EnUs, MenuUnavailable::WorktreeChecking, true) => "Checking Git…",
-            (Self::ZhCn, MenuUnavailable::WorktreeChecking, true) => "识别 Git 中",
+            (Self::ZhCn, MenuUnavailable::工作树Checking, true) => "识别 Git 中",
             (Self::EnUs, MenuUnavailable::WorktreeUnavailable, false) => "No available Git source",
-            (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, false) => "暂无可用的 Git 来源",
+            (Self::ZhCn, MenuUnavailable::工作树Unavailable, false) => "暂无可用的 Git 来源",
             (Self::EnUs, MenuUnavailable::WorktreeUnavailable, true) => "Git unavailable",
-            (Self::ZhCn, MenuUnavailable::WorktreeUnavailable, true) => "Git 不可用",
+            (Self::ZhCn, MenuUnavailable::工作树Unavailable, true) => "Git 不可用",
             (_, MenuUnavailable::LegacyWorkspace, false) => {
                 self.legacy_workspace_action_unavailable()
             }
@@ -228,7 +228,7 @@ impl Locale {
     pub(crate) const fn menu_title(self) -> &'static str {
         match self {
             Self::EnUs => "Actions",
-            Self::ZhCn => "动作菜单",
+            Self::ZhCn => "操作",
         }
     }
     pub(crate) const fn menu_action(self, action: &MenuAction) -> &'static str {
@@ -270,7 +270,7 @@ impl Locale {
             (Self::ZhCn, SplitPanel(PanelDirection::Up)) => "向上分屏",
             (Self::EnUs, SplitPanel(PanelDirection::Right)) => "Split right",
             (Self::ZhCn, SplitPanel(PanelDirection::Right)) => "向右分屏",
-            (Self::EnUs, Zoom) => "Toggle pane zoom",
+            (Self::EnUs, Zoom) => "Zoom panel",
             (Self::ZhCn, Zoom) => "切换面板缩放",
             (Self::EnUs, Resize) => "Resize panes",
             (Self::ZhCn, Resize) => "调整面板大小",
@@ -278,7 +278,7 @@ impl Locale {
             (Self::ZhCn, Copy) => "键盘复制模式",
             (Self::EnUs, Takeover) => "Take control",
             (Self::ZhCn, Takeover) => "接管输入与尺寸",
-            (Self::EnUs, ClosePane) => "Close pane…",
+            (Self::EnUs, ClosePane) => "Close panel…",
             (Self::ZhCn, ClosePane) => "关闭面板…",
             (Self::EnUs, MovePanel(PanelDirection::Left)) => "Move pane left",
             (Self::ZhCn, MovePanel(PanelDirection::Left)) => "向左移动面板",
@@ -314,8 +314,14 @@ impl Locale {
             (Self::ZhCn, ManageGroups) => "将标签页加入分组",
             (Self::EnUs, CreateGroup) => "New group for Tab…",
             (Self::ZhCn, CreateGroup) => "为标签页新建分组…",
-            (Self::EnUs, RenameTab | RenameWorkspace | RenameProject | RenameGroup) => "Rename",
-            (Self::ZhCn, RenameTab | RenameWorkspace | RenameProject | RenameGroup) => "重命名",
+            (Self::EnUs, RenameTab) => "Rename Tab",
+            (Self::EnUs, RenameWorkspace) => "Rename Workspace",
+            (Self::EnUs, RenameProject) => "Rename Project",
+            (Self::EnUs, RenameGroup) => "Rename group",
+            (Self::ZhCn, RenameTab) => "重命名标签页",
+            (Self::ZhCn, RenameWorkspace) => "重命名工作区",
+            (Self::ZhCn, RenameProject) => "重命名项目",
+            (Self::ZhCn, RenameGroup) => "重命名分组",
             (Self::EnUs, ChooseGroupColor) => "Group color…",
             (Self::ZhCn, ChooseGroupColor) => "分组颜色…",
             (Self::EnUs, JoinGroup(_)) => "Move Tab to group",
@@ -363,7 +369,7 @@ impl Locale {
             (Self::EnUs, WorkspaceProjects) => "Project",
             (Self::ZhCn, WorkspaceProjects) => "项目",
             (Self::EnUs, WorkspaceWorktrees) => "Worktree",
-            (Self::ZhCn, WorkspaceWorktrees) => "Worktree",
+            (Self::ZhCn, WorkspaceWorktrees) => "工作树",
             (Self::EnUs, CreateWorkspaceProject) => "New Project…",
             (Self::ZhCn, CreateWorkspaceProject) => "新建项目…",
             (Self::EnUs, LeaveWorkspaceProject) => "Leave Project",
@@ -371,9 +377,9 @@ impl Locale {
             (Self::EnUs, JoinWorkspaceProject(_)) => "Move to Project",
             (Self::ZhCn, JoinWorkspaceProject(_)) => "移入项目",
             (Self::EnUs, OpenWorktreeAt(_)) => "Open Worktree",
-            (Self::ZhCn, OpenWorktreeAt(_)) => "打开 Worktree",
+            (Self::ZhCn, Open工作树At(_)) => "打开 工作树",
             (Self::EnUs, RemoveWorktree) => "Remove Worktree…",
-            (Self::ZhCn, RemoveWorktree) => "移除 Worktree…",
+            (Self::ZhCn, Remove工作树) => "移除 工作树…",
             (Self::EnUs, DeleteWorkspace | DeleteProject) => "Delete",
             (Self::ZhCn, DeleteWorkspace | DeleteProject) => "删除",
             (Self::EnUs, CloseProjectWorkspaces) => "Close all Workspaces…",
@@ -385,9 +391,9 @@ impl Locale {
             (Self::EnUs, NewWorkspace) => "New Workspace",
             (Self::ZhCn, NewWorkspace) => "新建工作区",
             (Self::EnUs, NewWorktree) => "New Worktree",
-            (Self::ZhCn, NewWorktree) => "新建 Worktree",
+            (Self::ZhCn, New工作树) => "新建 工作树",
             (Self::EnUs, OpenWorktree) => "Open Worktree…",
-            (Self::ZhCn, OpenWorktree) => "打开 Worktree…",
+            (Self::ZhCn, Open工作树) => "打开 工作树…",
             (Self::EnUs, Reload) => "Reload configuration",
             (Self::ZhCn, Reload) => "重载配置",
             (Self::EnUs, Settings) => "Settings…",

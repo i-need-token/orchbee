@@ -145,6 +145,7 @@ pub(crate) fn row(n: u64) -> Row {
     target.physical = physical(n);
     Row {
         seen: true,
+        name: None,
         order: PlacementOrder::default(),
         target,
         label: "build".into(),
@@ -264,6 +265,30 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
                 if !enrich(&mut stream, bad)? {
                     return Ok(());
                 }
+                use orchbee_agent_observation_protocol::*;
+                let AgentRequest::Names(AgentNamesRequest::NamesList { request_id }) =
+                    read_agent_request(&mut stream).map_err(io::Error::other)?
+                else {
+                    panic!("names only")
+                };
+                write_agent_result(
+                    &mut stream,
+                    &AgentResult::Names(AgentNamesResult::NamesList {
+                        request_id,
+                        result: AgentNamesListOutcomeEnvelope {
+                            outcome: AgentNamesListOutcome::ListedTargets {
+                                bindings: vec![AgentNamedTarget {
+                                    name: AgentName::parse("helper").unwrap(),
+                                    target: AgentNameTarget::Terminal {
+                                        binding: physical(23),
+                                    },
+                                }],
+                                pending: Vec::new(),
+                            },
+                        },
+                    }),
+                )
+                .map_err(io::Error::other)?;
             }
             let WorkbenchRequest::PanelAgent(request) =
                 read_workbench_request(&mut stream).map_err(io::Error::other)?

@@ -520,6 +520,9 @@ fn separator_before(source: &MenuTarget, actions: &[MenuAction], index: usize) -
     if matches!(source, MenuTarget::Global) {
         return global_menu_group(&actions[index - 1]) != global_menu_group(action);
     }
+    if matches!(source, MenuTarget::Workspace(_)) {
+        return matches!(action, MenuAction::DeleteWorkspace);
+    }
     match action {
         MenuAction::JoinWorkspaceProject(_) => {
             return !matches!(actions[index - 1], MenuAction::JoinWorkspaceProject(_));

@@ -4,6 +4,39 @@ use super::{
 };
 use orchbee_workbench_protocol::{PreferenceKey, UserLaunchCommand, UserLaunchProfile};
 
+/// Decimal MB preserves every persisted byte without floating-point rounding.
+pub(crate) fn scrollback_megabytes(bytes: u32) -> String {
+    let whole = bytes / 1_000_000;
+    let fraction = bytes % 1_000_000;
+    if fraction == 0 {
+        return whole.to_string();
+    }
+    format!("{whole}.{fraction:06}")
+        .trim_end_matches('0')
+        .to_owned()
+}
+
+fn parse_scrollback_megabytes(value: &str) -> Option<u32> {
+    let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
+    if whole.is_empty()
+        || !whole.bytes().all(|b| b.is_ascii_digit())
+        || fraction.len() > 6
+        || !fraction.bytes().all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    let whole = whole.parse::<u32>().ok()?.checked_mul(1_000_000)?;
+    let fraction = if fraction.is_empty() {
+        0
+    } else {
+        fraction
+            .parse::<u32>()
+            .ok()?
+            .checked_mul(10u32.pow(6 - fraction.len() as u32))?
+    };
+    whole.checked_add(fraction)
+}
+
 fn integer_bounds(key: PreferenceKey) -> (u64, u64) {
     let SettingControl::BoundedInteger {
         minimum, maximum, ..
@@ -188,7 +221,7 @@ pub(super) fn text(draft: &Draft) -> Option<String> {
         Row::Foreground => Some(values.custom_foreground.clone()),
         Row::Background => Some(values.custom_background.clone()),
         Row::CompletionThreshold => Some(values.completion_reminder_minimum_seconds.to_string()),
-        Row::Scrollback => Some(values.scrollback_bytes.to_string()),
+        Row::Scrollback => Some(scrollback_megabytes(values.scrollback_bytes)),
         Row::ProfileName => Some(
             values.launch_profiles.profiles[draft.profile]
                 .name
@@ -283,7 +316,7 @@ fn accept_text(draft: &mut Draft, value: String) -> bool {
             draft.values.completion_reminder_minimum_seconds = number;
         }
         Row::Scrollback => {
-            let Ok(number) = value.parse::<u32>() else {
+            let Some(number) = parse_scrollback_megabytes(&value) else {
                 return false;
             };
             let (minimum, maximum) = integer_bounds(PreferenceKey::ScrollbackBytes);

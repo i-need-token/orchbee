@@ -133,10 +133,7 @@ pub(super) fn render(
     let reason_rows = usize::from(
         result_actions
             .iter()
-            .any(|index| menu.unavailable[*index].is_some())
-            || result_actions
-                .iter()
-                .any(|index| menu.actions[*index] == MenuAction::WorkspaceWorktrees),
+            .any(|index| menu.unavailable[*index].is_some()),
     );
     let search_rows = usize::from(menu.query.is_some());
     let result_row_count = if result_actions.is_empty() {
@@ -148,16 +145,51 @@ pub(super) fn render(
         u16::try_from(result_row_count + search_rows + 2 + footer_rows + reason_rows + header_rows)
             .unwrap_or(u16::MAX)
             .min(content.height);
-    let (x, y) = menu.anchor.unwrap_or((
-        content.x + (content.width - width) / 2,
-        content.y + (content.height - height) / 2,
-    ));
-    let area = Rect::new(
-        x.clamp(content.x, content.right() - width),
-        y.clamp(content.y, content.bottom() - height),
-        width,
-        height,
-    );
+    let area = if let Some((x, y)) = menu.anchor {
+        let avoid = hits
+            .context_menu_anchor_rect(x, y)
+            .unwrap_or(Rect::new(x, y, 1, 1))
+            .intersection(content);
+        let sidebar = matches!(
+            menu.source,
+            crate::action_menu::MenuTarget::Workspace(_)
+                | crate::action_menu::MenuTarget::Project(_)
+        );
+        if sidebar && avoid.right().saturating_add(width) <= content.right() {
+            Rect::new(
+                avoid.right(),
+                avoid.y.clamp(content.y, content.bottom() - height),
+                width,
+                height,
+            )
+        } else {
+            let below = content.bottom().saturating_sub(avoid.bottom());
+            let above = avoid.y.saturating_sub(content.y);
+            let use_below = below >= height || below >= above;
+            let available = if use_below { below } else { above };
+            let height = height.min(available);
+            if height < 3 {
+                return ModalPresentation::NotPresented;
+            }
+            Rect::new(
+                x.clamp(content.x, content.right() - width),
+                if use_below {
+                    avoid.bottom()
+                } else {
+                    avoid.y - height
+                },
+                width,
+                height,
+            )
+        }
+    } else {
+        Rect::new(
+            content.x + (content.width - width) / 2,
+            content.y + (content.height - height) / 2,
+            width,
+            height,
+        )
+    };
     let legacy = matches!(
         menu.source,
         crate::action_menu::MenuTarget::Workspace(
@@ -171,6 +203,8 @@ pub(super) fn render(
             theme,
             usize::from(area.width.saturating_sub(6)),
         )
+    } else if menu.context_menu && !menu.title.is_empty() {
+        sanitize_terminal_text(menu.title).into_owned()
     } else if menu.title.is_empty() && legacy {
         format!(
             "{} {} {}",
@@ -189,7 +223,7 @@ pub(super) fn render(
         )
     };
     let block = super::overlay_surface(theme, true, Padding::horizontal(1));
-    let block = if menu.context_menu {
+    let block = if menu.context_menu && menu.tabs.is_some() {
         block
     } else {
         block.title(truncate_display(

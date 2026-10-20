@@ -7,6 +7,7 @@ use orchbee_workbench_protocol::{
 fn row() -> Row {
     Row {
         seen: true,
+        name: None,
         order: crate::machine_agents::PlacementOrder::default(),
         target: crate::machine_agents::tests::target(),
         label: "terminal".into(),

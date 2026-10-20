@@ -104,6 +104,10 @@ impl Locale {
     }
     pub(crate) fn machine_picker_text(self, key: &str) -> &'static str {
         match (self, key) {
+            (Self::EnUs, "copy-id") => "[Ctrl+y Copy ID]",
+            (Self::ZhCn, "copy-id") => "[Ctrl+y 复制 ID]",
+            (Self::EnUs, "copy-id-unavailable") => "Copy unavailable; connect to a terminal first",
+            (Self::ZhCn, "copy-id-unavailable") => "暂时无法复制，请先连接终端",
             (Self::EnUs, "sidebar-navigation") => "Sidebar",
             (Self::ZhCn, "sidebar-navigation") => "侧栏",
             (Self::EnUs, "local") => "Local",

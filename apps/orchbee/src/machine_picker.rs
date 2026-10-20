@@ -135,6 +135,7 @@ pub(crate) enum PickerAction {
     Mode(Mode),
     Control(Control),
     Row(usize),
+    CopyId(usize),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -195,7 +196,7 @@ impl PickerSource {
                             | Control::Clear => true,
                         }
             }
-            PickerAction::Row(index) => index < self.0.rows.len(),
+            PickerAction::Row(index) | PickerAction::CopyId(index) => index < self.0.rows.len(),
         }
     }
 
@@ -344,6 +345,7 @@ pub(crate) struct Picker {
     pub(crate) busy: bool,
     pub(crate) error: Option<&'static str>,
     pub(crate) request: Option<Selection>,
+    pub(crate) copy_id_request: Option<String>,
     selection_generation: u64,
     selection_scope: Option<SelectionScope>,
     pub(crate) current_context: Option<NativeContextTarget>,
@@ -393,6 +395,7 @@ impl Default for Picker {
             busy: false,
             error: None,
             request: None,
+            copy_id_request: None,
             selection_generation: 0,
             selection_scope: None,
             current_context: None,
@@ -519,6 +522,7 @@ impl Picker {
 
     fn close_picker(&mut self) {
         self.open = false;
+        self.copy_id_request = None;
         self.editing_query = false;
         self.cancel_selection();
     }
@@ -534,6 +538,9 @@ impl Picker {
         }
         self.pending_navigation = None;
         match target.action() {
+            PickerAction::CopyId(index) => {
+                self.copy_id_request = self.row_id(index).map(str::to_owned);
+            }
             PickerAction::Close => self.close_picker(),
             PickerAction::Mode(mode) => self.set_mode(mode),
             PickerAction::Control(control) if self.mode == Mode::Workspaces => {
@@ -820,12 +827,34 @@ impl Picker {
     /// there is no feature-local geometry to clear.
     pub(crate) fn invalidate(&mut self) {}
     /// All keys, paste and malformed events are consumed by the caller while open.
+    fn row_id(&self, index: usize) -> Option<&str> {
+        let row = self.visible_rows().get(index)?;
+        if let Some(agent) = &row.agent {
+            return Some(agent.target.member.as_str());
+        }
+        if let Some(context) = &row.context {
+            return Some(match &context.target.location {
+                crate::terminal_session::NativeContextLocation::Standalone(id) => id.as_str(),
+                crate::terminal_session::NativeContextLocation::Workspace {
+                    workspace_id, ..
+                } => workspace_id.as_str(),
+            });
+        }
+        match &row.choice {
+            Choice::Remote(id) => Some(id.as_str()),
+            Choice::Local => None,
+        }
+    }
     pub(crate) fn key(&mut self, key: KeyEvent) {
         if key.kind == KeyKind::Release {
             return;
         }
         self.pending_navigation = None;
         let (code, mods) = key.normalized();
+        if code == KeyCode::Char('y') && mods == Modifiers::CTRL {
+            self.copy_id_request = self.row_id(self.selected).map(str::to_owned);
+            return;
+        }
         if self.agent_key(code, mods) {
             return;
         }
@@ -1031,7 +1060,6 @@ impl Picker {
                     continue;
                 }
                 let rect = Rect::new(x, inner.y, width, 1);
-                let checked = Rect::new(rect.x, rect.y, 1, 1);
                 let primary = Rect::new(rect.x + 1, rect.y, label_width, 1);
                 let Some((target, spec)) = picker_interaction(&source, PickerAction::Mode(mode))
                 else {
@@ -1063,8 +1091,7 @@ impl Picker {
                 if paint_row_interaction(
                     frame,
                     rect,
-                    RowTracks::new(RowFocusCue::EnclosingFrame, primary)
-                        .with_checked(checked, theme.glyphs.active_marker),
+                    RowTracks::new(RowFocusCue::EnclosingFrame, primary),
                     &[],
                     ControlSurface::Overlay,
                     state,
@@ -1072,6 +1099,14 @@ impl Picker {
                 )
                 .is_some()
                 {
+                    if self.mode == mode {
+                        frame.buffer_mut().set_style(
+                            primary,
+                            theme
+                                .style(Role::SurfaceSelection)
+                                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                        );
+                    }
                     hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
                     x = rect.right().saturating_add(1);
                 }
@@ -1081,7 +1116,15 @@ impl Picker {
         }
         self.render_workspace_query(frame, &mut inner, locale, theme, &source, hits);
         self.render_agent_controls(frame, &mut inner, locale, theme, &source, hits);
-        let details = if inner.height >= 9 { 5 } else { 0 };
+        let has_remote = self
+            .rows
+            .iter()
+            .any(|row| matches!(row.choice, Choice::Remote(_)));
+        let details = if inner.height >= 9 {
+            if has_remote { 5 } else { 3 }
+        } else {
+            0
+        };
         let count = usize::from(inner.height.saturating_sub(2 + details));
         let window = self.picker_window(count);
         let list = Rect::new(inner.x, inner.y, inner.width, count as u16);
@@ -1104,20 +1147,24 @@ impl Picker {
             } else {
                 &display_label(&row.label)
             };
+            let prefix = if has_remote {
+                format!("{name} / ")
+            } else {
+                String::new()
+            };
             let name = if let Some(agent) = &row.agent {
                 format!(
-                    "{}{name} / {} · {}",
+                    "{}{prefix}{}",
                     if index < 9 {
                         format!("{} ", index + 1)
                     } else {
                         String::new()
                     },
-                    display_label(agent.provider()),
-                    display_label(agent.title())
+                    display_label(agent.display_name())
                 )
             } else if let Some(context) = &row.context {
                 format!(
-                    "{name} / {}",
+                    "{prefix}{}",
                     context
                         .workspace
                         .as_deref()
@@ -1152,13 +1199,6 @@ impl Picker {
                 locale.machine_picker_text("current").to_owned()
             } else {
                 String::new()
-            };
-            let id = match &row.choice {
-                Choice::Local => String::new(),
-                Choice::Remote(id) => {
-                    let width = (8..=32).step_by(4).find(|width| self.rows.iter().filter(|r| matches!(&r.choice, Choice::Remote(other) if other.as_str()[..*width] == id.as_str()[..*width])).count() == 1).unwrap_or(32);
-                    format!("{} · ", &id.as_str()[..width])
-                }
             };
             let status_width = match self.mode {
                 Mode::Machines => rect.width.min(16),
@@ -1215,7 +1255,7 @@ impl Picker {
                 current_rect,
             );
             frame.render_widget(
-                Paragraph::new(format!("{id}{name}")).style(theme.style(primary_role)),
+                Paragraph::new(name).style(theme.style(primary_role)),
                 primary_rect,
             );
             let status_role = if !enabled {
@@ -1325,16 +1365,20 @@ impl Picker {
             let online: Vec<_> = self
                 .rows
                 .iter()
+                .filter(|row| matches!(row.choice, Choice::Remote(_)))
                 .filter_map(|r| match &r.observation {
                     Some(Observation::Online(o)) => Some(o),
                     _ => None,
                 })
                 .collect();
-            let mut lines = vec![locale.machine_overview(
-                online.len(),
-                online.iter().map(|o| o.workspaces).sum(),
-                online.iter().map(|o| o.tabs).sum(),
-            )];
+            let mut lines = Vec::new();
+            if has_remote {
+                lines.push(locale.machine_overview(
+                    online.len(),
+                    online.iter().map(|o| o.workspaces).sum(),
+                    online.iter().map(|o| o.tabs).sum(),
+                ));
+            }
             if let Some(agent) = self
                 .visible_rows()
                 .get(self.selected)
@@ -1345,8 +1389,7 @@ impl Picker {
                 } else {
                     agent.workspace.clone()
                 });
-                lines.push(display_label(agent.title()));
-                lines.push(format!("ID: {}", agent.target.member.as_str()));
+                lines.push(display_label(agent.provider()));
                 lines.push(
                     agent
                         .tokens
@@ -1375,14 +1418,6 @@ impl Picker {
                         .clone()
                         .unwrap_or_else(|| locale.machine_picker_text("standalone").to_owned()),
                 );
-                let id = match &context.target.location {
-                    crate::terminal_session::NativeContextLocation::Standalone(id) => id.as_str(),
-                    crate::terminal_session::NativeContextLocation::Workspace {
-                        workspace_id,
-                        ..
-                    } => workspace_id.as_str(),
-                };
-                lines.push(format!("ID: {id}"));
             } else if let Some(Observation::Online(o)) = self
                 .visible_rows()
                 .get(self.selected)
@@ -1391,9 +1426,44 @@ impl Picker {
                 lines.push(locale.machine_details(o.projects, o.workspaces, o.tabs));
                 lines.extend(o.labels.iter().take(3).map(|label| format!("  {label}")));
             }
+            if self.row_id(self.selected).is_some() {
+                let label = locale.machine_picker_text("copy-id");
+                let copy_width = display_width(label) as u16;
+                if copy_width <= inner.width {
+                    let rect = Rect::new(
+                        inner.right() - copy_width,
+                        inner.bottom() - 3,
+                        copy_width,
+                        1,
+                    );
+                    if let Some((target, spec)) =
+                        picker_interaction(&source, PickerAction::CopyId(self.selected))
+                    {
+                        let hovered =
+                            hits.projected_pointer(HitLayer::Overlay, rect, rect, &target, spec)
+                                != ProjectedPointer::Rest;
+                        frame.render_widget(
+                            Paragraph::new(label).style(theme.style(Role::HintKey).add_modifier(
+                                if hovered {
+                                    Modifier::REVERSED
+                                } else {
+                                    Modifier::UNDERLINED
+                                },
+                            )),
+                            rect,
+                        );
+                        hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
+                    }
+                }
+            }
             frame.render_widget(
                 Paragraph::new(lines.join("\n")).style(theme.style(Role::TextSecondary)),
-                Rect::new(inner.x, inner.bottom() - 2 - details, inner.width, details),
+                Rect::new(
+                    inner.x,
+                    inner.bottom() - 2 - details,
+                    inner.width,
+                    details.saturating_sub(1),
+                ),
             );
         }
         let status = self

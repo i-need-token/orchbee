@@ -331,3 +331,7 @@ reopen, reset, errors and visible effects remain acceptance requirements.
 
 Run `node scripts/tla/run-models.mjs --models native-settings-save` and the owning
 Cargo/TypeScript checks. The affected root gate remains required.
+
+## History units and host-color display
+
+History capacity displays and edits decimal MB (1 MB = 1,000,000 bytes), from 0 to 1000 MB. Up to six fractional digits preserve individual bytes; storage and small/large steps retain their existing byte domain. Disabled color fields show known effective RGB defaults; an unresolved host default shows its localized choice label instead of fallback palette values. Agent blank-space trimming uses plain-language copy. These are presentation and draft-conversion changes; Save and new-terminal effect boundaries stay with the existing owners.

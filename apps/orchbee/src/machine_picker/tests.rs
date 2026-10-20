@@ -414,6 +414,7 @@ fn workspace_mode_scrolls_and_refuses_stale_hits_after_small_resize() {
 fn agent_row() -> crate::machine_agents::Row {
     crate::machine_agents::Row {
         seen: true,
+        name: None,
         order: crate::machine_agents::PlacementOrder::default(),
         target: crate::machine_agents::tests::target(),
         label: "same terminal".into(),

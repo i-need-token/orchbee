@@ -143,6 +143,13 @@ pub(crate) fn urgency(row: &Row) -> u8 {
 }
 
 impl Row {
+    pub(crate) fn display_name(&self) -> &str {
+        self.name
+            .as_deref()
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| self.provider())
+    }
+
     pub(crate) fn title(&self) -> &str {
         self.metadata
             .title

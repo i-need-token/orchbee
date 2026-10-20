@@ -7,9 +7,9 @@ impl Locale {
     pub(crate) fn worktree_cancel_label(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
             (Self::EnUs, WorktreeStage::Waiting) => "Hide",
-            (Self::ZhCn, WorktreeStage::Waiting) => "隐藏",
+            (Self::ZhCn, 工作树Stage::Waiting) => "隐藏",
             (Self::EnUs, WorktreeStage::Result) => "Close",
-            (Self::ZhCn, WorktreeStage::Result) => "关闭",
+            (Self::ZhCn, 工作树Stage::Result) => "关闭",
             (Self::EnUs, _) => "Cancel",
             (Self::ZhCn, _) => "取消",
         }
@@ -17,7 +17,7 @@ impl Locale {
     pub(crate) fn worktree_submit_label(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
             (Self::EnUs, WorktreeStage::Waiting | WorktreeStage::Result) => "Read status",
-            (Self::ZhCn, WorktreeStage::Waiting | WorktreeStage::Result) => "查询状态",
+            (Self::ZhCn, 工作树Stage::Waiting | 工作树Stage::Result) => "查询状态",
             (Self::EnUs, _) => "Create",
             (Self::ZhCn, _) => "创建",
         }
@@ -38,18 +38,18 @@ impl Locale {
         match (self, mode) {
             (Self::EnUs, WorktreeMode::Create) => "Create worktree",
             (Self::EnUs, WorktreeMode::Open) => "Open worktree",
-            (Self::ZhCn, WorktreeMode::Create) => "创建 worktree",
-            (Self::ZhCn, WorktreeMode::Open) => "打开 worktree",
+            (Self::ZhCn, 工作树Mode::Create) => "创建 worktree",
+            (Self::ZhCn, 工作树Mode::Open) => "打开 worktree",
             (Self::EnUs, WorktreeMode::Remove) => "Remove worktree",
-            (Self::ZhCn, WorktreeMode::Remove) => "移除 worktree",
+            (Self::ZhCn, 工作树Mode::Remove) => "移除 worktree",
         }
     }
     pub(crate) fn worktree_field(self, stage: WorktreeStage) -> &'static str {
         match (self, stage) {
             (Self::EnUs, WorktreeStage::Checkout) => "Choose checkout (exact path)",
-            (Self::ZhCn, WorktreeStage::Checkout) => "选择检出目录（精确路径）",
+            (Self::ZhCn, 工作树Stage::Checkout) => "选择检出目录（精确路径）",
             (Self::EnUs, WorktreeStage::Base) => "Base (empty uses HEAD)",
-            (Self::ZhCn, WorktreeStage::Base) => "起点（留空使用 HEAD）",
+            (Self::ZhCn, 工作树Stage::Base) => "起点（留空使用 HEAD）",
             (Self::EnUs, _) => "Branch",
             (Self::ZhCn, _) => "分支",
         }
@@ -102,7 +102,7 @@ impl Locale {
             (Self::EnUs, N::Opened) => "Workspace opened.",
             (Self::ZhCn, N::Opened) => "工作区已打开。",
             (Self::EnUs, N::Removed) => "Worktree removed and Workspace closed. Branch kept.",
-            (Self::ZhCn, N::Removed) => "Worktree 已移除，工作区已关闭，分支已保留。",
+            (Self::ZhCn, N::Removed) => "工作树 已移除，工作区已关闭，分支已保留。",
             (Self::EnUs, N::EntryPending) => "Workspace opened; connecting its terminal…",
             (Self::ZhCn, N::EntryPending) => "工作区已打开，正在连接终端…",
             (Self::EnUs, N::EntryFailed) => {

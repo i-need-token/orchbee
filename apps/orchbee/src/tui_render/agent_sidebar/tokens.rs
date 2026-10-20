@@ -134,7 +134,7 @@ pub(in crate::tui_render) fn projection(
         |role, _first_line| theme.sidebar_token_style(role, Default::default(), false, false);
     let Some(rows) = configured(view, context.agent) else {
         let provider = display_label(context.agent.provider());
-        let title = display_label(context.agent.title());
+        let title = display_label(context.agent.display_name());
         let title = if title.trim().is_empty() {
             provider.clone()
         } else {

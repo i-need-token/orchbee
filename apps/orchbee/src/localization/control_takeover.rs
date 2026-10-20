@@ -12,7 +12,7 @@ impl Locale {
             }
             (Self::ZhCn, TakeoverStatus::WaitingForFrame) => "已获控制权 · 正在等待终端画面",
             (Self::EnUs, TakeoverStatus::Ready) => "Control acquired · using this pane's size",
-            (Self::ZhCn, TakeoverStatus::Ready) => "已接管 · 使用本 pane 尺寸",
+            (Self::ZhCn, TakeoverStatus::Ready) => "已接管 · 使用本面板 尺寸",
             (Self::EnUs, TakeoverStatus::Refused) => "Control request refused or not submitted",
             (Self::ZhCn, TakeoverStatus::Refused) => "接管被拒绝或未提交",
             (Self::EnUs, TakeoverStatus::Unknown) => {

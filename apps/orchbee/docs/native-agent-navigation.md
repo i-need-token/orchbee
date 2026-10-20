@@ -116,3 +116,7 @@ After mode exit, ordinary ordered navigation and post-draw identity/acknowledgem
 admission and pure transition checks cover Busy versus Starting, one-shot dismissal, interruption,
 expiry and failure before effects. Native owner checks cover drafts and history recovery with no
 input; final combined Windows acceptance covers real shell overlays and Server/Client delivery.
+
+## Sidebar display identity
+
+The default Agent row uses the user-assigned name, falling back to its provider. The bounded names read shares the observation deadline and byte limit, joins by the complete physical binding, and precedes the final physical report fence. Pane numbers remain navigation ordinals, not Agent names. Custom token rows keep their configured meaning.

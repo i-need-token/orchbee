@@ -891,6 +891,11 @@ impl InputDispatcher {
                 }
                 _ => {}
             }
+            if let Some(id) = view.machines.copy_id_request.take()
+                && !port.copy_picker_identifier(id)
+            {
+                view.machines.error = Some("copy-id-unavailable");
+            }
             if !view.machines.open || view.machines.request.is_some() {
                 self.machine_packet = true;
                 self.keys.capture_pending();

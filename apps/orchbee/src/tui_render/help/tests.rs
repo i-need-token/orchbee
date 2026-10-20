@@ -306,8 +306,15 @@ fn long_alias_lists_wrap_between_complete_chords_and_keep_other_rows_visible() {
         .title
         .clone();
 
-    let lines = super::shortcut_lines(&entries, "", Locale::EnUs, 30, &Theme::rgb_test_dark())
-        .expect("a long alias list must not refuse the complete Help surface");
+    let lines = super::shortcut_lines(
+        &entries,
+        "",
+        Locale::EnUs,
+        30,
+        &Theme::rgb_test_dark(),
+        true,
+    )
+    .expect("a long alias list must not refuse the complete Help surface");
     let rendered = lines
         .iter()
         .map(|line| {

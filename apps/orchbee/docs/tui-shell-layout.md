@@ -633,3 +633,11 @@ names or automatic ordinals. The [Tab group contract](native-tab-groups.md) owns
 configuration and cross-host capability coverage.
 
 Pending and canonical Workspace rows reserve the same nonempty configured token rows, including empty metadata tracks. Late Git information fills those tracks without moving neighboring entries. The heading spacer depends only on available height, never metadata readiness. Style rules may hide text without removing its row.
+
+## Sidebar symbol discovery
+
+F1 includes a symbol legend for current context, unread changes, disclosure and all Agent states. Hovering a sidebar row explains its markers in the reserved sidebar footer. Branch text equal to the Workspace name, or repeated for the same canonical directory and branch, is omitted; divergence and stale observations remain visible. Configured metadata tracks retain their height during this projection.
+
+## Shortcut discovery scope
+
+Help opens with common tasks and any active mode controls. Tab or the painted scope button expands all actions and the sidebar symbol legend; reopening restores common tasks. A nonempty filter always searches every action. Whole-word prefixes match case-insensitively, with title matches before key/alias matches; Chinese text also supports contiguous substring matches. Help names identify their object and use Panel consistently, distinguishing terminals inside a Panel. PageUp/PageDown and the header arrows move one published viewport of rows; wheel and arrow keys move one row. Scope/filter changes revoke the previous draw authority and reset scrolling. The footer explains the header buttons.

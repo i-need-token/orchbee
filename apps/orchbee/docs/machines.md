@@ -683,3 +683,7 @@ older variants closed. Core and adapter evidence cover strict admission,
 revision/generation replacement, cancellation, real Windows Git and pipes,
 null/unknown distinctions, style/Unicode rendering and navigation geometry.
 Whole-cohort and real emulator/SSH acceptance remain separate evidence.
+
+## Search presentation and explicit identifiers
+
+With no configured remote profile, search omits remote totals and Local prefixes. The selected mode uses the shared selection surface plus bold and underline; it does not add an asterisk. Internal IDs do not appear in rows or details. The selected row exposes Copy ID (Ctrl+y); pointer activation retains its exact catalog/index proof, and keyboard copying uses the current selection. The validated identifier enters the existing bounded post-draw clipboard queue once, with no navigation or remote write. A connected native pane supplies the delivery lifecycle; without one, copying reports unavailable. Switching or retiring that pane cancels an undelivered request. Remote totals count remote observations only.

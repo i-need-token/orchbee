@@ -265,6 +265,11 @@ pub(crate) fn legacy_pane_ref() -> crate::terminal_session::state::PaneRef {
 }
 
 pub(crate) trait TerminalInputPort {
+    #[cfg(windows)]
+    fn copy_picker_identifier(&mut self, _text: String) -> bool {
+        false
+    }
+
     /// Pure exclusive-capture intents from the native surface owners.
     fn native_capture_claims(&self) -> NativeCaptureClaims {
         NativeCaptureClaims::default()

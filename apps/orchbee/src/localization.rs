@@ -210,7 +210,7 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         #[cfg(windows)]
         PrefixDesc::Machines => "选择本地或已保存的 SSH 机器",
         #[cfg(windows)]
-        PrefixDesc::ActionMenu => "打开动作菜单",
+        PrefixDesc::ActionMenu => "打开操作菜单",
         PrefixDesc::Settings => "打开设置",
         #[cfg(windows)]
         PrefixDesc::AgentCycle => "按机器视图的筛选顺序切换上一个 / 下一个 Agent",
@@ -219,9 +219,9 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ReloadConfiguration => "重载会话配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
         #[cfg(windows)]
-        PrefixDesc::WorktreeCreate => "创建 Git worktree 并进入终端",
+        PrefixDesc::工作树Create => "创建 Git 工作树 并进入终端",
         #[cfg(windows)]
-        PrefixDesc::WorktreeOpen => "打开已有 Git checkout",
+        PrefixDesc::工作树Open => "打开已有 Git 检出目录",
         PrefixDesc::ControlTakeover => "接管当前 pane；使用本窗口尺寸",
         PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
         PrefixDesc::WorkspaceCreate => "创建工作区并进入第一个终端",
@@ -571,8 +571,8 @@ impl Locale {
     /// Help and the action menu share the current Client's detach lifecycle wording.
     const fn client_detach_label(self) -> &'static str {
         match self {
-            Self::EnUs => "Detach this Client; programs keep running",
-            Self::ZhCn => "分离当前 Client；终端程序继续运行",
+            Self::EnUs => "Leave view; terminals keep running",
+            Self::ZhCn => "离开界面；终端继续运行",
         }
     }
 
@@ -751,7 +751,7 @@ impl Locale {
                 Some(Notice::BackendUnavailable(
                     BackendAction::CreateWorktree | BackendAction::OpenWorktree,
                 )),
-            ) => "Worktree 不可用 · 未发送命令",
+            ) => "工作树 不可用 · 未发送命令",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CloseWorkspace))) => {
                 "Workspace Close unavailable · no command was sent"
             }

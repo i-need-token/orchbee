@@ -26,8 +26,8 @@ use super::controls::{
     icon_action_rect, render_icon_action,
 };
 
-/// Rows the footer always owns: filter input, then scroll/close guidance.
-const FOOTER_ROWS: u16 = 2;
+/// Rows the footer always owns: filter, scroll/close guidance, and scope control.
+const FOOTER_ROWS: u16 = 3;
 const PREFERRED_WIDTH: u16 = 76;
 const TITLE_CONTROL_GAP: u16 = 1;
 
@@ -85,7 +85,11 @@ pub(super) fn render(
         session_available,
         candidate,
     } = context;
-    let entries = locale.shortcut_help_entries(view, session_available, key_label_glyphs(theme));
+    let mut entries =
+        locale.shortcut_help_entries(view, session_available, key_label_glyphs(theme));
+    if !view.help_expanded() && view.help_filter().trim().is_empty() {
+        entries.retain(ShortcutHelpEntry::common);
+    }
     let area = place_overlay(area, PREFERRED_WIDTH, area.height)?;
     if frame.area().intersection(area) != area {
         return None;
@@ -103,10 +107,17 @@ pub(super) fn render(
     if rows_area.height == 0 || rows_area.width == 0 || footer_area.height != FOOTER_ROWS {
         return None;
     }
-    let lines = shortcut_lines(&entries, view.help_filter(), locale, width, theme)?;
+    let lines = shortcut_lines(
+        &entries,
+        view.help_filter(),
+        locale,
+        width,
+        theme,
+        view.help_expanded(),
+    )?;
     let last = lines.len().saturating_sub(usize::from(rows_area.height));
     let page = candidate.page().min(last);
-    let source = candidate.presented(page, last)?;
+    let source = candidate.presented_rows(page, last, usize::from(rows_area.height))?;
     let filter_query = sanitize_terminal_text(view.help_filter());
     let filter_line = format!(
         "{}: {} · {}",
@@ -167,6 +178,32 @@ pub(super) fn render(
             1,
         ),
     );
+
+    let toggle_label = locale.shortcut_scope_label(view.help_expanded());
+    let toggle_width = display_width(toggle_label) as u16;
+    if toggle_width <= footer_area.width {
+        let toggle_rect = Rect::new(footer_area.x, footer_area.y + 2, toggle_width, 1);
+        let target = InteractionTarget::Help(DrawnHelpControl::new(source, HelpControl::ToggleAll));
+        let spec = InteractionSpec::enabled(PrimaryContract::ActivateOnRelease);
+        let hovered =
+            hits.projected_pointer(HitLayer::Overlay, toggle_rect, toggle_rect, &target, spec)
+                != ProjectedPointer::Rest;
+        let style = theme.style(Role::HintKey).add_modifier(if hovered {
+            ratatui::style::Modifier::REVERSED
+        } else {
+            ratatui::style::Modifier::UNDERLINED
+        });
+        frame.render_widget(Paragraph::new(toggle_label).style(style), toggle_rect);
+        hits.record_interaction(HitLayer::Overlay, toggle_rect, toggle_rect, target, spec);
+        let hint_width = footer_area.width.saturating_sub(toggle_width + 2);
+        if display_width(locale.shortcut_buttons_hint()) <= usize::from(hint_width) {
+            frame.render_widget(
+                Paragraph::new(locale.shortcut_buttons_hint())
+                    .style(theme.style(Role::TextSecondary)),
+                Rect::new(toggle_rect.right() + 2, toggle_rect.y, hint_width, 1),
+            );
+        }
+    }
 
     // Specific controls publish before the broad list/surface regions. Disabled
     // endpoints remain visible and frontmost but can never arm an activation.
@@ -360,11 +397,19 @@ fn shortcut_lines(
     locale: Locale,
     width: usize,
     theme: &Theme,
+    include_legend: bool,
 ) -> Option<Vec<Line<'static>>> {
-    let matching = entries
+    #[cfg(not(windows))]
+    let _ = include_legend;
+    let mut matching = entries
         .iter()
         .filter(|entry| crate::localization::shortcut_filter_matches(query, &entry.search_text))
         .collect::<Vec<_>>();
+    if !query.trim().is_empty() {
+        matching.sort_by_key(|entry| {
+            !crate::localization::shortcut_filter_matches(query, &entry.title)
+        });
+    }
     if matching.is_empty() {
         return Some(vec![Line::styled(
             locale.shortcut_no_matches(),
@@ -425,6 +470,41 @@ fn shortcut_lines(
                     description_style,
                 )
             }));
+        }
+    }
+    #[cfg(windows)]
+    if include_legend && query.trim().is_empty() {
+        lines.push(Line::styled(
+            locale.sidebar_marker_label("legend"),
+            theme.style(Role::TextSecondary),
+        ));
+        for (glyph, label) in [
+            (
+                theme.glyphs.active_marker,
+                locale.sidebar_marker_label("current"),
+            ),
+            (
+                theme.glyphs.status_bullet,
+                locale.sidebar_marker_label("unread"),
+            ),
+            (
+                theme.glyphs.disclosure_open,
+                locale.sidebar_marker_label("disclosure"),
+            ),
+            (
+                theme.glyphs.disclosure_closed,
+                locale.sidebar_marker_label("disclosure"),
+            ),
+        ] {
+            lines.push(Line::raw(format!("{glyph}  {label}")));
+        }
+        use orchbee_workbench_protocol::MetadataState::*;
+        for state in [Working, Blocked, Done, Error, Idle, Unknown] {
+            lines.push(Line::raw(format!(
+                "{}  {}",
+                theme.agent_glyph(state),
+                locale.machine_picker_text(super::sidebar_text::state_role(state).0)
+            )));
         }
     }
     Some(lines)

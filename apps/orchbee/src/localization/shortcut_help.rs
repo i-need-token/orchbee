@@ -13,6 +13,7 @@ use crate::client_view::{LabelStyle, PrefixDesc, format_binding_with_glyphs};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) enum ShortcutHelpGroup {
+    Common,
     Workspace,
     Tab,
     Panel,
@@ -24,12 +25,13 @@ pub(crate) enum ShortcutHelpGroup {
 impl ShortcutHelpGroup {
     const fn order(self) -> u8 {
         match self {
-            Self::Workspace => 0,
-            Self::Tab => 1,
-            Self::Panel => 2,
-            Self::Agent => 3,
-            Self::Session => 4,
-            Self::Other => 5,
+            Self::Common => 0,
+            Self::Workspace => 1,
+            Self::Tab => 2,
+            Self::Panel => 3,
+            Self::Agent => 4,
+            Self::Session => 5,
+            Self::Other => 6,
         }
     }
 }
@@ -44,7 +46,28 @@ pub(crate) struct ShortcutHelpEntry {
     identity: String,
 }
 
+impl ShortcutHelpEntry {
+    pub(crate) fn common(&self) -> bool {
+        self.group == ShortcutHelpGroup::Common || self.identity.starts_with("context.")
+    }
+}
+
 impl Locale {
+    #[cfg(windows)]
+    pub(crate) fn sidebar_marker_label(self, marker: &str) -> &'static str {
+        match (self, marker) {
+            (Self::EnUs, "current") => "Current",
+            (Self::ZhCn, "current") => "当前",
+            (Self::EnUs, "unread") => "Unseen change",
+            (Self::ZhCn, "unread") => "有未读变化",
+            (Self::EnUs, "disclosure") => "Collapse / expand",
+            (Self::ZhCn, "disclosure") => "折叠 / 展开",
+            (Self::EnUs, "help") => "F1: symbol legend",
+            (Self::ZhCn, "help") => "F1：符号说明",
+            (Self::EnUs, _) => "Sidebar symbols",
+            (Self::ZhCn, _) => "侧栏符号",
+        }
+    }
     pub(crate) fn shortcut_help_entries(
         self,
         view: &ClientView,
@@ -59,7 +82,11 @@ impl Locale {
             ) {
                 continue;
             }
-            let group = help_group(binding.metadata);
+            let group = if common_action(&binding.action) {
+                ShortcutHelpGroup::Common
+            } else {
+                help_group(binding.metadata)
+            };
             let title = self.shortcut_action_title(view, &binding);
             let aliases = binding
                 .metadata
@@ -98,6 +125,8 @@ impl Locale {
 
     pub(crate) const fn shortcut_group_name(self, group: ShortcutHelpGroup) -> &'static str {
         match (self, group) {
+            (Self::EnUs, ShortcutHelpGroup::Common) => "Common tasks",
+            (Self::ZhCn, ShortcutHelpGroup::Common) => "常用操作",
             (Self::EnUs, ShortcutHelpGroup::Workspace) => "Workspace",
             (Self::ZhCn, ShortcutHelpGroup::Workspace) => "工作区",
             (Self::EnUs, ShortcutHelpGroup::Tab) => "Tab",
@@ -113,6 +142,20 @@ impl Locale {
         }
     }
 
+    pub(crate) const fn shortcut_scope_label(self, expanded: bool) -> &'static str {
+        match (self, expanded) {
+            (Self::EnUs, false) => "[Tab: All + symbols]",
+            (Self::ZhCn, false) => "[Tab: 全部及符号]",
+            (Self::EnUs, true) => "[Tab: Common]",
+            (Self::ZhCn, true) => "[Tab: 常用]",
+        }
+    }
+    pub(crate) const fn shortcut_buttons_hint(self) -> &'static str {
+        match self {
+            Self::EnUs => "Buttons: </> page · x close",
+            Self::ZhCn => "按钮：</> 翻页 · x 关闭",
+        }
+    }
     pub(crate) const fn shortcut_search_label(self) -> &'static str {
         match self {
             Self::EnUs => "Filter",
@@ -163,6 +206,23 @@ impl Locale {
         }
         #[cfg(not(windows))]
         let _ = (view, binding.description);
+
+        if matches!(
+            binding.action,
+            PrefixAction::Client(
+                ClientAction::RequestWorkspaceRename
+                    | ClientAction::RequestProjectRename
+                    | ClientAction::RequestRenameTab
+                    | ClientAction::ClosePanel
+                    | ClientAction::ToggleZoom
+                    | ClientAction::RequestControlTakeover
+                    | ClientAction::Exit
+                    | ClientAction::MovePanelFocus(_)
+                    | ClientAction::SplitPanel(_)
+            )
+        ) {
+            return self.shortcut_local_action_title(&binding.action);
+        }
 
         #[cfg(windows)]
         if let Some(action) = shared_menu_action(binding) {
@@ -395,7 +455,7 @@ impl Locale {
             #[cfg(windows)]
             PrefixAction::Client(A::OpenActionMenu) => Some(match self {
                 Self::EnUs => "Open action menu",
-                Self::ZhCn => "打开动作菜单",
+                Self::ZhCn => "打开操作菜单",
             }),
             #[cfg(windows)]
             PrefixAction::Client(A::EnterResizeMode | A::ResizePane { .. }) => Some(match self {
@@ -433,12 +493,12 @@ impl Locale {
             #[cfg(windows)]
             PrefixAction::Client(A::RequestWorktreeCreate) => Some(match self {
                 Self::EnUs => "New Worktree",
-                Self::ZhCn => "新建 Worktree",
+                Self::ZhCn => "新建 工作树",
             }),
             #[cfg(windows)]
             PrefixAction::Client(A::RequestWorktreeOpen) => Some(match self {
                 Self::EnUs => "Open Worktree",
-                Self::ZhCn => "打开 Worktree",
+                Self::ZhCn => "打开 工作树",
             }),
             PrefixAction::Client(A::RequestWorkspaceRename) => Some(match self {
                 Self::EnUs => "Rename Workspace",
@@ -485,12 +545,12 @@ impl Locale {
                 Self::ZhCn => "选择下一个工作区",
             }),
             PrefixAction::Client(A::PreviousPresentation) => Some(match self {
-                Self::EnUs => "Select previous terminal",
-                Self::ZhCn => "选择上一个终端",
+                Self::EnUs => "Select previous terminal in panel",
+                Self::ZhCn => "选择面板内上一个终端",
             }),
             PrefixAction::Client(A::NextPresentation) => Some(match self {
-                Self::EnUs => "Select next terminal",
-                Self::ZhCn => "选择下一个终端",
+                Self::EnUs => "Select next terminal in panel",
+                Self::ZhCn => "选择面板内下一个终端",
             }),
             PrefixAction::Client(A::ForwardLiteralPrefix) => Some(match self {
                 Self::EnUs => "Send prefix to terminal",
@@ -505,12 +565,12 @@ impl Locale {
                 Self::ZhCn => "切换鼠标捕获",
             }),
             PrefixAction::Client(A::Exit) => Some(match self {
-                Self::EnUs => "Detach",
-                Self::ZhCn => "分离",
+                Self::EnUs => "Leave view (keep terminals running)",
+                Self::ZhCn => "离开界面（终端继续运行）",
             }),
             PrefixAction::Client(A::RequestControlTakeover) => Some(match self {
-                Self::EnUs => "Take control of this panel",
-                Self::ZhCn => "接管此面板",
+                Self::EnUs => "Enable typing in this panel",
+                Self::ZhCn => "获取此面板的输入权限",
             }),
             #[cfg(windows)]
             PrefixAction::Client(A::FocusBusinessSidebar) => {
@@ -665,19 +725,43 @@ impl Locale {
 }
 
 pub(crate) fn shortcut_filter_matches(query: &str, target: &str) -> bool {
-    let target = searchable(target);
+    let words: Vec<_> = target
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .map(str::to_lowercase)
+        .collect();
     query
-        .split_whitespace()
-        .map(searchable)
-        .filter(|term| !term.is_empty())
-        .all(|term| fuzzy_subsequence(&term, &target))
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .all(|term| {
+            words.iter().any(|word| {
+                word.starts_with(&term.to_lowercase())
+                    || (!term.is_ascii() && word.contains(&term.to_lowercase()))
+            })
+        })
 }
 
-fn searchable(text: &str) -> String {
-    text.chars()
-        .flat_map(char::to_lowercase)
-        .filter(|character| character.is_alphanumeric())
-        .collect()
+fn common_action(action: &PrefixAction) -> bool {
+    use ClientAction as A;
+    #[cfg(windows)]
+    if matches!(action, PrefixAction::Client(A::FocusBusinessSidebar)) {
+        return true;
+    }
+    matches!(
+        action,
+        PrefixAction::Client(
+            A::CreateTab
+                | A::RequestQuickWorkspace
+                | A::RequestWorkspaceCreate
+                | A::SplitPanel(_)
+                | A::SelectNextTab
+                | A::SelectNextContext
+                | A::ToggleZoom
+                | A::ToggleBusinessSidebar
+                | A::RequestCloseTab
+        ) | PrefixAction::SidebarToggle
+            | PrefixAction::NavigatorToggle
+    )
 }
 
 fn merge_help_entry(entries: &mut Vec<ShortcutHelpEntry>, incoming: ShortcutHelpEntry) {
@@ -696,22 +780,6 @@ fn merge_help_entry(entries: &mut Vec<ShortcutHelpEntry>, incoming: ShortcutHelp
     } else {
         entries.push(incoming);
     }
-}
-
-fn fuzzy_subsequence(query: &str, target: &str) -> bool {
-    let mut query = query.chars();
-    let Some(mut expected) = query.next() else {
-        return true;
-    };
-    for character in target.chars() {
-        if character == expected {
-            match query.next() {
-                Some(next) => expected = next,
-                None => return true,
-            }
-        }
-    }
-    false
 }
 
 fn help_group(metadata: ActionMetadata<'_>) -> ShortcutHelpGroup {
@@ -1193,7 +1261,7 @@ mod tests {
     #[test]
     fn shortcut_filter_matches_fuzzy_names_keys_and_multiple_terms() {
         assert!(shortcut_filter_matches(
-            "nwb",
+            "new",
             "New Workspace Ctrl+b a workspace"
         ));
         assert!(shortcut_filter_matches(
@@ -1201,7 +1269,7 @@ mod tests {
             "New Workspace Ctrl+b a workspace"
         ));
         assert!(shortcut_filter_matches(
-            "workspace nw",
+            "workspace ne",
             "New Workspace Ctrl+b a workspace"
         ));
         assert!(!shortcut_filter_matches(

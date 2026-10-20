@@ -7,6 +7,17 @@ use crate::terminal_session::{
 use std::io;
 
 impl NativeUi {
+    #[cfg(windows)]
+    pub(in crate::terminal_session) fn copy_picker_identifier(&mut self, text: String) -> bool {
+        if text.len() != 32 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return false;
+        }
+        let Some(key) = self.state.as_ref().and_then(|state| state.focus_pane_ref()) else {
+            return false;
+        };
+        self.effects.enqueue_identifier(key, text)
+    }
+
     pub(super) fn apply_program_effect(&mut self, index: usize, record: &[u8]) -> Result<bool, ()> {
         let projection = &mut self.projections[index];
         let Some(payload) = projection.effect_stream.receive(record).map_err(|_| ())? else {
@@ -39,6 +50,11 @@ impl NativeUi {
                 return false;
             };
             #[cfg(windows)]
+            if scope == Scope::PickerIdentifier {
+                return state.focus_pane_ref().as_ref() == Some(key)
+                    && !state.close_suppresses_attachment(key.pane().anchor());
+            }
+            #[cfg(windows)]
             if scope == Scope::Diagnostic {
                 return state.focus_pane_ref().as_ref() == Some(key)
                     && state
@@ -66,7 +82,7 @@ impl NativeUi {
                 }
                 match scope {
                     #[cfg(windows)]
-                    Scope::Diagnostic => false,
+                    Scope::Diagnostic | Scope::PickerIdentifier => false,
                     Scope::Program { attachment, epoch } => {
                         *projection.value.attachment() == attachment
                             && *projection.value.epoch() == epoch

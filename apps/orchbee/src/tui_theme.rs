@@ -300,6 +300,7 @@ pub(crate) struct Theme {
     color_level: ColorLevel,
     terminal_colors: Option<(Color, Color)>,
     terminal_uses_host_colors: bool,
+    terminal_defaults_known: bool,
     styles: RoleStyles,
 }
 
@@ -416,6 +417,7 @@ impl Theme {
             color_level: ColorLevel::Truecolor,
             terminal_colors: None,
             terminal_uses_host_colors: false,
+            terminal_defaults_known: true,
             styles: RoleStyles {
                 text_primary: reset,
                 text_secondary: dim,
@@ -467,6 +469,7 @@ impl Theme {
             color_level: ColorLevel::Truecolor,
             terminal_colors: None,
             terminal_uses_host_colors: false,
+            terminal_defaults_known: true,
             styles: RoleStyles {
                 text_primary: Style::new().fg(Color::Rgb(211, 218, 232)),
                 text_secondary: Style::new().fg(Color::Rgb(133, 146, 171)),
@@ -765,6 +768,9 @@ impl Theme {
     }
 
     pub(crate) fn terminal_rgb_defaults(&self) -> Option<(u32, u32)> {
+        if !self.terminal_defaults_known {
+            return None;
+        }
         let rgb = |color| match color {
             Color::Rgb(red, green, blue) => {
                 Some((u32::from(red) << 16) | (u32::from(green) << 8) | u32::from(blue))
@@ -805,6 +811,7 @@ impl Theme {
         )
         .expect("validated appearance preferences");
         self.terminal_uses_host_colors = colors.is_none();
+        self.terminal_defaults_known = colors.is_some();
         self.terminal_colors = None;
         if let Some(colors) = colors {
             let (foreground, background) = colors.rgb();
@@ -816,6 +823,7 @@ impl Theme {
     pub(crate) fn with_host_terminal_colors(mut self, foreground: u32, background: u32) -> Self {
         if self.terminal_uses_host_colors {
             self.set_terminal_colors(foreground, background);
+            self.terminal_defaults_known = true;
         }
         self
     }
@@ -846,6 +854,8 @@ impl Theme {
         }
         if self.terminal_uses_host_colors {
             self.terminal_uses_host_colors = false;
+            self.terminal_defaults_known =
+                colors.foreground.is_some() && colors.background.is_some();
             let foreground = colors
                 .background
                 .and(colors.foreground)

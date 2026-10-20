@@ -57,8 +57,8 @@ impl Locale {
             Row::Background => ("Background color", "背景色"),
             Row::CopyOnSelect => ("Copy on select", "选中即复制"),
             Row::TrimAgents => (
-                "Trim trailing blank rows for CLI agents",
-                "裁剪 CLI Agent 尾部空白行",
+                "Hide empty space below Agent output",
+                "收起 Agent 输出底部空白",
             ),
             Row::Reminders => ("Agent status notifications", "Agent 状态通知"),
             Row::CompletionReminders => ("Completion reminders", "命令完成提醒"),
@@ -66,7 +66,7 @@ impl Locale {
                 ("Minimum command duration (seconds)", "最短命令时长（秒）")
             }
             Row::Sound => ("Notification sound", "通知声音"),
-            Row::Scrollback => ("Scrollback limit (bytes)", "回滚上限（字节）"),
+            Row::Scrollback => ("Terminal history (MB)", "终端历史容量（MB）"),
             Row::LaunchProfiles => ("Launch profiles", "启动配置"),
             Row::ResetAll => ("Reset all common settings", "重置全部通用设置"),
             Row::Reload => ("Reload and discard drafts", "重新读取并丢弃草稿"),
@@ -182,8 +182,8 @@ impl Locale {
                 "保存后裁剪 Agent 空白行；保留正在操作的历史和选区。",
             ),
             Row::Scrollback => self.setting(
-                "History budget in bytes for new terminals after Save.",
-                "保存后用于新终端的历史记录字节上限。",
+                "History capacity for new terminals: 0–1000 MB; 1 MB = 1,000,000 bytes.",
+                "新终端历史容量：0–1000 MB；1 MB = 1,000,000 字节。",
             ),
             Row::Reminders => self.setting(
                 "Future hidden-agent notifications after Save; host and mute rules apply.",
@@ -314,7 +314,12 @@ impl Locale {
                 return values.completion_reminder_minimum_seconds.to_string();
             }
             Row::Sound => self.settings_toggle(values.sound_enabled),
-            Row::Scrollback => return values.scrollback_bytes.to_string(),
+            Row::Scrollback => {
+                return format!(
+                    "{} MB",
+                    crate::native_settings::scrollback_megabytes(values.scrollback_bytes)
+                );
+            }
             Row::LaunchProfiles => {
                 return values
                     .launch_profiles
