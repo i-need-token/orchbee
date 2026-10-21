@@ -36,7 +36,7 @@ manifest_check = true
 
 共享的[应用外观偏好](../../../crates/workbench-protocol/docs/user-preferences.zh-CN.md)
 支持浅色（`light`）、深色（`dark`）和系统（`system`）；系统是通用默认值。在原生 TUI 中，
-系统模式会跟随宿主专用解析器检测到的外观，外观未知时回退到 Dark。Windows TOML `[theme] name` 是单独的旧命名主题
+系统模式跟随宿主默认背景，并在缺少宿主背景观测时使用终端原生对比度。Windows TOML `[theme] name` 是单独的旧命名主题
 迁移输入，接受 `terminal-native`、`one-light` 或 `one-dark`；离线默认 TOML 将注册表默认值保留为
 注释示例 `# name = "terminal-native"`，只有在共享偏好记录不存在且显式取消注释后才会迁移。无效名称或类型给出警告并让该字段回退；旧 TOML 设置仍不支持
 `theme.custom`。[原生主题](native-themes.zh-CN.md)定义极性、颜色能力、所有 chrome 消费界面、

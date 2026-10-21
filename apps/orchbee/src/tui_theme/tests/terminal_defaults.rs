@@ -122,17 +122,6 @@ fn detected_host_polarity_does_not_replace_explicit_terminal_display_choices() {
 }
 
 #[test]
-fn unknown_system_appearance_falls_back_to_the_dark_theme() {
-    use crate::terminal_host_appearance::HostAppearance;
-
-    assert_eq!(
-        Theme::application_with_host(App::System, HostAppearance::Unknown, ColorLevel::Truecolor)
-            .name,
-        "one-dark"
-    );
-}
-
-#[test]
 fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_preferences() {
     use crate::terminal_host_appearance::{HostAppearance, HostColors};
     for (terminal, expected) in [
@@ -158,37 +147,95 @@ fn outer_host_defaults_replace_child_baselines_without_replacing_explicit_prefer
                 )
                 .with_host_terminal_colors(0x141414, 0xfcfcfc);
         assert_eq!(theme.terminal_rgb_defaults(), Some(expected));
+        if terminal == Terminal::Host {
+            assert_eq!(theme.terminal_defaults(), (Color::Reset, Color::Reset));
+        } else {
+            assert_eq!(
+                theme.terminal_defaults(),
+                (
+                    theme.terminal_color(expected.0),
+                    theme.terminal_color(expected.1)
+                )
+            );
+        }
         for role in [
             Role::SurfaceCanvas,
             Role::SurfaceChrome,
             Role::SurfaceInactive,
         ] {
-            assert_eq!(theme.color(role), Color::Rgb(12, 12, 12));
+            assert_eq!(theme.color(role), Color::Reset);
         }
     }
 }
 
 #[test]
-fn absent_outer_rgb_keeps_dark_fallback_and_ignores_an_unpaired_foreground() {
+fn system_defaults_remain_host_relative_without_a_probe_or_exact_color_support() {
     use crate::terminal_host_appearance::{HostAppearance, HostColors};
-    for colors in [
-        HostColors::default(),
-        HostColors {
-            foreground: Some(0x141414),
-            background: None,
-        },
+    for (appearance, colors) in [
+        (HostAppearance::Unknown, HostColors::default()),
+        (HostAppearance::Light, HostColors::default()),
+        (HostAppearance::Dark, HostColors::default()),
+        (
+            HostAppearance::Light,
+            HostColors {
+                foreground: Some(0x141414),
+                background: None,
+            },
+        ),
+        (
+            HostAppearance::Dark,
+            HostColors {
+                foreground: None,
+                background: Some(0x0c0c0c),
+            },
+        ),
+        (
+            HostAppearance::Dark,
+            HostColors {
+                foreground: Some(0xcccccc),
+                background: Some(0x0c0c0c),
+            },
+        ),
+        (
+            HostAppearance::Light,
+            HostColors {
+                foreground: Some(0x141414),
+                background: Some(0xfcfcfc),
+            },
+        ),
     ] {
-        let theme = Theme::application_with_host(
-            App::System,
-            HostAppearance::Unknown,
+        for level in [
             ColorLevel::Truecolor,
-        )
-        .with_terminal_appearance_for_application(App::System, Terminal::Host, "#141414", "#fcfcfc")
-        .with_outer_host_colors(App::System, colors)
-        .with_host_terminal_colors(0x141414, 0xfcfcfc);
-        assert_eq!(
-            theme.terminal_defaults(),
-            Theme::one_dark().terminal_defaults()
-        );
+            ColorLevel::Ansi256,
+            ColorLevel::Ansi16,
+            ColorLevel::Monochrome,
+        ] {
+            let theme = Theme::application_with_host(App::System, appearance, level)
+                .with_terminal_appearance_for_application(
+                    App::System,
+                    Terminal::Host,
+                    "#141414",
+                    "#fcfcfc",
+                )
+                .with_outer_host_colors(App::System, colors)
+                .with_host_terminal_colors(0x141414, 0xfcfcfc);
+            assert_eq!(theme.terminal_defaults(), (Color::Reset, Color::Reset));
+            for role in [
+                Role::SurfaceCanvas,
+                Role::SurfaceChrome,
+                Role::SurfaceInactive,
+            ] {
+                assert_eq!(
+                    theme.color(role),
+                    Color::Reset,
+                    "{appearance:?} {colors:?} {level:?}"
+                );
+            }
+            if colors.background.is_none() {
+                assert_eq!(theme.name, "terminal-native");
+                assert_eq!(theme.color(Role::TextPrimary), Color::Reset);
+                assert_eq!(theme.terminal_rgb_defaults(), None);
+            }
+        }
     }
 }

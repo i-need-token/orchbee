@@ -288,6 +288,13 @@ impl RoleStyles {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TerminalColorSource {
+    Palette,
+    RetainedFrame,
+    OuterHost,
+}
+
 /// A complete mapping of roles to concrete styles plus the uniform frame
 /// corner option and the resolved glyph set.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -300,7 +307,7 @@ pub(crate) struct Theme {
     color_level: ColorLevel,
     no_color: bool,
     terminal_colors: Option<(Color, Color)>,
-    terminal_uses_host_colors: bool,
+    terminal_color_source: TerminalColorSource,
     terminal_defaults_known: bool,
     styles: RoleStyles,
 }
@@ -417,7 +424,7 @@ impl Theme {
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
             terminal_colors: None,
-            terminal_uses_host_colors: false,
+            terminal_color_source: TerminalColorSource::Palette,
             terminal_defaults_known: true,
             no_color: false,
             styles: RoleStyles {
@@ -470,7 +477,7 @@ impl Theme {
             glyphs: GlyphSet::UTF8,
             color_level: ColorLevel::Truecolor,
             terminal_colors: None,
-            terminal_uses_host_colors: false,
+            terminal_color_source: TerminalColorSource::Palette,
             terminal_defaults_known: true,
             no_color: false,
             styles: RoleStyles {
@@ -774,6 +781,9 @@ impl Theme {
     /// Frame defaults describe the retained program, not the Client's host.
     /// Explicit program colors bypass this mapping.
     pub(crate) fn terminal_defaults(&self) -> (Color, Color) {
+        if self.terminal_color_source == TerminalColorSource::OuterHost {
+            return (Color::Reset, Color::Reset);
+        }
         self.terminal_colors.unwrap_or((
             self.color(Role::TextPrimary),
             self.color(Role::SurfaceCanvas),
@@ -790,7 +800,12 @@ impl Theme {
             }
             _ => None,
         };
-        let (foreground, background) = self.terminal_defaults();
+        let (foreground, background) =
+            if self.terminal_color_source == TerminalColorSource::OuterHost {
+                self.terminal_colors?
+            } else {
+                self.terminal_defaults()
+            };
         Some((rgb(foreground)?, rgb(background)?))
     }
 
@@ -823,7 +838,11 @@ impl Theme {
             custom_background,
         )
         .expect("validated appearance preferences");
-        self.terminal_uses_host_colors = colors.is_none();
+        self.terminal_color_source = if colors.is_none() {
+            TerminalColorSource::RetainedFrame
+        } else {
+            TerminalColorSource::Palette
+        };
         self.terminal_defaults_known = colors.is_some();
         self.terminal_colors = None;
         if let Some(colors) = colors {
@@ -834,16 +853,16 @@ impl Theme {
     }
 
     pub(crate) fn with_host_terminal_colors(mut self, foreground: u32, background: u32) -> Self {
-        if self.terminal_uses_host_colors {
+        if self.terminal_color_source == TerminalColorSource::RetainedFrame {
             self.set_terminal_colors(foreground, background);
             self.terminal_defaults_known = true;
         }
         self
     }
 
-    /// System uses the outer host's canvas and default terminal colors. A
-    /// retained child's launch baseline cannot replace this local observation.
-    /// Without captured RGB, the resolved Light/Dark palette remains the fallback.
+    /// System base surfaces use the host's default background without depending on
+    /// a query, quantization, or a captured child's launch colors. Captured RGB is
+    /// descriptive metadata; an unobserved background keeps terminal-native contrast.
     pub(crate) fn with_outer_host_colors(
         mut self,
         application: orchbee_workbench_protocol::ApplicationAppearance,
@@ -852,29 +871,38 @@ impl Theme {
         if application != orchbee_workbench_protocol::ApplicationAppearance::System {
             return self;
         }
-        let (fallback_foreground, fallback_background) = self.terminal_defaults();
-        let background = colors.background.map(|rgb| self.terminal_color(rgb));
-        if let Some(background) = background {
-            self.styles.surface_canvas = self.styles.surface_canvas.bg(background);
-            self.styles.surface_chrome = self.styles.surface_chrome.bg(background);
-            self.styles.surface_inactive = self.styles.surface_inactive.bg(background);
-            if matches!(self.color_level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
-                && interaction_surfaces_collapse(&self.styles)
+        if colors.background.is_none() {
+            let native = Self::terminal_native().quantize(self.color_level);
+            self.styles = native.styles;
+            self.polarity = native.polarity;
+            #[cfg(test)]
             {
-                self.styles.surface_hover = interaction_surface_fallback();
-                self.styles.surface_pressed = interaction_surface_fallback();
+                self.name = native.name;
             }
         }
-        if self.terminal_uses_host_colors {
-            self.terminal_uses_host_colors = false;
+        self.styles.surface_canvas = self.styles.surface_canvas.bg(Color::Reset);
+        self.styles.surface_chrome = self.styles.surface_chrome.bg(Color::Reset);
+        self.styles.surface_inactive = self.styles.surface_inactive.bg(Color::Reset);
+        if matches!(self.color_level, ColorLevel::Ansi16 | ColorLevel::Ansi256)
+            && interaction_surfaces_collapse(&self.styles)
+        {
+            self.styles.surface_hover = interaction_surface_fallback();
+            self.styles.surface_pressed = interaction_surface_fallback();
+        }
+        if self.terminal_color_source == TerminalColorSource::RetainedFrame {
+            self.terminal_color_source = TerminalColorSource::OuterHost;
             self.terminal_defaults_known =
                 colors.foreground.is_some() && colors.background.is_some();
-            let foreground = colors
-                .background
-                .and(colors.foreground)
-                .map(|rgb| self.terminal_color(rgb))
-                .unwrap_or(fallback_foreground);
-            self.terminal_colors = Some((foreground, background.unwrap_or(fallback_background)));
+            self.terminal_colors =
+                colors
+                    .foreground
+                    .zip(colors.background)
+                    .map(|(foreground, background)| {
+                        (
+                            self.terminal_color(foreground),
+                            self.terminal_color(background),
+                        )
+                    });
         }
         self
     }

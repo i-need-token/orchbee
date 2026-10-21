@@ -83,7 +83,7 @@ fn classifies_the_wide_boundary_and_projects_the_sidebar_per_client() {
 
 #[test]
 fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_selection() {
-    use crate::terminal_host_appearance::HostAppearance;
+    use crate::terminal_host_appearance::{HostAppearance, HostColors};
     use orchbee_workbench_protocol::{
         ApplicationAppearance as Application, TerminalDisplayAppearance as Terminal,
     };
@@ -98,7 +98,13 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     let mut system = ClientView::new(120);
     system.configure_color_level(crate::tui_theme::ColorLevel::Truecolor);
     system.apply_user_preferences(values);
-    assert!(system.configure_host_appearance(HostAppearance::Dark));
+    assert!(system.configure_host_terminal(
+        HostAppearance::Dark,
+        HostColors {
+            foreground: Some(0xcccccc),
+            background: Some(0x0c0c0c),
+        }
+    ));
     let dark = system.configured_theme().unwrap();
     assert_eq!(dark.name, "one-dark");
     assert_eq!(
@@ -108,7 +114,13 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
             ratatui::style::Color::Rgb(0x65, 0x43, 0x21)
         )
     );
-    assert!(system.configure_host_appearance(HostAppearance::Light));
+    assert!(system.configure_host_terminal(
+        HostAppearance::Light,
+        HostColors {
+            foreground: Some(0x141414),
+            background: Some(0xfcfcfc),
+        }
+    ));
     assert_eq!(system.configured_theme().unwrap().name, "one-light");
 
     let host_values = orchbee_workbench_protocol::UserPreferencesValues {
@@ -125,7 +137,7 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
             .unwrap()
             .with_host_terminal_colors(0x141414, 0xfcfcfc)
             .terminal_defaults(),
-        crate::tui_theme::Theme::one_dark().terminal_defaults()
+        (ratatui::style::Color::Reset, ratatui::style::Color::Reset)
     );
     assert!(host.configure_host_terminal(
         HostAppearance::Dark,
@@ -141,10 +153,11 @@ fn detected_host_polarity_updates_only_system_chrome_and_retains_terminal_select
     assert_eq!(host_theme.name, "one-dark");
     assert_eq!(
         host_theme.terminal_defaults(),
-        (
-            ratatui::style::Color::Rgb(0x12, 0x34, 0x56),
-            ratatui::style::Color::Rgb(0x20, 0x30, 0x40)
-        )
+        (ratatui::style::Color::Reset, ratatui::style::Color::Reset)
+    );
+    assert_eq!(
+        host_theme.terminal_rgb_defaults(),
+        Some((0x123456, 0x203040))
     );
 
     for (application, expected) in [

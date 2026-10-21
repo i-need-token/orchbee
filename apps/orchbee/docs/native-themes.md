@@ -4,16 +4,17 @@
 
 The [shared device preferences](../../../crates/workbench-protocol/docs/user-preferences.md)
 separate application appearance (Light, Dark, System) from terminal defaults (Host, Light, Dark,
-Custom). Application System is the common default. System resolves TUI chrome to One Light or
-One Dark from the outer terminal's detected background polarity; Unknown resolves to One Dark.
+Custom). Application System is the common default. System resolves TUI accents and overlays to One
+Light or One Dark from an observed outer-terminal background; without that observation it uses
+terminal-native contrast, even when the operating-system fallback reports a light or dark appearance.
 The TUI does not change the outer host's font or appearance.
 
 Terminal Host follows explicit application Light/Dark through the shared shipped terminal defaults.
-With application System, Host uses the outer terminal's captured foreground and background, falling
-back to the resolved One Light/One Dark palette when its RGB observation is unavailable. The outer
-host's captured background also fills System canvas and persistent chrome, including padding, so
-the Client meets the host's surrounding background. Retained child-frame launch defaults cannot
-replace this local choice. Explicit
+With application System, Host paints terminal defaults with `Color::Reset`. System canvas,
+persistent chrome and inactive surfaces also use the host-default background, including empty
+cells, so the Client meets the host's surrounding padding without an RGB query or quantization.
+Captured foreground/background values remain available as descriptive RGB in Settings; they never
+replace host-relative painting. Retained child-frame launch defaults cannot replace this local choice. Explicit
 terminal Light/Dark and Custom retain precedence; Custom uses the validated RGB pair. Only
 default-marked cells are substituted.
 Explicit program RGB, palette colors, OSC overrides, reversal, attributes and wide-cell geometry
@@ -57,8 +58,9 @@ explicit legacy values seed unclaimed shared preferences once. Later TOML reload
 confirmed common appearance. Shipped theme roles still map chrome, sidebars, menus, notices and
 selection overlays; renderers consume those roles without changing focus, geometry or control.
 
-The light/dark roles distinguish canvas, chrome and raised overlays. A known System appearance uses
-the matching Light/Dark palette; Unknown uses One Dark. Quantization may collapse surface
+The light/dark roles distinguish canvas, chrome and raised overlays. System uses matching Light/Dark
+accents and overlays only with an observed host background; otherwise it uses terminal-native roles.
+Its base surfaces remain host-relative in every color level. Quantization may collapse surface
 differences while borders, labels and focus remain.
 Overlay frames share theme corner and focus roles; titles use independent primary bold text.
 Independent terminal popups use this complete overlay surface for the title, borders and pending
@@ -78,8 +80,8 @@ shared Light and Dark application appearances, these roles adapt the public prod
 pressed surface respectively. The Light cell-grid adapter makes the translucent hover and press
 tokens opaque over its existing chrome surface; the Dark adapter resolves the declared neutral
 references. A source-conformance test includes the CSS authority and pins both the semantic token
-chain and its RGB projection. System reuses the matching named palette when host polarity is known
-and uses One Dark when it is Unknown. These roles are available to renderers, but each surface
+chain and its RGB projection. System reuses the matching named palette when a host background is observed
+and uses terminal-native roles otherwise. These roles are available to renderers, but each surface
 still requires consumer render evidence before it can claim adoption.
 
 The sidebar's explicit red Delete intent uses independent `accent-destructive` metadata and palette
@@ -226,18 +228,18 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 
 ## Correctness and evidence
 
-| Claim                                                        | Evidence                                                                                                          | Bounds                                                                                                             |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Legacy names and migration admission                         | Settings decision cases and CLI warning/schema checks                                                             | Windows TOML owner and existing fatal source boundary                                                              |
-| Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                      |
-| Shared Light/Dark interaction palette remains aligned        | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map shared Light/Dark roles; System reuses the detected palette or falls back to One Dark     |
-| Dark text priority exceeds a readable near-equal control     | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                |
-| Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                  |
-| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate               |
-| Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate  |
-| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Host/Light/Dark/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate |
-| Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                  |
-| Startup and shared reload reach the real Client              | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                     |
+| Claim                                                        | Evidence                                                                                                          | Bounds                                                                                                                                        |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Legacy names and migration admission                         | Settings decision cases and CLI warning/schema checks                                                             | Windows TOML owner and existing fatal source boundary                                                                                         |
+| Complete role mapping and capability precedence              | Pure palette/resolver cases, quantized buffers, all consumer render cases                                         | Three themes, canonical palette, sampled environment; program colors excluded                                                                 |
+| Shared Light/Dark interaction palette remains aligned        | CSS source-conformance test and exact foreign-input verification edge                                             | Public design tokens map shared Light/Dark roles; System uses observed-host accents or terminal-native roles with host-relative base surfaces |
+| Dark text priority exceeds a readable near-equal control     | Resolved content separation and independent surface-readability cases                                             | Palette-specific truecolor evidence; reduced-color behavior and actual host appearance are separate                                           |
+| Sidebar rows have one surface and distinct current ancestors | Workspace/Agent hover, press, navigation, collapse and supporting-line regression cases                           | Native, Light/Dark, ANSI-16 and monochrome; both locales; real-window acceptance remains separate                                             |
+| Host-default launch colors follow explicit app appearance    | Shared resolver decisions, frozen preference snapshots and Worker launch-adapter profile cases                    | New terminal defaults and OSC query inputs; retained query state and Client previews remain separate                                          |
+| Default markers follow the theme; explicit cells stay exact  | Live/retained cell rendering, mixed default/explicit RGB and empty canvas cases                                   | Native Reset and both named themes; monochrome, 16/256 colors and truecolor; physical host appearance is separate                             |
+| Cursor contrast follows the displayed cell and input owner   | Contrast cases, native renderer/backend byte traces, movement, wide cells, visibility, recovery and failed writes | Host/Light/Dark/Custom defaults; unknown colors invert displayed defaults; real-window screenshots remain separate                            |
+| Confirmed shared publication preserves complete appearance   | Server/Client publication traces and shared contract corpus                                                       | Shared settings lane and CAS traces; physical display capability remains separate                                                             |
+| Startup and shared reload reach the real Client              | Isolated Windows ConPTY and root verification                                                                     | Native Windows process/byte evidence; physical emulator appearance is separate                                                                |
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`
 and the affected `pnpm verify` root gate. Shared custom colors and System appearance are current behavior;

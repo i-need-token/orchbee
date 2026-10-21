@@ -318,8 +318,8 @@
 			"zhCnSha256": "8d456479a7277fd0d65f79f0b3c5bdbcd6ef7880c5c6c9d23db3e2f2e89abe6e"
 		},
 		"apps/orchbee/docs/native-themes.md": {
-			"englishSha256": "8b365dcac6cc14855102be9fcdebdecde025664290d626d2dfd7b699c04d6863",
-			"zhCnSha256": "b643a99f9560f47cec8260c9ea0be47cdb531ac1fd3e2ff168fb7741f4060920"
+			"englishSha256": "8a6ded105801b5e5caf708439fabe88e5b6b3dd44b4fe21ce0fa263f56e3684c",
+			"zhCnSha256": "4cc45218feaf14a60312edbb226fbf7701c91e954a45110953fe83c411ffe74c"
 		},
 		"apps/orchbee/docs/native-workspace-close.md": {
 			"englishSha256": "ccc750ead2d559c69ab9291a745b2518dbe8bb9ee5de3b28d3337598ddf12ffd",
@@ -346,8 +346,8 @@
 			"zhCnSha256": "10e4dbf19144ccfe11978b02b6de38e55970eb3133191e32a436722b1b2cb0fe"
 		},
 		"apps/orchbee/docs/windows-cli-configuration.md": {
-			"englishSha256": "d35b4aed7a36510e20bf3e7142ad99af15cf23e7365dfe791429a8ade01568b0",
-			"zhCnSha256": "b5ea5cf1b70766a766b3cdb19882561b6228ecb6fa7ce3c33a5e1f64ec3b1013"
+			"englishSha256": "2a94f0eb34b5e02da603da84d564a0a4f7c4e2976ddb5c09f87f22ac75020492",
+			"zhCnSha256": "c630c81a4795a09c070f979206721123eb12a8ccd6c0988045d84ce33e0e44f9"
 		},
 		"apps/orchbee/docs/windows-client-control.md": {
 			"englishSha256": "d8b380fa28eb40a9181a8d776e3a3edb292b0a6a8ae7e803db0bcacb5ef0c031",
@@ -498,8 +498,8 @@
 			"zhCnSha256": "44de597764e836ba516d72a385cd0bf4cd029874cddf1ab158892e0fabb55624"
 		},
 		"crates/workbench-protocol/docs/user-preferences.md": {
-			"englishSha256": "ff280435e115f2d96a0458ecca43b00b27be3bcac5c2d0bcb33e2070e6f6d749",
-			"zhCnSha256": "6b8677f3d7daa3248053d07216ee609ed555a49ac7712d1bf7a27cac5edd8ff1"
+			"englishSha256": "0ef205d9f00a4471179a01480f620bc03af8ac61c8e618219a0b56b99fc6b401",
+			"zhCnSha256": "83f4f9347510aeff3460e1acacbb291c0aa3e75e4010ca7de5aa547b68bfc464"
 		},
 		"docs/APPLICATIONS.md": {
 			"englishSha256": "cab81af6ee740bb7dd9e57dc2cb9a26f81879fb6d804555be05032c8e503bd14",

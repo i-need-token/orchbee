@@ -36,8 +36,8 @@ Warnings use a bounded canonical reason grammar and a closed disposition vocabul
 
 The shared [application appearance preference](../../../crates/workbench-protocol/docs/user-preferences.md)
 supports Light (`light`), Dark (`dark`) and System (`system`); System is the
-common default. In the native TUI, System follows the appearance detected by the
-host-specific resolver and falls back to Dark when appearance is unknown. Windows TOML `[theme] name` remains a separate legacy
+common default. In the native TUI, System follows the host-default background and uses
+terminal-native contrast when no host background is observed. Windows TOML `[theme] name` remains a separate legacy
 named-theme migration input: it accepts `terminal-native`, `one-light` or `one-dark`,
 and the offline default TOML keeps the registry default as the commented example
 `# name = "terminal-native"`, which migrates only when explicitly uncommented with no shared preference record. Invalid names or

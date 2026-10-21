@@ -1,5 +1,7 @@
 //! Shipped RGB palettes project every existing semantic role; no renderer owns colors.
-use super::{Color, ColorLevel, GlyphSet, Modifier, Polarity, RoleStyles, Style, Theme};
+use super::{
+    Color, ColorLevel, GlyphSet, Modifier, Polarity, RoleStyles, Style, TerminalColorSource, Theme,
+};
 use crate::terminal_host_appearance::HostAppearance;
 use ratatui::widgets::BorderType;
 
@@ -44,7 +46,7 @@ fn named(palette: Palette) -> Theme {
         glyphs: GlyphSet::UTF8,
         color_level: ColorLevel::Truecolor,
         terminal_colors: None,
-        terminal_uses_host_colors: false,
+        terminal_color_source: TerminalColorSource::Palette,
         terminal_defaults_known: true,
         no_color: false,
         styles: RoleStyles {
@@ -83,7 +85,7 @@ fn named(palette: Palette) -> Theme {
 }
 
 impl Theme {
-    /// Resolve System appearance from outer-host polarity; Unknown falls back to One Dark.
+    /// Resolve System accents from host polarity; unknown appearance stays terminal-native.
     pub(crate) fn application_with_host(
         appearance: orchbee_workbench_protocol::ApplicationAppearance,
         host: HostAppearance,
@@ -94,7 +96,7 @@ impl Theme {
             ApplicationAppearance::System => match host {
                 HostAppearance::Dark => Self::one_dark(),
                 HostAppearance::Light => Self::one_light(),
-                HostAppearance::Unknown => Self::one_dark(),
+                HostAppearance::Unknown => Self::terminal_native(),
             },
             ApplicationAppearance::Light => Self::one_light(),
             ApplicationAppearance::Dark => Self::one_dark(),
