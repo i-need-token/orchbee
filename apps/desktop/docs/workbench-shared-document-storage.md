@@ -134,28 +134,28 @@ the shared document and cannot become another page's navigation authority.
 
 ## Invariants and evidence
 
-| Claim                                                               | Evidence                                                                                 | Limits                                                                    |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Only exact-next CAS changes the stored revision                     | [CAS model][cas-model], [configuration][cas-config], and [file-store tests][store-tests] | Two submitters; revisions missing through `2` in TLC                      |
-| Disposed queued work is suppressed before storage                   | [CAS model][cas-model] and [session queue tests][queue-tests]                            | One request per modeled generation; accepted work may finish              |
-| Invalid/current unavailable state is never overwritten              | [File-store tests][store-tests]                                                          | Selected corruption and filesystem failures                               |
-| v1 migration is one-way and the current filename is authoritative   | [File-store tests][store-tests] and [document migration tests][document-tests]           | Strict v1/v2 inputs; migration and rename are not modeled by the CAS core |
-| Client View-only transitions do not write shared state              | [Document runtime tests][runtime-tests] and [renderer coordinator tests][renderer-tests] | Each Client View remains client-local                                     |
-| Renderer receives only the declared document capability             | [Session broker tests][broker-tests] and [preload tests][preload-tests]                  | Electron structured clone is trusted                                      |
-| Main-owned mutations share the renderer proposal queue              | [Session queue tests][queue-tests] and [Worktree runtime tests][worktree-tests]          | Controlled in-process commit and failure traces                           |
-| Legacy placement cannot grant remote effect authority               | [Proposal guard tests][proposal-tests] and [target resolver tests][target-tests]         | Current Desktop effects are local-only                                    |
-| Durable intent precedes effects; settled retries do not repeat them | [Session queue tests][queue-tests] and [reconciler tests][reconciler-tests]              | Current operation identity; Host/ledger idempotency remains trusted       |
-| Restore cannot create a replacement terminal                        | [Lifecycle adapter tests][adapter-tests]                                                 | Binding ledger and Host reconciliation remain trusted                     |
-| A pre-rename cleanup write failure preserves stored intent          | [File-store failure tests][store-tests] and [document runtime tests][runtime-tests]      | Selected write failures and hydration traces, not a workflow model        |
+| Claim                                                               | Evidence                                                                                 | Limits                                                                 |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Only exact-next CAS changes the stored revision                     | [Revision decision tests][decision-tests] and [file-store tests][store-tests]            | Missing, stale, non-next and large revisions; concurrent writers       |
+| Disposed queued work is suppressed before storage                   | [Session queue tests][queue-tests]                                                       | Controlled disconnect before/after admission; accepted work may finish |
+| Invalid/current unavailable state is never overwritten              | [File-store tests][store-tests]                                                          | Selected corruption and filesystem failures                            |
+| v1 migration is one-way and the current filename is authoritative   | [File-store tests][store-tests] and [document migration tests][document-tests]           | Strict v1/v2 inputs and selected rename failures                       |
+| Client View-only transitions do not write shared state              | [Document runtime tests][runtime-tests] and [renderer coordinator tests][renderer-tests] | Each Client View remains client-local                                  |
+| Renderer receives only the declared document capability             | [Session broker tests][broker-tests] and [preload tests][preload-tests]                  | Electron structured clone is trusted                                   |
+| Main-owned mutations share the renderer proposal queue              | [Session queue tests][queue-tests] and [Worktree runtime tests][worktree-tests]          | Controlled in-process commit and failure traces                        |
+| Legacy placement cannot grant remote effect authority               | [Proposal guard tests][proposal-tests] and [target resolver tests][target-tests]         | Current Desktop effects are local-only                                 |
+| Durable intent precedes effects; settled retries do not repeat them | [Session queue tests][queue-tests] and [reconciler tests][reconciler-tests]              | Current operation identity; Host/ledger idempotency remains trusted    |
+| Restore cannot create a replacement terminal                        | [Lifecycle adapter tests][adapter-tests]                                                 | Binding ledger and Host reconciliation remain trusted                  |
+| A pre-rename cleanup write failure preserves stored intent          | [File-store failure tests][store-tests] and [document runtime tests][runtime-tests]      | Selected write failures and hydration traces, not a workflow model     |
 
-The CAS model checks revision and queue transitions plus settlement under its declared weak
-fairness. It does not model filesystem rename, migration, terminal intent, remote placement, or
-the whole application. Multi-client arbitration, publication, disconnect, and quiescing evidence
-belongs to the [session coordinator](multi-client-session-coordinator.md); its controlled
-implementation traces do not become exhaustive workflow proofs.
+The store and session queue each have one in-process serialization owner. Revision decisions,
+competing commits, disconnect before/after admission, and queue draining are checked directly by
+the implementation tests above. This boundary has no exhaustive TLA+ safety or progress claim;
+completion traces assume awaited operations settle. File tests cover selected migration and write
+failures, not general filesystem durability. Multi-client arbitration, publication, disconnect,
+and quiescing evidence belongs to the [session coordinator](multi-client-session-coordinator.md).
 
-[cas-model]: ../formal/tla/DesktopWorkbenchDocumentStore.tla
-[cas-config]: ../formal/tla/DesktopWorkbenchDocumentStore.cfg
+[decision-tests]: ../src/main/workbench-document/__tests__/decideWorkbenchDocumentCommit.unit.test.ts
 [store-tests]: ../src/main/workbench-document/__tests__/FileWorkbenchDocumentStore.unit.test.ts
 [document-tests]: ../../../packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts
 [runtime-tests]: ../../../packages/workbench/src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts

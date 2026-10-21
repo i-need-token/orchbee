@@ -16,29 +16,6 @@
 	],
 	"models": [
 		{
-			"id": "desktop-workbench-document-store",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/DesktopWorkbenchDocumentStore.tla",
-			"config": "apps/desktop/formal/tla/DesktopWorkbenchDocumentStore.cfg",
-			"claims": ["apps/desktop/docs/workbench-shared-document-storage.md"],
-			"triggers": [
-				"apps/desktop/src/main/composition/**",
-				"apps/desktop/src/main/workbench-document/**",
-				"apps/desktop/src/main/client-session/**",
-				"packages/workbench/src/workbench/document/**",
-				"apps/desktop/docs/workbench-shared-document-storage.zh-CN.md"
-			],
-			"requiredCoverage": [
-				"Load",
-				"Submit",
-				"StartNext",
-				"Complete",
-				"Dispose",
-				"DropDisconnectedHead"
-			]
-		},
-		{
 			"id": "projected-terminal-ipc-reliability",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

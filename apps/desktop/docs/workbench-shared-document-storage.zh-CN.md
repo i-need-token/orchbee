@@ -96,26 +96,26 @@ Web 组合可以按[导航路由](../../web/docs/navigation-routing.zh-CN.md)的
 
 ## 不变量和证据
 
-| 声明                                   | 证据                                                                   | 限制                                         |
-| -------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------- |
-| 仅精确下一修订的 CAS 能更改存储修订    | [CAS 模型][cas-model]、[配置][cas-config]和[文件存储测试][store-tests] | TLC 中有两个提交者，修订从缺失到 `2`         |
-| 已处置的排队工作在存储前被抑制         | [CAS 模型][cas-model]和[会话队列测试][queue-tests]                     | 每个建模代次只有一个请求；已准入工作仍可完成 |
-| 无效或当前不可用的状态不会被覆盖       | [文件存储测试][store-tests]                                            | 选定的损坏和文件系统故障                     |
-| v1 迁移单向，当前文件名具有权威性      | [文件存储测试][store-tests]和[文档迁移测试][document-tests]            | 严格 v1/v2 输入；CAS 核心不建模迁移和 rename |
-| 仅 Client View 变化不写共享状态        | [文档运行时测试][runtime-tests]和[渲染器协调器测试][renderer-tests]    | 每个 Client View 保持客户端本地              |
-| 渲染器只接收声明的文档能力             | [会话 broker 测试][broker-tests]和[preload 测试][preload-tests]        | 信任 Electron 结构化克隆                     |
-| Main 拥有的变更与渲染器提案共用队列    | [会话队列测试][queue-tests]和[Worktree 运行时测试][worktree-tests]     | 受控的进程内提交与故障轨迹                   |
-| 旧 placement 不能授予远程效果权限      | [提案保护测试][proposal-tests]和[目标解析测试][target-tests]           | 当前 Desktop 效果仅支持本地                  |
-| 持久意图先于效果，已结算重试不重复执行 | [会话队列测试][queue-tests]和[协调器测试][reconciler-tests]            | 当前操作标识；仍信任 Host/账本的幂等性       |
-| 恢复不能创建替代终端                   | [生命周期适配器测试][adapter-tests]                                    | 仍信任绑定账本和 Host 协调                   |
-| rename 前的清理写入失败保留存储意图    | [文件存储故障测试][store-tests]和[文档运行时测试][runtime-tests]       | 选定的写入失败与水合轨迹，不是工作流模型     |
+| 声明                                   | 证据                                                                | 限制                                         |
+| -------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------- |
+| 仅精确下一修订的 CAS 能更改存储修订    | [修订决策测试][decision-tests]和[文件存储测试][store-tests]         | 缺失、过期、非下一修订、大修订值及并发写入者 |
+| 已处置的排队工作在存储前被抑制         | [会话队列测试][queue-tests]                                         | 受控的准入前后断连；已准入工作仍可完成       |
+| 无效或当前不可用的状态不会被覆盖       | [文件存储测试][store-tests]                                         | 选定的损坏和文件系统故障                     |
+| v1 迁移单向，当前文件名具有权威性      | [文件存储测试][store-tests]和[文档迁移测试][document-tests]         | 严格 v1/v2 输入和选定的 rename 故障          |
+| 仅 Client View 变化不写共享状态        | [文档运行时测试][runtime-tests]和[渲染器协调器测试][renderer-tests] | 每个 Client View 保持客户端本地              |
+| 渲染器只接收声明的文档能力             | [会话 broker 测试][broker-tests]和[preload 测试][preload-tests]     | 信任 Electron 结构化克隆                     |
+| Main 拥有的变更与渲染器提案共用队列    | [会话队列测试][queue-tests]和[Worktree 运行时测试][worktree-tests]  | 受控的进程内提交与故障轨迹                   |
+| 旧 placement 不能授予远程效果权限      | [提案保护测试][proposal-tests]和[目标解析测试][target-tests]        | 当前 Desktop 效果仅支持本地                  |
+| 持久意图先于效果，已结算重试不重复执行 | [会话队列测试][queue-tests]和[协调器测试][reconciler-tests]         | 当前操作标识；仍信任 Host/账本的幂等性       |
+| 恢复不能创建替代终端                   | [生命周期适配器测试][adapter-tests]                                 | 仍信任绑定账本和 Host 协调                   |
+| rename 前的清理写入失败保留存储意图    | [文件存储故障测试][store-tests]和[文档运行时测试][runtime-tests]    | 选定的写入失败与水合轨迹，不是工作流模型     |
 
-CAS 模型检查修订与队列转换，以及在其声明的弱公平性下完成结算。它不建模文件系统 rename、迁移、
-终端意图、远程 placement 或整个应用。多客户端仲裁、发布、断开和 quiescing 的证据由
-[会话协调器](multi-client-session-coordinator.zh-CN.md)拥有；受控实现轨迹不等于工作流穷举证明。
+存储与会话队列各自只有一个进程内串行化所有者。上面的实现测试直接检查修订决策、竞争提交、
+准入前后断连和队列排空。此边界不声明 TLA+ 安全性或进展性的穷举保证；完成轨迹假设等待的操作
+最终结算。文件测试覆盖选定的迁移和写入故障，不证明一般文件系统持久性。多客户端仲裁、发布、
+断开和 quiescing 的证据由[会话协调器](multi-client-session-coordinator.zh-CN.md)拥有。
 
-[cas-model]: ../formal/tla/DesktopWorkbenchDocumentStore.tla
-[cas-config]: ../formal/tla/DesktopWorkbenchDocumentStore.cfg
+[decision-tests]: ../src/main/workbench-document/__tests__/decideWorkbenchDocumentCommit.unit.test.ts
 [store-tests]: ../src/main/workbench-document/__tests__/FileWorkbenchDocumentStore.unit.test.ts
 [document-tests]: ../../../packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts
 [runtime-tests]: ../../../packages/workbench/src/workbench/model/__tests__/workbench-document-runtime.unit.test.ts

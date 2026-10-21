@@ -16,7 +16,7 @@ node scripts/tla/run-models.mjs --models native-terminal-viewport
 
 `pnpm test:tla` is the complete uncached baseline: inventory/runner tests first, then all retained model configurations and real TLC tooling witnesses in isolated concurrent groups. The complete invocation fails if it exceeds 60 seconds; success cannot be obtained by skipping configurations or reusing their results. Dependencies and the pinned JDK/jar must be installed for repeatable timing. Record three fresh-state runs when changing the portfolio or runner budget. Download and machine load affect measured wall time and are not mathematical model properties.
 
-The portfolio has 15 protocol models and 17 configurations. A configuration has a 20-second deadline. The owner contracts state exactly which concurrency claims remain formal; local UI flows, deterministic transformations and fixed workflows use controlled or generated implementation tests.
+The portfolio has 14 protocol models and 16 configurations. A configuration has a 20-second deadline. The owner contracts state exactly which concurrency claims remain formal; local UI flows, deterministic transformations and fixed workflows use controlled or generated implementation tests.
 
 `--run-dir` remains available for explicitly owned frozen-revision recovery outside the checkout. It requires a clean checkout and matching inputs/runtime/parameters. Ordinary commands permit dirty development inputs. The invoking task owns logs, state and snapshots and reclaims them after their last diagnosis or integration consumer.
 
@@ -171,7 +171,7 @@ The verification runner is tested through its implementation. It has no separate
 | Complete immutable records and honest continuation              | `model-records.test.mjs`, `run-models.test.mjs`          | Exclusive writer, checked inputs and actual child/stdio closure   |
 | Exact cache identity, invalidation and publication              | `model-cache.test.mjs`, `model-cache-cli.test.mjs`       | Local trusted filesystem; no power-loss durability claim          |
 | Conservative selection                                          | `model-inventory.test.mjs`, `document-scopes.test.mjs`   | Registered dependencies and supported Git/document/workflow forms |
-| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Seven guard/ownership mutants of the retained protocol cores      |
+| Protocol properties detect their motivating faults              | `model-mutations.test.mjs`                               | Six guard/ownership mutants of the retained protocol cores        |
 
 The scheduling corpus uses seeds 1 through 64, at most 128 commands, an independent oracle, replay and shrinking. The CLI suites retain cancellation, dirty/ignored/hidden inputs, historical failures, delayed stdio closure, partial results, mixed fresh/reused coverage and real pinned-TLC checks. Isolated fixtures run asynchronously with bounded concurrency; no case is dropped to meet the budget.
 

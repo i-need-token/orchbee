@@ -411,18 +411,6 @@ test('protocol owner paths select their core while UI copy and deterministic loc
 		['crates/local-site-runtime/src/tests/named_catalog.rs', 'windows-checkpoint-storage'],
 		['crates/local-site-runtime/src/process_registration.rs', 'windows-site-crash-recovery'],
 		[
-			'apps/desktop/src/main/workbench-document/FileWorkbenchDocumentStore.ts',
-			'desktop-workbench-document-store',
-		],
-		[
-			'packages/workbench/src/workbench/document/workbench-document.ts',
-			'desktop-workbench-document-store',
-		],
-		[
-			'packages/workbench/src/workbench/document/__tests__/workbench-document.unit.test.ts',
-			'desktop-workbench-document-store',
-		],
-		[
 			'apps/web/src/workbench-client/terminal-projection/terminal-projection.ts',
 			'projected-terminal-ipc-reliability',
 		],

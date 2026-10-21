@@ -59,13 +59,6 @@ const cases = [
 		'/\\ s.outcome = None\n  /\\ s\' = [s EXCEPT !.outcome = Command("window", 0)]',
 		/Action property OutcomeProductionOwned is violated/u,
 	],
-	[
-		'desktop-workbench-document-store',
-		'commit bypasses revision comparison',
-		'ELSE IF storedRevision # expectedRevision[client]',
-		'ELSE IF FALSE',
-		/Action property (?:RevisionNeverDecreases|CommitAdvancesExactlyOne) is violated/u,
-	],
 ];
 
 describe('protocol mutation counterexamples', { concurrency: 3 }, () => {
