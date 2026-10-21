@@ -144,18 +144,24 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                 }
                 let hits = hits.finish();
                 let area = area.unwrap();
-                assert_eq!(area.x, areas.panel.x);
-                assert_eq!(area.y, areas.panel.y);
-                assert_eq!(area.width + 1, areas.panel.width);
-                assert_eq!(area.height, areas.panel.height);
-                assert_eq!(area.bottom(), height);
+                let framed = u16::from(areas.tier.shows_panel_frame());
+                assert_eq!(area.x, areas.panel.x + framed);
+                assert_eq!(area.y, areas.panel.y + 2 * framed);
+                assert_eq!(area.width + 1 + 2 * framed, areas.panel.width);
+                assert_eq!(area.height + 3 * framed, areas.panel.height);
+                assert_eq!(area.bottom(), height - 1 - framed);
                 if areas.tier.shows_panel_frame() {
-                    assert_eq!(text.matches("orchbee").count(), 1, "{text}");
+                    for y in [areas.tabs.y, area.y - 1] {
+                        let row: String = (areas.tabs.x..areas.tabs.right())
+                            .map(|x| buffer[(x, y)].symbol())
+                            .collect();
+                        assert!(row.contains("orchbee"), "tab and panel title: {row}");
+                    }
                     assert!(
                         !text.contains(&format!("{} 1", locale.shell().panel_title)),
                         "{text}"
                     );
-                    assert!(text.contains(locale.menu_title()), "{text}");
+                    assert!(!text.contains("[Menu]"), "{text}");
                     let tab_x = (areas.tabs.x..areas.tabs.right())
                         .find(|x| {
                             matches!(
@@ -178,10 +184,10 @@ fn single_terminal_chrome_keeps_settings_in_the_sidebar_and_matches_the_live_geo
                     }
                 }
                 assert_eq!(
-                    (0..width).any(|x| matches!(
-                        hits.hit_target_at(x, height - 1),
+                    (0..height).any(|y| (0..width).any(|x| matches!(
+                        hits.hit_target_at(x, y),
                         Some(crate::tui_pointer::HitTarget::SettingsButton)
-                    )),
+                    ))),
                     areas.sidebar.is_some()
                 );
             }
@@ -283,7 +289,7 @@ fn split_panel_headers_paint_reports_and_reject_stale_workbench_scope() {
 }
 
 #[test]
-fn single_panel_reports_stay_observable_without_a_title_or_metadata_header() {
+fn single_panel_reports_use_the_same_header_and_size_degradation_as_split_panels() {
     let (mut ui, _, _, _) = super::super::tests::move_membership::ready_ui();
     let scope = Scope::capture(ui.state.as_ref().unwrap()).unwrap();
     let row = PanelReport {
@@ -318,7 +324,13 @@ fn single_panel_reports_stay_observable_without_a_title_or_metadata_header() {
                     "Review needed",
                     "branch=test",
                 ] {
-                    assert!(!text.contains(label), "{width}x{height}: {text}");
+                    if !(60..80).contains(&width) || label == "Approval title" {
+                        assert_eq!(
+                            text.contains(label),
+                            width >= 60,
+                            "{width}x{height}: {text}"
+                        );
+                    }
                 }
             }
         }

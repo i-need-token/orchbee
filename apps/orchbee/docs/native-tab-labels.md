@@ -42,7 +42,9 @@ enough token reserves a stable three-cell `[x]` control with hover/press feedbac
 their whole label selectable. Close validates the painted context/revision and exact Tab ID, then
 opens the existing confirmation for that single Tab. Two releases on the same unchanged Tab within
 500 ms and one horizontal cell request rename only if that Tab is now selected. Dragging, focus loss,
-other targets, changed source, and capture release break the pair. These controls never forward input.
+other targets, changed Site/context identity, and capture release break the pair. A newer revision
+from the first selection preserves the pair; the second click still validates the newly painted source.
+These controls never forward input.
 
 `tab rename` always chooses a fixed name. Renaming an automatic Tab to the same visible or raw
 text is a real change: it clears automatic naming and advances one revision. Repeating that
@@ -79,3 +81,5 @@ close and rename; equal-text mode changes and replay; unrelated Tab and Presenta
 cross-context numbering and ambiguous selectors; strict native projection and actual Windows
 TUI display with unchanged focus identities. Other operating-system runtime behavior is outside
 the Windows acceptance evidence.
+
+Absolute Windows executable paths used as automatic terminal titles display their basename; raw title observations remain unchanged. An overflowing compact strip preserves the active token and its group context and, when space permits, paints noninteractive ellipsis markers at the hidden edges. Close tracks remain separate from those markers.

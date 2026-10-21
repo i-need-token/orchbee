@@ -988,6 +988,8 @@ impl Theme {
                 .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
             styles.surface_selection = styles
                 .surface_selection
+                .fg(Color::Reset)
+                .bg(Color::Reset)
                 .add_modifier(Modifier::BOLD | Modifier::REVERSED);
             styles.surface_current = styles
                 .surface_current

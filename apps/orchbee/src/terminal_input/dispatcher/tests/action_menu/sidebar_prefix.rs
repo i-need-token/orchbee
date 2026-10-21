@@ -283,13 +283,19 @@ fn sidebar_prefix_respects_configured_chords_and_captures_paste_and_key_releases
             b"\x1b[97;5:3u".as_slice(), // Release cannot consume an armed prefix.
             b"\x1b[200~\x01w\x02N",
             b"\x1b[201~",
-            b"\x1b[I\x1b[O\x1b[8;30;87t", // Physical metadata is not a key.
+            b"\x1b[I\x1b[8;30;87t", // Physical metadata is not a key.
         ] {
             dispatch_all(&mut dispatcher, &mut view, &mut port, bytes);
             assert!(view.prefix_active());
             assert!(view.machines.sidebar_navigation_active());
             assert!(port.calls.borrow().is_empty());
         }
+        // Host focus loss retires the armed chord; the sidebar keeps owning input.
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[O\x1b[I");
+        assert!(!view.prefix_active());
+        assert!(view.machines.sidebar_navigation_active());
+        assert!(port.calls.borrow().is_empty());
+        dispatch_all(&mut dispatcher, &mut view, &mut port, prefix);
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"wtail");
         assert_eq!(
             *port.calls.borrow(),

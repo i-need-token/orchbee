@@ -490,6 +490,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
             #[cfg(windows)]
             if view.machines.available {
                 let captured = capture_owner.is_some();
+                let mut covered_sidebar = HitMapBuilder::new();
                 agent_sidebar::render(
                     frame,
                     sidebar,
@@ -517,8 +518,15 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
                             agent_sidebar::SidebarInput::Terminal
                         },
                     },
-                    (!captured).then_some(&mut *hits),
+                    Some(if captured {
+                        &mut covered_sidebar
+                    } else {
+                        &mut *hits
+                    }),
                 );
+                if captured {
+                    hits.record_covered_sidebar_geometry(covered_sidebar);
+                }
             } else {
                 render_sidebar(frame, sidebar, text, site_status, agent_line, theme);
             }
@@ -873,6 +881,7 @@ pub(crate) fn render_terminal_shell_with_resize<'a>(
     );
     let status_visible = status_overlay_visible(view, session.as_ref(), capture_owner)
         || notice.is_some()
+        || zoomed
         || tier == ViewportTier::TooSmall;
     frame.render_widget(
         Block::new().style(theme.style(Role::SurfaceChrome)),
@@ -1524,6 +1533,14 @@ fn render_native_workbench(
             // incarnation — a press resolves it bit for bit, so it can
             // never migrate onto a re-minted record of the same panel.
             if let Some(panel) = tab.panel(leaf.panel_index) {
+                #[cfg(windows)]
+                if native
+                    .retained_pane_frame(panel.panel_id(), leaf.content.width, leaf.content.height)
+                    .is_some()
+                {
+                    // A retained image has no live terminal input or scrollbar authority.
+                    continue;
+                }
                 #[cfg(windows)]
                 if graphics_uncovered {
                     render_panel_graphics(frame, leaf.content, panel, native, graphics_draws);

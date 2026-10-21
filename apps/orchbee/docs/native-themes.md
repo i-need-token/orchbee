@@ -242,3 +242,5 @@ The ordered Settings lane reads the shared authority on startup and polls once p
 Run `cargo test --locked -p orchbee --all-targets --all-features`
 and the affected `pnpm verify` root gate. Shared custom colors and System appearance are current behavior;
 physical host appearance and untested platforms require their own execution evidence.
+
+Monochrome selection surfaces explicitly pair terminal-default foreground and background with reverse video, keeping mixed label and marker roles on one displayed band.

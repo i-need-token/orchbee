@@ -73,14 +73,14 @@ fn split_snapshot(revision: u64) -> Snapshot {
 }
 
 /// The exact authority candidate for a Right `panel.split`: the grafted leaf carries the
-/// requested presentation label ("1" in the fixtures).
+/// requested presentation label, the next ordinal after the fixture leaf ("2").
 fn split_candidate(revision: u64) -> Snapshot {
-    split_snapshot_with_label(revision, "1", PanelOrientation::Horizontal)
+    split_snapshot_with_label(revision, "2", PanelOrientation::Horizontal)
 }
 
 /// The exact authority candidate for a Below `panel.split`.
 fn split_candidate_below(revision: u64) -> Snapshot {
-    split_snapshot_with_label(revision, "1", PanelOrientation::Vertical)
+    split_snapshot_with_label(revision, "2", PanelOrientation::Vertical)
 }
 
 fn respond_snapshot(harness: &Harness, outcome: WorkbenchSnapshotOutcome) -> TestResult {
@@ -135,6 +135,8 @@ fn panel_split_commits_validates_and_merges_the_exact_candidate() -> TestResult 
     let mut harness = Harness::start(steps(&[WireKind::Workbench, WireKind::Workbench]), geometry)?;
     let (_key, _controller) =
         drive_controlling_ready_from_snapshot(&mut harness, snapshot(1, 1), geometry)?;
+    // This case covers the legacy merge that keeps the source Panel focused.
+    harness.ui.state_mut().configure_panel_focus(false);
     let operation = harness.ui.admit_panel(PanelRequestKind::Split {
         direction: crate::client_view::PanelDirection::Right,
     })?;
@@ -147,7 +149,7 @@ fn panel_split_commits_validates_and_merges_the_exact_candidate() -> TestResult 
         return Err(test_error("Split admission must carry the Split intent"));
     };
     assert_eq!(*direction, WorkbenchPanelSplitDirection::Right);
-    assert_eq!(label.as_str(), "1");
+    assert_eq!(label.as_str(), "2", "the new Panel takes the next ordinal");
     assert_eq!(
         *split_geometry,
         WorkbenchTerminalGeometry::new(
@@ -196,6 +198,8 @@ fn panel_split_snapshot_unavailable_retains_commit_until_refresh_validates() -> 
     )?;
     let (_key, _controller) =
         drive_controlling_ready_from_snapshot(&mut harness, snapshot(1, 1), geometry)?;
+    // This case covers the legacy merge that keeps the source Panel focused.
+    harness.ui.state_mut().configure_panel_focus(false);
     let operation = harness.ui.admit_panel(PanelRequestKind::Split {
         direction: crate::client_view::PanelDirection::Down,
     })?;
@@ -242,6 +246,106 @@ fn panel_split_snapshot_unavailable_retains_commit_until_refresh_validates() -> 
     assert!(harness.ui.state().panel_recovery_for_test().is_none());
     assert_eq!(harness.ui.state().tab(0).unwrap().panel_count(), 2);
     assert!(harness.ui.state().invariant_holds());
+    harness.finish()
+}
+
+#[test]
+fn focused_split_after_an_unavailable_snapshot_installs_the_new_panel_on_refresh() -> TestResult {
+    let geometry = fixture_geometry()?;
+    let mut harness = Harness::start(
+        steps(&[
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Workbench,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+            WireKind::Obcs,
+        ]),
+        geometry,
+    )?;
+    let (_key, _controller) =
+        drive_controlling_ready_from_snapshot(&mut harness, snapshot(1, 1), geometry)?;
+    let operation = harness.ui.admit_panel(PanelRequestKind::Split {
+        direction: crate::client_view::PanelDirection::Down,
+    })?;
+    respond_command(
+        &harness,
+        &operation,
+        split_pending_commit(&operation, 3_010),
+    )?;
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Unavailable {
+            reason: WorkbenchSnapshotUnavailableReason::ServiceUnavailable,
+        },
+    )?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Panel(PanelDecision::Continue)
+    ));
+    assert_eq!(
+        harness.ui.state().phase_kind(),
+        SessionPhaseKind::PanelProjectionUnavailable
+    );
+    harness.ui.admit_refresh()?;
+    respond_snapshot(
+        &harness,
+        WorkbenchSnapshotOutcome::Available {
+            snapshot: split_candidate_below(2),
+        },
+    )?;
+    // The validated refresh moves focus to the created Panel through the paired cleanup.
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::Cleanup(_),
+            ..
+        }
+    ));
+    let ClientMessage::TerminalViewer(detach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the source viewer must detach first"));
+    };
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(
+                detach.request_id().clone(),
+                TerminalViewerOutcome::Detached {},
+            ),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Refresh {
+            decision: RefreshDecision::AttachRecovered(ref target),
+            ..
+        } if target.selected().panel_index() == 1
+    ));
+    let installed = harness.ui.state().desired().unwrap().clone();
+    let ClientMessage::TerminalViewer(attach) = harness.carrier.take_obcs()? else {
+        return Err(test_error("the created Panel must attach"));
+    };
+    harness
+        .carrier
+        .respond_obcs(ServerMessage::TerminalViewerResult(
+            TerminalViewerResult::new(attach.request_id().clone(), attached_outcome()?),
+        ))?;
+    assert!(matches!(
+        harness.ui.settle_next(FrameCut::None)?,
+        UiEvent::Attached { key } if key == installed
+    ));
+    drive_controlling_after_attach(&mut harness, installed.anchor(), geometry)?;
+    let state = harness.ui.state();
+    assert_eq!(state.phase_kind(), SessionPhaseKind::Ready);
+    assert!(state.panel_recovery_for_test().is_none());
+    assert_eq!(state.active().unwrap().panel_index(), 1);
+    assert_eq!(
+        state.tab(0).unwrap().panel(1).unwrap().panel_id(),
+        &WorkbenchPanelId::parse(&id(3_010))?
+    );
+    assert!(state.invariant_holds());
     harness.finish()
 }
 
@@ -1308,6 +1412,8 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
         drive_pending_create_to_selected_without_attachment(&mut harness, &old_key)?;
     assert!(!harness.ui.state().selected_has_viewer());
     // Grow the unattached second Tab to two leaves so panel.move has a neighbor.
+    // The split only builds the layout; keep the source Panel focused.
+    harness.ui.state_mut().configure_panel_focus(false);
     let split = harness.ui.admit_panel(PanelRequestKind::Split {
         direction: crate::client_view::PanelDirection::Right,
     })?;
@@ -1316,7 +1422,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
     grown.terminal_contexts[0].tabs[1].root = split_node(
         panel_node(1_011, 1_012, 1_013, 1_014, "2"),
         3_001,
-        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
+        panel_node(3_010, 3_013, 3_011, 3_012, "3"),
         3_014,
         PanelOrientation::Horizontal,
         3_020,
@@ -1347,7 +1453,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
     // The unattached Tab survives but the moved selected leaf is gone at the superseding
     // revision: membership repair retargets the selection without any viewer cleanup.
     let mut contracted = snapshot(2, 5);
-    contracted.terminal_contexts[0].tabs[1].root = panel_node(3_010, 3_013, 3_011, 3_012, "2");
+    contracted.terminal_contexts[0].tabs[1].root = panel_node(3_010, 3_013, 3_011, 3_012, "3");
     respond_snapshot(
         &harness,
         WorkbenchSnapshotOutcome::Available {
@@ -1676,6 +1782,8 @@ fn committed_split_superseding_leaf_loss_while_unattached_repairs_without_cleanu
     assert!(!harness.ui.state().selected_has_viewer());
     // Grow the unattached second Tab to two leaves so a peer close of the selected source
     // still leaves one retained baseline member for the canonical check.
+    // The split only builds the layout; keep the source Panel focused.
+    harness.ui.state_mut().configure_panel_focus(false);
     let grow = harness.ui.admit_panel(PanelRequestKind::Split {
         direction: crate::client_view::PanelDirection::Right,
     })?;
@@ -1684,7 +1792,7 @@ fn committed_split_superseding_leaf_loss_while_unattached_repairs_without_cleanu
     grown.terminal_contexts[0].tabs[1].root = split_node(
         panel_node(1_011, 1_012, 1_013, 1_014, "2"),
         3_001,
-        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
+        panel_node(3_010, 3_013, 3_011, 3_012, "3"),
         3_014,
         PanelOrientation::Horizontal,
         3_020,
@@ -1724,7 +1832,7 @@ fn committed_split_superseding_leaf_loss_while_unattached_repairs_without_cleanu
     contracted.terminal_contexts[0].tabs[1].root = split_node(
         panel_node(4_010, 4_013, 4_011, 4_012, "2"),
         3_001,
-        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
+        panel_node(3_010, 3_013, 3_011, 3_012, "3"),
         3_014,
         PanelOrientation::Horizontal,
         3_020,
@@ -2304,6 +2412,8 @@ fn refused_move_superseding_tab_loss_while_unattached_reattaches_without_cleanup
         drive_pending_create_to_selected_without_attachment(&mut harness, &old_key)?;
     assert!(!harness.ui.state().selected_has_viewer());
     // Grow the unattached second Tab to two leaves so panel.move has a neighbor.
+    // The split only builds the layout; keep the source Panel focused.
+    harness.ui.state_mut().configure_panel_focus(false);
     let split = harness.ui.admit_panel(PanelRequestKind::Split {
         direction: crate::client_view::PanelDirection::Right,
     })?;
@@ -2312,7 +2422,7 @@ fn refused_move_superseding_tab_loss_while_unattached_reattaches_without_cleanup
     grown.terminal_contexts[0].tabs[1].root = split_node(
         panel_node(1_011, 1_012, 1_013, 1_014, "2"),
         3_001,
-        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
+        panel_node(3_010, 3_013, 3_011, 3_012, "3"),
         3_014,
         PanelOrientation::Horizontal,
         3_020,

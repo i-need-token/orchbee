@@ -406,8 +406,13 @@ fn shortcut_lines(
         .filter(|entry| crate::localization::shortcut_filter_matches(query, &entry.search_text))
         .collect::<Vec<_>>();
     if !query.trim().is_empty() {
+        // Title matches lead within their group; groups stay contiguous so each heading appears
+        // once.
         matching.sort_by_key(|entry| {
-            !crate::localization::shortcut_filter_matches(query, &entry.title)
+            (
+                entry.group.order(),
+                !crate::localization::shortcut_filter_matches(query, &entry.title),
+            )
         });
     }
     if matching.is_empty() {
@@ -489,11 +494,11 @@ fn shortcut_lines(
             ),
             (
                 theme.glyphs.disclosure_open,
-                locale.sidebar_marker_label("disclosure"),
+                locale.sidebar_marker_label("expanded"),
             ),
             (
                 theme.glyphs.disclosure_closed,
-                locale.sidebar_marker_label("disclosure"),
+                locale.sidebar_marker_label("collapsed"),
             ),
         ] {
             lines.push(Line::raw(format!("{glyph}  {label}")));

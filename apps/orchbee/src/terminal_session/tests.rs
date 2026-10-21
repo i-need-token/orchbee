@@ -828,7 +828,7 @@ fn native_create_action_renders_before_feedback_and_captures_wire_intent() -> Te
         )),
         "{before_feedback}"
     );
-    assert!(before_feedback.contains("Tab 1 · Connecting"));
+    assert!(before_feedback.contains("standalone · Connecting"));
     assert!(session.startup_draw_ready());
     session.after_draw();
     assert!(spin_with_draw(&mut session, |session| {
@@ -2382,7 +2382,10 @@ fn standalone_geometry_changes_require_a_separate_controller_grant() -> TestResu
             "{rendered}"
         );
         if !controlling {
-            assert!(rendered.contains("Tab 1 · Ready · view only"), "{rendered}");
+            assert!(
+                rendered.contains("standalone · Ready · view only"),
+                "{rendered}"
+            );
             #[cfg(windows)]
             assert!(rendered.contains("Ctrl+b t take control"), "{rendered}");
             #[cfg(not(windows))]

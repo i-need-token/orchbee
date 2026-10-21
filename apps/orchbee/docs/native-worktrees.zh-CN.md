@@ -163,3 +163,5 @@ Server 重启遵循[现有保留限制](windows-worktrees.zh-CN.md#保留续执�
 运行 `cargo test --locked -p orchbee --all-targets --all-features` 及适用根门禁。
 此工作流没有独立 TLA 模型。命名实现轨迹不证明全部交错或真实终端易用性，真实鼠标／键盘体验属于单独证据。
 共享归属和提交协议继续保留各自注册的模型。
+
+Windows 原生工作树表单使用反斜杠显示检出路径。这仅是显示投影；选择和操作保留精确的规范路径。

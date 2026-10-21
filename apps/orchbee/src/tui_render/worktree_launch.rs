@@ -197,7 +197,7 @@ fn render_form(
             theme,
         );
         // The complete exact path must fit before a destructive decision can be armed.
-        lines.push(Line::from(sanitize_terminal_text(path).into_owned()));
+        lines.push(Line::from(native_path(&sanitize_terminal_text(path))));
         lines.push(Line::from(locale.worktree_remove_scope(terminals)));
         lines.push(description_line(
             locale.worktree_remove_branch(branch.map(sanitize_terminal_text).as_deref()),
@@ -906,10 +906,19 @@ fn render_checkouts<'a>(
     hits.record(HitLayer::OverlaySurface, area, HitTarget::OverlaySurface);
     (area, ModalPresentation::Presented(picker.token))
 }
+/// Git reports Windows checkouts with forward slashes; display uses the native separator the
+/// user sees elsewhere. Identities and submitted values keep the reported text.
+fn native_path(path: &str) -> String {
+    #[cfg(windows)]
+    return path.replace('/', "\\");
+    #[cfg(not(windows))]
+    path.to_owned()
+}
+
 fn path_text(path: &str, budget: usize, marker: &str) -> String {
-    let clean = sanitize_terminal_text(path);
+    let clean = native_path(&sanitize_terminal_text(path));
     if display_width(&clean) <= budget {
-        return clean.into_owned();
+        return clean;
     }
     let available = budget.saturating_sub(display_width(marker));
     let prefix = truncate_display(&clean, available / 2, "");

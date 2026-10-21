@@ -39,7 +39,6 @@ pub(super) fn render(
     area: Rect,
     view: &ClientView,
     locale: Locale,
-    connected: bool,
     layer: HitLayer,
     theme: &Theme,
     hits: &mut HitMapBuilder,
@@ -58,19 +57,22 @@ pub(super) fn render(
         &Action::ALL
     };
     let start = 1;
+    let status = crate::terminal_text::truncate_display(
+        locale.onboarding_status(view.onboarding.read_failed),
+        usize::from(inner.width),
+        theme.glyphs.ellipsis,
+    );
     frame.render_widget(
-        Paragraph::new(locale.onboarding_status(view.onboarding.read_failed)).style(theme.style(
-            if view.onboarding.read_failed {
-                Role::StatusWarning
-            } else {
-                Role::TextSecondary
-            },
-        )),
+        Paragraph::new(status).style(theme.style(if view.onboarding.read_failed {
+            Role::StatusWarning
+        } else {
+            Role::TextSecondary
+        })),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
     for (index, action) in actions.iter().copied().enumerate() {
         let row = Rect::new(inner.x, inner.y + start + index as u16, inner.width, 1);
-        let enabled = connected || !action.needs_session();
+        let enabled = view.machines.available || !action.needs_session();
         let hint = (action == Action::Help)
             .then(|| {
                 view.bindings()
@@ -163,7 +165,8 @@ mod render_tests {
     fn sidebar_guidance_leaves_every_terminal_cell_untouched() {
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
-        let view = ClientView::new(80);
+        let mut view = ClientView::new(80);
+        view.machines.available = true;
         let mut hits = HitMapBuilder::new();
         terminal
             .draw(|frame| {
@@ -177,7 +180,6 @@ mod render_tests {
                     area(Rect::new(0, 0, 24, 24)).unwrap(),
                     &view,
                     Locale::EnUs,
-                    true,
                     HitLayer::Chrome,
                     &Theme::terminal_native(),
                     &mut hits,
@@ -202,6 +204,7 @@ mod render_tests {
                         .unwrap();
                 let mut view = ClientView::new(width);
                 view.onboarding.visible = true;
+                view.machines.available = true;
                 let mut hits = HitMapBuilder::new();
                 terminal
                     .draw(|frame| {
@@ -210,7 +213,6 @@ mod render_tests {
                             area(frame.area()).unwrap(),
                             &view,
                             locale,
-                            true,
                             HitLayer::Chrome,
                             &Theme::terminal_native(),
                             &mut hits,
@@ -227,9 +229,62 @@ mod render_tests {
                 };
                 assert!(has(Action::Dismiss));
                 assert!(has(Action::Help));
-                assert_eq!(has(Action::Workspace), width >= 24 && height >= 15);
+                let full = width >= 24 && height >= 15;
+                for action in [Action::Workspace, Action::Agent, Action::Menu] {
+                    assert_eq!(has(action), full, "{locale:?} {width}x{height} {action:?}");
+                }
                 assert_eq!(view.overlay(), None);
                 assert!(!view.prefix_active());
+            }
+        }
+    }
+
+    #[test]
+    fn minimum_full_card_paints_every_label_and_the_complete_status() {
+        for locale in [Locale::EnUs, Locale::ZhCn] {
+            for read_failed in [false, true] {
+                let mut terminal =
+                    ratatui::Terminal::new(ratatui::backend::TestBackend::new(24, 15)).unwrap();
+                let mut view = ClientView::new(24);
+                view.onboarding.visible = true;
+                view.machines.available = true;
+                view.onboarding.read_failed = read_failed;
+                let mut hits = HitMapBuilder::new();
+                terminal
+                    .draw(|frame| {
+                        render(
+                            frame,
+                            area(frame.area()).unwrap(),
+                            &view,
+                            locale,
+                            HitLayer::Chrome,
+                            &Theme::terminal_native(),
+                            &mut hits,
+                        )
+                    })
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                let rows = (0..15)
+                    .map(|y| {
+                        (0..24)
+                            .map(|x| buffer[(x, y)].symbol())
+                            .collect::<String>()
+                            .replace(' ', "")
+                    })
+                    .collect::<Vec<_>>();
+                let mut expected = vec![locale.onboarding_status(read_failed)];
+                expected.extend(
+                    Action::ALL
+                        .iter()
+                        .map(|action| locale.onboarding_label(*action)),
+                );
+                for text in expected {
+                    let compact = text.replace(' ', "");
+                    assert!(
+                        rows.iter().any(|row| row.contains(&compact)),
+                        "{locale:?}: {text:?} must paint completely\n{rows:#?}"
+                    );
+                }
             }
         }
     }

@@ -23,7 +23,7 @@ pub(crate) enum ShortcutHelpGroup {
 }
 
 impl ShortcutHelpGroup {
-    const fn order(self) -> u8 {
+    pub(crate) const fn order(self) -> u8 {
         match self {
             Self::Common => 0,
             Self::Workspace => 1,
@@ -60,8 +60,10 @@ impl Locale {
             (Self::ZhCn, "current") => "当前",
             (Self::EnUs, "unread") => "Unseen change",
             (Self::ZhCn, "unread") => "有未读变化",
-            (Self::EnUs, "disclosure") => "Collapse / expand",
-            (Self::ZhCn, "disclosure") => "折叠 / 展开",
+            (Self::EnUs, "expanded") => "Expanded",
+            (Self::ZhCn, "expanded") => "已展开",
+            (Self::EnUs, "collapsed") => "Collapsed",
+            (Self::ZhCn, "collapsed") => "已折叠",
             (Self::EnUs, "help") => "F1: symbol legend",
             (Self::ZhCn, "help") => "F1：符号说明",
             (Self::EnUs, _) => "Sidebar symbols",
@@ -493,12 +495,12 @@ impl Locale {
             #[cfg(windows)]
             PrefixAction::Client(A::RequestWorktreeCreate) => Some(match self {
                 Self::EnUs => "New Worktree",
-                Self::ZhCn => "新建 工作树",
+                Self::ZhCn => "新建工作树",
             }),
             #[cfg(windows)]
             PrefixAction::Client(A::RequestWorktreeOpen) => Some(match self {
                 Self::EnUs => "Open Worktree",
-                Self::ZhCn => "打开 工作树",
+                Self::ZhCn => "打开工作树",
             }),
             PrefixAction::Client(A::RequestWorkspaceRename) => Some(match self {
                 Self::EnUs => "Rename Workspace",
@@ -1030,12 +1032,12 @@ mod tests {
                 .iter()
                 .find(|entry| entry.key.contains("Shift+B"))
                 .expect("sidebar focus keeps its owning binding");
-            assert_eq!(focus_sidebar.title, "Focus sidebar navigation");
+            assert_eq!(focus_sidebar.title, "Switch sidebar / terminal focus");
             let focus_sidebar_zh = entries_zh
                 .iter()
                 .find(|entry| entry.key.contains("Shift+B"))
                 .expect("localized sidebar focus keeps its owning binding");
-            assert_eq!(focus_sidebar_zh.title, "聚焦侧栏导航");
+            assert_eq!(focus_sidebar_zh.title, "切换侧栏／终端焦点");
         }
         assert!(
             entries

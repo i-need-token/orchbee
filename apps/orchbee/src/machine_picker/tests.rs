@@ -153,6 +153,32 @@ fn picker_categories_query_controls_and_close_are_visible_mouse_paths() {
 }
 
 #[test]
+fn picker_mode_strip_keeps_every_label_separate_in_every_mode() {
+    let modes = [Mode::Machines, Mode::Workspaces, Mode::Agents];
+    for current in modes {
+        let mut picker = Picker {
+            available: true,
+            ..Picker::default()
+        };
+        picker.show();
+        picker.set_mode(current);
+        let painted = paint(&picker, Locale::EnUs, 80, 24);
+        let strip = painted
+            .rows
+            .iter()
+            .find(|row| row.contains("Machines") && row.contains("Agents"))
+            .expect("the mode strip is painted");
+        assert!(
+            strip.contains("Machines  Workspaces  Agents"),
+            "{current:?}: {strip}"
+        );
+        for mode in modes {
+            assert!(painted.has_target(PickerAction::Mode(mode)), "{current:?}");
+        }
+    }
+}
+
+#[test]
 fn minimal_picker_retains_a_mouse_exit_when_only_the_close_control_fits() {
     for (width, height) in [(20, 5), (33, 8)] {
         let mut picker = Picker {

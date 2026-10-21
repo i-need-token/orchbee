@@ -844,6 +844,9 @@ fn render_quick(
             )
         )));
     }
+    // The shared modal reserves its final two text rows for hints and actions.
+    // Directory choices are content and must never occupy those control rows.
+    lines.extend([Line::from(""), Line::from("")]);
     let escape = modal_key_label(theme, &Binding::new(KeyCode::Esc, Modifiers::NONE));
     let enter = modal_key_label(theme, &Binding::new(KeyCode::Enter, Modifiers::NONE));
     let tab = modal_key_label(theme, &Binding::new(KeyCode::Tab, Modifiers::NONE));

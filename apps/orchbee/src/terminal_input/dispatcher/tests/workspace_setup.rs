@@ -216,6 +216,7 @@ impl TerminalInputPort for SetupPort {
                 self.shown = false;
                 self.token += 1;
             }
+            NativeSetupEdit::SelectDirectory(_) => self.edits.push("select_directory"),
             NativeSetupEdit::ScrollProjects { .. } => {
                 unreachable!("scrolling has its own port method")
             }

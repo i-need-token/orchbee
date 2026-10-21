@@ -164,10 +164,9 @@ impl NativeUi {
                         .state
                         .as_ref()
                         .and_then(|state| state.focus_panel_id().cloned())
+                        && self.board.start_agent(panel)
                     {
-                        if self.board.start_agent(panel) {
-                            self.accepted_agent_start();
-                        }
+                        self.accepted_agent_start();
                     }
                 }
                 Some(AgentStartKeyAction::PreviousProvider) => {

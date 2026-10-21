@@ -377,16 +377,7 @@ pub(super) fn render(
         && let Some(guidance) = super::onboarding::area(area)
         && let Some(hits) = hits.as_deref_mut()
     {
-        super::onboarding::render(
-            frame,
-            guidance,
-            view,
-            locale,
-            view.machines.available,
-            layer,
-            theme,
-            hits,
-        );
+        super::onboarding::render(frame, guidance, view, locale, layer, theme, hits);
         area.height = area.height.saturating_sub(guidance.height);
     }
     super::workspace_sidebar::render(

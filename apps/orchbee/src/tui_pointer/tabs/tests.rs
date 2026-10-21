@@ -607,3 +607,42 @@ fn second_exact_tab_click_renames_but_focus_loss_cancels_the_pair() {
         assert!(port.writes.is_empty());
     }
 }
+
+#[test]
+fn double_click_survives_selection_revision_but_not_a_context_replacement() {
+    for replace_context in [false, true] {
+        let (mut pointer, mut port, mut view, _) = fixture(false);
+        for action in [MouseAction::Press, MouseAction::Release] {
+            send(&mut pointer, &mut port, &mut view, action, 12, 0);
+        }
+        port.source.drawn.source.revision = WorkbenchRevision::new(2);
+        if replace_context {
+            port.source.drawn.location = NativeContextLocation::Standalone(
+                WorkbenchTerminalContextId::parse(&format!("{:032x}", 51)).unwrap(),
+            );
+        }
+        let mut hits = HitMapBuilder::new();
+        hits.record_action_menu_source(Some(port.source.drawn.source.clone()));
+        hits.record_tab_target(
+            &port.source.drawn,
+            Rect::new(10, 0, 9, 1),
+            HitTarget::Tab(id(2)),
+        );
+        pointer.publish(hits.finish());
+        for action in [MouseAction::Press, MouseAction::Release] {
+            send(&mut pointer, &mut port, &mut view, action, 12, 0);
+        }
+        assert_eq!(
+            port.actions,
+            [
+                ClientAction::SelectTab(2),
+                if replace_context {
+                    ClientAction::SelectTab(2)
+                } else {
+                    ClientAction::RequestRenameTab
+                }
+            ]
+        );
+        assert!(port.writes.is_empty());
+    }
+}

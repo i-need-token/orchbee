@@ -454,3 +454,5 @@ cancelled episodes. `src/tui_render/action_menu/tests/sidebar.rs` covers stable 
 coordinates at window edges and complete duplicate/truncated Project suffixes in both locales.
 
 Run `cargo test --locked -p orchbee --all-targets --all-features`. This workflow has no separate TLA model. The evidence covers named/generated implementation traces; it does not establish exhaustive interleavings, physical terminal appearance or untested platforms. Shared identity, ownership and commit protocols retain their separately registered core models.
+
+An anchored sidebar menu retains the full covered row rectangle for placement while suppressing its underlying input targets. It opens beside that row when possible, otherwise above or below it. Worktree discovery reserves its reason row across checking, available and unavailable results so edge-clamped Rename and Delete actions do not move.

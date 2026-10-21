@@ -1608,6 +1608,8 @@ trait TerminalSurface: crate::terminal_input::TerminalInputPort {
     }
 
     #[cfg(windows)]
+    fn configure_panel_focus(&mut self, _focus_new_panel: bool) {}
+    #[cfg(windows)]
     fn configure_agent_notifications(
         &mut self,
         _revision: u64,
@@ -1679,6 +1681,10 @@ impl TerminalSurface for crate::terminal_session::TerminalSession {
     #[cfg(windows)]
     fn observe_client_viewport(&mut self, view: &ClientView, viewport: Rect) {
         self.observe_client_viewport(view, viewport);
+    }
+    #[cfg(windows)]
+    fn configure_panel_focus(&mut self, focus_new_panel: bool) {
+        self.configure_panel_focus(focus_new_panel);
     }
     #[cfg(windows)]
     fn configure_agent_notifications(

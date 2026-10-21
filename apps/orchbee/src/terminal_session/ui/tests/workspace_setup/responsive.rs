@@ -17,7 +17,7 @@ fn rendered_text(buffer: &ratatui::buffer::Buffer) -> String {
 }
 
 #[test]
-fn every_creation_entry_projects_immediately_without_changing_canonical_selection() {
+fn every_creation_entry_reviews_then_projects_without_changing_canonical_selection() {
     for entry in ["create", "quick", "project"] {
         let (mut ui, mailbox, clock, snapshot) = ready(true);
         let source = ui.state.as_ref().unwrap().desired().cloned();
@@ -37,26 +37,26 @@ fn every_creation_entry_projects_immediately_without_changing_canonical_selectio
             ui.apply_client_action(action),
             SessionActionDisposition::LayoutChanged
         );
-        let preview = ui.view().workspace_creation_preview().unwrap();
-        assert_eq!(preview.phase, WorkspaceCreationPhase::Preparing);
-        assert!(preview.current && preview.replaces_content());
-        assert!(preview.label.is_none() && preview.committed.is_none());
-        assert_eq!(
-            preview.project_id,
-            (entry == "project").then_some(&snapshot.navigation.projects[0].project_id)
-        );
-        assert!(!ui.view().setup_capture_claim());
+        // Nothing is being created until the user accepts the directory review.
+        assert!(ui.view().workspace_creation_preview().is_none());
+        finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+        assert!(ui.view().workspace_creation_preview().is_none());
         assert_eq!(ui.state.as_ref().unwrap().desired(), source.as_ref());
         assert_eq!(
             ui.state.as_ref().unwrap().cache().canonical_snapshot(),
             &snapshot
         );
 
-        finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+        accept_directory_review(&mut ui);
         let preview = ui.view().workspace_creation_preview().unwrap();
         assert_eq!(preview.phase, WorkspaceCreationPhase::Starting);
         assert_eq!(preview.label, Some("项目 space"));
+        assert_eq!(
+            preview.project_id,
+            (entry == "project").then_some(&snapshot.navigation.projects[0].project_id)
+        );
         assert!(preview.current && preview.replaces_content() && preview.committed.is_none());
+        assert_eq!(ui.state.as_ref().unwrap().desired(), source.as_ref());
         assert!(
             !ui.request_quick_workspace(),
             "one accepted launch remains one operation"
@@ -67,19 +67,16 @@ fn every_creation_entry_projects_immediately_without_changing_canonical_selectio
 }
 
 #[test]
-fn focus_during_preparation_is_not_rearmed_by_submission_or_late_commit() {
+fn focus_after_review_acceptance_is_not_rearmed_by_late_commit() {
     let (mut ui, mailbox, clock, snapshot) = ready(false);
     let source = ui.state.as_ref().unwrap().desired().cloned();
     ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
-    ui.apply_client_action(ClientAction::SelectNextContext);
-    assert!(!ui.view().workspace_creation_preview().unwrap().current);
     finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
-    assert!(
-        !ui.view()
-            .workspace_creation_preview()
-            .unwrap()
-            .replaces_content()
-    );
+    accept_directory_review(&mut ui);
+    assert!(ui.view().workspace_creation_preview().unwrap().current);
+    ui.apply_client_action(ClientAction::SelectNextContext);
+    let preview = ui.view().workspace_creation_preview().unwrap();
+    assert!(!preview.current && !preview.replaces_content());
     let lease = mailbox.try_recv().unwrap().unwrap();
     let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
         panic!("launch")
@@ -109,6 +106,7 @@ fn focus_during_preparation_is_not_rearmed_by_submission_or_late_commit() {
     // The previous real identity must never be reused for the next provisional row.
     assert!(ui.request_quick_workspace());
     finish_preparation(&mut ui, &mailbox, &clock, &committed, false);
+    accept_directory_review(&mut ui);
     assert!(
         ui.view()
             .workspace_creation_preview()
@@ -121,11 +119,32 @@ fn focus_during_preparation_is_not_rearmed_by_submission_or_late_commit() {
 
 #[test]
 fn pending_creation_never_forwards_typing_to_the_hidden_source_terminal() {
-    let (mut ui, mailbox, _, _) = super::super::viewport::controlling_ui();
+    let (mut ui, mailbox, clock, _) = super::super::viewport::controlling_ui();
+    let snapshot = ui
+        .state
+        .as_ref()
+        .unwrap()
+        .cache()
+        .canonical_snapshot()
+        .clone();
     assert!(ui.request_quick_workspace());
+    finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+    let token = ui.view().setup_draft().unwrap().token();
+    ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+    assert!(
+        ui.view().setup_capture_claim(),
+        "the drawn review owns typing"
+    );
+    ui.submit_setup_draft(token);
+    assert!(
+        ui.view()
+            .workspace_creation_preview()
+            .unwrap()
+            .replaces_content()
+    );
     assert!(!ui.forward(b"must not reach the old shell\r"));
     let lease = mailbox.try_recv().unwrap().unwrap();
-    assert!(matches!(lease.record(), QueuedCommand::Refresh(_)));
+    assert!(matches!(lease.record(), QueuedCommand::WorkspaceSetup(_)));
     mailbox.finish_lease(lease).unwrap();
     assert!(mailbox.try_recv().unwrap().is_none());
     mailbox.close(CarrierFailure::WorkerExited);
@@ -222,10 +241,12 @@ fn loading_projection_renders_both_locales_and_all_tiers_without_a_modal_or_old_
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10), (15, 4)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [Theme::terminal_native(), Theme::rgb_test_dark()] {
-                let (mut ui, mailbox, _, _) = ready(false);
+                let (mut ui, mailbox, clock, snapshot) = ready(false);
                 let mut view = ClientView::new(width);
                 view.machines.available = true;
                 ui.apply_client_action(ClientAction::RequestWorkspaceCreate);
+                finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+                accept_directory_review(&mut ui);
                 let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
                 let mut hits = HitMapBuilder::new();
                 terminal
@@ -261,7 +282,7 @@ fn loading_projection_renders_both_locales_and_all_tiers_without_a_modal_or_old_
                         "the sidebar retains its Workspace name"
                     );
                     assert!(text.contains(
-                        locale.workspace_creation_progress(WorkspaceCreationPhase::Preparing)
+                        locale.workspace_creation_progress(WorkspaceCreationPhase::Starting)
                     ));
                 }
                 let hits = hits.finish();

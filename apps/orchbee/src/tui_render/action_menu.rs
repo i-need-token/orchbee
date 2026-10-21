@@ -131,9 +131,11 @@ pub(super) fn render(
     // Discovery may change availability, never the frame's edge-clamped position or row slots.
     let selected_action = result_actions.get(selected).copied();
     let reason_rows = usize::from(
-        result_actions
-            .iter()
-            .any(|index| menu.unavailable[*index].is_some()),
+        menu.actions
+            .contains(&crate::action_menu::MenuAction::WorkspaceWorktrees)
+            || result_actions
+                .iter()
+                .any(|index| menu.unavailable[*index].is_some()),
     );
     let search_rows = usize::from(menu.query.is_some());
     let result_row_count = if result_actions.is_empty() {

@@ -251,7 +251,8 @@ fn project_geometry(
             divider: split.divider.map(cell),
         })
         .collect();
-    Ok((displayed_content, panels, splits))
+    // Zoom changes the displayed pane, not the root containing the unzoomed tree.
+    Ok((content, panels, splits))
 }
 
 fn cell(rect: Rect) -> ClientCellRect {

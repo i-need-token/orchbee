@@ -132,6 +132,24 @@ pub(in crate::tui_render) fn render<C, P, R>(
         }
     }
     let width = usize::from(area.width);
+    let marker_width = display_width(theme.glyphs.ellipsis);
+    // Keep a complete active tab target on tiny strips. Wider strips reserve
+    // noninteractive edge markers before selecting the visible token window.
+    let overflow_track = if width >= 2 * (marker_width + 1) + 4 {
+        marker_width + 1
+    } else {
+        0
+    };
+    let total_width = tokens
+        .iter()
+        .map(|token| display_width(&token.label))
+        .sum::<usize>()
+        .saturating_add(tokens.len().saturating_sub(1));
+    let window_width = if total_width <= width {
+        width
+    } else {
+        width.saturating_sub(2 * overflow_track)
+    };
     let active = tokens.iter().position(|token| token.active).unwrap_or(0);
     let mut start = active;
     let mut occupied = tokens
@@ -139,7 +157,7 @@ pub(in crate::tui_render) fn render<C, P, R>(
         .map_or(0, |token| display_width(&token.label));
     while start > 0 {
         let previous = display_width(&tokens[start - 1].label) + 1;
-        if occupied.saturating_add(previous) > width {
+        if occupied.saturating_add(previous) > window_width {
             break;
         }
         occupied += previous;
@@ -150,7 +168,7 @@ pub(in crate::tui_render) fn render<C, P, R>(
         .and_then(|token| token.header)
         .filter(|header| *header < start);
     // Keep the active member and its group identity together when the window starts inside a group.
-    let prefix = if missing_header.is_some() && width >= 8 {
+    let prefix = if missing_header.is_some() && window_width >= 8 {
         start = active;
         tokens.get(active).and_then(|token| token.header)
     } else {
@@ -159,17 +177,41 @@ pub(in crate::tui_render) fn render<C, P, R>(
     let mut spans = Vec::new();
     let mut painted = Vec::new();
     let mut used = 0;
-    let indices = prefix.into_iter().chain(start..tokens.len());
-    for token_index in indices {
+    let indices: Vec<_> = prefix.into_iter().chain(start..tokens.len()).collect();
+    if start > 0 && overflow_track > 0 {
+        spans.push(Span::styled(
+            format!("{} ", theme.glyphs.ellipsis),
+            theme.style(Role::TextSecondary),
+        ));
+        used = overflow_track;
+    }
+    let needed = indices
+        .iter()
+        .map(|index| {
+            let cells = display_width(&tokens[*index].label);
+            if Some(*index) == prefix {
+                cells.min(window_width / 3)
+            } else {
+                cells
+            }
+        })
+        .sum::<usize>()
+        .saturating_add(indices.len().saturating_sub(1));
+    let trailing =
+        overflow_track > 0 && needed > width.saturating_sub(used) && active + 1 < tokens.len();
+    let content_end = width.saturating_sub(usize::from(trailing) * overflow_track);
+    for (position, token_index) in indices.into_iter().enumerate() {
         let token = &tokens[token_index];
-        if used > 0 && used < width {
+        if position > 0 && used < content_end {
             spans.push(Span::raw(" "));
             used += 1;
         }
         let budget = if Some(token_index) == prefix {
-            (width / 3).max(1)
+            (window_width / 3)
+                .max(1)
+                .min(content_end.saturating_sub(used))
         } else {
-            width.saturating_sub(used)
+            content_end.saturating_sub(used)
         };
         if budget == 0 {
             break;
@@ -239,9 +281,16 @@ pub(in crate::tui_render) fn render<C, P, R>(
             });
         }
         used += cells;
-        if used >= width {
+        if used >= content_end {
             break;
         }
+    }
+    if trailing {
+        spans.push(Span::raw(" ".repeat(content_end.saturating_sub(used) + 1)));
+        spans.push(Span::styled(
+            theme.glyphs.ellipsis,
+            theme.style(Role::TextSecondary),
+        ));
     }
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
     for token in painted {

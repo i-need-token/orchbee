@@ -1,4 +1,6 @@
-use super::super::tests::workspace_setup::{finish_preparation, finish_preparation_with_directory};
+use super::super::tests::workspace_setup::{
+    accept_directory_review, finish_preparation, finish_preparation_with_directory,
+};
 use super::super::*;
 use orchbee_workbench_protocol::Snapshot;
 
@@ -261,6 +263,7 @@ fn empty_create_tab_shell_tick_installs_and_enters_its_exact_workspace_unless_ne
                     &snapshot,
                     false,
                 );
+                accept_directory_review(session.backend.native_mut().unwrap());
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
                     panic!("one redirected WorkspaceLaunch, never TerminalOpen or Tab Create");
@@ -417,6 +420,7 @@ fn empty_compatibility_create_tab_uses_workspace_launch_and_cancel_never_resurre
             assert!(ui.view().no_current_workspace());
             assert!(mailbox.try_recv().unwrap().is_none());
         } else {
+            accept_directory_review(&mut ui);
             let lease = mailbox.try_recv().unwrap().unwrap();
             assert!(
                 matches!(lease.record(), QueuedCommand::WorkspaceSetup(marker)
@@ -649,6 +653,7 @@ fn effective_create_binding_invokes_workspace_or_canonical_tab_with_guidance_onl
                 );
             } else {
                 finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+                accept_directory_review(&mut ui);
                 let lease = mailbox.try_recv().unwrap().unwrap();
                 assert!(
                     matches!(lease.record(), QueuedCommand::WorkspaceSetup(marker)
@@ -694,6 +699,7 @@ fn workspace_create_and_quick_launch_submit_one_ungrouped_shell_without_a_projec
                 super::super::tests::workspace_setup::ready(with_project);
             ui.apply_client_action(action);
             finish_preparation(&mut ui, &mailbox, &clock, &snapshot, false);
+            accept_directory_review(&mut ui);
             let lease = mailbox.try_recv().unwrap().unwrap();
             let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
                 panic!("WorkspaceLaunch")
@@ -731,17 +737,32 @@ fn quick_workspace_missing_prepared_directory_refuses_without_creating_or_leavin
 }
 
 #[test]
-fn quick_workspace_launch_does_not_require_a_modal_draw_at_small_geometry_in_either_locale() {
+fn quick_workspace_launches_only_from_a_drawn_review_in_either_locale() {
     use crate::{
         client_view::ClientView, localization::Locale, terminal_session::TerminalSessionView,
         tui_pointer::HitMapBuilder,
     };
     use ratatui::{Terminal, backend::TestBackend};
     for locale in [Locale::EnUs, Locale::ZhCn] {
-        for (width, height) in [(120, 40), (22, 8)] {
+        // A host too small for the review creates nothing; Enter cannot accept unseen defaults.
+        for (width, height, drawn) in [(120, 40, true), (80, 24, true), (22, 8, false)] {
             let (mut ui, mailbox, clock, snapshot) =
                 super::super::tests::workspace_setup::ready(false);
             prepare(&mut ui, &mailbox, &clock, &snapshot, false);
+            assert!(
+                mailbox.try_recv().unwrap().is_none(),
+                "the review creates nothing before it is accepted"
+            );
+            let token = ui.view().setup_draft().unwrap().token();
+            let choices: Vec<_> = ui
+                .view()
+                .setup_draft()
+                .unwrap()
+                .directory_choices()
+                .iter()
+                .map(|path| path.as_str().to_owned())
+                .collect();
+            let mut hits = HitMapBuilder::new();
             let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
             let mut receipt = NativeDrawReceipt::default();
             terminal
@@ -752,12 +773,63 @@ fn quick_workspace_launch_does_not_require_a_modal_draw_at_small_geometry_in_eit
                         locale,
                         Some(TerminalSessionView::Native(ui.view())),
                         &crate::tui_theme::Theme::rgb_test_dark(),
-                        &mut HitMapBuilder::new(),
+                        &mut hits,
                     );
                 })
                 .unwrap();
-            assert!(!receipt.editing_cursor_shown());
+            assert_eq!(
+                receipt.editing_cursor_shown(),
+                drawn,
+                "{locale:?} {width}x{height}: the directory field is editable only when drawn"
+            );
+            let map = hits.finish();
+            if drawn {
+                use crate::tui_pointer::HitTarget;
+                use crate::tui_pointer::ModalControl;
+                let submit_y = (0..height)
+                    .find(|y| {
+                        (0..width).any(|x| {
+                            matches!(
+                                map.hit_target_at(x, *y),
+                                Some(HitTarget::Setup {
+                                    control: ModalControl::Submit,
+                                    ..
+                                })
+                            )
+                        })
+                    })
+                    .unwrap();
+                assert!(!choices.is_empty());
+                for (index, path) in choices.iter().take(2).enumerate() {
+                    let y = (0..height).find(|y| (0..width).any(|x| matches!(
+                        map.hit_target_at(x, *y), Some(HitTarget::Setup { control: ModalControl::Choice(choice), .. }) if *choice == index
+                    ))).expect("every displayed candidate retains its own hit row");
+                    assert!(
+                        y + 1 < submit_y,
+                        "candidate, hint and action rows must be disjoint"
+                    );
+                    let mut line = String::new();
+                    let mut x = 0;
+                    while x < width {
+                        let symbol = terminal.backend().buffer()[(x, y)].symbol();
+                        line.push_str(symbol);
+                        x += u16::try_from(crate::terminal_text::display_width(symbol).max(1))
+                            .unwrap();
+                    }
+                    assert!(
+                        line.contains(path),
+                        "candidate must not be overwritten by footer: {line}"
+                    );
+                }
+            }
             ui.after_close_draw(receipt);
+            assert!(mailbox.try_recv().unwrap().is_none());
+            ui.submit_setup_draft(token);
+            if !drawn {
+                assert!(mailbox.try_recv().unwrap().is_none());
+                mailbox.close(CarrierFailure::WorkerExited);
+                continue;
+            }
             assert!(ui.view().setup_draft().is_none());
             let lease = mailbox.try_recv().unwrap().unwrap();
             assert!(

@@ -445,6 +445,11 @@ fn global_menu_has_no_top_button_and_keyboard_open_retains_its_close_control() {
     );
     dispatcher.publish_hit_map(map);
     assert!(port.open_action_menu(MenuTarget::Global, None, false));
+    dispatcher
+        .synchronize(&mut view, &mut port, Instant::now(), &mut |_| {
+            Ok::<(), io::Error>(())
+        })
+        .unwrap();
     let painted = paint(&mut dispatcher, &mut port, view.bindings(), Locale::EnUs);
     let close = painted.close.unwrap();
     dispatch_all(
@@ -596,7 +601,10 @@ fn small_help_keeps_a_painted_mouse_exit_without_losing_the_underlying_mode() {
             let source = dispatcher.publish_hit_map_with_help(map);
             assert!(matches!(
                 source,
-                Some(crate::client_view::help::HelpDrawSource::Presented { .. })
+                Some(
+                    crate::client_view::help::HelpDrawSource::Presented { .. }
+                        | crate::client_view::help::HelpDrawSource::Refused { .. }
+                )
             ));
             view.settle_help_draw(source);
             dispatch_all(

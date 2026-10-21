@@ -194,3 +194,5 @@ Terminal-native 把 `accent-action` 映射为不带修饰的 ANSI 青色。Hover
 运行 `cargo test --locked -p orchbee --all-targets --all-features`
 及受影响 `pnpm verify` 根门禁。共享自定义颜色与系统外观均为当前行为；
 物理宿主外观及未测试平台需要独立执行证据。
+
+单色选中背景将终端默认前景与背景显式配对，并使用反色，使不同标签与标记角色保持在同一可见背景带上。

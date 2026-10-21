@@ -370,8 +370,9 @@ impl PointerState {
         matches!(self.gesture, Gesture::Tab(_))
     }
 
+    /// Cancels an armed or dragging tab gesture. A remembered completed click survives: map
+    /// invalidation after its own tab selection must not erase the first half of a double click.
     pub(crate) fn cancel_tab_drag(&mut self) -> bool {
-        self.tab_click = None;
         if matches!(self.gesture, Gesture::Tab(_)) {
             self.gesture = Gesture::TabCancelled;
             true
@@ -429,8 +430,11 @@ impl PointerState {
                         let action = match drag.target {
                             HitTarget::Tab(id) => {
                                 let position = (event.column, event.row);
+                                // The first click selects the tab, which republishes the
+                                // workbench revision; the pair only needs the same context.
                                 let double = self.tab_click.take().is_some_and(|click| {
-                                    click.source == drag.source.drawn
+                                    click.source.source.site == drag.source.drawn.source.site
+                                        && click.source.location == drag.source.drawn.location
                                         && click.tab == id
                                         && click.position.0.abs_diff(position.0) <= 1
                                         && click.position.1 == position.1

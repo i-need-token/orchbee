@@ -858,6 +858,8 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
         drive_pending_create_to_selected_without_attachment(&mut harness, &old_key)?;
     assert!(!harness.ui.state().selected_has_viewer());
     // Grow the unattached second Tab to two leaves so tab.move keeps a surviving leaf.
+    // The split only builds the layout; keep the source Panel focused.
+    harness.ui.state_mut().configure_panel_focus(false);
     let split = harness.ui.admit_panel(PanelRequestKind::Split {
         direction: crate::client_view::PanelDirection::Right,
     })?;
@@ -886,7 +888,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
     grown.terminal_contexts[0].tabs[1].root = split_node(
         panel_node(1_011, 1_012, 1_013, 1_014, "2"),
         3_001,
-        panel_node(3_010, 3_013, 3_011, 3_012, "2"),
+        panel_node(3_010, 3_013, 3_011, 3_012, "3"),
         3_014,
         PanelOrientation::Horizontal,
         3_020,
@@ -907,7 +909,7 @@ fn committed_move_superseding_leaf_loss_while_unattached_repairs_without_cleanup
     // viewer cleanup.
     let mut contracted = snapshot(2, 5);
     contracted.terminal_contexts[0].tabs.swap(0, 1);
-    contracted.terminal_contexts[0].tabs[0].root = panel_node(3_010, 3_013, 3_011, 3_012, "2");
+    contracted.terminal_contexts[0].tabs[0].root = panel_node(3_010, 3_013, 3_011, 3_012, "3");
     respond_snapshot(
         &harness,
         WorkbenchSnapshotOutcome::Available {

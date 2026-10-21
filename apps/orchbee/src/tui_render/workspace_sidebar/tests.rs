@@ -531,7 +531,7 @@ fn workspace_raw_value_rules_and_empty_layouts_collapse_without_borrowing_custom
         .iter()
         .map(|row| row.sidebar_target().unwrap())
     {
-        assert_eq!(sidebar_target_rows(&hits, 30, 40, &target).len(), 1);
+        assert_eq!(sidebar_target_rows(&hits, 30, 40, &target).len(), 2);
     }
     configure(&mut view, serde_json::json!([]), 0);
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 120, 40);

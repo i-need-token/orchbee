@@ -134,7 +134,21 @@ pub(in crate::tui_render) fn projection(
         |role, _first_line| theme.sidebar_token_style(role, Default::default(), false, false);
     let Some(rows) = configured(view, context.agent) else {
         let provider = display_label(context.agent.provider());
-        let title = display_label(context.agent.display_name());
+        let title = display_label(
+            context
+                .agent
+                .name
+                .as_deref()
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or_else(|| {
+                    let title = context.agent.title().trim();
+                    if title.is_empty() || title.chars().all(|ch| ch.is_ascii_digit()) {
+                        context.agent.provider()
+                    } else {
+                        title
+                    }
+                }),
+        );
         let title = if title.trim().is_empty() {
             provider.clone()
         } else {

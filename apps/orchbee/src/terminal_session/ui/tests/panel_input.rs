@@ -177,14 +177,13 @@ fn draw_panel_prompt(ui: &mut NativeUi) {
 }
 
 #[test]
-fn painted_tab_panel_and_rename_buttons_require_an_uninterrupted_release_and_capture_its_tail() {
+fn painted_tab_and_panel_buttons_require_an_uninterrupted_release_and_capture_its_tail() {
     use crate::tui_pointer::{HitMapBuilder, HitTarget};
     use crate::{localization::Locale, tui_theme::Theme};
     use ratatui::{Terminal, backend::TestBackend};
     for (kind, action) in [
         (0, ClientAction::RequestCloseTab),
         (1, ClientAction::ClosePanel),
-        (2, ClientAction::RequestRenameTab),
     ] {
         for cancel in [false, true] {
             for interrupt in [false, true] {
@@ -221,9 +220,6 @@ fn painted_tab_panel_and_rename_buttons_require_an_uninterrupted_release_and_cap
                             })
                             .unwrap();
                         ui.after_close_draw(receipt.unwrap());
-                        if kind == 2 {
-                            dispatch(&mut dispatcher, &mut view, &mut ui, b"\x15mouse name");
-                        }
                         let map = hits.finish();
                         let (x, y) = (0..height)
                             .flat_map(|y| (0..width).map(move |x| (x, y)))
@@ -232,7 +228,6 @@ fn painted_tab_panel_and_rename_buttons_require_an_uninterrupted_release_and_cap
                                 | (1, Some(HitTarget::PanelClose { confirm, .. })) => {
                                     *confirm != cancel
                                 }
-                                (2, Some(HitTarget::Rename { submit, .. })) => *submit != cancel,
                                 _ => false,
                             })
                             .expect("visible decision button");

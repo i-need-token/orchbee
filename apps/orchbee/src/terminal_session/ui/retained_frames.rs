@@ -235,7 +235,7 @@ impl<'a> RetainedView<'a> {
             .frame
             .title
             .as_deref()
-            .and_then(crate::terminal_title::stripped)
+            .and_then(crate::terminal_title::display)
     }
 
     pub(super) fn frame(

@@ -289,6 +289,58 @@ fn disconnected_catalog_worker_settles_unavailable() {
     });
     assert!(state.drain_catalog());
     assert_eq!(state.catalog_status(), CatalogStatus::Unavailable);
+    assert_eq!(
+        state.selected_provider(),
+        Some(crate::agent_provider::CANONICAL_IDS[0]),
+        "a settled empty catalog keeps the form startable"
+    );
+}
+
+#[test]
+fn detection_selects_no_undetected_default_and_lists_detected_providers_first() {
+    let mut state = State::new();
+    state.catalog = Catalog::Loading;
+    state.catalog_revision = 4;
+    let (sender, outcomes) = mpsc::sync_channel(3);
+    state.catalog_task = Some(CatalogTask {
+        revision: 4,
+        outcomes,
+        cancelled: Arc::new(AtomicBool::new(false)),
+        task: None,
+    });
+    assert_eq!(state.selected_provider(), None);
+    assert_eq!(state.name(), "");
+    assert!(!state.can_start());
+
+    sender.send((4, CatalogUpdate::Found("codex"))).unwrap();
+    assert!(state.drain_catalog());
+    assert_eq!(state.providers()[0], "codex");
+    assert_eq!(state.selected_provider(), Some("codex"));
+
+    // A later detection reorders the list but never moves the selection to another provider.
+    sender
+        .send((4, CatalogUpdate::Found("claude-code")))
+        .unwrap();
+    sender.send((4, CatalogUpdate::Finished(true))).unwrap();
+    assert!(state.drain_catalog());
+    assert_eq!(state.providers()[..2], ["claude-code", "codex"]);
+    assert_eq!(state.selected_provider(), Some("codex"));
+    assert_eq!(state.name(), "codex-1");
+    assert_eq!(
+        state.providers().len(),
+        crate::agent_provider::CANONICAL_IDS.len(),
+        "undetected providers stay manually selectable"
+    );
+
+    assert!(state.move_provider(-1));
+    assert_eq!(state.selected_provider(), Some("claude-code"));
+    state.retire_catalog();
+    assert_eq!(
+        state.providers(),
+        crate::agent_provider::CANONICAL_IDS,
+        "retiring detection restores canonical order"
+    );
+    assert_eq!(state.selected_provider(), Some("claude-code"));
 }
 
 #[test]

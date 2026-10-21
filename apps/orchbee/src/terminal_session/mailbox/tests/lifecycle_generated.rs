@@ -758,6 +758,8 @@ impl Trace {
             .map_err(|error| violation_error(format!("initial projection: {error:?}")))?;
         let (mut session, _target) = NativeSessionState::starting(cache, 1, geometry())
             .ok_or_else(|| violation_error("initial state was rejected"))?;
+        // The input-fact oracle models splits that keep the source Panel focused.
+        session.configure_panel_focus(false);
         let desired = session.desired().unwrap().clone();
         require(
             session.install_projection_t(&desired),

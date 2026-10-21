@@ -1383,6 +1383,23 @@ pub(super) fn render(
         } else {
             row_pointer
         };
+        let expanded = match row {
+            SidebarRow::Project { .. } => Some(view.machines.sidebar_project_expanded(&target)),
+            SidebarRow::Context {
+                has_agents: true, ..
+            } => Some(view.machines.sidebar_context_agents_expanded(&target)),
+            SidebarRow::Context {
+                has_agents: false, ..
+            }
+            | SidebarRow::Agent { .. } => None,
+        };
+        let disclosure_glyph = |expanded| {
+            if expanded {
+                theme.glyphs.disclosure_open
+            } else {
+                theme.glyphs.disclosure_closed
+            }
+        };
         if row_paint_pointer != PointerPresentation::Rest {
             let mut hint = Vec::new();
             if current {
@@ -1420,11 +1437,11 @@ pub(super) fn render(
                     locale.sidebar_marker_label("unread")
                 ));
             }
-            if has_disclosure {
+            if has_disclosure && let Some(expanded) = expanded {
                 hint.push(format!(
                     "{} {}",
-                    theme.glyphs.disclosure_open,
-                    locale.sidebar_marker_label("disclosure")
+                    disclosure_glyph(expanded),
+                    locale.sidebar_marker_label(if expanded { "expanded" } else { "collapsed" })
                 ));
             }
             hint.push(locale.sidebar_marker_label("help").to_owned());
@@ -1468,26 +1485,7 @@ pub(super) fn render(
             ),
         );
 
-        let disclosure = match row {
-            SidebarRow::Project { .. } => {
-                Some(if view.machines.sidebar_project_expanded(&target) {
-                    theme.glyphs.disclosure_open
-                } else {
-                    theme.glyphs.disclosure_closed
-                })
-            }
-            SidebarRow::Context {
-                has_agents: true, ..
-            } => Some(if view.machines.sidebar_context_agents_expanded(&target) {
-                theme.glyphs.disclosure_open
-            } else {
-                theme.glyphs.disclosure_closed
-            }),
-            SidebarRow::Context {
-                has_agents: false, ..
-            }
-            | SidebarRow::Agent { .. } => None,
-        };
+        let disclosure = expanded.map(disclosure_glyph);
         if let Some(disclosure) = disclosure {
             frame.render_widget(
                 Paragraph::new(disclosure).style(theme.content_on_surface(

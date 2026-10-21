@@ -1008,8 +1008,12 @@ fn stateful_generated_traces_replay_and_cover_barrier_reentry() {
 
 fn new_trace() -> TraceState {
     let bootstrap = snapshot(3, 1, None).terminal_contexts[0].tabs.clone();
+    // The settlement oracle models splits that keep the source Panel focused; focusing the
+    // created Panel is the membership install covered by the deterministic Panel tests.
+    let mut session = ready(3);
+    session.configure_panel_focus(false);
     TraceState {
-        session: ready(3),
+        session,
         generation: 1,
         request: 10_000,
         frame: 1,
@@ -3222,6 +3226,8 @@ fn panel_anchor(trace: &mut TraceState, class: PanelAnchorClass) -> Result<(), &
 fn anchor_pending_move()
 -> Result<(NativeSessionState, PanelOperation, Vec<Tab>, u128), &'static str> {
     let mut session = ready(2);
+    // The split merge oracle keeps the source Panel focused.
+    session.configure_panel_focus(false);
     let mut identity = 0xBEEF_0000u128;
     let mut frame = 1u64;
     let deadlines = OperationDeadlines::from_sample(Instant::now()).ok_or("deadline")?;
@@ -3355,6 +3361,8 @@ fn anchor_stale_operation() -> Result<(), &'static str> {
 /// idempotently, and the same commit then merges cleanly.
 fn anchor_foreign_retain() -> Result<(), &'static str> {
     let mut session = ready(1);
+    // The merge oracle keeps the source Panel focused.
+    session.configure_panel_focus(false);
     let mut identity = 0xF00D_0000u128;
     let tabs = snapshot(1, 1, None).terminal_contexts[0].tabs.clone();
     let operation = session

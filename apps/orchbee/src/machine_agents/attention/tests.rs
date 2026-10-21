@@ -40,6 +40,7 @@ fn raw_title_animation_and_clear_never_change_agent_seen_or_semantic_sequence() 
 fn row() -> Row {
     Row {
         seen: true,
+        name: None,
         order: PlacementOrder::default(),
         target: super::super::tests::target(),
         label: "terminal".into(),

@@ -623,8 +623,8 @@ not display labels or Agent source-view filtering. The settings owner admits
 Builtins are `state_icon`, `state_text`, `workspace`, `branch` and `git_status`;
 `$custom` values come from the Workspace report owner. Styles and first-match
 text rules inspect original values before terminal sanitization. Icon and Git
-count tokens do not admit text rules. Missing and hidden values collapse rows;
-at least one identity row remains available for navigation.
+count tokens do not admit text rules. Nonempty configured rows retain their slots when values are missing or hidden;
+an empty configuration retains one identity row for navigation.
 
 Workspace state aggregates complete physical Agent facts independently of seen, using the established attention/error/outcome/working/idle/unknown ordering: blocked, error, done, working, idle, unknown. No observed Agent leaves the state slot blank; it never manufactures idle. A known Agent with insufficient state evidence is unknown. Source filters and custom display labels do not change this authority.
 Git observations come from the canonical Workspace directory on the selected
@@ -687,3 +687,5 @@ Whole-cohort and real emulator/SSH acceptance remain separate evidence.
 ## Search presentation and explicit identifiers
 
 With no configured remote profile, search omits remote totals and Local prefixes. The selected mode uses the shared selection surface plus bold and underline; it does not add an asterisk. Internal IDs do not appear in rows or details. The selected row exposes Copy ID (Ctrl+y); pointer activation retains its exact catalog/index proof, and keyboard copying uses the current selection. The validated identifier enters the existing bounded post-draw clipboard queue once, with no navigation or remote write. A connected native pane supplies the delivery lifecycle; without one, copying reports unavailable. Switching or retiring that pane cancels an undelivered request. Remote totals count remote observations only.
+
+The Agent picker shows the assigned name and a distinct task title when present. Its details reserve separate rows for workspace, provider, title and custom tokens, plus machine context when remote profiles exist, while keeping Copy ID available. The mode bar uses the shared current-state track so every mode keeps a distinct painted label and hit region.

@@ -219,9 +219,9 @@ fn zh_cn_prefix_desc(desc: PrefixDesc) -> &'static str {
         PrefixDesc::ReloadConfiguration => "重载会话配置",
         PrefixDesc::QuickWorkspaceCreate => "创建工作区并进入第一个终端",
         #[cfg(windows)]
-        PrefixDesc::工作树Create => "创建 Git 工作树 并进入终端",
+        PrefixDesc::WorktreeCreate => "创建 Git 工作树并进入终端",
         #[cfg(windows)]
-        PrefixDesc::工作树Open => "打开已有 Git 检出目录",
+        PrefixDesc::WorktreeOpen => "打开已有 Git 检出目录",
         PrefixDesc::ControlTakeover => "接管当前 pane；使用本窗口尺寸",
         PrefixDesc::WorkspaceClose => "关闭当前工作区及其终端（需要确认）",
         PrefixDesc::WorkspaceCreate => "创建工作区并进入第一个终端",
@@ -276,8 +276,6 @@ pub(crate) struct AgentBoardText {
     pub(crate) empty: &'static str,
     /// The next step shown when the last completed Agent read has no rows.
     pub(crate) empty_start: &'static str,
-    /// CLI syntax used to start an Agent from the current idle terminal.
-    pub(crate) empty_start_command: &'static str,
     /// A partial empty read is not proof that there are no sessions.
     pub(crate) empty_partial: &'static str,
     /// PATH-backed startup form copy.
@@ -378,7 +376,6 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     lane_unavailable: "Agent board unavailable: no read lane",
     empty: "No Agent sessions",
     empty_start: "Choose an installed Agent. Its name is ready to use or edit.",
-    empty_start_command: "orchbee agent start <name> --provider <provider> --current",
     empty_partial: "No sessions in this partial read.",
     start_checking: "Looking for installed commands; you can choose now.",
     start_catalog_unavailable: "Detection incomplete. Choose an Agent installed in this terminal.",
@@ -389,13 +386,13 @@ const EN_US_BOARD: AgentBoardText = AgentBoardText {
     start_name_invalid: "Name: 1–32 lowercase letters, digits, _ or -; start with a letter.",
     start_button: "Start Agent",
     start_cancel_button: "Cancel start",
-    start_starting: "Starting Agent — continue in the terminal.",
+    start_starting: "Waiting for startup confirmation. Check the Agent terminal.",
     start_waiting_input: "Your input is needed in the terminal to continue startup.",
     start_unconfirmed: "Command sent. Check the terminal prompts; readiness is not confirmed. Do not start again.",
     start_cancelling: "Cancelling startup…",
     start_started: "Agent started. Refreshing sessions…",
     start_failed: "Agent did not start. Check the current panel and try again.",
-    start_unknown: "Startup outcome is unknown. Refresh sessions before retrying.",
+    start_unknown: "Startup is unconfirmed. Check the terminal before starting another Agent.",
     start_cancelled: "Startup canceled. The Agent process may still be running.",
     start_provider_hint: "more Agents",
     start_edit_hint: "edit name",
@@ -476,7 +473,6 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     lane_unavailable: "看板不可用：无读取通道",
     empty: "没有智能体会话",
     empty_start: "选择已安装的智能体，名称已填好，也可修改。",
-    empty_start_command: "orchbee agent start <name> --provider <provider> --current",
     empty_partial: "本次不完整读取暂未返回会话。",
     start_checking: "正在查找已安装的命令；也可直接选择。",
     start_catalog_unavailable: "检测未完成，请选择此终端中已安装的智能体。",
@@ -487,13 +483,13 @@ const ZH_CN_BOARD: AgentBoardText = AgentBoardText {
     start_name_invalid: "请以小写字母开头，后接字母、数字、_ 或 -，最多 32 个字符。",
     start_button: "启动智能体",
     start_cancel_button: "取消启动",
-    start_starting: "正在启动智能体，请在终端中继续。",
+    start_starting: "正在等待启动确认，请查看智能体终端并按提示操作。",
     start_waiting_input: "请在终端中确认或输入，以继续启动。",
     start_unconfirmed: "命令已发送，请检查终端提示；尚未确认就绪，请勿重复启动。",
     start_cancelling: "正在取消启动…",
     start_started: "智能体已启动，正在刷新会话…",
     start_failed: "智能体未启动，请检查当前面板后重试。",
-    start_unknown: "启动结果未知，请先刷新会话再决定是否重试。",
+    start_unknown: "尚未确认启动结果，请先查看终端，再决定是否重新启动。",
     start_cancelled: "已取消启动；智能体进程仍可能在运行。",
     start_provider_hint: "更多智能体",
     start_edit_hint: "编辑名称",
@@ -762,7 +758,7 @@ impl Locale {
                 Some(Notice::BackendUnavailable(
                     BackendAction::CreateWorktree | BackendAction::OpenWorktree,
                 )),
-            ) => "工作树 不可用 · 未发送命令",
+            ) => "工作树不可用 · 未发送命令",
             (Self::EnUs, Some(Notice::BackendUnavailable(BackendAction::CloseWorkspace))) => {
                 "Workspace Close unavailable · no command was sent"
             }
@@ -2066,10 +2062,10 @@ impl Locale {
     }
     pub(crate) fn onboarding_status(self, failed: bool) -> &'static str {
         match (self, failed) {
-            (Self::EnUs, false) => "Type in your terminal; choose an action when ready.",
-            (Self::ZhCn, false) => "终端可以继续输入；需要时选择下列操作。",
-            (Self::EnUs, true) => "Guide state unavailable; existing data is preserved.",
-            (Self::ZhCn, true) => "无法读取引导状态；已保留现有数据。",
+            (Self::EnUs, false) => "You can keep typing.",
+            (Self::ZhCn, false) => "终端可继续输入",
+            (Self::EnUs, true) => "Guide state unreadable.",
+            (Self::ZhCn, true) => "引导状态读取失败",
         }
     }
     pub(crate) fn onboarding_label(self, action: crate::onboarding::Action) -> &'static str {
@@ -2077,10 +2073,10 @@ impl Locale {
         match (self, action) {
             (Self::EnUs, Workspace) => "New workspace",
             (Self::ZhCn, Workspace) => "新建工作区",
-            (Self::EnUs, Agent) => "Choose and start an Agent",
-            (Self::ZhCn, Agent) => "选择并启动 Agent",
-            (Self::EnUs, Menu) => "Actions and commands",
-            (Self::ZhCn, Menu) => "操作与命令",
+            (Self::EnUs, Agent) => "Start an Agent",
+            (Self::ZhCn, Agent) => "启动 Agent",
+            (Self::EnUs, Menu) => "All actions",
+            (Self::ZhCn, Menu) => "全部操作",
             (Self::EnUs, Help) => "Help",
             (Self::ZhCn, Help) => "帮助",
             (Self::EnUs, Dismiss) => "Dismiss guide",

@@ -119,4 +119,4 @@ input; final combined Windows acceptance covers real shell overlays and Server/C
 
 ## Sidebar display identity
 
-The default Agent row uses the user-assigned name, falling back to its provider. The bounded names read shares the observation deadline and byte limit, joins by the complete physical binding, and precedes the final physical report fence. Pane numbers remain navigation ordinals, not Agent names. Custom token rows keep their configured meaning.
+The default Agent row prefers the user-assigned name, then a nonempty nonnumeric task title, then its provider. The bounded names read includes committed bindings and pending launch reservations, shares the observation deadline and byte limit, joins by the complete physical binding, and precedes the final physical report fence. Pending aliases do not claim canonical startup completion. Pane numbers remain navigation ordinals, not Agent names. Custom token rows keep their configured meaning.

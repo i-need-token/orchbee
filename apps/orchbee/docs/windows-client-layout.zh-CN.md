@@ -79,3 +79,5 @@ UI 根据已绘制缓存及准入的完整 Snapshot 一次性解析调整。显�
 以 `src/` 开头的路径相对于本应用，其余路径相对于仓库。运行 `cargo test --locked -p orchbee --bin orchbee`、`cargo test --locked -p orchbee-workbench-protocol --test client_layout --test client_view` 及 `cargo test --locked -p orchbee-server client_view_registry`。仓库门禁负责进程及绑定检查。参考捕获维护使用八个确定性种子，在边界至多为 1,200 单元格的非空矩形上，对比未改动的固定 Herdr 邻居函数与协议投影器，共 65,536 次方向查询；不覆盖参考实现的中心饱和域。维护中的协议向量独立于外部 checkout 保留决策边界。
 
 终端尺寸所有者在未缩放时按精确附着实例放行每个可见且持有控制权的 pane。缩放时仅焦点 pane 调整尺寸；隐藏同级保留查看器和原物理尺寸。只读 pane 不会为布局变化获取控制权。输入仍限于焦点。已绘制布局是 Client 视图结果，Host 尺寸调整另行异步进行。
+
+上报的根 `area` 即使在放大时也包含全部未放大的 Panel 和分隔矩形。放大仅改变选中 Panel 的显示矩形；标题和滚动条可能使显示矩形小于根范围。

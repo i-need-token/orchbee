@@ -327,7 +327,10 @@ fn empty_board_renders_the_client_path_candidate_route_in_both_locales() {
         for provider in ["codex", "amp", "muse"] {
             assert!(normalized.contains(provider), "{locale:?}: {text:?}");
         }
-        assert!(!normalized.contains("claude-code"), "{locale:?}: {text:?}");
+        assert!(
+            normalized.contains("claude-code"),
+            "manual providers remain available: {text:?}"
+        );
         assert!(normalized.contains("alpha"), "{locale:?}: {text:?}");
         assert!(
             normalized.contains(board_text.start_button),
@@ -477,7 +480,7 @@ fn empty_board_without_a_client_path_candidate_keeps_the_manual_route_in_both_lo
         assert!(normalized.contains(board_text.start_none_found));
         assert!(normalized.contains("manual-1"));
         assert!(normalized.contains("pi"));
-        assert!(!normalized.contains(board_text.empty_start_command));
+        assert!(!normalized.contains("orchbee agent start"));
         assert!(
             frame
                 .control_hit(AgentBoardControl::StartProvider(0))

@@ -895,14 +895,23 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
     let compact_help = without_cell_padding(&help);
     assert!(compact_help.contains("键盘快捷键"));
     assert!(help.contains("Ctrl+b c"));
-    assert!(help.contains("Ctrl+b ,"));
+    assert!(
+        !help.contains("Ctrl+b ,"),
+        "Help opens with common tasks only"
+    );
+    commit(
+        &mut view,
+        PrefixInput::Key(KeyEvent::press(KeyCode::Tab, Modifiers::NONE)),
+    );
+    let help = rendered_text(120, 32, &view, Locale::ZhCn);
+    let mut rename_visible = help.contains("Ctrl+b ,");
 
     // The composed registry paginates whole groups at this size: the
     // literal-prefix row sits on a later page. Page forward with the
     // documented `Ctrl+B PageDown` binding until it renders.
     let mut paged = String::new();
     for _ in 0..8 {
-        if paged.contains("Ctrl+b Ctrl+b") {
+        if paged.contains("Ctrl+b Ctrl+b") && rename_visible {
             break;
         }
         commit(&mut view, ctrl_b());
@@ -911,7 +920,9 @@ fn renders_visible_prefix_and_localized_shortcut_overlays() {
             PrefixInput::Key(KeyEvent::press(KeyCode::PageDown, Modifiers::NONE)),
         );
         paged = rendered_text(120, 32, &view, Locale::ZhCn);
+        rename_visible |= paged.contains("Ctrl+b ,");
     }
+    assert!(rename_visible, "rename is discoverable in expanded Help");
     assert!(
         paged.contains("Ctrl+b Ctrl+b"),
         "the literal-prefix row must render on a reachable help page"

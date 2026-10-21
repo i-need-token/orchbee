@@ -17,18 +17,19 @@ impl HelpDrawCandidate {
         self.page
     }
 
-    /// Constructs the exact source for a complete help panel. The renderer may
-    /// clamp the first visible line after geometry changes, but it cannot
-    /// publish a different filter revision or an invalid scroll boundary.
+    /// Test fixture for a complete help panel whose viewport height was not measured.
     #[cfg(test)]
     pub(crate) const fn presented(
         self,
         effective_page: usize,
         last: usize,
     ) -> Option<HelpDrawSource> {
-        self.presented_rows(effective_page, last, 1)
+        self.presented_rows(effective_page, last, 0)
     }
 
+    /// Constructs the exact source for a complete help panel. The renderer may
+    /// clamp the first visible line after geometry changes, but it cannot
+    /// publish a different filter revision or an invalid scroll boundary.
     pub(crate) const fn presented_rows(
         self,
         effective_page: usize,
@@ -192,8 +193,14 @@ impl State {
         self.bump_revision();
         self.shown = None;
     }
+    /// One page is the last presented viewport height. Before any draw has measured it, keep the
+    /// established eight-line step instead of degrading paging into single-line scrolling.
     pub(super) fn page_step(&self) -> usize {
-        self.page_rows.max(1)
+        if self.page_rows == 0 {
+            8
+        } else {
+            self.page_rows
+        }
     }
 
     pub(super) fn filter(&self) -> &str {
@@ -261,7 +268,7 @@ impl State {
                 page, last, rows, ..
             } if page == self.page.min(last) && page <= last => {
                 self.page = page;
-                self.page_rows = rows.max(1);
+                self.page_rows = rows;
                 self.shown = Some(source);
             }
             HelpDrawSource::Refused { page, .. } if page == self.page => {

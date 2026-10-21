@@ -2,6 +2,30 @@
 //! pointer ownership state. A recording port supplies the probe facts;
 //! each test drives `PointerState::event`/`tick` like the dispatcher does.
 use super::*;
+
+#[cfg(windows)]
+#[test]
+fn covered_sidebar_retains_menu_placement_geometry_without_input_authority() {
+    let target = crate::machine_picker::SidebarTarget::Project {
+        machine: crate::machine_picker::Choice::Local,
+        site_id: orchbee_workbench_protocol::SiteId::parse(&format!("{:032x}", 1)).unwrap(),
+        project_id: orchbee_workbench_protocol::WorkbenchProjectId::parse(&format!("{:032x}", 2))
+            .unwrap(),
+    };
+    let rect = Rect::new(0, 4, 29, 3);
+    let mut sidebar = HitMapBuilder::new();
+    sidebar.record(HitLayer::Foreground, rect, HitTarget::SidebarMenu(target));
+    let mut covered = HitMapBuilder::new();
+    covered.record_covered_sidebar_geometry(sidebar);
+    assert_eq!(covered.context_menu_anchor_rect(3, 5), Some(rect));
+    assert_eq!(covered.context_menu_anchor_rect(30, 5), None);
+    let map = covered.finish();
+    for y in rect.y..rect.bottom() {
+        for x in rect.x..rect.right() {
+            assert!(map.hit_target_at(x, y).is_none());
+        }
+    }
+}
 #[cfg(windows)]
 mod divider;
 mod interaction;

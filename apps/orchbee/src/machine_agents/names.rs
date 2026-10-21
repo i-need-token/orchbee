@@ -1,10 +1,12 @@
 //! Read display aliases once within the physical observation's deadline and byte budget.
 use super::{AtomicU8, Instant, LocalClient, MAXIMUM_BYTES, check, request_id};
 use orchbee_agent_observation_protocol::{
-    AgentNamedTarget, AgentNamesListOutcome, AgentNamesRequest, AgentNamesResult,
+    AgentNameTarget, AgentNamedTarget, AgentNamesListOutcome, AgentNamesRequest, AgentNamesResult,
     MAXIMUM_NAME_BINDINGS, ObapRequestId,
 };
 
+/// Lists bound names and launch reservations. The contract keeps their targets disjoint, so a
+/// terminal shows its chosen name while its startup is still pending.
 pub(super) fn read(
     client: &mut LocalClient,
     deadline: Instant,
@@ -32,10 +34,18 @@ pub(super) fn read(
         return Err(());
     };
     match result.outcome {
-        AgentNamesListOutcome::ListedTargets { bindings, .. }
-            if bindings.len() <= MAXIMUM_NAME_BINDINGS =>
+        AgentNamesListOutcome::ListedTargets { bindings, pending }
+            if bindings.len().saturating_add(pending.len()) <= MAXIMUM_NAME_BINDINGS =>
         {
-            Ok(bindings)
+            Ok(bindings
+                .into_iter()
+                .chain(pending.into_iter().map(|reservation| AgentNamedTarget {
+                    name: reservation.name,
+                    target: AgentNameTarget::Terminal {
+                        binding: reservation.binding,
+                    },
+                }))
+                .collect())
         }
         AgentNamesListOutcome::Listed { .. }
         | AgentNamesListOutcome::Rejected { .. }

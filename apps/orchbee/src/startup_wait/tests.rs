@@ -613,7 +613,8 @@ fn restore_failure_surfaces_as_fault() {
 #[test]
 fn standalone_presentable_area_reports_drawable_content() {
     let wide = standalone_presentable_area(dimensions(120, 40)).unwrap();
-    assert_eq!(wide, Rect::new(31, 2, 88, 37));
+    // The bottom status row is reserved at every tier, outside terminal content.
+    assert_eq!(wide, Rect::new(31, 2, 88, 36));
     assert!(standalone_presentable_area(dimensions(80, 8)).is_some());
     assert!(standalone_presentable_area(dimensions(96, 10)).is_some());
     // A Minimal viewport still presents an unframed pane, so 7 rows is a

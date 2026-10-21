@@ -179,9 +179,12 @@ fn actual_chrome_rounding_zoom_and_minimal_collapse_are_observed_without_mutatio
         )
         .unwrap();
     assert!(zoomed.zoomed);
-    assert_eq!(zoomed.area, cell(Rect::new(1, 3, 117, 35)));
+    assert_eq!(zoomed.area, result.area);
     assert_eq!(zoomed.panels[0].unzoomed, result.panels[0].unzoomed);
-    assert_eq!(zoomed.panels[0].displayed, Some(zoomed.area));
+    assert_eq!(
+        zoomed.panels[0].displayed,
+        Some(cell(Rect::new(1, 3, 117, 35)))
+    );
     assert_eq!(zoomed.panels[1].displayed, None);
     assert_eq!(zoomed.neighbors, result.neighbors);
     assert_eq!(native.control_observation(false).unwrap(), before);

@@ -204,3 +204,5 @@ Run `cargo test --locked -p orchbee --all-targets --all-features` and the applic
 This workflow has no separate TLA model. Implementation traces and process tests do not replace
 real-terminal mouse/keyboard, viewport, first-frame and interaction review. Shared commit and
 ownership protocols retain their separately registered models.
+
+The directory review paints up to two candidate paths in content rows, followed by separate hint and action rows. Candidate hit regions never share the footer. A host unable to paint the complete review cannot submit it.

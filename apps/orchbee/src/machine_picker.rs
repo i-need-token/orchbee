@@ -1076,15 +1076,18 @@ impl Picker {
                     Paragraph::new(label).style(theme.style(Role::TextPrimary)),
                     primary,
                 );
+                // Mode labels form a tab strip: the active mode is current, not a checked
+                // option, so it needs no checked-glyph track.
+                let current = self.mode == mode;
                 let state = component_state(
                     pointer,
                     NavigationState::None,
-                    CurrentState::NotCurrent,
-                    if self.mode == mode {
-                        CheckedState::Checked
+                    if current {
+                        CurrentState::Current
                     } else {
-                        CheckedState::Unchecked
+                        CurrentState::NotCurrent
                     },
+                    CheckedState::Unchecked,
                     Availability::Enabled,
                     OperationState::Idle,
                 );
@@ -1099,7 +1102,7 @@ impl Picker {
                 )
                 .is_some()
                 {
-                    if self.mode == mode {
+                    if current {
                         frame.buffer_mut().set_style(
                             primary,
                             theme
@@ -1108,8 +1111,9 @@ impl Picker {
                         );
                     }
                     hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
-                    x = rect.right().saturating_add(1);
                 }
+                // The label is already painted, so the next one must never overlap it.
+                x = rect.right().saturating_add(1);
             }
             inner.y += 1;
             inner.height -= 1;
@@ -1121,7 +1125,14 @@ impl Picker {
             .iter()
             .any(|row| matches!(row.choice, Choice::Remote(_)));
         let details = if inner.height >= 9 {
-            if has_remote { 5 } else { 3 }
+            if self.mode == Mode::Agents {
+                // Workspace, provider, task, metadata and Copy ID have separate rows.
+                5 + u16::from(has_remote)
+            } else if has_remote {
+                5
+            } else {
+                3
+            }
         } else {
             0
         };
@@ -1153,14 +1164,21 @@ impl Picker {
                 String::new()
             };
             let name = if let Some(agent) = &row.agent {
+                // The name identifies the Agent; a distinct task title says what it is doing.
+                let identity = display_label(agent.display_name());
+                let title = display_label(agent.title());
+                let title = if title.trim().is_empty() || title == identity {
+                    String::new()
+                } else {
+                    format!(" · {title}")
+                };
                 format!(
-                    "{}{prefix}{}",
+                    "{}{prefix}{identity}{title}",
                     if index < 9 {
                         format!("{} ", index + 1)
                     } else {
                         String::new()
                     },
-                    display_label(agent.display_name())
                 )
             } else if let Some(context) = &row.context {
                 format!(
@@ -1390,6 +1408,7 @@ impl Picker {
                     agent.workspace.clone()
                 });
                 lines.push(display_label(agent.provider()));
+                lines.push(display_label(agent.title()));
                 lines.push(
                     agent
                         .tokens

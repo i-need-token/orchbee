@@ -327,7 +327,7 @@ fn worktree_checkout_picker_windows_selection_and_disambiguates_duplicate_branch
     let token = ui.worktrees.launcher.token().unwrap();
     assert!(ui.edit_worktree(token, WorktreeEdit::Next));
     let text = draw(&mut ui, crate::localization::Locale::ZhCn, 80, 24);
-    assert!(text.contains("C:/trees/猫"));
+    assert!(text.contains(r"C:\trees\猫"));
     assert!(text.contains("2/2"));
     let view = ui.view();
     assert_eq!(view.worktree().unwrap().selected(), 1);
@@ -476,7 +476,7 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
         ),
         (
             crate::localization::Locale::ZhCn,
-            "移除 Worktree：Task 猫",
+            "移除工作树：Task 猫",
             "保留分支：same",
             "取消",
             "移除",
@@ -506,7 +506,7 @@ fn removal_confirmation_shows_full_target_scope_and_retained_branch_without_auto
                         "{locale:?} {width}x{height}: {}",
                         drawn.text
                     );
-                    assert!(drawn.text.contains("C:/trees/猫"));
+                    assert!(drawn.text.contains(r"C:\trees\猫"));
                     assert!(drawn.text.contains(&branch.replace(' ', "")));
                     assert!(drawn.text.contains(&format!("[{cancel}Esc]")));
                     assert!(drawn.text.contains(&format!("[{remove}Enter]")));

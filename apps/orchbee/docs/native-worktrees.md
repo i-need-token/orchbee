@@ -200,3 +200,5 @@ owns composed confirmation and recovery rendering. Run
 This workflow has no separate TLA model. Named implementation traces do not establish exhaustive
 interleavings or physical terminal usability; real mouse/keyboard experience is separate evidence.
 Shared ownership and commit protocols retain their registered models.
+
+On Windows, native Worktree forms render checkout paths with backslash separators. This is a display projection only; selection and operations retain the exact canonical path.

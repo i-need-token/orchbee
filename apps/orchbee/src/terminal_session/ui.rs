@@ -542,7 +542,7 @@ impl<'a> NativeSessionView<'a> {
             .and_then(|panel| self.pane_projection(panel))
             .and_then(|projection| projection.frame())
             .and_then(|frame| frame.title.as_deref())
-            .and_then(crate::terminal_title::stripped)
+            .and_then(crate::terminal_title::display)
             .unwrap_or("");
         orchbee_workbench_protocol::WindowTitleContext::new(workspace, &label, manual, title)
     }
@@ -636,7 +636,7 @@ impl<'a> NativeSessionView<'a> {
                                 .flatten()
                                 .and_then(|projection| projection.frame())
                                 .and_then(|frame| frame.title.as_deref())
-                                .and_then(crate::terminal_title::stripped)
+                                .and_then(crate::terminal_title::display)
                         })
                         .or_else(|| {
                             (!inner.active() && self.retirement.is_none())

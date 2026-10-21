@@ -85,13 +85,18 @@ fn create_menu_omits_unresolved_worktree_and_reuses_exact_project_quick_workspac
         ui.apply_client_action(action),
         SessionActionDisposition::LayoutChanged
     );
-    let preview = ui.view().workspace_creation_preview().unwrap();
-    assert!(preview.current && preview.replaces_content());
-    assert_eq!(preview.project_id, Some(&project.project_id));
     let clock = ui.clock.clone();
     crate::terminal_session::ui::tests::workspace_setup::finish_preparation(
         &mut ui, &mailbox, &clock, &snapshot, false,
     );
+    assert!(
+        mailbox.try_recv().unwrap().is_none(),
+        "the review creates nothing"
+    );
+    crate::terminal_session::ui::tests::workspace_setup::accept_directory_review(&mut ui);
+    let preview = ui.view().workspace_creation_preview().unwrap();
+    assert!(preview.current && preview.replaces_content());
+    assert_eq!(preview.project_id, Some(&project.project_id));
     let lease = mailbox.try_recv().unwrap().unwrap();
     assert!(
         matches!(lease.record(), QueuedCommand::WorkspaceSetup(marker)
@@ -382,6 +387,7 @@ fn project_quick_menu_keeps_exact_target_through_preparation_and_one_launch() {
                 &mut ui, &mailbox, &clock, &snapshot, false,
             );
             assert_eq!(Origin::capture(ui.state.as_ref()), origin);
+            crate::terminal_session::ui::tests::workspace_setup::accept_directory_review(&mut ui);
             assert!(ui.view().setup_draft().is_none());
             let lease = mailbox.try_recv().unwrap().unwrap();
             let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
@@ -448,10 +454,11 @@ fn project_quick_handoff_expiry_refuses_and_accepted_launch_keeps_its_budget() {
             crate::terminal_session::ui::tests::workspace_setup::finish_preparation(
                 &mut ui, &mailbox, &clock, &snapshot, false,
             );
+            crate::terminal_session::ui::tests::workspace_setup::accept_directory_review(&mut ui);
             assert!(ui.view().setup_draft().is_none());
             let lease = mailbox.try_recv().unwrap().unwrap();
             let QueuedCommand::WorkspaceSetup(marker) = lease.record() else {
-                panic!("launch after preparation");
+                panic!("launch after the accepted review");
             };
             assert!(marker.0.deadlines.forward_cutoff() > clock.now());
             mailbox.close(CarrierFailure::WorkerExited);

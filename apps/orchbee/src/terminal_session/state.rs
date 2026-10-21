@@ -1567,7 +1567,6 @@ impl NativeSessionState {
             .and_then(|record| record.last_accepted_geometry)
     }
 
-    #[cfg(test)]
     pub(super) const fn notice(&self) -> Option<SessionNotice> {
         self.notice
     }

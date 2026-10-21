@@ -183,6 +183,16 @@ impl TerminationSource for FixedTermination {
     }
 }
 
+/// Admits the startup frame, then requests termination at the first loop turn.
+#[derive(Default)]
+struct TerminationAfterStartup(std::cell::Cell<bool>);
+
+impl TerminationSource for TerminationAfterStartup {
+    fn requested(&self) -> bool {
+        self.0.replace(true)
+    }
+}
+
 struct QueueViewportSource {
     dimensions: std::cell::RefCell<VecDeque<io::Result<Option<WindowDimensions>>>>,
 }
@@ -279,7 +289,8 @@ fn connected_geometry_requires_real_cell_dimensions() -> io::Result<()> {
     let view = ClientView::new(original.columns);
     let geometry = super::terminal_geometry(original, &view, None)?
         .expect("a Full viewport must present a pane");
-    assert_eq!((geometry.columns(), geometry.rows()), (88, 29));
+    // 32 rows less the tab strip, reserved status row, frame and leaf title.
+    assert_eq!((geometry.columns(), geometry.rows()), (88, 28));
     assert_eq!(
         (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
         (8, 20)
@@ -362,7 +373,7 @@ fn connected_geometry_reports_unknown_when_any_cell_pixel_axis_is_missing() -> i
             (geometry.cell_pixel_width(), geometry.cell_pixel_height()),
             (0, 0)
         );
-        assert_eq!((geometry.columns(), geometry.rows()), (88, 29));
+        assert_eq!((geometry.columns(), geometry.rows()), (88, 28));
     }
     Ok(())
 }
@@ -370,11 +381,11 @@ fn connected_geometry_reports_unknown_when_any_cell_pixel_axis_is_missing() -> i
 #[test]
 fn minimal_geometry_deducts_no_invisible_frame() -> io::Result<()> {
     let view = ClientView::new(50);
-    // 50x10 is Minimal: the panel spans the whole host area,
+    // 50x10 is Minimal: the panel spans the host area above the reserved status row,
     // with no border cells deducted because none are drawn.
     let geometry = super::terminal_geometry(dimensions(50, 10), &view, None)?
         .expect("a Minimal viewport still presents a pane");
-    assert_eq!((geometry.columns(), geometry.rows()), (50, 10));
+    assert_eq!((geometry.columns(), geometry.rows()), (50, 9));
     Ok(())
 }
 
@@ -473,7 +484,7 @@ fn test_loop(
 }
 
 #[test]
-fn settled_button_only_initialization_queries_once_before_the_first_draw() -> io::Result<()> {
+fn settled_button_only_initialization_queries_once_after_the_first_draw() -> io::Result<()> {
     let initial = dimensions(80, 24);
     for (mouse, expected_queries) in [(false, 0), (true, 1)] {
         let mut terminal = test_terminal(initial);
@@ -481,7 +492,7 @@ fn settled_button_only_initialization_queries_once_before_the_first_draw() -> io
             inputs: VecDeque::new(),
         };
         let viewport = QueueViewportSource {
-            dimensions: std::cell::RefCell::new(VecDeque::new()),
+            dimensions: std::cell::RefCell::new(VecDeque::from([Ok(Some(initial))])),
         };
         let mut input = RecordingTerminalInput::default();
         let mut modes = Vec::new();
@@ -496,13 +507,22 @@ fn settled_button_only_initialization_queries_once_before_the_first_draw() -> io
                 Ok(())
             }),
             &mut input,
-            &FixedTermination(true),
+            &TerminationAfterStartup::default(),
             &viewport,
             initial,
             mouse,
             ClientView::new(initial.columns),
         );
         assert_eq!(result.unwrap(), LoopExit::Signal);
+        assert!(
+            terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .any(|cell| !cell.symbol().trim().is_empty()),
+            "the startup frame paints before host queries consume their reply window"
+        );
         let mut expected_modes = vec![ModeRequest::AppearanceQuery(
             crate::terminal_host_appearance::Query,
         )];
@@ -1160,14 +1180,13 @@ fn cached_theme_replaces_the_complete_frame_without_changing_geometry_or_forward
                     "{context} {name:?}: geometry"
                 );
                 // This sessionless fixture has canvas beneath the unavailable notice and panel
-                // frame. Chrome owns the projected bars and sidebar.
+                // frame. Chrome owns the projected bars, the reserved status row and sidebar.
                 for y in 0..height {
                     let mut x = 0;
                     while x < width {
                         let cell = &terminal.backend().buffer()[(x, y)];
                         let position = (x, y).into();
-                        let role = if (areas.tier == crate::tui_layout::ViewportTier::TooSmall
-                            && areas.status.contains(position))
+                        let role = if areas.status.contains(position)
                             || areas.tabs.contains(position)
                             || areas
                                 .sidebar

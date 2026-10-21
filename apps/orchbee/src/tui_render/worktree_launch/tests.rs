@@ -88,7 +88,7 @@ fn checkout_picker_bounds_unicode_rows_and_keeps_selected_path_and_footer_visibl
                             .map(|cell| cell.symbol())
                             .collect::<String>();
                         assert!(text.contains(&format!("{}/200", selected + 1)));
-                        assert!(text.contains("/checkout"));
+                        assert!(text.contains(r"\checkout"));
                         assert!(!text.contains('\x1b'));
                         assert!(text.replace(' ', "").contains(&format!(
                             "[{}Esc]",

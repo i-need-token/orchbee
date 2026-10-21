@@ -145,7 +145,7 @@ fn tab_strip_uses_the_tab_identity_without_an_additional_location_breadcrumb() {
                     "{strip}"
                 );
                 #[cfg(windows)]
-                assert!(strip.contains(locale.menu_title()), "{strip}");
+                assert!(!strip.contains(locale.menu_title()), "{strip}");
                 if !repeats_location {
                     assert!(strip.contains("Editor"));
                 }
@@ -215,7 +215,7 @@ fn prefix_choice_queues_exact_child_and_does_not_display_primary_report() {
         .map(|cell| cell.symbol())
         .collect();
     assert!(
-        text.contains("Connecting") && !text.contains("[2/2]") && !text.contains("child shell"),
+        text.contains("Connecting") && text.contains("[2/2]") && text.contains("child shell"),
         "{text}"
     );
 }
@@ -450,7 +450,7 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
         let (x,y) = (0..40).flat_map(|y| (0..120).map(move |x| (x,y))).find(|&(x,y)| {
             matches!(hits.hit_target_at(x,y), Some(HitTarget::Presentation(target)) if target.presentation() == &destination)
         }).unwrap();
-        assert_eq!(y, if layout == 1 { 2 } else { 0 });
+        assert_eq!(y, 2);
         // The whole three-cell [>] glyph is clickable; surrounding cells cannot select.
         assert_eq!(buffer[(x, y)].symbol(), "[");
         assert_eq!(
@@ -524,8 +524,8 @@ fn painted_member_arrows_select_exact_children_in_single_split_and_zoom_views() 
                 .map(|cell| cell.symbol())
                 .collect();
             assert!(
-                selected_text.contains("Connecting") && !selected_text.contains("[2/3]"),
-                "the in-flight switch paints its pending status without an unavailable selector: {selected_text}"
+                selected_text.contains("Connecting") && selected_text.contains("[2/3]"),
+                "the in-flight switch keeps member identity visible while its selector is unavailable: {selected_text}"
             );
             assert!((0..40).all(|y| {
                 (0..120).all(|x| {

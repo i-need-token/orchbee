@@ -283,7 +283,14 @@ fn peer(bad: u8) -> io::Result<FakeServer> {
                                         binding: physical(23),
                                     },
                                 }],
-                                pending: Vec::new(),
+                                pending: vec![AgentLaunchReservation {
+                                    reservation_id: ObapRequestId::parse(&id(102)).unwrap(),
+                                    name: AgentName::parse("starter").unwrap(),
+                                    provider_id: AgentProviderId::parse("codex").unwrap(),
+                                    binding: physical(12),
+                                    remaining_ms: AgentSafeInteger::new(1_000),
+                                    settle_remaining_ms: AgentSafeInteger::new(1_000),
+                                }],
                             },
                         },
                     }),
@@ -342,6 +349,12 @@ fn agent_checkpoint_joins_exact_primary_and_child_without_terminal_effects() -> 
     assert_eq!(rows[1].target, target());
     assert_eq!(rows[0].target.member.as_str(), id(12));
     assert_eq!(rows[0].tab_label.as_deref(), Some("tab"));
+    assert_eq!(
+        rows[0].name.as_deref(),
+        Some("starter"),
+        "a pending launch shows its chosen name"
+    );
+    assert_eq!(rows[1].name.as_deref(), Some("helper"));
     assert!(
         matches!(&rows[0].terminal_title,TerminalTitleObservation::Observed {title:Some(t),..} if t=="⠋ 修复🙂标题")
     );

@@ -666,6 +666,8 @@ impl FrameHitMap {
 pub(crate) struct HitMapBuilder {
     map: FrameHitMap,
     projection: PointerProjection,
+    #[cfg(windows)]
+    covered_sidebar_rows: Vec<Rect>,
 }
 
 impl HitMapBuilder {
@@ -739,8 +741,21 @@ impl HitMapBuilder {
                             HitTarget::Tab(_) | HitTarget::TabGroup { .. }
                         ))
             })
-            .max_by_key(|region| region.rect.height)
             .map(|region| region.rect)
+            .chain(self.covered_sidebar_rows.iter().copied())
+            .filter(|rect| contains(*rect, column, row))
+            .max_by_key(|rect| rect.height)
+    }
+    /// Covered chrome supplies placement geometry only, never activation authority.
+    #[cfg(windows)]
+    pub(crate) fn record_covered_sidebar_geometry(&mut self, painted: Self) {
+        self.covered_sidebar_rows = painted
+            .map
+            .regions
+            .into_iter()
+            .filter(|region| region.target.sidebar_target().is_some())
+            .map(|region| region.rect)
+            .collect();
     }
     #[cfg(windows)]
     pub(crate) fn start_action_menu(&mut self) {
@@ -776,6 +791,8 @@ impl HitMapBuilder {
                 navigator: None,
             },
             projection: PointerProjection::empty(),
+            #[cfg(windows)]
+            covered_sidebar_rows: Vec::new(),
         }
     }
 
@@ -2276,6 +2293,7 @@ impl PointerState {
                 self.cancel_divider();
                 self.cancel_sidebar_width();
                 self.cancel_tab_drag();
+                self.tab_click = None;
                 self.cancel_sidebar_reorder();
             }
             #[cfg(windows)]

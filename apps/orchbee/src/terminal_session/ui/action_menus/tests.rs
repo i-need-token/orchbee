@@ -816,6 +816,15 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                                 )
                         })
                         .collect();
+                    if cells.is_empty() {
+                        let (_, y) = anchor.expect("keyboard menu has enough centered space");
+                        let above = y.min(height - 1);
+                        let below = (height - 1).saturating_sub(y.saturating_add(1));
+                        assert!(above.max(below) < 6, "{width}x{height} {anchor:?}");
+                        assert!(!ui.action_menu_active(), "a refused draw retires the menu");
+                        assert_eq!(ui.menus.menu.confirmed(), None);
+                        continue;
+                    }
                     let left = cells.iter().map(|(x, _)| *x).min().unwrap();
                     let top = cells.iter().map(|(_, y)| *y).min().unwrap();
                     let right = cells.iter().map(|(x, _)| *x).max().unwrap() + 1;
@@ -862,7 +871,7 @@ fn pointer_menu_uses_the_full_viewport_while_keyboard_keeps_content_centering() 
                             x.min(width - (right - left)),
                             "{width}x{height} {anchor:?}"
                         );
-                        assert_eq!(top, y.min(height - 1 - (bottom - top)));
+                        assert!(top > y || bottom <= y, "menu must not cover its anchor");
                     } else {
                         let content = crate::tui_layout::overlay_area(&project_shell_areas(
                             Rect::new(0, 0, width, height),

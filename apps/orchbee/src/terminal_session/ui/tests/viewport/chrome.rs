@@ -49,18 +49,23 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
                     );
                 })
                 .unwrap();
-            let row_text = |row| -> String {
-                (0..width)
+            let cells_text = |row, columns: std::ops::Range<u16>| -> String {
+                columns
                     .map(|column| terminal.backend().buffer()[(column, row)].symbol())
                     .flat_map(str::chars)
                     .filter(|character| !character.is_whitespace())
                     .collect()
             };
+            let row_text = |row| cells_text(row, 0..width);
             let expected_header = match locale {
                 Locale::EnUs => "LivecropCtrl+bPageUpHistory",
                 Locale::ZhCn => "实时裁切Ctrl+bPageUp历史",
             };
-            assert_eq!(row_text(pane.y), expected_header, "{width} {locale:?}");
+            assert_eq!(
+                cells_text(pane.y, pane.x..pane.right()),
+                expected_header,
+                "{width} {locale:?}"
+            );
             let action_row = if areas.tabs.is_empty() {
                 areas.workbench.y
             } else {
@@ -70,14 +75,11 @@ fn read_only_crop_keeps_complete_hints_beside_actions_and_prompt_above_status() 
                 Locale::EnUs => "[Actions]",
                 Locale::ZhCn => "[动作菜单]",
             };
-            if areas.tier == crate::tui_layout::ViewportTier::Minimal {
-                assert!(
-                    !row_text(action_row).ends_with(action),
-                    "{width} {locale:?}"
-                );
-            } else {
-                assert!(row_text(action_row).ends_with(action), "{width} {locale:?}");
-            }
+            // Global actions stay in the menu bindings, never in the top strip.
+            assert!(
+                !row_text(action_row).ends_with(action),
+                "{width} {locale:?}"
+            );
             assert_eq!(
                 terminal.backend().buffer()[(pane.x, pane.bottom() - 2)].symbol(),
                 ">"
@@ -210,7 +212,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
 
     for same_packet in [true, false] {
         for history in [false, true] {
-            let (mut ui, mailbox, _, _) = controlling_ui();
+            let (mut ui, mailbox, clock, _) = controlling_ui();
             let key = install_projection(&mut ui, Some((1000, false, 24)), 0);
             if history {
                 ui.enter_history();
@@ -234,15 +236,34 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
             );
             dispatcher.publish_hit_map(hits.finish());
             assert!(ui.pointer_probe().selection_ready);
-            // Ctrl+B a admits creation. No preview is drawn before this old-map
-            // click, drag, release and wheel sequence is decoded.
+            assert!(ui.request_quick_workspace());
+            let snapshot = ui
+                .state
+                .as_ref()
+                .unwrap()
+                .cache()
+                .canonical_snapshot()
+                .clone();
+            super::super::workspace_setup::finish_preparation(
+                &mut ui, &mailbox, &clock, &snapshot, false,
+            );
+            let token = ui.view().setup_draft().unwrap().token();
+            let resumed = mailbox.try_recv().unwrap().unwrap();
+            assert!(
+                matches!(resumed.record(), QueuedCommand::Poll(_)),
+                "the settled preparation resumes the controller poll"
+            );
+            mailbox.finish_lease(resumed).unwrap();
+            ui.after_setup_draw(Some(ModalPresentation::Presented(token)));
+            // Enter accepts the drawn review and admits creation. No preview is drawn before
+            // this old-map click, drag, release and wheel sequence is decoded.
             let mouse = b"\x1b[<0;2;2M\x1b[<32;3;3M\x1b[<0;3;3m\x1b[<64;2;2M";
             if same_packet {
-                let mut packet = b"\x02a".to_vec();
+                let mut packet = b"\r".to_vec();
                 packet.extend_from_slice(mouse);
                 dispatch(&mut dispatcher, &mut view, &mut ui, &packet);
             } else {
-                dispatch(&mut dispatcher, &mut view, &mut ui, b"\x02a");
+                dispatch(&mut dispatcher, &mut view, &mut ui, b"\r");
                 dispatch(&mut dispatcher, &mut view, &mut ui, mouse);
             }
             assert!(ui.workspace_creation_replaces_content());
@@ -264,7 +285,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
             assert!(!ui.history_key(&KeyEvent::press(KeyCode::PageUp, Modifiers::NONE)));
             assert!(!ui.scrollbar_scroll(&key, source, 0));
             let lease = mailbox.try_recv().unwrap().unwrap();
-            assert!(matches!(lease.record(), QueuedCommand::Refresh(_)));
+            assert!(matches!(lease.record(), QueuedCommand::WorkspaceSetup(_)));
             mailbox.finish_lease(lease).unwrap();
             assert!(
                 mailbox.try_recv().unwrap().is_none(),
@@ -281,7 +302,7 @@ fn creation_admission_retires_old_map_before_mouse_events_in_the_same_or_next_pa
 }
 
 #[test]
-fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
+fn prefix_status_uses_the_reserved_row_without_covering_or_resizing_the_terminal() {
     for (width, height) in [(120, 40), (80, 24), (60, 12), (50, 10)] {
         for locale in [Locale::EnUs, Locale::ZhCn] {
             for theme in [Theme::terminal_native(), Theme::one_light()] {
@@ -296,15 +317,20 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
                 )
                 .unwrap();
                 assert_eq!(
-                    pane.y, areas.panel.y,
-                    "no single-pane title row is reserved"
+                    pane,
+                    crate::tui_layout::native_terminal_area(
+                        areas.panel,
+                        areas.tier.shows_panel_frame(),
+                        false
+                    ),
+                    "a single pane keeps the split frame inset"
                 );
-                assert_eq!(pane.height, areas.panel.height);
-                assert_eq!(
-                    pane.bottom(),
-                    height,
-                    "ordinary content reaches the host bottom"
+                assert!(
+                    pane.bottom() <= areas.status.y,
+                    "the status row is reserved below terminal content"
                 );
+                // The shell observes the drawn pane before painting it.
+                ui.observe_geometry(Geometry::new(pane.width, pane.height, 8, 16).unwrap());
                 let key = install_projection(&mut ui, None, 0);
                 let projection = projection_at(&mut ui, &key);
                 let mut content = frame(&projection.value, 0, false, pane.height);
@@ -336,9 +362,10 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
                     hits.hit_target_at(pane.x, pane.y),
                     Some(HitTarget::Pane { content, .. }) if content == &pane
                 ));
-                assert_eq!(ordinary[(pane.x, height - 1)].symbol(), "x");
+                let last = pane.bottom() - 1;
+                assert_eq!(ordinary[(pane.x, last)].symbol(), "x");
                 assert!(matches!(
-                    hits.hit_target_at(pane.x, height - 1),
+                    hits.hit_target_at(pane.x, last),
                     Some(HitTarget::Pane { .. })
                 ));
                 if areas.sidebar.is_some() {
@@ -352,19 +379,26 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
                     Modifiers::CTRL,
                 )));
                 view.commit(transition, SessionActionDisposition::KeepNavigator);
-                let hits = paint(&mut terminal, &view);
+                paint(&mut terminal, &view);
                 assert!(view.prefix_active());
-                assert!(matches!(
-                    hits.hit_target_at(pane.x, height - 1),
-                    Some(HitTarget::OverlaySurface)
-                ));
                 assert!(
                     !terminal.backend().cursor_visible(),
-                    "a covered terminal cursor stays hidden"
+                    "prefix input hides the terminal cursor"
                 );
-                assert_ne!(
-                    terminal.backend().buffer()[(pane.x, height - 1)].symbol(),
-                    "x"
+                let prefixed = terminal.backend().buffer();
+                for y in pane.y..pane.bottom() {
+                    for x in pane.x..pane.right() {
+                        assert_eq!(
+                            prefixed[(x, y)],
+                            ordinary[(x, y)],
+                            "prefix status never covers terminal cell ({x}, {y})"
+                        );
+                    }
+                }
+                assert!(
+                    (areas.status.x..areas.status.right())
+                        .any(|x| prefixed[(x, areas.status.y)] != ordinary[(x, areas.status.y)]),
+                    "prefix status appears in the reserved row"
                 );
                 assert_eq!(project_shell_areas(area, view.sidebar_surface()), areas);
                 let transition = view.decide(PrefixInput::Key(KeyEvent::press(
@@ -385,7 +419,7 @@ fn prefix_overlays_and_restores_the_last_terminal_row_without_resizing() {
 }
 
 #[test]
-fn ended_single_terminal_keeps_exit_feedback_in_status_without_restoring_a_title_row() {
+fn ended_single_terminal_keeps_exit_feedback_in_the_reserved_status_row() {
     use orchbee_terminal_protocol::{
         CURRENT_PROTOCOL_VERSION, CreationId, Envelope, ExitResult, LifecycleControl, MessageRole,
         PayloadEncoding, TerminalExited, TerminalId, TerminalIdentity, encode_lifecycle_control,
@@ -481,7 +515,7 @@ fn ended_single_terminal_keeps_exit_feedback_in_status_without_restoring_a_title
                             "{locale:?} {width}x{height}: {status}"
                         );
                         assert_eq!(buffer[(pane.x, pane.y)].symbol(), "x");
-                        assert_eq!(pane.y, areas.panel.y);
+                        assert!(pane.bottom() <= areas.status.y);
                         assert!(!terminal.backend().cursor_visible());
                         assert!(matches!(
                             hits.finish().hit_target_at(pane.x, areas.status.y),

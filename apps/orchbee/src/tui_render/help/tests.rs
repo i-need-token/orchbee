@@ -99,6 +99,8 @@ fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
         ] {
             let mut view = ClientView::new(width);
             open_help(&mut view);
+            press(&mut view, KeyCode::Tab, Modifiers::NONE);
+            assert!(view.help_expanded(), "Tab expands every group");
             let mut rendered = String::new();
             let mut complete = false;
             for _ in 0..128 {
@@ -131,10 +133,10 @@ fn grouped_help_localizes_and_fits_standard_terminal_sizes() {
 }
 
 #[test]
-fn fuzzy_filter_uses_semantic_names_and_clear_restores_the_list() {
+fn word_prefix_filter_uses_semantic_names_and_clear_restores_the_list() {
     let mut view = ClientView::new(80);
     open_help(&mut view);
-    for character in "wdi".chars() {
+    for character in "work dir".chars() {
         press(&mut view, KeyCode::Char(character), Modifiers::NONE);
     }
     let (buffer, _, _) = render_panel(80, 24, &view, Locale::EnUs, true);
@@ -194,9 +196,13 @@ fn unavailable_actions_show_a_localized_reason_in_the_disabled_role() {
 fn scrolling_publishes_exact_line_offset_and_stale_controls_are_rejected() {
     let mut view = ClientView::new(80);
     open_help(&mut view);
+    press(&mut view, KeyCode::Tab, Modifiers::NONE);
     let (_, map, _) = render_panel(80, 24, &view, Locale::EnUs, true);
     let source = *map.help_draw_source().unwrap();
-    let HelpDrawSource::Presented { page, last, .. } = source else {
+    let HelpDrawSource::Presented {
+        page, last, rows, ..
+    } = source
+    else {
         panic!("complete Help must publish scroll bounds");
     };
     assert_eq!(page, 0);
@@ -218,7 +224,34 @@ fn scrolling_publishes_exact_line_offset_and_stale_controls_are_rejected() {
     press(&mut view, KeyCode::Home, Modifiers::NONE);
     assert_eq!(view.help_page(), 0);
     press(&mut view, KeyCode::PageDown, Modifiers::NONE);
-    assert_eq!(view.help_page(), 8);
+    assert!(rows > 1, "the published viewport has several rows");
+    assert_eq!(
+        view.help_page(),
+        rows,
+        "PageDown moves one published viewport"
+    );
+}
+
+#[test]
+fn filtered_help_prints_each_group_heading_once() {
+    for query in ["tab", "new", "panel"] {
+        let mut view = ClientView::new(120);
+        open_help(&mut view);
+        for character in query.chars() {
+            press(&mut view, KeyCode::Char(character), Modifiers::NONE);
+        }
+        let (buffer, _, _) = render_panel(120, 40, &view, Locale::EnUs, true);
+        let rendered = rows(&buffer);
+        for heading in ["Common tasks", "Workspace", "Tab", "Panel"] {
+            let headings = rendered
+                .lines()
+                .filter(|line| {
+                    line.trim_matches(|c: char| c == '│' || c.is_whitespace()) == heading
+                })
+                .count();
+            assert!(headings <= 1, "{query}: {heading} x{headings}\n{rendered}");
+        }
+    }
 }
 
 #[test]
@@ -268,15 +301,15 @@ fn no_match_and_backspace_are_visible_without_leaking_input() {
 fn bidi_filter_text_is_sanitized_for_display_while_raw_query_still_matches() {
     let mut view = ClientView::new(80);
     open_help(&mut view);
-    for character in ['n', 'w', '\u{202e}', 'b'] {
+    for character in ['n', 'e', 'w', '\u{202e}', 'w', 'o'] {
         press(&mut view, KeyCode::Char(character), Modifiers::NONE);
     }
-    assert_eq!(view.help_filter(), "nw\u{202e}b");
+    assert_eq!(view.help_filter(), "new\u{202e}wo");
 
     let (buffer, _, _) = render_panel(80, 24, &view, Locale::EnUs, true);
     let rendered = rows(&buffer);
     assert!(rendered.contains("New Workspace"), "{rendered}");
-    assert!(rendered.contains("Filter: nwb"), "{rendered}");
+    assert!(rendered.contains("Filter: newwo"), "{rendered}");
     assert!(!rendered.contains('\u{202e}'), "{rendered}");
 }
 

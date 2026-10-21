@@ -79,7 +79,7 @@ fn paint_menu_over_sidebar(
         .expect("the painted Quick Workspace row overlaps the sidebar edge");
     assert_eq!(map.hit_target_at(34, row_y), Some(&target));
     assert_eq!(
-        map.hit_target_at(23, 10),
+        map.hit_target_at(23, row_y - 1),
         Some(&HitTarget::OverlaySurface),
         "the menu frame is not a sidebar backdrop"
     );
@@ -149,7 +149,7 @@ fn sidebar_menu_overlap_frame_and_backdrop_keep_distinct_capture_semantics() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let (mut view, mut port, mut dispatcher) = open_menu();
         paint_menu_over_sidebar(&view, &mut port, &mut dispatcher, locale);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;24;11Mtail");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;24;12Mtail");
         assert!(port.menu.active(), "frame press must not dismiss");
         assert_eq!(
             port.menu.query(),
@@ -165,7 +165,7 @@ fn sidebar_menu_overlap_frame_and_backdrop_keep_distinct_capture_semantics() {
             "Backspace clears the frame-test query"
         );
         paint_menu_over_sidebar(&view, &mut port, &mut dispatcher, locale);
-        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;24;11m");
+        dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;24;12m");
         dispatch_all(&mut dispatcher, &mut view, &mut port, b"\x1b[<0;81;12Mtail");
         assert!(!port.menu.active(), "only the menu backdrop dismisses it");
         assert!(port.calls.borrow().is_empty());

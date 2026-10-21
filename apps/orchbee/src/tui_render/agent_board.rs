@@ -470,14 +470,10 @@ fn render_start_form(
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let heading = if board.start_phase().is_some() {
-        start_status(text, board, theme).0
-    } else {
-        text.board.empty.to_owned()
-    };
+    let heading = text.board.empty;
     frame.render_widget(
         Paragraph::new(truncate_display(
-            &heading,
+            heading,
             usize::from(layout.empty.width),
             theme.glyphs.ellipsis,
         ))

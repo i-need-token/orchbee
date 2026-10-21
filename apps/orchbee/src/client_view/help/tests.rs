@@ -4,7 +4,8 @@ use super::*;
 fn a_new_episode_rejects_the_previous_frames_controls() {
     let mut help = State::default();
     assert!(help.open());
-    let old = help.candidate().presented(0, 2).unwrap();
+    // A one-row published viewport pages by one row.
+    let old = help.candidate().presented_rows(0, 2, 1).unwrap();
     help.settle(Some(old), true);
     assert_eq!(
         help.activate(&DrawnHelpControl::new(old, HelpControl::Next)),

@@ -149,11 +149,11 @@ impl PointerState {
             Target::AgentBoard(token) => port
                 .scroll_agent_board(token, pending.up, lines)
                 .map(Target::AgentBoard),
-            Target::Help(source @ HelpDrawSource::Presented { last, .. }) => view
+            Target::Help(source @ HelpDrawSource::Presented { last, rows, .. }) => view
                 .scroll_drawn_help(source, pending.up)
                 .then(|| {
                     let candidate = view.help_draw_candidate()?;
-                    candidate.presented(candidate.page(), *last)
+                    candidate.presented_rows(candidate.page(), *last, *rows)
                 })
                 .flatten()
                 .map(Target::Help),

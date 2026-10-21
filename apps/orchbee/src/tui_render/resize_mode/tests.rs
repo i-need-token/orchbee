@@ -159,7 +159,7 @@ fn three_cell_exit_is_complete_and_narrower_refusal_preserves_buffer_and_hits() 
     };
     let theme = Theme::rgb_test_dark();
 
-    let mut accepted = Terminal::new(TestBackend::new(3, 1)).unwrap();
+    let mut accepted = Terminal::new(TestBackend::new(3, 2)).unwrap();
     let mut accepted_hits = HitMapBuilder::new();
     let accepted_view = resize_view(3);
     accepted
@@ -180,6 +180,7 @@ fn three_cell_exit_is_complete_and_narrower_refusal_preserves_buffer_and_hits() 
             .buffer()
             .content()
             .iter()
+            .take(3)
             .map(|cell| cell.symbol())
             .collect::<String>(),
         "[x]"

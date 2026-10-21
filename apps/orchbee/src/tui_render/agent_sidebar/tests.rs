@@ -12,6 +12,41 @@ use ratatui::{Terminal, backend::TestBackend, style::Modifier};
 mod empty;
 
 #[test]
+fn default_agent_title_prefers_explicit_name_then_task_and_never_an_automatic_number() {
+    for (name, title, expected) in [
+        (Some("alpha"), "Fix input", "alpha"),
+        (None, "Fix input", "Fix input"),
+        (Some("  "), "1", "codex"),
+        (None, "", "codex"),
+    ] {
+        let mut view = view(120, 40, 1);
+        let mut agent = row(23);
+        agent.name = name.map(str::to_owned);
+        agent.label = title.into();
+        agent.metadata.title = None;
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            Agents::Ready(checkpoint(vec![agent])),
+        )]);
+        let navigation = view.machines.sidebar_navigation_rows();
+        let agent = navigation
+            .iter()
+            .find_map(|entry| match entry {
+                crate::machine_picker::SidebarRow::Agent { row, .. } => Some(row),
+                _ => None,
+            })
+            .unwrap();
+        let lines = tokens::lines(&view, agent, Locale::EnUs, &Theme::terminal_native(), 80);
+        let actual: String = lines[0]
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        assert_eq!(actual, expected);
+    }
+}
+
+#[test]
 fn live_raw_and_stripped_titles_and_custom_title_keep_distinct_values_and_exact_targets() {
     use orchbee_workbench_protocol::{
         MetadataTokenKey, MetadataTokenValue, MetadataTokens, TerminalTitleObservation,
@@ -388,8 +423,8 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
         let t = view.decide(PrefixInput::Key(key));
         view.commit(t, SessionActionDisposition::KeepNavigator);
     }
-    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
-    let window = (0..12)
+    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 13);
+    let window = (0..13)
         .find_map(|y| match hits.hit_target_at(2, y) {
             Some(HitTarget::MachineAgentRow { window, .. }) => Some(*window),
             _ => None,
@@ -398,9 +433,9 @@ fn variable_sidebar_heights_gaps_and_small_viewports_publish_exact_hit_geometry(
     assert_eq!(window.capacity, 2);
     view.machines.queue_space_scroll(window, false);
     assert!(view.machines.settle_sidebar_scroll());
-    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 12);
+    let (_, hits) = paint(&view, Locale::EnUs, &Theme::terminal_native(), 60, 13);
     let mut painted = std::collections::BTreeMap::new();
-    for y in 0..12 {
+    for y in 0..13 {
         if let Some(HitTarget::MachineAgentRow { selected, window }) = hits.hit_target_at(2, y) {
             // The six-row body fits both remaining entries exactly: the first
             // visible entry owns no leading gap (three Claude rows), then the
@@ -1212,29 +1247,29 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     assert!(rows[4].contains("Standalone"), "{rows:?}");
     assert!(!rows[4].contains(theme.glyphs.ellipsis), "{rows:?}");
     assert!(
-        rows[5].contains('1') && rows[5].contains("build"),
+        rows[6].contains('1') && rows[6].contains("build"),
         "{rows:?}"
     );
     assert!(
-        rows[6].contains(&format!("codex {} Working", theme.glyphs.middle_dot)),
+        rows[7].contains(&format!("codex {} Working", theme.glyphs.middle_dot)),
         "{rows:?}"
     );
     assert!(rows[11].contains("[ Settings ]"), "{rows:?}");
     assert!((0..30).any(|x| matches!(hits.hit_target_at(x, 2), Some(HitTarget::SearchButton))));
     assert!(matches!(
-        hits.hit_target_at(2, 5),
+        hits.hit_target_at(2, 6),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(27, 6),
+        hits.hit_target_at(27, 7),
         Some(HitTarget::MachineAgentRow { .. })
     ));
     assert!(matches!(
-        hits.hit_target_at(28, 5),
+        hits.hit_target_at(28, 6),
         Some(HitTarget::OverlaySurface)
     ));
     assert!(
-        hits.hit_target_at(30, 5).is_none(),
+        hits.hit_target_at(30, 6).is_none(),
         "outside overlay must dismiss without selecting"
     );
 }
@@ -1560,8 +1595,14 @@ fn width_draft_moves_painted_geometry_and_rejects_an_equal_rect_with_stale_prefe
         view.machines
             .set_sidebar_width(SidebarWidth::DEFAULT, SidebarWidth::new(60).unwrap());
         view.resize(60);
-        let transition = view.decide_action(crate::client_view::ClientAction::FocusBusinessSidebar);
-        view.commit(transition, SessionActionDisposition::KeepNavigator);
+        if matches!(
+            view.sidebar_surface(),
+            crate::client_view::SidebarSurface::Hidden
+        ) {
+            let transition =
+                view.decide_action(crate::client_view::ClientAction::ToggleBusinessSidebar);
+            view.commit(transition, SessionActionDisposition::KeepNavigator);
+        }
         let old = DrawnSidebarWidth::new(Rect::new(0, 0, 60, 12), view.sidebar_surface()).unwrap();
         let drag = SidebarWidthDrag::begin(old, old.edge().x, 3).unwrap();
         view.machines

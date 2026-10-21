@@ -103,7 +103,9 @@ pub(super) struct State {
     providers: Vec<&'static str>,
     detected: Vec<&'static str>,
     cursor: usize,
-    selected_provider: usize,
+    /// Unset while local detection may still find an installed provider, so the form never
+    /// presents an undetected default that later jumps.
+    selected_provider: Option<usize>,
     draft_revision: u64,
     generation: u64,
     operation: Option<Operation>,
@@ -120,13 +122,13 @@ impl State {
             catalog_revision: 0,
             catalog_task: None,
             retiring_catalog_tasks: Vec::new(),
-            name: "pi-1".into(),
+            name: String::new(),
             automatic_name: true,
             provider_chosen: false,
             providers: crate::agent_provider::CANONICAL_IDS.to_vec(),
             detected: Vec::new(),
-            cursor: 4,
-            selected_provider: 0,
+            cursor: 0,
+            selected_provider: None,
             draft_revision: 0,
             generation: 0,
             operation: None,
@@ -162,6 +164,7 @@ impl State {
             // for a local Session; presenting it for a tunneled target would
             // falsely claim that a command exists in the target terminal.
             self.catalog = Catalog::Unavailable;
+            self.settle_default_provider();
             return true;
         }
         let revision = self.catalog_revision;
@@ -170,7 +173,10 @@ impl State {
                 self.catalog = Catalog::Loading;
                 self.catalog_task = Some(task);
             }
-            Err(_) => self.catalog = Catalog::Unavailable,
+            Err(_) => {
+                self.catalog = Catalog::Unavailable;
+                self.settle_default_provider();
+            }
         }
         true
     }
@@ -245,7 +251,36 @@ impl State {
     }
 
     pub(super) fn selected_provider(&self) -> Option<&'static str> {
-        self.providers().get(self.selected_provider).copied()
+        self.providers().get(self.selected_provider?).copied()
+    }
+
+    /// Without a detected or chosen provider, a settled catalog falls back to the first
+    /// canonical provider so the form stays startable by explicit confirmation.
+    fn settle_default_provider(&mut self) {
+        if self.selected_provider.is_none() && self.draft_editable() && !self.providers.is_empty() {
+            self.selected_provider = Some(0);
+            self.suggest_name();
+        }
+    }
+
+    /// Detected providers lead, each group in canonical order; the selection follows its
+    /// provider identity rather than its former position.
+    fn order_providers(&mut self) {
+        let selected = self.selected_provider();
+        let canonical = crate::agent_provider::CANONICAL_IDS;
+        self.providers = canonical
+            .iter()
+            .copied()
+            .filter(|provider| self.detected.contains(provider))
+            .chain(
+                canonical
+                    .iter()
+                    .copied()
+                    .filter(|provider| !self.detected.contains(provider)),
+            )
+            .collect();
+        self.selected_provider =
+            selected.and_then(|id| self.providers.iter().position(|provider| *provider == id));
     }
 
     pub(super) fn name(&self) -> &str {
@@ -294,10 +329,10 @@ impl State {
             return false;
         }
         self.provider_chosen = true;
-        if self.selected_provider == index {
+        if self.selected_provider == Some(index) {
             return false;
         }
-        self.selected_provider = index;
+        self.selected_provider = Some(index);
         self.suggest_name();
         self.touch_draft();
         true
@@ -309,8 +344,7 @@ impl State {
         };
         let selected = self
             .selected_provider
-            .saturating_add_signed(delta)
-            .min(maximum);
+            .map_or(0, |index| index.saturating_add_signed(delta).min(maximum));
         self.select_provider(selected)
     }
 
@@ -538,17 +572,19 @@ impl State {
                 Ok((revision, _)) if revision != expected => continue,
                 Ok((_, CatalogUpdate::Found(provider))) => {
                     if !self.detected.contains(&provider) {
-                        if self.detected.is_empty()
+                        let first = self.detected.is_empty();
+                        self.detected.push(provider);
+                        self.detected.sort_unstable();
+                        self.order_providers();
+                        if first
                             && !self.provider_chosen
                             && self.draft_editable()
                             && let Some(index) =
                                 self.providers.iter().position(|id| *id == provider)
                         {
-                            self.selected_provider = index;
+                            self.selected_provider = Some(index);
                             self.suggest_name();
                         }
-                        self.detected.push(provider);
-                        self.detected.sort_unstable();
                         changed = true;
                     }
                 }
@@ -559,12 +595,14 @@ impl State {
                     } else {
                         Catalog::Unavailable
                     };
+                    self.settle_default_provider();
                     changed = true;
                     break;
                 }
                 Err(TryRecvError::Disconnected) => {
                     self.retire_active_catalog_task();
                     self.catalog = Catalog::Unavailable;
+                    self.settle_default_provider();
                     changed = true;
                     break;
                 }
@@ -595,6 +633,7 @@ impl State {
             self.catalog = Catalog::Unloaded;
             self.catalog_revision = self.catalog_revision.wrapping_add(1);
             self.detected.clear();
+            self.order_providers();
         }
     }
 
@@ -625,7 +664,7 @@ impl State {
             )
             .collect();
         self.catalog_revision = self.catalog_revision.wrapping_add(1);
-        self.selected_provider = 0;
+        self.selected_provider = Some(0);
         self.suggest_name();
     }
 

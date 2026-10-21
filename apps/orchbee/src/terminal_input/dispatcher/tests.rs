@@ -680,7 +680,10 @@ fn paste_payload_never_enters_prefix_matching_and_forwards_whole() {
         *calls.borrow(),
         [Call::Forward(b"\x1b[200~x\x1b[201~".to_vec())]
     );
-    assert!(view.prefix_active());
+    assert!(
+        !view.prefix_active(),
+        "a terminal paste retires the interrupted prefix"
+    );
 }
 
 #[test]

@@ -4,6 +4,62 @@ use orchbee_workbench_protocol::WorkbenchTabGroupId;
 use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
+fn overflow_markers_keep_the_active_tab_visible_and_do_not_acquire_hits() {
+    for glyphs in [GlyphSet::UTF8, GlyphSet::ASCII] {
+        let theme = Theme::terminal_native().with_glyphs(glyphs);
+        for active in [0, 4, 8] {
+            let tabs: Vec<_> = (0..9)
+                .map(|index| GroupTabDisplay {
+                    tab: TabDisplay {
+                        position: index + 1,
+                        active: index == active,
+                        label: format!("task-{index}").into(),
+                    },
+                    group: None,
+                    collapsed: false,
+                    selected: false,
+                })
+                .collect();
+            let mut terminal = Terminal::new(TestBackend::new(36, 1)).unwrap();
+            let mut hits = Vec::new();
+            terminal
+                .draw(|frame| {
+                    render(
+                        frame,
+                        frame.area(),
+                        &tabs,
+                        &theme,
+                        "Group",
+                        GroupInteractions::new(
+                            &mut (),
+                            &mut |_, _, _, _| ProjectedPointer::Rest,
+                            &mut |_, index, _, rect| hits.push((index, rect)),
+                        ),
+                    )
+                })
+                .unwrap();
+            let text: String = terminal
+                .backend()
+                .buffer()
+                .content()
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect();
+            assert!(text.contains(&format!("task-{active}")), "{text}");
+            assert!(hits.iter().any(|(index, _)| *index == active));
+            if active > 0 {
+                assert!(text.starts_with(theme.glyphs.ellipsis), "{text}");
+                assert!(hits.iter().all(|(_, rect)| rect.x > 0));
+            }
+            if active < 8 {
+                assert!(text.ends_with(theme.glyphs.ellipsis), "{text}");
+                assert!(hits.iter().all(|(_, rect)| rect.right() < 36));
+            }
+        }
+    }
+}
+
+#[test]
 fn unnamed_group_has_localized_visible_header_and_identity_hit_region() {
     let group = TabGroup {
         group_id: WorkbenchTabGroupId::parse(&format!("{:032x}", 1)).unwrap(),
@@ -209,11 +265,11 @@ fn checked_and_current_tracks_keep_fixed_member_geometry() {
     assert_eq!(checked[(checked_x, 0)].symbol(), "*");
     assert_eq!(
         unchecked[(unchecked_x + 1, 0)].symbol(),
-        theme.current_context_marker()
+        theme.glyphs.active_marker
     );
     assert_eq!(
         checked[(checked_x + 1, 0)].symbol(),
-        theme.current_context_marker()
+        theme.glyphs.active_marker
     );
     assert_eq!(
         checked[(checked_x, 0)].fg,
@@ -310,7 +366,7 @@ fn pointer_surfaces_pair_group_text_and_preserve_member_checked_current_tracks()
             );
             assert_eq!(
                 buffer[(target.x + 1, target.y)].symbol(),
-                theme.current_context_marker()
+                theme.glyphs.active_marker
             );
             assert_eq!(
                 buffer[(target.x, target.y)].fg,

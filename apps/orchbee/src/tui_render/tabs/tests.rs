@@ -199,7 +199,7 @@ fn compact_strip_formats_boundaries_without_assuming_single_digit_positions() {
         if count == 0 {
             assert_eq!(text, format!("{}\n", " ".repeat(80)));
         } else {
-            assert!(text.contains(&format!(" {count} ")), "{text:?}");
+            assert!(text.contains(&format!("*{count} ")), "{text:?}");
         }
     }
 }
@@ -220,7 +220,7 @@ fn compact_window_starts_at_a_token_boundary_and_keeps_the_active_prefix_visible
 
     let (text, _) = rendered(8, 1, &tabs, Some(15), Surface::Compact);
 
-    assert!(text.starts_with(" 15 "), "{text:?}");
+    assert!(text.starts_with("*15 "), "{text:?}");
     assert!(!text.contains("14"));
 }
 
@@ -246,7 +246,7 @@ fn compact_strip_keeps_duplicates_and_sanitizes_only_the_temporary_rendering() {
 
     let (text, _) = rendered(80, 1, &tabs, Some(3), Surface::Compact);
 
-    assert!(text.contains(" same   same   same"), "{text:?}");
+    assert!(text.contains(" same   same  *same"), "{text:?}");
     assert_eq!(unsafe_label, canonical);
     assert!(!text.trim_end_matches('\n').chars().any(char::is_control));
 }
@@ -261,8 +261,8 @@ fn compact_strip_clips_without_splitting_a_double_width_cell() {
     let (prefix, _) = rendered(4, 1, &tabs, Some(1), Surface::Compact);
     let (clipped, buffer) = rendered(6, 1, &tabs, Some(1), Surface::Compact);
 
-    assert_eq!(prefix, " …  \n");
-    assert_eq!(clipped, " 界 s… \n");
+    assert_eq!(prefix, "*…  \n");
+    assert_eq!(clipped, "*界 s… \n");
     assert_eq!(buffer[(5, 0)].symbol(), " ");
 }
 
@@ -277,7 +277,7 @@ fn long_active_label_truncates_with_an_ellipsis_after_its_complete_prefix() {
 
     let (text, _) = rendered(9, 1, &tabs, Some(1), Surface::Compact);
 
-    assert_eq!(text, " e\u{301}界 界 …  \n");
+    assert_eq!(text, "*e\u{301}界 界 …  \n");
     assert_eq!(label, canonical);
 }
 
@@ -292,7 +292,7 @@ fn long_chinese_label_truncates_on_display_width_with_an_ellipsis() {
 
     // Label padding leaves room for four CJK glyphs and an ellipsis.
     // Wide graphemes occupy a continuation cell that reads back as a space.
-    assert_eq!(text, " 项 目 管 理 …  \n");
+    assert_eq!(text, "*项 目 管 理 …  \n");
     assert!(!text.replace(' ', "").contains("器"));
 }
 
@@ -318,7 +318,7 @@ fn one_column_compact_and_navigator_rectangles_clip_safely() {
     let (compact, _) = rendered(1, 1, &tabs, Some(1), Surface::Compact);
     let (navigator, _) = rendered(1, 1, &tabs, Some(1), Surface::Navigator);
 
-    assert_eq!(compact, " \n");
+    assert_eq!(compact, "*\n");
     assert_eq!(navigator, " \n");
 }
 
@@ -362,7 +362,7 @@ fn rendering_is_bounded_by_its_rect_and_marks_the_active_token_style() {
     }));
     let bounded = terminal.backend().buffer();
     assert_eq!(bounded[(2, 0)].symbol(), ".");
-    assert_eq!(bounded[(3, 0)].symbol(), " ");
+    assert_eq!(bounded[(3, 0)].symbol(), "*");
     assert_eq!(bounded[(4, 0)].symbol(), ".");
 
     let (_, styled) = rendered(16, 1, &tabs, Some(2), Surface::Compact);
@@ -395,7 +395,7 @@ fn compact_numeric_label_is_not_prefixed_again_and_monochrome_keeps_current_iden
         };
         let (label, _) = compact_token(&tab, 20, &theme).unwrap();
         assert_eq!(label.matches('1').count(), 1);
-        assert_eq!(label, format!("{}1 ", theme.current_context_marker()));
+        assert_eq!(label, format!("{}1 ", theme.glyphs.active_marker));
         if theme.color(Role::SurfaceCurrent) == theme.color(Role::SurfaceChrome) {
             assert!(label.starts_with(theme.glyphs.active_marker));
         }
@@ -423,7 +423,7 @@ fn token_formatting_is_usize_safe() {
         .map(|span| span.content.as_ref())
         .collect::<String>();
 
-    assert_eq!(compact, " label ");
+    assert_eq!(compact, "*label ");
     assert_eq!(navigator, format!("  * {} label", usize::MAX));
 }
 
@@ -554,7 +554,7 @@ fn compact_pointer_surface_keeps_current_content_and_exact_token_geometry() {
         let buffer = terminal.backend().buffer();
         assert_eq!(
             buffer[(current.x, current.y)].symbol(),
-            theme.current_context_marker()
+            theme.glyphs.active_marker
         );
         assert_eq!(buffer[(current.x + 1, current.y)].bg, theme.color(role));
         assert!(
