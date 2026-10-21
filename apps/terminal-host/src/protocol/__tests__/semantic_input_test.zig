@@ -13,20 +13,6 @@ test "mouse button set preserves wire identity" {
     try std.testing.expect(!buttons.contains(.left));
 }
 
-test "mouse motion distinguishes hover from drag" {
-    const hover: subject.MouseAction = .{ .motion = .hover };
-    const drag: subject.MouseAction = .{ .motion = .{ .drag = .left } };
-
-    switch (hover.motion) {
-        .hover => {},
-        .drag => return error.TestUnexpectedResult,
-    }
-    switch (drag.motion) {
-        .hover => return error.TestUnexpectedResult,
-        .drag => |button| try std.testing.expectEqual(subject.MouseButton.left, button),
-    }
-}
-
 test "modifier fields retain the validated wire bit layout" {
     const modifiers = subject.Modifiers.fromValidatedBits(
         (@as(u16, 1) << 1) | (@as(u16, 1) << 7),

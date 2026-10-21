@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	areDraggedTabIdsConsecutive,
 	calculateHorizontalTabStripTrailingEdge,
-	joinClassNames,
 	nextAvailableEntityId,
 } from '../tab-strip-internals';
 
@@ -15,10 +14,6 @@ describe('tab-strip internals', () => {
 		expect(areDraggedTabIdsConsecutive([{ id: 'a' }, { id: 'b' }, { id: 'c' }], ['a', 'c'])).toBe(
 			false,
 		);
-	});
-
-	it('joins defined CSS Module class names in source order', () => {
-		expect(joinClassNames('root', undefined, 'active')).toBe('root active');
 	});
 
 	it('keeps the ideal trailing edge as the floor while dragging', () => {

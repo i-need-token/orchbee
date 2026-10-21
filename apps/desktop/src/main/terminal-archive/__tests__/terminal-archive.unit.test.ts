@@ -417,7 +417,10 @@ describe('terminal archive document', () => {
 		},
 	);
 
-	it('rejects corrupted content and non-contiguous history', () => {
+	it('rejects truncated archives, corrupted content, and non-contiguous history', () => {
+		expect(decodeTerminalArchive(new Uint8Array([0x4f, 0x42, 0x54, 0x41]))).toMatchObject({
+			ok: false,
+		});
 		const write = createArchiveWrite(terminalPresentationId('presentation-one'));
 		const encoded = encodeTerminalArchive(write);
 		if (!encoded.ok) throw new Error(encoded.detail);

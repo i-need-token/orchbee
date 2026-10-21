@@ -5,7 +5,7 @@
 		"rootDir": "./src",
 		"jsx": "react-jsx",
 		"lib": ["es2022", "dom", "dom.iterable"],
-		"types": ["react", "react-dom", "vitest/globals"],
+		"types": ["react", "vitest/globals"],
 		"declaration": true,
 		"declarationMap": true,
 		"sourceMap": true

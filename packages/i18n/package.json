@@ -35,9 +35,7 @@
 		"@rsbuild/plugin-react": "catalog:",
 		"@rslib/core": "catalog:",
 		"@types/react": "catalog:",
-		"@types/react-dom": "catalog:",
 		"react": "catalog:",
-		"react-dom": "catalog:",
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {

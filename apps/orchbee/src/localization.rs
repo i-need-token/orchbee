@@ -327,16 +327,6 @@ pub(crate) struct ShellText<'a> {
     pub(crate) binding_unbound: &'static str,
     #[cfg(not(windows))]
     pub(crate) overlay_input_hint: &'static str,
-    #[cfg(test)]
-    pub(crate) help_close_label: &'static str,
-    #[cfg(test)]
-    pub(crate) help_previous_label: &'static str,
-    #[cfg(test)]
-    pub(crate) help_next_label: &'static str,
-    #[cfg(test)]
-    pub(crate) help_pages_label: &'static str,
-    #[cfg(test)]
-    pub(crate) help_escape_close_hint: &'static str,
     pub(crate) overlay_refused: &'static str,
     #[cfg(not(windows))]
     pub(crate) navigator_detail: &'static str,
@@ -429,16 +419,6 @@ const EN_US_SHELL: ShellText<'static> = ShellText {
     binding_unbound: "Unbound",
     #[cfg(not(windows))]
     overlay_input_hint: "Terminal input continues while this overlay is visible.",
-    #[cfg(test)]
-    help_close_label: "Close help",
-    #[cfg(test)]
-    help_previous_label: "Previous page",
-    #[cfg(test)]
-    help_next_label: "Next page",
-    #[cfg(test)]
-    help_pages_label: "Turn pages",
-    #[cfg(test)]
-    help_escape_close_hint: "Esc close",
     panel_title: "Terminal",
     pointer_released: "mouse released · Ctrl+B m restores",
     prefix_active: "PREFIX Ctrl+B",
@@ -526,16 +506,6 @@ const ZH_CN_SHELL: ShellText<'static> = ShellText {
     binding_unbound: "未绑定",
     #[cfg(not(windows))]
     overlay_input_hint: "此浮层显示时，终端输入仍会继续传递。",
-    #[cfg(test)]
-    help_close_label: "关闭帮助",
-    #[cfg(test)]
-    help_previous_label: "上一页",
-    #[cfg(test)]
-    help_next_label: "下一页",
-    #[cfg(test)]
-    help_pages_label: "翻页",
-    #[cfg(test)]
-    help_escape_close_hint: "Esc 关闭帮助",
     panel_title: "终端",
     pointer_released: "鼠标已释放 · Ctrl+B m 恢复",
     prefix_active: "前缀 Ctrl+B",

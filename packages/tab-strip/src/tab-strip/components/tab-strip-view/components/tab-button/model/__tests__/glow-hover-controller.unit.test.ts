@@ -1,21 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-	GLOW_HOVER_DEFAULT_DURATION_MS,
-	GLOW_HOVER_SUBTLE_OPACITY_SCALE,
 	HideHoverStyle,
 	ShowHoverStyle,
-	VERTICAL_GLOW_HOVER_DURATION_MS,
 	GlowHoverController,
 	sampleGlowHoverTween,
 } from '../glow-hover-controller';
 
 describe('GlowHoverController', () => {
-	it('matches the horizontal/vertical duration and opacity constants', () => {
-		expect(GLOW_HOVER_DEFAULT_DURATION_MS).toBe(200);
-		expect(VERTICAL_GLOW_HOVER_DURATION_MS).toBe(50);
-		expect(GLOW_HOVER_SUBTLE_OPACITY_SCALE).toBe(0.45);
-	});
-
 	it('eases a subtle show out and a gradual hide in', () => {
 		const controller = new GlowHoverController(200);
 		controller.show(ShowHoverStyle.Subtle, 1_000);

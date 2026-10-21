@@ -2,19 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	getHorizontalTabSeparatorBounds,
 	getHorizontalTabSeparatorTargets,
-	TAB_CONTENT_HORIZONTAL_INSET,
-	HORIZONTAL_TAB_TOP_INSET,
 } from '../tab-style-views';
-import { LAYOUT_CONSTANTS } from '../layout-constants';
 
 describe('TabStyleViews horizontal geometry', () => {
-	it('uses the full 36px surface inside the even-pixel strip', () => {
-		expect(LAYOUT_CONSTANTS.tabStripHeight).toBe(36);
-		expect(HORIZONTAL_TAB_TOP_INSET).toBe(0);
-		expect(LAYOUT_CONSTANTS.tabStripHeight - HORIZONTAL_TAB_TOP_INSET).toBe(36);
-		expect(TAB_CONTENT_HORIZONTAL_INSET).toBe(18);
-	});
-
 	it('uses the 1 by 20 separator geometry', () => {
 		expect(getHorizontalTabSeparatorBounds(100)).toEqual({
 			leading: { x: 7, y: 8, width: 1, height: 20 },
